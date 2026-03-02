@@ -4,7 +4,7 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { daytonaApiKey, sandboxId, repoPath, action, githubPat, targetBranch, currentBranch } = body
+  const { daytonaApiKey, sandboxId, repoPath, action, githubPat, targetBranch, currentBranch, repoOwner, repoApiName, tagName } = body
 
   if (!daytonaApiKey || !sandboxId || !repoPath || !action) {
     return Response.json({ error: "Missing required fields" }, { status: 400 })
@@ -126,6 +126,107 @@ export async function POST(req: Request) {
         // Switch back to current branch
         await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
         return Response.json({ success: true })
+      }
+
+      case "rebase": {
+        if (!githubPat || !targetBranch || !currentBranch || !repoOwner || !repoApiName) {
+          return Response.json({ error: "Missing required fields for rebase" }, { status: 400 })
+        }
+        // Checkout target branch, pull latest, come back, rebase
+        const coTarget2 = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git checkout ${targetBranch} 2>&1`
+        )
+        if (coTarget2.exitCode) {
+          return Response.json({ error: "Failed to checkout target: " + coTarget2.result }, { status: 500 })
+        }
+        try {
+          await sandbox.git.pull(repoPath, "x-access-token", githubPat)
+        } catch {
+          // Target may already be up to date
+        }
+        await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
+        const rebaseResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rebase ${targetBranch} 2>&1`
+        )
+        if (rebaseResult.exitCode) {
+          await sandbox.process.executeCommand(`cd ${repoPath} && git rebase --abort 2>&1`)
+          return Response.json({ error: "Rebase conflict: " + rebaseResult.result }, { status: 409 })
+        }
+        // Get SHA for force push via GitHub API
+        const shaResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rev-parse HEAD 2>&1`
+        )
+        const sha = shaResult.result.trim()
+        // Force push via GitHub API (PATCH refs)
+        const refRes = await fetch(
+          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${githubPat}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+            body: JSON.stringify({ sha, force: true }),
+          }
+        )
+        if (!refRes.ok) {
+          const refData = await refRes.json().catch(() => ({}))
+          return Response.json({ error: "Force push failed: " + ((refData as { message?: string }).message || refRes.status) }, { status: 500 })
+        }
+        return Response.json({ success: true })
+      }
+
+      case "reset": {
+        const resetResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git reset --hard HEAD && git clean -fd 2>&1`
+        )
+        if (resetResult.exitCode) {
+          return Response.json({ error: "Reset failed: " + resetResult.result }, { status: 500 })
+        }
+        return Response.json({ success: true })
+      }
+
+      case "tag": {
+        if (!githubPat || !tagName || !repoOwner || !repoApiName) {
+          return Response.json({ error: "Missing required fields for tag" }, { status: 400 })
+        }
+        // Create local tag
+        const tagResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git tag ${tagName} 2>&1`
+        )
+        if (tagResult.exitCode) {
+          return Response.json({ error: "Tag creation failed: " + tagResult.result }, { status: 500 })
+        }
+        // Get SHA
+        const tagShaResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rev-parse HEAD 2>&1`
+        )
+        const tagSha = tagShaResult.result.trim()
+        // Push tag via GitHub API
+        const tagRefRes = await fetch(
+          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${githubPat}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+            body: JSON.stringify({ ref: `refs/tags/${tagName}`, sha: tagSha }),
+          }
+        )
+        if (!tagRefRes.ok) {
+          const tagRefData = await tagRefRes.json().catch(() => ({}))
+          return Response.json({ error: "Tag push failed: " + ((tagRefData as { message?: string }).message || tagRefRes.status) }, { status: 500 })
+        }
+        return Response.json({ success: true })
+      }
+
+      case "diff": {
+        const compareBranch = targetBranch || "HEAD~1"
+        const diffResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git diff ${compareBranch}...HEAD 2>&1`
+        )
+        return Response.json({ diff: diffResult.result || "" })
       }
 
       default:

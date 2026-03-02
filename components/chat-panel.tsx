@@ -456,7 +456,34 @@ export function ChatPanel({
   }
 
   async function handleRebase() {
-    // Implemented in step 6
+    if (!selectedBranch) return
+    const [owner, repo] = repoFullName.split("/")
+    setBranchPickerModal(null)
+    setActionLoading("rebase")
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daytonaApiKey: settings.daytonaApiKey,
+          sandboxId: branch.sandboxId,
+          repoPath: `/home/daytona/${repoName}`,
+          action: "rebase",
+          githubPat: settings.githubPat,
+          targetBranch: selectedBranch,
+          currentBranch: branch.name,
+          repoOwner: owner,
+          repoApiName: repo,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      addSystemMessage(`Rebased **${branch.name}** onto **${selectedBranch}** and force-pushed.`)
+    } catch (err: unknown) {
+      addSystemMessage(`Rebase failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   async function handleHeaderAction(action: string) {
