@@ -33,8 +33,17 @@ export async function POST(req: Request) {
         send({ type: "progress", message: "Creating sandbox..." })
 
         const daytona = new Daytona({ apiKey: daytonaApiKey })
+        // Name sandboxes for easy identification in Daytona dashboard
+        const safeBranch = newBranch.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 40)
+        const sandboxName = `agenthub-${repoOwner}-${repoName}-${safeBranch}`.toLowerCase().slice(0, 64)
         const sandbox = await daytona.create({
+          name: sandboxName,
           snapshot: "daytona-medium",
+          labels: {
+            "agenthub": "true",
+            "repo": `${repoOwner}/${repoName}`,
+            "branch": newBranch,
+          },
           envVars: {
             ANTHROPIC_API_KEY: anthropicApiKey,
           },
