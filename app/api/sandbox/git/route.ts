@@ -259,10 +259,16 @@ export async function POST(req: Request) {
       }
 
       case "diff": {
-        const compareBranch = targetBranch || "HEAD~1"
-        const diffResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git diff ${compareBranch}...HEAD 2>&1`
-        )
+        const commitHash = body.commitHash
+        let diffCmd: string
+        if (commitHash) {
+          // Single commit diff
+          diffCmd = `cd ${repoPath} && git diff ${commitHash}^..${commitHash} 2>&1`
+        } else {
+          const compareBranch = targetBranch || "HEAD~1"
+          diffCmd = `cd ${repoPath} && git diff ${compareBranch}...HEAD 2>&1`
+        }
+        const diffResult = await sandbox.process.executeCommand(diffCmd)
         return Response.json({ diff: diffResult.result || "" })
       }
 

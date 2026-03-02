@@ -93,7 +93,7 @@ function ToolCallTimeline({ toolCalls }: { toolCalls: ToolCall[] }) {
   )
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, onCommitClick }: { message: Message; onCommitClick?: (hash: string, msg: string) => void }) {
   const isUser = message.role === "user"
 
   // Commit marker rendering
@@ -101,11 +101,14 @@ function MessageBubble({ message }: { message: Message }) {
     return (
       <div id={`commit-${message.commitHash}`} className="flex items-center gap-3 py-1">
         <div className="h-px flex-1 bg-border" />
-        <div className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
+        <button
+          onClick={() => onCommitClick?.(message.commitHash!, message.commitMessage || "")}
+          className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground hover:bg-accent/50 hover:border-primary/30 transition-colors"
+        >
           <GitCommitHorizontal className="h-3 w-3" />
           <code className="font-mono text-[10px] text-primary/70">{message.commitHash}</code>
           <span className="max-w-[200px] truncate">{message.commitMessage}</span>
-        </div>
+        </button>
         <div className="h-px flex-1 bg-border" />
       </div>
     )
@@ -637,6 +640,8 @@ export function ChatPanel({
   }
 
   const [diffModalOpen, setDiffModalOpen] = useState(false)
+  const [commitDiffHash, setCommitDiffHash] = useState<string | null>(null)
+  const [commitDiffMessage, setCommitDiffMessage] = useState<string | null>(null)
 
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
   const [tagNameInput, setTagNameInput] = useState("")
@@ -773,7 +778,7 @@ export function ChatPanel({
           ) : (
             <div className="flex flex-col gap-5">
               {branch.messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
+                <MessageBubble key={msg.id} message={msg} onCommitClick={(hash, msg) => { setCommitDiffHash(hash); setCommitDiffMessage(msg) }} />
               ))}
               {branch.status === "running" && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -939,7 +944,7 @@ export function ChatPanel({
         </DialogContent>
       </Dialog>
 
-      {/* Diff modal */}
+      {/* Diff modal — branch comparison */}
       {branch.sandboxId && (
         <DiffModal
           open={diffModalOpen}
@@ -949,6 +954,21 @@ export function ChatPanel({
           branchName={branch.name}
           baseBranch={branch.baseBranch}
           settings={settings}
+        />
+      )}
+
+      {/* Diff modal — single commit */}
+      {branch.sandboxId && (
+        <DiffModal
+          open={!!commitDiffHash}
+          onClose={() => { setCommitDiffHash(null); setCommitDiffMessage(null) }}
+          sandboxId={branch.sandboxId}
+          repoName={repoName}
+          branchName={branch.name}
+          baseBranch={branch.baseBranch}
+          settings={settings}
+          commitHash={commitDiffHash}
+          commitMessage={commitDiffMessage}
         />
       )}
     </TooltipProvider>

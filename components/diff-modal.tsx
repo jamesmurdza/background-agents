@@ -113,14 +113,18 @@ interface DiffModalProps {
   branchName: string
   baseBranch: string
   settings: Settings
+  commitHash?: string | null
+  commitMessage?: string | null
 }
 
-export function DiffModal({ open, onClose, sandboxId, repoName, branchName, baseBranch, settings }: DiffModalProps) {
+export function DiffModal({ open, onClose, sandboxId, repoName, branchName, baseBranch, settings, commitHash, commitMessage }: DiffModalProps) {
   const [branches, setBranches] = useState<string[]>([])
   const [compareBranch, setCompareBranch] = useState(baseBranch)
   const [diff, setDiff] = useState("")
   const [loading, setLoading] = useState(false)
   const [branchesLoading, setBranchesLoading] = useState(false)
+
+  const isCommitMode = !!commitHash
 
   const fetchBranches = useCallback(async () => {
     setBranchesLoading(true)
@@ -173,17 +177,47 @@ export function DiffModal({ open, onClose, sandboxId, repoName, branchName, base
     }
   }, [sandboxId, repoName, compareBranch, settings.daytonaApiKey])
 
-  useEffect(() => {
-    if (open) {
-      fetchBranches()
+  const fetchCommitDiff = useCallback(async () => {
+    if (!commitHash) return
+    setLoading(true)
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daytonaApiKey: settings.daytonaApiKey,
+          sandboxId,
+          repoPath: `/home/daytona/${repoName}`,
+          action: "diff",
+          commitHash,
+        }),
+      })
+      const data = await res.json()
+      setDiff(data.diff || "No differences found.")
+    } catch {
+      setDiff("Failed to load diff.")
+    } finally {
+      setLoading(false)
     }
-  }, [open, fetchBranches])
+  }, [sandboxId, repoName, commitHash, settings.daytonaApiKey])
 
   useEffect(() => {
-    if (open && compareBranch) {
+    if (open && !isCommitMode) {
+      fetchBranches()
+    }
+  }, [open, isCommitMode, fetchBranches])
+
+  useEffect(() => {
+    if (open && !isCommitMode && compareBranch) {
       fetchDiff()
     }
-  }, [open, compareBranch, fetchDiff])
+  }, [open, isCommitMode, compareBranch, fetchDiff])
+
+  useEffect(() => {
+    if (open && isCommitMode) {
+      fetchCommitDiff()
+    }
+  }, [open, isCommitMode, fetchCommitDiff])
 
   const parsedFiles = parseDiff(diff)
 
@@ -193,21 +227,30 @@ export function DiffModal({ open, onClose, sandboxId, repoName, branchName, base
         <DialogHeader>
           <div className="flex items-center gap-3">
             <DialogTitle className="text-sm">Diff</DialogTitle>
-            {branchesLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            {isCommitMode ? (
+              <>
+                <code className="rounded bg-accent px-1.5 py-0.5 text-xs font-mono text-primary/70">{commitHash}</code>
+                {commitMessage && <span className="text-xs text-muted-foreground truncate max-w-[300px]">{commitMessage}</span>}
+              </>
             ) : (
-              <Select value={compareBranch} onValueChange={setCompareBranch}>
-                <SelectTrigger className="w-48 h-7 text-xs">
-                  <SelectValue placeholder="Compare to..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((b) => (
-                    <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                {branchesLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Select value={compareBranch} onValueChange={setCompareBranch}>
+                    <SelectTrigger className="w-48 h-7 text-xs">
+                      <SelectValue placeholder="Compare to..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <span className="text-xs text-muted-foreground">...{branchName}</span>
+              </>
             )}
-            <span className="text-xs text-muted-foreground">...{branchName}</span>
           </div>
         </DialogHeader>
         <div className="flex-1 overflow-auto rounded border border-border bg-background">
