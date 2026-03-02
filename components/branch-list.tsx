@@ -361,6 +361,7 @@ export function BranchList({
                 onClick={() => {
                   setNewBranchOpen(false)
                   setCreateError(null)
+                  setStartCommit(null)
                 }}
                 className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
               >
@@ -377,6 +378,7 @@ export function BranchList({
                 if (e.key === "Escape") {
                   setNewBranchOpen(false)
                   setCreateError(null)
+                  setStartCommit(null)
                 }
               }}
               className="h-8 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
