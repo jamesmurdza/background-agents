@@ -34,6 +34,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
 
 function ToolCallIcon({ tool }: { tool: string }) {
   const cls = "h-3 w-3"
@@ -334,6 +354,40 @@ export function ChatPanel({
   }
 
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [branchPickerModal, setBranchPickerModal] = useState<{ action: "merge" | "rebase" | "diff" } | null>(null)
+  const [remoteBranches, setRemoteBranches] = useState<string[]>([])
+  const [selectedBranch, setSelectedBranch] = useState("")
+  const [branchesLoading, setBranchesLoading] = useState(false)
+
+  async function fetchBranches() {
+    setBranchesLoading(true)
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daytonaApiKey: settings.daytonaApiKey,
+          sandboxId: branch.sandboxId,
+          repoPath: `/home/daytona/${repoName}`,
+          action: "list-branches",
+        }),
+      })
+      const data = await res.json()
+      const branches = (data.branches || []).filter((b: string) => b !== branch.name)
+      setRemoteBranches(branches)
+      setSelectedBranch(branches.includes(branch.baseBranch) ? branch.baseBranch : branches[0] || "")
+    } catch {
+      setRemoteBranches([])
+    } finally {
+      setBranchesLoading(false)
+    }
+  }
+
+  function openBranchPicker(action: "merge" | "rebase" | "diff") {
+    setBranchPickerModal({ action })
+    setSelectedBranch("")
+    fetchBranches()
+  }
 
   function addSystemMessage(content: string) {
     onAddMessage({
@@ -373,6 +427,38 @@ export function ChatPanel({
     }
   }
 
+  async function handleMerge() {
+    if (!selectedBranch) return
+    setBranchPickerModal(null)
+    setActionLoading("merge")
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daytonaApiKey: settings.daytonaApiKey,
+          sandboxId: branch.sandboxId,
+          repoPath: `/home/daytona/${repoName}`,
+          action: "merge",
+          githubPat: settings.githubPat,
+          targetBranch: selectedBranch,
+          currentBranch: branch.name,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      addSystemMessage(`Merged **${branch.name}** into **${selectedBranch}** and pushed.`)
+    } catch (err: unknown) {
+      addSystemMessage(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleRebase() {
+    // Implemented in step 6
+  }
+
   async function handleHeaderAction(action: string) {
     if (action === "log") {
       onToggleGitHistory()
@@ -380,6 +466,14 @@ export function ChatPanel({
     }
     if (action === "create-pr") {
       handleCreatePR()
+      return
+    }
+    if (action === "merge") {
+      openBranchPicker("merge")
+      return
+    }
+    if (action === "rebase") {
+      openBranchPicker("rebase")
       return
     }
   }
@@ -523,6 +617,55 @@ export function ChatPanel({
           </div>
         </div>
       </div>
+
+      {/* Branch picker modal (merge/rebase) */}
+      <Dialog open={!!branchPickerModal} onOpenChange={(open) => !open && setBranchPickerModal(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">
+              {branchPickerModal?.action === "merge" && `Merge ${branch.name} into...`}
+              {branchPickerModal?.action === "rebase" && `Rebase ${branch.name} onto...`}
+            </DialogTitle>
+          </DialogHeader>
+          {branchesLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : remoteBranches.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No other branches found.</p>
+          ) : (
+            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {remoteBranches.map((b) => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setBranchPickerModal(null)}
+              className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (branchPickerModal?.action === "merge") handleMerge()
+                if (branchPickerModal?.action === "rebase") handleRebase()
+              }}
+              disabled={!selectedBranch || actionLoading !== null}
+              className="cursor-pointer flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              {branchPickerModal?.action === "merge" ? "Merge" : "Rebase"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   )
 }

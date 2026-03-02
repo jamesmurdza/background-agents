@@ -4,7 +4,7 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { daytonaApiKey, sandboxId, repoPath, action, githubPat } = body
+  const { daytonaApiKey, sandboxId, repoPath, action, githubPat, targetBranch, currentBranch } = body
 
   if (!daytonaApiKey || !sandboxId || !repoPath || !action) {
     return Response.json({ error: "Missing required fields" }, { status: 400 })
@@ -75,6 +75,56 @@ export async function POST(req: Request) {
           return Response.json({ error: "GitHub PAT required for pull" }, { status: 400 })
         }
         await sandbox.git.pull(repoPath, "x-access-token", githubPat)
+        return Response.json({ success: true })
+      }
+
+      case "list-branches": {
+        const brResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git branch -r --format='%(refname:short)' 2>&1`
+        )
+        if (brResult.exitCode) {
+          return Response.json({ branches: [] })
+        }
+        const branches = brResult.result
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .map((b: string) => b.replace("origin/", ""))
+          .filter((b: string) => b !== "HEAD")
+        return Response.json({ branches })
+      }
+
+      case "merge": {
+        if (!githubPat || !targetBranch || !currentBranch) {
+          return Response.json({ error: "Missing required fields for merge" }, { status: 400 })
+        }
+        // Checkout target branch
+        const coTarget = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git checkout ${targetBranch} 2>&1`
+        )
+        if (coTarget.exitCode) {
+          return Response.json({ error: "Failed to checkout target: " + coTarget.result }, { status: 500 })
+        }
+        // Pull latest on target via Daytona SDK
+        try {
+          await sandbox.git.pull(repoPath, "x-access-token", githubPat)
+        } catch {
+          // May fail if target is already up to date or doesn't have upstream
+        }
+        // Merge current branch into target
+        const mergeResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git merge ${currentBranch} --no-edit 2>&1`
+        )
+        if (mergeResult.exitCode) {
+          // Abort the merge on conflict
+          await sandbox.process.executeCommand(`cd ${repoPath} && git merge --abort 2>&1`)
+          await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
+          return Response.json({ error: "Merge conflict: " + mergeResult.result }, { status: 409 })
+        }
+        // Push the merged target
+        await sandbox.git.push(repoPath, "x-access-token", githubPat)
+        // Switch back to current branch
+        await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
         return Response.json({ success: true })
       }
 
