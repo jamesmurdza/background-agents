@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Key, Github, Terminal } from "lucide-react"
+import { X, Key, Github, Terminal, Copy, Check } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import type { Settings, AnthropicAuthType } from "@/lib/types"
@@ -19,6 +19,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [anthropicAuthType, setAnthropicAuthType] = useState<AnthropicAuthType>("api-key")
   const [anthropicAuthToken, setAnthropicAuthToken] = useState("")
   const [daytonaApiKey, setDaytonaApiKey] = useState("")
+  const [copied, setCopied] = useState(false)
 
   // Sync form state when modal opens
   useEffect(() => {
@@ -109,7 +110,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                Claude Max
+                Subscription
               </button>
             </div>
             {anthropicAuthType === "api-key" ? (
@@ -135,7 +136,20 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                   className="w-full rounded-md bg-secondary border border-border px-3 py-2 text-xs font-mono placeholder:text-muted-foreground/40 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Paste the output of: <code className="text-[10px]">security find-generic-password -s &quot;Claude Code-credentials&quot; -w</code>
+                  Paste the output of:{" "}
+                  <code
+                    className="text-[10px] cursor-pointer"
+                    onClick={() => {
+                      navigator.clipboard.writeText('security find-generic-password -s "Claude Code-credentials" -w')
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 1500)
+                    }}
+                  >
+                    {copied
+                      ? <Check className="inline h-2.5 w-2.5 text-green-500 mr-1 align-middle" />
+                      : <Copy className="inline h-2.5 w-2.5 text-muted-foreground/60 mr-1 align-middle" />}
+                    security find-generic-password -s &quot;Claude Code-credentials&quot; -w
+                  </code>
                 </p>
               </>
             )}
