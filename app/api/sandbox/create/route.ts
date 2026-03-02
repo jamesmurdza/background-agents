@@ -72,9 +72,21 @@ export async function POST(req: Request) {
         const base = baseBranch || "main"
         await sandbox.git.clone(cloneUrl, repoPath, base, undefined, "x-access-token", githubPat)
 
-        // Set up git author config (no credentials — push goes through SDK)
+        // Set up git author config from GitHub user (fallback to AgentHub)
+        let gitName = "AgentHub"
+        let gitEmail = "agent@agenthub.dev"
+        try {
+          const ghRes = await fetch("https://api.github.com/user", {
+            headers: { Authorization: `Bearer ${githubPat}`, Accept: "application/vnd.github.v3+json" },
+          })
+          if (ghRes.ok) {
+            const ghUser = await ghRes.json()
+            gitName = ghUser.name || ghUser.login
+            gitEmail = `${ghUser.login}@users.noreply.github.com`
+          }
+        } catch {}
         await sandbox.process.executeCommand(
-          `cd ${repoPath} && git config user.email "agent@agenthub.dev" && git config user.name "AgentHub"`
+          `cd ${repoPath} && git config user.email "${gitEmail}" && git config user.name "${gitName}"`
         )
 
         // Create and checkout new branch via Daytona SDK
