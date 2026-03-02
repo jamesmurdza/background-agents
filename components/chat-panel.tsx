@@ -285,13 +285,14 @@ export function ChatPanel({
                 const text = data.content as string
                 // Check for tool use indicator
                 if (text.startsWith("TOOL_USE:")) {
-                  const toolName = text.replace("TOOL_USE:", "").trim()
+                  const toolSummary = text.replace("TOOL_USE:", "").trim()
+                  const toolName = toolSummary.split(":")[0].trim()
                   toolCalls = [
                     ...toolCalls,
                     {
                       id: generateId(),
                       tool: toolName,
-                      summary: toolName,
+                      summary: toolSummary,
                       timestamp: new Date().toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",

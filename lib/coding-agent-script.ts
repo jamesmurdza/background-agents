@@ -58,7 +58,21 @@ async def run_query(prompt):
                     sys.stdout.write(text)
                     sys.stdout.flush()
                 elif isinstance(block, ToolUseBlock):
-                    sys.stdout.write("TOOL_USE:" + block.name + "\\n")
+                    detail = ""
+                    inp = getattr(block, "input", {}) or {}
+                    if block.name == "Bash" and inp.get("command"):
+                        cmd = inp["command"]
+                        if len(cmd) > 80:
+                            cmd = cmd[:80] + "..."
+                        detail = cmd
+                    elif block.name in ("Read", "Edit", "Write") and inp.get("file_path"):
+                        detail = inp["file_path"].split("/")[-1]
+                    elif block.name == "Glob" and inp.get("pattern"):
+                        detail = inp["pattern"]
+                    elif block.name == "Grep" and inp.get("pattern"):
+                        detail = inp["pattern"]
+                    summary = block.name + (": " + detail if detail else "")
+                    sys.stdout.write("TOOL_USE:" + summary + "\\n")
                     sys.stdout.flush()
 
 def run_query_sync(prompt):
