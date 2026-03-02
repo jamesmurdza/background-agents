@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useStore, generateId } from "@/lib/store"
 import type { Repo, Branch, Message, Settings, ToolCall } from "@/lib/types"
 import { RepoSidebar } from "@/components/repo-sidebar"
@@ -14,6 +14,8 @@ export default function Home() {
   const { repos, settings, loaded, setRepos, setSettings, forceSave } = useStore()
   const [activeRepoId, setActiveRepoId] = useState<string | null>(null)
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null)
+  const activeBranchIdRef = useRef(activeBranchId)
+  activeBranchIdRef.current = activeBranchId
   const [mobileView, setMobileView] = useState<"branches" | "chat">("branches")
   const [branchListWidth, setBranchListWidth] = useState(260)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -192,13 +194,13 @@ export default function Home() {
               messages: [...b.messages, message],
               lastActivity: "now",
               lastActivityTs: Date.now(),
-              unread: branchId !== activeBranchId ? true : b.unread,
+              unread: branchId !== activeBranchIdRef.current ? true : b.unread,
             }
           }),
         }
       })
     )
-  }, [activeRepo, activeBranchId, setRepos])
+  }, [activeRepo, setRepos])
 
   const handleUpdateLastMessage = useCallback((branchId: string, updates: Partial<Message>) => {
     if (!activeRepo) return
