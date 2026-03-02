@@ -32,6 +32,7 @@ import {
 } from "lucide-react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import {
   Tooltip,
   TooltipContent,
@@ -157,7 +158,16 @@ function MessageBubble({ message, onCommitClick, onBranchFromCommit }: { message
           isUser ? (
             message.content
           ) : (
-            <Markdown>{message.content}</Markdown>
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children }) => (
+                  <a href={href} target="_blank" rel="noopener noreferrer">
+                    {children}
+                  </a>
+                ),
+              }}
+            >{message.content}</Markdown>
           )
         ) : (
           message.role === "assistant" && (
