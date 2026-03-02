@@ -486,6 +486,32 @@ export function ChatPanel({
     }
   }
 
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+
+  async function handleReset() {
+    setResetConfirmOpen(false)
+    setActionLoading("reset")
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daytonaApiKey: settings.daytonaApiKey,
+          sandboxId: branch.sandboxId,
+          repoPath: `/home/daytona/${repoName}`,
+          action: "reset",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      addSystemMessage("Reset to HEAD — all uncommitted changes discarded.")
+    } catch (err: unknown) {
+      addSystemMessage(`Reset failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   async function handleHeaderAction(action: string) {
     if (action === "log") {
       onToggleGitHistory()
@@ -501,6 +527,10 @@ export function ChatPanel({
     }
     if (action === "rebase") {
       openBranchPicker("rebase")
+      return
+    }
+    if (action === "reset") {
+      setResetConfirmOpen(true)
       return
     }
   }
@@ -689,6 +719,32 @@ export function ChatPanel({
             >
               {actionLoading && <Loader2 className="h-3 w-3 animate-spin" />}
               {branchPickerModal?.action === "merge" ? "Merge" : "Rebase"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset confirmation dialog */}
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Reset to HEAD?</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            This will discard all uncommitted changes. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <button
+              onClick={() => setResetConfirmOpen(false)}
+              className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleReset}
+              className="cursor-pointer flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+            >
+              Reset
             </button>
           </DialogFooter>
         </DialogContent>
