@@ -248,6 +248,7 @@ export function BranchList({
                   status: "idle",
                   sandboxId: data.sandboxId,
                   contextId: data.contextId,
+                  previewUrlPattern: data.previewUrlPattern,
                 })
               } else if (data.type === "error") {
                 onUpdateBranch(branchId, {

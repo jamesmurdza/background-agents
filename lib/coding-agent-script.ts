@@ -32,6 +32,15 @@ Do not push — pushing is handled automatically.
 When you finish a task, provide a clear summary of what you did.
 """.format(path=repo_path)
 
+preview_url_pattern = os.environ.get('PREVIEW_URL_PATTERN', '')
+if preview_url_pattern:
+    example_url = preview_url_pattern.replace('{port}', '3000')
+    system_prompt += """
+If you start a server or service on any port, provide the user with the preview URL.
+The preview URL pattern is: """ + preview_url_pattern + """
+Replace {port} with the actual port number. For example, if you start a server on port 3000, the URL is: """ + example_url + """
+"""
+
 client = ClaudeSDKClient(
   options=ClaudeAgentOptions(
     allowed_tools=["Read", "Edit", "Write", "Glob", "Grep", "Bash"],

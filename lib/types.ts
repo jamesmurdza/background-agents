@@ -30,6 +30,7 @@ export interface Branch {
   contextId?: string
   baseBranch: string
   prUrl?: string
+  previewUrlPattern?: string
 }
 
 export interface Repo {

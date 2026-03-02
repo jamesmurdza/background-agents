@@ -93,6 +93,15 @@ export async function POST(req: Request) {
           `echo '${scriptB64}' | base64 -d > /tmp/coding_agent.py`
         )
 
+        // Get preview URL pattern for dev server URLs
+        let previewUrlPattern: string | undefined
+        try {
+          const previewLink = await sandbox.getPreviewLink(3000)
+          previewUrlPattern = previewLink.url.replace("3000", "{port}")
+        } catch {
+          // Preview URLs not available — non-critical
+        }
+
         // Create code interpreter context with the repo as working directory
         const ctx = await sandbox.codeInterpreter.createContext(repoPath)
 
@@ -101,7 +110,7 @@ export async function POST(req: Request) {
           `import sys; sys.path.insert(0, '/tmp'); import os, coding_agent;`,
           {
             context: ctx,
-            envs: { REPO_PATH: repoPath },
+            envs: { REPO_PATH: repoPath, ...(previewUrlPattern ? { PREVIEW_URL_PATTERN: previewUrlPattern } : {}) },
           }
         )
         if (initResult.error) {
@@ -112,6 +121,7 @@ export async function POST(req: Request) {
           type: "done",
           sandboxId: sandbox.id,
           contextId: ctx.id,
+          previewUrlPattern,
         })
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Unknown error"

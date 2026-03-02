@@ -4,7 +4,7 @@ export const maxDuration = 300 // 5 minute timeout for agent queries
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { daytonaApiKey, sandboxId, contextId, prompt } = body
+  const { daytonaApiKey, sandboxId, contextId, prompt, previewUrlPattern } = body
 
   if (!daytonaApiKey || !sandboxId || !contextId || !prompt) {
     return Response.json({ error: "Missing required fields" }, { status: 400 })
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
           `coding_agent.run_query_sync(os.environ.get('PROMPT', ''))`,
           {
             context: ctx,
-            envs: { PROMPT: prompt },
+            envs: { PROMPT: prompt, ...(previewUrlPattern ? { PREVIEW_URL_PATTERN: previewUrlPattern } : {}) },
             onStdout: (msg) => {
               send({ type: "stdout", content: msg.output })
             },

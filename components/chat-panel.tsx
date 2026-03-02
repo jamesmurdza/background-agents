@@ -330,6 +330,7 @@ export function ChatPanel({
           sandboxId: branch.sandboxId,
           contextId: branch.contextId,
           prompt,
+          previewUrlPattern: branch.previewUrlPattern,
         }),
         signal: controller.signal,
       })
