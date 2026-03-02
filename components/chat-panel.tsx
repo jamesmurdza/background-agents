@@ -640,12 +640,17 @@ export function ChatPanel({
               <ArrowRight className="h-4 w-4 rotate-180" />
             </button>
           )}
-          <div className="flex items-center gap-2 rounded-md bg-secondary px-2.5 py-1 font-mono text-xs text-foreground min-w-0">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-muted-foreground">
+          <a
+            href={`https://github.com/${repoFullName}/tree/${branch.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-2.5 py-1 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors min-w-0"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
               <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
             </svg>
             <span className="truncate">{branch.name}</span>
-          </div>
+          </a>
 
           <div className="ml-auto flex items-center gap-0.5 shrink-0 overflow-x-auto">
             {headerActions.map((action) => {
