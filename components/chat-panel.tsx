@@ -399,10 +399,12 @@ export function ChatPanel({
   }
 
   async function handleCreatePR() {
-    if (!settings.githubPat) {
-      addSystemMessage("GitHub PAT required to create a PR. Configure it in Settings.")
+    // If PR already exists, just open it
+    if (branch.prUrl) {
+      window.open(branch.prUrl, "_blank")
       return
     }
+    if (!settings.githubPat) return
     const [owner, repo] = repoFullName.split("/")
     setActionLoading("create-pr")
     try {
@@ -419,9 +421,10 @@ export function ChatPanel({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`Pull request created: [${data.title} #${data.number}](${data.url})`)
-    } catch (err: unknown) {
-      addSystemMessage(`Failed to create PR: ${err instanceof Error ? err.message : "Unknown error"}`)
+      onUpdateBranch({ prUrl: data.url })
+      window.open(data.url, "_blank")
+    } catch {
+      // Silently fail
     } finally {
       setActionLoading(null)
     }
@@ -655,6 +658,7 @@ export function ChatPanel({
           <div className="ml-auto flex items-center gap-0.5 shrink-0 overflow-x-auto">
             {headerActions.map((action) => {
               const isActive = action.action === "log" && gitHistoryOpen
+              const hasPR = action.action === "create-pr" && !!branch.prUrl
               return (
                 <Tooltip key={action.label}>
                   <TooltipTrigger asChild>
@@ -663,7 +667,9 @@ export function ChatPanel({
                       disabled={!isReady || (isBusy && action.action !== "log")}
                       className={cn(
                         "flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
-                        isActive
+                        hasPR
+                          ? "text-green-400 shadow-[0_0_8px_rgba(74,222,128,0.4)]"
+                          : isActive
                           ? "bg-accent text-foreground"
                           : "text-muted-foreground hover:bg-accent hover:text-foreground"
                       )}
@@ -671,7 +677,9 @@ export function ChatPanel({
                       <action.icon className="h-3.5 w-3.5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">{action.label}</TooltipContent>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {hasPR ? "Open PR" : action.label}
+                  </TooltipContent>
                 </Tooltip>
               )
             })}

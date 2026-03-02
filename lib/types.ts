@@ -26,6 +26,7 @@ export interface Branch {
   sandboxId?: string
   contextId?: string
   baseBranch: string
+  prUrl?: string
 }
 
 export interface Repo {
