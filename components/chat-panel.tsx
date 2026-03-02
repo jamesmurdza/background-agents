@@ -54,6 +54,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
+import { DiffModal } from "@/components/diff-modal"
 
 function ToolCallIcon({ tool }: { tool: string }) {
   const cls = "h-3 w-3"
@@ -545,7 +546,13 @@ export function ChatPanel({
       setTagPopoverOpen(true)
       return
     }
+    if (action === "diff") {
+      setDiffModalOpen(true)
+      return
+    }
   }
+
+  const [diffModalOpen, setDiffModalOpen] = useState(false)
 
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
   const [tagNameInput, setTagNameInput] = useState("")
@@ -867,6 +874,19 @@ export function ChatPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Diff modal */}
+      {branch.sandboxId && (
+        <DiffModal
+          open={diffModalOpen}
+          onClose={() => setDiffModalOpen(false)}
+          sandboxId={branch.sandboxId}
+          repoName={repoName}
+          branchName={branch.name}
+          baseBranch={branch.baseBranch}
+          settings={settings}
+        />
+      )}
     </TooltipProvider>
   )
 }
