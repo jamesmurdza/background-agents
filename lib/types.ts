@@ -42,9 +42,13 @@ export interface Repo {
   branches: Branch[]
 }
 
+export type AnthropicAuthType = "api-key" | "claude-max"
+
 export interface Settings {
   githubPat: string
   anthropicApiKey: string
+  anthropicAuthType: AnthropicAuthType
+  anthropicAuthToken: string
   daytonaApiKey: string
 }
 
@@ -55,5 +59,7 @@ export const agentLabels: Record<Agent, string> = {
 export const defaultSettings: Settings = {
   githubPat: "",
   anthropicApiKey: "",
+  anthropicAuthType: "api-key",
+  anthropicAuthToken: "",
   daytonaApiKey: "",
 }

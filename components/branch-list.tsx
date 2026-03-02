@@ -185,7 +185,10 @@ export function BranchList({
       return
     }
 
-    if (!settings.daytonaApiKey || !settings.anthropicApiKey || !settings.githubPat) {
+    const hasAnthropicCredential =
+      (settings.anthropicAuthType === "claude-max" && settings.anthropicAuthToken) ||
+      (settings.anthropicAuthType !== "claude-max" && settings.anthropicApiKey)
+    if (!settings.daytonaApiKey || !hasAnthropicCredential || !settings.githubPat) {
       setCreateError("Please configure API keys in Settings first")
       return
     }
@@ -217,6 +220,8 @@ export function BranchList({
         body: JSON.stringify({
           daytonaApiKey: settings.daytonaApiKey,
           anthropicApiKey: settings.anthropicApiKey,
+          anthropicAuthType: settings.anthropicAuthType,
+          anthropicAuthToken: settings.anthropicAuthToken,
           githubPat: settings.githubPat,
           repoOwner: repo.owner,
           repoName: repo.name,

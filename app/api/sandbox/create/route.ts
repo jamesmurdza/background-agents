@@ -8,6 +8,8 @@ export async function POST(req: Request) {
   const {
     daytonaApiKey,
     anthropicApiKey,
+    anthropicAuthType,
+    anthropicAuthToken,
     githubPat,
     repoOwner,
     repoName,
@@ -16,7 +18,11 @@ export async function POST(req: Request) {
     startCommit,
   } = body
 
-  if (!daytonaApiKey || !anthropicApiKey || !githubPat || !repoOwner || !repoName || !newBranch) {
+  const hasAnthropicCredential =
+    (anthropicAuthType === "claude-max" && anthropicAuthToken) ||
+    (anthropicAuthType !== "claude-max" && anthropicApiKey)
+
+  if (!daytonaApiKey || !hasAnthropicCredential || !githubPat || !repoOwner || !repoName || !newBranch) {
     return Response.json({ error: "Missing required fields" }, { status: 400 })
   }
 
@@ -45,10 +51,18 @@ export async function POST(req: Request) {
             "repo": `${repoOwner}/${repoName}`,
             "branch": newBranch,
           },
-          envVars: {
-            ANTHROPIC_API_KEY: anthropicApiKey,
-          },
+          ...(anthropicAuthType !== "claude-max" && {
+            envVars: { ANTHROPIC_API_KEY: anthropicApiKey },
+          }),
         })
+
+        // For Claude Max, write stored credentials so the Agent SDK picks them up
+        if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
+          const credentialsB64 = Buffer.from(anthropicAuthToken).toString("base64")
+          await sandbox.process.executeCommand(
+            `mkdir -p /home/daytona/.claude && echo '${credentialsB64}' | base64 -d > /home/daytona/.claude/.credentials.json && chmod 600 /home/daytona/.claude/.credentials.json`
+          )
+        }
 
         send({ type: "progress", message: "Cloning repository..." })
 

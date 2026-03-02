@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { X, Key, Github, Terminal } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
-import type { Settings } from "@/lib/types"
+import type { Settings, AnthropicAuthType } from "@/lib/types"
 
 interface SettingsModalProps {
   open: boolean
@@ -16,6 +16,8 @@ interface SettingsModalProps {
 export function SettingsModal({ open, onClose, settings, onSave }: SettingsModalProps) {
   const [githubPat, setGithubPat] = useState("")
   const [anthropicApiKey, setAnthropicApiKey] = useState("")
+  const [anthropicAuthType, setAnthropicAuthType] = useState<AnthropicAuthType>("api-key")
+  const [anthropicAuthToken, setAnthropicAuthToken] = useState("")
   const [daytonaApiKey, setDaytonaApiKey] = useState("")
 
   // Sync form state when modal opens
@@ -23,6 +25,8 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
     if (open) {
       setGithubPat(settings.githubPat)
       setAnthropicApiKey(settings.anthropicApiKey)
+      setAnthropicAuthType(settings.anthropicAuthType ?? "api-key")
+      setAnthropicAuthToken(settings.anthropicAuthToken ?? "")
       setDaytonaApiKey(settings.daytonaApiKey)
     }
   }, [open, settings])
@@ -33,6 +37,8 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
     onSave({
       githubPat: githubPat.trim(),
       anthropicApiKey: anthropicApiKey.trim(),
+      anthropicAuthType,
+      anthropicAuthToken: anthropicAuthToken.trim(),
       daytonaApiKey: daytonaApiKey.trim(),
     })
     onClose()
@@ -74,22 +80,65 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
 
         {/* API Keys */}
         <div className="flex flex-col gap-4 px-5 py-4">
-          {/* Anthropic API Key */}
+          {/* Anthropic Auth */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
-              <label className="text-xs font-medium text-foreground">Anthropic API Key</label>
+              <label className="text-xs font-medium text-foreground">Anthropic Authentication</label>
             </div>
-            <Input
-              type="password"
-              placeholder="sk-ant-..."
-              value={anthropicApiKey}
-              onChange={(e) => setAnthropicApiKey(e.target.value)}
-              className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Used by Claude Code agent inside sandboxes
-            </p>
+            <div className="flex rounded-md border border-border bg-secondary p-0.5">
+              <button
+                type="button"
+                onClick={() => setAnthropicAuthType("api-key")}
+                className={cn(
+                  "flex-1 rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+                  anthropicAuthType === "api-key"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                API Key
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnthropicAuthType("claude-max")}
+                className={cn(
+                  "flex-1 rounded px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+                  anthropicAuthType === "claude-max"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Claude Max
+              </button>
+            </div>
+            {anthropicAuthType === "api-key" ? (
+              <>
+                <Input
+                  type="password"
+                  placeholder="sk-ant-..."
+                  value={anthropicApiKey}
+                  onChange={(e) => setAnthropicApiKey(e.target.value)}
+                  className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Used by Claude Code agent inside sandboxes
+                </p>
+              </>
+            ) : (
+              <>
+                <textarea
+                  placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
+                  value={anthropicAuthToken}
+                  onChange={(e) => setAnthropicAuthToken(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-md bg-secondary border border-border px-3 py-2 text-xs font-mono placeholder:text-muted-foreground/40 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Paste the output of: <code className="text-[10px]">security find-generic-password -s &quot;Claude Code-credentials&quot; -w</code>
+                </p>
+              </>
+            )}
           </div>
 
           {/* Daytona API Key */}

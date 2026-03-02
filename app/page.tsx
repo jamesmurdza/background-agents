@@ -56,7 +56,10 @@ export default function Home() {
 
   // Auto-open settings if not configured
   useEffect(() => {
-    if (loaded && !settings.daytonaApiKey && !settings.anthropicApiKey) {
+    const hasAnthropicCredential =
+      (settings.anthropicAuthType === "claude-max" && settings.anthropicAuthToken) ||
+      settings.anthropicApiKey
+    if (loaded && !settings.daytonaApiKey && !hasAnthropicCredential) {
       setSettingsOpen(true)
     }
   }, [loaded, settings])

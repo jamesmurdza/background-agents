@@ -27,7 +27,7 @@ export function useStore() {
   // Load from localStorage on mount
   useEffect(() => {
     setReposRaw(loadFromLocalStorage(REPOS_KEY, []))
-    setSettingsRaw(loadFromLocalStorage(SETTINGS_KEY, defaultSettings))
+    setSettingsRaw({ ...defaultSettings, ...loadFromLocalStorage(SETTINGS_KEY, defaultSettings) })
     setLoaded(true)
   }, [])
 
