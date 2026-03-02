@@ -756,7 +756,7 @@ export function ChatPanel({
             </button>
           )}
           {renaming ? (
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 ml-2.5">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-muted-foreground">
                 <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
               </svg>
@@ -772,41 +772,42 @@ export function ChatPanel({
                   }}
                   onBlur={() => { if (!renameLoading) setRenaming(false) }}
                   disabled={renameLoading}
-                  className="h-6 bg-secondary border border-border rounded px-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-primary/50 min-w-[3ch]"
+                  className="h-6 bg-transparent border border-border/30 rounded px-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-border/60 min-w-[3ch]"
                   autoFocus
                 />
               </div>
               {renameLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
             </div>
           ) : (
-            <div className="flex items-center gap-1 min-w-0 group/branch">
-              <a
-                href={`https://github.com/${repoFullName}/tree/${branch.name}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2.5 py-1 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors min-w-0"
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
-                  <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
-                </svg>
-                <span className="truncate">{branch.name}</span>
-              </a>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => { setRenaming(true); setRenameValue(branch.name) }}
-                    className="flex cursor-pointer h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/0 group-hover/branch:text-muted-foreground hover:!text-foreground transition-colors"
-                  >
-                    <Pencil className="h-2.5 w-2.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">Rename branch</TooltipContent>
-              </Tooltip>
-            </div>
+            <button
+              onClick={() => { setRenaming(true); setRenameValue(branch.name) }}
+              className="flex items-center gap-1.5 min-w-0 ml-2.5 py-1 cursor-pointer group/branch"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-muted-foreground">
+                <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
+              </svg>
+              <span className="truncate text-xs font-mono text-muted-foreground">{branch.name}</span>
+              <Pencil className="h-2.5 w-2.5 shrink-0 text-muted-foreground/0 group-hover/branch:text-muted-foreground transition-colors" />
+            </button>
           )}
 
           <div className="ml-auto flex items-center gap-0.5 shrink-0 overflow-x-auto">
             {branch.sandboxId && (<>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={`https://github.com/${repoFullName}/tree/${branch.name}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                    </svg>
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">Open on GitHub</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -880,6 +881,7 @@ export function ChatPanel({
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">Sync to local</TooltipContent>
               </Tooltip>
+              <div className="mx-1.5 h-4 w-px bg-border shrink-0" />
             </>)}
             {headerActions.map((action) => {
               const isActive = action.action === "log" && gitHistoryOpen
