@@ -1,6 +1,6 @@
 "use client"
 
-import { Github, X, Loader2, Search, Lock, GitFork } from "lucide-react"
+import { Github, X, Loader2, Search, Lock, GitFork, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
@@ -28,7 +28,7 @@ interface AddRepoModalProps {
 }
 
 export function AddRepoModal({ open, onClose, settings, githubUser, existingRepos, onAddRepo, onSelectExistingRepo }: AddRepoModalProps) {
-  const [mode, setMode] = useState<"select" | "url">("select")
+  const [mode, setMode] = useState<"select" | "url" | "create">("select")
   const [url, setUrl] = useState("")
   const [search, setSearch] = useState("")
   const [userRepos, setUserRepos] = useState<GitHubRepo[]>([])
@@ -36,6 +36,9 @@ export function AddRepoModal({ open, onClose, settings, githubUser, existingRepo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [forkPrompt, setForkPrompt] = useState<{ owner: string; name: string; avatar: string; defaultBranch: string } | null>(null)
+  const [newRepoName, setNewRepoName] = useState("")
+  const [newRepoDescription, setNewRepoDescription] = useState("")
+  const [newRepoPrivate, setNewRepoPrivate] = useState(false)
 
   // Fetch user repos when modal opens in select mode
   useEffect(() => {
@@ -59,6 +62,9 @@ export function AddRepoModal({ open, onClose, settings, githubUser, existingRepo
       setError(null)
       setForkPrompt(null)
       setLoading(false)
+      setNewRepoName("")
+      setNewRepoDescription("")
+      setNewRepoPrivate(false)
     }
   }, [open])
 
@@ -169,6 +175,32 @@ export function AddRepoModal({ open, onClose, settings, githubUser, existingRepo
     addRepoByInfo(repo)
   }
 
+  async function handleCreateRepo() {
+    const name = newRepoName.trim()
+    if (!name || loading) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/github/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: settings.githubPat,
+          name,
+          description: newRepoDescription.trim() || undefined,
+          isPrivate: newRepoPrivate,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to create repository")
+      await addRepoByInfo(data)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create repository")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const filteredRepos = userRepos.filter(
     (r) =>
       r.fullName.toLowerCase().includes(search.toLowerCase()) ||
@@ -252,6 +284,15 @@ export function AddRepoModal({ open, onClose, settings, githubUser, existingRepo
           >
             By URL
           </button>
+          <button
+            onClick={() => setMode("create")}
+            className={cn(
+              "flex-1 px-4 py-2 text-xs font-medium transition-colors cursor-pointer",
+              mode === "create" ? "text-foreground border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Create New
+          </button>
         </div>
 
         {mode === "select" ? (
@@ -303,7 +344,7 @@ export function AddRepoModal({ open, onClose, settings, githubUser, existingRepo
               )}
             </div>
           </div>
-        ) : (
+        ) : mode === "url" ? (
           <div className="flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-foreground">GitHub Repository</label>
@@ -332,6 +373,55 @@ export function AddRepoModal({ open, onClose, settings, githubUser, existingRepo
               >
                 {loading && <Loader2 className="h-3 w-3 animate-spin" />}
                 Add
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 p-5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-foreground">Repository name</label>
+              <Input
+                type="text"
+                placeholder="my-project"
+                value={newRepoName}
+                onChange={(e) => { setNewRepoName(e.target.value); setError(null) }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !loading) handleCreateRepo() }}
+                className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                autoFocus
+                disabled={loading}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-foreground">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input
+                type="text"
+                placeholder="A short description"
+                value={newRepoDescription}
+                onChange={(e) => setNewRepoDescription(e.target.value)}
+                className="h-9 bg-secondary border-border text-xs placeholder:text-muted-foreground/40"
+                disabled={loading}
+              />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newRepoPrivate}
+                onChange={(e) => setNewRepoPrivate(e.target.checked)}
+                className="rounded border-border"
+                disabled={loading}
+              />
+              <span className="text-xs text-foreground">Private repository</span>
+            </label>
+            {error && <p className="text-[11px] text-red-400">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleCreateRepo}
+                disabled={loading || !newRepoName.trim()}
+                className="cursor-pointer flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+                <Plus className="h-3 w-3" />
+                Create
               </button>
             </div>
           </div>
