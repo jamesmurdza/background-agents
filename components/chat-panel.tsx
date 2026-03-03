@@ -1116,7 +1116,7 @@ export function ChatPanel({
               onKeyDown={handleKeyDown}
               placeholder={
                 branch.status === "creating"
-                  ? "Waiting for sandbox..."
+                  ? "Type your first message while the sandbox is being set up..."
                   : !branch.sandboxId
                   ? "Sandbox not available"
                   : branch.status === "stopped"
@@ -1124,7 +1124,7 @@ export function ChatPanel({
                   : "Describe what you want the agent to do..."
               }
               rows={1}
-              disabled={!isReady}
+              disabled={!isReady && branch.status !== "creating"}
               className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
             />
             <button
