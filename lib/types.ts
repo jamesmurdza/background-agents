@@ -22,12 +22,13 @@ export interface Branch {
   name: string
   agent: Agent
   messages: Message[]
-  status: "idle" | "running" | "creating" | "error"
+  status: "idle" | "running" | "creating" | "error" | "stopped"
   lastActivity: string
   lastActivityTs?: number
   unread?: boolean
   sandboxId?: string
   contextId?: string
+  sessionId?: string
   baseBranch: string
   prUrl?: string
   previewUrlPattern?: string

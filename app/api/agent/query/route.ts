@@ -1,12 +1,22 @@
-import { Daytona } from "@daytonaio/sdk"
+import { ensureSandboxReady } from "@/lib/sandbox-resume"
 
 export const maxDuration = 300 // 5 minute timeout for agent queries
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { daytonaApiKey, sandboxId, contextId, prompt, previewUrlPattern } = body
+  const {
+    daytonaApiKey,
+    sandboxId,
+    contextId,
+    prompt,
+    previewUrlPattern,
+    repoName,
+    anthropicApiKey,
+    anthropicAuthType,
+    anthropicAuthToken,
+  } = body
 
-  if (!daytonaApiKey || !sandboxId || !contextId || !prompt) {
+  if (!daytonaApiKey || !sandboxId || !prompt) {
     return Response.json({ error: "Missing required fields" }, { status: 400 })
   }
 
@@ -21,19 +31,32 @@ export async function POST(req: Request) {
       }
 
       try {
-        const daytona = new Daytona({ apiKey: daytonaApiKey })
-        const sandbox = await daytona.get(sandboxId)
+        // Use resume helper to ensure sandbox + agent are ready
+        const { sandbox, contextId: activeContextId, wasResumed } = await ensureSandboxReady(
+          daytonaApiKey,
+          sandboxId,
+          repoName || "repo",
+          previewUrlPattern,
+          anthropicApiKey,
+          anthropicAuthType,
+          anthropicAuthToken,
+        )
 
-        // Ensure sandbox is running
-        try {
-          await sandbox.start()
-        } catch {
-          // Already started or starting
+        // If context was re-created after resume, notify frontend
+        if (wasResumed) {
+          send({ type: "context-updated", contextId: activeContextId })
         }
 
-        // Find the context
+        // Reset auto-stop timer
+        try {
+          await sandbox.refreshActivity()
+        } catch {
+          // Non-critical
+        }
+
+        // Find the context to use
         const contexts = await sandbox.codeInterpreter.listContexts()
-        const ctx = contexts.find((c) => c.id === contextId)
+        const ctx = contexts.find((c) => c.id === activeContextId)
         if (!ctx) {
           throw new Error(
             "Agent context not found. The sandbox may have been reset. Please create a new branch."
@@ -47,7 +70,16 @@ export async function POST(req: Request) {
             context: ctx,
             envs: { PROMPT: prompt, ...(previewUrlPattern ? { PREVIEW_URL_PATTERN: previewUrlPattern } : {}) },
             onStdout: (msg) => {
-              send({ type: "stdout", content: msg.output })
+              const text = msg.output
+              // Parse SESSION_ID: prefix from agent stdout
+              if (text.startsWith("SESSION_ID:")) {
+                const sessionId = text.replace("SESSION_ID:", "").trim()
+                if (sessionId) {
+                  send({ type: "session-id", sessionId })
+                }
+                return
+              }
+              send({ type: "stdout", content: text })
             },
             onStderr: (msg) => {
               send({ type: "stderr", content: msg.output })

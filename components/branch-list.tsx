@@ -57,6 +57,14 @@ function StatusDot({ branch, isActive }: { branch: Branch; isActive: boolean }) 
     )
   }
 
+  if (branch.status === "stopped") {
+    return (
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        <span className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+      </span>
+    )
+  }
+
   if (branch.unread && !isActive) {
     return (
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
@@ -331,7 +339,7 @@ export function BranchList({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-muted-foreground">
-                          {branch.status === "creating" ? "Setting up..." : agentLabels[branch.agent]}
+                          {branch.status === "creating" ? "Setting up..." : branch.status === "stopped" ? "Paused" : agentLabels[branch.agent]}
                         </span>
                       </div>
                     </div>

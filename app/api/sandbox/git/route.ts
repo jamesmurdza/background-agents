@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { ensureSandboxStarted } from "@/lib/sandbox-resume"
 
 export const maxDuration = 60
 
@@ -11,8 +11,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
-    const sandbox = await daytona.get(sandboxId)
+    const sandbox = await ensureSandboxStarted(daytonaApiKey, sandboxId)
 
     switch (action) {
       case "status": {

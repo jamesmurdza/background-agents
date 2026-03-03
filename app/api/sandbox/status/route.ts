@@ -1,4 +1,4 @@
-import { ensureSandboxStarted } from "@/lib/sandbox-resume"
+import { Daytona } from "@daytonaio/sdk"
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -9,9 +9,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const sandbox = await ensureSandboxStarted(daytonaApiKey, sandboxId)
-    const sshAccess = await sandbox.createSshAccess(60)
-    return Response.json({ sshCommand: sshAccess.sshCommand })
+    const daytona = new Daytona({ apiKey: daytonaApiKey })
+    const sandbox = await daytona.get(sandboxId)
+    return Response.json({ state: sandbox.state })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
     return Response.json({ error: message }, { status: 500 })

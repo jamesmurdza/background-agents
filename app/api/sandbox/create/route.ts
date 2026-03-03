@@ -46,6 +46,7 @@ export async function POST(req: Request) {
         const sandbox = await daytona.create({
           name: sandboxName,
           snapshot: "daytona-medium",
+          autoStopInterval: 5,
           labels: {
             "agenthub": "true",
             "repo": `${repoOwner}/${repoName}`,

@@ -41,13 +41,16 @@ The preview URL pattern is: """ + preview_url_pattern + """
 Replace {port} with the actual port number. For example, if you start a server on port 3000, the URL is: """ + example_url + """
 """
 
-client = ClaudeSDKClient(
-  options=ClaudeAgentOptions(
+resume_session = os.environ.get('RESUME_SESSION_ID', '')
+opts = ClaudeAgentOptions(
     allowed_tools=["Read", "Edit", "Write", "Glob", "Grep", "Bash"],
     permission_mode="acceptEdits",
-    system_prompt=system_prompt
-  )
+    system_prompt=system_prompt,
 )
+if resume_session:
+    opts.resume = resume_session
+
+client = ClaudeSDKClient(options=opts)
 
 async def init_client():
     await client.__aenter__()
@@ -58,7 +61,15 @@ run_sync(init_client())
 async def run_query(prompt):
     await client.query(prompt)
     async for message in client.receive_response():
-        if isinstance(message, AssistantMessage):
+        if hasattr(message, 'type') and getattr(message, 'type', '') == 'system':
+            if getattr(message, 'subtype', '') == 'init':
+                sid = getattr(message, 'session_id', None) or (getattr(message, 'data', {}) or {}).get('session_id')
+                if sid:
+                    sys.stdout.write("SESSION_ID:" + sid + "\\n")
+                    sys.stdout.flush()
+                    with open('/home/daytona/.agent_session_id', 'w') as f:
+                        f.write(sid)
+        elif isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, TextBlock):
                     text = block.text

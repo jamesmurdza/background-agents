@@ -236,6 +236,26 @@ export function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const knownCommitsRef = useRef<Set<string>>(new Set())
 
+  // Check sandbox status on mount — detect stopped sandboxes
+  useEffect(() => {
+    if (!branch.sandboxId || branch.status !== "idle") return
+    fetch("/api/sandbox/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        daytonaApiKey: settings.daytonaApiKey,
+        sandboxId: branch.sandboxId,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.state && data.state !== "started") {
+          onUpdateBranch({ status: "stopped" })
+        }
+      })
+      .catch(() => {})
+  }, [branch.id, branch.sandboxId, branch.status, settings.daytonaApiKey, onUpdateBranch])
+
   // Populate baseline known commits on mount / branch change
   useEffect(() => {
     if (!branch.sandboxId) return
@@ -275,7 +295,7 @@ export function ChatPanel({
   const handleSend = useCallback(async () => {
     const prompt = input.trim()
     if (!prompt || branch.status === "running" || branch.status === "creating") return
-    if (!branch.sandboxId || !branch.contextId) return
+    if (!branch.sandboxId) return
 
     if (!settings.daytonaApiKey) {
       onAddMessage({
@@ -341,6 +361,10 @@ export function ChatPanel({
           contextId: branch.contextId,
           prompt,
           previewUrlPattern: branch.previewUrlPattern,
+          repoName,
+          anthropicApiKey: settings.anthropicApiKey,
+          anthropicAuthType: settings.anthropicAuthType,
+          anthropicAuthToken: settings.anthropicAuthToken,
         }),
         signal: controller.signal,
       })
@@ -393,6 +417,10 @@ export function ChatPanel({
                   content += text
                 }
                 onUpdateLastMessage({ content, toolCalls })
+              } else if (data.type === "context-updated") {
+                onUpdateBranch({ contextId: data.contextId })
+              } else if (data.type === "session-id") {
+                onUpdateBranch({ sessionId: data.sessionId })
               } else if (data.type === "error") {
                 content += content ? `\n\nError: ${data.message}` : `Error: ${data.message}`
                 onUpdateLastMessage({ content })
@@ -749,8 +777,8 @@ export function ChatPanel({
     }
   }
 
-  const canSend = input.trim() && branch.status !== "running" && branch.status !== "creating" && branch.sandboxId && branch.contextId
-  const isReady = branch.sandboxId && branch.contextId && branch.status !== "creating"
+  const canSend = input.trim() && branch.status !== "running" && branch.status !== "creating" && branch.sandboxId
+  const isReady = branch.sandboxId && (branch.status !== "creating")
   const isBusy = branch.status === "running" || branch.status === "creating"
 
   return (
@@ -986,6 +1014,8 @@ export function ChatPanel({
                   ? "Waiting for sandbox..."
                   : !branch.sandboxId
                   ? "Sandbox not available"
+                  : branch.status === "stopped"
+                  ? "Sandbox paused \u2014 will resume on send..."
                   : "Describe what you want the agent to do..."
               }
               rows={1}
