@@ -492,6 +492,21 @@ export function ChatPanel({
       onUpdateBranch({ status: "idle", lastActivity: "now", lastActivityTs: Date.now() })
       abortControllerRef.current = null
       onForceSave()
+
+      // Play notification sound when agent finishes
+      try {
+        const ctx = new AudioContext()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.frequency.value = 880
+        osc.type = "sine"
+        gain.gain.setValueAtTime(0.15, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3)
+        osc.start(ctx.currentTime)
+        osc.stop(ctx.currentTime + 0.3)
+      } catch {}
     }
   }, [input, branch, settings, repoName, onAddMessage, onUpdateLastMessage, onUpdateBranch, onForceSave, onCommitsDetected])
 
