@@ -487,7 +487,7 @@ export function BranchList({
           <p className="text-xs text-muted-foreground">
             Are you sure you want to remove <span className="font-semibold text-foreground">{deleteModalBranch?.name}</span>? This will delete the chat history and sandbox.
           </p>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <button
               onClick={() => setDeleteModalBranchId(null)}
               className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent cursor-pointer"
