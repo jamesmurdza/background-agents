@@ -296,16 +296,23 @@ export async function POST(req: Request) {
             `cd ${repoPath} && git remote set-url origin '${origUrl}' 2>&1`
           )
         }
-        // Check if branch is merged using git branch --merged
-        const mergedResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git branch -r --merged origin/${targetBranch} 2>&1`
+        // Check if there are any commits on currentBranch that are not in targetBranch
+        // If the count is 0, the branch is fully merged
+        const unmergedResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git log origin/${targetBranch}..origin/${currentBranch} --oneline 2>&1`
         )
-        const mergedBranches = mergedResult.result
-          .trim()
-          .split("\n")
-          .map((b: string) => b.trim().replace("origin/", ""))
-          .filter(Boolean)
-        const isMerged = mergedBranches.includes(currentBranch)
+        // If exit code is non-zero, branch might not exist on remote - try local branch
+        if (unmergedResult.exitCode) {
+          const localResult = await sandbox.process.executeCommand(
+            `cd ${repoPath} && git log origin/${targetBranch}..${currentBranch} --oneline 2>&1`
+          )
+          const unmergedCommits = localResult.result.trim()
+          const isMerged = !localResult.exitCode && unmergedCommits === ""
+          return Response.json({ isMerged })
+        }
+        const unmergedCommits = unmergedResult.result.trim()
+        // Branch is merged if there are no commits that aren't in the target branch
+        const isMerged = unmergedCommits === ""
         return Response.json({ isMerged })
       }
 
