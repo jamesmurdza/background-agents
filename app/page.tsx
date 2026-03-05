@@ -171,7 +171,7 @@ export default function Home() {
     )
   }, [activeRepo, setRepos])
 
-  const handleRemoveBranch = useCallback((branchId: string) => {
+  const handleRemoveBranch = useCallback((branchId: string, deleteRemote?: boolean) => {
     if (!activeRepo) return
     // Delete sandbox if exists
     const branch = activeRepo.branches.find((b) => b.id === branchId)
@@ -184,6 +184,24 @@ export default function Home() {
           sandboxId: branch.sandboxId,
         }),
       }).catch(() => {}) // Best effort cleanup
+
+      // Delete remote branch on GitHub if requested
+      if (deleteRemote && branch && settings.githubPat) {
+        fetch("/api/sandbox/git", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            daytonaApiKey: settings.daytonaApiKey,
+            sandboxId: branch.sandboxId,
+            repoPath: `/home/daytona/${activeRepo.name}`,
+            action: "delete-remote-branch",
+            currentBranch: branch.name,
+            githubPat: settings.githubPat,
+            repoOwner: activeRepo.owner,
+            repoApiName: activeRepo.name,
+          }),
+        }).catch(() => {}) // Best effort cleanup
+      }
     }
     setRepos((prev) =>
       prev.map((r) => {
@@ -198,7 +216,7 @@ export default function Home() {
       const remaining = activeRepo.branches.filter((b) => b.id !== branchId)
       setActiveBranchId(remaining[0]?.id ?? null)
     }
-  }, [activeRepo, activeBranchId, settings.daytonaApiKey, setRepos])
+  }, [activeRepo, activeBranchId, settings.daytonaApiKey, settings.githubPat, setRepos])
 
   const handleAddMessage = useCallback((branchId: string, message: Message) => {
     if (!activeRepo) return
