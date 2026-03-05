@@ -908,6 +908,27 @@ export function ChatPanel({
             {branch.sandboxId && (<>
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <button
+                    onClick={handleSandboxToggle}
+                    disabled={sandboxToggleLoading || branch.status === "running" || branch.status === "creating"}
+                    className="flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {sandboxToggleLoading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : branch.status === "stopped" ? (
+                      <Play className="h-3.5 w-3.5" />
+                    ) : (
+                      <Pause className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {branch.status === "stopped" ? "Start sandbox" : "Pause sandbox"}
+                </TooltipContent>
+              </Tooltip>
+              <div className="mx-1.5 h-4 w-px bg-border shrink-0" />
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <a
                     href={`https://github.com/${repoFullName}/tree/${branch.name}`}
                     target="_blank"
@@ -995,26 +1016,6 @@ export function ChatPanel({
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">Sync to local</TooltipContent>
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleSandboxToggle}
-                    disabled={sandboxToggleLoading || branch.status === "running" || branch.status === "creating"}
-                    className="flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {sandboxToggleLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : branch.status === "stopped" ? (
-                      <Play className="h-3.5 w-3.5" />
-                    ) : (
-                      <Pause className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  {branch.status === "stopped" ? "Start sandbox" : "Pause sandbox"}
-                </TooltipContent>
-              </Tooltip>
               <div className="mx-1.5 h-4 w-px bg-border shrink-0" />
             </>)}
             {headerActions.map((action) => {
@@ -1026,7 +1027,7 @@ export function ChatPanel({
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => handleHeaderAction(action.action)}
-                      disabled={!isReady || (isBusy && action.action !== "log") || isPRLoading}
+                      disabled={!isReady || (isBusy && action.action !== "log" && action.action !== "diff") || isPRLoading}
                       className={cn(
                         "flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
                         hasPR
