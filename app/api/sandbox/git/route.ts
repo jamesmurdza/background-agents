@@ -271,51 +271,6 @@ export async function POST(req: Request) {
         return Response.json({ diff: diffResult.result || "" })
       }
 
-      case "check-merged": {
-        if (!currentBranch || !targetBranch) {
-          return Response.json({ error: "Missing required fields for check-merged" }, { status: 400 })
-        }
-        // Check if current branch is fully merged into target branch
-        // First fetch latest to ensure we have up-to-date info
-        if (githubPat) {
-          const origUrlResult = await sandbox.process.executeCommand(
-            `cd ${repoPath} && git remote get-url origin 2>&1`
-          )
-          const origUrl = origUrlResult.result.trim()
-          const authedUrl = origUrl.replace(
-            /^https:\/\//,
-            `https://x-access-token:${githubPat}@`
-          )
-          await sandbox.process.executeCommand(
-            `cd ${repoPath} && git remote set-url origin '${authedUrl}' 2>&1`
-          )
-          await sandbox.process.executeCommand(
-            `cd ${repoPath} && git fetch origin --prune 2>&1`
-          )
-          await sandbox.process.executeCommand(
-            `cd ${repoPath} && git remote set-url origin '${origUrl}' 2>&1`
-          )
-        }
-        // Check if there are any commits on currentBranch that are not in targetBranch
-        // If the count is 0, the branch is fully merged
-        const unmergedResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git log origin/${targetBranch}..origin/${currentBranch} --oneline 2>&1`
-        )
-        // If exit code is non-zero, branch might not exist on remote - try local branch
-        if (unmergedResult.exitCode) {
-          const localResult = await sandbox.process.executeCommand(
-            `cd ${repoPath} && git log origin/${targetBranch}..${currentBranch} --oneline 2>&1`
-          )
-          const unmergedCommits = localResult.result.trim()
-          const isMerged = !localResult.exitCode && unmergedCommits === ""
-          return Response.json({ isMerged })
-        }
-        const unmergedCommits = unmergedResult.result.trim()
-        // Branch is merged if there are no commits that aren't in the target branch
-        const isMerged = unmergedCommits === ""
-        return Response.json({ isMerged })
-      }
-
       case "delete-remote-branch": {
         if (!currentBranch || !githubPat || !repoOwner || !repoApiName) {
           return Response.json({ error: "Missing required fields for delete-remote-branch" }, { status: 400 })

@@ -187,30 +187,26 @@ export function BranchList({
     setDeleteModalMergeStatus("loading")
     setDeleteRemoteChecked(false)
 
-    // Need sandbox to check merge status
-    if (!deleteModalBranch.sandboxId || !settings.daytonaApiKey) {
+    // Need GitHub PAT to check merge status via GitHub API
+    if (!settings.githubPat) {
       setDeleteModalMergeStatus("error")
       return
     }
 
     const checkMerged = async () => {
       try {
-        const res = await fetch("/api/sandbox/git", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            daytonaApiKey: settings.daytonaApiKey,
-            sandboxId: deleteModalBranch.sandboxId,
-            repoPath: `/home/daytona/${repo.name}`,
-            action: "check-merged",
-            currentBranch: deleteModalBranch.name,
-            targetBranch: deleteModalBranch.baseBranch || repo.defaultBranch || "main",
-            githubPat: settings.githubPat,
-          }),
-        })
+        const baseBranch = deleteModalBranch.baseBranch || repo.defaultBranch || "main"
+        const res = await fetch(
+          `/api/github/check-merged?token=${encodeURIComponent(settings.githubPat!)}&owner=${encodeURIComponent(repo.owner)}&repo=${encodeURIComponent(repo.name)}&branch=${encodeURIComponent(deleteModalBranch.name)}&baseBranch=${encodeURIComponent(baseBranch)}`
+        )
         const data = await res.json()
         if (res.ok) {
-          setDeleteModalMergeStatus(data.isMerged ? "merged" : "unmerged")
+          // If branch not found on remote, treat as unmerged (local only)
+          if (data.notFound) {
+            setDeleteModalMergeStatus("unmerged")
+          } else {
+            setDeleteModalMergeStatus(data.isMerged ? "merged" : "unmerged")
+          }
         } else {
           setDeleteModalMergeStatus("error")
         }
@@ -219,7 +215,7 @@ export function BranchList({
       }
     }
     checkMerged()
-  }, [deleteModalBranchId, deleteModalBranch, settings.daytonaApiKey, settings.githubPat, repo.name, repo.defaultBranch])
+  }, [deleteModalBranchId, deleteModalBranch, settings.githubPat, repo.owner, repo.name, repo.defaultBranch])
 
   function startResize() {
     isResizing.current = true
