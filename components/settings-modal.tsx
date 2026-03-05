@@ -1,25 +1,28 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Key, Github, Terminal, Copy, Check } from "lucide-react"
+import { X, Key, Github, Terminal, Copy, Check, Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
-import type { Settings, AnthropicAuthType } from "@/lib/types"
+import type { Settings, AnthropicAuthType, Repo } from "@/lib/types"
 
 interface SettingsModalProps {
   open: boolean
   onClose: () => void
   settings: Settings
   onSave: (settings: Settings) => void
+  repos?: Repo[]
 }
 
-export function SettingsModal({ open, onClose, settings, onSave }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, settings, onSave, repos }: SettingsModalProps) {
   const [githubPat, setGithubPat] = useState("")
   const [anthropicApiKey, setAnthropicApiKey] = useState("")
   const [anthropicAuthType, setAnthropicAuthType] = useState<AnthropicAuthType>("api-key")
   const [anthropicAuthToken, setAnthropicAuthToken] = useState("")
   const [daytonaApiKey, setDaytonaApiKey] = useState("")
   const [copied, setCopied] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<{ message: string; isError: boolean } | null>(null)
 
   // Sync form state when modal opens
   useEffect(() => {
@@ -29,20 +32,99 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
       setAnthropicAuthType(settings.anthropicAuthType ?? "api-key")
       setAnthropicAuthToken(settings.anthropicAuthToken ?? "")
       setDaytonaApiKey(settings.daytonaApiKey)
+      setSyncStatus(null)
     }
   }, [open, settings])
 
   if (!open) return null
 
-  function handleSave() {
-    onSave({
+  // Check if Anthropic auth has changed
+  function hasAnthropicAuthChanged(): boolean {
+    const newAuthType = anthropicAuthType
+    const newApiKey = anthropicApiKey.trim()
+    const newAuthToken = anthropicAuthToken.trim()
+
+    if (newAuthType !== settings.anthropicAuthType) return true
+    if (newAuthType === "api-key" && newApiKey !== settings.anthropicApiKey) return true
+    if (newAuthType === "claude-max" && newAuthToken !== settings.anthropicAuthToken) return true
+    return false
+  }
+
+  // Sync auth to all sandboxes
+  async function syncAuthToSandboxes(newSettings: Settings): Promise<void> {
+    if (!repos) return
+
+    // Collect all sandbox IDs from all repos
+    const sandboxIds = repos
+      .flatMap((repo) => repo.branches)
+      .filter((branch) => branch.sandboxId)
+      .map((branch) => branch.sandboxId as string)
+
+    if (sandboxIds.length === 0) return
+
+    setIsSyncing(true)
+    setSyncStatus(null)
+
+    try {
+      const response = await fetch("/api/sandbox/update-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          daytonaApiKey: newSettings.daytonaApiKey,
+          anthropicApiKey: newSettings.anthropicApiKey,
+          anthropicAuthType: newSettings.anthropicAuthType,
+          anthropicAuthToken: newSettings.anthropicAuthToken,
+          sandboxIds,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        setSyncStatus({
+          message: `Updated ${data.updated || 0} sandbox(es), ${data.failed || 0} failed`,
+          isError: data.failed > 0,
+        })
+      } else {
+        setSyncStatus({
+          message: `Updated auth in ${data.updated} sandbox(es)`,
+          isError: false,
+        })
+      }
+    } catch (error) {
+      setSyncStatus({
+        message: "Failed to sync auth to sandboxes",
+        isError: true,
+      })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  async function handleSave() {
+    const newSettings: Settings = {
       githubPat: githubPat.trim(),
       anthropicApiKey: anthropicApiKey.trim(),
       anthropicAuthType,
       anthropicAuthToken: anthropicAuthToken.trim(),
       daytonaApiKey: daytonaApiKey.trim(),
-    })
-    onClose()
+    }
+
+    // Check if we need to sync auth to sandboxes
+    const authChanged = hasAnthropicAuthChanged()
+
+    // Save settings first
+    onSave(newSettings)
+
+    // If auth changed and we have repos with sandboxes, sync them
+    if (authChanged && newSettings.daytonaApiKey) {
+      await syncAuthToSandboxes(newSettings)
+      // Wait a moment to show the status before closing
+      setTimeout(() => {
+        onClose()
+      }, 1500)
+    } else {
+      onClose()
+    }
   }
 
   return (
@@ -183,19 +265,37 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-          <button
-            onClick={onClose}
-            className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Save
-          </button>
+        <div className="flex items-center justify-between border-t border-border px-5 py-3">
+          {/* Sync status */}
+          <div className="flex items-center gap-2 text-xs">
+            {isSyncing && (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground">Syncing auth to sandboxes...</span>
+              </>
+            )}
+            {syncStatus && !isSyncing && (
+              <span className={syncStatus.isError ? "text-destructive" : "text-green-500"}>
+                {syncStatus.message}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              disabled={isSyncing}
+              className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSyncing}
+              className="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSyncing ? "Saving..." : "Save"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
