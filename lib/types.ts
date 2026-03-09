@@ -32,6 +32,7 @@ export interface Branch {
   baseBranch: string
   prUrl?: string
   previewUrlPattern?: string
+  draftPrompt?: string
 }
 
 export interface Repo {

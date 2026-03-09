@@ -321,7 +321,6 @@ export default function Home() {
         <div className="flex min-w-0 flex-1">
           {activeBranch && activeRepo ? (
             <ChatPanel
-              key={activeBranch.id}
               branch={activeBranch}
               repoFullName={`${activeRepo.owner}/${activeRepo.name}`}
               repoName={activeRepo.name}

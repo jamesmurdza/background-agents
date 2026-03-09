@@ -225,7 +225,7 @@ export function ChatPanel({
   onCommitsDetected,
   onBranchFromCommit,
 }: ChatPanelProps) {
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState(branch.draftPrompt ?? "")
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState("")
   const [renameLoading, setRenameLoading] = useState(false)
@@ -234,6 +234,15 @@ export function ChatPanel({
   const abortControllerRef = useRef<AbortController | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const knownCommitsRef = useRef<Set<string>>(new Set())
+  const prevBranchIdRef = useRef(branch.id)
+
+  // Sync input when switching branches
+  useEffect(() => {
+    if (prevBranchIdRef.current !== branch.id) {
+      setInput(branch.draftPrompt ?? "")
+      prevBranchIdRef.current = branch.id
+    }
+  }, [branch.id, branch.draftPrompt])
 
   // Check sandbox status on mount — detect stopped sandboxes
   useEffect(() => {
@@ -291,6 +300,16 @@ export function ChatPanel({
     }
   }, [input])
 
+  // Save draft prompt to branch (debounced)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (input !== (branch.draftPrompt ?? "")) {
+        onUpdateBranch({ draftPrompt: input })
+      }
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [input, branch.draftPrompt, onUpdateBranch])
+
   const handleSend = useCallback(async () => {
     const prompt = input.trim()
     if (!prompt || branch.status === "running" || branch.status === "creating") return
@@ -316,8 +335,8 @@ export function ChatPanel({
     onAddMessage(userMsg)
     setInput("")
 
-    // Set branch to running
-    onUpdateBranch({ status: "running" })
+    // Set branch to running and clear draft
+    onUpdateBranch({ status: "running", draftPrompt: "" })
 
     // Add placeholder assistant message
     const assistantMsg: Message = {
