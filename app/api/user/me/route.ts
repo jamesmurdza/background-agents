@@ -3,6 +3,9 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getQuota } from "@/lib/quota"
 
+// Prevent Next.js from caching this route - always fetch fresh data
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
@@ -29,6 +32,7 @@ export async function GET() {
                 orderBy: { createdAt: "asc" },
               },
             },
+            orderBy: { updatedAt: "desc" }, // Most recently active branches first
           },
         },
         orderBy: { createdAt: "desc" },

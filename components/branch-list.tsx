@@ -299,7 +299,9 @@ export function BranchList({
             try {
               const data = JSON.parse(line.slice(6))
               if (data.type === "done") {
+                // Use server-side branchId to replace the temporary client-side ID
                 onUpdateBranch(branchId, {
+                  id: data.branchId, // Replace client ID with server ID
                   status: "idle",
                   sandboxId: data.sandboxId,
                   contextId: data.contextId,

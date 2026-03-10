@@ -134,7 +134,7 @@ export default function Home() {
   useEffect(() => {
     if (status !== "authenticated") return
 
-    fetch("/api/user/me")
+    fetch("/api/user/me", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.repos) {
@@ -155,7 +155,7 @@ export default function Home() {
       })
   }, [status])
 
-  // Auto-select first repo on load
+  // Auto-select first repo/branch on load
   useEffect(() => {
     if (loaded && repos.length > 0 && !activeRepoId) {
       setActiveRepoId(repos[0].id)
@@ -251,6 +251,14 @@ export default function Home() {
 
   const handleUpdateBranch = useCallback((branchId: string, updates: Partial<Branch>) => {
     if (!activeRepo) return
+
+    // Find the branch to check its current status
+    const branch = activeRepo.branches.find((b) => b.id === branchId)
+    const isBeingCreated = branch?.status === "creating"
+
+    // The actual ID to use for database operations (might be a new server-side ID)
+    const dbBranchId = updates.id || branchId
+
     setRepos((prev) =>
       prev.map((r) => {
         if (r.id !== activeRepo.id) return r
@@ -258,18 +266,30 @@ export default function Home() {
           ...r,
           branches: r.branches.map((b) => {
             if (b.id !== branchId) return b
-            return { ...b, ...updates }
+            // If updates include a new id, use it to replace the branch id
+            const newBranch = { ...b, ...updates }
+            if (updates.id) {
+              newBranch.id = updates.id
+            }
+            return newBranch
           }),
         }
       })
     )
 
-    // Update in database
-    if (updates.status || updates.prUrl || updates.name || updates.draftPrompt !== undefined) {
+    // Also update activeBranchId if it's being replaced
+    if (updates.id && activeBranchIdRef.current === branchId) {
+      setActiveBranchId(updates.id)
+    }
+
+    // Only update in database if branch exists there (not during creation)
+    // When id is provided, we're transitioning from client-side to server-side ID
+    const shouldPersist = !isBeingCreated || updates.id
+    if (shouldPersist && (updates.status || updates.prUrl || updates.name || updates.draftPrompt !== undefined)) {
       fetch("/api/branches", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchId, ...updates }),
+        body: JSON.stringify({ branchId: dbBranchId, ...updates }),
       }).catch(() => {})
     }
   }, [activeRepo])
