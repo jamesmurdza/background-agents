@@ -458,7 +458,7 @@ export function BranchList({
                 <select
                   value={newBranchBase}
                   onChange={(e) => setNewBranchBase(e.target.value)}
-                  className="bg-secondary rounded px-1.5 py-0.5 text-[11px] text-foreground border border-border"
+                  className="bg-secondary rounded px-1.5 py-0.5 text-[11px] text-foreground border border-border max-w-[150px] truncate"
                   disabled={creating || githubBranchesLoading}
                 >
                   {githubBranchesLoading ? (
