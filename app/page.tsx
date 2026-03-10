@@ -181,7 +181,13 @@ export default function Home() {
 
   // Auto-open settings if Anthropic credentials not configured
   useEffect(() => {
-    if (loaded && credentials && !credentials.hasAnthropicApiKey && !credentials.hasAnthropicAuthToken) {
+    if (
+      loaded &&
+      (
+        !credentials ||
+        (!credentials.hasAnthropicApiKey && !credentials.hasAnthropicAuthToken)
+      )
+    ) {
       setSettingsOpen(true)
     }
   }, [loaded, credentials])

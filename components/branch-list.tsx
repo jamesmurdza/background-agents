@@ -311,9 +311,25 @@ export function BranchList({
         }),
       })
 
-      const reader = res.body!.getReader()
+      if (!res.ok) {
+        let message = `Failed to create branch (${res.status})`
+        try {
+          const data = await res.json()
+          message = data.error || data.message || message
+        } catch {
+          // Ignore parse errors and use fallback message
+        }
+        throw new Error(message)
+      }
+
+      if (!res.body) {
+        throw new Error("Failed to create branch: empty server response")
+      }
+
+      const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
+      let hasTerminalEvent = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -329,6 +345,7 @@ export function BranchList({
             try {
               const data = JSON.parse(line.slice(6))
               if (data.type === "done") {
+                hasTerminalEvent = true
                 // Use server-side branchId to replace the temporary client-side ID
                 onUpdateBranch(branchId, {
                   id: data.branchId, // Replace client ID with server ID
@@ -340,6 +357,7 @@ export function BranchList({
                 // Refresh quota now that sandbox is created in database
                 onQuotaRefresh?.()
               } else if (data.type === "error") {
+                hasTerminalEvent = true
                 onUpdateBranch(branchId, {
                   status: "error",
                 })
@@ -348,6 +366,10 @@ export function BranchList({
             } catch {}
           }
         }
+      }
+
+      if (!hasTerminalEvent) {
+        throw new Error("Branch creation did not complete. Please try again.")
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create branch"
