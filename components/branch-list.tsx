@@ -33,6 +33,7 @@ interface BranchListProps {
   onAddBranch: (branch: Branch) => void
   onRemoveBranch: (branchId: string, deleteRemote?: boolean) => void
   onUpdateBranch: (branchId: string, updates: Partial<Branch>) => void
+  onQuotaRefresh?: () => void
   quota?: { current: number; max: number; remaining: number } | null
   width: number
   onWidthChange: (w: number) => void
@@ -83,6 +84,7 @@ export function BranchList({
   onAddBranch,
   onRemoveBranch,
   onUpdateBranch,
+  onQuotaRefresh,
   quota,
   width,
   onWidthChange,
@@ -333,6 +335,8 @@ export function BranchList({
                   contextId: data.contextId,
                   previewUrlPattern: data.previewUrlPattern,
                 })
+                // Refresh quota now that sandbox is created in database
+                onQuotaRefresh?.()
               } else if (data.type === "error") {
                 onUpdateBranch(branchId, {
                   status: "error",
@@ -350,7 +354,7 @@ export function BranchList({
     } finally {
       setCreating(false)
     }
-  }, [newBranchName, newBranchBase, creating, repo, onAddBranch, onUpdateBranch, branchPlaceholder, startCommit, githubBranches])
+  }, [newBranchName, newBranchBase, creating, repo, onAddBranch, onUpdateBranch, onQuotaRefresh, branchPlaceholder, startCommit, githubBranches])
 
   return (
     <div className="relative flex h-full shrink-0 flex-col border-r border-border bg-card" style={{ width }}>

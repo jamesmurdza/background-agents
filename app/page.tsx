@@ -243,13 +243,14 @@ export default function Home() {
     )
     setActiveBranchId(branch.id)
     setMobileView("chat")
+  }, [activeRepo])
 
-    // Refresh quota
+  const handleQuotaRefresh = useCallback(() => {
     fetch("/api/user/quota")
       .then((r) => r.json())
       .then((q) => setQuota(q))
       .catch(() => {})
-  }, [activeRepo])
+  }, [])
 
   const handleUpdateBranch = useCallback((branchId: string, updates: Partial<Branch>) => {
     if (!activeRepo) return
@@ -545,6 +546,7 @@ export default function Home() {
               onAddBranch={handleAddBranch}
               onRemoveBranch={handleRemoveBranch}
               onUpdateBranch={handleUpdateBranch}
+              onQuotaRefresh={handleQuotaRefresh}
               width={branchListWidth}
               onWidthChange={setBranchListWidth}
               pendingStartCommit={pendingStartCommit}
