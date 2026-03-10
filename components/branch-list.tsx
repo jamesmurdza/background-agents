@@ -174,10 +174,36 @@ export function BranchList({
   }, [pendingStartCommit, onClearPendingCommit, fetchGithubBranches])
 
   const [deleteModalBranchId, setDeleteModalBranchId] = useState<string | null>(null)
-  const [deleteModalMergeStatus, setDeleteModalMergeStatus] = useState<"loading" | "merged" | "unmerged" | "not-on-github" | "error">("loading")
+  const [deleteModalMergeStatus, setDeleteModalMergeStatus] = useState<"loading" | "merged" | "unmerged" | "error">("loading")
   const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const deleteModalBranch = deleteModalBranchId ? repo.branches.find((b) => b.id === deleteModalBranchId) : null
+
+  // Handle delete button click - check if branch exists on GitHub first
+  const handleDeleteClick = useCallback(async (branchId: string) => {
+    const branch = repo.branches.find((b) => b.id === branchId)
+    if (!branch) return
+
+    // Check if branch exists on GitHub
+    try {
+      const baseBranch = branch.baseBranch || repo.defaultBranch || "main"
+      const res = await fetch(
+        `/api/github/check-merged?owner=${encodeURIComponent(repo.owner)}&repo=${encodeURIComponent(repo.name)}&branch=${encodeURIComponent(branch.name)}&baseBranch=${encodeURIComponent(baseBranch)}`
+      )
+      const data = await res.json()
+
+      // If branch doesn't exist on GitHub, delete immediately without modal
+      if (res.ok && data.notFound) {
+        onRemoveBranch(branchId, false)
+        return
+      }
+    } catch {
+      // On error, fall through to show modal
+    }
+
+    // Branch exists on GitHub (or we couldn't check), show the modal
+    setDeleteModalBranchId(branchId)
+  }, [repo.branches, repo.owner, repo.name, repo.defaultBranch, onRemoveBranch])
 
   // Check if branch is merged when delete modal opens
   useEffect(() => {
@@ -194,16 +220,11 @@ export function BranchList({
         )
         const data = await res.json()
         if (res.ok) {
-          // If branch not found on remote, it doesn't exist on GitHub
-          if (data.notFound) {
-            setDeleteModalMergeStatus("not-on-github")
-          } else {
-            const isMerged = data.isMerged
-            setDeleteModalMergeStatus(isMerged ? "merged" : "unmerged")
-            // Default to checking the delete on GitHub option if branch is merged
-            if (isMerged) {
-              setDeleteRemoteChecked(true)
-            }
+          const isMerged = data.isMerged
+          setDeleteModalMergeStatus(isMerged ? "merged" : "unmerged")
+          // Default to checking the delete on GitHub option if branch is merged
+          if (isMerged) {
+            setDeleteRemoteChecked(true)
           }
         } else {
           setDeleteModalMergeStatus("error")
@@ -401,7 +422,7 @@ export function BranchList({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      setDeleteModalBranchId(branch.id)
+                      handleDeleteClick(branch.id)
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground/60 transition-all hover:bg-muted-foreground/10 hover:text-foreground"
                   >
@@ -526,10 +547,6 @@ export function BranchList({
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span>Checking branch status...</span>
-              </div>
-            ) : deleteModalMergeStatus === "not-on-github" ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>This branch only exists locally.</span>
               </div>
             ) : deleteModalMergeStatus === "merged" ? (
               <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/50 p-3">
