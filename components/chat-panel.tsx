@@ -234,10 +234,26 @@ export function ChatPanel({
   const knownCommitsRef = useRef<Set<string>>(new Set())
   const prevBranchIdRef = useRef(branch.id)
   const isNearBottomRef = useRef(true)
+  // Track current input in a ref so we can access it in cleanup/event handlers
+  const inputRef = useRef(input)
+  inputRef.current = input
 
-  // Sync input when switching branches
+  // Sync input when switching branches - save old draft then load new
   useEffect(() => {
     if (prevBranchIdRef.current !== branch.id) {
+      const prevBranchId = prevBranchIdRef.current
+      const currentInput = inputRef.current
+
+      // Save draft for previous branch (if it has unsaved changes)
+      if (currentInput) {
+        fetch("/api/branches", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ branchId: prevBranchId, draftPrompt: currentInput }),
+        }).catch(() => {})
+      }
+
+      // Load draft from new branch
       setInput(branch.draftPrompt ?? "")
       prevBranchIdRef.current = branch.id
       // Reset scroll behavior on branch switch so we scroll to bottom
@@ -324,14 +340,25 @@ export function ChatPanel({
     }
   }, [input])
 
-  // Save draft prompt to branch (only after branch is created in database)
+  // Save draft on page unload/close
   useEffect(() => {
-    // Skip draft saving while branch is being created (not yet in database)
-    if (branch.status === "creating") return
-    if (input !== (branch.draftPrompt ?? "")) {
-      onUpdateBranch({ draftPrompt: input })
+    const handleBeforeUnload = () => {
+      if (branch.status === "creating") return
+      const currentInput = inputRef.current
+      if (currentInput && currentInput !== (branch.draftPrompt ?? "")) {
+        // Use sendBeacon for reliable delivery during page unload (POST-only endpoint)
+        navigator.sendBeacon(
+          "/api/branches/draft",
+          new Blob(
+            [JSON.stringify({ branchId: branch.id, draftPrompt: currentInput })],
+            { type: "application/json" }
+          )
+        )
+      }
     }
-  }, [input, branch.draftPrompt, branch.status, onUpdateBranch])
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [branch.id, branch.draftPrompt, branch.status])
 
   const handleSend = useCallback(async () => {
     const prompt = input.trim()
