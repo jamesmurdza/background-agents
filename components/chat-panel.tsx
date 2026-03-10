@@ -277,7 +277,7 @@ export function ChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const knownCommitsRef = useRef<Set<string>>(new Set())
+  const startingCommitRef = useRef<string | null>(null)
   const prevBranchIdRef = useRef(branch.id)
   const prevBranchNameRef = useRef(branch.name)
   const isNearBottomRef = useRef(true)
@@ -364,13 +364,11 @@ export function ChatPanel({
       .catch(() => {})
   }, [branch.id, branch.sandboxId, branch.status, onUpdateBranch])
 
-  // Populate baseline known commits on mount / branch change
+  // Capture the starting commit hash on mount / branch change
+  // This is used to filter out pre-existing commits when detecting new ones
   useEffect(() => {
     if (!branch.sandboxId) return
-    // Initialize from already-displayed commits (sync, no race condition)
-    const existingCommits = branch.messages.filter((m) => m.commitHash).map((m) => m.commitHash!)
-    knownCommitsRef.current = new Set(existingCommits)
-    // Then fetch and add all current repo commits
+    // Fetch current HEAD commit as the baseline
     fetch("/api/sandbox/git", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -383,8 +381,9 @@ export function ChatPanel({
       .then((r) => r.json())
       .then((data) => {
         const commits = data.commits || []
-        for (const c of commits) {
-          knownCommitsRef.current.add(c.shortHash)
+        if (commits.length > 0) {
+          // Store the current HEAD commit hash as our starting point
+          startingCommitRef.current = commits[0].shortHash
         }
       })
       .catch(() => {})
@@ -549,10 +548,22 @@ export function ChatPanel({
               })
               const logData = await logRes.json()
               const allCommits: { shortHash: string; message: string }[] = logData.commits || []
+
+              // Only consider commits that are newer than our starting point
+              // git log returns commits newest-first, so we take commits until we hit the starting commit
               const chatCommits = new Set(branch.messages.filter((m) => m.commitHash).map((m) => m.commitHash))
-              const newCommits = allCommits.filter((c) => !knownCommitsRef.current.has(c.shortHash) && !chatCommits.has(c.shortHash))
+              const newCommits: { shortHash: string; message: string }[] = []
+              for (const c of allCommits) {
+                // Stop when we reach the starting commit (everything after this existed before the session)
+                if (c.shortHash === startingCommitRef.current) break
+                // Skip commits already shown in the chat
+                if (!chatCommits.has(c.shortHash)) {
+                  newCommits.push(c)
+                }
+              }
+
+              // Add new commits to the chat (reverse to show oldest first)
               for (const c of [...newCommits].reverse()) {
-                knownCommitsRef.current.add(c.shortHash)
                 onAddMessage({
                   id: generateId(),
                   role: "assistant",
@@ -563,6 +574,10 @@ export function ChatPanel({
                 })
               }
               if (newCommits.length > 0) {
+                // Update the starting commit to the new HEAD so future detections work correctly
+                if (allCommits.length > 0) {
+                  startingCommitRef.current = allCommits[0].shortHash
+                }
                 onCommitsDetected?.()
               }
             } catch {}
