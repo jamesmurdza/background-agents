@@ -521,45 +521,31 @@ export function ChatPanel({
                 }),
               })
 
-              const logRes = await fetch("/api/sandbox/git", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  sandboxId: branch.sandboxId,
-                  repoPath: `/home/daytona/${repoName}`,
-                  action: "log",
-                }),
-              })
-              const logData = await logRes.json()
-              const allCommits: { shortHash: string; message: string }[] = logData.commits || []
-
-              console.log("[commit-detection] startingCommitRef:", startingCommitRef.current)
-              console.log("[commit-detection] allCommits:", allCommits.slice(0, 5).map(c => c.shortHash))
-
-              // If we don't have a starting commit yet, set it now and skip detection
-              // This handles the race condition where agent completes before baseline is set
+              // If we don't have a starting commit, skip detection entirely
+              // (This shouldn't happen for new branches, but handles legacy branches)
               if (!startingCommitRef.current) {
-                console.log("[commit-detection] No starting commit, setting baseline and skipping detection")
-                if (allCommits.length > 0) {
-                  startingCommitRef.current = allCommits[0].shortHash
-                }
+                console.log("[commit-detection] No starting commit, skipping detection")
               } else {
-                // Only consider commits that are newer than our starting point
-                // git log returns commits newest-first, so we take commits until we hit the starting commit
+                // Fetch only commits since our starting point using git log range
+                const logRes = await fetch("/api/sandbox/git", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    sandboxId: branch.sandboxId,
+                    repoPath: `/home/daytona/${repoName}`,
+                    action: "log",
+                    sinceCommit: startingCommitRef.current,
+                  }),
+                })
+                const logData = await logRes.json()
+                const allCommits: { shortHash: string; message: string }[] = logData.commits || []
+
+                console.log("[commit-detection] startingCommitRef:", startingCommitRef.current)
+                console.log("[commit-detection] commits since start:", allCommits.map(c => c.shortHash))
+
+                // Filter out commits already shown in the chat
                 const chatCommits = new Set(branch.messages.filter((m) => m.commitHash).map((m) => m.commitHash))
-                const newCommits: { shortHash: string; message: string }[] = []
-                for (const c of allCommits) {
-                  // Stop when we reach the starting commit (everything after this existed before the session)
-                  if (c.shortHash === startingCommitRef.current) {
-                    console.log("[commit-detection] Found starting commit, stopping:", c.shortHash)
-                    break
-                  }
-                  // Skip commits already shown in the chat
-                  if (!chatCommits.has(c.shortHash)) {
-                    console.log("[commit-detection] New commit found:", c.shortHash, c.message)
-                    newCommits.push(c)
-                  }
-                }
+                const newCommits = allCommits.filter(c => !chatCommits.has(c.shortHash))
 
                 console.log("[commit-detection] newCommits count:", newCommits.length)
 

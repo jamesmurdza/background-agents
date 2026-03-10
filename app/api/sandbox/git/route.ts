@@ -66,9 +66,12 @@ export async function POST(req: Request) {
       }
 
       case "log": {
-        const result = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git log --format='{"hash":"%H","shortHash":"%h","author":"%an","email":"%ae","message":"%s","timestamp":"%aI"}' -30 2>&1`
-        )
+        const sinceCommit = body.sinceCommit
+        // If sinceCommit is provided, only get commits after that point
+        const logCmd = sinceCommit
+          ? `cd ${repoPath} && git log ${sinceCommit}..HEAD --format='{"hash":"%H","shortHash":"%h","author":"%an","email":"%ae","message":"%s","timestamp":"%aI"}' 2>&1`
+          : `cd ${repoPath} && git log --format='{"hash":"%H","shortHash":"%h","author":"%an","email":"%ae","message":"%s","timestamp":"%aI"}' -30 2>&1`
+        const result = await sandbox.process.executeCommand(logCmd)
         if (result.exitCode) {
           return Response.json({ commits: [] })
         }
