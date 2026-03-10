@@ -55,6 +55,7 @@ export async function POST(req: Request) {
   const anthropicAuthType = userCredentials?.anthropicAuthType || "api-key"
   const anthropicApiKey = userCredentials?.anthropicApiKey ? decrypt(userCredentials.anthropicApiKey) : null
   const anthropicAuthToken = userCredentials?.anthropicAuthToken ? decrypt(userCredentials.anthropicAuthToken) : null
+  const sandboxAutoStopInterval = userCredentials?.sandboxAutoStopInterval ?? 5
 
   const hasAnthropicCredential =
     (anthropicAuthType === "claude-max" && anthropicAuthToken) ||
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
         const sandbox = await daytona.create({
           name: sandboxName,
           snapshot: "daytona-medium",
-          autoStopInterval: 5,
+          autoStopInterval: sandboxAutoStopInterval,
           labels: {
             "sandboxed-agents": "true",
             "repo": `${repoOwner}/${repoName}`,

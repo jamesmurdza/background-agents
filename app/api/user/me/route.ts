@@ -21,6 +21,7 @@ export async function GET() {
           // Don't send actual keys to client, just whether they exist
           anthropicApiKey: true,
           anthropicAuthToken: true,
+          sandboxAutoStopInterval: true,
         },
       },
       repos: {
@@ -52,6 +53,7 @@ export async function GET() {
         anthropicAuthType: user.credentials.anthropicAuthType,
         hasAnthropicApiKey: !!user.credentials.anthropicApiKey,
         hasAnthropicAuthToken: !!user.credentials.anthropicAuthToken,
+        sandboxAutoStopInterval: user.credentials.sandboxAutoStopInterval,
       }
     : null
 

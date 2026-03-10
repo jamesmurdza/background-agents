@@ -10,10 +10,17 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json()
-  const { anthropicApiKey, anthropicAuthType, anthropicAuthToken } = body
+  const { anthropicApiKey, anthropicAuthType, anthropicAuthToken, sandboxAutoStopInterval } = body
 
   if (!anthropicAuthType || !["api-key", "claude-max"].includes(anthropicAuthType)) {
     return Response.json({ error: "Invalid auth type" }, { status: 400 })
+  }
+
+  // Validate sandboxAutoStopInterval if provided
+  if (sandboxAutoStopInterval !== undefined) {
+    if (typeof sandboxAutoStopInterval !== "number" || sandboxAutoStopInterval < 5 || sandboxAutoStopInterval > 20) {
+      return Response.json({ error: "Invalid auto-stop interval. Must be between 5 and 20 minutes." }, { status: 400 })
+    }
   }
 
   // Encrypt credentials before storing
@@ -26,12 +33,14 @@ export async function POST(req: Request) {
       anthropicApiKey: encryptedApiKey,
       anthropicAuthType,
       anthropicAuthToken: encryptedAuthToken,
+      ...(sandboxAutoStopInterval !== undefined && { sandboxAutoStopInterval }),
     },
     create: {
       userId: session.user.id,
       anthropicApiKey: encryptedApiKey,
       anthropicAuthType,
       anthropicAuthToken: encryptedAuthToken,
+      ...(sandboxAutoStopInterval !== undefined && { sandboxAutoStopInterval }),
     },
   })
 

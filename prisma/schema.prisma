@@ -72,6 +72,9 @@ model UserCredentials {
   anthropicAuthType  String  @default("api-key") // "api-key" | "claude-max"
   anthropicAuthToken String? @db.Text
 
+  // Sandbox settings
+  sandboxAutoStopInterval Int @default(5) // 5-20 minutes
+
   updatedAt DateTime @updatedAt
 }
 

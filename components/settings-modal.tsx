@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2 } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import type { AnthropicAuthType } from "@/lib/types"
@@ -9,7 +9,12 @@ import type { AnthropicAuthType } from "@/lib/types"
 interface SettingsModalProps {
   open: boolean
   onClose: () => void
-  credentials?: { anthropicAuthType: string; hasAnthropicApiKey: boolean; hasAnthropicAuthToken: boolean } | null
+  credentials?: {
+    anthropicAuthType: string
+    hasAnthropicApiKey: boolean
+    hasAnthropicAuthToken: boolean
+    sandboxAutoStopInterval?: number
+  } | null
   onCredentialsUpdate: () => void
 }
 
@@ -17,6 +22,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
   const [anthropicApiKey, setAnthropicApiKey] = useState("")
   const [anthropicAuthType, setAnthropicAuthType] = useState<AnthropicAuthType>("api-key")
   const [anthropicAuthToken, setAnthropicAuthToken] = useState("")
+  const [sandboxAutoStopInterval, setSandboxAutoStopInterval] = useState(5)
+  const [initialAutoStopInterval, setInitialAutoStopInterval] = useState(5)
   const [copied, setCopied] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<{ message: string; isError: boolean } | null>(null)
@@ -28,6 +35,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
       setAnthropicAuthType((credentials?.anthropicAuthType as AnthropicAuthType) ?? "api-key")
       setAnthropicApiKey("")
       setAnthropicAuthToken("")
+      const interval = credentials?.sandboxAutoStopInterval ?? 5
+      setSandboxAutoStopInterval(interval)
+      setInitialAutoStopInterval(interval)
       setSaveStatus(null)
     }
   }, [open, credentials])
@@ -37,13 +47,14 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
   async function handleSave() {
     const newApiKey = anthropicApiKey.trim()
     const newAuthToken = anthropicAuthToken.trim()
+    const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
     // Check if there's anything to save
-    if (anthropicAuthType === "api-key" && !newApiKey) {
-      onClose()
-      return
-    }
-    if (anthropicAuthType === "claude-max" && !newAuthToken) {
+    const hasCredentialChanges =
+      (anthropicAuthType === "api-key" && newApiKey) ||
+      (anthropicAuthType === "claude-max" && newAuthToken)
+
+    if (!hasCredentialChanges && !autoStopChanged) {
       onClose()
       return
     }
@@ -59,28 +70,53 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
           anthropicAuthType,
           anthropicApiKey: anthropicAuthType === "api-key" ? newApiKey : undefined,
           anthropicAuthToken: anthropicAuthType === "claude-max" ? newAuthToken : undefined,
+          sandboxAutoStopInterval,
         }),
       })
 
       const data = await response.json()
       if (!response.ok) {
         setSaveStatus({
-          message: data.error || "Failed to save credentials",
+          message: data.error || "Failed to save settings",
           isError: true,
         })
-      } else {
+        return
+      }
+
+      // If auto-stop interval changed, update all existing sandboxes
+      if (autoStopChanged) {
         setSaveStatus({
-          message: "Credentials saved",
+          message: "Updating sandbox timeouts...",
           isError: false,
         })
-        onCredentialsUpdate()
-        setTimeout(() => {
-          onClose()
-        }, 1000)
+
+        const autostopResponse = await fetch("/api/sandbox/autostop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interval: sandboxAutoStopInterval }),
+        })
+
+        if (!autostopResponse.ok) {
+          const autostopData = await autostopResponse.json()
+          setSaveStatus({
+            message: autostopData.error || "Failed to update sandbox timeouts",
+            isError: true,
+          })
+          return
+        }
       }
+
+      setSaveStatus({
+        message: "Settings saved",
+        isError: false,
+      })
+      onCredentialsUpdate()
+      setTimeout(() => {
+        onClose()
+      }, 1000)
     } catch {
       setSaveStatus({
-        message: "Failed to save credentials",
+        message: "Failed to save settings",
         isError: true,
       })
     } finally {
@@ -177,6 +213,28 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                 </p>
               </>
             )}
+          </div>
+
+          {/* Sandbox Settings */}
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+            <div className="flex items-center gap-2">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+              <label className="text-xs font-medium text-foreground">Sandbox Auto-Stop</label>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={5}
+                max={20}
+                value={sandboxAutoStopInterval}
+                onChange={(e) => setSandboxAutoStopInterval(Number(e.target.value))}
+                className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+              />
+              <span className="text-xs font-medium text-foreground w-16 text-right">{sandboxAutoStopInterval} min</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Sandboxes will auto-stop after {sandboxAutoStopInterval} minutes of inactivity
+            </p>
           </div>
         </div>
 
