@@ -233,12 +233,15 @@ export function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const knownCommitsRef = useRef<Set<string>>(new Set())
   const prevBranchIdRef = useRef(branch.id)
+  const isNearBottomRef = useRef(true)
 
   // Sync input when switching branches
   useEffect(() => {
     if (prevBranchIdRef.current !== branch.id) {
       setInput(branch.draftPrompt ?? "")
       prevBranchIdRef.current = branch.id
+      // Reset scroll behavior on branch switch so we scroll to bottom
+      isNearBottomRef.current = true
     }
   }, [branch.id, branch.draftPrompt])
 
@@ -287,8 +290,18 @@ export function ChatPanel({
       .catch(() => {})
   }, [branch.id, branch.sandboxId, repoName])
 
-  useEffect(() => {
+  // Track scroll position to determine if user is near the bottom
+  const handleScroll = useCallback(() => {
     if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+      // Consider "near bottom" if within 150px of the bottom
+      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 150
+    }
+  }, [])
+
+  // Only auto-scroll to bottom if user is already near the bottom
+  useEffect(() => {
+    if (scrollRef.current && isNearBottomRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [branch.messages])
@@ -1036,7 +1049,7 @@ export function ChatPanel({
         </header>
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-6 sm:px-6">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-6 sm:px-6">
           {branch.status === "creating" ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
