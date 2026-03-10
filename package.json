@@ -13,6 +13,8 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@daytonaio/sdk": "^0.148.0",
     "@hookform/resolvers": "^3.9.1",
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/adapter-neon": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "@radix-ui/react-accordion": "1.2.12",
     "@radix-ui/react-alert-dialog": "1.1.15",
