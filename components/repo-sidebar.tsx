@@ -203,7 +203,15 @@ export function RepoSidebar({
                   )}
                   <div className="flex flex-col">
                     {userName && (
-                      <span className="text-sm font-medium text-foreground truncate">{userName}</span>
+                      <a
+                        href={`https://github.com/${userLogin}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-sm font-medium text-foreground truncate"
+                      >
+                        {userName}
+                      </a>
                     )}
                     {userLogin && (
                       <span className="text-xs text-muted-foreground truncate">@{userLogin}</span>
@@ -240,16 +248,16 @@ export function RepoSidebar({
               )}
 
               {/* Menu items */}
-              <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer">
-                <Settings className="h-4 w-4" />
+              <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer text-xs">
+                <Settings className="h-3.5 w-3.5" />
                 API Settings
               </DropdownMenuItem>
 
               {onSignOut && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onSignOut} variant="destructive" className="cursor-pointer">
-                    <LogOut className="h-4 w-4" />
+                  <DropdownMenuItem onClick={onSignOut} variant="destructive" className="cursor-pointer text-xs">
+                    <LogOut className="h-3.5 w-3.5" />
                     Sign out
                   </DropdownMenuItem>
                 </>
