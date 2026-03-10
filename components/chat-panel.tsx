@@ -277,6 +277,7 @@ export function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const knownCommitsRef = useRef<Set<string>>(new Set())
   const prevBranchIdRef = useRef(branch.id)
+  const prevBranchNameRef = useRef(branch.name)
   const isNearBottomRef = useRef(true)
   // Track current input in a ref so we can access it in cleanup/event handlers
   const inputRef = useRef(input)
@@ -290,10 +291,15 @@ export function ChatPanel({
   useEffect(() => {
     if (prevBranchIdRef.current !== branch.id) {
       const prevBranchId = prevBranchIdRef.current
+      const prevBranchName = prevBranchNameRef.current
       const currentInput = inputRef.current
 
-      // Save draft for previous branch (if it has unsaved changes)
-      if (currentInput) {
+      // Check if this is a real branch switch (different branch name) or just an ID update
+      // (e.g., client-side ID replaced with server-side ID after sandbox creation)
+      const isRealBranchSwitch = prevBranchName !== branch.name
+
+      // Save draft for previous branch (if it has unsaved changes and switching to different branch)
+      if (currentInput && isRealBranchSwitch) {
         fetch("/api/branches", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -301,13 +307,18 @@ export function ChatPanel({
         }).catch(() => {})
       }
 
-      // Load draft from new branch
-      setInput(branch.draftPrompt ?? "")
+      // Only load draft from new branch if it's a real branch switch
+      // Keep current input if this is just an ID update (same branch)
+      if (isRealBranchSwitch) {
+        setInput(branch.draftPrompt ?? "")
+        // Reset scroll behavior on branch switch so we scroll to bottom
+        isNearBottomRef.current = true
+      }
+
       prevBranchIdRef.current = branch.id
-      // Reset scroll behavior on branch switch so we scroll to bottom
-      isNearBottomRef.current = true
+      prevBranchNameRef.current = branch.name
     }
-  }, [branch.id, branch.draftPrompt])
+  }, [branch.id, branch.name, branch.draftPrompt])
 
   // Check sandbox status on mount — detect stopped sandboxes and resume polling for running executions
   useEffect(() => {
