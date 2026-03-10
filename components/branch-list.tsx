@@ -174,7 +174,7 @@ export function BranchList({
   }, [pendingStartCommit, onClearPendingCommit, fetchGithubBranches])
 
   const [deleteModalBranchId, setDeleteModalBranchId] = useState<string | null>(null)
-  const [deleteModalMergeStatus, setDeleteModalMergeStatus] = useState<"loading" | "merged" | "unmerged" | "error">("loading")
+  const [deleteModalMergeStatus, setDeleteModalMergeStatus] = useState<"loading" | "merged" | "unmerged" | "not-on-github" | "error">("loading")
   const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const deleteModalBranch = deleteModalBranchId ? repo.branches.find((b) => b.id === deleteModalBranchId) : null
@@ -194,9 +194,9 @@ export function BranchList({
         )
         const data = await res.json()
         if (res.ok) {
-          // If branch not found on remote, treat as unmerged (local only)
+          // If branch not found on remote, it doesn't exist on GitHub
           if (data.notFound) {
-            setDeleteModalMergeStatus("unmerged")
+            setDeleteModalMergeStatus("not-on-github")
           } else {
             const isMerged = data.isMerged
             setDeleteModalMergeStatus(isMerged ? "merged" : "unmerged")
@@ -526,6 +526,10 @@ export function BranchList({
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span>Checking branch status...</span>
+              </div>
+            ) : deleteModalMergeStatus === "not-on-github" ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>This branch only exists locally.</span>
               </div>
             ) : deleteModalMergeStatus === "merged" ? (
               <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/50 p-3">
