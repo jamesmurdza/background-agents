@@ -470,6 +470,8 @@ export default function Home() {
           repos={repos}
           activeRepoId={activeRepoId}
           userAvatar={session?.user?.image || null}
+          userName={session?.user?.name || null}
+          userLogin={session?.user?.githubLogin || null}
           onSelectRepo={handleSelectRepo}
           onRemoveRepo={handleRemoveRepo}
           onReorderRepos={(from, to) => {

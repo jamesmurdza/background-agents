@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Repo } from "@/lib/types"
-import { Plus, X, LogOut } from "lucide-react"
+import { Plus, X, LogOut, Settings, Box } from "lucide-react"
 import { useState, useRef } from "react"
 import {
   Tooltip,
@@ -17,6 +17,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Quota {
   current: number
@@ -28,6 +35,8 @@ export interface RepoSidebarProps {
   repos: Repo[]
   activeRepoId: string | null
   userAvatar?: string | null
+  userName?: string | null
+  userLogin?: string | null
   onSelectRepo: (repoId: string) => void
   onRemoveRepo: (repoId: string) => void
   onReorderRepos: (fromIndex: number, toIndex: number) => void
@@ -41,6 +50,8 @@ export function RepoSidebar({
   repos,
   activeRepoId,
   userAvatar,
+  userName,
+  userLogin,
   onSelectRepo,
   onRemoveRepo,
   onReorderRepos,
@@ -164,49 +175,87 @@ export function RepoSidebar({
           <TooltipContent side="right">Add repository</TooltipContent>
         </Tooltip>
 
-        <div className="mt-auto flex flex-col items-center gap-2">
-          {quota && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex flex-col items-center text-[10px] text-muted-foreground">
-                  <span className="font-mono">{quota.current}/{quota.max}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {quota.current} of {quota.max} sandboxes active
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
+        <div className="mt-auto flex flex-col items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <button
-                onClick={onOpenSettings}
                 className="flex cursor-pointer h-10 w-10 items-center justify-center rounded-lg overflow-hidden transition-colors hover:ring-2 hover:ring-primary/50"
               >
                 {userAvatar ? (
-                  <img src={userAvatar} alt="Settings" className="h-full w-full rounded-lg object-cover" />
+                  <img src={userAvatar} alt="User menu" className="h-full w-full rounded-lg object-cover" />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center rounded-lg bg-primary text-primary-foreground font-mono text-sm font-bold">
-                    ?
+                    {userName?.[0]?.toUpperCase() || userLogin?.[0]?.toUpperCase() || "?"}
                   </span>
                 )}
               </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Settings</TooltipContent>
-          </Tooltip>
-          {onSignOut && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onSignOut}
-                  className="flex cursor-pointer h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Sign out</TooltipContent>
-            </Tooltip>
-          )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="end" className="w-56">
+              {/* User info header */}
+              <div className="px-2 py-2">
+                <div className="flex items-center gap-2">
+                  {userAvatar ? (
+                    <img src={userAvatar} alt="" className="h-8 w-8 rounded-md object-cover" />
+                  ) : (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-mono text-xs font-bold">
+                      {userName?.[0]?.toUpperCase() || userLogin?.[0]?.toUpperCase() || "?"}
+                    </span>
+                  )}
+                  <div className="flex flex-col">
+                    {userName && (
+                      <span className="text-sm font-medium text-foreground truncate">{userName}</span>
+                    )}
+                    {userLogin && (
+                      <span className="text-xs text-muted-foreground truncate">@{userLogin}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <DropdownMenuSeparator />
+
+              {/* Quota display */}
+              {quota && (
+                <>
+                  <div className="px-2 py-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                      <span className="flex items-center gap-1.5">
+                        <Box className="h-3 w-3" />
+                        Sandboxes
+                      </span>
+                      <span className="font-mono">{quota.current}/{quota.max}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          quota.current / quota.max > 0.8 ? "bg-orange-500" : "bg-primary"
+                        )}
+                        style={{ width: `${Math.min((quota.current / quota.max) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {/* Menu items */}
+              <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer">
+                <Settings className="h-4 w-4" />
+                API Settings
+              </DropdownMenuItem>
+
+              {onSignOut && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onSignOut} variant="destructive" className="cursor-pointer">
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 
