@@ -250,7 +250,7 @@ export function RepoSidebar({
               {/* Menu items */}
               <DropdownMenuItem onClick={onOpenSettings} className="cursor-pointer text-xs">
                 <Settings className="h-3.5 w-3.5" />
-                API Settings
+                Settings
               </DropdownMenuItem>
 
               {onSignOut && (
