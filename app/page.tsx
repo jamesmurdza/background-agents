@@ -152,7 +152,10 @@ export default function Home() {
     if (status !== "authenticated") return
 
     fetch("/api/user/me", { cache: "no-store" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to fetch user data: ${r.status}`)
+        return r.json()
+      })
       .then((data) => {
         if (data.repos) {
           const transformedRepos = data.repos.map(transformRepo)

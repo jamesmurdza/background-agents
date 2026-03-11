@@ -292,6 +292,7 @@ export function ChatPanel({
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const currentExecutionIdRef = useRef<string | null>(null)
   const currentMessageIdRef = useRef<string | null>(null)
+  const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
 
   // Sync input when switching branches - save old draft then load new
   useEffect(() => {
@@ -364,7 +365,7 @@ export function ChatPanel({
             const lastAssistantMsg = [...branch.messages].reverse().find(m => m.role === "assistant" && !m.commitHash)
             if (lastAssistantMsg) {
               currentMessageIdRef.current = lastAssistantMsg.id
-              startPolling(lastAssistantMsg.id)
+              startPollingRef.current(lastAssistantMsg.id)
             } else {
               // No message to poll for, reset status
               onUpdateBranch({ status: "idle" })
@@ -373,7 +374,7 @@ export function ChatPanel({
         }
       })
       .catch(() => {})
-  }, [branch.id, branch.sandboxId, branch.status, branch.messages, onUpdateBranch, startPolling])
+  }, [branch.id, branch.sandboxId, branch.status, branch.messages, onUpdateBranch])
 
   // Update startingCommitRef when branch changes (e.g., switching branches)
   useEffect(() => {
@@ -613,6 +614,7 @@ export function ChatPanel({
     poll()
     pollingRef.current = setInterval(poll, 1000)
   }, [branch.sandboxId, branch.name, branch.messages, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected])
+  startPollingRef.current = startPolling
 
   const handleSend = useCallback(async () => {
     const prompt = input.trim()
