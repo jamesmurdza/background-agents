@@ -138,7 +138,7 @@ export async function POST(req: Request) {
 
     await sandbox.process.executeCommand(command)
 
-    // 11. Reset auto-stop timer
+    // 12. Reset auto-stop timer
     try {
       await sandbox.refreshActivity()
     } catch {
