@@ -5,7 +5,7 @@ import type { Repo, Branch } from "@/lib/types"
 import { agentLabels } from "@/lib/types"
 import { Plus, X, LogOut, Settings, Box, ChevronDown, Check, Loader2, GitBranch } from "lucide-react"
 import { useState } from "react"
-import { Drawer, DrawerContent } from "@/components/ui/drawer"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -126,16 +126,12 @@ export function MobileSidebarDrawer({
     ? [...activeRepo.branches].sort((a, b) => (b.lastActivityTs ?? 0) - (a.lastActivityTs ?? 0))
     : []
 
-  // Only render drawer when open to avoid blocking touch events
-  if (!open) {
-    return null
-  }
-
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange} direction="left" modal={true}>
-        <DrawerContent
-          className="h-full w-[300px] max-w-[85vw] rounded-none border-r border-border"
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="left"
+          className="h-full w-[300px] max-w-[85vw] p-0 gap-0 [&>button]:hidden"
           style={{ paddingTop: 'var(--safe-area-inset-top)' }}
         >
           <div className="flex h-full flex-col bg-sidebar">
@@ -336,8 +332,8 @@ export function MobileSidebarDrawer({
               </div>
             </div>
           </div>
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
 
       {/* Remove repo confirmation modal */}
       <Dialog open={!!removeModalRepo} onOpenChange={(open) => !open && setRemoveModalRepo(null)}>
