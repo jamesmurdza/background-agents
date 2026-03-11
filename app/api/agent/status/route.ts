@@ -104,49 +104,48 @@ export async function POST(req: Request) {
       })
     }
 
-    // 6. Update message in database with latest content
-    if (outputData.content || (outputData.toolCalls && outputData.toolCalls.length > 0) || (outputData.contentBlocks && outputData.contentBlocks.length > 0)) {
-      await prisma.message.update({
-        where: { id: execution.messageId },
-        data: {
-          content: outputData.content || "",
-          toolCalls: outputData.toolCalls && outputData.toolCalls.length > 0
-            ? outputData.toolCalls
-            : undefined,
-          contentBlocks: outputData.contentBlocks && outputData.contentBlocks.length > 0
-            ? outputData.contentBlocks
-            : undefined,
-        },
-      })
-    }
+    // 6. Only update DB on completion/error (not on every poll)
+    // This reduces DB operations from 6 per poll to 1 read + batch write on completion
+    const isCompleted = outputData.status === "completed" || outputData.status === "error"
 
-    // 7. Update session ID if available
-    if (outputData.sessionId) {
-      await prisma.sandbox.update({
-        where: { id: sandbox.id },
-        data: { sessionId: outputData.sessionId },
-      }).catch(() => {})
-    }
-
-    // 8. If completed or error, update execution record and branch status
-    if (outputData.status === "completed" || outputData.status === "error") {
-      await prisma.agentExecution.update({
-        where: { id: execution.id },
-        data: {
-          status: outputData.status,
-          completedAt: new Date(),
-        },
-      })
-
-      await prisma.sandbox.update({
-        where: { id: sandbox.id },
-        data: { status: "idle" },
-      })
-
-      await prisma.branch.update({
-        where: { id: execution.message.branchId },
-        data: { status: "idle" },
-      })
+    if (isCompleted) {
+      // Batch all updates in a single transaction
+      await prisma.$transaction([
+        // Update message content
+        prisma.message.update({
+          where: { id: execution.messageId },
+          data: {
+            content: outputData.content || "",
+            toolCalls: outputData.toolCalls && outputData.toolCalls.length > 0
+              ? outputData.toolCalls
+              : undefined,
+            contentBlocks: outputData.contentBlocks && outputData.contentBlocks.length > 0
+              ? outputData.contentBlocks
+              : undefined,
+          },
+        }),
+        // Update execution status
+        prisma.agentExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: outputData.status,
+            completedAt: new Date(),
+          },
+        }),
+        // Update sandbox (status + sessionId)
+        prisma.sandbox.update({
+          where: { id: sandbox.id },
+          data: {
+            status: "idle",
+            ...(outputData.sessionId && { sessionId: outputData.sessionId }),
+          },
+        }),
+        // Update branch status
+        prisma.branch.update({
+          where: { id: execution.message.branchId },
+          data: { status: "idle" },
+        }),
+      ])
 
       // Refresh sandbox activity on completion
       try {
