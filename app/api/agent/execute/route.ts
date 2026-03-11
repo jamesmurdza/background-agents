@@ -78,7 +78,15 @@ export async function POST(req: Request) {
     // 5. Generate unique execution ID
     const executionId = randomUUID()
 
-    // 6. Create AgentExecution record
+    // 6. Verify message exists before creating AgentExecution (prevents FK constraint violation)
+    const messageRecord = await prisma.message.findUnique({
+      where: { id: messageId },
+    })
+    if (!messageRecord) {
+      return Response.json({ error: "Message not found - it may not have been saved yet" }, { status: 404 })
+    }
+
+    // 7. Create AgentExecution record
     await prisma.agentExecution.create({
       data: {
         messageId,
@@ -88,7 +96,7 @@ export async function POST(req: Request) {
       },
     })
 
-    // 7. Update sandbox and branch status
+    // 8. Update sandbox and branch status
     await prisma.sandbox.update({
       where: { id: sandboxRecord.id },
       data: { lastActiveAt: new Date(), status: "running" },
@@ -100,14 +108,14 @@ export async function POST(req: Request) {
       })
     }
 
-    // 8. Upload background agent script
+    // 9. Upload background agent script
     const scriptContent = getBackgroundAgentScript(executionId)
     const scriptB64 = Buffer.from(scriptContent).toString("base64")
     await sandbox.process.executeCommand(
       `echo '${scriptB64}' | base64 -d > /tmp/bg_agent_${executionId}.py`
     )
 
-    // 9. Build environment variables
+    // 10. Build environment variables
     const envVars: string[] = [
       `REPO_PATH="${repoPath}"`,
       `MESSAGE_ID="${messageId}"`,
@@ -124,7 +132,7 @@ export async function POST(req: Request) {
       envVars.push(`ANTHROPIC_API_KEY="${anthropicApiKey}"`)
     }
 
-    // 10. Start background process using nohup
+    // 11. Start background process using nohup
     const envString = envVars.join(" ")
     const command = `cd ${repoPath} && ${envString} nohup python3 /tmp/bg_agent_${executionId}.py > /tmp/agent_log_${executionId}.txt 2>&1 &`
 

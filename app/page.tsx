@@ -430,8 +430,8 @@ export default function Home() {
       })
 
       if (!res.ok) {
-        console.error("Failed to save message to database:", res.status, res.statusText)
-        return message.id
+        const errorText = await res.text().catch(() => res.statusText)
+        throw new Error(`Failed to save message: ${errorText}`)
       }
 
       const data = await res.json()
@@ -461,7 +461,8 @@ export default function Home() {
       return message.id
     } catch (error) {
       console.error("Error saving message to database:", error)
-      return message.id
+      // Re-throw so caller knows message wasn't saved - prevents foreign key errors
+      throw error
     }
   }, [activeRepo])
 

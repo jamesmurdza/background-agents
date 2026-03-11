@@ -591,9 +591,9 @@ export function ChatPanel({
       }
     }
 
-    // Start polling immediately, then every 500ms
+    // Start polling immediately, then every 1000ms (reduced from 500ms to ease DB load)
     poll()
-    pollingRef.current = setInterval(poll, 500)
+    pollingRef.current = setInterval(poll, 1000)
   }, [branch.sandboxId, branch.name, branch.messages, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected])
 
   const handleSend = useCallback(async () => {
