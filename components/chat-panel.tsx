@@ -334,12 +334,17 @@ export function ChatPanel({
     }
   }, [branch.id, branch.name, branch.draftPrompt, onSaveDraftForBranch])
 
-  // Check sandbox status on mount — detect stopped sandboxes and resume polling for running executions
+  // Check sandbox status on mount / branch switch — detect stopped sandboxes and resume polling for running executions
+  // Only depends on branch identity (id/sandboxId), NOT on status/messages to avoid feedback loops
   useEffect(() => {
     if (!branch.sandboxId) return
 
     // Skip if we're already polling
     if (pollingRef.current) return
+
+    // Capture current values via refs to avoid needing them as deps
+    const currentStatus = branch.status
+    const currentMessages = branch.messages
 
     fetch("/api/sandbox/status", {
       method: "POST",
@@ -353,28 +358,25 @@ export function ChatPanel({
         if (data.state && data.state !== "started") {
           // Sandbox is stopped
           onUpdateBranch({ status: "stopped" })
-        } else if (branch.status === "running" && !pollingRef.current) {
+        } else if (currentStatus === "running" && !pollingRef.current) {
           // Branch shows "running" - check for active execution and resume polling
-          // Find the last assistant message that might have a running execution
-          // Note: branch.messages comes from closure, which should be current since it's in deps
-          if (!branch.messages || branch.messages.length === 0) {
-            // No messages at all - this is likely a stale "running" status, reset it
+          if (!currentMessages || currentMessages.length === 0) {
             console.log("[chat-panel] Branch shows running but has no messages, resetting to idle")
             onUpdateBranch({ status: "idle" })
           } else {
-            const lastAssistantMsg = [...branch.messages].reverse().find(m => m.role === "assistant" && !m.commitHash)
+            const lastAssistantMsg = [...currentMessages].reverse().find(m => m.role === "assistant" && !m.commitHash)
             if (lastAssistantMsg) {
               currentMessageIdRef.current = lastAssistantMsg.id
               startPollingRef.current(lastAssistantMsg.id)
             } else {
-              // No message to poll for, reset status
               onUpdateBranch({ status: "idle" })
             }
           }
         }
       })
       .catch(() => {})
-  }, [branch.id, branch.sandboxId, branch.status, branch.messages, onUpdateBranch])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branch.id, branch.sandboxId])
 
   // Update startingCommitRef when branch changes (e.g., switching branches)
   useEffect(() => {
