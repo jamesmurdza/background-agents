@@ -1,63 +1,52 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { decrypt } from "@/lib/encryption"
 import { ensureSandboxReady } from "@/lib/sandbox-resume"
+import {
+  requireAuth,
+  isAuthError,
+  getDaytonaApiKey,
+  isDaytonaKeyError,
+  getSandboxWithAuth,
+  decryptUserCredentials,
+  badRequest,
+  notFound,
+  resetSandboxStatus,
+} from "@/lib/api-helpers"
 
 export const maxDuration = 300 // 5 minute timeout for agent queries
 
 export async function POST(req: Request) {
   // 1. Authenticate
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
 
   const body = await req.json()
   const { sandboxId, contextId, prompt, previewUrlPattern, repoName, messageId } = body
 
   if (!sandboxId || !prompt) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 })
+    return badRequest("Missing required fields")
   }
 
   // 2. Verify sandbox belongs to this user
-  const sandboxRecord = await prisma.sandbox.findUnique({
-    where: { sandboxId },
-    include: {
-      user: { include: { credentials: true } },
-      branch: { include: { repo: true } },
-    },
-  })
-
-  if (!sandboxRecord || sandboxRecord.userId !== session.user.id) {
-    return Response.json({ error: "Sandbox not found" }, { status: 404 })
+  const sandboxRecord = await getSandboxWithAuth(sandboxId, auth.userId)
+  if (!sandboxRecord) {
+    return notFound("Sandbox not found")
   }
 
   // 3. Get credentials
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Server configuration error" }, { status: 500 })
-  }
+  const daytonaApiKey = getDaytonaApiKey()
+  if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
   // Decrypt user's Anthropic credentials
-  const creds = sandboxRecord.user.credentials
-  let anthropicApiKey: string | undefined
-  let anthropicAuthToken: string | undefined
-  const anthropicAuthType = creds?.anthropicAuthType || "api-key"
-
-  if (creds?.anthropicApiKey) {
-    anthropicApiKey = decrypt(creds.anthropicApiKey)
-  }
-  if (creds?.anthropicAuthToken) {
-    anthropicAuthToken = decrypt(creds.anthropicAuthToken)
-  }
+  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType } = decryptUserCredentials(
+    sandboxRecord.user.credentials
+  )
 
   // Determine repo name from database or request
   const actualRepoName = repoName || sandboxRecord.branch?.repo?.name || "repo"
 
   const encoder = new TextEncoder()
 
-  // Capture record IDs for use in helper functions (already null-checked above)
+  // Capture record IDs for use in helper functions
   const sandboxDbId = sandboxRecord.id
   const branchDbId = sandboxRecord.branch?.id
 
@@ -89,16 +78,7 @@ export async function POST(req: Request) {
     // Also update branch/sandbox status to idle when cancelled
     if (streamCancelled) {
       try {
-        await prisma.sandbox.update({
-          where: { id: sandboxDbId },
-          data: { status: "idle" },
-        })
-        if (branchDbId) {
-          await prisma.branch.update({
-            where: { id: branchDbId },
-            data: { status: "idle" },
-          })
-        }
+        await resetSandboxStatus(sandboxDbId, branchDbId)
       } catch {
         // Non-critical
       }

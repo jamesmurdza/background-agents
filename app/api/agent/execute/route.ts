@@ -1,58 +1,49 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { decrypt } from "@/lib/encryption"
 import { ensureSandboxReady } from "@/lib/sandbox-resume"
 import { getBackgroundAgentScript, getOutputFilePath } from "@/lib/background-agent-script"
 import { randomUUID } from "crypto"
+import {
+  requireAuth,
+  isAuthError,
+  getDaytonaApiKey,
+  isDaytonaKeyError,
+  getSandboxWithAuth,
+  decryptUserCredentials,
+  badRequest,
+  notFound,
+  internalError,
+  updateSandboxAndBranchStatus,
+  resetSandboxStatus,
+} from "@/lib/api-helpers"
 
 export const maxDuration = 60 // Only needs to start the background process
 
 export async function POST(req: Request) {
   // 1. Authenticate
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
 
   const body = await req.json()
   const { sandboxId, prompt, previewUrlPattern, repoName, messageId } = body
 
   if (!sandboxId || !prompt || !messageId) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 })
+    return badRequest("Missing required fields")
   }
 
   // 2. Verify sandbox belongs to this user
-  const sandboxRecord = await prisma.sandbox.findUnique({
-    where: { sandboxId },
-    include: {
-      user: { include: { credentials: true } },
-      branch: { include: { repo: true } },
-    },
-  })
-
-  if (!sandboxRecord || sandboxRecord.userId !== session.user.id) {
-    return Response.json({ error: "Sandbox not found" }, { status: 404 })
+  const sandboxRecord = await getSandboxWithAuth(sandboxId, auth.userId)
+  if (!sandboxRecord) {
+    return notFound("Sandbox not found")
   }
 
   // 3. Get credentials
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Server configuration error" }, { status: 500 })
-  }
+  const daytonaApiKey = getDaytonaApiKey()
+  if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
   // Decrypt user's Anthropic credentials
-  const creds = sandboxRecord.user.credentials
-  let anthropicApiKey: string | undefined
-  let anthropicAuthToken: string | undefined
-  const anthropicAuthType = creds?.anthropicAuthType || "api-key"
-
-  if (creds?.anthropicApiKey) {
-    anthropicApiKey = decrypt(creds.anthropicApiKey)
-  }
-  if (creds?.anthropicAuthToken) {
-    anthropicAuthToken = decrypt(creds.anthropicAuthToken)
-  }
+  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType } = decryptUserCredentials(
+    sandboxRecord.user.credentials
+  )
 
   // Determine repo name from database or request
   const actualRepoName = repoName || sandboxRecord.branch?.repo?.name || "repo"
@@ -83,7 +74,7 @@ export async function POST(req: Request) {
       where: { id: messageId },
     })
     if (!messageRecord) {
-      return Response.json({ error: "Message not found - it may not have been saved yet" }, { status: 404 })
+      return notFound("Message not found - it may not have been saved yet")
     }
 
     // 7. Create AgentExecution record
@@ -97,16 +88,12 @@ export async function POST(req: Request) {
     })
 
     // 8. Update sandbox and branch status
-    await prisma.sandbox.update({
-      where: { id: sandboxRecord.id },
-      data: { lastActiveAt: new Date(), status: "running" },
-    })
-    if (sandboxRecord.branch) {
-      await prisma.branch.update({
-        where: { id: sandboxRecord.branch.id },
-        data: { status: "running" },
-      })
-    }
+    await updateSandboxAndBranchStatus(
+      sandboxRecord.id,
+      sandboxRecord.branch?.id,
+      "running",
+      { lastActiveAt: new Date() }
+    )
 
     // 9. Upload background agent script
     const scriptContent = getBackgroundAgentScript(executionId)
@@ -153,8 +140,6 @@ export async function POST(req: Request) {
     })
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-
     // Update execution status to error if it was created
     try {
       const execution = await prisma.agentExecution.findFirst({
@@ -171,17 +156,8 @@ export async function POST(req: Request) {
     }
 
     // Reset status
-    await prisma.sandbox.update({
-      where: { id: sandboxRecord.id },
-      data: { status: "idle" },
-    })
-    if (sandboxRecord.branch) {
-      await prisma.branch.update({
-        where: { id: sandboxRecord.branch.id },
-        data: { status: "idle" },
-      })
-    }
+    await resetSandboxStatus(sandboxRecord.id, sandboxRecord.branch?.id)
 
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

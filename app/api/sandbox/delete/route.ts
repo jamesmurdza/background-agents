@@ -1,34 +1,37 @@
 import { Daytona } from "@daytonaio/sdk"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import {
+  requireAuth,
+  isAuthError,
+  getDaytonaApiKey,
+  isDaytonaKeyError,
+  getSandboxBasicWithAuth,
+  badRequest,
+  notFound,
+  internalError,
+} from "@/lib/api-helpers"
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  // 1. Authenticate
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
 
   const body = await req.json()
   const { sandboxId } = body
 
   if (!sandboxId) {
-    return Response.json({ error: "Missing sandbox ID" }, { status: 400 })
+    return badRequest("Missing sandbox ID")
   }
 
-  // Verify ownership
-  const sandboxRecord = await prisma.sandbox.findUnique({
-    where: { sandboxId },
-  })
-
-  if (!sandboxRecord || sandboxRecord.userId !== session.user.id) {
-    return Response.json({ error: "Sandbox not found" }, { status: 404 })
+  // 2. Verify ownership
+  const sandboxRecord = await getSandboxBasicWithAuth(sandboxId, auth.userId)
+  if (!sandboxRecord) {
+    return notFound("Sandbox not found")
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Server configuration error" }, { status: 500 })
-  }
+  // 3. Get Daytona API key
+  const daytonaApiKey = getDaytonaApiKey()
+  if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
   try {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
@@ -52,8 +55,10 @@ export async function POST(req: Request) {
 
     return Response.json({ success: true })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    console.error(`[sandbox/delete] Error deleting sandbox ${sandboxId}:`, message)
-    return Response.json({ error: message }, { status: 500 })
+    console.error(
+      `[sandbox/delete] Error deleting sandbox ${sandboxId}:`,
+      error instanceof Error ? error.message : "Unknown error"
+    )
+    return internalError(error)
   }
 }
