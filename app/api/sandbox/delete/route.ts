@@ -32,10 +32,20 @@ export async function POST(req: Request) {
 
   try {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    const sandbox = await daytona.get(sandboxId)
-    await sandbox.delete()
 
-    // Delete from database
+    // Try to delete from Daytona - don't fail if sandbox doesn't exist there
+    try {
+      const sandbox = await daytona.get(sandboxId)
+      await sandbox.delete()
+    } catch (daytonaError: unknown) {
+      // Log but continue - sandbox may already be deleted in Daytona
+      console.warn(
+        `[sandbox/delete] Daytona delete warning for ${sandboxId}:`,
+        daytonaError instanceof Error ? daytonaError.message : "Unknown error"
+      )
+    }
+
+    // Always delete from database
     await prisma.sandbox.delete({
       where: { id: sandboxRecord.id },
     })
@@ -43,10 +53,7 @@ export async function POST(req: Request) {
     return Response.json({ success: true })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
-    // Still try to delete from DB even if Daytona delete fails
-    await prisma.sandbox.delete({
-      where: { id: sandboxRecord.id },
-    }).catch(() => {})
+    console.error(`[sandbox/delete] Error deleting sandbox ${sandboxId}:`, message)
     return Response.json({ error: message }, { status: 500 })
   }
 }

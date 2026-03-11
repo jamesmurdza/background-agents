@@ -315,6 +315,7 @@ export function MobileSidebarDrawer({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="left"
+          title="Navigation menu"
           className="h-full w-[300px] max-w-[85vw] p-0 gap-0 [&>button]:hidden"
           style={{ paddingTop: 'var(--safe-area-inset-top)' }}
         >
