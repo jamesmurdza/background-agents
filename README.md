@@ -37,6 +37,7 @@ const sandbox = createSandbox({
   apiKey: process.env.DAYTONA_API_KEY,
   env: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   },
 })
 
@@ -76,6 +77,7 @@ async function main() {
     apiKey: process.env.DAYTONA_API_KEY,
     env: {
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     },
   })
 
@@ -255,11 +257,16 @@ Goodbye!
 5. **Cleanup**: Sandbox is destroyed when done
 
 ```
-┌─────────────┐     ┌─────────────────┐     ┌─────────────┐
-│   Your App  │────▶│  Daytona Sandbox │────▶│  Claude CLI │
-│             │◀────│   (PTY Stream)   │◀────│  (JSON out) │
-└─────────────┘     └─────────────────┘     └─────────────┘
+┌─────────────┐     ┌──────────────────────────────────────┐
+│             │     │          Daytona Sandbox             │
+│   Your App  │────▶│  ┌─────────────┐    ┌─────────────┐  │
+│             │◀────│  │  PTY Stream │◀──▶│  Claude CLI │  │
+│             │     │  └─────────────┘    │   (Agent)   │  │
+└─────────────┘     │                     └─────────────┘  │
+                    └──────────────────────────────────────┘
 ```
+
+The AI agent (Claude CLI, Codex, etc.) runs entirely inside the isolated Daytona sandbox, ensuring secure execution of all agent operations.
 
 ## Development
 
