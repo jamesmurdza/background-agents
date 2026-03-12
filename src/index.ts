@@ -76,6 +76,12 @@ export {
   isValidProvider,
 } from "./factory.js"
 
+// Session wrapper (recommended for nicer defaults)
+export {
+  Session,
+  createSession,
+} from "./session.js"
+
 // Utilities
 export {
   safeJsonParse,
