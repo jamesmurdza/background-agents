@@ -12,7 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 // Import hooks
 import {
   useDraftSync,
-  useAgentStream,
+  useExecutionPolling,
   useGitActions,
   useBranchRenaming,
 } from "./chat/hooks"
@@ -38,6 +38,7 @@ interface ChatPanelProps {
   onUpdateMessage: (messageId: string, updates: Partial<Message>) => void
   onUpdateBranch: (updates: Partial<Branch>) => void
   onSaveDraftForBranch?: (branchId: string, draftPrompt: string) => void
+  onForceSave: () => void
   onCommitsDetected?: () => void
   onBranchFromCommit?: (commitHash: string) => void
   onAgentChange?: (agent: AgentProvider) => void
@@ -62,6 +63,7 @@ export function ChatPanel({
   onUpdateMessage,
   onUpdateBranch,
   onSaveDraftForBranch,
+  onForceSave,
   onCommitsDetected,
   onBranchFromCommit,
   onAgentChange,
@@ -73,6 +75,7 @@ export function ChatPanel({
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Custom hooks
   const { input, setInput, isNearBottomRef } = useDraftSync({
@@ -81,14 +84,17 @@ export function ChatPanel({
   })
 
   const {
+    currentExecutionIdRef,
     currentMessageIdRef,
-    startStream,
-    stopStream,
-  } = useAgentStream({
+    startPolling,
+    stopPolling,
+  } = useExecutionPolling({
     branch,
     repoName,
     onUpdateMessage,
     onUpdateBranch,
+    onAddMessage,
+    onForceSave,
     onCommitsDetected,
   })
 
@@ -152,14 +158,41 @@ export function ChatPanel({
     const messageId = await onAddMessage(assistantMsg)
     currentMessageIdRef.current = messageId
 
-    // Start SSE stream
-    startStream(messageId, prompt)
-  }, [input, branch, onAddMessage, onUpdateBranch, startStream, currentMessageIdRef, setInput])
+    try {
+      const response = await fetch("/api/agent/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId: branch.sandboxId,
+          prompt,
+          previewUrlPattern: branch.previewUrlPattern,
+          repoName,
+          messageId,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to start agent")
+      }
+
+      const { executionId } = await response.json()
+      currentExecutionIdRef.current = executionId
+      startPolling(messageId, executionId)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error"
+      onUpdateMessage(messageId, { content: `Error: ${message}` })
+      onUpdateBranch({ status: BRANCH_STATUS.IDLE })
+      currentMessageIdRef.current = null
+      currentExecutionIdRef.current = null
+    }
+  }, [input, branch, repoName, onAddMessage, onUpdateMessage, onUpdateBranch, startPolling, currentMessageIdRef, currentExecutionIdRef, setInput])
 
   // Stop handler
   const handleStop = useCallback(() => {
-    stopStream()
-  }, [stopStream])
+    stopPolling()
+    abortControllerRef.current?.abort()
+  }, [stopPolling])
 
   // Handle commit click
   const handleCommitClick = useCallback((hash: string, msg: string) => {
