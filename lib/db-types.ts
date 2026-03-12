@@ -3,7 +3,8 @@
  * These are the "raw" shapes before transformation to frontend types
  */
 
-import type { Message, Branch } from "@/lib/types"
+import type { Message, Branch, ProviderName } from "@/lib/types"
+import { AGENT_PROVIDER } from "@/lib/constants"
 
 export interface DbSandbox {
   id: string
@@ -33,6 +34,8 @@ export interface DbBranch {
   status: string
   prUrl: string | null
   draftPrompt: string | null
+  agent: string
+  model: string | null
   sandbox: DbSandbox | null
   messages?: DbMessage[]
 }
@@ -56,6 +59,8 @@ export interface UserCredentials {
   anthropicAuthType: string
   hasAnthropicApiKey: boolean
   hasAnthropicAuthToken: boolean
+  hasOpenaiApiKey: boolean
+  sandboxAutoStopInterval?: number
 }
 
 /**
@@ -86,6 +91,8 @@ export function transformBranch(dbBranch: DbBranch): Branch {
     status: dbBranch.status as Branch["status"],
     prUrl: dbBranch.prUrl || undefined,
     draftPrompt: dbBranch.draftPrompt || undefined,
+    agent: (dbBranch.agent || AGENT_PROVIDER.CLAUDE) as ProviderName,
+    model: dbBranch.model || undefined,
     sandboxId: dbBranch.sandbox?.sandboxId,
     contextId: dbBranch.sandbox?.contextId || undefined,
     sessionId: dbBranch.sandbox?.sessionId || undefined,

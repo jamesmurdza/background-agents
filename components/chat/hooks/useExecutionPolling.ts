@@ -1,7 +1,8 @@
 import { useRef, useCallback, useEffect } from "react"
-import type { Branch, Message } from "@/lib/types"
+import type { Branch, Message, ProviderName, ToolCall, ContentBlock } from "@/lib/types"
 import { generateId } from "@/lib/store"
-import { BRANCH_STATUS, EXECUTION_STATUS } from "@/lib/constants"
+import { BRANCH_STATUS, EXECUTION_STATUS, AGENT_PROVIDER } from "@/lib/constants"
+import type { AgentEvent } from "@/lib/agent-types"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -15,6 +16,7 @@ interface UseExecutionPollingOptions {
 
 /**
  * Handles polling for background agent execution status
+ * Now supports cursor-based polling with the background-agents SDK
  */
 export function useExecutionPolling({
   branch,
@@ -28,8 +30,16 @@ export function useExecutionPolling({
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const currentExecutionIdRef = useRef<string | null>(null)
   const currentMessageIdRef = useRef<string | null>(null)
+  const currentCursorRef = useRef<string | null>(null)
+  const currentProviderRef = useRef<ProviderName>(AGENT_PROVIDER.CLAUDE)
   const startingCommitRef = useRef<string | null>(branch.startCommit || null)
-  const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
+  const startPollingRef = useRef<(messageId: string, executionId?: string, cursor?: string, provider?: ProviderName) => void>(() => {})
+
+  // Accumulated content for building the message
+  const accumulatedContentRef = useRef<string>("")
+  const accumulatedToolCallsRef = useRef<ToolCall[]>([])
+  const accumulatedContentBlocksRef = useRef<ContentBlock[]>([])
+  const currentToolRef = useRef<{ name: string; output: string } | null>(null)
 
   // Update startingCommitRef when branch changes
   useEffect(() => {
@@ -48,21 +58,134 @@ export function useExecutionPolling({
     }
   }, [])
 
+  // Process SDK events into message updates
+  const processEvents = useCallback((events: AgentEvent[], messageId: string) => {
+    let hasUpdates = false
+
+    for (const event of events) {
+      switch (event.type) {
+        case "session":
+          // Session ID received, update branch
+          onUpdateBranch({ sessionId: event.id })
+          break
+
+        case "token":
+          // Accumulate text content
+          accumulatedContentRef.current += event.text
+          hasUpdates = true
+
+          // If we have text accumulated after tool calls, add a text block
+          if (accumulatedContentBlocksRef.current.length > 0) {
+            const lastBlock = accumulatedContentBlocksRef.current[accumulatedContentBlocksRef.current.length - 1]
+            if (lastBlock.type === "text") {
+              lastBlock.text += event.text
+            } else {
+              accumulatedContentBlocksRef.current.push({
+                type: "text",
+                text: event.text,
+              })
+            }
+          } else if (accumulatedToolCallsRef.current.length > 0) {
+            // Started with tools, now have text - add text block
+            accumulatedContentBlocksRef.current.push({
+              type: "text",
+              text: event.text,
+            })
+          }
+          break
+
+        case "tool_start":
+          // Starting a new tool call
+          currentToolRef.current = { name: event.name, output: "" }
+          hasUpdates = true
+          break
+
+        case "tool_delta":
+          // Tool output streaming
+          if (currentToolRef.current) {
+            currentToolRef.current.output += event.text
+          }
+          break
+
+        case "tool_end":
+          // Tool call completed
+          if (currentToolRef.current) {
+            const toolCall: ToolCall = {
+              id: generateId(),
+              tool: currentToolRef.current.name,
+              summary: event.output || currentToolRef.current.output.slice(0, 100) || currentToolRef.current.name,
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            }
+            accumulatedToolCallsRef.current.push(toolCall)
+
+            // Add to content blocks for interleaved display
+            const lastBlock = accumulatedContentBlocksRef.current[accumulatedContentBlocksRef.current.length - 1]
+            if (lastBlock?.type === "tool_calls") {
+              lastBlock.toolCalls.push(toolCall)
+            } else {
+              // If we had text content before, push it as a text block first
+              if (accumulatedContentRef.current && accumulatedContentBlocksRef.current.length === 0) {
+                accumulatedContentBlocksRef.current.push({
+                  type: "text",
+                  text: accumulatedContentRef.current,
+                })
+              }
+              accumulatedContentBlocksRef.current.push({
+                type: "tool_calls",
+                toolCalls: [toolCall],
+              })
+            }
+
+            currentToolRef.current = null
+            hasUpdates = true
+          }
+          break
+
+        case "end":
+          // Execution complete, handled by status
+          break
+      }
+    }
+
+    // Update message with accumulated content
+    if (hasUpdates) {
+      onUpdateMessage(messageId, {
+        content: accumulatedContentRef.current,
+        toolCalls: accumulatedToolCallsRef.current.length > 0 ? accumulatedToolCallsRef.current : undefined,
+        contentBlocks: accumulatedContentBlocksRef.current.length > 0 ? accumulatedContentBlocksRef.current : undefined,
+      })
+    }
+  }, [onUpdateBranch, onUpdateMessage])
+
   // Start polling for execution status
-  const startPolling = useCallback((messageId: string, executionId?: string) => {
+  const startPolling = useCallback((messageId: string, executionId?: string, cursor?: string, provider?: ProviderName) => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
     }
+
+    // Reset accumulated state
+    accumulatedContentRef.current = ""
+    accumulatedToolCallsRef.current = []
+    accumulatedContentBlocksRef.current = []
+    currentToolRef.current = null
+
+    currentCursorRef.current = cursor || null
+    currentProviderRef.current = provider || branch.agent || AGENT_PROVIDER.CLAUDE
 
     let notFoundRetries = 0
     const MAX_NOT_FOUND_RETRIES = 10
 
     const poll = async () => {
       try {
-        const res = await fetch("/api/agent/status", {
+        // Use the new poll endpoint for cursor-based polling
+        const res = await fetch("/api/agent/poll", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messageId, executionId }),
+          body: JSON.stringify({
+            executionId: executionId || currentExecutionIdRef.current,
+            cursor: currentCursorRef.current,
+            provider: currentProviderRef.current,
+          }),
         })
         const data = await res.json()
 
@@ -78,6 +201,7 @@ export function useExecutionPolling({
               }
               currentExecutionIdRef.current = null
               currentMessageIdRef.current = null
+              currentCursorRef.current = null
               onUpdateBranch({ status: BRANCH_STATUS.IDLE })
             }
             return
@@ -88,51 +212,36 @@ export function useExecutionPolling({
 
         notFoundRetries = 0
 
-        // Update message content
-        if (data.content || (data.toolCalls && data.toolCalls.length > 0) || (data.contentBlocks && data.contentBlocks.length > 0)) {
-          const toolCallsWithIds = (data.toolCalls || []).map((tc: { tool: string; summary: string }, idx: number) => ({
-            id: `tc-${idx}`,
-            tool: tc.tool,
-            summary: tc.summary,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          }))
-          const contentBlocksWithIds = (data.contentBlocks || []).map((block: { type: string; text?: string; toolCalls?: Array<{ tool: string; summary: string }> }, blockIdx: number) => {
-            if (block.type === "tool_calls" && block.toolCalls) {
-              return {
-                type: "tool_calls" as const,
-                toolCalls: block.toolCalls.map((tc, tcIdx) => ({
-                  id: `tc-${blockIdx}-${tcIdx}`,
-                  tool: tc.tool,
-                  summary: tc.summary,
-                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                })),
-              }
-            }
-            return block
-          })
-          onUpdateMessage(messageId, {
-            content: data.content || "",
-            toolCalls: toolCallsWithIds,
-            contentBlocks: contentBlocksWithIds.length > 0 ? contentBlocksWithIds : undefined,
-          })
+        // Update cursor for next poll
+        if (data.cursor) {
+          currentCursorRef.current = data.cursor
         }
 
+        // Process events incrementally
+        if (data.events && data.events.length > 0) {
+          processEvents(data.events, messageId)
+        }
+
+        // Update session ID if provided
         if (data.sessionId) {
           onUpdateBranch({ sessionId: data.sessionId })
         }
 
         // Check if completed or error
-        if (data.status === EXECUTION_STATUS.COMPLETED || data.status === EXECUTION_STATUS.ERROR) {
+        if (data.status === "completed" || data.status === "error") {
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
             pollingRef.current = null
           }
           currentExecutionIdRef.current = null
           currentMessageIdRef.current = null
+          currentCursorRef.current = null
 
-          if (data.status === EXECUTION_STATUS.ERROR && data.error) {
+          if (data.status === "error" && data.error) {
             onUpdateMessage(messageId, {
-              content: data.content ? `${data.content}\n\nError: ${data.error}` : `Error: ${data.error}`,
+              content: accumulatedContentRef.current
+                ? `${accumulatedContentRef.current}\n\nError: ${data.error}`
+                : `Error: ${data.error}`,
             })
           }
 
@@ -212,7 +321,7 @@ export function useExecutionPolling({
       poll()
       pollingRef.current = setInterval(poll, 500)
     }, 150)
-  }, [branch.sandboxId, branch.name, branch.messages, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected])
+  }, [branch.sandboxId, branch.name, branch.messages, branch.agent, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected, processEvents])
 
   startPollingRef.current = startPolling
 
@@ -225,7 +334,7 @@ export function useExecutionPolling({
 
     if (currentMessageIdRef.current) {
       const lastMsg = branch.messages.find(m => m.id === currentMessageIdRef.current)
-      const currentContent = lastMsg?.content || ""
+      const currentContent = lastMsg?.content || accumulatedContentRef.current || ""
       onUpdateMessage(currentMessageIdRef.current, {
         content: currentContent ? `${currentContent}\n\n[Stopped by user]` : "[Stopped by user]"
       })
@@ -233,6 +342,7 @@ export function useExecutionPolling({
 
     currentExecutionIdRef.current = null
     currentMessageIdRef.current = null
+    currentCursorRef.current = null
     onUpdateBranch({ status: BRANCH_STATUS.IDLE })
   }, [branch.messages, onUpdateMessage, onUpdateBranch])
 
@@ -258,7 +368,7 @@ export function useExecutionPolling({
             const lastAssistantMsg = [...currentMessages].reverse().find(m => m.role === "assistant" && !m.commitHash)
             if (lastAssistantMsg) {
               currentMessageIdRef.current = lastAssistantMsg.id
-              startPollingRef.current(lastAssistantMsg.id)
+              startPollingRef.current(lastAssistantMsg.id, undefined, undefined, branch.agent)
             } else {
               onUpdateBranch({ status: BRANCH_STATUS.IDLE })
             }
@@ -273,7 +383,7 @@ export function useExecutionPolling({
                 if (execData.execution && execData.execution.status === EXECUTION_STATUS.RUNNING) {
                   currentMessageIdRef.current = execData.execution.messageId
                   currentExecutionIdRef.current = execData.execution.executionId
-                  startPollingRef.current(execData.execution.messageId, execData.execution.executionId)
+                  startPollingRef.current(execData.execution.messageId, execData.execution.executionId, undefined, branch.agent)
                 } else {
                   onUpdateBranch({ status: BRANCH_STATUS.IDLE })
                 }
@@ -292,6 +402,7 @@ export function useExecutionPolling({
     pollingRef,
     currentExecutionIdRef,
     currentMessageIdRef,
+    currentCursorRef,
     startPolling,
     stopPolling,
   }

@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const { userId } = authResult
 
   const body = await req.json()
-  const { anthropicApiKey, anthropicAuthType, anthropicAuthToken, sandboxAutoStopInterval } = body
+  const { anthropicApiKey, anthropicAuthType, anthropicAuthToken, openaiApiKey, sandboxAutoStopInterval } = body
 
   if (!anthropicAuthType || !["api-key", "claude-max"].includes(anthropicAuthType)) {
     return badRequest("Invalid auth type")
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
   // Encrypt credentials before storing
   const encryptedApiKey = anthropicApiKey ? encrypt(anthropicApiKey) : null
   const encryptedAuthToken = anthropicAuthToken ? encrypt(anthropicAuthToken) : null
+  const encryptedOpenaiKey = openaiApiKey ? encrypt(openaiApiKey) : null
 
   await prisma.userCredentials.upsert({
     where: { userId },
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
       anthropicApiKey: encryptedApiKey,
       anthropicAuthType,
       anthropicAuthToken: encryptedAuthToken,
+      openaiApiKey: encryptedOpenaiKey,
       ...(sandboxAutoStopInterval !== undefined && { sandboxAutoStopInterval }),
     },
     create: {
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
       anthropicApiKey: encryptedApiKey,
       anthropicAuthType,
       anthropicAuthToken: encryptedAuthToken,
+      openaiApiKey: encryptedOpenaiKey,
       ...(sandboxAutoStopInterval !== undefined && { sandboxAutoStopInterval }),
     },
   })

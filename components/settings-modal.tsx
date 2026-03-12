@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Code } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import type { AnthropicAuthType } from "@/lib/types"
@@ -13,6 +13,7 @@ interface SettingsModalProps {
     anthropicAuthType: string
     hasAnthropicApiKey: boolean
     hasAnthropicAuthToken: boolean
+    hasOpenaiApiKey: boolean
     sandboxAutoStopInterval?: number
   } | null
   onCredentialsUpdate: () => void
@@ -22,6 +23,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
   const [anthropicApiKey, setAnthropicApiKey] = useState("")
   const [anthropicAuthType, setAnthropicAuthType] = useState<AnthropicAuthType>("api-key")
   const [anthropicAuthToken, setAnthropicAuthToken] = useState("")
+  const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [sandboxAutoStopInterval, setSandboxAutoStopInterval] = useState(5)
   const [initialAutoStopInterval, setInitialAutoStopInterval] = useState(5)
   const [copied, setCopied] = useState(false)
@@ -35,6 +37,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
       setAnthropicAuthType((credentials?.anthropicAuthType as AnthropicAuthType) ?? "api-key")
       setAnthropicApiKey("")
       setAnthropicAuthToken("")
+      setOpenaiApiKey("")
       const interval = credentials?.sandboxAutoStopInterval ?? 5
       setSandboxAutoStopInterval(interval)
       setInitialAutoStopInterval(interval)
@@ -47,12 +50,14 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
   async function handleSave() {
     const newApiKey = anthropicApiKey.trim()
     const newAuthToken = anthropicAuthToken.trim()
+    const newOpenaiKey = openaiApiKey.trim()
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
     // Check if there's anything to save
     const hasCredentialChanges =
       (anthropicAuthType === "api-key" && newApiKey) ||
-      (anthropicAuthType === "claude-max" && newAuthToken)
+      (anthropicAuthType === "claude-max" && newAuthToken) ||
+      newOpenaiKey
 
     if (!hasCredentialChanges && !autoStopChanged) {
       onClose()
@@ -70,6 +75,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
           anthropicAuthType,
           anthropicApiKey: anthropicAuthType === "api-key" ? newApiKey : undefined,
           anthropicAuthToken: anthropicAuthType === "claude-max" ? newAuthToken : undefined,
+          openaiApiKey: newOpenaiKey || undefined,
           sandboxAutoStopInterval,
         }),
       })
@@ -146,6 +152,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
             <div className="flex items-center gap-2">
               <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
               <label className="text-xs font-medium text-foreground">Anthropic Authentication</label>
+              {(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken) && (
+                <span className="text-[10px] text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">Configured</span>
+              )}
             </div>
             <div className="flex rounded-md border border-border bg-secondary p-0.5">
               <button
@@ -213,6 +222,27 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                 </p>
               </>
             )}
+          </div>
+
+          {/* OpenAI API Key */}
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+            <div className="flex items-center gap-2">
+              <Code className="h-3.5 w-3.5 text-muted-foreground" />
+              <label className="text-xs font-medium text-foreground">OpenAI API Key</label>
+              {credentials?.hasOpenaiApiKey && (
+                <span className="text-[10px] text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">Configured</span>
+              )}
+            </div>
+            <Input
+              type="password"
+              placeholder="sk-..."
+              value={openaiApiKey}
+              onChange={(e) => setOpenaiApiKey(e.target.value)}
+              className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Required for Codex agent and OpenCode with OpenAI models
+            </p>
           </div>
 
           {/* Sandbox Settings */}

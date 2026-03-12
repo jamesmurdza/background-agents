@@ -72,6 +72,9 @@ model UserCredentials {
   anthropicAuthType  String  @default("api-key") // "api-key" | "claude-max"
   anthropicAuthToken String? @db.Text
 
+  // Encrypted OpenAI credentials (for Codex and OpenCode agents)
+  openaiApiKey String? @db.Text
+
   // Sandbox settings
   sandboxAutoStopInterval Int @default(5) // 5-20 minutes
 
@@ -107,6 +110,10 @@ model Branch {
   status      String  @default("idle") // "idle" | "running" | "creating" | "stopped" | "error"
   prUrl       String?
   draftPrompt String? @db.Text // Persisted draft input for chat continuity
+
+  // Agent configuration
+  agent String @default("claude") // "claude" | "codex" | "opencode"
+  model String? // e.g., "claude-sonnet-4-20250514", "gpt-4o"
 
   sandbox  Sandbox?
   messages Message[]

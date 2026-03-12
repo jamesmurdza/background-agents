@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Repo, Branch } from "@/lib/types"
-import { agentLabels } from "@/lib/types"
+import { providerLabels } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { randomBranchName, validateBranchName } from "@/lib/branch-utils"
 import { BRANCH_STATUS } from "@/lib/constants"
@@ -134,7 +134,7 @@ export function MobileSidebarDrawer({
     const branch: Branch = {
       id: branchId,
       name: branchName,
-      agent: "claude-code",
+      agent: "claude",
       messages: [],
       status: BRANCH_STATUS.CREATING,
       lastActivity: "now",
@@ -461,7 +461,7 @@ export function MobileSidebarDrawer({
                             {branch.name}
                           </span>
                           <span className="text-[10px] text-muted-foreground">
-                            {branch.status === BRANCH_STATUS.CREATING ? "Setting up..." : agentLabels[branch.agent || "claude-code"]}
+                            {branch.status === BRANCH_STATUS.CREATING ? "Setting up..." : providerLabels[branch.agent]}
                           </span>
                         </div>
                       </button>

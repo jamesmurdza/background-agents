@@ -122,3 +122,32 @@ export const ANTHROPIC_AUTH_TYPE = {
 } as const
 
 export type AnthropicAuthType = (typeof ANTHROPIC_AUTH_TYPE)[keyof typeof ANTHROPIC_AUTH_TYPE]
+
+// =============================================================================
+// Agent Providers
+// =============================================================================
+
+export const AGENT_PROVIDER = {
+  CLAUDE: "claude",
+  CODEX: "codex",
+  OPENCODE: "opencode",
+} as const
+
+export type AgentProvider = (typeof AGENT_PROVIDER)[keyof typeof AGENT_PROVIDER]
+
+// Type guard to check if a string is a valid AgentProvider
+export function isAgentProvider(value: string): value is AgentProvider {
+  return Object.values(AGENT_PROVIDER).includes(value as AgentProvider)
+}
+
+// =============================================================================
+// Model Credential Requirements
+// =============================================================================
+
+export const CREDENTIAL_TYPE = {
+  ANTHROPIC: "anthropic",
+  OPENAI: "openai",
+  NONE: "none",
+} as const
+
+export type CredentialType = (typeof CREDENTIAL_TYPE)[keyof typeof CREDENTIAL_TYPE]

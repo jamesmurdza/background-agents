@@ -1,11 +1,11 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Branch, Message } from "@/lib/types"
+import type { Branch, Message, ProviderName } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Terminal } from "lucide-react"
-import { useRef, useEffect, useCallback } from "react"
+import { useRef, useEffect, useCallback, useState } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 // Import hooks
@@ -21,6 +21,7 @@ import { ChatHeader } from "./chat/chat-header"
 import { MessageList } from "./chat/message-list"
 import { ChatInput } from "./chat/chat-input"
 import { ChatDialogs } from "./chat/chat-dialogs"
+import { AgentSwitchWarning } from "./chat/agent-switch-warning"
 
 // ============================================================================
 // Main ChatPanel Component
@@ -42,6 +43,11 @@ interface ChatPanelProps {
   onBranchFromCommit?: (commitHash: string) => void
   messagesLoading?: boolean
   isMobile?: boolean
+  credentials?: {
+    hasAnthropicApiKey?: boolean
+    hasAnthropicAuthToken?: boolean
+    hasOpenaiApiKey?: boolean
+  }
 }
 
 export function ChatPanel({
@@ -60,11 +66,18 @@ export function ChatPanel({
   onBranchFromCommit,
   messagesLoading = false,
   isMobile = false,
+  credentials = {},
 }: ChatPanelProps) {
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Agent switch warning state
+  const [pendingAgentSwitch, setPendingAgentSwitch] = useState<{
+    currentAgent: ProviderName
+    newAgent: ProviderName
+  } | null>(null)
 
   // Custom hooks
   const { input, setInput, isNearBottomRef } = useDraftSync({
@@ -157,6 +170,9 @@ export function ChatPanel({
           previewUrlPattern: branch.previewUrlPattern,
           repoName,
           messageId,
+          agent: branch.agent,
+          model: branch.model,
+          sessionId: branch.sessionId,
         }),
       })
 
@@ -165,9 +181,9 @@ export function ChatPanel({
         throw new Error(data.error || "Failed to start agent")
       }
 
-      const { executionId } = await response.json()
+      const { executionId, cursor, provider } = await response.json()
       currentExecutionIdRef.current = executionId
-      startPolling(messageId, executionId)
+      startPolling(messageId, executionId, cursor, provider)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       onUpdateMessage(messageId, { content: `Error: ${message}` })
@@ -188,6 +204,42 @@ export function ChatPanel({
     gitActions.setCommitDiffHash(hash)
     gitActions.setCommitDiffMessage(msg)
   }, [gitActions])
+
+  // Handle agent change - show warning if there are messages
+  const handleAgentChange = useCallback((newAgent: ProviderName) => {
+    if (branch.messages.length > 0 && branch.agent !== newAgent) {
+      // Show warning dialog
+      setPendingAgentSwitch({
+        currentAgent: branch.agent,
+        newAgent,
+      })
+    } else {
+      // No messages or same agent, change directly
+      onUpdateBranch({ agent: newAgent, sessionId: undefined })
+    }
+  }, [branch.messages.length, branch.agent, onUpdateBranch])
+
+  // Confirm agent switch
+  const handleConfirmAgentSwitch = useCallback(() => {
+    if (pendingAgentSwitch) {
+      // Clear session ID when switching agents (new session)
+      onUpdateBranch({
+        agent: pendingAgentSwitch.newAgent,
+        sessionId: undefined,
+      })
+      setPendingAgentSwitch(null)
+    }
+  }, [pendingAgentSwitch, onUpdateBranch])
+
+  // Cancel agent switch
+  const handleCancelAgentSwitch = useCallback(() => {
+    setPendingAgentSwitch(null)
+  }, [])
+
+  // Handle model change - no warning needed
+  const handleModelChange = useCallback((model: string) => {
+    onUpdateBranch({ model })
+  }, [onUpdateBranch])
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -225,6 +277,9 @@ export function ChatPanel({
           onInputChange={setInput}
           onSend={handleSend}
           onStop={handleStop}
+          onAgentChange={handleAgentChange}
+          onModelChange={handleModelChange}
+          credentials={credentials}
           isMobile={isMobile}
         />
       </div>
@@ -236,6 +291,17 @@ export function ChatPanel({
         repoName={repoName}
         gitActions={gitActions}
       />
+
+      {/* Agent Switch Warning */}
+      {pendingAgentSwitch && (
+        <AgentSwitchWarning
+          open={true}
+          currentAgent={pendingAgentSwitch.currentAgent}
+          newAgent={pendingAgentSwitch.newAgent}
+          onConfirm={handleConfirmAgentSwitch}
+          onCancel={handleCancelAgentSwitch}
+        />
+      )}
     </TooltipProvider>
   )
 }

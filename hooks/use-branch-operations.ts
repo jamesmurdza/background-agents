@@ -58,7 +58,7 @@ export function useBranchOperations({
     // Only update in database if branch exists there (not during creation)
     // When id is provided, we're transitioning from client-side to server-side ID
     const shouldPersist = !isBeingCreated || updates.id
-    if (shouldPersist && (updates.status || updates.prUrl || updates.name || updates.draftPrompt !== undefined)) {
+    if (shouldPersist && (updates.status || updates.prUrl || updates.name || updates.draftPrompt !== undefined || updates.agent || updates.model !== undefined)) {
       fetch("/api/branches", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

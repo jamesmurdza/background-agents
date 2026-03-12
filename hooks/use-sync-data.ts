@@ -11,6 +11,8 @@ export interface SyncBranch {
   prUrl: string | null
   sandboxId: string | null
   lastMessageId: string | null
+  agent: string
+  model: string | null
 }
 
 export interface SyncRepo {
@@ -87,12 +89,14 @@ export function useSyncData({ setRepos, activeBranchIdRef }: UseSyncDataOptions)
                 return {
                   id: syncBranch.id,
                   name: syncBranch.name,
+                  agent: syncBranch.agent || "claude",
+                  model: syncBranch.model,
                   status: syncBranch.status as Branch["status"],
                   baseBranch: syncBranch.baseBranch || "main",
                   prUrl: syncBranch.prUrl || undefined,
                   sandboxId: syncBranch.sandboxId || undefined,
                   messages: [],
-                }
+                } as Branch
               }),
             }
           }
@@ -106,12 +110,14 @@ export function useSyncData({ setRepos, activeBranchIdRef }: UseSyncDataOptions)
             branches: syncRepo.branches.map((b) => ({
               id: b.id,
               name: b.name,
+              agent: b.agent || "claude",
+              model: b.model,
               status: b.status as Branch["status"],
               baseBranch: b.baseBranch || "main",
               prUrl: b.prUrl || undefined,
               sandboxId: b.sandboxId || undefined,
               messages: [],
-            })),
+            } as Branch)),
           }
         })
         return newRepos
@@ -150,12 +156,14 @@ export function useSyncData({ setRepos, activeBranchIdRef }: UseSyncDataOptions)
                   return {
                     id: syncBranch.id,
                     name: syncBranch.name,
+                    agent: syncBranch.agent || "claude",
+                    model: syncBranch.model,
                     status: syncBranch.status as Branch["status"],
                     baseBranch: syncBranch.baseBranch || "main",
                     prUrl: syncBranch.prUrl || undefined,
                     sandboxId: syncBranch.sandboxId || undefined,
                     messages: [],
-                  }
+                  } as Branch
                 }),
               }
             })

@@ -1,10 +1,11 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Branch } from "@/lib/types"
+import type { Branch, ProviderName } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
-import { Send, Terminal } from "lucide-react"
+import { Send } from "lucide-react"
 import { forwardRef, useEffect, useCallback } from "react"
+import { AgentSelector } from "./agent-selector"
 
 // ============================================================================
 // Chat Input Component
@@ -16,12 +17,19 @@ interface ChatInputProps {
   onInputChange: (value: string) => void
   onSend: () => void
   onStop: () => void
+  onAgentChange: (agent: ProviderName) => void
+  onModelChange: (model: string) => void
+  credentials: {
+    hasAnthropicApiKey?: boolean
+    hasAnthropicAuthToken?: boolean
+    hasOpenaiApiKey?: boolean
+  }
   isMobile?: boolean
 }
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput(
-    { branch, input, onInputChange, onSend, onStop, isMobile },
+    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, credentials, isMobile },
     ref
   ) {
     const canSend = input.trim() && branch.status !== BRANCH_STATUS.RUNNING && branch.status !== BRANCH_STATUS.CREATING && branch.sandboxId
@@ -90,10 +98,14 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
           </button>
         </div>
         <div className="mt-1.5 flex items-center">
-          <span className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-            <Terminal className="h-3 w-3" />
-            Claude Code
-          </span>
+          <AgentSelector
+            selectedAgent={branch.agent}
+            selectedModel={branch.model}
+            onAgentChange={onAgentChange}
+            onModelChange={onModelChange}
+            disabled={branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING}
+            credentials={credentials}
+          />
         </div>
       </div>
     )

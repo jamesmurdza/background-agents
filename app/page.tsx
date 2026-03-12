@@ -291,6 +291,7 @@ export default function Home() {
                   onBranchFromCommit={(hash) => setPendingStartCommit(hash)}
                   messagesLoading={messagesLoading}
                   isMobile={true}
+                  credentials={credentials || undefined}
                 />
               ) : (
                 <EmptyChatPanel hasRepos={repos.length > 0} />
@@ -321,6 +322,7 @@ export default function Home() {
               onCommitsDetected={() => setGitHistoryRefreshTrigger((n) => n + 1)}
               onBranchFromCommit={(hash) => setPendingStartCommit(hash)}
               messagesLoading={messagesLoading}
+              credentials={credentials || undefined}
             />
           ) : (
             <EmptyChatPanel hasRepos={repos.length > 0} />

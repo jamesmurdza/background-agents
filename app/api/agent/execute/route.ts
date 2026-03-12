@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma"
 import { ensureSandboxReady } from "@/lib/sandbox-resume"
-import { getBackgroundAgentScript, getOutputFilePath } from "@/lib/background-agent-script"
 import { randomUUID } from "crypto"
 import {
   requireAuth,
@@ -15,6 +14,9 @@ import {
   updateSandboxAndBranchStatus,
   resetSandboxStatus,
 } from "@/lib/api-helpers"
+import { createAgentSession, getProviderEnv, validateCredentials } from "@/lib/agent-service"
+import { AGENT_PROVIDER, isAgentProvider } from "@/lib/constants"
+import type { ProviderName } from "@/lib/types"
 
 export const maxDuration = 60 // Only needs to start the background process
 
@@ -24,11 +26,14 @@ export async function POST(req: Request) {
   if (isAuthError(auth)) return auth
 
   const body = await req.json()
-  const { sandboxId, prompt, previewUrlPattern, repoName, messageId } = body
+  const { sandboxId, prompt, previewUrlPattern, repoName, messageId, agent, model, sessionId } = body
 
   if (!sandboxId || !prompt || !messageId) {
     return badRequest("Missing required fields")
   }
+
+  // Validate and set provider
+  const provider: ProviderName = isAgentProvider(agent) ? agent : AGENT_PROVIDER.CLAUDE
 
   // 2. Verify sandbox belongs to this user
   const sandboxRecord = await getSandboxWithAuth(sandboxId, auth.userId)
@@ -40,10 +45,14 @@ export async function POST(req: Request) {
   const daytonaApiKey = getDaytonaApiKey()
   if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
-  // Decrypt user's Anthropic credentials
-  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType } = decryptUserCredentials(
-    sandboxRecord.user.credentials
-  )
+  // Decrypt user's credentials
+  const credentials = decryptUserCredentials(sandboxRecord.user.credentials)
+
+  // Validate credentials for the selected provider/model
+  const validation = validateCredentials(provider, model, credentials)
+  if (!validation.valid) {
+    return badRequest(`Missing credentials: ${validation.missing.join(", ")}`)
+  }
 
   // Determine repo name from database or request
   const actualRepoName = repoName || sandboxRecord.branch?.repo?.name || "repo"
@@ -51,23 +60,19 @@ export async function POST(req: Request) {
 
   try {
     // 4. Ensure sandbox is ready
-    const { sandbox, wasResumed, resumeSessionId } = await ensureSandboxReady(
+    const { sandbox, resumeSessionId } = await ensureSandboxReady(
       daytonaApiKey,
       sandboxId,
       actualRepoName,
       previewUrlPattern || sandboxRecord.previewUrlPattern || undefined,
-      anthropicApiKey,
-      anthropicAuthType,
-      anthropicAuthToken,
+      credentials.anthropicApiKey,
+      credentials.anthropicAuthType,
+      credentials.anthropicAuthToken,
     )
-
-    // Update context if it was recreated
-    if (wasResumed) {
-      // Context was recreated, but we don't need it for background execution
-    }
 
     // 5. Generate unique execution ID
     const executionId = randomUUID()
+    const outputFile = `/tmp/agent_output_${executionId}.jsonl`
 
     // 6. Verify message exists before creating AgentExecution (prevents FK constraint violation)
     const messageRecord = await prisma.message.findUnique({
@@ -95,35 +100,29 @@ export async function POST(req: Request) {
       { lastActiveAt: new Date() }
     )
 
-    // 9. Upload background agent script
-    const scriptContent = getBackgroundAgentScript(executionId)
-    const scriptB64 = Buffer.from(scriptContent).toString("base64")
-    await sandbox.process.executeCommand(
-      `echo '${scriptB64}' | base64 -d > /tmp/bg_agent_${executionId}.py`
-    )
-
-    // 10. Build environment variables
-    const envVars: string[] = [
-      `REPO_PATH="${repoPath}"`,
-      `MESSAGE_ID="${messageId}"`,
-      `PROMPT="${prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`,
-    ]
-
+    // 9. Build environment variables for the provider
+    const env = getProviderEnv(provider, credentials, model)
+    env.REPO_PATH = repoPath
     if (previewUrlPattern || sandboxRecord.previewUrlPattern) {
-      envVars.push(`PREVIEW_URL_PATTERN="${previewUrlPattern || sandboxRecord.previewUrlPattern}"`)
-    }
-    if (resumeSessionId) {
-      envVars.push(`RESUME_SESSION_ID="${resumeSessionId}"`)
-    }
-    if (anthropicAuthType !== "claude-max" && anthropicApiKey) {
-      envVars.push(`ANTHROPIC_API_KEY="${anthropicApiKey}"`)
+      env.PREVIEW_URL_PATTERN = previewUrlPattern || sandboxRecord.previewUrlPattern || ""
     }
 
-    // 11. Start background process using nohup
-    const envString = envVars.join(" ")
-    const command = `cd ${repoPath} && ${envString} nohup python3 /tmp/bg_agent_${executionId}.py > /tmp/agent_log_${executionId}.txt 2>&1 &`
+    // Use session ID from request or from previous sandbox session
+    const activeSessionId = sessionId || resumeSessionId || undefined
 
-    await sandbox.process.executeCommand(command)
+    // 10. Create background session using SDK
+    const session = await createAgentSession({
+      provider,
+      sandbox,
+      model,
+      sessionId: activeSessionId,
+      env,
+      outputFile,
+      timeout: 600000, // 10 minutes
+    })
+
+    // 11. Start the agent
+    const startResult = await session.start(prompt)
 
     // 12. Reset auto-stop timer
     try {
@@ -136,7 +135,10 @@ export async function POST(req: Request) {
       success: true,
       executionId,
       messageId,
-      outputFile: getOutputFilePath(executionId),
+      outputFile,
+      cursor: startResult.cursor,
+      provider,
+      pid: startResult.pid,
     })
 
   } catch (error: unknown) {
