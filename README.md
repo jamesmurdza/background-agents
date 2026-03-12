@@ -1,12 +1,12 @@
 # Code Agent SDK
 
-A TypeScript SDK for interacting with AI coding agents (Claude, Codex, OpenCode, Gemini) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
+A TypeScript SDK for interacting with AI coding agents (Claude, Codex, Gemini, OpenCode) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
 
 ## Features
 
 - **Secure by default** - All CLI execution happens in isolated Daytona sandboxes
 - **Real-time streaming** - PTY-based streaming for live token output
-- **Unified interface** - Same API for Claude, Codex, OpenCode, and Gemini
+- **Unified interface** - Same API for Claude, Codex, Gemini, and OpenCode
 - **Auto-install** - CLIs are automatically installed in sandboxes
 - **Session persistence** - Resume conversations across runs
 
@@ -16,8 +16,8 @@ A TypeScript SDK for interacting with AI coding agents (Claude, Codex, OpenCode,
 |----------|--------|-----|----------------|
 | Claude | **Tested** | `claude` | `ANTHROPIC_API_KEY` env var |
 | Codex | **Tested** | `codex` | `OPENAI_API_KEY` env var |
-| OpenCode | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
 | Gemini | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
+| OpenCode | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
 
 ## Installation
 
@@ -142,7 +142,7 @@ const provider = createProvider("claude", {
 })
 ```
 
-**Supported providers:** `"claude"`, `"codex"`, `"opencode"`, `"gemini"`
+**Supported providers:** `"claude"`, `"codex"`, `"gemini"`, `"opencode"`
 
 ### provider.run(options)
 
@@ -206,22 +206,6 @@ await claude.run({ prompt: "Hello", model: "haiku" })
 await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
 ```
 
-### OpenCode Models (OpenAI)
-
-```typescript
-const opencode = createProvider("opencode", { sandbox })
-
-// Format: "provider/model"
-await opencode.run({ prompt: "Hello", model: "openai/gpt-4o" })           // Default
-await opencode.run({ prompt: "Hello", model: "openai/gpt-4o-mini" })
-await opencode.run({ prompt: "Hello", model: "openai/o1" })
-await opencode.run({ prompt: "Hello", model: "openai/o3" })
-
-// Other providers supported by OpenCode
-await opencode.run({ prompt: "Hello", model: "anthropic/claude-sonnet" })
-await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
-```
-
 ### Codex Models
 
 ```typescript
@@ -239,6 +223,22 @@ const gemini = createProvider("gemini", { sandbox })
 
 await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
 await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
+```
+
+### OpenCode Models (OpenAI)
+
+```typescript
+const opencode = createProvider("opencode", { sandbox })
+
+// Format: "provider/model"
+await opencode.run({ prompt: "Hello", model: "openai/gpt-4o" })           // Default
+await opencode.run({ prompt: "Hello", model: "openai/gpt-4o-mini" })
+await opencode.run({ prompt: "Hello", model: "openai/o1" })
+await opencode.run({ prompt: "Hello", model: "openai/o3" })
+
+// Other providers supported by OpenCode
+await opencode.run({ prompt: "Hello", model: "anthropic/claude-sonnet" })
+await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
 ```
 
 ## Environment Variables
@@ -295,7 +295,7 @@ Options:
   -p, --provider <name>  Provider to use (default: claude)
   -h, --help             Show help message
 
-Supported providers: claude, codex, opencode, gemini
+Supported providers: claude, codex, gemini, opencode
 ```
 
 ### Example Session
