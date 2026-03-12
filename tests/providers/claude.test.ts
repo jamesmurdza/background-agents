@@ -10,13 +10,15 @@ describe("ClaudeProvider", () => {
   })
 
   describe("getCommand", () => {
-    it("should return basic command without session", () => {
+    it("should return basic command with print mode and stream-json", () => {
       const provider = new ClaudeProvider()
       const { cmd, args } = provider.getCommand()
 
       expect(cmd).toBe("claude")
+      expect(args).toContain("-p")
       expect(args).toContain("--output-format")
       expect(args).toContain("stream-json")
+      expect(args).toContain("--verbose")
     })
 
     it("should include resume flag with session ID", () => {
@@ -27,6 +29,13 @@ describe("ClaudeProvider", () => {
       expect(cmd).toBe("claude")
       expect(args).toContain("--resume")
       expect(args).toContain("test-session-123")
+    })
+
+    it("should include prompt when provided", () => {
+      const provider = new ClaudeProvider()
+      const { args } = provider.getCommand({ prompt: "Hello world" })
+
+      expect(args).toContain("Hello world")
     })
 
     it("should use session from options over provider session", () => {
@@ -40,113 +49,98 @@ describe("ClaudeProvider", () => {
   })
 
   describe("parse", () => {
-    it("should return null for non-SSE lines", () => {
+    it("should return null for invalid JSON", () => {
       const provider = new ClaudeProvider()
 
-      expect(provider.parse("not an sse line")).toBeNull()
+      expect(provider.parse("not json")).toBeNull()
       expect(provider.parse("")).toBeNull()
-      expect(provider.parse('{"type": "test"}')).toBeNull()
     })
 
-    it("should parse message_start event", () => {
-      const provider = new ClaudeProvider()
-      const event = provider.parse('data: {"type": "message_start", "message": {"id": "msg_123"}}')
-
-      expect(event).toEqual({ type: "session", id: "msg_123" })
-    })
-
-    it("should return null for message_start without ID", () => {
-      const provider = new ClaudeProvider()
-      const event = provider.parse('data: {"type": "message_start", "message": {}}')
-
-      expect(event).toBeNull()
-    })
-
-    it("should parse content_block_start for tool_use", () => {
+    it("should parse system init event", () => {
       const provider = new ClaudeProvider()
       const event = provider.parse(
-        'data: {"type": "content_block_start", "content_block": {"type": "tool_use", "name": "read_file"}}'
+        '{"type": "system", "subtype": "init", "session_id": "abc-123"}'
       )
+
+      expect(event).toEqual({ type: "session", id: "abc-123" })
+    })
+
+    it("should parse assistant message with text", () => {
+      const provider = new ClaudeProvider()
+      const event = provider.parse(JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_123",
+          content: [{ type: "text", text: "Hello from Claude!" }]
+        },
+        session_id: "abc-123"
+      }))
+
+      expect(event).toEqual({ type: "token", text: "Hello from Claude!" })
+    })
+
+    it("should parse assistant message with tool_use", () => {
+      const provider = new ClaudeProvider()
+      const event = provider.parse(JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_123",
+          content: [{ type: "tool_use", name: "read_file" }]
+        },
+        session_id: "abc-123"
+      }))
 
       expect(event).toEqual({ type: "tool_start", name: "read_file" })
     })
 
-    it("should return null for content_block_start without tool_use", () => {
+    it("should return null for assistant message with empty content", () => {
       const provider = new ClaudeProvider()
-      const event = provider.parse(
-        'data: {"type": "content_block_start", "content_block": {"type": "text"}}'
-      )
+      const event = provider.parse(JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_123",
+          content: []
+        },
+        session_id: "abc-123"
+      }))
 
       expect(event).toBeNull()
     })
 
-    it("should parse text_delta", () => {
+    it("should parse tool_use event", () => {
       const provider = new ClaudeProvider()
-      const event = provider.parse(
-        'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Hello world"}}'
-      )
+      const event = provider.parse('{"type": "tool_use", "name": "bash"}')
 
-      expect(event).toEqual({ type: "token", text: "Hello world" })
+      expect(event).toEqual({ type: "tool_start", name: "bash" })
     })
 
-    it("should parse input_json_delta", () => {
+    it("should parse tool_result event", () => {
       const provider = new ClaudeProvider()
-      const jsonData = JSON.stringify({
-        type: "content_block_delta",
-        delta: {
-          type: "input_json_delta",
-          partial_json: '{"path":'
-        }
-      })
-      const event = provider.parse(`data: ${jsonData}`)
-
-      expect(event).toEqual({ type: "tool_delta", text: '{"path":' })
-    })
-
-    it("should return null for unknown delta types", () => {
-      const provider = new ClaudeProvider()
-      const event = provider.parse(
-        'data: {"type": "content_block_delta", "delta": {"type": "unknown"}}'
-      )
-
-      expect(event).toBeNull()
-    })
-
-    it("should parse content_block_stop", () => {
-      const provider = new ClaudeProvider()
-      const event = provider.parse('data: {"type": "content_block_stop"}')
+      const event = provider.parse('{"type": "tool_result", "tool_use_id": "tool_123"}')
 
       expect(event).toEqual({ type: "tool_end" })
     })
 
-    it("should parse message_stop", () => {
+    it("should parse result event", () => {
       const provider = new ClaudeProvider()
-      const event = provider.parse('data: {"type": "message_stop"}')
+      const event = provider.parse(
+        '{"type": "result", "subtype": "success", "result": "Done", "session_id": "abc-123"}'
+      )
 
       expect(event).toEqual({ type: "end" })
     })
 
     it("should return null for unknown event types", () => {
       const provider = new ClaudeProvider()
-      const event = provider.parse('data: {"type": "unknown_event"}')
+      const event = provider.parse('{"type": "unknown_event"}')
 
       expect(event).toBeNull()
     })
 
-    it("should handle malformed JSON in SSE data", () => {
+    it("should handle malformed JSON", () => {
       const provider = new ClaudeProvider()
-      const event = provider.parse("data: {not valid json}")
+      const event = provider.parse("{not valid json}")
 
-      expect(event).toBeNull()
-    })
-
-    it("should handle empty delta text", () => {
-      const provider = new ClaudeProvider()
-      const event = provider.parse(
-        'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": ""}}'
-      )
-
-      // Empty string is falsy, so should return null
       expect(event).toBeNull()
     })
   })

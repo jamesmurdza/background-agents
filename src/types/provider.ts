@@ -16,6 +16,8 @@ export interface ProviderCommand {
 
 /** Options for running a provider */
 export interface RunOptions {
+  /** The prompt to send to the provider */
+  prompt?: string
   /** Optional session ID to resume */
   sessionId?: string
   /** Whether to persist session ID to file */

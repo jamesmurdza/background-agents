@@ -42,5 +42,8 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1"
   }
 }

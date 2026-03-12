@@ -10,12 +10,20 @@ describe("CodexProvider", () => {
   })
 
   describe("getCommand", () => {
-    it("should return basic command without session", () => {
+    it("should return exec command with JSON output", () => {
       const provider = new CodexProvider()
       const { cmd, args } = provider.getCommand()
 
       expect(cmd).toBe("codex")
-      expect(args).toEqual([])
+      expect(args).toContain("exec")
+      expect(args).toContain("--json")
+    })
+
+    it("should include prompt when provided", () => {
+      const provider = new CodexProvider()
+      const { args } = provider.getCommand({ prompt: "Hello world" })
+
+      expect(args).toContain("Hello world")
     })
 
     it("should include resume flag with session ID", () => {

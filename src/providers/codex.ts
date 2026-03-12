@@ -33,6 +33,18 @@ interface CodexTurnCompleted {
   type: "turn.completed"
 }
 
+interface CodexTurnFailed {
+  type: "turn.failed"
+  error: {
+    message: string
+  }
+}
+
+interface CodexError {
+  type: "error"
+  message: string
+}
+
 type CodexEvent =
   | CodexThreadStarted
   | CodexMessageDelta
@@ -40,6 +52,8 @@ type CodexEvent =
   | CodexToolInputDelta
   | CodexToolEnd
   | CodexTurnCompleted
+  | CodexTurnFailed
+  | CodexError
 
 /**
  * OpenAI Codex provider
@@ -52,8 +66,18 @@ export class CodexProvider extends Provider {
   getCommand(options?: RunOptions): ProviderCommand {
     const args: string[] = []
 
+    // Use exec subcommand for non-interactive mode with JSON output
+    args.push("exec")
+
+    // JSON output for streaming events
+    args.push("--json")
+
     if (this.sessionId || options?.sessionId) {
+      // For resuming, we need a different command structure
       args.push("resume", this.sessionId || options!.sessionId!)
+    } else if (options?.prompt) {
+      // Add the prompt
+      args.push(options.prompt)
     }
 
     return {
