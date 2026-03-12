@@ -14,9 +14,10 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 
 | Provider | Status | CLI | Authentication |
 |----------|--------|-----|----------------|
-| [Claude](https://docs.anthropic.com/en/docs/claude-code) | ✅ **Complete** | `claude` | `ANTHROPIC_API_KEY` env var |
-| [Codex](https://developers.openai.com/codex/cli) | ✅ **Complete** | `codex` | `OPENAI_API_KEY` env var |
-| [OpenCode](https://opencode.ai/docs/) | ✅ **Complete** | `opencode` | Provider-specific env vars (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
+| [Claude](https://docs.anthropic.com/en/docs/claude-code) | ✅ | `claude` | `ANTHROPIC_API_KEY` env var |
+| [Codex](https://developers.openai.com/codex/cli) | ✅ | `codex` | `OPENAI_API_KEY` env var |
+| [OpenCode](https://opencode.ai/docs/) | ✅ | `opencode` | Provider-specific env vars (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
+| [Gemini](https://geminicli.com/docs/) | 🚧 | `gemini` | `GOOGLE_API_KEY` env var |
 
 ## Installation
 
