@@ -71,13 +71,24 @@ async function main() {
       }
 
       try {
-        process.stdout.write("\x1b[33mClaude:\x1b[0m ")
+        // Show thinking indicator
+        process.stdout.write("\x1b[90mThinking...\x1b[0m")
+        let firstToken = true
 
         for await (const event of provider.run({ prompt: trimmed, autoInstall: false })) {
           if (event.type === "token") {
+            if (firstToken) {
+              // Clear "Thinking..." and show Claude's response
+              process.stdout.write("\r\x1b[K\x1b[33mClaude:\x1b[0m ")
+              firstToken = false
+            }
             process.stdout.write(event.text)
           } else if (event.type === "tool_start") {
-            process.stdout.write(`\n\x1b[90m[Using tool: ${event.name}]\x1b[0m\n`)
+            if (firstToken) {
+              process.stdout.write("\r\x1b[K")
+              firstToken = false
+            }
+            process.stdout.write(`\x1b[90m[Using tool: ${event.name}]\x1b[0m\n`)
           } else if (event.type === "tool_end") {
             process.stdout.write(`\x1b[90m[Tool completed]\x1b[0m\n`)
           }
