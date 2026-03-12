@@ -1,5 +1,5 @@
 export { useDraftSync } from "./useDraftSync"
-export { useExecutionPolling } from "./useExecutionPolling"
+export { useAgentStream } from "./useAgentStream"
 export { useGitActions } from "./useGitActions"
 export { useBranchRenaming } from "./useBranchRenaming"
 
