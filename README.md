@@ -217,22 +217,49 @@ const text = await provider.collectText({ prompt: "Hello" })
 
 ## Interactive REPL
 
-Test the SDK interactively:
+Test the SDK interactively with any supported provider:
 
 ```bash
+# Using Claude (default)
 DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/repl.ts
+
+# Using Codex
+DAYTONA_API_KEY=... OPENAI_API_KEY=... npx tsx scripts/repl.ts --provider codex
+
+# Using Gemini
+DAYTONA_API_KEY=... GEMINI_API_KEY=... npx tsx scripts/repl.ts --provider gemini
+
+# Using OpenCode
+DAYTONA_API_KEY=... OPENAI_API_KEY=... npx tsx scripts/repl.ts --provider opencode
 ```
+
+### REPL Options
+
+```bash
+npx tsx scripts/repl.ts [options]
+
+Options:
+  -p, --provider <name>  Provider to use (default: claude)
+  -h, --help             Show help message
+
+Supported providers: claude, codex, opencode, gemini
+```
+
+### Example Session
 
 ```
 ============================================================
   Code Agent SDK - Interactive REPL
+  Provider: claude
 ============================================================
 
 Creating sandbox...
 Sandbox created!
 
+Claude provider ready.
+
 Commands:
-  Type a prompt and press Enter to send to Claude
+  Type a prompt and press Enter to send to claude
   /quit or /exit - Exit the REPL
   /clear - Clear session (start fresh)
 ------------------------------------------------------------
@@ -258,7 +285,7 @@ Goodbye!
 ┌─────────────┐     ┌──────────────────────────────────────┐
 │             │     │          Daytona Sandbox             │
 │   Your App  │────▶│  ┌─────────────┐    ┌─────────────┐  │
-│             │◀────│  │  PTY Stream │◀──▶│  Claude CLI │  │
+│             │◀────│  │  PTY Stream │◀──▶│  Agent CLI  │  │
 │             │     │  └─────────────┘    │   (Agent)   │  │
 └─────────────┘     │                     └─────────────┘  │
                     └──────────────────────────────────────┘
