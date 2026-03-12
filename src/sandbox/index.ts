@@ -51,10 +51,26 @@ export function adaptDaytonaSandbox(
     }
   }
 
+  async function executeCommand(command: string, timeout: number = 60): Promise<{ exitCode: number; output: string }> {
+    const envPrefix = Object.entries(envVars)
+      .map(([k, v]) => `${k}='${v.replace(/'/g, "'\\''")}'`)
+      .join(" ")
+    const fullCommand = envPrefix ? `${envPrefix} ${command}` : command
+    const result = await sandbox.process.executeCommand(
+      fullCommand,
+      undefined,
+      undefined,
+      timeout
+    )
+    return { exitCode: result.exitCode ?? 0, output: result.result ?? "" }
+  }
+
   return {
     setEnvVars(vars: Record<string, string>): void {
       Object.assign(envVars, vars)
     },
+
+    executeCommand,
 
     async ensureProvider(name: ProviderName): Promise<void> {
       const installed = await isProviderInstalled(name)

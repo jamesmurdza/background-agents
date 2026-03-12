@@ -114,14 +114,6 @@ async function main() {
   console.log("Sandbox created!")
   console.log()
 
-  if (selectedProvider === "codex") {
-    console.log("Preparing Codex CLI (install + login)...")
-    await sandbox.process.executeCommand("npm install -g @openai/codex", undefined, undefined, 120)
-    await sandbox.process.executeCommand(`echo "${PROVIDER_API_KEY}" | codex login --with-api-key 2>&1`, undefined, undefined, 30)
-    console.log("Codex CLI ready.")
-    console.log()
-  }
-
   const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
   const provider = createProvider(selectedProvider, { sandbox, env })
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} provider ready.`)

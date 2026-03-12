@@ -15,6 +15,8 @@ export interface CodeAgentSandbox {
   ensureProvider(name: ProviderName): Promise<void>
   setEnvVars(vars: Record<string, string>): void
   executeCommandStream(command: string, timeout?: number): AsyncGenerator<string, void, unknown>
+  /** Optional: run a one-off command (used e.g. for Codex login). */
+  executeCommand?(command: string, timeout?: number): Promise<{ exitCode: number; output: string }>
 }
 
 /** Command configuration for spawning a provider process */

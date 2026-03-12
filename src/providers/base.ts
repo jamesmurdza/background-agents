@@ -24,6 +24,9 @@ export abstract class Provider implements IProvider {
   /** Whether local execution is allowed */
   protected allowLocalExecution: boolean = false
 
+  /** Codex CLI login done once per sandbox */
+  private _codexLoginDone = false
+
   constructor(options: ProviderOptions = {}) {
     if (options.sandbox) {
       const s = options.sandbox as CodeAgentSandbox & { process?: unknown; delete?: unknown }
@@ -89,6 +92,22 @@ export abstract class Provider implements IProvider {
     // Set environment variables
     if (options.env) {
       this.sandboxManager.setEnvVars(options.env)
+    }
+
+    // Codex requires login before first use
+    if (
+      this.name === "codex" &&
+      options.env?.OPENAI_API_KEY &&
+      this.sandboxManager.executeCommand &&
+      !this._codexLoginDone
+    ) {
+      const key = options.env.OPENAI_API_KEY
+      const safeKey = key.replace(/'/g, "'\\''")
+      await this.sandboxManager.executeCommand(
+        `echo '${safeKey}' | codex login --with-api-key 2>&1`,
+        30
+      )
+      this._codexLoginDone = true
     }
 
     // Build the command
