@@ -25,6 +25,16 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 npm install code-agent-sdk
 ```
 
+## Prerequisites
+
+You'll need a [Daytona](https://daytona.io) API key for sandbox mode (recommended):
+
+```bash
+export DAYTONA_API_KEY=dtn_your_api_key
+```
+
+If you prefer to run locally without a sandbox, see [Local Mode](#local-mode-dangerous) below.
+
 ## Quick Start
 
 ### 1. Create a Sandbox
@@ -195,6 +205,12 @@ Each provider supports specifying a model via the `model` option. Pass the model
 ### Claude Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
+})
+await sandbox.create()
+
 const claude = createProvider("claude", { sandbox })
 
 // Use model alias (recommended)
@@ -211,6 +227,12 @@ See [Claude Code model configuration](https://code.claude.com/docs/en/model-conf
 ### Codex Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
+})
+await sandbox.create()
+
 const codex = createProvider("codex", { sandbox })
 
 await codex.run({ prompt: "Hello", model: "gpt-4o" })
@@ -223,6 +245,12 @@ See [Codex CLI models](https://developers.openai.com/codex/models) for all avail
 ### Gemini Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY },
+})
+await sandbox.create()
+
 const gemini = createProvider("gemini", { sandbox })
 
 await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
@@ -234,6 +262,12 @@ See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all a
 ### OpenCode Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
+})
+await sandbox.create()
+
 const opencode = createProvider("opencode", { sandbox })
 
 // Format: "provider/model"
@@ -248,18 +282,6 @@ await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
 ```
 
 See [OpenCode models](https://opencode.ai/docs/models/) for all available models and providers.
-
-## Environment Variables
-
-```bash
-# Required for sandbox mode
-DAYTONA_API_KEY=dtn_your_api_key
-
-# Provider API keys (pass to sandbox via env config)
-ANTHROPIC_API_KEY=sk-ant-...    # For Claude
-OPENAI_API_KEY=sk-...           # For Codex and OpenCode
-GOOGLE_API_KEY=AIza...          # For Gemini
-```
 
 ## Local Mode (Dangerous)
 
