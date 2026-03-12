@@ -7,7 +7,7 @@
  * @example
  * ```typescript
  * import { Daytona } from "@daytonaio/sdk"
- * import { createSession } from "code-agent-sdk"
+ * import { createSession } from "coding-agents"
  *
  * const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
  * const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })

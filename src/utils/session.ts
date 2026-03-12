@@ -5,7 +5,7 @@ import * as path from "node:path"
  * Session management utilities
  */
 
-const DEFAULT_SESSION_DIR = ".code-agent-sdk"
+const DEFAULT_SESSION_DIR = ".coding-agents"
 const DEFAULT_SESSION_FILE = "session"
 
 /**

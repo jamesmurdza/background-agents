@@ -20,7 +20,7 @@ dist/
 Thumbs.db
 
 # Session files
-.code-agent-sdk/
+.coding-agents/
 
 # Coverage
 coverage/
