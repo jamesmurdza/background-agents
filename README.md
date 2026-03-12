@@ -1,6 +1,6 @@
 # Code Agent SDK
 
-A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), [Gemini](https://geminicli.com/docs/), [OpenCode](https://opencode.ai/docs/)) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
+A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/cli), [Gemini](https://geminicli.com/docs/), [OpenCode](https://opencode.ai/docs/)) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
 
 ## Features
 
@@ -15,8 +15,8 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 | Provider | Status | CLI | Authentication |
 |----------|--------|-----|----------------|
 | [Claude](https://docs.anthropic.com/en/docs/claude-code) | **Tested** | `claude` | `ANTHROPIC_API_KEY` env var |
-| [Codex](https://github.com/openai/codex) | **Tested** | `codex` | `OPENAI_API_KEY` env var |
-| [Gemini](https://github.com/google-gemini/gemini-cli) | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
+| [Codex](https://developers.openai.com/codex/cli) | **Tested** | `codex` | `OPENAI_API_KEY` env var |
+| [Gemini](https://geminicli.com/docs/) | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
 | [OpenCode](https://opencode.ai/docs/) | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
 
 ## Installation
@@ -210,7 +210,7 @@ await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
 
 ### Codex Models
 
-See [Codex CLI documentation](https://github.com/openai/codex) for available models.
+See [Codex CLI documentation](https://developers.openai.com/codex/cli) for available models.
 
 ```typescript
 const codex = createProvider("codex", { sandbox })
@@ -222,7 +222,7 @@ await codex.run({ prompt: "Hello", model: "o3" })
 
 ### Gemini Models
 
-See [Gemini CLI documentation](https://github.com/google-gemini/gemini-cli) for available models.
+See [Gemini CLI documentation](https://geminicli.com/docs/) for available models.
 
 ```typescript
 const gemini = createProvider("gemini", { sandbox })
@@ -381,7 +381,7 @@ DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/repl.ts
 
 ### AI Coding Agents
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) - Anthropic's agentic coding tool ([GitHub](https://github.com/anthropics/claude-code))
-- [Codex CLI](https://github.com/openai/codex) - OpenAI's lightweight coding agent
+- [Codex CLI](https://developers.openai.com/codex/cli) - OpenAI's lightweight coding agent ([GitHub](https://github.com/openai/codex))
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's open-source AI agent ([Docs](https://geminicli.com/docs/))
 - [OpenCode](https://opencode.ai/docs/) - Open source AI coding agent ([GitHub](https://github.com/opencode-ai/opencode))
 
