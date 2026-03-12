@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/prisma"
 import { checkQuota } from "@/lib/quota"
 import { generateSandboxName } from "@/lib/sandbox-utils"
+import { CODING_AGENT_SCRIPT } from "@/lib/coding-agent-script"
 import {
   requireAuth,
   isAuthError,
@@ -153,7 +154,22 @@ export async function POST(req: Request) {
         const headCommit = headResult.exitCode ? null : headResult.result.trim()
         console.log("[sandbox-create] Captured headCommit:", headCommit, "exitCode:", headResult.exitCode)
 
-        send({ type: "progress", message: "Preparing environment..." })
+        send({ type: "progress", message: "Installing Claude Agent SDK..." })
+
+        const installResult = await sandbox.process.executeCommand(
+          "python3 -m pip install claude-agent-sdk==0.1.19 2>&1"
+        )
+        if (installResult.exitCode) {
+          throw new Error(`Failed to install Agent SDK: ${installResult.result}`)
+        }
+
+        send({ type: "progress", message: "Initializing agent..." })
+
+        // Write the coding agent script to the sandbox
+        const scriptB64 = Buffer.from(CODING_AGENT_SCRIPT).toString("base64")
+        await sandbox.process.executeCommand(
+          `echo '${scriptB64}' | base64 -d > /tmp/coding_agent.py`
+        )
 
         // Get preview URL pattern for dev server URLs
         let previewUrlPattern: string | undefined
@@ -164,8 +180,20 @@ export async function POST(req: Request) {
           // Preview URLs not available — non-critical
         }
 
-        // Note: The coding-agents-sdk handles agent CLI installation automatically
-        // when createSession is called in /api/agent/query
+        // Create code interpreter context with the repo as working directory
+        const ctx = await sandbox.codeInterpreter.createContext(repoPath)
+
+        // Initialize the coding agent (add /tmp to path so coding_agent.py is found)
+        const initResult = await sandbox.codeInterpreter.runCode(
+          `import sys; sys.path.insert(0, '/tmp'); import os, coding_agent;`,
+          {
+            context: ctx,
+            envs: { REPO_PATH: repoPath, ...(previewUrlPattern ? { PREVIEW_URL_PATTERN: previewUrlPattern } : {}) },
+          }
+        )
+        if (initResult.error) {
+          throw new Error(`Failed to initialize agent: ${initResult.error.value}`)
+        }
 
         // Create or find the repo in database
         let dbRepo = await prisma.repo.findUnique({
@@ -214,8 +242,9 @@ export async function POST(req: Request) {
             sandboxName,
             userId: userId,
             branchId: branchRecord.id,
+            contextId: ctx.id,
             previewUrlPattern,
-            status: "idle",
+            status: "running",
           },
         })
 
@@ -223,6 +252,7 @@ export async function POST(req: Request) {
         send({
           type: "done",
           sandboxId: sandbox.id,
+          contextId: ctx.id,
           previewUrlPattern,
           branchId: branchRecord.id,
           repoId: dbRepo.id,

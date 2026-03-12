@@ -322,6 +322,7 @@ export default function Home() {
                 handleUpdateBranch(activeBranch.id, updates)
               }
               onSaveDraftForBranch={handleSaveDraftForBranch}
+              onForceSave={() => {}}
               onCommitsDetected={() => setGitHistoryRefreshTrigger((n) => n + 1)}
               onBranchFromCommit={(hash) => setPendingStartCommit(hash)}
               onAgentChange={(agent) => handleAgentChange(activeBranch.id, agent)}
