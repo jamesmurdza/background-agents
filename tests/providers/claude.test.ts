@@ -52,6 +52,22 @@ describe("ClaudeProvider", () => {
       expect(args).toContain("Hello world")
     })
 
+    it("should include model when provided", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "sonnet" })
+
+      expect(args).toContain("--model")
+      expect(args).toContain("sonnet")
+    })
+
+    it("should support full model names", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "claude-sonnet-4-5-20250929" })
+
+      expect(args).toContain("--model")
+      expect(args).toContain("claude-sonnet-4-5-20250929")
+    })
+
     it("should use session from options over provider session", () => {
       const provider = createTestProvider()
       provider.sessionId = "old-session"

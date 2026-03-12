@@ -151,6 +151,7 @@ Streams events from the AI agent.
 ```typescript
 for await (const event of provider.run({
   prompt: string,              // The prompt to send
+  model?: string,              // Model to use (provider-specific)
   sessionId?: string,          // Resume a previous session
   timeout?: number,            // Timeout in seconds (default: 120)
   autoInstall?: boolean,       // Auto-install CLI (default: true)
@@ -187,6 +188,59 @@ await provider.runWithCallback((event) => {
 }, { prompt: "Hello" })
 ```
 
+## Model Selection
+
+Each provider supports specifying a model via the `model` option. Pass the model identifier when calling `run()`:
+
+### Claude Models
+
+```typescript
+const claude = createProvider("claude", { sandbox })
+
+// Use model alias (recommended)
+await claude.run({ prompt: "Hello", model: "sonnet" })
+await claude.run({ prompt: "Hello", model: "opus" })
+await claude.run({ prompt: "Hello", model: "haiku" })
+
+// Or use full model name
+await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
+```
+
+### OpenCode Models (OpenAI)
+
+```typescript
+const opencode = createProvider("opencode", { sandbox })
+
+// Format: "provider/model"
+await opencode.run({ prompt: "Hello", model: "openai/gpt-4o" })           // Default
+await opencode.run({ prompt: "Hello", model: "openai/gpt-4o-mini" })
+await opencode.run({ prompt: "Hello", model: "openai/o1" })
+await opencode.run({ prompt: "Hello", model: "openai/o3" })
+
+// Other providers supported by OpenCode
+await opencode.run({ prompt: "Hello", model: "anthropic/claude-sonnet" })
+await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
+```
+
+### Codex Models
+
+```typescript
+const codex = createProvider("codex", { sandbox })
+
+await codex.run({ prompt: "Hello", model: "gpt-4o" })
+await codex.run({ prompt: "Hello", model: "o1" })
+await codex.run({ prompt: "Hello", model: "o3" })
+```
+
+### Gemini Models
+
+```typescript
+const gemini = createProvider("gemini", { sandbox })
+
+await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
+await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
+```
+
 ## Environment Variables
 
 ```bash
@@ -195,9 +249,8 @@ DAYTONA_API_KEY=dtn_your_api_key
 
 # Provider API keys (pass to sandbox via env config)
 ANTHROPIC_API_KEY=sk-ant-...    # For Claude
-OPENAI_API_KEY=sk-...           # For Codex
+OPENAI_API_KEY=sk-...           # For Codex and OpenCode
 GOOGLE_API_KEY=AIza...          # For Gemini
-OPENCODE_API_KEY=...            # For OpenCode
 ```
 
 ## Local Mode (Dangerous)

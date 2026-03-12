@@ -41,6 +41,29 @@ describe("GeminiProvider", () => {
       expect(args).toContain("--resume")
       expect(args).toContain("session-789")
     })
+
+    it("should include model when provided", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "gemini-2.0-flash" })
+
+      expect(args).toContain("--model")
+      expect(args).toContain("gemini-2.0-flash")
+    })
+
+    it("should include prompt when provided", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ prompt: "Hello" })
+
+      expect(args).toContain("Hello")
+    })
+
+    it("should support gemini-1.5-pro model", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "gemini-1.5-pro" })
+
+      expect(args).toContain("--model")
+      expect(args).toContain("gemini-1.5-pro")
+    })
   })
 
   describe("parse", () => {

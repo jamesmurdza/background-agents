@@ -5,44 +5,77 @@ import { Provider } from "./base.js"
 /**
  * Raw event types from OpenCode's JSON stream
  */
-interface OpenCodeRunStarted {
-  type: "run.started"
-  run_id: string
+interface OpenCodeStepStart {
+  type: "step_start"
+  sessionID: string
+  part?: {
+    id: string
+    sessionID: string
+    messageID: string
+    type: "step-start"
+  }
 }
 
-interface OpenCodeMessagePartUpdated {
-  type: "message.part.updated"
+interface OpenCodeText {
+  type: "text"
+  sessionID: string
   part?: {
-    type: string
+    id: string
+    sessionID: string
+    messageID: string
+    type: "text"
     text?: string
   }
 }
 
-interface OpenCodeToolStart {
-  type: "tool.start"
-  tool: string
+interface OpenCodeToolCall {
+  type: "tool_call"
+  sessionID: string
+  part?: {
+    id: string
+    type: "tool-call"
+    tool?: string
+    args?: unknown
+  }
 }
 
-interface OpenCodeToolInputDelta {
-  type: "tool.input.delta"
-  text: string
+interface OpenCodeToolResult {
+  type: "tool_result"
+  sessionID: string
+  part?: {
+    id: string
+    type: "tool-result"
+  }
 }
 
-interface OpenCodeToolCompleted {
-  type: "tool.completed"
+interface OpenCodeStepFinish {
+  type: "step_finish"
+  sessionID: string
+  part?: {
+    id: string
+    type: "step-finish"
+    reason: string
+  }
 }
 
-interface OpenCodeRunCompleted {
-  type: "run.completed"
+interface OpenCodeError {
+  type: "error"
+  sessionID: string
+  error?: {
+    name: string
+    data?: {
+      message: string
+    }
+  }
 }
 
 type OpenCodeEvent =
-  | OpenCodeRunStarted
-  | OpenCodeMessagePartUpdated
-  | OpenCodeToolStart
-  | OpenCodeToolInputDelta
-  | OpenCodeToolCompleted
-  | OpenCodeRunCompleted
+  | OpenCodeStepStart
+  | OpenCodeText
+  | OpenCodeToolCall
+  | OpenCodeToolResult
+  | OpenCodeStepFinish
+  | OpenCodeError
 
 /**
  * OpenCode provider
@@ -59,8 +92,17 @@ export class OpenCodeProvider extends Provider {
   getCommand(options?: RunOptions): ProviderCommand {
     const args: string[] = ["run", "--format", "json"]
 
+    // Add model (default to gpt-4o which works reliably)
+    const model = options?.model || "openai/gpt-4o"
+    args.push("-m", model)
+
     if (this.sessionId || options?.sessionId) {
       args.push("-s", this.sessionId || options!.sessionId!)
+    }
+
+    // Add the prompt if provided
+    if (options?.prompt) {
+      args.push(options.prompt)
     }
 
     return {
@@ -76,36 +118,39 @@ export class OpenCodeProvider extends Provider {
       return null
     }
 
-    // Run/session start
-    if (json.type === "run.started") {
-      return { type: "session", id: json.run_id }
+    // Step start - session initialization
+    if (json.type === "step_start") {
+      return { type: "session", id: json.sessionID }
     }
 
-    // Message text update
-    if (json.type === "message.part.updated") {
+    // Text content - the actual response
+    if (json.type === "text") {
       if (json.part?.type === "text" && json.part.text) {
         return { type: "token", text: json.part.text }
       }
       return null
     }
 
-    // Tool start
-    if (json.type === "tool.start") {
-      return { type: "tool_start", name: json.tool }
+    // Tool call start
+    if (json.type === "tool_call") {
+      const toolName = json.part?.tool || "unknown"
+      return { type: "tool_start", name: toolName }
     }
 
-    // Tool input delta
-    if (json.type === "tool.input.delta") {
-      return { type: "tool_delta", text: json.text }
-    }
-
-    // Tool completed
-    if (json.type === "tool.completed") {
+    // Tool result - tool completed
+    if (json.type === "tool_result") {
       return { type: "tool_end" }
     }
 
-    // Run complete
-    if (json.type === "run.completed") {
+    // Step finish - completion
+    if (json.type === "step_finish") {
+      return { type: "end" }
+    }
+
+    // Error event - log and continue
+    if (json.type === "error") {
+      const errorMsg = json.error?.data?.message || json.error?.name || "Unknown error"
+      console.error("[OpenCode Error]", errorMsg)
       return { type: "end" }
     }
 

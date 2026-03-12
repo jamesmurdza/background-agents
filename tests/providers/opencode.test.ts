@@ -32,6 +32,8 @@ describe("OpenCodeProvider", () => {
       expect(args).toContain("run")
       expect(args).toContain("--format")
       expect(args).toContain("json")
+      expect(args).toContain("-m")
+      expect(args).toContain("openai/gpt-4o")
     })
 
     it("should include session flag with session ID", () => {
@@ -43,6 +45,37 @@ describe("OpenCodeProvider", () => {
       expect(args).toContain("-s")
       expect(args).toContain("run-456")
     })
+
+    it("should include prompt in arguments", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ prompt: "Hello world" })
+
+      expect(args).toContain("Hello world")
+    })
+
+    it("should use custom model when provided", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "openai/gpt-4o-mini" })
+
+      expect(args).toContain("-m")
+      expect(args).toContain("openai/gpt-4o-mini")
+    })
+
+    it("should support anthropic models", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "anthropic/claude-sonnet" })
+
+      expect(args).toContain("-m")
+      expect(args).toContain("anthropic/claude-sonnet")
+    })
+
+    it("should support google models", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "google/gemini-2.0-flash" })
+
+      expect(args).toContain("-m")
+      expect(args).toContain("google/gemini-2.0-flash")
+    })
   })
 
   describe("parse", () => {
@@ -53,64 +86,77 @@ describe("OpenCodeProvider", () => {
       expect(provider.parse("")).toBeNull()
     })
 
-    it("should parse run.started event", () => {
+    it("should parse step_start event", () => {
       const provider = createTestProvider()
-      const event = provider.parse('{"type": "run.started", "run_id": "run_xyz"}')
+      const event = provider.parse('{"type": "step_start", "sessionID": "ses_xyz123"}')
 
-      expect(event).toEqual({ type: "session", id: "run_xyz" })
+      expect(event).toEqual({ type: "session", id: "ses_xyz123" })
     })
 
-    it("should parse message.part.updated event with text", () => {
+    it("should parse text event with content", () => {
       const provider = createTestProvider()
       const event = provider.parse(
-        '{"type": "message.part.updated", "part": {"type": "text", "text": "Processing..."}}'
+        '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "text", "text": "Processing..."}}'
       )
 
       expect(event).toEqual({ type: "token", text: "Processing..." })
     })
 
-    it("should return null for message.part.updated without text type", () => {
+    it("should return null for text event without text type", () => {
       const provider = createTestProvider()
       const event = provider.parse(
-        '{"type": "message.part.updated", "part": {"type": "image"}}'
+        '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "image"}}'
       )
 
       expect(event).toBeNull()
     })
 
-    it("should return null for message.part.updated without text content", () => {
+    it("should return null for text event without text content", () => {
       const provider = createTestProvider()
       const event = provider.parse(
-        '{"type": "message.part.updated", "part": {"type": "text"}}'
+        '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "text"}}'
       )
 
       expect(event).toBeNull()
     })
 
-    it("should parse tool.start event", () => {
+    it("should parse tool_call event", () => {
       const provider = createTestProvider()
-      const event = provider.parse('{"type": "tool.start", "tool": "write_file"}')
+      const event = provider.parse(
+        '{"type": "tool_call", "sessionID": "ses_xyz123", "part": {"type": "tool-call", "tool": "write_file"}}'
+      )
 
       expect(event).toEqual({ type: "tool_start", name: "write_file" })
     })
 
-    it("should parse tool.input.delta event", () => {
+    it("should handle tool_call with missing tool name", () => {
       const provider = createTestProvider()
-      const event = provider.parse('{"type": "tool.input.delta", "text": "content here"}')
+      const event = provider.parse(
+        '{"type": "tool_call", "sessionID": "ses_xyz123", "part": {"type": "tool-call"}}'
+      )
 
-      expect(event).toEqual({ type: "tool_delta", text: "content here" })
+      expect(event).toEqual({ type: "tool_start", name: "unknown" })
     })
 
-    it("should parse tool.completed event", () => {
+    it("should parse tool_result event", () => {
       const provider = createTestProvider()
-      const event = provider.parse('{"type": "tool.completed"}')
+      const event = provider.parse('{"type": "tool_result", "sessionID": "ses_xyz123"}')
 
       expect(event).toEqual({ type: "tool_end" })
     })
 
-    it("should parse run.completed event", () => {
+    it("should parse step_finish event", () => {
       const provider = createTestProvider()
-      const event = provider.parse('{"type": "run.completed"}')
+      const event = provider.parse('{"type": "step_finish", "sessionID": "ses_xyz123"}')
+
+      expect(event).toEqual({ type: "end" })
+    })
+
+    it("should parse error event", () => {
+      const provider = createTestProvider()
+      const event = provider.parse(
+        '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError", "data": {"message": "Rate limit exceeded"}}}'
+      )
 
       expect(event).toEqual({ type: "end" })
     })

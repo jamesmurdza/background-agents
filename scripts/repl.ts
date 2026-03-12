@@ -2,7 +2,7 @@
 /**
  * Interactive REPL for testing the Code Agent SDK
  *
- * Usage: npx tsx scripts/repl.ts [--provider <name>]
+ * Usage: npx tsx scripts/repl.ts [--provider <name>] [--model <model>]
  *
  * Supported providers: claude, codex, opencode, gemini
  *
@@ -24,9 +24,10 @@ const PROVIDER_API_KEYS: Record<ProviderName, { envVar: string; name: string }> 
   opencode: { envVar: "OPENAI_API_KEY", name: "OpenAI API Key" }, // OpenCode typically uses OpenAI
 }
 
-function parseArgs(): { provider: ProviderName } {
+function parseArgs(): { provider: ProviderName; model?: string } {
   const args = process.argv.slice(2)
   let provider: ProviderName = "claude" // Default
+  let model: string | undefined
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--provider" || args[i] === "-p") {
@@ -43,6 +44,13 @@ function parseArgs(): { provider: ProviderName } {
       }
       provider = providerName
       i++ // Skip next arg
+    } else if (args[i] === "--model" || args[i] === "-m") {
+      model = args[i + 1]
+      if (!model) {
+        console.error("Error: --model requires a model name")
+        process.exit(1)
+      }
+      i++ // Skip next arg
     } else if (args[i] === "--help" || args[i] === "-h") {
       console.log(`
 Code Agent SDK - Interactive REPL
@@ -51,9 +59,16 @@ Usage: npx tsx scripts/repl.ts [options]
 
 Options:
   -p, --provider <name>  Provider to use (default: claude)
+  -m, --model <model>    Model to use (provider-specific)
   -h, --help             Show this help message
 
 Supported providers: ${getProviderNames().join(", ")}
+
+Model examples:
+  Claude:   sonnet, opus, haiku, claude-sonnet-4-5-20250929
+  OpenCode: openai/gpt-4o, openai/o1, anthropic/claude-sonnet
+  Codex:    gpt-4o, o1, o3
+  Gemini:   gemini-2.0-flash, gemini-1.5-pro
 
 Environment variables:
   DAYTONA_API_KEY     Required for all providers (sandbox execution)
@@ -65,10 +80,10 @@ Environment variables:
     }
   }
 
-  return { provider }
+  return { provider, model }
 }
 
-const { provider: selectedProvider } = parseArgs()
+const { provider: selectedProvider, model: selectedModel } = parseArgs()
 
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
 const providerKeyConfig = PROVIDER_API_KEYS[selectedProvider]
@@ -87,7 +102,7 @@ if (!PROVIDER_API_KEY) {
 async function main() {
   console.log("============================================================")
   console.log("  Code Agent SDK - Interactive REPL")
-  console.log(`  Provider: ${selectedProvider}`)
+  console.log(`  Provider: ${selectedProvider}${selectedModel ? ` (model: ${selectedModel})` : ""}`)
   console.log("============================================================")
   console.log()
   console.log("Creating sandbox...")
@@ -148,7 +163,7 @@ async function main() {
         process.stdout.write("\x1b[90mThinking...\x1b[0m")
         let firstToken = true
 
-        for await (const event of provider.run({ prompt: trimmed, autoInstall: false })) {
+        for await (const event of provider.run({ prompt: trimmed, model: selectedModel, autoInstall: false })) {
           if (event.type === "token") {
             if (firstToken) {
               // Clear "Thinking..." and show provider's response

@@ -48,6 +48,8 @@ export interface RunOptions {
   autoInstall?: boolean
   /** Timeout in seconds for sandbox execution (default: 120) */
   timeout?: number
+  /** Model to use (provider-specific, e.g., "openai/gpt-4o") */
+  model?: string
 }
 
 /** Options for creating a provider */
