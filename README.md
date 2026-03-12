@@ -25,6 +25,16 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 npm install code-agent-sdk
 ```
 
+## Prerequisites
+
+You'll need a [Daytona](https://daytona.io) API key for sandbox mode (recommended):
+
+```bash
+export DAYTONA_API_KEY=dtn_your_api_key
+```
+
+If you prefer to run locally without a sandbox, see [Local Mode](#local-mode-dangerous) below.
+
 ## Quick Start
 
 ### 1. Create a Sandbox
@@ -248,18 +258,6 @@ await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
 ```
 
 See [OpenCode models](https://opencode.ai/docs/models/) for all available models and providers.
-
-## Environment Variables
-
-```bash
-# Required for sandbox mode
-DAYTONA_API_KEY=dtn_your_api_key
-
-# Provider API keys (pass to sandbox via env config)
-ANTHROPIC_API_KEY=sk-ant-...    # For Claude
-OPENAI_API_KEY=sk-...           # For Codex and OpenCode
-GOOGLE_API_KEY=AIza...          # For Gemini
-```
 
 ## Local Mode (Dangerous)
 
