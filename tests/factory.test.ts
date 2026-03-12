@@ -11,35 +11,35 @@ import { GeminiProvider } from "../src/providers/gemini.js"
 
 describe("createProvider", () => {
   it("should create ClaudeProvider for 'claude'", () => {
-    const provider = createProvider("claude")
+    const provider = createProvider("claude", { dangerouslyAllowLocalExecution: true })
     expect(provider).toBeInstanceOf(ClaudeProvider)
     expect(provider.name).toBe("claude")
   })
 
   it("should create CodexProvider for 'codex'", () => {
-    const provider = createProvider("codex")
+    const provider = createProvider("codex", { dangerouslyAllowLocalExecution: true })
     expect(provider).toBeInstanceOf(CodexProvider)
     expect(provider.name).toBe("codex")
   })
 
   it("should create OpenCodeProvider for 'opencode'", () => {
-    const provider = createProvider("opencode")
+    const provider = createProvider("opencode", { dangerouslyAllowLocalExecution: true })
     expect(provider).toBeInstanceOf(OpenCodeProvider)
     expect(provider.name).toBe("opencode")
   })
 
   it("should create GeminiProvider for 'gemini'", () => {
-    const provider = createProvider("gemini")
+    const provider = createProvider("gemini", { dangerouslyAllowLocalExecution: true })
     expect(provider).toBeInstanceOf(GeminiProvider)
     expect(provider.name).toBe("gemini")
   })
 
   it("should throw for unknown provider", () => {
-    expect(() => createProvider("unknown")).toThrow("Unknown provider: unknown")
+    expect(() => createProvider("unknown", { dangerouslyAllowLocalExecution: true })).toThrow("Unknown provider: unknown")
   })
 
   it("should include valid providers in error message", () => {
-    expect(() => createProvider("invalid")).toThrow(/claude, codex, opencode, gemini/)
+    expect(() => createProvider("invalid", { dangerouslyAllowLocalExecution: true })).toThrow(/claude, codex, opencode, gemini/)
   })
 })
 

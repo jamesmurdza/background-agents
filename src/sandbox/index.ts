@@ -6,25 +6,11 @@ import { getPackageName } from "../utils/install.js"
 export type { SandboxConfig } from "../types/index.js"
 
 /**
- * Session command execution options
- */
-export interface SessionCommandOptions {
-  /** Working directory */
-  cwd?: string
-  /** Environment variables */
-  env?: Record<string, string>
-  /** Command timeout in milliseconds */
-  timeout?: number
-  /** Run command asynchronously */
-  async?: boolean
-}
-
-/**
  * Manages a Daytona sandbox for secure CLI execution
  */
 export class SandboxManager {
   private daytona: Daytona
-  private sandbox: Sandbox | null = null
+  private _sandbox: Sandbox | null = null
   private sessionId: string | null = null
   private config: SandboxConfig
 
@@ -38,24 +24,31 @@ export class SandboxManager {
   }
 
   /**
-   * Create or get the sandbox instance
+   * Get the underlying Daytona Sandbox instance
    */
-  async getSandbox(): Promise<Sandbox> {
-    if (!this.sandbox) {
-      this.sandbox = await this.daytona.create({
+  get sandbox(): Sandbox | null {
+    return this._sandbox
+  }
+
+  /**
+   * Create the sandbox instance
+   */
+  async create(): Promise<Sandbox> {
+    if (!this._sandbox) {
+      this._sandbox = await this.daytona.create({
         language: "typescript",
         envVars: this.config.env,
         autoStopInterval: this.config.autoStopTimeout,
       })
     }
-    return this.sandbox
+    return this._sandbox
   }
 
   /**
    * Install a provider CLI in the sandbox
    */
   async installProvider(name: ProviderName): Promise<boolean> {
-    const sandbox = await this.getSandbox()
+    const sandbox = await this.create()
     const packageName = getPackageName(name)
 
     try {
@@ -75,7 +68,7 @@ export class SandboxManager {
    * Check if a provider CLI is installed in the sandbox
    */
   async isProviderInstalled(name: ProviderName): Promise<boolean> {
-    const sandbox = await this.getSandbox()
+    const sandbox = await this.create()
 
     try {
       const result = await sandbox.process.executeCommand(`which ${name}`)
@@ -91,10 +84,12 @@ export class SandboxManager {
   async ensureProvider(name: ProviderName): Promise<void> {
     const installed = await this.isProviderInstalled(name)
     if (!installed) {
+      console.log(`Installing ${name} CLI in sandbox...`)
       const success = await this.installProvider(name)
       if (!success) {
         throw new Error(`Failed to install ${name} CLI in sandbox`)
       }
+      console.log(`Successfully installed ${name} CLI`)
     }
   }
 
@@ -102,7 +97,7 @@ export class SandboxManager {
    * Create a session for running commands
    */
   async createSession(sessionId?: string): Promise<string> {
-    const sandbox = await this.getSandbox()
+    const sandbox = await this.create()
     const id = sessionId ?? `session-${Date.now()}`
 
     await sandbox.process.createSession(id)
@@ -124,11 +119,8 @@ export class SandboxManager {
   /**
    * Execute a command in the sandbox session
    */
-  async executeCommand(
-    command: string,
-    _options: SessionCommandOptions = {}
-  ): Promise<{ exitCode: number; output: string }> {
-    const sandbox = await this.getSandbox()
+  async executeCommand(command: string): Promise<{ exitCode: number; output: string }> {
+    const sandbox = await this.create()
     const sessionId = await this.getSession()
 
     const result = await sandbox.process.executeSessionCommand(sessionId, {
@@ -151,11 +143,8 @@ export class SandboxManager {
   /**
    * Execute a command and stream output line by line
    */
-  async *executeCommandStream(
-    command: string,
-    _options: SessionCommandOptions = {}
-  ): AsyncGenerator<string, void, unknown> {
-    const sandbox = await this.getSandbox()
+  async *executeCommandStream(command: string): AsyncGenerator<string, void, unknown> {
+    const sandbox = await this.create()
     const sessionId = await this.getSession()
 
     // Execute command asynchronously
@@ -205,7 +194,7 @@ export class SandboxManager {
   }
 
   /**
-   * Set environment variable in the sandbox
+   * Set environment variable in the sandbox session
    */
   async setEnv(name: string, value: string): Promise<void> {
     await this.executeCommand(`export ${name}="${value}"`)
@@ -224,9 +213,9 @@ export class SandboxManager {
    * Delete the current session
    */
   async deleteSession(): Promise<void> {
-    if (this.sessionId && this.sandbox) {
+    if (this.sessionId && this._sandbox) {
       try {
-        await this.sandbox.process.deleteSession(this.sessionId)
+        await this._sandbox.process.deleteSession(this.sessionId)
       } catch {
         // Ignore errors when deleting session
       }
@@ -240,13 +229,13 @@ export class SandboxManager {
   async destroy(): Promise<void> {
     await this.deleteSession()
 
-    if (this.sandbox) {
+    if (this._sandbox) {
       try {
-        await this.sandbox.delete()
+        await this._sandbox.delete()
       } catch {
         // Ignore errors when deleting sandbox
       }
-      this.sandbox = null
+      this._sandbox = null
     }
   }
 }

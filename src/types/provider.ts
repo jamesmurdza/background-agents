@@ -7,9 +7,6 @@ import type { Event } from "./events.js"
 /** Supported provider names */
 export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
 
-/** Execution mode for providers */
-export type ExecutionMode = "sandbox" | "local"
-
 /** Command configuration for spawning a provider process */
 export interface ProviderCommand {
   cmd: string
@@ -39,24 +36,31 @@ export interface RunOptions {
   prompt?: string
   /** Optional session ID to resume */
   sessionId?: string
-  /** Whether to persist session ID to file */
+  /** Whether to persist session ID to file (only for local mode) */
   persistSession?: boolean
-  /** Custom session file path */
+  /** Custom session file path (only for local mode) */
   sessionFile?: string
   /** Working directory for the provider process */
   cwd?: string
   /** Environment variables to pass to the provider */
   env?: Record<string, string>
-  /** Automatically install the CLI if not found (default: true for sandbox, false for local) */
+  /** Automatically install the CLI if not found (default: true) */
   autoInstall?: boolean
+}
+
+/** Options for creating a provider */
+export interface ProviderOptions {
   /**
-   * Execution mode (default: "sandbox")
-   * - "sandbox": Run in a secure Daytona sandbox (recommended)
-   * - "local": Run directly on the local machine (use with caution)
+   * Sandbox manager for secure execution (recommended)
+   * If not provided, must set dangerouslyAllowLocalExecution: true
    */
-  mode?: ExecutionMode
-  /** Sandbox configuration (only used when mode is "sandbox") */
-  sandbox?: SandboxConfig
+  sandbox?: import("../sandbox/index.js").SandboxManager
+
+  /**
+   * Allow running commands directly on local machine without sandbox.
+   * ⚠️ DANGEROUS: Only use this if you trust the code being executed.
+   */
+  dangerouslyAllowLocalExecution?: boolean
 }
 
 /** Event handler callback */

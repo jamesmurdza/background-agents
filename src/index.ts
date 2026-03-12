@@ -2,25 +2,28 @@
  * Code Agent SDK
  *
  * A TypeScript SDK for interacting with various AI coding agents.
- * By default, all providers run in a secure Daytona sandbox.
+ * All providers run in a secure Daytona sandbox by default.
  *
  * @example
  * ```typescript
- * import { createProvider } from "code-agent-sdk"
+ * import { createSandbox, createProvider } from "code-agent-sdk"
  *
- * const claude = createProvider("claude")
+ * // Create a sandbox
+ * const sandbox = createSandbox({ apiKey: process.env.DAYTONA_API_KEY })
+ * await sandbox.create()
  *
- * // Run in sandbox (default - secure)
- * for await (const event of claude.run({ prompt: "Hello" })) {
+ * // Create a provider with the sandbox
+ * const provider = createProvider("claude", { sandbox })
+ *
+ * // Run the provider
+ * for await (const event of provider.run({ prompt: "Hello" })) {
  *   if (event.type === "token") {
  *     process.stdout.write(event.text)
  *   }
  * }
  *
- * // Run locally (opt-in - use with caution)
- * for await (const event of claude.run({ prompt: "Hello", mode: "local" })) {
- *   // ...
- * }
+ * // Cleanup
+ * await sandbox.destroy()
  * ```
  */
 
@@ -37,9 +40,9 @@ export type {
   ProviderName,
   ProviderCommand,
   RunOptions,
+  ProviderOptions,
   EventHandler,
   IProvider,
-  ExecutionMode,
   SandboxConfig,
 } from "./types/index.js"
 
@@ -47,7 +50,6 @@ export type {
 export {
   SandboxManager,
   createSandbox,
-  type SessionCommandOptions,
 } from "./sandbox/index.js"
 
 // Providers

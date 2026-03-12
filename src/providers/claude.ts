@@ -1,4 +1,4 @@
-import type { Event, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
+import type { Event, ProviderCommand, ProviderName, ProviderOptions, RunOptions } from "../types/index.js"
 import { safeJsonParse } from "../utils/json.js"
 import { Provider } from "./base.js"
 
@@ -57,6 +57,10 @@ type ClaudeEvent =
  */
 export class ClaudeProvider extends Provider {
   readonly name: ProviderName = "claude"
+
+  constructor(options: ProviderOptions) {
+    super(options)
+  }
 
   getCommand(options?: RunOptions): ProviderCommand {
     const args: string[] = []

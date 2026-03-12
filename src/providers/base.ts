@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process"
 import * as readline from "node:readline"
-import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
+import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions, ProviderOptions } from "../types/index.js"
 import { getDefaultSessionPath, loadSession, storeSession } from "../utils/session.js"
 import { ensureCliInstalled } from "../utils/install.js"
-import { SandboxManager } from "../sandbox/index.js"
+import type { SandboxManager } from "../sandbox/index.js"
 
 /**
  * Abstract base class for AI coding agent providers
@@ -13,8 +13,29 @@ export abstract class Provider implements IProvider {
 
   sessionId: string | null = null
 
-  /** Sandbox manager instance (reused across runs) */
-  private sandboxManager: SandboxManager | null = null
+  /** Sandbox manager for secure execution */
+  protected sandboxManager: SandboxManager | null = null
+
+  /** Whether local execution is allowed */
+  protected allowLocalExecution: boolean = false
+
+  constructor(options: ProviderOptions = {}) {
+    if (options.sandbox) {
+      this.sandboxManager = options.sandbox
+    } else if (options.dangerouslyAllowLocalExecution) {
+      this.allowLocalExecution = true
+    } else {
+      throw new Error(
+        "Provider requires either a sandbox or dangerouslyAllowLocalExecution: true. " +
+        "For secure execution, create a sandbox first:\n\n" +
+        "  const sandbox = createSandbox({ apiKey: '...' })\n" +
+        "  await sandbox.create()\n" +
+        "  const provider = new ClaudeProvider({ sandbox })\n\n" +
+        "For local execution (dangerous), use:\n\n" +
+        "  const provider = new ClaudeProvider({ dangerouslyAllowLocalExecution: true })"
+      )
+    }
+  }
 
   /**
    * Get the command configuration for this provider
@@ -30,25 +51,24 @@ export abstract class Provider implements IProvider {
    * Run the provider and yield events as an async generator
    */
   async *run(options: RunOptions = {}): AsyncGenerator<Event, void, unknown> {
-    const mode = options.mode ?? "sandbox"
-
-    if (mode === "local") {
+    if (this.sandboxManager) {
+      yield* this.runSandbox(options)
+    } else if (this.allowLocalExecution) {
       yield* this.runLocal(options)
     } else {
-      yield* this.runSandbox(options)
+      throw new Error("No execution mode configured")
     }
   }
 
   /**
-   * Run in a secure Daytona sandbox (default)
+   * Run in a secure Daytona sandbox
    */
   private async *runSandbox(options: RunOptions): AsyncGenerator<Event, void, unknown> {
-    // Create or reuse sandbox manager
     if (!this.sandboxManager) {
-      this.sandboxManager = new SandboxManager(options.sandbox)
+      throw new Error("Sandbox manager not configured")
     }
 
-    // Ensure CLI is installed in sandbox (auto-install by default in sandbox mode)
+    // Ensure CLI is installed in sandbox
     const autoInstall = options.autoInstall ?? true
     if (autoInstall) {
       await this.sandboxManager.ensureProvider(this.name)
@@ -61,14 +81,18 @@ export abstract class Provider implements IProvider {
 
     // Build the command
     const { cmd, args, env: cmdEnv } = this.getCommand(options)
-    const fullCommand = [cmd, ...args.map(arg =>
-      arg.includes(" ") ? `"${arg}"` : arg
-    )].join(" ")
 
     // Set command-specific env vars
     if (cmdEnv) {
       await this.sandboxManager.setEnvVars(cmdEnv)
     }
+
+    // Build full command string
+    const fullCommand = [cmd, ...args.map(arg =>
+      arg.includes(" ") || arg.includes('"') || arg.includes("'")
+        ? `'${arg.replace(/'/g, "'\\''")}'`
+        : arg
+    )].join(" ")
 
     // Execute and stream output
     for await (const line of this.sandboxManager.executeCommandStream(fullCommand)) {
@@ -77,7 +101,6 @@ export abstract class Provider implements IProvider {
 
       if (event.type === "session") {
         this.sessionId = event.id
-        // In sandbox mode, we store session in sandbox, not locally
         yield event
         continue
       }
@@ -87,7 +110,7 @@ export abstract class Provider implements IProvider {
   }
 
   /**
-   * Run directly on local machine (use with caution)
+   * Run directly on local machine (dangerous - use with caution)
    */
   private async *runLocal(options: RunOptions): AsyncGenerator<Event, void, unknown> {
     // Ensure CLI is installed locally
@@ -179,15 +202,5 @@ export abstract class Provider implements IProvider {
       }
     }
     return text
-  }
-
-  /**
-   * Destroy the sandbox (cleanup resources)
-   */
-  async destroySandbox(): Promise<void> {
-    if (this.sandboxManager) {
-      await this.sandboxManager.destroy()
-      this.sandboxManager = null
-    }
   }
 }
