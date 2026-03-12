@@ -205,6 +205,12 @@ Each provider supports specifying a model via the `model` option. Pass the model
 ### Claude Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
+})
+await sandbox.create()
+
 const claude = createProvider("claude", { sandbox })
 
 // Use model alias (recommended)
@@ -221,6 +227,12 @@ See [Claude Code model configuration](https://code.claude.com/docs/en/model-conf
 ### Codex Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
+})
+await sandbox.create()
+
 const codex = createProvider("codex", { sandbox })
 
 await codex.run({ prompt: "Hello", model: "gpt-4o" })
@@ -233,6 +245,12 @@ See [Codex CLI models](https://developers.openai.com/codex/models) for all avail
 ### Gemini Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY },
+})
+await sandbox.create()
+
 const gemini = createProvider("gemini", { sandbox })
 
 await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
@@ -244,6 +262,12 @@ See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all a
 ### OpenCode Models
 
 ```typescript
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
+})
+await sandbox.create()
+
 const opencode = createProvider("opencode", { sandbox })
 
 // Format: "provider/model"
