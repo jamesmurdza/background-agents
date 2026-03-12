@@ -117,8 +117,6 @@ async function main() {
   const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
   const provider = createProvider(selectedProvider, { sandbox, env })
 
-  console.log("Setting up (install CLI, login if needed)...")
-  await provider.ensureReady({ env, autoInstall: true })
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready.`)
   console.log()
   console.log("Commands:")
@@ -165,7 +163,7 @@ async function main() {
 
         const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
 
-        for await (const event of provider.run({ prompt: trimmed, model: selectedModel, autoInstall: true, timeout: 120 })) {
+        for await (const event of provider.run({ prompt: trimmed, model: selectedModel, timeout: 120 })) {
           // Session events are captured internally; don't print them in REPL output.
           if (event.type === "session") continue
           if (event.type === "token") {

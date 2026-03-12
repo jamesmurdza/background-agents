@@ -38,7 +38,7 @@ async function main() {
       env: {
         OPENAI_API_KEY: OPENAI_API_KEY,
       },
-      autoInstall: false,
+      skipInstall: true,
     })) {
       switch (event.type) {
         case "session":

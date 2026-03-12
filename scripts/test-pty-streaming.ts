@@ -38,7 +38,7 @@ async function main() {
 
     for await (const event of provider.run({
       prompt: "Count from 1 to 5, saying each number on its own line. Be brief.",
-      autoInstall: false,
+      skipInstall: true,
     })) {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
 

@@ -60,7 +60,7 @@ async function collectEvents(providerType: "claude" | "codex", prompt: string): 
   try {
     const provider = createProvider(providerType, { sandbox, env: { [envKey]: apiKey } })
     const events: Event[] = []
-    for await (const e of provider.run({ prompt, autoInstall: providerType !== "codex" })) {
+    for await (const e of provider.run({ prompt, skipInstall: providerType === "codex" })) {
       events.push(e)
     }
     return events

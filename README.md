@@ -25,8 +25,7 @@ Create a sandbox, create a session, stream events, cleanup. Same pattern for Cla
 - **Secure by default** - All CLI execution happens in isolated Daytona sandboxes
 - **Real-time streaming** - PTY-based streaming for live token output
 - **Unified interface** - Same API for Claude, Codex, Gemini, and OpenCode
-- **Auto-install** - CLIs are automatically installed in sandboxes
-- **One-step setup** - Call `session.ensureReady()` (or `provider.ensureReady()`) at startup to install the CLI and run Codex login so the first run has no hidden setup
+- **Automatic setup** - The provider CLI is installed when you create a session (pass `skipInstall: true` to skip). Env and Codex login run on every `run()`.
 - **Session persistence** - Resume conversations across runs
 
 ## Provider Support
@@ -94,7 +93,6 @@ const claude = createSession("claude", {
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
   timeout: 120,
-  autoInstall: true,
 })
 ```
 
@@ -182,29 +180,16 @@ const provider = createProvider("claude", {
 
 ### createSession(name, options)
 
-Creates a session wrapper with defaults (model/sessionId/timeout/autoInstall/env) and exposes `session.run(prompt)` and `session.ensureReady()`. Pass `env` with your provider API key(s).
+Creates a session with defaults (model, timeout, env, etc.) and exposes `session.run(prompt)`. Pass `env` with your provider API key(s). The CLI is installed in the sandbox when you create the session; pass `skipInstall: true` to skip.
 
 ```typescript
 const session = createSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
-  timeout: 120,
-  autoInstall: true,
+  timeout: 120
 })
 ```
-
-### session.ensureReady(options?)
-
-Ensures the agent is ready before the first run: installs the CLI in the sandbox if needed, runs Codex login when `OPENAI_API_KEY` is in env, etc. Call once at startup so the first `run()` has no hidden setup.
-
-```typescript
-const session = createSession("codex", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-await session.ensureReady()  // install CLI + codex login in one step
-// now session.run("Hello") is ready immediately
-```
-
-Providers also expose `ensureReady()` directly: `await provider.ensureReady({ env, autoInstall: true })`.
 
 ### session.run(prompt)
 
@@ -467,7 +452,7 @@ Goodbye!
 ## How It Works
 
 1. **Sandbox**: You create a Daytona sandbox with `@daytonaio/sdk` and pass it directly to createProvider/createSession
-2. **CLI Installation**: The provider CLI (claude, codex, etc.) is auto-installed in the sandbox. For Codex, the SDK also runs `codex login --with-api-key` once when `OPENAI_API_KEY` is in `env`
+2. **CLI installation**: The provider CLI is installed when you create the session (unless `skipInstall: true`). On every `run()`, env is set and for Codex `codex login --with-api-key` runs
 3. **PTY Streaming**: Commands run via PTY for real-time output streaming
 4. **Event Parsing**: JSON output is parsed into typed events
 5. **Cleanup**: You destroy the sandbox when done (e.g. `await sandbox.delete()`)

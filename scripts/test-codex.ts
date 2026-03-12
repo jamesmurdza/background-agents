@@ -52,7 +52,7 @@ async function main() {
 
     for await (const event of provider.run({
       prompt: "Say hello briefly",
-      autoInstall: false, // Already installed
+      skipInstall: true, // Already installed
     })) {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
 

@@ -36,7 +36,7 @@ async function main() {
 
     const text = await provider.collectText({
       prompt: "Say 'Test passed!' and nothing else.",
-      autoInstall: false, // CLI is already installed
+      skipInstall: true, // CLI is already installed
     })
 
     console.log("   Response:", text)
@@ -52,7 +52,7 @@ async function main() {
     const events: string[] = []
     for await (const event of provider.run({
       prompt: "Count from 1 to 3, one number per line.",
-      autoInstall: false,
+      skipInstall: true,
     })) {
       events.push(`${event.type}: ${event.type === "token" ? event.text : JSON.stringify(event)}`)
       if (event.type === "token") {

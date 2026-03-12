@@ -32,7 +32,7 @@ async function testProvider(
 
     for await (const event of provider.run({
       prompt: "Write a file called /tmp/hello.txt with the content 'Hello World'. Just write the file, nothing else.",
-      autoInstall: providerType !== "codex", // Skip install for codex if already done
+      skipInstall: providerType === "codex", // codex already installed in this script
     })) {
       switch (event.type) {
         case "session":

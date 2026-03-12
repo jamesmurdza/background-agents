@@ -52,7 +52,7 @@ async function testProvider(
 
     for await (const event of provider.run({
       prompt,
-      autoInstall: providerType !== "codex",
+      skipInstall: providerType === "codex",
     })) {
       // Print each event as JSON for clear inspection
       console.log(JSON.stringify(event, null, 2))
