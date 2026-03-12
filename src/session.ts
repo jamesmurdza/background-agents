@@ -10,7 +10,7 @@ export interface SessionOptions extends ProviderOptions {
   model?: string
   sessionId?: string
   timeout?: number
-  autoInstall?: boolean
+  skipInstall?: boolean
   env?: Record<string, string>
 }
 
@@ -22,18 +22,13 @@ export class Session {
 
   constructor(name: ProviderName, options: SessionOptions) {
     this.name = name
-    const { model, sessionId, timeout, autoInstall, env, ...providerOptions } = options
-    this.provider = createProvider(name, providerOptions)
-    this.defaults = { model, sessionId, timeout, autoInstall, env }
+    const { model, sessionId, timeout, skipInstall, env, ...providerOptions } = options
+    this.provider = createProvider(name, { ...providerOptions, skipInstall, env })
+    this.defaults = { model, sessionId, timeout, skipInstall, env }
   }
 
   getSessionId(): string | null {
     return this.provider.getSessionId()
-  }
-
-  /** Ensure the agent is ready (install CLI, Codex login, etc.). Call at startup. */
-  async ensureReady(overrides: Omit<RunOptions, "prompt"> = {}): Promise<void> {
-    await this.provider.ensureReady({ ...this.defaults, ...overrides })
   }
 
   async *run(prompt: string, overrides: Omit<RunOptions, "prompt"> = {}): AsyncGenerator<Event, void, unknown> {

@@ -24,12 +24,19 @@ export abstract class Provider implements IProvider {
   /** Whether local execution is allowed */
   protected allowLocalExecution: boolean = false
 
-  /** Codex CLI login done once per sandbox */
-  private _codexLoginDone = false
+  /** CLI install: one promise so install-at-creation and first run() share the same work */
+  private _installPromise: Promise<void> | null = null
+
+  /** Env passed at creation so Codex login can run even when run() is called without env */
+  private _creationEnv: Record<string, string> | undefined
 
   constructor(options: ProviderOptions = {}) {
+    this._creationEnv = options.env
     if (options.sandbox) {
       this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
+      if (!options.skipInstall) {
+        queueMicrotask(() => void this.ensureInstalled({ skipInstall: false }))
+      }
     } else if (options.dangerouslyAllowLocalExecution) {
       this.allowLocalExecution = true
     } else {
@@ -71,43 +78,43 @@ export abstract class Provider implements IProvider {
   }
 
   /**
-   * One-time setup: install CLI, set env, Codex login. Used by ensureReady() and runSandbox().
+   * Install the provider CLI in the sandbox once. Starts in constructor (unless skipInstall: true).
+   * run() awaits this if still in progress.
+   */
+  private async ensureInstalled(options: RunOptions = {}): Promise<void> {
+    if (!this.sandboxManager) return
+    if (options.skipInstall) return
+    if (!this._installPromise) {
+      this._installPromise = this.sandboxManager.ensureProvider(this.name).then(() => {})
+    }
+    await this._installPromise
+  }
+
+  /**
+   * Session-start setup: set env and Codex login (every time). Uses ensureInstalled for one-time CLI install.
    */
   private async ensureSetup(options: RunOptions): Promise<void> {
     if (!this.sandboxManager) return
 
-    const autoInstall = options.autoInstall ?? true
-    if (autoInstall) {
-      await this.sandboxManager.ensureProvider(this.name)
+    await this.ensureInstalled(options)
+
+    const env = options.env ?? this._creationEnv
+    if (env) {
+      this.sandboxManager.setEnvVars(env)
     }
 
-    if (options.env) {
-      this.sandboxManager.setEnvVars(options.env)
-    }
-
+    // Codex login runs at the start of every run when we have OPENAI_API_KEY
     if (
       this.name === "codex" &&
-      options.env?.OPENAI_API_KEY &&
-      this.sandboxManager.executeCommand &&
-      !this._codexLoginDone
+      env?.OPENAI_API_KEY &&
+      this.sandboxManager.executeCommand
     ) {
-      const key = options.env.OPENAI_API_KEY
+      const key = env.OPENAI_API_KEY
       const safeKey = key.replace(/'/g, "'\\''")
       await this.sandboxManager.executeCommand(
         `echo '${safeKey}' | codex login --with-api-key 2>&1`,
         30
       )
-      this._codexLoginDone = true
-    }
-  }
-
-  /**
-   * Ensure the agent is ready to run (install CLI, Codex login, etc.).
-   * Call at startup so the first run has no hidden setup.
-   */
-  async ensureReady(options: RunOptions = {}): Promise<void> {
-    if (this.sandboxManager) {
-      await this.ensureSetup(options)
     }
   }
 
@@ -162,7 +169,7 @@ export abstract class Provider implements IProvider {
    */
   private async *runLocal(options: RunOptions): AsyncGenerator<Event, void, unknown> {
     // Ensure CLI is installed locally
-    ensureCliInstalled(this.name, options.autoInstall ?? false)
+    ensureCliInstalled(this.name, !(options.skipInstall ?? false))
 
     // Load session from file if not provided and persistence is enabled
     const sessionFile = options.sessionFile ?? getDefaultSessionPath(this.name)

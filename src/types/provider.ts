@@ -46,8 +46,8 @@ export interface RunOptions {
   cwd?: string
   /** Environment variables to pass to the provider */
   env?: Record<string, string>
-  /** Automatically install the CLI if not found (default: true) */
-  autoInstall?: boolean
+  /** Skip installing the CLI in the sandbox (default: false) */
+  skipInstall?: boolean
   /** Timeout in seconds for sandbox execution (default: 120) */
   timeout?: number
   /** Model to use (provider-specific, e.g., "openai/gpt-4o") */
@@ -64,6 +64,9 @@ export interface ProviderOptions {
 
   /** Environment variables for CLI execution (e.g. when sandbox is a Daytona Sandbox) */
   env?: Record<string, string>
+
+  /** Skip installing the provider CLI when the provider is created (default: false) */
+  skipInstall?: boolean
 
   /**
    * Allow running commands directly on local machine without sandbox.
@@ -94,10 +97,4 @@ export interface IProvider {
 
   /** Run the provider and emit events */
   run(options?: RunOptions): AsyncGenerator<Event, void, unknown>
-
-  /**
-   * Ensure the agent is ready to run (install CLI, Codex login, etc.).
-   * Call this at startup so the first run has no hidden setup.
-   */
-  ensureReady(options?: RunOptions): Promise<void>
 }
