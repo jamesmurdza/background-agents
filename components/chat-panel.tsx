@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
+import { BRANCH_STATUS } from "@/lib/constants"
 import { Terminal } from "lucide-react"
 import { useRef, useEffect, useCallback } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -122,7 +123,7 @@ export function ChatPanel({
   // Send message handler
   const handleSend = useCallback(async () => {
     const prompt = input.trim()
-    if (!prompt || branch.status === "running" || branch.status === "creating") return
+    if (!prompt || branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING) return
     if (!branch.sandboxId) return
 
     const userMsg: Message = {
@@ -134,7 +135,7 @@ export function ChatPanel({
     await onAddMessage(userMsg)
     setInput("")
 
-    onUpdateBranch({ status: "running", draftPrompt: "" })
+    onUpdateBranch({ status: BRANCH_STATUS.RUNNING, draftPrompt: "" })
 
     const assistantMsg: Message = {
       id: generateId(),
@@ -170,7 +171,7 @@ export function ChatPanel({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       onUpdateMessage(messageId, { content: `Error: ${message}` })
-      onUpdateBranch({ status: "idle" })
+      onUpdateBranch({ status: BRANCH_STATUS.IDLE })
       currentMessageIdRef.current = null
       currentExecutionIdRef.current = null
     }

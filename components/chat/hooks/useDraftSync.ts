@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import type { Branch } from "@/lib/types"
+import { BRANCH_STATUS } from "@/lib/constants"
 
 interface UseDraftSyncOptions {
   branch: Branch
@@ -56,7 +57,7 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
   // Save draft on page unload/close
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (branch.status === "creating") return
+      if (branch.status === BRANCH_STATUS.CREATING) return
       const currentInput = inputRef.current
       if (currentInput && currentInput !== (branch.draftPrompt ?? "")) {
         navigator.sendBeacon(

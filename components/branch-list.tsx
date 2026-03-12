@@ -7,16 +7,10 @@ import { generateId } from "@/lib/store"
 import { randomBranchName, validateBranchName } from "@/lib/branch-utils"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { StatusDot } from "@/components/ui/status-dot"
+import { DeleteBranchDialog, useDeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { GitBranch, Plus, Search, ChevronDown, Loader2, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useState, useRef, useEffect, useCallback } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 
 interface BranchListProps {
   repo: Repo
@@ -133,72 +127,8 @@ export function BranchList({
     }
   }, [pendingStartCommit, onClearPendingCommit, fetchGithubBranches])
 
-  const [deleteModalBranchId, setDeleteModalBranchId] = useState<string | null>(null)
-  const [deleteModalMergeStatus, setDeleteModalMergeStatus] = useState<"loading" | "merged" | "unmerged" | "error">("loading")
-  const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const deleteModalBranch = deleteModalBranchId ? repo.branches.find((b) => b.id === deleteModalBranchId) : null
-
-  // Handle delete button click - check if branch exists on GitHub first
-  const handleDeleteClick = useCallback(async (branchId: string) => {
-    const branch = repo.branches.find((b) => b.id === branchId)
-    if (!branch) return
-
-    // Check if branch exists on GitHub
-    try {
-      const baseBranch = branch.baseBranch || repo.defaultBranch || "main"
-      const res = await fetch(
-        `/api/github/check-merged?owner=${encodeURIComponent(repo.owner)}&repo=${encodeURIComponent(repo.name)}&branch=${encodeURIComponent(branch.name)}&baseBranch=${encodeURIComponent(baseBranch)}`
-      )
-      const data = await res.json()
-
-      // If branch doesn't exist on GitHub, delete immediately without modal
-      if (res.ok && data.notFound) {
-        onRemoveBranch(branchId, false)
-        return
-      }
-    } catch {
-      // On error, fall through to show modal
-    }
-
-    // Branch exists on GitHub (or we couldn't check), show the modal
-    setDeleteModalBranchId(branchId)
-  }, [repo.branches, repo.owner, repo.name, repo.defaultBranch, onRemoveBranch])
-
-  // Check if branch is merged when delete modal opens
-  useEffect(() => {
-    if (!deleteModalBranchId) return
-
-    // Find the branch inside the effect to avoid dependency on the derived object
-    const branch = repo.branches.find((b) => b.id === deleteModalBranchId)
-    if (!branch) return
-
-    setDeleteModalMergeStatus("loading")
-    setDeleteRemoteChecked(false)
-
-    const checkMerged = async () => {
-      try {
-        const baseBranch = branch.baseBranch || repo.defaultBranch || "main"
-        const res = await fetch(
-          `/api/github/check-merged?owner=${encodeURIComponent(repo.owner)}&repo=${encodeURIComponent(repo.name)}&branch=${encodeURIComponent(branch.name)}&baseBranch=${encodeURIComponent(baseBranch)}`
-        )
-        const data = await res.json()
-        if (res.ok) {
-          const isMerged = data.isMerged
-          setDeleteModalMergeStatus(isMerged ? "merged" : "unmerged")
-          // Default to checking the delete on GitHub option if branch is merged
-          if (isMerged) {
-            setDeleteRemoteChecked(true)
-          }
-        } else {
-          setDeleteModalMergeStatus("error")
-        }
-      } catch {
-        setDeleteModalMergeStatus("error")
-      }
-    }
-    checkMerged()
-  }, [deleteModalBranchId, repo.owner, repo.name, repo.defaultBranch])
+  // Delete branch dialog hook - handles pre-check and state
+  const deleteDialog = useDeleteBranchDialog({ repo, onRemoveBranch })
 
   function startResize() {
     isResizing.current = true
@@ -293,7 +223,7 @@ export function BranchList({
                 // Use server-side branchId to replace the temporary client-side ID
                 onUpdateBranch(branchId, {
                   id: data.branchId, // Replace client ID with server ID
-                  status: "idle",
+                  status: BRANCH_STATUS.IDLE,
                   sandboxId: data.sandboxId,
                   contextId: data.contextId,
                   previewUrlPattern: data.previewUrlPattern,
@@ -304,7 +234,7 @@ export function BranchList({
               } else if (data.type === "error") {
                 hasTerminalEvent = true
                 onUpdateBranch(branchId, {
-                  status: "error",
+                  status: BRANCH_STATUS.ERROR,
                 })
                 setCreateError(data.message)
               }
@@ -318,7 +248,7 @@ export function BranchList({
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create branch"
-      onUpdateBranch(branchId, { status: "error" })
+      onUpdateBranch(branchId, { status: BRANCH_STATUS.ERROR })
       setCreateError(message)
     } finally {
       setCreating(false)
@@ -406,7 +336,7 @@ export function BranchList({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDeleteClick(branch.id)
+                      deleteDialog.handleDeleteClick(branch.id)
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground/60 transition-all hover:bg-muted-foreground/10 hover:text-foreground"
                   >
@@ -516,89 +446,12 @@ export function BranchList({
       )}
 
       {/* Delete confirmation modal */}
-      <Dialog open={!!deleteModalBranchId} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteModalBranchId(null) }}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="text-sm">Remove branch</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <p className="text-xs text-muted-foreground">
-              Are you sure you want to remove <span className="font-semibold text-foreground">{deleteModalBranch?.name}</span>? This will delete the chat history and sandbox.
-            </p>
-
-            {/* Merge status and GitHub deletion option */}
-            {deleteModalMergeStatus === "loading" ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Checking branch status...</span>
-              </div>
-            ) : deleteModalMergeStatus === "merged" ? (
-              <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/50 p-3">
-                <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
-                    <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
-                  </svg>
-                  <span className="font-medium">Branch is fully merged</span>
-                </div>
-                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={deleteRemoteChecked}
-                    onChange={(e) => setDeleteRemoteChecked(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-border cursor-pointer"
-                    disabled={isDeleting}
-                  />
-                  <span>Also delete branch on GitHub</span>
-                </label>
-              </div>
-            ) : deleteModalMergeStatus === "unmerged" ? (
-              <div className="flex flex-col gap-1 rounded-md border border-border bg-secondary/50 p-3">
-                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.22 1.754a.25.25 0 00-.44 0L1.698 13.132a.25.25 0 00.22.368h12.164a.25.25 0 00.22-.368L8.22 1.754zm-1.763-.707c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575L6.457 1.047zM9 11a1 1 0 11-2 0 1 1 0 012 0zm-.25-5.25a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z" />
-                  </svg>
-                  <span className="font-medium">Branch has unmerged changes</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  The branch will remain on GitHub. You can delete it manually from GitHub after reviewing the changes.
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Unable to check branch status. The branch will remain on GitHub.</span>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="gap-2">
-            <button
-              onClick={() => setDeleteModalBranchId(null)}
-              disabled={isDeleting}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent cursor-pointer disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                if (deleteModalBranchId && deleteModalBranch) {
-                  setIsDeleting(true)
-                  try {
-                    onRemoveBranch(deleteModalBranchId, deleteRemoteChecked)
-                  } finally {
-                    setIsDeleting(false)
-                    setDeleteModalBranchId(null)
-                    setDeleteRemoteChecked(false)
-                  }
-                }
-              }}
-              disabled={isDeleting || deleteModalMergeStatus === "loading"}
-              className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {isDeleting && <Loader2 className="h-3 w-3 animate-spin" />}
-              Remove
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteBranchDialog
+        branch={deleteDialog.deletingBranch}
+        repo={repo}
+        onClose={deleteDialog.handleClose}
+        onConfirm={deleteDialog.handleConfirm}
+      />
 
       {/* Resize handle (desktop only) */}
       {!isMobile && (

@@ -8,6 +8,7 @@ import {
   transformRepo,
   transformMessage,
 } from "@/lib/db-types"
+import { BRANCH_STATUS } from "@/lib/constants"
 
 interface UseRepoDataOptions {
   isAuthenticated: boolean
@@ -40,7 +41,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
           // Eagerly load messages for any running branches to prevent race conditions
           // This ensures messages are available when chat-panel checks for active executions
           const runningBranches = transformedRepos.flatMap((r: TransformedRepo) =>
-            r.branches.filter((b) => b.status === "running").map((b) => ({ repoId: r.id, branch: b }))
+            r.branches.filter((b) => b.status === BRANCH_STATUS.RUNNING).map((b) => ({ repoId: r.id, branch: b }))
           )
 
           if (runningBranches.length > 0) {

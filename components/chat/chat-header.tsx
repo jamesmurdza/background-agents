@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Branch } from "@/lib/types"
+import { BRANCH_STATUS } from "@/lib/constants"
 import {
   Pencil,
   GitPullRequest,
@@ -57,8 +58,8 @@ export function ChatHeader({
   gitActions,
   renaming,
 }: ChatHeaderProps) {
-  const isReady = branch.sandboxId && (branch.status !== "creating")
-  const isBusy = branch.status === "running" || branch.status === "creating"
+  const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
+  const isBusy = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING
 
   return (
     <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5 sm:px-4">
@@ -105,12 +106,12 @@ export function ChatHeader({
             <TooltipTrigger asChild>
               <button
                 onClick={gitActions.handleSandboxToggle}
-                disabled={gitActions.sandboxToggleLoading || branch.status === "running" || branch.status === "creating"}
+                disabled={gitActions.sandboxToggleLoading || branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING}
                 className="flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {gitActions.sandboxToggleLoading ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : branch.status === "stopped" ? (
+                ) : branch.status === BRANCH_STATUS.STOPPED ? (
                   <Play className="h-3.5 w-3.5" />
                 ) : (
                   <Pause className="h-3.5 w-3.5" />
@@ -118,7 +119,7 @@ export function ChatHeader({
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
-              {branch.status === "stopped" ? "Start sandbox" : "Pause sandbox"}
+              {branch.status === BRANCH_STATUS.STOPPED ? "Start sandbox" : "Pause sandbox"}
             </TooltipContent>
           </Tooltip>
           <div className="mx-1.5 h-4 w-px bg-border shrink-0" />

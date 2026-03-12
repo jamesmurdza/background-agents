@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
+import { BRANCH_STATUS, EXECUTION_STATUS } from "@/lib/constants"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -77,7 +78,7 @@ export function useExecutionPolling({
               }
               currentExecutionIdRef.current = null
               currentMessageIdRef.current = null
-              onUpdateBranch({ status: "idle" })
+              onUpdateBranch({ status: BRANCH_STATUS.IDLE })
             }
             return
           }
@@ -121,7 +122,7 @@ export function useExecutionPolling({
         }
 
         // Check if completed or error
-        if (data.status === "completed" || data.status === "error") {
+        if (data.status === EXECUTION_STATUS.COMPLETED || data.status === EXECUTION_STATUS.ERROR) {
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
             pollingRef.current = null
@@ -129,7 +130,7 @@ export function useExecutionPolling({
           currentExecutionIdRef.current = null
           currentMessageIdRef.current = null
 
-          if (data.status === "error" && data.error) {
+          if (data.status === EXECUTION_STATUS.ERROR && data.error) {
             onUpdateMessage(messageId, {
               content: data.content ? `${data.content}\n\nError: ${data.error}` : `Error: ${data.error}`,
             })
@@ -232,7 +233,7 @@ export function useExecutionPolling({
 
     currentExecutionIdRef.current = null
     currentMessageIdRef.current = null
-    onUpdateBranch({ status: "idle" })
+    onUpdateBranch({ status: BRANCH_STATUS.IDLE })
   }, [branch.messages, onUpdateMessage, onUpdateBranch])
 
   // Check and resume polling on mount/branch switch
@@ -251,15 +252,15 @@ export function useExecutionPolling({
       .then((r) => r.json())
       .then((data) => {
         if (data.state && data.state !== "started") {
-          onUpdateBranch({ status: "stopped" })
-        } else if (currentStatus === "running" && !pollingRef.current) {
+          onUpdateBranch({ status: BRANCH_STATUS.STOPPED })
+        } else if (currentStatus === BRANCH_STATUS.RUNNING && !pollingRef.current) {
           if (currentMessages && currentMessages.length > 0) {
             const lastAssistantMsg = [...currentMessages].reverse().find(m => m.role === "assistant" && !m.commitHash)
             if (lastAssistantMsg) {
               currentMessageIdRef.current = lastAssistantMsg.id
               startPollingRef.current(lastAssistantMsg.id)
             } else {
-              onUpdateBranch({ status: "idle" })
+              onUpdateBranch({ status: BRANCH_STATUS.IDLE })
             }
           } else {
             fetch("/api/agent/execution/active", {
@@ -269,16 +270,16 @@ export function useExecutionPolling({
             })
               .then((r) => r.json())
               .then((execData) => {
-                if (execData.execution && execData.execution.status === "running") {
+                if (execData.execution && execData.execution.status === EXECUTION_STATUS.RUNNING) {
                   currentMessageIdRef.current = execData.execution.messageId
                   currentExecutionIdRef.current = execData.execution.executionId
                   startPollingRef.current(execData.execution.messageId, execData.execution.executionId)
                 } else {
-                  onUpdateBranch({ status: "idle" })
+                  onUpdateBranch({ status: BRANCH_STATUS.IDLE })
                 }
               })
               .catch(() => {
-                onUpdateBranch({ status: "idle" })
+                onUpdateBranch({ status: BRANCH_STATUS.IDLE })
               })
           }
         }

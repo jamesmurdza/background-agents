@@ -12,6 +12,7 @@ import { AddRepoModal } from "@/components/add-repo-modal"
 import { MobileHeader } from "@/components/mobile-header"
 import { MobileSidebarDrawer } from "@/components/mobile-sidebar-drawer"
 import { DiffModal } from "@/components/diff-modal"
+import { BRANCH_STATUS } from "@/lib/constants"
 import { Loader2 } from "lucide-react"
 
 // Import hooks
@@ -135,7 +136,7 @@ export default function Home() {
   // Dynamic page title with agent counts
   useEffect(() => {
     const allBranches = repos.flatMap((r) => r.branches)
-    const running = allBranches.filter((b) => b.status === "running").length
+    const running = allBranches.filter((b) => b.status === BRANCH_STATUS.RUNNING).length
     const parts: string[] = []
     if (running > 0) parts.push(`${running} running`)
     if (running === 0) parts.push("0 running")

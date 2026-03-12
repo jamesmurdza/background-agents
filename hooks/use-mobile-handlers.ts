@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import type { Branch } from "@/lib/types"
 import type { TransformedRepo } from "@/lib/db-types"
+import { BRANCH_STATUS } from "@/lib/constants"
 
 interface UseMobileHandlersOptions {
   activeBranch: Branch | null
@@ -27,7 +28,7 @@ export function useMobileHandlers({
   // Toggle sandbox start/stop
   const handleMobileSandboxToggle = useCallback(async () => {
     if (!activeBranch?.sandboxId || mobileSandboxToggleLoading) return
-    const isStopped = activeBranch.status === "stopped"
+    const isStopped = activeBranch.status === BRANCH_STATUS.STOPPED
     setMobileSandboxToggleLoading(true)
     try {
       const res = await fetch("/api/sandbox/status", {
@@ -40,7 +41,7 @@ export function useMobileHandlers({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      handleUpdateBranch(activeBranch.id, { status: isStopped ? "idle" : "stopped" })
+      handleUpdateBranch(activeBranch.id, { status: isStopped ? BRANCH_STATUS.IDLE : BRANCH_STATUS.STOPPED })
     } catch {
       // ignore
     } finally {
