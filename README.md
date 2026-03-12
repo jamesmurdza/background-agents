@@ -177,6 +177,9 @@ for await (const event of provider.run({
 })) {
   // Handle events
 }
+
+// Convenience: read the current session id (after the run starts)
+const sessionId = provider.getSessionId()
 ```
 
 ### Output format (event stream)

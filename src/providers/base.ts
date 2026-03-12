@@ -13,6 +13,10 @@ export abstract class Provider implements IProvider {
 
   sessionId: string | null = null
 
+  getSessionId(): string | null {
+    return this.sessionId
+  }
+
   /** Sandbox manager for secure execution */
   protected sandboxManager: SandboxManager | null = null
 

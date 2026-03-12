@@ -78,6 +78,9 @@ export interface IProvider {
   /** Current session ID */
   sessionId: string | null
 
+  /** Convenience accessor for current session id */
+  getSessionId(): string | null
+
   /** Get the command to spawn the provider */
   getCommand(options?: RunOptions): ProviderCommand
 
