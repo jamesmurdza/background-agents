@@ -190,7 +190,7 @@ The SDK invokes each provider’s CLI as follows (optional flags in brackets):
 
 ### createSession(name, options)
 
-Creates a session with defaults (model, timeout, env, etc.) and exposes `session.run(prompt)`. Pass `env` with your provider API key(s). **Async:** installs the CLI in the sandbox and runs Codex login if needed, so the returned session is ready to use. Pass `skipInstall: true` to skip install.
+Creates a session with defaults (model, timeout, env, etc.) and exposes `session.run(prompt)`. It installs the provider CLI in the sandbox before returning (unless you pass `skipInstall: true`), so the session is ready to use. Pass `env` with your provider API key(s); Codex login runs automatically on each `run()` when needed.
 
 ```typescript
 const session = await createSession("claude", {

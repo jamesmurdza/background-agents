@@ -24,7 +24,7 @@ export abstract class Provider implements IProvider {
   /** Whether local execution is allowed */
   protected allowLocalExecution: boolean = false
 
-  /** Resolves when initial setup (install + env + Codex login) has completed. */
+  /** Resolves when initial setup (install + env) has completed. */
   private _readyPromise: Promise<void> | null = null
 
   /** Env passed at creation; used for setup and when run() omits env */
@@ -106,12 +106,11 @@ export abstract class Provider implements IProvider {
     )
   }
 
-  /** One-time setup: install CLI, set env, Codex login. Run in microtask so subclass name is set. */
+  /** One-time setup: install CLI and set env. Run in microtask so subclass name is set. */
   private async _doSetup(): Promise<void> {
     if (!this.sandboxManager) return
     await this.sandboxManager.ensureProvider(this.name)
     if (this._creationEnv) this.sandboxManager.setEnvVars(this._creationEnv)
-    await this._codexLoginIfNeeded(this._creationEnv)
   }
 
   /** Per-run: set env and Codex login. */
