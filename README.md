@@ -17,7 +17,6 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 | [Claude](https://docs.anthropic.com/en/docs/claude-code) | ✅ **Complete** | `claude` | `ANTHROPIC_API_KEY` env var |
 | [Codex](https://developers.openai.com/codex/cli) | ✅ **Complete** | `codex` | `OPENAI_API_KEY` env var |
 | [OpenCode](https://opencode.ai/docs/) | ✅ **Complete** | `opencode` | Provider-specific env vars (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
-| [Gemini](https://geminicli.com/docs/) | 🚧 In progress | `gemini` | `GOOGLE_API_KEY` env var |
 
 ## Installation
 
@@ -210,15 +209,15 @@ type Event =
 
 Tool names are normalized so you can branch on a single set across providers. Each tool has a defined **tool_start input** and **tool_end output** shape.
 
-| Tool     | tool_start `input` (normalized) | tool_end `output` | Claude | Codex | OpenCode | Gemini |
-|----------|---------------------------------|--------------------|:-----:|:-----:|:--------:|:------:|
-| **write** | `{ file_path: string, content: string \| null, kind: "add" \| "update" }` | Raw string (success message or JSON). | ✅ | ✅ | ✅ | ✅ |
-| **read** | `{ file_path: string }` | File contents string. | ✅ | — | ✅ | ✅ |
-| **edit** | `{ file_path: string, ... }` | Raw string. | ✅ | — | ✅ | ✅ |
-| **glob** | `{ pattern: string }` | Raw string (paths or JSON). | ✅ | — | ✅ | ✅ |
-| **grep** | `{ pattern: string, path?: string }` | Raw string. | ✅ | — | ✅ | ✅ |
-| **shell** | `{ command: string, description?: string }` | Stdout/stderr string. | ✅ | ✅ | ✅ | ✅ |
-| *(other)* | `unknown` (SDK passes through raw provider payload) | Raw string. | ✅ | ✅ | ✅ | ✅ |
+| Tool     | tool_start `input` (normalized) | tool_end `output` | Claude | Codex | OpenCode |
+|----------|---------------------------------|--------------------|:-----:|:-----:|:--------:|
+| **write** | `{ file_path: string, content: string \| null, kind: "add" \| "update" }` | Raw string (success message or JSON). | ✅ | ✅ | ✅ |
+| **read** | `{ file_path: string }` | File contents string. | ✅ | — | ✅ |
+| **edit** | `{ file_path: string, ... }` | Raw string. | ✅ | — | ✅ |
+| **glob** | `{ pattern: string }` | Raw string (paths or JSON). | ✅ | — | ✅ |
+| **grep** | `{ pattern: string, path?: string }` | Raw string. | ✅ | — | ✅ |
+| **shell** | `{ command: string, description?: string }` | Stdout/stderr string. | ✅ | ✅ | ✅ |
+| *(other)* | `unknown` (SDK passes through raw provider payload) | Raw string. | ❓ | ❓ | ❓ |
 
 The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). You can import the input types for annotations or use narrowing alone:
 
