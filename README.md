@@ -40,7 +40,7 @@ If you prefer to run locally without a sandbox, see [Local Mode](#local-mode-dan
 ### 1. Create a Sandbox
 
 ```typescript
-import { createSandbox, createProvider } from "code-agent-sdk"
+import { createSandbox, createSession } from "code-agent-sdk"
 
 // Create sandbox with your API keys
 const sandbox = createSandbox({
@@ -53,10 +53,15 @@ const sandbox = createSandbox({
 await sandbox.create()
 ```
 
-### 2. Create a Provider
+### 2. Create a Session
 
 ```typescript
-const claude = createProvider("claude", { sandbox })
+const claude = createSession("claude", {
+  sandbox,
+  model: "sonnet",
+  timeout: 120,
+  autoInstall: true,
+})
 ```
 
 ### 3. Stream Responses
@@ -82,7 +87,7 @@ await sandbox.destroy()
 ## Full Example
 
 ```typescript
-import { createSandbox, createProvider } from "code-agent-sdk"
+import { createSandbox, createSession } from "code-agent-sdk"
 
 async function main() {
   const sandbox = createSandbox({
@@ -92,9 +97,9 @@ async function main() {
   await sandbox.create()
 
   try {
-    const provider = createProvider("claude", { sandbox })
+    const session = createSession("claude", { sandbox })
 
-    for await (const event of provider.run({ prompt: "List /tmp then write /tmp/out.txt with 'done'" })) {
+    for await (const event of session.run("List /tmp then write /tmp/out.txt with 'done'")) {
       switch (event.type) {
         case "session":
           console.log("Session:", event.id)
@@ -148,7 +153,7 @@ await sandbox.destroy()        // Cleanup when done
 
 ### createProvider(name, options)
 
-Creates a provider instance.
+Creates a low-level provider instance (advanced). For most use-cases, prefer `createSession()` so you can set defaults once.
 
 ```typescript
 // With sandbox (recommended)
@@ -162,29 +167,40 @@ const provider = createProvider("claude", {
 
 **Supported providers:** `"claude"`, `"codex"`, `"gemini"`, `"opencode"`
 
-### provider.run(options)
+### createSession(name, options)
 
-Streams events from the AI agent.
+Creates a session wrapper with defaults (model/sessionId/timeout/autoInstall/env) and exposes `session.run(prompt)`.
 
 ```typescript
-for await (const event of provider.run({
-  prompt: string,              // The prompt to send
-  model?: string,              // Model to use (provider-specific)
-  sessionId?: string,          // Resume a previous session
-  timeout?: number,            // Timeout in seconds (default: 120)
-  autoInstall?: boolean,       // Auto-install CLI (default: true)
-  env?: Record<string, string> // Additional env vars
-})) {
+const session = createSession("claude", {
+  sandbox,
+  model: "sonnet",
+  timeout: 120,
+  autoInstall: true,
+})
+```
+
+### session.run(prompt)
+
+Streams events from the AI agent using the session defaults.
+
+```typescript
+for await (const event of session.run("Hello")) {
   // Handle events
 }
+```
 
-// Convenience: read the current session id (after the run starts)
-const sessionId = provider.getSessionId()
+You can still override defaults per call:
+
+```typescript
+for await (const event of session.run("Hello", { timeout: 30 })) {
+  // ...
+}
 ```
 
 ### Output format (event stream)
 
-`provider.run()` yields an async iterable of **events**. Every provider emits the same event shapes so you can handle Claude, Codex, Gemini, and OpenCode uniformly.
+`session.run()` yields an async iterable of **events**. Every provider emits the same event shapes so you can handle Claude, Codex, and OpenCode uniformly.
 
 #### Event types
 
@@ -233,7 +249,7 @@ import {
   type ShellToolInput,
 } from "code-agent-sdk"
 
-for await (const event of provider.run({ prompt })) {
+for await (const event of session.run(prompt)) {
   if (event.type === "tool_start" && event.name === "write") {
     const input = event.input  // typed as WriteToolInput | undefined
     input?.file_path            // string
@@ -280,7 +296,7 @@ await provider.runWithCallback((event) => {
 
 ## Model Selection
 
-Each provider supports specifying a model via the `model` option. Pass the model identifier when calling `run()`:
+Each provider supports specifying a model via the `model` option. With sessions, set `model` once at creation time (or override per call).
 
 ### Claude Models
 
@@ -291,15 +307,15 @@ const sandbox = createSandbox({
 })
 await sandbox.create()
 
-const claude = createProvider("claude", { sandbox })
+const claude = createSession("claude", { sandbox })
 
 // Use model alias (recommended)
-await claude.run({ prompt: "Hello", model: "sonnet" })
-await claude.run({ prompt: "Hello", model: "opus" })
-await claude.run({ prompt: "Hello", model: "haiku" })
+await claude.run("Hello", { model: "sonnet" })
+await claude.run("Hello", { model: "opus" })
+await claude.run("Hello", { model: "haiku" })
 
 // Or use full model name
-await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
+await claude.run("Hello", { model: "claude-sonnet-4-5-20250929" })
 ```
 
 See [Claude Code model configuration](https://code.claude.com/docs/en/model-config) for all available models.
@@ -313,11 +329,11 @@ const sandbox = createSandbox({
 })
 await sandbox.create()
 
-const codex = createProvider("codex", { sandbox })
+const codex = createSession("codex", { sandbox })
 
-await codex.run({ prompt: "Hello", model: "gpt-4o" })
-await codex.run({ prompt: "Hello", model: "o1" })
-await codex.run({ prompt: "Hello", model: "o3" })
+await codex.run("Hello", { model: "gpt-4o" })
+await codex.run("Hello", { model: "o1" })
+await codex.run("Hello", { model: "o3" })
 ```
 
 See [Codex CLI models](https://developers.openai.com/codex/models) for all available models.
@@ -331,10 +347,10 @@ const sandbox = createSandbox({
 })
 await sandbox.create()
 
-const gemini = createProvider("gemini", { sandbox })
+const gemini = createSession("gemini", { sandbox })
 
-await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
-await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
+await gemini.run("Hello", { model: "gemini-2.0-flash" })
+await gemini.run("Hello", { model: "gemini-1.5-pro" })
 ```
 
 See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all available models.
@@ -348,17 +364,17 @@ const sandbox = createSandbox({
 })
 await sandbox.create()
 
-const opencode = createProvider("opencode", { sandbox })
+const opencode = createSession("opencode", { sandbox })
 
 // Format: "provider/model"
-await opencode.run({ prompt: "Hello", model: "openai/gpt-4o" })           // Default
-await opencode.run({ prompt: "Hello", model: "openai/gpt-4o-mini" })
-await opencode.run({ prompt: "Hello", model: "openai/o1" })
-await opencode.run({ prompt: "Hello", model: "openai/o3" })
+await opencode.run("Hello", { model: "openai/gpt-4o" })           // Default
+await opencode.run("Hello", { model: "openai/gpt-4o-mini" })
+await opencode.run("Hello", { model: "openai/o1" })
+await opencode.run("Hello", { model: "openai/o3" })
 
 // Other providers supported by OpenCode
-await opencode.run({ prompt: "Hello", model: "anthropic/claude-sonnet" })
-await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
+await opencode.run("Hello", { model: "anthropic/claude-sonnet" })
+await opencode.run("Hello", { model: "google/gemini-2.0-flash" })
 ```
 
 See [OpenCode models](https://opencode.ai/docs/models/) for all available models and providers.
@@ -368,12 +384,15 @@ See [OpenCode models](https://opencode.ai/docs/models/) for all available models
 If you need to run CLIs directly on your machine (not recommended):
 
 ```typescript
-const provider = createProvider("claude", {
+const session = createSession("claude", {
   dangerouslyAllowLocalExecution: true,
 })
 
 // Runs claude CLI directly on your machine
-const text = await provider.collectText({ prompt: "Hello" })
+let text = ""
+for await (const event of session.run("Hello")) {
+  if (event.type === "token") text += event.text
+}
 ```
 
 **Warning:** Local mode executes arbitrary CLI commands on your machine. Only use this when you fully trust the code being executed.
