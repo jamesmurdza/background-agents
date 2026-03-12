@@ -14,10 +14,10 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 
 | Provider | Status | CLI | Authentication |
 |----------|--------|-----|----------------|
-| [Claude](https://docs.anthropic.com/en/docs/claude-code) | **Tested** | `claude` | `ANTHROPIC_API_KEY` env var |
-| [Codex](https://developers.openai.com/codex/cli) | **Tested** | `codex` | `OPENAI_API_KEY` env var |
-| [Gemini](https://geminicli.com/docs/) | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
-| [OpenCode](https://opencode.ai/docs/) | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
+| [Claude](https://docs.anthropic.com/en/docs/claude-code) | ✅ **Complete** | `claude` | `ANTHROPIC_API_KEY` env var |
+| [Codex](https://developers.openai.com/codex/cli) | ✅ **Complete** | `codex` | `OPENAI_API_KEY` env var |
+| [OpenCode](https://opencode.ai/docs/) | ✅ **Complete** | `opencode` | Provider-specific env vars (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
+| [Gemini](https://geminicli.com/docs/) | 🚧 In progress | `gemini` | `GOOGLE_API_KEY` env var |
 
 ## Installation
 
@@ -210,14 +210,14 @@ type Event =
 
 Tool names are normalized so you can branch on a single set across providers. Each tool has a defined **tool_start input** and **tool_end output** shape.
 
-| Tool     | tool_start `input` (normalized) | tool_end `output` |
-|----------|---------------------------------|--------------------|
-| **write** | `{ file_path: string, content?: string, kind?: "add" \| "update" }` | Raw string (success message or JSON). |
-| **read** | `{ file_path: string }` | File contents string. |
-| **edit** | `{ file_path: string, ... }` | Raw string. |
-| **glob** | `{ pattern: string }` | Raw string (paths or JSON). |
-| **grep** | `{ pattern: string, path?: string }` | Raw string. |
-| **shell** | `{ command: string, description?: string }` | Stdout/stderr string. |
+| Tool     | tool_start `input` (normalized) | tool_end `output` | Claude | Codex | OpenCode | Gemini |
+|----------|---------------------------------|--------------------|:-----:|:-----:|:--------:|:------:|
+| **write** | `{ file_path: string, content: string \| null, kind: "add" \| "update" }` | Raw string (success message or JSON). | ✅ | ✅ | ✅ | ✅ |
+| **read** | `{ file_path: string }` | File contents string. | ✅ | — | ✅ | ✅ |
+| **edit** | `{ file_path: string, ... }` | Raw string. | ✅ | — | ✅ | ✅ |
+| **glob** | `{ pattern: string }` | Raw string (paths or JSON). | ✅ | — | ✅ | ✅ |
+| **grep** | `{ pattern: string, path?: string }` | Raw string. | ✅ | — | ✅ | ✅ |
+| **shell** | `{ command: string, description?: string }` | Stdout/stderr string. | ✅ | ✅ | ✅ | ✅ |
 
 The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). You can import the input types for annotations or use narrowing alone:
 
@@ -233,7 +233,8 @@ for await (const event of provider.run({ prompt })) {
   if (event.type === "tool_start" && event.name === "write") {
     const input = event.input  // typed as WriteToolInput | undefined
     input?.file_path            // string
-    input?.content              // string | undefined
+    input?.content              // string | null
+    input?.kind                 // "add" | "update"
   }
   if (event.type === "tool_start" && event.name === "shell") {
     const input = event.input   // typed as ShellToolInput | undefined
@@ -252,7 +253,7 @@ Other exported types: `ToolName`, `ReadToolInput`, `EditToolInput`, `GlobToolInp
 ```json
 {"type":"session","id":"abc-123"}
 {"type":"token","text":"I'll write the file.\n"}
-{"type":"tool_start","name":"write","input":{"file_path":"/tmp/hello.txt","content":"Hello"}}
+{"type":"tool_start","name":"write","input":{"file_path":"/tmp/hello.txt","content":"Hello","kind":"update"}}
 {"type":"tool_end","output":"File created successfully."}
 {"type":"token","text":"Done."}
 {"type":"end"}
