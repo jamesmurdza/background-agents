@@ -28,6 +28,8 @@ export interface RunOptions {
   cwd?: string
   /** Environment variables to pass to the provider */
   env?: Record<string, string>
+  /** Automatically install the CLI if not found (default: false) */
+  autoInstall?: boolean
 }
 
 /** Event handler callback */

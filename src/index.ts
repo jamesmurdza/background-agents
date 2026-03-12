@@ -66,4 +66,9 @@ export {
   storeSession,
   clearSession,
   getDefaultSessionPath,
+  isCliInstalled,
+  installProvider,
+  ensureCliInstalled,
+  getPackageName,
+  getInstallationStatus,
 } from "./utils/index.js"

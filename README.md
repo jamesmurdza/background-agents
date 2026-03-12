@@ -136,6 +136,47 @@ const claude = new ClaudeProvider()
 const codex = new CodexProvider()
 ```
 
+### Auto-Installing CLIs
+
+The SDK can automatically install missing CLI tools:
+
+```typescript
+import { createProvider } from "code-agent-sdk"
+
+const provider = createProvider("claude")
+
+// Auto-install Claude CLI if not found
+await provider.collectText({
+  prompt: "Hello",
+  autoInstall: true  // Will run: npm install -g @anthropic-ai/claude-code
+})
+```
+
+You can also check and manage installations manually:
+
+```typescript
+import {
+  isCliInstalled,
+  installProvider,
+  getInstallationStatus,
+  getPackageName
+} from "code-agent-sdk"
+
+// Check if a CLI is installed
+if (!isCliInstalled("claude")) {
+  console.log("Claude CLI not found")
+  console.log("Package:", getPackageName("claude")) // @anthropic-ai/claude-code
+
+  // Install it
+  installProvider("claude")
+}
+
+// Check all providers at once
+const status = getInstallationStatus()
+console.log(status)
+// { claude: true, codex: true, opencode: false, gemini: false }
+```
+
 ## API Reference
 
 ### `createProvider(name: ProviderName): Provider`
@@ -190,6 +231,7 @@ interface RunOptions {
   sessionFile?: string         // Custom session file path
   cwd?: string                 // Working directory
   env?: Record<string, string> // Environment variables
+  autoInstall?: boolean        // Auto-install CLI if missing (default: false)
 }
 ```
 

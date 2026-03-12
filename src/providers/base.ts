@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 import * as readline from "node:readline"
 import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
 import { getDefaultSessionPath, loadSession, storeSession } from "../utils/session.js"
+import { ensureCliInstalled } from "../utils/install.js"
 
 /**
  * Abstract base class for AI coding agent providers
@@ -25,6 +26,9 @@ export abstract class Provider implements IProvider {
    * Run the provider and yield events as an async generator
    */
   async *run(options: RunOptions = {}): AsyncGenerator<Event, void, unknown> {
+    // Ensure CLI is installed (optionally auto-install)
+    ensureCliInstalled(this.name, options.autoInstall ?? false)
+
     // Load session from file if not provided and persistence is enabled
     const sessionFile = options.sessionFile ?? getDefaultSessionPath(this.name)
 
