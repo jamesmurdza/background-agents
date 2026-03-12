@@ -7,10 +7,29 @@ import type { Event } from "./events.js"
 /** Supported provider names */
 export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
 
+/** Execution mode for providers */
+export type ExecutionMode = "sandbox" | "local"
+
 /** Command configuration for spawning a provider process */
 export interface ProviderCommand {
   cmd: string
   args: string[]
+  env?: Record<string, string>
+}
+
+/**
+ * Sandbox configuration options
+ */
+export interface SandboxConfig {
+  /** Daytona API key (defaults to DAYTONA_API_KEY env var) */
+  apiKey?: string
+  /** Daytona server URL (defaults to DAYTONA_SERVER_URL env var) */
+  serverUrl?: string
+  /** Target region for sandbox */
+  target?: string
+  /** Auto-stop timeout in seconds (0 to disable) */
+  autoStopTimeout?: number
+  /** Custom environment variables for the sandbox */
   env?: Record<string, string>
 }
 
@@ -28,8 +47,16 @@ export interface RunOptions {
   cwd?: string
   /** Environment variables to pass to the provider */
   env?: Record<string, string>
-  /** Automatically install the CLI if not found (default: false) */
+  /** Automatically install the CLI if not found (default: true for sandbox, false for local) */
   autoInstall?: boolean
+  /**
+   * Execution mode (default: "sandbox")
+   * - "sandbox": Run in a secure Daytona sandbox (recommended)
+   * - "local": Run directly on the local machine (use with caution)
+   */
+  mode?: ExecutionMode
+  /** Sandbox configuration (only used when mode is "sandbox") */
+  sandbox?: SandboxConfig
 }
 
 /** Event handler callback */

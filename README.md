@@ -1,6 +1,6 @@
 # Code Agent SDK
 
-A TypeScript SDK for interacting with various AI coding agents through a unified interface.
+A TypeScript SDK for interacting with various AI coding agents through a unified interface. **By default, all commands run in a secure Daytona sandbox** to prevent arbitrary code execution on your local machine.
 
 ## Provider Support
 
@@ -24,28 +24,67 @@ import { createProvider } from "code-agent-sdk"
 
 const provider = createProvider("claude")
 
+// Runs in Daytona sandbox by default (secure)
 for await (const event of provider.run({ prompt: "Hello, world!" })) {
   switch (event.type) {
-    case "session":
-      console.log("Session:", event.id)
-      break
     case "token":
       process.stdout.write(event.text)
-      break
-    case "tool_start":
-      console.log("\n[Tool]", event.name)
-      break
-    case "tool_delta":
-      process.stdout.write(event.text)
-      break
-    case "tool_end":
-      console.log("[/Tool]")
       break
     case "end":
       console.log("\n[Done]")
       break
   }
 }
+```
+
+## Execution Modes
+
+### Sandbox Mode (Default - Recommended)
+
+By default, all providers run inside a secure [Daytona](https://daytona.io) sandbox. This isolates the CLI execution from your local machine.
+
+```typescript
+import { createProvider } from "code-agent-sdk"
+
+const provider = createProvider("claude")
+
+// Sandbox mode is the default
+const response = await provider.collectText({
+  prompt: "What is 2 + 2?",
+  // mode: "sandbox" is implicit
+})
+```
+
+Configure the sandbox:
+
+```typescript
+const response = await provider.collectText({
+  prompt: "Hello",
+  sandbox: {
+    apiKey: process.env.DAYTONA_API_KEY,  // Or set DAYTONA_API_KEY env var
+    serverUrl: "https://api.daytona.io",
+    autoStopTimeout: 300, // Auto-stop after 5 minutes of inactivity
+    env: {
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
+    },
+  },
+})
+```
+
+### Local Mode (Opt-in - Use with Caution)
+
+If you need to run locally (e.g., for development or when you trust the code), explicitly opt-in:
+
+```typescript
+import { createProvider } from "code-agent-sdk"
+
+const provider = createProvider("claude")
+
+// ⚠️ Runs directly on your local machine
+const response = await provider.collectText({
+  prompt: "Hello",
+  mode: "local",  // Explicitly opt-in to local execution
+})
 ```
 
 ## Example Usage
@@ -76,22 +115,29 @@ await codex.runWithCallback((event) => {
 }, { prompt: "Explain recursion briefly" })
 ```
 
-### Collecting All Events
+### Using the Sandbox Directly
 
 ```typescript
-import { createProvider } from "code-agent-sdk"
+import { createSandbox } from "code-agent-sdk"
 
-const provider = createProvider("claude")
-const events = await provider.collectEvents({
-  prompt: "List 3 colors"
+const sandbox = createSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
 })
 
-const tokens = events
-  .filter(e => e.type === "token")
-  .map(e => e.text)
-  .join("")
+// Install a CLI
+await sandbox.ensureProvider("claude")
 
-console.log(tokens)
+// Execute commands
+const result = await sandbox.executeCommand("claude --version")
+console.log(result.output)
+
+// Stream command output
+for await (const line of sandbox.executeCommandStream("claude -p 'Hello'")) {
+  console.log(line)
+}
+
+// Cleanup when done
+await sandbox.destroy()
 ```
 
 ### Session Persistence
@@ -107,119 +153,9 @@ await provider.collectText({ prompt: "Remember: my name is Alice" })
 // Second interaction - resumes the same session
 const response = await provider.collectText({ prompt: "What's my name?" })
 console.log(response) // Should remember "Alice"
-
-// Disable persistence for one-off queries
-await provider.collectText({
-  prompt: "Quick question",
-  persistSession: false
-})
-```
-
-### Using Different Providers
-
-```typescript
-import { createProvider, getProviderNames, isValidProvider } from "code-agent-sdk"
-
-// List available providers
-console.log(getProviderNames()) // ["claude", "codex", "opencode", "gemini"]
-
-// Check if provider exists
-if (isValidProvider("claude")) {
-  const provider = createProvider("claude")
-  // ...
-}
-
-// Or use provider classes directly
-import { ClaudeProvider, CodexProvider } from "code-agent-sdk"
-
-const claude = new ClaudeProvider()
-const codex = new CodexProvider()
-```
-
-### Auto-Installing CLIs
-
-The SDK can automatically install missing CLI tools:
-
-```typescript
-import { createProvider } from "code-agent-sdk"
-
-const provider = createProvider("claude")
-
-// Auto-install Claude CLI if not found
-await provider.collectText({
-  prompt: "Hello",
-  autoInstall: true  // Will run: npm install -g @anthropic-ai/claude-code
-})
-```
-
-You can also check and manage installations manually:
-
-```typescript
-import {
-  isCliInstalled,
-  installProvider,
-  getInstallationStatus,
-  getPackageName
-} from "code-agent-sdk"
-
-// Check if a CLI is installed
-if (!isCliInstalled("claude")) {
-  console.log("Claude CLI not found")
-  console.log("Package:", getPackageName("claude")) // @anthropic-ai/claude-code
-
-  // Install it
-  installProvider("claude")
-}
-
-// Check all providers at once
-const status = getInstallationStatus()
-console.log(status)
-// { claude: true, codex: true, opencode: false, gemini: false }
 ```
 
 ## API Reference
-
-### `createProvider(name: ProviderName): Provider`
-
-Factory function to create a provider instance.
-
-```typescript
-const provider = createProvider("claude") // or "codex", "opencode", "gemini"
-```
-
-### `provider.run(options?): AsyncGenerator<Event>`
-
-Stream events as an async generator.
-
-```typescript
-for await (const event of provider.run({ prompt: "Hello" })) {
-  // Handle events
-}
-```
-
-### `provider.runWithCallback(callback, options?): Promise<void>`
-
-Run with a callback for each event.
-
-```typescript
-await provider.runWithCallback((event) => console.log(event), { prompt: "Hello" })
-```
-
-### `provider.collectText(options?): Promise<string>`
-
-Collect all text tokens into a single string.
-
-```typescript
-const text = await provider.collectText({ prompt: "Hello" })
-```
-
-### `provider.collectEvents(options?): Promise<Event[]>`
-
-Collect all events into an array.
-
-```typescript
-const events = await provider.collectEvents({ prompt: "Hello" })
-```
 
 ### Run Options
 
@@ -231,7 +167,17 @@ interface RunOptions {
   sessionFile?: string         // Custom session file path
   cwd?: string                 // Working directory
   env?: Record<string, string> // Environment variables
-  autoInstall?: boolean        // Auto-install CLI if missing (default: false)
+  autoInstall?: boolean        // Auto-install CLI if missing (default: true in sandbox, false in local)
+  mode?: "sandbox" | "local"   // Execution mode (default: "sandbox")
+  sandbox?: SandboxConfig      // Sandbox configuration
+}
+
+interface SandboxConfig {
+  apiKey?: string              // Daytona API key (or DAYTONA_API_KEY env var)
+  serverUrl?: string           // Daytona server URL
+  target?: string              // Target region
+  autoStopTimeout?: number     // Auto-stop timeout in seconds
+  env?: Record<string, string> // Environment variables for the sandbox
 }
 ```
 
@@ -247,36 +193,36 @@ type Event =
   | { type: "end" }                      // Turn complete
 ```
 
-## CLI Requirements
+### Provider Methods
 
-Each provider requires its respective CLI to be installed:
+```typescript
+// Stream events
+for await (const event of provider.run(options)) { }
 
-### Claude
+// Callback style
+await provider.runWithCallback(callback, options)
 
-```bash
-npm install -g @anthropic-ai/claude-code
-export ANTHROPIC_API_KEY=sk-ant-...
+// Collect all text
+const text = await provider.collectText(options)
+
+// Collect all events
+const events = await provider.collectEvents(options)
+
+// Cleanup sandbox resources
+await provider.destroySandbox()
 ```
 
-### Codex
+## Environment Variables
 
 ```bash
-npm install -g @openai/codex
-echo $OPENAI_API_KEY | codex login --with-api-key
-```
+# Daytona (for sandbox mode)
+DAYTONA_API_KEY=your-daytona-api-key
 
-### Gemini
-
-```bash
-npm install -g @google/gemini-cli
-export GOOGLE_API_KEY=AIza...
-```
-
-### OpenCode
-
-```bash
-# Install opencode CLI
-export OPENCODE_API_KEY=...
+# Provider API keys (passed to sandbox or local CLI)
+ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
+OPENAI_API_KEY=sk-your-key-here
+GOOGLE_API_KEY=AIza-your-key-here
+OPENCODE_API_KEY=your-key-here
 ```
 
 ## Development
@@ -291,21 +237,16 @@ npm run build
 # Run tests
 npm test
 
-# Run integration tests
+# Run integration tests (local mode)
 npx tsx scripts/test-claude.ts
 npx tsx scripts/test-codex.ts
 ```
 
-## Environment Variables
+## Security
 
-Copy `.env.example` to `.env`:
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
-OPENAI_API_KEY=sk-your-key-here
-GOOGLE_API_KEY=AIza-your-key-here
-OPENCODE_API_KEY=your-key-here
-```
+- **Sandbox mode (default)**: CLI commands run in an isolated Daytona sandbox, protecting your local machine from arbitrary code execution
+- **Local mode (opt-in)**: Commands run directly on your machine - only use this when you trust the code being executed
+- **Auto-install**: In sandbox mode, CLIs are automatically installed in the sandbox (not on your machine)
 
 ## License
 
