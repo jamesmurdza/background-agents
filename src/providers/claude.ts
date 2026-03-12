@@ -71,6 +71,11 @@ export class ClaudeProvider extends Provider {
     // Add output format flag for JSON streaming (requires --verbose)
     args.push("--output-format", "stream-json", "--verbose")
 
+    // Add model if specified (e.g., "sonnet", "opus", "claude-sonnet-4-5-20250929")
+    if (options?.model) {
+      args.push("--model", options.model)
+    }
+
     if (this.sessionId || options?.sessionId) {
       args.push("--resume", this.sessionId || options!.sessionId!)
     }

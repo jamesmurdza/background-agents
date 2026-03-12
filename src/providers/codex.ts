@@ -89,6 +89,11 @@ export class CodexProvider extends Provider {
     // Skip git repo check for sandbox environments
     args.push("--skip-git-repo-check")
 
+    // Add model if specified (e.g., "gpt-4o", "o1", "o3")
+    if (options?.model) {
+      args.push("--model", options.model)
+    }
+
     if (this.sessionId || options?.sessionId) {
       // For resuming, we need a different command structure
       args.push("resume", this.sessionId || options!.sessionId!)

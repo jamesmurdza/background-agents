@@ -56,8 +56,18 @@ export class GeminiProvider extends Provider {
   getCommand(options?: RunOptions): ProviderCommand {
     const args: string[] = []
 
+    // Add model if specified (e.g., "gemini-2.0-flash", "gemini-1.5-pro")
+    if (options?.model) {
+      args.push("--model", options.model)
+    }
+
     if (this.sessionId || options?.sessionId) {
       args.push("--resume", this.sessionId || options!.sessionId!)
+    }
+
+    // Add the prompt if provided
+    if (options?.prompt) {
+      args.push(options.prompt)
     }
 
     return {

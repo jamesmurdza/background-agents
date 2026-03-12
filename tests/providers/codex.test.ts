@@ -49,6 +49,25 @@ describe("CodexProvider", () => {
       expect(args).toContain("resume")
       expect(args).toContain("thread-123")
     })
+
+    it("should include model when provided", () => {
+      const provider = createTestProvider()
+      const { args } = provider.getCommand({ model: "gpt-4o" })
+
+      expect(args).toContain("--model")
+      expect(args).toContain("gpt-4o")
+    })
+
+    it("should support o1 and o3 models", () => {
+      const provider = createTestProvider()
+      const { args: args1 } = provider.getCommand({ model: "o1" })
+      const { args: args2 } = provider.getCommand({ model: "o3" })
+
+      expect(args1).toContain("--model")
+      expect(args1).toContain("o1")
+      expect(args2).toContain("--model")
+      expect(args2).toContain("o3")
+    })
   })
 
   describe("parse", () => {
