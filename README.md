@@ -218,6 +218,7 @@ Tool names are normalized so you can branch on a single set across providers. Ea
 | **glob** | `{ pattern: string }` | Raw string (paths or JSON). | ✅ | — | ✅ | ✅ |
 | **grep** | `{ pattern: string, path?: string }` | Raw string. | ✅ | — | ✅ | ✅ |
 | **shell** | `{ command: string, description?: string }` | Stdout/stderr string. | ✅ | ✅ | ✅ | ✅ |
+| *(other)* | `unknown` (SDK passes through raw provider payload) | Raw string. | ✅ | ✅ | ✅ | ✅ |
 
 The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). You can import the input types for annotations or use narrowing alone:
 
