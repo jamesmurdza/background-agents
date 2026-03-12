@@ -19,6 +19,17 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 | [OpenCode](https://opencode.ai/docs/) | ✅ | `opencode` | Provider-specific env vars (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
 | [Gemini](https://geminicli.com/docs/) | 🚧 | `gemini` | `GOOGLE_API_KEY` env var |
 
+### CLI command per agent
+
+The SDK invokes each provider’s CLI as follows (optional flags in brackets):
+
+| Provider | CLI command |
+|----------|-------------|
+| **Claude** | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions` `[--model <model>] [--resume <sessionId>]` `<prompt>` |
+| **Codex** | `codex exec --json --skip-git-repo-check --yolo` `[--model <model>] [resume <sessionId>]` `<prompt>` |
+| **Gemini** | `gemini -p --output-format stream-json --yolo` `[--model <model>] [--resume <sessionId>]` `<prompt>` |
+| **OpenCode** | `opencode run --format json --variant medium -m <model>` `[-s <sessionId>]` `<prompt>` (run via `bash -lc "… 2>&1"`) |
+
 ## Installation
 
 ```bash
