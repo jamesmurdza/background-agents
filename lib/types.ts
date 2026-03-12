@@ -1,3 +1,5 @@
+import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType } from "./constants"
+
 export type Agent = "claude-code"
 
 export interface ToolCall {
@@ -36,7 +38,7 @@ export interface Branch {
   name: string
   agent?: Agent
   messages: Message[]
-  status: "idle" | "running" | "creating" | "error" | "stopped"
+  status: BranchStatus
   lastActivity?: string
   lastActivityTs?: number
   unread?: boolean
@@ -59,7 +61,7 @@ export interface Repo {
   branches: Branch[]
 }
 
-export type AnthropicAuthType = "api-key" | "claude-max"
+export type AnthropicAuthType = ConstantsAnthropicAuthType
 
 export interface Settings {
   githubPat: string

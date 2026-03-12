@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
+import { BRANCH_STATUS } from "@/lib/constants"
 
 // Export the return type for use in sub-components
 export type UseGitActionsReturn = ReturnType<typeof useGitActions>
@@ -77,7 +78,7 @@ export function useGitActions({
 
   const handleSandboxToggle = useCallback(async () => {
     if (!branch.sandboxId || sandboxToggleLoading) return
-    const isStopped = branch.status === "stopped"
+    const isStopped = branch.status === BRANCH_STATUS.STOPPED
     setSandboxToggleLoading(true)
     try {
       const res = await fetch("/api/sandbox/status", {
@@ -90,7 +91,7 @@ export function useGitActions({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      onUpdateBranch({ status: isStopped ? "idle" : "stopped" })
+      onUpdateBranch({ status: isStopped ? BRANCH_STATUS.IDLE : BRANCH_STATUS.STOPPED })
     } catch {
       // ignore
     } finally {

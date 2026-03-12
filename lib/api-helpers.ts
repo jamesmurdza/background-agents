@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { decrypt } from "@/lib/encryption"
 import type { AnthropicAuthType } from "@/lib/types"
+import { BRANCH_STATUS, type BranchStatus } from "@/lib/constants"
 
 // =============================================================================
 // Types
@@ -18,7 +19,7 @@ export interface DecryptedCredentials {
   anthropicAuthType: AnthropicAuthType
 }
 
-export type SandboxStatus = "idle" | "running" | "creating" | "error" | "stopped"
+export type SandboxStatus = BranchStatus
 
 // Prisma include types for sandbox queries
 export interface SandboxWithCredentials {
@@ -325,5 +326,5 @@ export async function resetSandboxStatus(
   sandboxDbId: string,
   branchDbId: string | null | undefined
 ): Promise<void> {
-  await updateSandboxAndBranchStatus(sandboxDbId, branchDbId, "idle")
+  await updateSandboxAndBranchStatus(sandboxDbId, branchDbId, BRANCH_STATUS.IDLE)
 }

@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Repo } from "@/lib/types"
+import { BRANCH_STATUS } from "@/lib/constants"
 import { Plus, X, LogOut, Settings, Box } from "lucide-react"
 import { useState, useRef } from "react"
 import {
@@ -69,7 +70,7 @@ export function RepoSidebar({
       <aside className="flex h-full w-[60px] sm:w-[60px] shrink-0 flex-col items-center gap-2 border-r border-border bg-sidebar py-3">
         {repos.map((repo, index) => {
           const isActive = repo.id === activeRepoId
-          const hasRunning = repo.branches.some((b) => b.status === "running" || b.status === "creating")
+          const hasRunning = repo.branches.some((b) => b.status === BRANCH_STATUS.RUNNING || b.status === BRANCH_STATUS.CREATING)
           const nameParts = repo.name.split("-")
           const initials = nameParts.length > 1
             ? (nameParts[0][0] + nameParts[1][0]).toUpperCase()

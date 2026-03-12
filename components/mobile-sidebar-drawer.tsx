@@ -196,7 +196,7 @@ export function MobileSidebarDrawer({
                 hasTerminalEvent = true
                 onUpdateBranch(branchId, {
                   id: data.branchId,
-                  status: "idle",
+                  status: BRANCH_STATUS.IDLE,
                   sandboxId: data.sandboxId,
                   contextId: data.contextId,
                   previewUrlPattern: data.previewUrlPattern,
@@ -205,7 +205,7 @@ export function MobileSidebarDrawer({
                 onQuotaRefresh?.()
               } else if (data.type === "error") {
                 hasTerminalEvent = true
-                onUpdateBranch(branchId, { status: "error" })
+                onUpdateBranch(branchId, { status: BRANCH_STATUS.ERROR })
                 setCreateError(data.message)
               }
             } catch {}
@@ -218,7 +218,7 @@ export function MobileSidebarDrawer({
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create branch"
-      onUpdateBranch(branchId, { status: "error" })
+      onUpdateBranch(branchId, { status: BRANCH_STATUS.ERROR })
       setCreateError(message)
     } finally {
       setCreating(false)

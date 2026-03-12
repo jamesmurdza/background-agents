@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma"
+import { BRANCH_STATUS } from "@/lib/constants"
 
 const MAX_CONCURRENT_SANDBOXES = 10
+
+// Statuses that count toward the active sandbox quota
+const ACTIVE_STATUSES = [BRANCH_STATUS.CREATING, BRANCH_STATUS.RUNNING, BRANCH_STATUS.STOPPED]
 
 export async function checkQuota(userId: string): Promise<{
   allowed: boolean
@@ -10,7 +14,7 @@ export async function checkQuota(userId: string): Promise<{
   const activeSandboxes = await prisma.sandbox.count({
     where: {
       userId,
-      status: { in: ["creating", "running", "stopped"] },
+      status: { in: ACTIVE_STATUSES },
     },
   })
 
@@ -25,7 +29,7 @@ export async function getQuota(userId: string) {
   const activeSandboxes = await prisma.sandbox.count({
     where: {
       userId,
-      status: { in: ["creating", "running", "stopped"] },
+      status: { in: ACTIVE_STATUSES },
     },
   })
 

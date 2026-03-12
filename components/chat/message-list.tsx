@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Branch, Message } from "@/lib/types"
+import { BRANCH_STATUS } from "@/lib/constants"
 import { Loader2, Terminal, AlertCircle } from "lucide-react"
 import { forwardRef } from "react"
 import { MessageBubble } from "./message-bubble"
@@ -25,7 +26,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
     ref
   ) {
     // Creating state
-    if (branch.status === "creating") {
+    if (branch.status === BRANCH_STATUS.CREATING) {
       return (
         <MessageListContainer ref={ref} onScroll={onScroll} isMobile={isMobile}>
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -38,7 +39,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
     }
 
     // Error state without sandbox
-    if (branch.status === "error" && !branch.sandboxId) {
+    if (branch.status === BRANCH_STATUS.ERROR && !branch.sandboxId) {
       return (
         <MessageListContainer ref={ref} onScroll={onScroll} isMobile={isMobile}>
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -89,7 +90,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
               onBranchFromCommit={onBranchFromCommit}
             />
           ))}
-          {branch.status === "running" && (
+          {branch.status === BRANCH_STATUS.RUNNING && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
               Agent is working...

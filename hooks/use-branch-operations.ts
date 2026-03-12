@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react"
 import type { Branch, Message } from "@/lib/types"
 import type { TransformedRepo } from "@/lib/db-types"
+import { BRANCH_STATUS } from "@/lib/constants"
 
 interface UseBranchOperationsOptions {
   repos: TransformedRepo[]
@@ -26,7 +27,7 @@ export function useBranchOperations({
 
     // Find the branch to check its current status
     const branch = activeRepo.branches.find((b) => b.id === branchId)
-    const isBeingCreated = branch?.status === "creating"
+    const isBeingCreated = branch?.status === BRANCH_STATUS.CREATING
 
     // The actual ID to use for database operations (might be a new server-side ID)
     const dbBranchId = updates.id || branchId

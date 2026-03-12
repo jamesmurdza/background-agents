@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Branch } from "@/lib/types"
+import { BRANCH_STATUS } from "@/lib/constants"
 import {
   Menu,
   GitPullRequest,
@@ -59,8 +60,8 @@ export function MobileHeader({
   sandboxToggleLoading,
   prLoading,
 }: MobileHeaderProps) {
-  const isStopped = branch?.status === "stopped"
-  const isRunning = branch?.status === "running" || branch?.status === "creating"
+  const isStopped = branch?.status === BRANCH_STATUS.STOPPED
+  const isRunning = branch?.status === BRANCH_STATUS.RUNNING || branch?.status === BRANCH_STATUS.CREATING
   const hasPR = !!branch?.prUrl
   const hasSandbox = !!branch?.sandboxId
 
