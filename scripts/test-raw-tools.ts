@@ -119,10 +119,10 @@ async function testOpenCode() {
     const whichResult = await sandbox.executeCommand("which opencode || echo 'not found'", 10)
     console.log("OpenCode location:", whichResult.output.trim())
 
-    // Run opencode with run subcommand
+    // Run opencode with JSONL output (no logs)
     console.log("Running OpenCode...")
     const result = await sandbox.executeCommand(
-      `opencode run --print-logs "${PROMPT}" 2>&1`,
+      `OPENCODE_YOLO=true opencode run --format json --variant medium -m openai/gpt-4o --log-level ERROR "${PROMPT}" 2>&1`,
       120
     )
     console.log("\n--- RAW OUTPUT ---")

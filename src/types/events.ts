@@ -80,7 +80,7 @@ function isObject(v: unknown): v is Record<string, unknown> {
 export function createToolStartEvent(name: ToolName | string, rawInput?: unknown): ToolStartEvent {
   let input: unknown = rawInput
   if (name === "write" && isObject(rawInput)) {
-    const path = rawInput.file_path ?? rawInput.path
+    const path = rawInput.file_path ?? rawInput.filePath ?? rawInput.path
     if (typeof path === "string") {
       input = {
         file_path: path,
@@ -89,12 +89,12 @@ export function createToolStartEvent(name: ToolName | string, rawInput?: unknown
       } satisfies WriteToolInput
     }
   } else if (name === "read" && isObject(rawInput)) {
-    const path = rawInput.file_path ?? rawInput.path
+    const path = rawInput.file_path ?? rawInput.filePath ?? rawInput.path
     if (typeof path === "string") {
       input = { file_path: path } satisfies ReadToolInput
     }
   } else if (name === "edit" && isObject(rawInput)) {
-    const path = rawInput.file_path ?? rawInput.path
+    const path = rawInput.file_path ?? rawInput.filePath ?? rawInput.path
     if (typeof path === "string") {
       input = { file_path: path, ...rawInput } as EditToolInput
     }

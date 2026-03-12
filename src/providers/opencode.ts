@@ -103,26 +103,43 @@ export class OpenCodeProvider extends Provider {
   }
 
   getCommand(options?: RunOptions): ProviderCommand {
-    // stream-json + verbose for line-by-line JSON to stdout
-    const args: string[] = ["run", "--format", "stream-json", "--verbose", "--yolo"]
+    // OpenCode sometimes writes JSON events to stderr; run under bash and redirect 2>&1
+    // to ensure the sandbox PTY captures the JSONL stream.
+    const quote = (s: string) => `'${s.replace(/'/g, "'\\''")}'`
 
-    // Add model (default to gpt-4o which works reliably)
     const model = options?.model || "openai/gpt-4o"
-    args.push("-m", model)
+    const session = this.sessionId || options?.sessionId
+    const prompt = options?.prompt
 
-    if (this.sessionId || options?.sessionId) {
-      args.push("-s", this.sessionId || options!.sessionId!)
+    const parts: string[] = [
+      "opencode",
+      "run",
+      "--format",
+      "json",
+      "--variant",
+      "medium",
+      "-m",
+      quote(model),
+    ]
+
+    if (session) {
+      parts.push("-s", quote(session))
     }
 
-    // Add the prompt if provided
-    if (options?.prompt) {
-      args.push(options.prompt)
+    if (prompt) {
+      parts.push(quote(prompt))
     }
+
+    const command = `${parts.join(" ")} 2>&1`
 
     return {
-      cmd: "opencode",
-      args,
-      env: options?.env,
+      cmd: "bash",
+      args: ["-lc", command],
+      env: {
+        // Allow all tool actions without interactive approval in headless runs
+        OPENCODE_PERMISSION: '{"*":"allow"}',
+        ...options?.env,
+      },
     }
   }
 

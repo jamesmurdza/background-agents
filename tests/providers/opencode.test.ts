@@ -28,12 +28,13 @@ describe("OpenCodeProvider", () => {
       const provider = createTestProvider()
       const { cmd, args } = provider.getCommand()
 
-      expect(cmd).toBe("opencode")
-      expect(args).toContain("run")
-      expect(args).toContain("--format")
-      expect(args).toContain("stream-json")
-      expect(args).toContain("-m")
-      expect(args).toContain("openai/gpt-4o")
+      expect(cmd).toBe("bash")
+      expect(args[0]).toBe("-lc")
+      expect(args[1]).toContain("opencode run")
+      expect(args[1]).toContain("--format json")
+      expect(args[1]).toContain("--variant medium")
+      expect(args[1]).toContain("-m")
+      expect(args[1]).toContain("openai/gpt-4o")
     })
 
     it("should include session flag with session ID", () => {
@@ -41,40 +42,40 @@ describe("OpenCodeProvider", () => {
       provider.sessionId = "run-456"
       const { cmd, args } = provider.getCommand()
 
-      expect(cmd).toBe("opencode")
-      expect(args).toContain("-s")
-      expect(args).toContain("run-456")
+      expect(cmd).toBe("bash")
+      expect(args[1]).toContain("-s")
+      expect(args[1]).toContain("run-456")
     })
 
     it("should include prompt in arguments", () => {
       const provider = createTestProvider()
       const { args } = provider.getCommand({ prompt: "Hello world" })
 
-      expect(args).toContain("Hello world")
+      expect(args[1]).toContain("Hello world")
     })
 
     it("should use custom model when provided", () => {
       const provider = createTestProvider()
       const { args } = provider.getCommand({ model: "openai/gpt-4o-mini" })
 
-      expect(args).toContain("-m")
-      expect(args).toContain("openai/gpt-4o-mini")
+      expect(args[1]).toContain("-m")
+      expect(args[1]).toContain("openai/gpt-4o-mini")
     })
 
     it("should support anthropic models", () => {
       const provider = createTestProvider()
       const { args } = provider.getCommand({ model: "anthropic/claude-sonnet" })
 
-      expect(args).toContain("-m")
-      expect(args).toContain("anthropic/claude-sonnet")
+      expect(args[1]).toContain("-m")
+      expect(args[1]).toContain("anthropic/claude-sonnet")
     })
 
     it("should support google models", () => {
       const provider = createTestProvider()
       const { args } = provider.getCommand({ model: "google/gemini-2.0-flash" })
 
-      expect(args).toContain("-m")
-      expect(args).toContain("google/gemini-2.0-flash")
+      expect(args[1]).toContain("-m")
+      expect(args[1]).toContain("google/gemini-2.0-flash")
     })
   })
 

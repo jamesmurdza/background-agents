@@ -156,7 +156,13 @@ export class SandboxManager {
       .map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`)
       .join("; ")
 
-    const fullCommand = envExports ? `${envExports}; ${command}` : command
+    // Run under `timeout` to avoid hanging CLIs (e.g. opencode run)
+    const timedCommand =
+      _timeout > 0
+        ? `timeout ${_timeout}s ${command}`
+        : command
+
+    const fullCommand = envExports ? `${envExports}; ${timedCommand}` : timedCommand
 
     // Buffer for accumulating data and extracting lines
     let buffer = ""
