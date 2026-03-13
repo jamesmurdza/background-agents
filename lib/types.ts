@@ -37,7 +37,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "haiku", label: "Haiku" },
   ],
   "opencode": [
-    { value: "big-pickle/bp1-mini", label: "Big Pickle (Free)" },
+    { value: "opencode/big-pickle", label: "Big Pickle (Free)" },
     { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
     { value: "openai/gpt-4o", label: "GPT-4o" },
     { value: "google/gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
@@ -47,7 +47,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 // Default model per agent
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
-  "opencode": "big-pickle/bp1-mini",
+  "opencode": "opencode/big-pickle",
 }
 
 export interface ToolCall {
