@@ -347,7 +347,10 @@ export abstract class Provider implements IProvider {
       pid: result.pid,
       startedAt: new Date().toISOString(),
       provider: this.name,
-      sessionId: this.sessionId,
+      // Prefer the live provider session id when available, but fall back
+      // to any supplied/previous value so background reattach can resume
+      // even before events have been polled in this process.
+      sessionId: this.sessionId ?? options.sessionId ?? meta?.sessionId ?? null,
     })
     return { executionId: result.executionId, pid: result.pid, outputFile }
   }

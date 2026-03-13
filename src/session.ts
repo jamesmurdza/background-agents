@@ -9,7 +9,7 @@ const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
 async function readProviderFromMeta(
   sandbox: Parameters<typeof adaptSandbox>[0],
   sessionDir: string
-): Promise<{ provider: ProviderName | null; sessionId: string | null }> {
+): Promise<{ provider: ProviderName | null; sessionId: string | null } | null> {
   const adapted = adaptSandbox(sandbox)
   if (!adapted.executeCommand) return null
   const result = await adapted.executeCommand(
