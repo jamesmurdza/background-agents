@@ -37,9 +37,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "haiku", label: "Haiku" },
   ],
   "opencode": [
-    // Free models
+    // Free models (limited time)
     { value: "opencode/big-pickle", label: "Big Pickle (Free)" },
-    { value: "opencode/mimo-v2-flash-free", label: "Mimo v2 Flash (Free)" },
+    { value: "opencode/minimax-m2.5-free", label: "MiniMax M2.5 (Free)" },
+    { value: "opencode/mimo-v2-flash-free", label: "MiMo v2 Flash (Free)" },
     { value: "opencode/nemotron-3-super-free", label: "Nemotron 3 Super (Free)" },
     // Anthropic models (requires Anthropic API key)
     { value: "opencode/claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
@@ -51,11 +52,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-5.3-codex", label: "GPT-5.3 Codex" },
     { value: "opencode/gpt-5.1-codex", label: "GPT-5.1 Codex" },
     { value: "opencode/gpt-5", label: "GPT-5" },
-    // Other models (requires OpenRouter API key)
-    { value: "opencode/gemini-3-pro", label: "Gemini 3 Pro" },
-    { value: "opencode/gemini-3-flash", label: "Gemini 3 Flash" },
-    { value: "opencode/kimi-k2.5", label: "Kimi K2.5" },
-    { value: "opencode/minimax-m2.5", label: "MiniMax M2.5" },
   ],
 }
 
