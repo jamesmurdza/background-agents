@@ -110,13 +110,6 @@ export async function POST(req: Request) {
     const backgroundSessionId =
       sandbox.sessionId || execution.executionId
 
-    console.log("[agent/status] polling", {
-      executionId: execution.executionId,
-      sandboxId: sandbox.id,
-      sandboxSessionId: sandbox.sessionId,
-      backgroundSessionId,
-    })
-
     const outputData = await pollBackgroundAgent(
       sandboxInstance,
       backgroundSessionId,
