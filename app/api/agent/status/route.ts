@@ -1,6 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/prisma"
-import { getOutputFilePath } from "@/lib/background-agent-script"
+import { pollBackgroundAgent } from "@/lib/agent-session"
 import {
   requireAuth,
   isAuthError,
@@ -25,9 +25,7 @@ export async function POST(req: Request) {
 
   // 2. Find the execution record
   const execution = await prisma.agentExecution.findFirst({
-    where: executionId
-      ? { executionId }
-      : { messageId },
+    where: executionId ? { executionId } : { messageId },
     include: {
       message: {
         include: {
@@ -56,7 +54,7 @@ export async function POST(req: Request) {
   if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
   try {
-    // 5. Read output file from sandbox
+    // 5. Get sandbox instance
     const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandboxInstance = await daytona.get(execution.sandboxId)
 
@@ -81,34 +79,15 @@ export async function POST(req: Request) {
       }
     }
 
-    const outputFile = getOutputFilePath(execution.executionId)
-    const result = await sandboxInstance.process.executeCommand(
-      `cat "${outputFile}" 2>/dev/null || echo '{"status":"pending"}'`
+    // 6. Poll via SDK helper
+    const outputData = await pollBackgroundAgent(
+      sandboxInstance,
+      execution.executionId
     )
 
-    let outputData: {
-      status: string
-      content: string
-      toolCalls: Array<{ tool: string; summary: string }>
-      contentBlocks: Array<{ type: string; text?: string; toolCalls?: Array<{ tool: string; summary: string }> }>
-      error: string | null
-      sessionId: string | null
-    }
-
-    try {
-      outputData = JSON.parse(result.result.trim())
-    } catch {
-      // File doesn't exist yet or invalid JSON
-      return Response.json({
-        status: "running",
-        content: "",
-        toolCalls: [],
-        error: null,
-      })
-    }
-
-    // 6. Only update DB on completion/error (not on every poll)
-    const isCompleted = outputData.status === "completed" || outputData.status === "error"
+    // 7. Only update DB on completion/error (not on every poll)
+    const isCompleted =
+      outputData.status === "completed" || outputData.status === "error"
 
     if (isCompleted) {
       // Batch all updates in a single transaction
@@ -118,12 +97,14 @@ export async function POST(req: Request) {
           where: { id: execution.messageId },
           data: {
             content: outputData.content || "",
-            toolCalls: outputData.toolCalls && outputData.toolCalls.length > 0
-              ? outputData.toolCalls
-              : undefined,
-            contentBlocks: outputData.contentBlocks && outputData.contentBlocks.length > 0
-              ? outputData.contentBlocks
-              : undefined,
+            toolCalls:
+              outputData.toolCalls && outputData.toolCalls.length > 0
+                ? outputData.toolCalls
+                : undefined,
+            contentBlocks:
+              outputData.contentBlocks && outputData.contentBlocks.length > 0
+                ? JSON.parse(JSON.stringify(outputData.contentBlocks))
+                : undefined,
           },
         }),
         // Update execution status
@@ -165,7 +146,6 @@ export async function POST(req: Request) {
       error: outputData.error,
       sessionId: outputData.sessionId,
     })
-
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
     return Response.json({

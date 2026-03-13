@@ -2,7 +2,6 @@ import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/prisma"
 import { checkQuota } from "@/lib/quota"
 import { generateSandboxName } from "@/lib/sandbox-utils"
-import { CODING_AGENT_SCRIPT } from "@/lib/coding-agent-script"
 import {
   requireAuth,
   isAuthError,
@@ -22,7 +21,8 @@ export async function POST(req: Request) {
   const { userId } = authResult
 
   const body = await req.json()
-  const { repoId, repoOwner, repoName, baseBranch, newBranch, startCommit } = body
+  const { repoId, repoOwner, repoName, baseBranch, newBranch, startCommit } =
+    body
 
   if (!repoOwner || !repoName || !newBranch) {
     return badRequest("Missing required fields")
@@ -31,10 +31,13 @@ export async function POST(req: Request) {
   // 2. Check quota
   const quota = await checkQuota(userId)
   if (!quota.allowed) {
-    return Response.json({
-      error: "Quota exceeded",
-      message: `You have ${quota.current}/${quota.max} sandboxes. Please stop one before creating another.`,
-    }, { status: 429 })
+    return Response.json(
+      {
+        error: "Quota exceeded",
+        message: `You have ${quota.current}/${quota.max} sandboxes. Please stop one before creating another.`,
+      },
+      { status: 429 }
+    )
   }
 
   // 3. Get credentials
@@ -55,7 +58,8 @@ export async function POST(req: Request) {
     where: { userId },
   })
 
-  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType } = decryptUserCredentials(userCredentials)
+  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType } =
+    decryptUserCredentials(userCredentials)
   const sandboxAutoStopInterval = userCredentials?.sandboxAutoStopInterval ?? 5
 
   const hasAnthropicCredential =
@@ -63,7 +67,9 @@ export async function POST(req: Request) {
     (anthropicAuthType !== "claude-max" && anthropicApiKey)
 
   if (!hasAnthropicCredential) {
-    return badRequest("Anthropic credentials not configured. Please add them in Settings.")
+    return badRequest(
+      "Anthropic credentials not configured. Please add them in Settings."
+    )
   }
 
   const encoder = new TextEncoder()
@@ -71,9 +77,7 @@ export async function POST(req: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       function send(data: Record<string, unknown>) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
-        )
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
       }
 
       let sandboxRecord: { id: string; sandboxId: string } | null = null
@@ -91,18 +95,21 @@ export async function POST(req: Request) {
           autoStopInterval: sandboxAutoStopInterval,
           labels: {
             "sandboxed-agents": "true",
-            "repo": `${repoOwner}/${repoName}`,
-            "branch": newBranch,
-            "userId": userId,
+            repo: `${repoOwner}/${repoName}`,
+            branch: newBranch,
+            userId: userId,
           },
-          ...(anthropicAuthType !== "claude-max" && anthropicApiKey && {
-            envVars: { ANTHROPIC_API_KEY: anthropicApiKey },
-          }),
+          ...(anthropicAuthType !== "claude-max" &&
+            anthropicApiKey && {
+              envVars: { ANTHROPIC_API_KEY: anthropicApiKey },
+            }),
         })
 
         // For Claude Max, write stored credentials so the Agent SDK picks them up
         if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
-          const credentialsB64 = Buffer.from(anthropicAuthToken).toString("base64")
+          const credentialsB64 = Buffer.from(anthropicAuthToken).toString(
+            "base64"
+          )
           await sandbox.process.executeCommand(
             `mkdir -p /home/daytona/.claude && echo '${credentialsB64}' | base64 -d > /home/daytona/.claude/.credentials.json && chmod 600 /home/daytona/.claude/.credentials.json`
           )
@@ -114,14 +121,24 @@ export async function POST(req: Request) {
         const repoPath = `/home/daytona/${repoName}`
         const cloneUrl = `https://github.com/${repoOwner}/${repoName}.git`
         const base = baseBranch || "main"
-        await sandbox.git.clone(cloneUrl, repoPath, base, undefined, "x-access-token", githubToken)
+        await sandbox.git.clone(
+          cloneUrl,
+          repoPath,
+          base,
+          undefined,
+          "x-access-token",
+          githubToken
+        )
 
         // Set up git author config from GitHub user
         let gitName = "Sandboxed Agent"
         let gitEmail = "noreply@example.com"
         try {
           const ghRes = await fetch("https://api.github.com/user", {
-            headers: { Authorization: `Bearer ${githubToken}`, Accept: "application/vnd.github.v3+json" },
+            headers: {
+              Authorization: `Bearer ${githubToken}`,
+              Accept: "application/vnd.github.v3+json",
+            },
           })
           if (ghRes.ok) {
             const ghUser = await ghRes.json()
@@ -134,13 +151,19 @@ export async function POST(req: Request) {
         )
 
         // Create and checkout new branch via Daytona SDK
-        send({ type: "progress", message: `Creating branch ${newBranch} from ${base}...` })
+        send({
+          type: "progress",
+          message: `Creating branch ${newBranch} from ${base}...`,
+        })
         await sandbox.git.createBranch(repoPath, newBranch)
         await sandbox.git.checkoutBranch(repoPath, newBranch)
 
         // If starting from a specific commit, reset to it
         if (startCommit) {
-          send({ type: "progress", message: `Resetting to commit ${startCommit.slice(0, 7)}...` })
+          send({
+            type: "progress",
+            message: `Resetting to commit ${startCommit.slice(0, 7)}...`,
+          })
           await sandbox.process.executeCommand(
             `cd ${repoPath} && git reset --hard ${startCommit} 2>&1`
           )
@@ -152,24 +175,14 @@ export async function POST(req: Request) {
           `cd ${repoPath} && git log -1 --format='%h' 2>&1`
         )
         const headCommit = headResult.exitCode ? null : headResult.result.trim()
-        console.log("[sandbox-create] Captured headCommit:", headCommit, "exitCode:", headResult.exitCode)
-
-        send({ type: "progress", message: "Installing Claude Agent SDK..." })
-
-        const installResult = await sandbox.process.executeCommand(
-          "python3 -m pip install claude-agent-sdk==0.1.19 2>&1"
+        console.log(
+          "[sandbox-create] Captured headCommit:",
+          headCommit,
+          "exitCode:",
+          headResult.exitCode
         )
-        if (installResult.exitCode) {
-          throw new Error(`Failed to install Agent SDK: ${installResult.result}`)
-        }
 
-        send({ type: "progress", message: "Initializing agent..." })
-
-        // Write the coding agent script to the sandbox
-        const scriptB64 = Buffer.from(CODING_AGENT_SCRIPT).toString("base64")
-        await sandbox.process.executeCommand(
-          `echo '${scriptB64}' | base64 -d > /tmp/coding_agent.py`
-        )
+        send({ type: "progress", message: "Preparing agent environment..." })
 
         // Get preview URL pattern for dev server URLs
         let previewUrlPattern: string | undefined
@@ -180,20 +193,8 @@ export async function POST(req: Request) {
           // Preview URLs not available — non-critical
         }
 
-        // Create code interpreter context with the repo as working directory
-        const ctx = await sandbox.codeInterpreter.createContext(repoPath)
-
-        // Initialize the coding agent (add /tmp to path so coding_agent.py is found)
-        const initResult = await sandbox.codeInterpreter.runCode(
-          `import sys; sys.path.insert(0, '/tmp'); import os, coding_agent;`,
-          {
-            context: ctx,
-            envs: { REPO_PATH: repoPath, ...(previewUrlPattern ? { PREVIEW_URL_PATTERN: previewUrlPattern } : {}) },
-          }
-        )
-        if (initResult.error) {
-          throw new Error(`Failed to initialize agent: ${initResult.error.value}`)
-        }
+        // Note: The SDK handles Claude CLI installation automatically when
+        // createAgentSession is called. We don't need to do any Python setup here.
 
         // Create or find the repo in database
         let dbRepo = await prisma.repo.findUnique({
@@ -236,24 +237,25 @@ export async function POST(req: Request) {
           },
         })
 
-        // Create sandbox record
+        // Create sandbox record (no contextId needed - SDK handles sessions natively)
         sandboxRecord = await prisma.sandbox.create({
           data: {
             sandboxId: sandbox.id,
             sandboxName,
             userId: userId,
             branchId: branchRecord.id,
-            contextId: ctx.id,
             previewUrlPattern,
             status: "running",
           },
         })
 
-        console.log("[sandbox-create] Sending done event with startCommit:", headCommit)
+        console.log(
+          "[sandbox-create] Sending done event with startCommit:",
+          headCommit
+        )
         send({
           type: "done",
           sandboxId: sandbox.id,
-          contextId: ctx.id,
           previewUrlPattern,
           branchId: branchRecord.id,
           repoId: dbRepo.id,
@@ -265,10 +267,14 @@ export async function POST(req: Request) {
 
         // Clean up database records if created
         if (sandboxRecord) {
-          await prisma.sandbox.delete({ where: { id: sandboxRecord.id } }).catch(() => {})
+          await prisma.sandbox
+            .delete({ where: { id: sandboxRecord.id } })
+            .catch(() => {})
         }
         if (branchRecord) {
-          await prisma.branch.delete({ where: { id: branchRecord.id } }).catch(() => {})
+          await prisma.branch
+            .delete({ where: { id: branchRecord.id } })
+            .catch(() => {})
         }
       }
 
