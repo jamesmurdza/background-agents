@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/api-helpers"
+import { compareBranches, createPullRequest, isGitHubApiError } from "@/lib/github-client"
 
 export async function POST(req: Request) {
   const auth = await requireGitHubAuth()
@@ -14,25 +15,17 @@ export async function POST(req: Request) {
 
   try {
     // Get commits between base and head for PR body
-    const compareRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
-      {
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-      }
-    )
-
     let prBody = ""
-    if (compareRes.ok) {
-      const compareData = await compareRes.json()
-      const commits = (compareData.commits || []) as { commit: { message: string } }[]
+    try {
+      const compareData = await compareBranches(auth.token, owner, repo, base, head)
+      const commits = compareData.commits || []
       if (commits.length > 0) {
         prBody = commits
-          .map((c: { commit: { message: string } }) => `- ${c.commit.message}`)
+          .map((c) => `- ${c.commit.message}`)
           .join("\n")
       }
+    } catch {
+      // Ignore compare errors, just use empty body
     }
 
     // Generate title from branch name
@@ -41,28 +34,12 @@ export async function POST(req: Request) {
       .replace(/\b\w/g, (c: string) => c.toUpperCase())
 
     // Create the PR
-    const prRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-        body: JSON.stringify({
-          title,
-          body: prBody || "Automated PR",
-          head,
-          base,
-        }),
-      }
-    )
-
-    const prData = await prRes.json()
-    if (!prRes.ok) {
-      const message = (prData as { message?: string }).message || `PR creation failed (${prRes.status})`
-      return Response.json({ error: message }, { status: prRes.status })
-    }
+    const prData = await createPullRequest(auth.token, owner, repo, {
+      title,
+      body: prBody || "Automated PR",
+      head,
+      base,
+    })
 
     // Update branch with PR URL
     const branchRecord = await prisma.branch.findFirst({
@@ -88,6 +65,9 @@ export async function POST(req: Request) {
       title: prData.title,
     })
   } catch (error: unknown) {
+    if (isGitHubApiError(error)) {
+      return Response.json({ error: error.message }, { status: error.status })
+    }
     return internalError(error)
   }
 }

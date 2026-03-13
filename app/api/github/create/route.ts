@@ -1,4 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/api-helpers"
+import { createRepo } from "@/lib/github-client"
 
 export async function POST(req: Request) {
   const auth = await requireGitHubAuth()
@@ -12,26 +13,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetch("https://api.github.com/user/repos", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        Accept: "application/vnd.github.v3+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        description: description || undefined,
-        private: isPrivate ?? false,
-        auto_init: true,
-      }),
-    })
-
-    const data = await res.json()
-    if (!res.ok) {
-      throw new Error((data as { message?: string }).message || `GitHub API error: ${res.status}`)
-    }
-
+    const data = await createRepo(auth.token, { name, description, isPrivate })
     return Response.json({
       name: data.name,
       owner: data.owner.login,

@@ -1,4 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/api-helpers"
+import { forkRepo } from "@/lib/github-client"
 
 export async function POST(req: Request) {
   const auth = await requireGitHubAuth()
@@ -12,21 +13,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetch(`https://api.github.com/repos/${owner}/${name}/forks`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    })
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      const message = (data as { message?: string }).message || `Fork failed (${res.status})`
-      return Response.json({ error: message }, { status: res.status })
-    }
-
-    const data = await res.json()
+    const data = await forkRepo(auth.token, owner, name)
     return Response.json({
       name: data.name,
       owner: data.owner.login,

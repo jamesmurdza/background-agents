@@ -1,4 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/api-helpers"
+import { getRepo } from "@/lib/github-client"
 
 export async function GET(req: Request) {
   const auth = await requireGitHubAuth()
@@ -13,22 +14,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const res = await fetch(`https://api.github.com/repos/${owner}/${name}`, {
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    })
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}))
-      const message =
-        (errorData as { message?: string }).message ||
-        `GitHub API returned ${res.status}`
-      return Response.json({ error: message }, { status: res.status })
-    }
-
-    const data = await res.json()
+    const data = await getRepo(auth.token, owner, name)
     return Response.json({
       name: data.name,
       owner: data.owner.login,

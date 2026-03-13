@@ -1,4 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/api-helpers"
+import { compareBranches, isGitHubApiError } from "@/lib/github-client"
 
 export async function GET(req: Request) {
   const auth = await requireGitHubAuth()
@@ -15,32 +16,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Use GitHub Compare API to check if branch has commits ahead of base
-    // GET /repos/{owner}/{repo}/compare/{basehead}
-    // basehead format: base...head
-    const compareRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/compare/${baseBranch}...${branch}`,
-      {
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-      }
-    )
-
-    if (!compareRes.ok) {
-      // Branch might not exist on remote
-      if (compareRes.status === 404) {
-        return Response.json({ isMerged: false, notFound: true })
-      }
-      const errorData = await compareRes.json().catch(() => ({}))
-      return Response.json(
-        { error: (errorData as { message?: string }).message || "Failed to compare branches" },
-        { status: compareRes.status }
-      )
-    }
-
-    const data = await compareRes.json()
+    const data = await compareBranches(auth.token, owner, repo, baseBranch, branch)
 
     // If ahead_by is 0, the branch has no commits that aren't in the base branch
     // This means it's fully merged
@@ -53,6 +29,10 @@ export async function GET(req: Request) {
       status: data.status // "ahead", "behind", "diverged", or "identical"
     })
   } catch (error: unknown) {
+    // Branch might not exist on remote
+    if (isGitHubApiError(error) && error.status === 404) {
+      return Response.json({ isMerged: false, notFound: true })
+    }
     return internalError(error)
   }
 }
