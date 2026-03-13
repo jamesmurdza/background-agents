@@ -17,6 +17,7 @@ export interface DecryptedCredentials {
   anthropicApiKey?: string
   anthropicAuthToken?: string
   anthropicAuthType: AnthropicAuthType
+  openaiApiKey?: string
 }
 
 export type SandboxStatus = BranchStatus
@@ -36,11 +37,14 @@ export interface SandboxWithCredentials {
       anthropicApiKey: string | null
       anthropicAuthToken: string | null
       anthropicAuthType: string | null
+      openaiApiKey: string | null
     } | null
   }
   branch: {
     id: string
     name: string
+    agent: string
+    model: string | null
     repo: {
       id: string
       name: string
@@ -170,12 +174,14 @@ export function decryptUserCredentials(
     anthropicApiKey: string | null
     anthropicAuthToken: string | null
     anthropicAuthType: string | null
+    openaiApiKey: string | null
   } | null
 ): DecryptedCredentials {
   const anthropicAuthType = (credentials?.anthropicAuthType || "api-key") as AnthropicAuthType
 
   let anthropicApiKey: string | undefined
   let anthropicAuthToken: string | undefined
+  let openaiApiKey: string | undefined
 
   if (credentials?.anthropicApiKey) {
     anthropicApiKey = decrypt(credentials.anthropicApiKey)
@@ -183,11 +189,15 @@ export function decryptUserCredentials(
   if (credentials?.anthropicAuthToken) {
     anthropicAuthToken = decrypt(credentials.anthropicAuthToken)
   }
+  if (credentials?.openaiApiKey) {
+    openaiApiKey = decrypt(credentials.openaiApiKey)
+  }
 
   return {
     anthropicApiKey,
     anthropicAuthToken,
     anthropicAuthType,
+    openaiApiKey,
   }
 }
 
