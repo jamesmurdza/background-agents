@@ -2,8 +2,29 @@ import { randomUUID } from "node:crypto"
 import type { ProviderName, ProviderOptions, RunDefaults, RunOptions, Event } from "./types/index.js"
 import { createProvider } from "./factory.js"
 import type { Provider } from "./providers/base.js"
+import { adaptSandbox } from "./sandbox/index.js"
 
 const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
+
+async function readProviderFromMeta(
+  sandbox: Parameters<typeof adaptSandbox>[0],
+  sessionDir: string
+): Promise<ProviderName | null> {
+  const adapted = adaptSandbox(sandbox)
+  if (!adapted.executeCommand) return null
+  const result = await adapted.executeCommand(
+    `cat "${sessionDir}/meta.json" 2>/dev/null || true`,
+    10
+  )
+  const raw = (result.output ?? "").trim()
+  if (!raw) return null
+  try {
+    const o = JSON.parse(raw) as { provider?: ProviderName }
+    return o.provider ?? null
+  } catch {
+    return null
+  }
+}
 
 /** Options for createSession (provider options + run defaults like model, timeout). */
 export interface SessionOptions extends ProviderOptions {
@@ -14,8 +35,11 @@ export interface SessionOptions extends ProviderOptions {
   env?: Record<string, string>
 }
 
-/** Options for createBackgroundSession (session options; outputFile is derived from session id). */
-export interface BackgroundSessionOptions extends SessionOptions {}
+/** Options for createBackgroundSession (session options; paths derived from session id). */
+export interface BackgroundSessionOptions extends SessionOptions {
+  /** When provided, reattach to an existing background session (e.g. after restart). */
+  backgroundSessionId?: string
+}
 
 /** Background session handle: start turns and get events; state lives in sandbox under session id. */
 export interface BackgroundSession {
@@ -42,6 +66,9 @@ export interface BackgroundSession {
     events: Event[]
     cursor: string
   }>
+
+  /** Cancel the current turn's process in the sandbox (no-op if not running). */
+  cancel(): Promise<void>
 }
 
 /**
@@ -65,7 +92,34 @@ export async function createBackgroundSession(
   name: ProviderName,
   options: BackgroundSessionOptions
 ): Promise<BackgroundSession> {
-  const id = randomUUID()
+  const { backgroundSessionId, ...sessionOptions } = options
+  const id = backgroundSessionId ?? randomUUID()
+  return createBackgroundSessionWithId(name, { ...sessionOptions, backgroundSessionId: id }, id)
+}
+
+/** Reattach to an existing background session by id (e.g. after restart). Provider is read from sandbox meta (set on first start). */
+export async function getBackgroundSession(
+  options: BackgroundSessionOptions & {
+    backgroundSessionId: string
+    sandbox: NonNullable<BackgroundSessionOptions["sandbox"]>
+  }
+): Promise<BackgroundSession> {
+  const { backgroundSessionId, sandbox } = options
+  const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${backgroundSessionId}`
+  const name = await readProviderFromMeta(sandbox, sessionDir)
+  if (!name) {
+    throw new Error(
+      "Cannot get background session: meta not found (start a turn first) or meta has no provider"
+    )
+  }
+  return createBackgroundSessionWithId(name, options, backgroundSessionId)
+}
+
+async function createBackgroundSessionWithId(
+  name: ProviderName,
+  options: Omit<BackgroundSessionOptions, "backgroundSessionId"> & { backgroundSessionId?: string },
+  id: string
+): Promise<BackgroundSession> {
   const provider = await createSession(name, options)
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${id}`
 
@@ -80,6 +134,9 @@ export async function createBackgroundSession(
     },
     async getEvents() {
       return provider.getEventsSandboxBackgroundFromMeta(sessionDir)
+    },
+    async cancel() {
+      return provider.cancelSandboxBackground(sessionDir)
     },
   }
 }

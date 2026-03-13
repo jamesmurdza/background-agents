@@ -114,8 +114,7 @@ async function main() {
   console.log("Sandbox created!")
   console.log()
 
-  const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
-  const session = await createSession(selectedProvider, { sandbox, env, model: selectedModel, timeout: 120 })
+  const session = await createSession(selectedProvider, { sandbox, model: selectedModel, timeout: 120 })
 
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready.`)
   console.log()

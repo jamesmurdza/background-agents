@@ -101,10 +101,8 @@ async function main() {
   console.log("Sandbox created!")
   console.log()
 
-  const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
   const bgSession = await createBackgroundSession(selectedProvider, {
     sandbox,
-    env,
     model: selectedModel,
     timeout: 120,
   })

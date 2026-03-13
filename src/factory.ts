@@ -14,7 +14,7 @@ import { Provider, ClaudeProvider, CodexProvider, OpenCodeProvider, GeminiProvid
  * import { Daytona } from "@daytonaio/sdk"
  * const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
  * const sandbox = await daytona.create({ envVars: { ... } })
- * const provider = createProvider("claude", { sandbox, env: { ANTHROPIC_API_KEY: "..." } })
+ * const provider = createProvider("claude", { sandbox })
  *
  * // Or with dangerous local execution:
  * const provider = createProvider("claude", { dangerouslyAllowLocalExecution: true })

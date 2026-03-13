@@ -8,7 +8,7 @@ import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
-const claudeSession = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+const claudeSession = await createSession("claude", { sandbox })
 
 for await (const event of claudeSession.run("Hello!")) {
   if (event.type === "token") process.stdout.write(event.text)
@@ -62,6 +62,8 @@ npm install @daytonaio/sdk
 
 ### 1. Create a sandbox (Daytona SDK)
 
+Set provider API keys via the sandbox; the SDK does not take env.
+
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
 import { createSession } from "@jamesmurdza/coding-agents-sdk"
@@ -87,7 +89,6 @@ await sandbox.git.clone("https://github.com/user/repo.git", repoPath)
 ```typescript
 const claudeSession = await createSession("claude", {
   sandbox,
-  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
   timeout: 120,
 })
@@ -132,7 +133,7 @@ async function main() {
 
   try {
     // Session installs CLI in sandbox and uses env for auth
-    const session = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+    const session = await createSession("claude", { sandbox })
 
     // Stream events: tokens and tool calls
     for await (const event of session.run("List /tmp then write /tmp/out.txt with 'done'")) {
@@ -195,7 +196,6 @@ Creates a session with defaults (model, timeout, env, etc.) and exposes `session
 ```typescript
 const session = await createSession("claude", {
   sandbox,
-  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
   timeout: 120
 })
@@ -265,7 +265,6 @@ const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env
 // Set model at creation (alias or full name)
 const claudeSession = await createSession("claude", {
   sandbox,
-  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet", // or "opus", "haiku", "claude-sonnet-4-5-20250929"
 })
 for await (const event of claudeSession.run("Hello")) { /* ... */ }
@@ -278,7 +277,6 @@ See [Claude Code model configuration](https://code.claude.com/docs/en/model-conf
 ```typescript
 const codexSession = await createSession("codex", {
   sandbox,
-  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
   model: "gpt-4o", // or "o1", "o3"
 })
 for await (const event of codexSession.run("Hello")) { /* ... */ }
@@ -292,7 +290,6 @@ See [Codex CLI models](https://developers.openai.com/codex/models) for all avail
 // Format: "provider/model" (default is openai/gpt-4o)
 const opencodeSession = await createSession("opencode", {
   sandbox,
-  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
   model: "openai/gpt-4o", // or "openai/o1", "anthropic/claude-sonnet", etc.
 })
 for await (const event of opencodeSession.run("Hello")) { /* ... */ }
@@ -305,7 +302,6 @@ See [OpenCode models](https://opencode.ai/docs/models/) for all available models
 ```typescript
 const geminiSession = await createSession("gemini", {
   sandbox,
-  env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY },
   model: "gemini-2.0-flash", // or "gemini-1.5-pro"
 })
 for await (const event of geminiSession.run("Hello")) { /* ... */ }
@@ -326,41 +322,43 @@ Background sessions let you start agent runs inside a Daytona sandbox that write
 
 **Optional cleanup:** When a turn completes (you’ve seen an `end` event), that turn’s log file is no longer written to. The session can then safely delete or truncate that turn’s log file to free space in the sandbox.
 
-**Example:**
+**Example:** Start the agent, then (in a separate run) reattach and read everything. Cancel by killing the process in the sandbox.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createBackgroundSession } from "@jamesmurdza/coding-agents-sdk"
+import { createBackgroundSession, getBackgroundSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
 const sandbox = await daytona.create({
   envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
 })
 
-const bg = await createBackgroundSession("claude", {
-  sandbox,
-  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
-  model: "sonnet",
-})
-console.log("Background session ID:", bg.id)
+const sandboxId = sandbox.id
+const bg = await createBackgroundSession("claude", { sandbox, model: "sonnet" })
+const backgroundSessionId = bg.id
 
-const { executionId, pid } = await bg.start("Do a long-running refactor...")
-console.log("Started turn", { executionId, pid })
+await bg.start("Do a long-running refactor...")
+// Persist sandboxId and backgroundSessionId (e.g. to disk or DB), then exit.
 
-async function poll() {
-  const res = await bg.getEvents()
+// --- We're stopping the script and starting another one (e.g. after restart). ---
+
+const sandboxAgain = await daytona.get(sandboxId)
+const bgAgain = await getBackgroundSession({ sandbox: sandboxAgain, backgroundSessionId })
+
+async function readAll() {
+  const res = await bgAgain.getEvents()
   for (const event of res.events) {
     if (event.type === "token") process.stdout.write(event.text)
     else if (event.type === "tool_start") console.log("[Tool]", event.name)
     else if (event.type === "tool_end") console.log("[Tool end]")
   }
-  if (res.status === "completed") {
-    console.log("\nTurn completed. Session ID:", res.sessionId)
-    return
-  }
-  setTimeout(poll, 2000)
+  if (res.status === "completed") return
+  setTimeout(readAll, 2000)
 }
-poll()
+readAll()
+
+// --- To cancel the running agent: kills the current turn's process in the sandbox (no-op if already stopped). ---
+await bgAgain.cancel()
 ```
 
 ## Local Mode (Dangerous)

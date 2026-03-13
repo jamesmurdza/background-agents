@@ -11,7 +11,7 @@
  *
  * const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
  * const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
- * const session = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+ * const session = await createSession("claude", { sandbox })
  *
  * for await (const event of session.run("Hello")) {
  *   if (event.type === "token") process.stdout.write(event.text)
@@ -74,6 +74,7 @@ export {
   createSession,
   type SessionOptions,
   createBackgroundSession,
+  getBackgroundSession,
   type BackgroundSessionOptions,
   type BackgroundSession,
 } from "./session.js"

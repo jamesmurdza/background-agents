@@ -66,7 +66,7 @@ export abstract class Provider implements IProvider {
         "  import { createProvider } from '@jamesmurdza/coding-agents-sdk'\n" +
         "  const daytona = new Daytona({ apiKey: '...' })\n" +
         "  const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: '...' } })\n" +
-        "  const provider = createProvider('claude', { sandbox, env: { ANTHROPIC_API_KEY: '...' } })\n\n" +
+        "  const provider = createProvider('claude', { sandbox })\n\n" +
         "For local execution (dangerous), use:\n\n" +
         "  const provider = createProvider('claude', { dangerouslyAllowLocalExecution: true })"
       )
@@ -246,6 +246,7 @@ export abstract class Provider implements IProvider {
     cursor: number
     pid?: number
     startedAt?: string
+    provider?: import("../types/index.js").ProviderName
   } | null> {
     if (!this.sandboxManager?.executeCommand) return null
     const result = await this.sandboxManager.executeCommand(
@@ -255,9 +256,21 @@ export abstract class Provider implements IProvider {
     const raw = (result.output ?? "").trim()
     if (!raw) return null
     try {
-      const o = JSON.parse(raw) as { currentTurn?: number; cursor?: number; pid?: number; startedAt?: string }
+      const o = JSON.parse(raw) as {
+        currentTurn?: number
+        cursor?: number
+        pid?: number
+        startedAt?: string
+        provider?: import("../types/index.js").ProviderName
+      }
       if (typeof o.currentTurn !== "number" || typeof o.cursor !== "number") return null
-      return { currentTurn: o.currentTurn, cursor: o.cursor, pid: o.pid, startedAt: o.startedAt }
+      return {
+        currentTurn: o.currentTurn,
+        cursor: o.cursor,
+        pid: o.pid,
+        startedAt: o.startedAt,
+        provider: o.provider,
+      }
     } catch {
       return null
     }
@@ -265,7 +278,13 @@ export abstract class Provider implements IProvider {
 
   protected async writeSandboxMeta(
     sessionDir: string,
-    meta: { currentTurn: number; cursor: number; pid?: number; startedAt?: string }
+    meta: {
+      currentTurn: number
+      cursor: number
+      pid?: number
+      startedAt?: string
+      provider?: import("../types/index.js").ProviderName
+    }
   ): Promise<void> {
     if (!this.sandboxManager?.executeCommand) {
       throw new Error("Sandbox background mode requires a sandbox with executeCommand support")
@@ -298,8 +317,21 @@ export abstract class Provider implements IProvider {
       cursor: 0,
       pid: result.pid,
       startedAt: new Date().toISOString(),
+      provider: this.name,
     })
     return { executionId: result.executionId, pid: result.pid, outputFile }
+  }
+
+  /**
+   * Cancel the current turn's process in the sandbox (kill pid from meta).
+   */
+  async cancelSandboxBackground(sessionDir: string): Promise<void> {
+    const meta = await this.readSandboxMeta(sessionDir)
+    if (meta?.pid == null || !this.sandboxManager?.executeCommand) return
+    await this.sandboxManager.executeCommand(
+      `kill ${meta.pid} 2>/dev/null || true`,
+      10
+    )
   }
 
   /**
@@ -321,6 +353,7 @@ export abstract class Provider implements IProvider {
       cursor: Number(result.cursor) || 0,
       pid: meta?.pid,
       startedAt: meta?.startedAt,
+      provider: this.name,
     })
     return result
   }
