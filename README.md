@@ -313,25 +313,7 @@ for await (const event of geminiSession.run("Hello")) { /* ... */ }
 
 See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all available models.
 
-## Local Mode (Dangerous)
-
-If you need to run CLIs directly on your machine (not recommended):
-
-```typescript
-const session = await createSession("claude", {
-  dangerouslyAllowLocalExecution: true,
-})
-
-// Runs claude CLI directly on your machine
-let text = ""
-for await (const event of session.run("Hello")) {
-  if (event.type === "token") text += event.text
-}
-```
-
-**Warning:** Local mode executes arbitrary CLI commands on your machine. Only use this when you fully trust the code being executed.
-
-### Sandboxed Background Sessions
+## Sandboxed Background Sessions
 
 Background sessions let you start agent runs inside a Daytona sandbox that write the JSONL event stream to log files in the sandbox, then **getEvents** for new events. Useful when your app or API may restart while the agent is still running. Events are the same shape as `session.run()`.
 
@@ -380,6 +362,24 @@ async function poll() {
 }
 poll()
 ```
+
+## Local Mode (Dangerous)
+
+If you need to run CLIs directly on your machine (not recommended):
+
+```typescript
+const session = await createSession("claude", {
+  dangerouslyAllowLocalExecution: true,
+})
+
+// Runs claude CLI directly on your machine
+let text = ""
+for await (const event of session.run("Hello")) {
+  if (event.type === "token") text += event.text
+}
+```
+
+**Warning:** Local mode executes arbitrary CLI commands on your machine. Only use this when you fully trust the code being executed.
 
 ## Interactive REPL
 
