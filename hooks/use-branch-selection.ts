@@ -17,15 +17,23 @@ export function useBranchSelection({ repos, loaded }: UseBranchSelectionOptions)
   const activeBranchIdRef = useRef(activeBranchId)
   activeBranchIdRef.current = activeBranchId
 
-  // Auto-select first repo/branch on load
+  // Auto-select first repo/branch on load; never overwrite existing valid selection when list reorders
   useEffect(() => {
-    if (loaded && repos.length > 0 && !activeRepoId) {
-      setActiveRepoId(repos[0].id)
-      if (repos[0].branches.length > 0) {
-        setActiveBranchId(repos[0].branches[0].id)
-      }
+    if (!loaded || repos.length === 0) return
+    const currentRepo = activeRepoId ? repos.find((r) => r.id === activeRepoId) : null
+    const currentBranch =
+      currentRepo && activeBranchId
+        ? currentRepo.branches.find((b) => b.id === activeBranchId)
+        : null
+    if (currentRepo && currentBranch) return
+
+    setActiveRepoId(repos[0].id)
+    if (repos[0].branches.length > 0) {
+      setActiveBranchId(repos[0].branches[0].id)
+    } else {
+      setActiveBranchId(null)
     }
-  }, [loaded, repos, activeRepoId])
+  }, [loaded, repos, activeRepoId, activeBranchId])
 
   // Computed values
   const activeRepo = useMemo(
