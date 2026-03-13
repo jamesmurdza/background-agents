@@ -194,22 +194,6 @@ export function ChatPanel({
     gitActions.setCommitDiffMessage(msg)
   }, [gitActions])
 
-  // Handle agent change request
-  const handleAgentChange = useCallback(async (agent: Agent) => {
-    // If switching to the same agent, do nothing
-    const currentAgent = (branch.agent || "claude-code") as Agent
-    if (agent === currentAgent) return
-
-    // If there are messages, show confirmation dialog
-    if (branch.messages.length > 0) {
-      setPendingAgentSwitch(agent)
-      return
-    }
-
-    // No messages, switch immediately
-    await performAgentSwitch(agent)
-  }, [branch.agent, branch.messages.length, performAgentSwitch])
-
   // Perform the actual agent switch
   const performAgentSwitch = useCallback(async (agent: Agent) => {
     // Update local state immediately
@@ -231,6 +215,22 @@ export function ChatPanel({
       console.error("Failed to update agent:", err)
     }
   }, [branch.id, onUpdateBranch])
+
+  // Handle agent change request
+  const handleAgentChange = useCallback(async (agent: Agent) => {
+    // If switching to the same agent, do nothing
+    const currentAgent = (branch.agent || "claude-code") as Agent
+    if (agent === currentAgent) return
+
+    // If there are messages, show confirmation dialog
+    if (branch.messages.length > 0) {
+      setPendingAgentSwitch(agent)
+      return
+    }
+
+    // No messages, switch immediately
+    await performAgentSwitch(agent)
+  }, [branch.agent, branch.messages.length, performAgentSwitch])
 
   // Handle agent switch confirmation
   const handleAgentSwitchConfirm = useCallback(async (agent: Agent) => {
