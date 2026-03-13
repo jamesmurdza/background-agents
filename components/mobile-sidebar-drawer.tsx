@@ -126,6 +126,11 @@ export function MobileSidebarDrawer({
       return
     }
 
+    if (quota && quota.current >= quota.max) {
+      setCreateError(`You have ${quota.current}/${quota.max} sandboxes. Please stop one before creating another.`)
+      return
+    }
+
     setCreating(true)
     setCreateError(null)
 
@@ -223,7 +228,7 @@ export function MobileSidebarDrawer({
     } finally {
       setCreating(false)
     }
-  }, [activeRepo, newBranchName, branchPlaceholder, newBranchBase, creating, githubBranches, onAddBranch, onUpdateBranch, onQuotaRefresh, onOpenChange])
+  }, [activeRepo, newBranchName, branchPlaceholder, newBranchBase, creating, quota, githubBranches, onAddBranch, onUpdateBranch, onQuotaRefresh, onOpenChange])
 
   const handleSelectRepo = (repoId: string) => {
     onSelectRepo(repoId)

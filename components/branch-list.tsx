@@ -151,6 +151,11 @@ export function BranchList({
       return
     }
 
+    if (quota && quota.current >= quota.max) {
+      setCreateError(`You have ${quota.current}/${quota.max} sandboxes. Please stop one before creating another.`)
+      return
+    }
+
     setCreating(true)
     setCreateError(null)
 
@@ -252,7 +257,7 @@ export function BranchList({
     } finally {
       setCreating(false)
     }
-  }, [newBranchName, newBranchBase, creating, repo, onAddBranch, onUpdateBranch, onQuotaRefresh, branchPlaceholder, startCommit, githubBranches])
+  }, [newBranchName, newBranchBase, creating, repo, quota, onAddBranch, onUpdateBranch, onQuotaRefresh, branchPlaceholder, startCommit, githubBranches])
 
   // Compute width style for desktop vs mobile
   const widthStyle = isMobile ? { width: "100%" } : { width: typeof width === "number" ? width : width }
