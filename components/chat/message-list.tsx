@@ -1,7 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Branch, Message } from "@/lib/types"
+import type { Agent, Branch, Message } from "@/lib/types"
+import { agentLabels } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Loader2, Terminal, AlertCircle } from "lucide-react"
 import { forwardRef } from "react"
@@ -63,6 +64,11 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
       )
     }
 
+    // Get agent label for display
+    const rawAgent = branch.agent as string | undefined
+    const normalizedAgent = (!rawAgent || rawAgent === "claude") ? "claude-code" : rawAgent
+    const currentAgentLabel = agentLabels[normalizedAgent as Agent] || "Claude Code"
+
     // Empty state
     if (branch.messages.length === 0) {
       return (
@@ -71,7 +77,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
               <Terminal className="h-5 w-5" />
             </div>
-            <p className="text-sm">Start a conversation with Claude Code</p>
+            <p className="text-sm">Start a conversation with {currentAgentLabel}</p>
             <p className="text-xs text-muted-foreground/60">The agent has access to Read, Edit, Write, Bash and more</p>
           </div>
         </MessageListContainer>
@@ -86,6 +92,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
             <MessageBubble
               key={msg.id}
               message={msg}
+              agentLabel={currentAgentLabel}
               onCommitClick={onCommitClick}
               onBranchFromCommit={onBranchFromCommit}
             />

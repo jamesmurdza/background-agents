@@ -6,7 +6,10 @@ import {
   getBranchWithAuth,
   badRequest,
   notFound,
+  getDaytonaApiKey,
+  isDaytonaKeyError,
 } from "@/lib/api-helpers"
+import { Daytona } from "@daytonaio/sdk"
 
 export async function POST(req: Request) {
   const authResult = await requireAuth()
@@ -96,16 +99,45 @@ export async function PATCH(req: Request) {
   const { userId } = authResult
 
   const body = await req.json()
-  const { branchId, status, prUrl, name, draftPrompt } = body
+  const { branchId, status, prUrl, name, draftPrompt, agent, model, clearSession } = body
 
   if (!branchId) {
     return badRequest("Missing branch ID")
   }
 
-  // Verify ownership
-  const branch = await getBranchWithAuth(branchId, userId)
-  if (!branch) {
+  // Verify ownership - need to query with sandbox for clearSession
+  const branchWithSandbox = await prisma.branch.findUnique({
+    where: { id: branchId },
+    include: {
+      repo: true,
+      sandbox: true,
+    },
+  })
+
+  if (!branchWithSandbox || branchWithSandbox.repo.userId !== userId) {
     return notFound("Branch not found")
+  }
+
+  // If clearSession is true and branch has a sandbox, clear its session ID
+  if (clearSession && branchWithSandbox.sandbox) {
+    // Clear session ID from database
+    await prisma.sandbox.update({
+      where: { id: branchWithSandbox.sandbox.id },
+      data: { sessionId: null },
+    })
+
+    // Also clear the session file in the sandbox
+    const daytonaApiKey = getDaytonaApiKey()
+    if (!isDaytonaKeyError(daytonaApiKey)) {
+      try {
+        const daytona = new Daytona({ apiKey: daytonaApiKey })
+        const sandbox = await daytona.get(branchWithSandbox.sandbox.sandboxId)
+        await sandbox.process.executeCommand("rm -f /home/daytona/.agent_session_id")
+      } catch (err) {
+        console.error("Failed to clear session file:", err)
+        // Non-critical, continue
+      }
+    }
   }
 
   const updatedBranch = await prisma.branch.update({
@@ -115,6 +147,8 @@ export async function PATCH(req: Request) {
       ...(prUrl !== undefined && { prUrl }),
       ...(name && { name }),
       ...(draftPrompt !== undefined && { draftPrompt }),
+      ...(agent && { agent }),
+      ...(model !== undefined && { model }),
     },
     include: {
       sandbox: true,

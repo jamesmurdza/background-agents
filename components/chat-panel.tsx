@@ -1,12 +1,14 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Branch, Message } from "@/lib/types"
+import type { Agent, Branch, Message } from "@/lib/types"
+import { defaultAgentModel } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Terminal } from "lucide-react"
-import { useRef, useEffect, useCallback } from "react"
+import { useRef, useEffect, useCallback, useState } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { SwitchAgentDialog } from "@/components/switch-agent-dialog"
 
 // Import hooks
 import {
@@ -68,6 +70,9 @@ export function ChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // State for agent switch dialog
+  const [pendingAgentSwitch, setPendingAgentSwitch] = useState<Agent | null>(null)
 
   // Custom hooks
   const { input, setInput, isNearBottomRef } = useDraftSync({
@@ -193,6 +198,89 @@ export function ChatPanel({
     gitActions.setCommitDiffMessage(msg)
   }, [gitActions])
 
+  // Perform the actual agent switch
+  const performAgentSwitch = useCallback(async (agent: Agent) => {
+    // Update local state immediately
+    onUpdateBranch({ agent, model: defaultAgentModel[agent] })
+
+    // Persist to server and clear session ID to start fresh
+    try {
+      await fetch("/api/branches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: branch.id,
+          agent,
+          model: defaultAgentModel[agent],
+          clearSession: true, // Signal to clear the session ID
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to update agent:", err)
+    }
+  }, [branch.id, onUpdateBranch])
+
+  // Handle agent change request
+  const handleAgentChange = useCallback(async (agent: Agent) => {
+    // If switching to the same agent, do nothing
+    const currentAgent = (branch.agent || "claude-code") as Agent
+    if (agent === currentAgent) return
+
+    // If there are messages, show confirmation dialog
+    if (branch.messages.length > 0) {
+      setPendingAgentSwitch(agent)
+      return
+    }
+
+    // No messages, switch immediately - inline the logic to avoid initialization order issues
+    onUpdateBranch({ agent, model: defaultAgentModel[agent] })
+    try {
+      await fetch("/api/branches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: branch.id,
+          agent,
+          model: defaultAgentModel[agent],
+          clearSession: true,
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to update agent:", err)
+    }
+  }, [branch.id, branch.agent, branch.messages.length, onUpdateBranch])
+
+  // Handle agent switch confirmation
+  const handleAgentSwitchConfirm = useCallback(async (agent: Agent) => {
+    await performAgentSwitch(agent)
+    setPendingAgentSwitch(null)
+  }, [performAgentSwitch])
+
+  // Handle agent switch cancellation
+  const handleAgentSwitchCancel = useCallback(() => {
+    setPendingAgentSwitch(null)
+  }, [])
+
+  // Handle model change
+  const handleModelChange = useCallback(async (model: string) => {
+    // Update local state immediately
+    onUpdateBranch({ model })
+
+    // Persist to server
+    try {
+      await fetch("/api/branches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: branch.id,
+          model,
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to update model:", err)
+    }
+  }, [branch.id, onUpdateBranch])
+
   return (
     <TooltipProvider delayDuration={0}>
       <div className={cn(
@@ -229,6 +317,8 @@ export function ChatPanel({
           onInputChange={setInput}
           onSend={handleSend}
           onStop={handleStop}
+          onAgentChange={handleAgentChange}
+          onModelChange={handleModelChange}
           isMobile={isMobile}
         />
       </div>
@@ -239,6 +329,14 @@ export function ChatPanel({
         repoOwner={repoOwner}
         repoName={repoName}
         gitActions={gitActions}
+      />
+
+      {/* Agent Switch Confirmation Dialog */}
+      <SwitchAgentDialog
+        newAgent={pendingAgentSwitch}
+        currentAgent={(branch.agent || "claude-code") as Agent}
+        onClose={handleAgentSwitchCancel}
+        onConfirm={handleAgentSwitchConfirm}
       />
     </TooltipProvider>
   )

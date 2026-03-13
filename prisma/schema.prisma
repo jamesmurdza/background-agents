@@ -112,7 +112,7 @@ model Branch {
   draftPrompt String? @db.Text // Persisted draft input for chat continuity
 
   // Agent configuration
-  agent String @default("claude") // "claude" | "codex" | "opencode"
+  agent String @default("claude-code") // "claude-code" | "opencode"
   model String? // Model selection for the agent (e.g., "sonnet", "gpt-4o")
 
   sandbox  Sandbox?

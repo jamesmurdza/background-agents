@@ -98,11 +98,16 @@ export async function POST(req: Request) {
     const repoPath = `/home/daytona/${repoName}`
     const previewUrlPattern = sandbox.previewUrlPattern || undefined
 
+    // Get agent and model from branch
+    const agent = execution.message.branch.agent as import("@/lib/types").Agent || "claude-code"
+    const model = execution.message.branch.model || undefined
+
     // Decrypt user credentials for env vars
-    const { anthropicApiKey } =
+    const { anthropicApiKey, openaiApiKey } =
       decryptUserCredentials(sandbox.user.credentials)
     const env: Record<string, string> = {}
     if (anthropicApiKey) env.ANTHROPIC_API_KEY = anthropicApiKey
+    if (openaiApiKey) env.OPENAI_API_KEY = openaiApiKey
 
     // Poll via SDK helper with full options.
     // For new executions, the long-lived background session ID is stored on the sandbox.
@@ -113,7 +118,7 @@ export async function POST(req: Request) {
     const outputData = await pollBackgroundAgent(
       sandboxInstance,
       backgroundSessionId,
-      { repoPath, previewUrlPattern, env }
+      { repoPath, previewUrlPattern, env, agent, model }
     )
 
     // 7. Only update DB on completion/error (not on every poll)

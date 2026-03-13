@@ -1,10 +1,17 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Branch } from "@/lib/types"
+import type { Agent, Branch } from "@/lib/types"
+import { agentLabels, agentModels, getModelLabel, defaultAgentModel } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
-import { Send, Terminal } from "lucide-react"
+import { Send, Terminal, ChevronDown, Sparkles } from "lucide-react"
 import { forwardRef, useEffect, useCallback } from "react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // ============================================================================
 // Chat Input Component
@@ -16,14 +23,22 @@ interface ChatInputProps {
   onInputChange: (value: string) => void
   onSend: () => void
   onStop: () => void
+  onAgentChange?: (agent: Agent) => void
+  onModelChange?: (model: string) => void
   isMobile?: boolean
 }
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput(
-    { branch, input, onInputChange, onSend, onStop, isMobile },
+    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, isMobile },
     ref
   ) {
+    // Normalize agent value (handle legacy "claude" value from database)
+    const rawAgent = branch.agent as string | undefined
+    const normalizedAgent = (!rawAgent || rawAgent === "claude") ? "claude-code" : rawAgent
+    const currentAgent = normalizedAgent as Agent
+    const currentModel = branch.model || defaultAgentModel[currentAgent]
+    const modelOptions = agentModels[currentAgent] || agentModels["claude-code"]
     const canSend = input.trim() && branch.status !== BRANCH_STATUS.RUNNING && branch.status !== BRANCH_STATUS.CREATING && branch.sandboxId
     const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
 
@@ -42,6 +57,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
         onSend()
       }
     }, [onSend])
+
+    // Note: performAgentSwitch in chat-panel already handles setting the default model
+    const handleAgentChange = useCallback((newAgent: Agent) => {
+      onAgentChange?.(newAgent)
+    }, [onAgentChange])
 
     return (
       <div
@@ -89,11 +109,52 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             )}
           </button>
         </div>
-        <div className="mt-1.5 flex items-center">
-          <span className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-            <Terminal className="h-3 w-3" />
-            Claude Code
-          </span>
+        <div className="mt-1.5 flex items-center justify-between">
+          {/* Agent Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded hover:bg-accent transition-colors cursor-pointer">
+              <Terminal className="h-3 w-3" />
+              {agentLabels[currentAgent]}
+              <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {(Object.keys(agentLabels) as Agent[]).map((agent) => (
+                <DropdownMenuItem
+                  key={agent}
+                  onClick={() => handleAgentChange(agent)}
+                  className={cn(
+                    "cursor-pointer",
+                    agent === currentAgent && "bg-accent"
+                  )}
+                >
+                  {agentLabels[agent]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Model Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded hover:bg-accent transition-colors cursor-pointer">
+              <Sparkles className="h-3 w-3" />
+              {getModelLabel(currentAgent, currentModel)}
+              <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {modelOptions.map((model) => (
+                <DropdownMenuItem
+                  key={model.value}
+                  onClick={() => onModelChange?.(model.value)}
+                  className={cn(
+                    "cursor-pointer",
+                    model.value === currentModel && "bg-accent"
+                  )}
+                >
+                  {model.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     )

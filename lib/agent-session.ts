@@ -24,6 +24,7 @@ import {
   type BackgroundSessionOptions,
 } from "@jamesmurdza/coding-agents-sdk"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
+import { type Agent, getProviderForAgent } from "@/lib/types"
 
 // =============================================================================
 // Types
@@ -35,6 +36,7 @@ export interface AgentSessionOptions {
   sessionId?: string
   model?: string
   env?: Record<string, string>
+  agent?: Agent
 }
 
 export interface BackgroundAgentOptions extends AgentSessionOptions {
@@ -285,19 +287,26 @@ export async function createAgentSession(
   const sessionOptions: SessionOptions = {
     sandbox: sandbox as unknown as SessionOptions['sandbox'],
     systemPrompt,
-    model: options.model,
+    // Pass undefined for model if "default" to let SDK choose
+    model: options.model === "default" ? undefined : options.model,
     sessionId: options.sessionId,
     env: options.env,
   }
+
+  // Map agent type to SDK provider name (handles legacy "claude" values)
+  const agent = options.agent || "claude-code"
+  const provider = getProviderForAgent(agent)
 
   console.log("[agent-session] createAgentSession", {
     repoPath: options.repoPath,
     previewUrlPattern: options.previewUrlPattern,
     model: options.model,
     sessionId: options.sessionId,
+    agent,
+    provider,
   })
 
-  const session = await sdkCreateSession("claude", sessionOptions)
+  const session = await sdkCreateSession(provider, sessionOptions)
 
   return { session, sandbox }
 }
@@ -339,6 +348,21 @@ export async function startBackgroundAgent(
   // Cast sandbox for SDK version compatibility
   const sandboxForSdk = sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>
 
+  // Map agent type to SDK provider name (handles legacy "claude" values)
+  const agent = options.agent || "claude-code"
+  const provider = getProviderForAgent(agent)
+
+  console.log("[agent-session] startBackgroundAgent", {
+    repoPath: options.repoPath,
+    model: options.model,
+    agent,
+    provider,
+    backgroundSessionId: options.backgroundSessionId,
+  })
+
+  // Pass undefined for model if "default" to let SDK choose
+  const modelToUse = options.model === "default" ? undefined : options.model
+
   // If we have an existing background session ID, reuse it via getBackgroundSession.
   // Otherwise, create a new background session.
   const bgSession = options.backgroundSessionId
@@ -346,15 +370,16 @@ export async function startBackgroundAgent(
         sandbox: sandboxForSdk,
         backgroundSessionId: options.backgroundSessionId,
         systemPrompt,
-        model: options.model,
+        model: modelToUse,
         env: options.env,
       })
-    : await sdkCreateBackgroundSession("claude", {
+    : await sdkCreateBackgroundSession(provider, {
         sandbox: sandboxForSdk,
         systemPrompt,
-        model: options.model,
+        model: modelToUse,
         sessionId: options.sessionId,
         env: options.env,
+        skipInstall: true, // TEMP: bypass install
       })
 
   const result = await bgSession.start(options.prompt)
@@ -375,6 +400,7 @@ export interface PollBackgroundOptions {
   previewUrlPattern?: string
   model?: string
   env?: Record<string, string>
+  agent?: Agent
 }
 
 export async function pollBackgroundAgent(
@@ -388,6 +414,9 @@ export async function pollBackgroundAgent(
       options.previewUrlPattern
     )
 
+    // Pass undefined for model if "default" to let SDK choose
+    const modelToUse = options.model === "default" ? undefined : options.model
+
     // Cast sandbox for SDK version compatibility
     // Must pass full session options when reattaching - SDK recreates the provider
 
@@ -395,7 +424,7 @@ export async function pollBackgroundAgent(
       sandbox: sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>,
       backgroundSessionId,
       systemPrompt,
-      model: options.model,
+      model: modelToUse,
       env: options.env,
     })
 

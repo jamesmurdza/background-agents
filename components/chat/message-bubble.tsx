@@ -85,11 +85,12 @@ function TextBlockContent({ text }: { text: string }) {
 
 interface MessageBubbleProps {
   message: Message
+  agentLabel?: string
   onCommitClick?: (hash: string, msg: string) => void
   onBranchFromCommit?: (hash: string) => void
 }
 
-export function MessageBubble({ message, onCommitClick, onBranchFromCommit }: MessageBubbleProps) {
+export function MessageBubble({ message, agentLabel = "Claude Code", onCommitClick, onBranchFromCommit }: MessageBubbleProps) {
   const isUser = message.role === "user"
 
   // Commit row rendering
@@ -134,7 +135,7 @@ export function MessageBubble({ message, onCommitClick, onBranchFromCommit }: Me
           "text-[11px] font-medium",
           isUser ? "text-muted-foreground" : "text-foreground"
         )}>
-          {isUser ? "You" : "Claude Code"}
+          {isUser ? "You" : agentLabel}
         </span>
         <span className="text-[10px] text-muted-foreground/40">{message.timestamp}</span>
       </div>

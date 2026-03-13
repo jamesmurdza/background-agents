@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { readPersistedSessionId } from "@/lib/agent-session"
+import type { Agent } from "@/lib/types"
 
 /**
  * Ensures a sandbox is running and ready for agent execution.
@@ -15,7 +16,11 @@ export async function ensureSandboxReady(
   anthropicAuthType?: string,
   anthropicAuthToken?: string,
   // Database session ID - this is the source of truth since it persists across sandbox rebuilds
-  databaseSessionId?: string
+  databaseSessionId?: string,
+  // OpenAI API key for Codex and OpenCode agents
+  openaiApiKey?: string,
+  // Agent type to determine which credentials to include
+  agent?: Agent
 ): Promise<{
   sandbox: Awaited<ReturnType<InstanceType<typeof Daytona>["get"]>>
   wasResumed: boolean
@@ -57,6 +62,13 @@ export async function ensureSandboxReady(
   // Set API key environment if using API key auth
   if (anthropicAuthType !== "claude-max" && anthropicApiKey) {
     env.ANTHROPIC_API_KEY = anthropicApiKey
+  }
+
+  // Include OpenAI API key for OpenCode (supports multiple providers)
+  // OpenCode can use ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY
+  // It also works with big-pickle models without any API key
+  if (openaiApiKey) {
+    env.OPENAI_API_KEY = openaiApiKey
   }
 
   return {

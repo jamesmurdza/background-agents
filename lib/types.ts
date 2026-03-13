@@ -1,6 +1,54 @@
 import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType } from "./constants"
 
-export type Agent = "claude-code"
+export type Agent = "claude-code" | "opencode"
+
+// SDK provider names (must match ProviderName from SDK)
+export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
+
+// SDK provider mapping
+export const agentToProvider: Record<Agent, ProviderName> = {
+  "claude-code": "claude",
+  "opencode": "opencode",
+}
+
+// Helper to get provider from agent string (handles legacy "claude" value)
+export function getProviderForAgent(agent: string | undefined): ProviderName {
+  if (!agent || agent === "claude" || agent === "claude-code") {
+    return "claude"
+  }
+  if (agent === "opencode") {
+    return "opencode"
+  }
+  // Fallback for any other value
+  return "claude"
+}
+
+// Model configurations per agent
+export interface ModelOption {
+  value: string
+  label: string
+}
+
+export const agentModels: Record<Agent, ModelOption[]> = {
+  "claude-code": [
+    { value: "default", label: "Default" },
+    { value: "sonnet", label: "Sonnet" },
+    { value: "opus", label: "Opus" },
+    { value: "haiku", label: "Haiku" },
+  ],
+  "opencode": [
+    { value: "opencode/big-pickle", label: "Big Pickle (Free)" },
+    { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+    { value: "openai/gpt-4o", label: "GPT-4o" },
+    { value: "google/gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
+  ],
+}
+
+// Default model per agent
+export const defaultAgentModel: Record<Agent, string> = {
+  "claude-code": "default",
+  "opencode": "opencode/big-pickle",
+}
 
 export interface ToolCall {
   id: string
@@ -74,6 +122,17 @@ export interface Settings {
 
 export const agentLabels: Record<Agent, string> = {
   "claude-code": "Claude Code",
+  "opencode": "OpenCode",
+}
+
+// Get model label from model value
+export function getModelLabel(agent: Agent, modelValue: string | undefined): string {
+  if (!modelValue) {
+    modelValue = defaultAgentModel[agent]
+  }
+  const models = agentModels[agent]
+  const model = models.find(m => m.value === modelValue)
+  return model?.label || modelValue
 }
 
 export const defaultSettings: Settings = {
