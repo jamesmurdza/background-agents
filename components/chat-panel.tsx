@@ -1,8 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Agent, Branch, Message } from "@/lib/types"
-import { defaultAgentModel } from "@/lib/types"
+import type { Agent, Branch, Message, UserCredentialFlags } from "@/lib/types"
+import { defaultAgentModel, getDefaultModelForAgent } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Terminal } from "lucide-react"
@@ -48,6 +48,10 @@ interface ChatPanelProps {
   isMobile?: boolean
   /** Ref to signal which message is actively streaming - used by sync to avoid overwriting */
   streamingMessageIdRef?: React.MutableRefObject<string | null>
+  /** User credentials for filtering available models */
+  credentials?: UserCredentialFlags | null
+  /** Callback to open settings modal */
+  onOpenSettings?: () => void
 }
 
 export function ChatPanel({
@@ -67,6 +71,8 @@ export function ChatPanel({
   messagesLoading = false,
   isMobile = false,
   streamingMessageIdRef,
+  credentials,
+  onOpenSettings,
 }: ChatPanelProps) {
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -210,8 +216,10 @@ export function ChatPanel({
 
   // Apply agent switch in local state only; persisted to server when user sends
   const performAgentSwitch = useCallback((agent: Agent) => {
-    onUpdateBranch(branch.id, { agent, model: defaultAgentModel[agent] })
-  }, [branch.id, onUpdateBranch])
+    // Use the best available model for this agent given user's credentials
+    const model = getDefaultModelForAgent(agent, credentials)
+    onUpdateBranch(branch.id, { agent, model })
+  }, [branch.id, onUpdateBranch, credentials])
 
   // Handle agent change: only warn when switching to a *different* agent; no warning when changing back to current
   const handleAgentChange = useCallback((agent: Agent) => {
@@ -223,8 +231,10 @@ export function ChatPanel({
       return
     }
 
-    onUpdateBranch(branch.id, { agent, model: defaultAgentModel[agent] })
-  }, [branch.id, branch.agent, branch.messages.length, onUpdateBranch])
+    // Use the best available model for this agent given user's credentials
+    const model = getDefaultModelForAgent(agent, credentials)
+    onUpdateBranch(branch.id, { agent, model })
+  }, [branch.id, branch.agent, branch.messages.length, onUpdateBranch, credentials])
 
   // Handle agent switch confirmation
   const handleAgentSwitchConfirm = useCallback((agent: Agent) => {
@@ -280,6 +290,8 @@ export function ChatPanel({
           onStop={handleStop}
           onAgentChange={handleAgentChange}
           onModelChange={handleModelChange}
+          onOpenSettings={onOpenSettings}
+          credentials={credentials}
           isMobile={isMobile}
         />
       </div>

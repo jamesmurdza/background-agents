@@ -27,31 +27,38 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
 export interface ModelOption {
   value: string
   label: string
+  requiresKey?: "anthropic" | "openai" | "none" // Which API key is required
 }
 
 export const agentModels: Record<Agent, ModelOption[]> = {
   "claude-code": [
-    { value: "default", label: "Default" },
-    { value: "sonnet", label: "Sonnet" },
-    { value: "opus", label: "Opus" },
-    { value: "haiku", label: "Haiku" },
+    { value: "default", label: "Default", requiresKey: "anthropic" },
+    { value: "sonnet", label: "Sonnet", requiresKey: "anthropic" },
+    { value: "opus", label: "Opus", requiresKey: "anthropic" },
+    { value: "haiku", label: "Haiku", requiresKey: "anthropic" },
   ],
   "opencode": [
-    // Free models (limited time)
-    { value: "opencode/big-pickle", label: "Big Pickle (Free)" },
-    { value: "opencode/minimax-m2.5-free", label: "MiniMax M2.5 (Free)" },
-    { value: "opencode/mimo-v2-flash-free", label: "MiMo v2 Flash (Free)" },
-    { value: "opencode/nemotron-3-super-free", label: "Nemotron 3 Super (Free)" },
+    // Free models (limited time) - no API key needed
+    { value: "opencode/big-pickle", label: "Big Pickle (Free)", requiresKey: "none" },
+    { value: "opencode/minimax-m2.5-free", label: "MiniMax M2.5 (Free)", requiresKey: "none" },
+    { value: "opencode/mimo-v2-flash-free", label: "MiMo v2 Flash (Free)", requiresKey: "none" },
+    { value: "opencode/nemotron-3-super-free", label: "Nemotron 3 Super (Free)", requiresKey: "none" },
     // Anthropic models (requires Anthropic API key)
-    { value: "opencode/claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
-    { value: "opencode/claude-sonnet-4", label: "Claude Sonnet 4" },
-    { value: "opencode/claude-opus-4-5", label: "Claude Opus 4.5" },
-    { value: "opencode/claude-haiku-4-5", label: "Claude Haiku 4.5" },
-    // OpenAI models (requires OpenAI API key)
-    { value: "opencode/gpt-5.4-pro", label: "GPT-5.4 Pro" },
-    { value: "opencode/gpt-5.3-codex", label: "GPT-5.3 Codex" },
-    { value: "opencode/gpt-5.1-codex", label: "GPT-5.1 Codex" },
-    { value: "opencode/gpt-5", label: "GPT-5" },
+    { value: "opencode/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
+    { value: "opencode/claude-sonnet-4", label: "Claude Sonnet 4", requiresKey: "anthropic" },
+    { value: "opencode/claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
+    { value: "opencode/claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
+    // OpenAI models via OpenCode (requires OpenAI API key)
+    { value: "opencode/gpt-5.4-pro", label: "GPT-5.4 Pro", requiresKey: "openai" },
+    { value: "opencode/gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "openai" },
+    { value: "opencode/gpt-5.1-codex", label: "GPT-5.1 Codex", requiresKey: "openai" },
+    { value: "opencode/gpt-5", label: "GPT-5", requiresKey: "openai" },
+    // OpenAI direct models (requires OpenAI API key)
+    { value: "openai/gpt-5.2-chat-latest", label: "GPT-5.2 Chat", requiresKey: "openai" },
+    { value: "openai/gpt-5-mini", label: "GPT-5 Mini", requiresKey: "openai" },
+    { value: "openai/o3", label: "o3", requiresKey: "openai" },
+    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
+    { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini", requiresKey: "openai" },
   ],
 }
 
@@ -59,6 +66,76 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
   "opencode": "opencode/big-pickle",
+}
+
+// User credentials for filtering
+export interface UserCredentialFlags {
+  hasAnthropicApiKey?: boolean
+  hasAnthropicAuthToken?: boolean
+  hasOpenaiApiKey?: boolean
+}
+
+/**
+ * Get the default agent based on user credentials.
+ * If user has Anthropic credentials (API key or subscription), default to Claude Code.
+ * Otherwise, default to OpenCode (which has free models).
+ */
+export function getDefaultAgent(credentials: UserCredentialFlags | null | undefined): Agent {
+  if (credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken) {
+    return "claude-code"
+  }
+  return "opencode"
+}
+
+/**
+ * Check if user has credentials for Claude Code agent.
+ */
+export function hasClaudeCodeCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
+  return !!(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken)
+}
+
+/**
+ * Filter models based on available API keys.
+ * Returns only models the user can actually use.
+ */
+export function getAvailableModels(
+  agent: Agent,
+  credentials: UserCredentialFlags | null | undefined
+): ModelOption[] {
+  const allModels = agentModels[agent]
+
+  return allModels.filter(model => {
+    switch (model.requiresKey) {
+      case "none":
+        return true // Free models always available
+      case "anthropic":
+        return credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken
+      case "openai":
+        return credentials?.hasOpenaiApiKey
+      default:
+        return true // No requirement specified, show by default
+    }
+  })
+}
+
+/**
+ * Get the default model for an agent based on available credentials.
+ * Falls back to free models if no API keys are configured.
+ */
+export function getDefaultModelForAgent(
+  agent: Agent,
+  credentials: UserCredentialFlags | null | undefined
+): string {
+  const availableModels = getAvailableModels(agent, credentials)
+
+  // If the default model is available, use it
+  const defaultModel = defaultAgentModel[agent]
+  if (availableModels.some(m => m.value === defaultModel)) {
+    return defaultModel
+  }
+
+  // Otherwise, return the first available model
+  return availableModels[0]?.value || defaultModel
 }
 
 export interface ToolCall {

@@ -1,16 +1,17 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Agent, Branch } from "@/lib/types"
-import { agentLabels, agentModels, getModelLabel, defaultAgentModel } from "@/lib/types"
+import type { Agent, Branch, UserCredentialFlags } from "@/lib/types"
+import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
-import { Send, Terminal, ChevronDown, Sparkles, Check } from "lucide-react"
+import { Send, Terminal, ChevronDown, Sparkles, Check, Lock } from "lucide-react"
 import { forwardRef, useEffect, useCallback } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
 // ============================================================================
@@ -25,12 +26,14 @@ interface ChatInputProps {
   onStop: () => void
   onAgentChange?: (agent: Agent) => void
   onModelChange?: (model: string) => void
+  onOpenSettings?: () => void
+  credentials?: UserCredentialFlags | null
   isMobile?: boolean
 }
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput(
-    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, isMobile },
+    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, credentials, isMobile },
     ref
   ) {
     // Normalize agent value (handle legacy "claude" value from database)
@@ -38,9 +41,15 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
     const normalizedAgent = (!rawAgent || rawAgent === "claude") ? "claude-code" : rawAgent
     const currentAgent = normalizedAgent as Agent
     const currentModel = branch.model || defaultAgentModel[currentAgent]
-    const modelOptions = agentModels[currentAgent] || agentModels["claude-code"]
+
+    // Filter models based on available credentials
+    const availableModels = getAvailableModels(currentAgent, credentials)
+
     const canSend = input.trim() && branch.status !== BRANCH_STATUS.RUNNING && branch.status !== BRANCH_STATUS.CREATING && branch.sandboxId
     const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
+
+    // Check if user can use Claude Code
+    const canUseClaudeCode = hasClaudeCodeCredentials(credentials)
 
     // Auto-resize textarea
     useEffect(() => {
@@ -58,10 +67,15 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       }
     }, [onSend])
 
-    // Note: performAgentSwitch in chat-panel already handles setting the default model
+    // Handle agent change with credential check
     const handleAgentChange = useCallback((newAgent: Agent) => {
+      if (newAgent === "claude-code" && !canUseClaudeCode) {
+        // Open settings to configure Claude credentials
+        onOpenSettings?.()
+        return
+      }
       onAgentChange?.(newAgent)
-    }, [onAgentChange])
+    }, [onAgentChange, onOpenSettings, canUseClaudeCode])
 
     return (
       <div
@@ -117,17 +131,23 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               <span>{agentLabels[currentAgent]}</span>
               <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" sideOffset={4} className="min-w-[140px] rounded-lg border border-border/60 py-0.5 shadow-md">
-              {(Object.keys(agentLabels) as Agent[]).map((agent) => (
-                <DropdownMenuItem
-                  key={agent}
-                  onClick={() => handleAgentChange(agent)}
-                  className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
-                >
-                  {agentLabels[agent]}
-                  {agent === currentAgent && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                </DropdownMenuItem>
-              ))}
+            <DropdownMenuContent align="start" sideOffset={4} className="min-w-[160px] rounded-lg border border-border/60 py-0.5 shadow-md">
+              {(Object.keys(agentLabels) as Agent[]).map((agent) => {
+                const isLocked = agent === "claude-code" && !canUseClaudeCode
+                return (
+                  <DropdownMenuItem
+                    key={agent}
+                    onClick={() => handleAgentChange(agent)}
+                    className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {agentLabels[agent]}
+                      {isLocked && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </span>
+                    {agent === currentAgent && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -138,17 +158,48 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               <span>{getModelLabel(currentAgent, currentModel)}</span>
               <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={4} className="min-w-[160px] rounded-lg border border-border/60 py-0.5 shadow-md">
-              {modelOptions.map((model) => (
+            <DropdownMenuContent align="end" sideOffset={4} className="min-w-[180px] max-h-[300px] overflow-y-auto rounded-lg border border-border/60 py-0.5 shadow-md">
+              {availableModels.length === 0 ? (
                 <DropdownMenuItem
-                  key={model.value}
-                  onClick={() => onModelChange?.(model.value)}
-                  className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                  onClick={() => onOpenSettings?.()}
+                  className="py-1.5 text-[11px] cursor-pointer text-muted-foreground"
                 >
-                  {model.label}
-                  {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                  Configure API keys in Settings
                 </DropdownMenuItem>
-              ))}
+              ) : (
+                <>
+                  {/* Group models by requirement */}
+                  {(() => {
+                    const freeModels = availableModels.filter(m => m.requiresKey === "none")
+                    const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
+                    const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
+                    const sections: { label: string; models: typeof availableModels }[] = []
+
+                    if (freeModels.length > 0) sections.push({ label: "Free", models: freeModels })
+                    if (anthropicModels.length > 0) sections.push({ label: "Anthropic", models: anthropicModels })
+                    if (openaiModels.length > 0) sections.push({ label: "OpenAI", models: openaiModels })
+
+                    return sections.map((section, idx) => (
+                      <div key={section.label}>
+                        {idx > 0 && <DropdownMenuSeparator className="my-1" />}
+                        <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground/70">
+                          {section.label}
+                        </div>
+                        {section.models.map((model) => (
+                          <DropdownMenuItem
+                            key={model.value}
+                            onClick={() => onModelChange?.(model.value)}
+                            className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                          >
+                            {model.label}
+                            {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    ))
+                  })()}
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

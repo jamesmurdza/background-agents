@@ -148,18 +148,7 @@ export default function Home() {
     document.title = parts.join(", ")
   }, [repos])
 
-  // Auto-open settings if Anthropic credentials not configured
-  useEffect(() => {
-    if (
-      loaded &&
-      (
-        !credentials ||
-        (!credentials.hasAnthropicApiKey && !credentials.hasAnthropicAuthToken)
-      )
-    ) {
-      setSettingsOpen(true)
-    }
-  }, [loaded, credentials])
+  // No longer auto-open settings - users can use OpenCode with free models without API keys
 
   // Loading state
   if (status === "loading" || !loaded) {
@@ -321,6 +310,8 @@ export default function Home() {
                   messagesLoading={messagesLoading}
                   isMobile={true}
                   streamingMessageIdRef={streamingMessageIdRef}
+                  credentials={credentials}
+                  onOpenSettings={() => setSettingsOpen(true)}
                 />
               ) : (
                 <EmptyChatPanel hasRepos={repos.length > 0} />
@@ -348,6 +339,8 @@ export default function Home() {
               onBranchFromCommit={(hash) => setPendingStartCommit(hash)}
               messagesLoading={messagesLoading}
               streamingMessageIdRef={streamingMessageIdRef}
+              credentials={credentials}
+              onOpenSettings={() => setSettingsOpen(true)}
             />
           ) : (
             <EmptyChatPanel hasRepos={repos.length > 0} />
