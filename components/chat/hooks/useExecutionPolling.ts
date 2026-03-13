@@ -30,6 +30,12 @@ export function useExecutionPolling({
   const currentMessageIdRef = useRef<string | null>(null)
   const startingCommitRef = useRef<string | null>(branch.startCommit || null)
   const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
+  // Use refs to always get the latest branch name/sandboxId in the polling callback
+  // This prevents stale closures when the branch is renamed during polling
+  const branchNameRef = useRef(branch.name)
+  const branchSandboxIdRef = useRef(branch.sandboxId)
+  branchNameRef.current = branch.name
+  branchSandboxIdRef.current = branch.sandboxId
 
   // Update startingCommitRef when branch changes
   useEffect(() => {
@@ -154,17 +160,20 @@ export function useExecutionPolling({
           onUpdateBranch({ status: "idle", lastActivity: "now", lastActivityTs: Date.now() })
           onForceSave()
 
-          // Check for new commits
-          if (branch.sandboxId) {
+          // Check for new commits - use refs to get latest branch name/sandboxId
+          // in case the branch was renamed during polling
+          const currentSandboxId = branchSandboxIdRef.current
+          const currentBranchName = branchNameRef.current
+          if (currentSandboxId) {
             try {
               await fetch("/api/sandbox/git", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  sandboxId: branch.sandboxId,
+                  sandboxId: currentSandboxId,
                   repoPath: `/home/daytona/${repoName}`,
                   action: "auto-commit-push",
-                  branchName: branch.name,
+                  branchName: currentBranchName,
                 }),
               })
 
@@ -173,7 +182,7 @@ export function useExecutionPolling({
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    sandboxId: branch.sandboxId,
+                    sandboxId: currentSandboxId,
                     repoPath: `/home/daytona/${repoName}`,
                     action: "log",
                     sinceCommit: startingCommitRef.current,
@@ -228,7 +237,8 @@ export function useExecutionPolling({
       poll()
       pollingRef.current = setInterval(poll, 500)
     }, 150)
-  }, [branch.sandboxId, branch.name, branch.messages, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected])
+  // Note: branch.sandboxId and branch.name are accessed via refs to avoid stale closures when branch is renamed
+  }, [branch.messages, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected])
 
   startPollingRef.current = startPolling
 
