@@ -100,11 +100,19 @@ export async function POST(req: Request) {
     const env: Record<string, string> = {}
     if (anthropicApiKey) env.ANTHROPIC_API_KEY = anthropicApiKey
 
+    console.log("[agent/status] polling", {
+      executionId: execution.executionId,
+      sandboxId: sandbox.id,
+      sandboxSessionId: sandbox.sessionId,
+      backgroundSessionId: execution.executionId,
+    })
+
     // Poll via SDK helper with full options
+    // Pass sessionId from database to maintain conversation context across messages
     const outputData = await pollBackgroundAgent(
       sandboxInstance,
       execution.executionId,
-      { repoPath, previewUrlPattern, env }
+      { repoPath, previewUrlPattern, env, sessionId: sandbox.sessionId || undefined }
     )
 
     // 7. Only update DB on completion/error (not on every poll)

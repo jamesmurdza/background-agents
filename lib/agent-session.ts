@@ -352,6 +352,7 @@ export interface PollBackgroundOptions {
   previewUrlPattern?: string
   model?: string
   env?: Record<string, string>
+  sessionId?: string
 }
 
 export async function pollBackgroundAgent(
@@ -367,12 +368,14 @@ export async function pollBackgroundAgent(
 
     // Cast sandbox for SDK version compatibility
     // Must pass full session options when reattaching - SDK recreates the provider
+    // IMPORTANT: sessionId must be passed to maintain conversation context across polls
     const bgSession = await sdkGetBackgroundSession({
       sandbox: sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>,
       backgroundSessionId,
       systemPrompt,
       model: options.model,
       env: options.env,
+      sessionId: options.sessionId,
     })
 
     const isRunning = await bgSession.isRunning()
