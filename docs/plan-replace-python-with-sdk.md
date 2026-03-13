@@ -344,10 +344,10 @@ The SDK produces typed events that need mapping to current format:
 // lib/agent-session.ts
 export function transformEvent(event: Event): AgentEvent {
   if (event.type === 'token') {
-    return { type: 'token', content: event.content }
+    return { type: 'token', content: event.text }
   }
   if (event.type === 'tool_start') {
-    const tool = mapToolName(event.tool)  // 'shell' → 'Bash'
+    const tool = mapToolName(event.name)  // 'shell' → 'Bash'
     const detail = getToolDetail(event.input)
     return {
       type: 'tool',
@@ -355,7 +355,7 @@ export function transformEvent(event: Event): AgentEvent {
     }
   }
   if (event.type === 'session') {
-    return { type: 'session', sessionId: event.sessionId }
+    return { type: 'session', sessionId: event.id }
   }
   if (event.type === 'end') {
     return { type: 'done' }
@@ -373,6 +373,88 @@ function mapToolName(sdkTool: string): string {
     grep: 'Grep',
   }
   return map[sdkTool] || sdkTool
+}
+```
+
+---
+
+## ContentBlocks Reconstruction
+
+**Additional wrapper logic needed:** The current Python code builds a `contentBlocks` array that interleaves text and tool calls in order for the UI:
+
+```json
+{
+  "contentBlocks": [
+    { "type": "text", "text": "Let me check the file..." },
+    { "type": "tool_calls", "toolCalls": [{ "tool": "Read", "summary": "Read: package.json" }] },
+    { "type": "text", "text": "I found the dependency..." }
+  ]
+}
+```
+
+The SDK emits separate events (`TokenEvent`, `ToolStartEvent`, etc.), so we need to reconstruct this structure in `lib/agent-session.ts`:
+
+```typescript
+// In pollBackgroundAgent or event accumulation logic
+function buildContentBlocks(events: Event[]): ContentBlock[] {
+  const blocks: ContentBlock[] = []
+  let pendingText = ""
+  let pendingToolCalls: ToolCall[] = []
+
+  for (const event of events) {
+    if (event.type === 'token') {
+      // Flush pending tool calls before adding text
+      if (pendingToolCalls.length > 0) {
+        blocks.push({ type: 'tool_calls', toolCalls: pendingToolCalls })
+        pendingToolCalls = []
+      }
+      pendingText += event.text
+    } else if (event.type === 'tool_start') {
+      // Flush pending text before adding tool call
+      if (pendingText) {
+        blocks.push({ type: 'text', text: pendingText })
+        pendingText = ""
+      }
+      pendingToolCalls.push({
+        tool: mapToolName(event.name),
+        summary: `${mapToolName(event.name)}: ${getToolDetail(event.input)}`
+      })
+    }
+  }
+
+  // Flush remaining
+  if (pendingToolCalls.length > 0) {
+    blocks.push({ type: 'tool_calls', toolCalls: pendingToolCalls })
+  }
+  if (pendingText) {
+    blocks.push({ type: 'text', text: pendingText })
+  }
+
+  return blocks
+}
+```
+
+This is straightforward logic (~30 lines) to add in the wrapper.
+
+---
+
+## Session ID Persistence
+
+**Verify needed:** Current code writes session ID to `/home/daytona/.agent_session_id` for persistence across sandbox restarts:
+
+```python
+with open('/home/daytona/.agent_session_id', 'w') as f:
+    f.write(sid)
+```
+
+Need to confirm if SDK does this automatically. If not, add in wrapper:
+
+```typescript
+// In agent-session.ts after receiving SessionEvent
+if (event.type === 'session') {
+  await sandbox.process.executeCommand(
+    `echo '${event.id}' > /home/daytona/.agent_session_id`
+  )
 }
 ```
 
