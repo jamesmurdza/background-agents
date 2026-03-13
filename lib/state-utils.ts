@@ -168,19 +168,6 @@ export function setMessagesInBranch(
   })
 }
 
-/**
- * Replaces a message ID (used when optimistic ID is replaced with DB ID)
- */
-export function replaceMessageId(
-  repos: TransformedRepo[],
-  repoId: string,
-  branchId: string,
-  oldId: string,
-  newId: string
-): TransformedRepo[] {
-  return updateMessageInBranch(repos, repoId, branchId, oldId, { id: newId })
-}
-
 // =============================================================================
 // Repo Update Utilities
 // =============================================================================
@@ -222,40 +209,3 @@ export function reorderRepos(
   return result
 }
 
-// =============================================================================
-// Finder Utilities
-// =============================================================================
-
-/**
- * Finds a branch by ID across all repos
- */
-export function findBranchById(
-  repos: TransformedRepo[],
-  branchId: string
-): { repo: TransformedRepo; branch: Branch } | null {
-  for (const repo of repos) {
-    const branch = repo.branches.find((b) => b.id === branchId)
-    if (branch) {
-      return { repo, branch }
-    }
-  }
-  return null
-}
-
-/**
- * Finds a message by ID across all repos and branches
- */
-export function findMessageById(
-  repos: TransformedRepo[],
-  messageId: string
-): { repo: TransformedRepo; branch: Branch; message: Message } | null {
-  for (const repo of repos) {
-    for (const branch of repo.branches) {
-      const message = branch.messages.find((m) => m.id === messageId)
-      if (message) {
-        return { repo, branch, message }
-      }
-    }
-  }
-  return null
-}
