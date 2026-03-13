@@ -166,6 +166,8 @@ export function ChatPanel({
           previewUrlPattern: branch.previewUrlPattern,
           repoName,
           messageId,
+          agent: branch.agent || "claude-code",
+          model: branch.model ?? undefined,
         }),
       })
 

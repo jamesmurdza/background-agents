@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (isAuthError(auth)) return auth
 
   const body = await req.json()
-  const { sandboxId, prompt, previewUrlPattern, repoName, messageId } = body
+  const { sandboxId, prompt, previewUrlPattern, repoName, messageId, agent: bodyAgent, model: bodyModel } = body
 
   if (!sandboxId || !prompt || !messageId) {
     return badRequest("Missing required fields")
@@ -50,8 +50,19 @@ export async function POST(req: Request) {
   const actualRepoName = repoName || sandboxRecord.branch?.repo?.name || "repo"
   const repoPath = `${PATHS.SANDBOX_HOME}/${actualRepoName}`
 
-  const agent = (sandboxRecord.branch?.agent as Agent) || "claude-code"
-  const model = sandboxRecord.branch?.model || undefined
+  // Use agent/model from request body (current UI selection) when valid; else DB; ensures run matches what user selected
+  const validAgents: Agent[] = ["claude-code", "opencode"]
+  const agent = validAgents.includes(bodyAgent) ? bodyAgent : (sandboxRecord.branch?.agent as Agent) || "claude-code"
+  const model = bodyModel ?? sandboxRecord.branch?.model ?? undefined
+
+  // Persist agent/model to branch when we used body values so DB stays in sync
+  const branchId = sandboxRecord.branch?.id
+  if (branchId && (agent !== (sandboxRecord.branch?.agent as Agent) || model !== sandboxRecord.branch?.model)) {
+    await prisma.branch.update({
+      where: { id: branchId },
+      data: { agent, ...(model !== undefined && { model }) },
+    })
+  }
 
   try {
     // 4. Ensure sandbox is ready
