@@ -466,6 +466,6 @@ if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
 
 1. ~~**Claude Max Authentication**~~: ✅ Resolved - SDK supports OAuth tokens at `/home/daytona/.claude/.credentials.json`
 
-2. **Custom Session IDs**: Can we provide our own `executionId` to the SDK, or must we use SDK-generated IDs?
+2. ~~**Custom Session IDs**~~: ✅ Resolved - Must use SDK-generated IDs, but this is fine. We simply store the SDK's session ID in `AgentExecution.executionId` instead of generating our own `randomUUID()`. No schema changes needed.
 
-3. **npm Package Status**: When will the package be published to npm? For now, install from GitHub.
+3. **npm Package Status**: Install from GitHub for now: `"github:jamesmurdza/coding-agents"`
