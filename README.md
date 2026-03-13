@@ -4,7 +4,7 @@ A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.an
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSession } from "coding-agents-sdk"
+import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
@@ -50,7 +50,7 @@ export DAYTONA_API_KEY=dtn_your_api_key
 Install the SDK:
 
 ```bash
-npm install coding-agents-sdk
+npm install @jamesmurdza/coding-agents-sdk
 ```
 
 For sandboxed execution, install the Daytona SDK:
@@ -64,7 +64,7 @@ npm install @daytonaio/sdk
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSession } from "coding-agents-sdk"
+import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({
@@ -122,7 +122,7 @@ await sandbox.delete()
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSession } from "coding-agents-sdk"
+import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 async function main() {
   const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
@@ -337,7 +337,7 @@ You can also start a **background** run inside a Daytona sandbox that writes the
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createBackgroundSession } from "coding-agents-sdk"
+import { createBackgroundSession } from "@jamesmurdza/coding-agents-sdk"
 
 // 1. Create a sandbox and background session
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
