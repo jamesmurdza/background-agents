@@ -24,10 +24,17 @@ export async function GET(req: Request) {
     return badRequest("Missing branch ID")
   }
 
-  // Verify ownership
+  // Verify ownership - if branch doesn't exist yet (newly created), return empty messages
   const branch = await getBranchWithAuth(branchId, userId)
   if (!branch) {
-    return notFound("Branch not found")
+    return Response.json({
+      messages: [],
+      pagination: {
+        totalCount: 0,
+        hasMore: false,
+        nextCursor: null,
+      },
+    })
   }
 
   const messages = await prisma.message.findMany({
