@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Server, Key, ExternalLink, AlertTriangle } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 
@@ -213,7 +213,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            <Server className="h-3.5 w-3.5" />
+            <Box className="h-3.5 w-3.5" />
             Sandboxes
           </button>
         </div>
@@ -367,50 +367,25 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
           {activeTab === "sandboxes" && (
             <>
               {/* Info about Daytona */}
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-secondary/50 border border-border">
-                <Server className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Sandboxes are powered by{" "}
-                  <a
-                    href="https://www.daytona.io"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-foreground hover:underline"
-                  >
-                    Daytona
-                  </a>
-                  . Each agent runs in an isolated cloud development environment.
-                </p>
-              </div>
-
-              {/* Sandbox Auto-Stop */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <label className="text-xs font-medium text-foreground">Auto-Stop Timeout</label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={5}
-                    max={20}
-                    value={sandboxAutoStopInterval}
-                    onChange={(e) => setSandboxAutoStopInterval(Number(e.target.value))}
-                    className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
-                  />
-                  <span className="text-xs font-medium text-foreground w-16 text-right">{sandboxAutoStopInterval} min</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Sandboxes will auto-stop after {sandboxAutoStopInterval} minutes of inactivity
-                </p>
-              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Sandboxes are powered by{" "}
+                <a
+                  href="https://www.daytona.io"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground hover:underline"
+                >
+                  Daytona
+                </a>
+                . Each agent runs in an isolated cloud development environment.
+              </p>
 
               {/* Custom Daytona API Key */}
-              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+              <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
-                    <label className="text-xs font-medium text-foreground">Custom Daytona API Key</label>
+                    <label className="text-xs font-medium text-foreground">Daytona API Key</label>
                     <span className="text-[10px] text-muted-foreground/70">(Optional)</span>
                   </div>
                   <a
@@ -438,7 +413,28 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                     <span className="text-green-500 ml-1">• Custom key active</span>
                   )}
                 </p>
+              </div>
 
+              {/* Sandbox Auto-Stop */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <label className="text-xs font-medium text-foreground">Auto-Stop Timeout</label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={5}
+                    max={20}
+                    value={sandboxAutoStopInterval}
+                    onChange={(e) => setSandboxAutoStopInterval(Number(e.target.value))}
+                    className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                  />
+                  <span className="text-xs font-medium text-foreground w-16 text-right">{sandboxAutoStopInterval} min</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Sandboxes will auto-stop after {sandboxAutoStopInterval} minutes of inactivity
+                </p>
               </div>
             </>
           )}
