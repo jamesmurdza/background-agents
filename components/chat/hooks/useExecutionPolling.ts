@@ -92,6 +92,7 @@ export function useExecutionPolling({
 
     let notFoundRetries = 0
     const MAX_NOT_FOUND_RETRIES = 10
+    let completionHandled = false
 
     const poll = async () => {
       try {
@@ -176,11 +177,14 @@ export function useExecutionPolling({
           })
         }
 
-        // Check if completed or error
+        // Check if completed or error (only run completion once; multiple in-flight polls can all see "completed")
         if (
           data.status === EXECUTION_STATUS.COMPLETED ||
           data.status === EXECUTION_STATUS.ERROR
         ) {
+          if (completionHandled) return
+          completionHandled = true
+
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
             pollingRef.current = null
