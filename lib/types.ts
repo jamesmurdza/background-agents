@@ -2,8 +2,11 @@ import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType
 
 export type Agent = "claude-code" | "opencode"
 
+// SDK provider names (must match ProviderName from SDK)
+export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
+
 // SDK provider mapping
-export const agentToProvider: Record<Agent, string> = {
+export const agentToProvider: Record<Agent, ProviderName> = {
   "claude-code": "claude",
   "opencode": "opencode",
 }
