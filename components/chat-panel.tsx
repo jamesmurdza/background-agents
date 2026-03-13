@@ -192,10 +192,18 @@ export function ChatPanel({
 
   // Handle agent change
   const handleAgentChange = useCallback(async (agent: Agent) => {
+    // Warn user if they have messages and are switching agents
+    if (branch.messages.length > 0) {
+      const confirmed = window.confirm(
+        "Switching agents mid-conversation will reset the context. Your previous messages will remain visible but the new agent won't have access to them. Continue?"
+      )
+      if (!confirmed) return
+    }
+
     // Update local state immediately
     onUpdateBranch({ agent, model: defaultAgentModel[agent] })
 
-    // Persist to server
+    // Persist to server and clear session ID to start fresh
     try {
       await fetch("/api/branches", {
         method: "PATCH",
@@ -204,12 +212,13 @@ export function ChatPanel({
           branchId: branch.id,
           agent,
           model: defaultAgentModel[agent],
+          clearSession: true, // Signal to clear the session ID
         }),
       })
     } catch (err) {
       console.error("Failed to update agent:", err)
     }
-  }, [branch.id, onUpdateBranch])
+  }, [branch.id, branch.messages.length, onUpdateBranch])
 
   // Handle model change
   const handleModelChange = useCallback(async (model: string) => {
