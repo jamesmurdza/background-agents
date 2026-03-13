@@ -109,49 +109,49 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             )}
           </button>
         </div>
-        <div className="mt-2 flex items-center gap-1">
+        <div className="mt-2 flex items-center">
           {/* Agent Dropdown */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-r border-border pr-3">
-              <Terminal className="h-3.5 w-3.5" />
+            <DropdownMenuTrigger className="group flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              <Terminal className="h-3 w-3" />
               <span>{agentLabels[currentAgent]}</span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
+              <ChevronDown className="h-3 w-3 opacity-40 group-hover:opacity-70 transition-opacity" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[140px]">
+            <DropdownMenuContent align="start" sideOffset={2} className="min-w-[120px] border-t-0 rounded-t-none -mt-px">
               {(Object.keys(agentLabels) as Agent[]).map((agent) => (
                 <DropdownMenuItem
                   key={agent}
                   onClick={() => handleAgentChange(agent)}
                   className={cn(
-                    "cursor-pointer text-xs",
-                    agent === currentAgent && "bg-accent font-medium"
+                    "text-xs",
+                    agent === currentAgent && "font-medium text-foreground"
                   )}
                 >
-                  <Terminal className="h-3.5 w-3.5 mr-2" />
                   {agentLabels[agent]}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <span className="text-border mx-1">·</span>
+
           {/* Model Dropdown */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              <Sparkles className="h-3.5 w-3.5" />
+            <DropdownMenuTrigger className="group flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              <Sparkles className="h-3 w-3" />
               <span>{getModelLabel(currentAgent, currentModel)}</span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
+              <ChevronDown className="h-3 w-3 opacity-40 group-hover:opacity-70 transition-opacity" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[160px]">
+            <DropdownMenuContent align="start" sideOffset={2} className="min-w-[140px] border-t-0 rounded-t-none -mt-px">
               {modelOptions.map((model) => (
                 <DropdownMenuItem
                   key={model.value}
                   onClick={() => onModelChange?.(model.value)}
                   className={cn(
-                    "cursor-pointer text-xs",
-                    model.value === currentModel && "bg-accent font-medium"
+                    "text-xs",
+                    model.value === currentModel && "font-medium text-foreground"
                   )}
                 >
-                  <Sparkles className="h-3.5 w-3.5 mr-2" />
                   {model.label}
                 </DropdownMenuItem>
               ))}
