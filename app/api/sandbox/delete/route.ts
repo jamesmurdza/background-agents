@@ -48,8 +48,8 @@ export async function POST(req: Request) {
       )
     }
 
-    // Always delete from database
-    await prisma.sandbox.delete({
+    // Always delete from database (deleteMany doesn't throw if already gone)
+    await prisma.sandbox.deleteMany({
       where: { id: sandboxRecord.id },
     })
 
