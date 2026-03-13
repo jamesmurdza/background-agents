@@ -204,14 +204,9 @@ export function useExecutionPolling({
             })
           }
 
-          onUpdateBranch({
-            status: "idle",
-            lastActivity: "now",
-            lastActivityTs: Date.now(),
-          })
           onForceSave()
 
-          // Preserve existing auto-commit / commit-detection behavior.
+          // Run auto-commit and commit-detection before going idle (spinner stays until this finishes)
           const currentSandboxId = branchSandboxIdRef.current
           const currentBranchName = branchNameRef.current
           if (currentSandboxId) {
@@ -274,7 +269,11 @@ export function useExecutionPolling({
             }
           }
 
-          // Play notification sound
+          onUpdateBranch({
+            status: "idle",
+            lastActivity: "now",
+            lastActivityTs: Date.now(),
+          })
           try {
             const ctx = new AudioContext()
             const osc = ctx.createOscillator()
