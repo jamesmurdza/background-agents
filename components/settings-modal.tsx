@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 
@@ -22,6 +22,9 @@ interface SettingsModalProps {
   onCredentialsUpdate: () => void
 }
 
+// Track which keys should be cleared on save
+type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "openrouterApiKey" | "daytonaApiKey"
+
 export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
 
@@ -38,6 +41,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
   const [initialAutoStopInterval, setInitialAutoStopInterval] = useState(5)
   const [daytonaApiKey, setDaytonaApiKey] = useState("")
 
+  // Track keys to clear
+  const [keysToClear, setKeysToClear] = useState<Set<ClearableKey>>(new Set())
+
   // UI state
   const [copied, setCopied] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -53,6 +59,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
       setOpenaiApiKey("")
       setOpenrouterApiKey("")
       setDaytonaApiKey("")
+      setKeysToClear(new Set())
       const interval = credentials?.sandboxAutoStopInterval ?? 5
       setSandboxAutoStopInterval(interval)
       setInitialAutoStopInterval(interval)
@@ -64,6 +71,18 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
 
   if (!open) return null
 
+  function markKeyToClear(key: ClearableKey) {
+    setKeysToClear(prev => new Set(prev).add(key))
+  }
+
+  function unmarkKeyToClear(key: ClearableKey) {
+    setKeysToClear(prev => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
+  }
+
   async function handleSave(skipDaytonaWarning = false) {
     const newAnthropicKey = anthropicApiKey.trim()
     const newAuthToken = anthropicAuthToken.trim()
@@ -73,19 +92,20 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
     // Check if Daytona key is being changed and show warning (if not already confirmed)
-    if (newDaytonaKey && !skipDaytonaWarning && !daytonaWarningConfirmed) {
+    if ((newDaytonaKey || keysToClear.has("daytonaApiKey")) && !skipDaytonaWarning && !daytonaWarningConfirmed) {
       setShowDaytonaWarning(true)
       return
     }
 
-    // Check if there's anything to save - only send non-empty values
+    // Check if there's anything to save
     const hasAnyChanges =
       newAnthropicKey ||
       newAuthToken ||
       newOpenaiKey ||
       newOpenrouterKey ||
       newDaytonaKey ||
-      autoStopChanged
+      autoStopChanged ||
+      keysToClear.size > 0
 
     if (!hasAnyChanges) {
       onClose()
@@ -117,6 +137,11 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
       }
       if (autoStopChanged) {
         payload.sandboxAutoStopInterval = sandboxAutoStopInterval
+      }
+
+      // Add keys to clear (send null to clear them)
+      for (const key of keysToClear) {
+        payload[key] = null
       }
 
       const response = await fetch("/api/user/credentials", {
@@ -175,6 +200,47 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
     }
   }
 
+  // Helper to render status indicator
+  function renderStatus(hasKey: boolean, keyName: ClearableKey) {
+    if (keysToClear.has(keyName)) {
+      return <span className="text-destructive text-[10px]">Will be cleared</span>
+    }
+    if (hasKey) {
+      return <span className="text-green-500 text-[10px]">Configured</span>
+    }
+    return <span className="text-muted-foreground/50 text-[10px]">Not configured</span>
+  }
+
+  // Helper to render clear button
+  function renderClearButton(hasKey: boolean, keyName: ClearableKey) {
+    if (!hasKey || keysToClear.has(keyName)) return null
+    return (
+      <button
+        type="button"
+        onClick={() => markKeyToClear(keyName)}
+        className="text-[10px] text-muted-foreground hover:text-destructive transition-colors cursor-pointer flex items-center gap-1"
+        title="Clear this key"
+      >
+        <Trash2 className="h-3 w-3" />
+        Clear
+      </button>
+    )
+  }
+
+  // Helper to render undo clear button
+  function renderUndoClearButton(keyName: ClearableKey) {
+    if (!keysToClear.has(keyName)) return null
+    return (
+      <button
+        type="button"
+        onClick={() => unmarkKeyToClear(keyName)}
+        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+      >
+        Undo
+      </button>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
@@ -228,28 +294,34 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   <div className="flex items-center gap-2">
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">Anthropic API Key</label>
+                    {renderStatus(credentials?.hasAnthropicApiKey ?? false, "anthropicApiKey")}
                   </div>
-                  <a
-                    href="https://console.anthropic.com/settings/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Get API key <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasAnthropicApiKey ?? false, "anthropicApiKey")}
+                    {renderUndoClearButton("anthropicApiKey")}
+                    <a
+                      href="https://console.anthropic.com/settings/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Get key <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
                 </div>
                 <Input
                   type="password"
-                  placeholder={credentials?.hasAnthropicApiKey ? "••••••••••••••••" : "sk-ant-..."}
+                  placeholder="sk-ant-..."
                   value={anthropicApiKey}
                   onChange={(e) => setAnthropicApiKey(e.target.value)}
-                  className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                  disabled={keysToClear.has("anthropicApiKey")}
+                  className={cn(
+                    "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
+                    keysToClear.has("anthropicApiKey") && "opacity-50"
+                  )}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Used by Claude Code and OpenCode agents for Anthropic models
-                  {credentials?.hasAnthropicApiKey && (
-                    <span className="text-green-500 ml-1">• Key saved</span>
-                  )}
                 </p>
               </div>
 
@@ -259,22 +331,31 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   <div className="flex items-center gap-2">
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">Claude Subscription</label>
+                    {renderStatus(credentials?.hasAnthropicAuthToken ?? false, "anthropicAuthToken")}
                   </div>
-                  <a
-                    href="https://claude.ai/settings/billing"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Manage subscription <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasAnthropicAuthToken ?? false, "anthropicAuthToken")}
+                    {renderUndoClearButton("anthropicAuthToken")}
+                    <a
+                      href="https://claude.ai/settings/billing"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Manage <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
                 </div>
                 <textarea
-                  placeholder={credentials?.hasAnthropicAuthToken ? "••••••••••••••••" : '{"claudeAiOauth":{"token_type":"bearer",...}}'}
+                  placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
                   value={anthropicAuthToken}
                   onChange={(e) => setAnthropicAuthToken(e.target.value)}
+                  disabled={keysToClear.has("anthropicAuthToken")}
                   rows={3}
-                  className="w-full rounded-md bg-secondary border border-border px-3 py-2 text-xs font-mono placeholder:text-muted-foreground/40 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className={cn(
+                    "w-full rounded-md bg-secondary border border-border px-3 py-2 text-xs font-mono placeholder:text-muted-foreground/40 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    keysToClear.has("anthropicAuthToken") && "opacity-50"
+                  )}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Paste the output of:{" "}
@@ -291,9 +372,6 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                       : <Copy className="inline h-2.5 w-2.5 text-muted-foreground/60 mr-1 align-middle" />}
                     security find-generic-password -s &quot;Claude Code-credentials&quot; -w
                   </code>
-                  {credentials?.hasAnthropicAuthToken && (
-                    <span className="text-green-500 ml-1">• Token saved</span>
-                  )}
                 </p>
                 <p className="text-[10px] text-muted-foreground/70">
                   Claude Code agent only. Not compatible with OpenCode agent.
@@ -306,28 +384,34 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">OpenAI API Key</label>
+                    {renderStatus(credentials?.hasOpenaiApiKey ?? false, "openaiApiKey")}
                   </div>
-                  <a
-                    href="https://platform.openai.com/api-keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Get API key <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasOpenaiApiKey ?? false, "openaiApiKey")}
+                    {renderUndoClearButton("openaiApiKey")}
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Get key <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
                 </div>
                 <Input
                   type="password"
-                  placeholder={credentials?.hasOpenaiApiKey ? "••••••••••••••••" : "sk-..."}
+                  placeholder="sk-..."
                   value={openaiApiKey}
                   onChange={(e) => setOpenaiApiKey(e.target.value)}
-                  className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                  disabled={keysToClear.has("openaiApiKey")}
+                  className={cn(
+                    "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
+                    keysToClear.has("openaiApiKey") && "opacity-50"
+                  )}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Used by OpenCode agent for GPT-4o models
-                  {credentials?.hasOpenaiApiKey && (
-                    <span className="text-green-500 ml-1">• Key saved</span>
-                  )}
                 </p>
               </div>
 
@@ -337,28 +421,34 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">OpenRouter API Key</label>
+                    {renderStatus(credentials?.hasOpenrouterApiKey ?? false, "openrouterApiKey")}
                   </div>
-                  <a
-                    href="https://openrouter.ai/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Get API key <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasOpenrouterApiKey ?? false, "openrouterApiKey")}
+                    {renderUndoClearButton("openrouterApiKey")}
+                    <a
+                      href="https://openrouter.ai/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Get key <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
                 </div>
                 <Input
                   type="password"
-                  placeholder={credentials?.hasOpenrouterApiKey ? "••••••••••••••••" : "sk-or-..."}
+                  placeholder="sk-or-..."
                   value={openrouterApiKey}
                   onChange={(e) => setOpenrouterApiKey(e.target.value)}
-                  className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                  disabled={keysToClear.has("openrouterApiKey")}
+                  className={cn(
+                    "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
+                    keysToClear.has("openrouterApiKey") && "opacity-50"
+                  )}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Used by OpenCode agent for OpenRouter models
-                  {credentials?.hasOpenrouterApiKey && (
-                    <span className="text-green-500 ml-1">• Key saved</span>
-                  )}
                 </p>
               </div>
             </>
@@ -387,31 +477,37 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">Daytona API Key</label>
                     <span className="text-[10px] text-muted-foreground/70">(Optional)</span>
+                    {renderStatus(credentials?.hasDaytonaApiKey ?? false, "daytonaApiKey")}
                   </div>
-                  <a
-                    href="https://app.daytona.io/dashboard/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Get API key <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasDaytonaApiKey ?? false, "daytonaApiKey")}
+                    {renderUndoClearButton("daytonaApiKey")}
+                    <a
+                      href="https://app.daytona.io/dashboard/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Get key <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
                 </div>
                 <Input
                   type="password"
-                  placeholder={credentials?.hasDaytonaApiKey ? "••••••••••••••••" : "dtn_..."}
+                  placeholder="dtn_..."
                   value={daytonaApiKey}
                   onChange={(e) => {
                     setDaytonaApiKey(e.target.value)
                     setShowDaytonaWarning(false)
                   }}
-                  className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                  disabled={keysToClear.has("daytonaApiKey")}
+                  className={cn(
+                    "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
+                    keysToClear.has("daytonaApiKey") && "opacity-50"
+                  )}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Use your own Daytona account for sandboxes
-                  {credentials?.hasDaytonaApiKey && (
-                    <span className="text-green-500 ml-1">• Custom key active</span>
-                  )}
                 </p>
               </div>
 
@@ -497,8 +593,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
             {/* Modal Content */}
             <div className="px-5 py-4">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Changing your Daytona API key will permanently delete all existing sandboxes and their conversation history.
-                New sandboxes will be created using your new API key.
+                {keysToClear.has("daytonaApiKey")
+                  ? "Clearing your Daytona API key will permanently delete all existing sandboxes and their conversation history. Sandboxes will use the platform key going forward."
+                  : "Changing your Daytona API key will permanently delete all existing sandboxes and their conversation history. New sandboxes will be created using your new API key."}
               </p>
             </div>
 

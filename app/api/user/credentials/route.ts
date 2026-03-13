@@ -30,29 +30,45 @@ export async function POST(req: Request) {
     }
   }
 
-  // Build the update/create data object with only provided (non-empty) fields
-  // This prevents overwriting existing saved keys when fields are left empty
+  // Build the update/create data object
   const updateData: Record<string, unknown> = {}
 
-  // Only update credentials that were explicitly provided (non-empty strings)
-  if (anthropicApiKey) {
+  // Handle each credential field:
+  // - If value is a non-empty string: encrypt and save
+  // - If value is null: clear the field
+  // - If value is undefined or empty string: don't change (preserve existing)
+
+  if (anthropicApiKey === null) {
+    updateData.anthropicApiKey = null
+  } else if (anthropicApiKey) {
     updateData.anthropicApiKey = encrypt(anthropicApiKey)
   }
-  if (anthropicAuthToken) {
+
+  if (anthropicAuthToken === null) {
+    updateData.anthropicAuthToken = null
+  } else if (anthropicAuthToken) {
     updateData.anthropicAuthToken = encrypt(anthropicAuthToken)
   }
-  if (openaiApiKey) {
+
+  if (openaiApiKey === null) {
+    updateData.openaiApiKey = null
+  } else if (openaiApiKey) {
     updateData.openaiApiKey = encrypt(openaiApiKey)
   }
-  if (openrouterApiKey) {
+
+  if (openrouterApiKey === null) {
+    updateData.openrouterApiKey = null
+  } else if (openrouterApiKey) {
     updateData.openrouterApiKey = encrypt(openrouterApiKey)
   }
+
   if (sandboxAutoStopInterval !== undefined) {
     updateData.sandboxAutoStopInterval = sandboxAutoStopInterval
   }
 
-  // Handle Daytona API key change - this deletes all sandboxes
-  if (daytonaApiKey) {
+  // Handle Daytona API key change or clear - this deletes all sandboxes
+  const daytonaKeyChanging = daytonaApiKey !== undefined
+  if (daytonaKeyChanging) {
     // First, delete all existing sandboxes for this user (both in DB and Daytona)
     const sandboxes = await prisma.sandbox.findMany({
       where: { userId },
@@ -78,14 +94,12 @@ export async function POST(req: Request) {
         )
       }
 
-      // Delete all sandboxes from database (cascades to branches, messages, etc.)
+      // Delete all sandboxes from database
       await prisma.sandbox.deleteMany({
         where: { userId },
       })
 
-      // Also delete all branches since they're now orphaned (sandboxes were deleted)
-      // Actually, branches might still be useful for history, but their sandboxes are gone
-      // Let's update branch status to indicate sandbox is gone
+      // Update branch status to indicate sandbox is gone
       await prisma.branch.updateMany({
         where: {
           repo: { userId },
@@ -96,8 +110,12 @@ export async function POST(req: Request) {
       })
     }
 
-    // Save the new Daytona API key
-    updateData.daytonaApiKey = encrypt(daytonaApiKey)
+    // Set or clear the Daytona API key
+    if (daytonaApiKey === null) {
+      updateData.daytonaApiKey = null
+    } else if (daytonaApiKey) {
+      updateData.daytonaApiKey = encrypt(daytonaApiKey)
+    }
   }
 
   // Only perform upsert if there's something to update
