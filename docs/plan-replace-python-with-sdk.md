@@ -544,10 +544,59 @@ if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
 
 ---
 
+## SDK Changes Required
+
+The following changes need to be made to `@jamesmurdza/coding-agents-sdk` before migration:
+
+### 1. Add `systemPrompt` option ⚠️ BLOCKING
+
+**Current:** `SessionOptions` does not include a `systemPrompt` field.
+
+**Needed:** Add `systemPrompt?: string` to `SessionOptions` interface.
+
+**Why:** We use a custom system prompt that includes:
+- Repository path and branch context
+- Instructions about committing changes (don't push)
+- Preview URL pattern for servers (conditional)
+
+```typescript
+// Current system prompt we need to pass:
+const systemPrompt = `You are an AI coding agent running in a Daytona sandbox.
+The repository is cloned at ${repoPath}.
+You are working on the git branch that is currently checked out.
+Use this directory for all file operations.
+Always check the current state of files before editing them.
+After making meaningful changes, commit them with a descriptive message using git add and git commit.
+Do not push — pushing is handled automatically.
+When you finish a task, provide a clear summary of what you did.
+
+If you start a server or service on any port, provide the user with the preview URL.
+The preview URL pattern is: ${previewUrlPattern}
+Replace {port} with the actual port number. For example, if you start a server on port 3000, the URL is: ${exampleUrl}
+`
+```
+
+**SDK change needed:**
+```typescript
+// In src/session.ts
+export interface SessionOptions extends ProviderOptions {
+  model?: string
+  sessionId?: string
+  timeout?: number
+  skipInstall?: boolean
+  env?: Record<string, string>
+  systemPrompt?: string  // <-- ADD THIS
+}
+```
+
+---
+
 ## Open Questions
 
 1. ~~**Claude Max Authentication**~~: ✅ Resolved - SDK supports OAuth tokens at `/home/daytona/.claude/.credentials.json`
 
 2. ~~**Custom Session IDs**~~: ✅ Resolved - Must use SDK-generated IDs, but this is fine. We simply store the SDK's session ID in `AgentExecution.executionId` instead of generating our own `randomUUID()`. No schema changes needed.
 
-3. **npm Package Status**: Install from GitHub for now: `"github:jamesmurdza/coding-agents"`
+3. ~~**npm Package Status**~~: Install from GitHub for now: `"github:jamesmurdza/coding-agents"`
+
+4. **System Prompt**: ⚠️ SDK needs `systemPrompt` option added to `SessionOptions` before we can migrate.
