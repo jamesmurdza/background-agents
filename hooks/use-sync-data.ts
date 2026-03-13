@@ -176,10 +176,28 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
               const isNotActiveBranch = syncBranch.id !== activeBranchIdRef.current
               const shouldMarkUnread = wasRunning && isFinished && isNotActiveBranch
 
+              if (shouldMarkUnread) {
+                // Persist unread to the database
+                fetch("/api/branches", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ branchId: syncBranch.id, unread: true }),
+                }).catch(() => {})
+              }
+
               setRepos((prev) =>
                 updateBranchAcrossRepos(prev, syncBranch.id, {
                   status: syncBranch.status as Branch["status"],
                   ...(shouldMarkUnread && { unread: true }),
+                })
+              )
+            }
+
+            // Unread change (from server, e.g., cleared on another device)
+            if (lastBranch.unread !== syncBranch.unread) {
+              setRepos((prev) =>
+                updateBranchAcrossRepos(prev, syncBranch.id, {
+                  unread: syncBranch.unread,
                 })
               )
             }

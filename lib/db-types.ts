@@ -33,6 +33,7 @@ export interface DbBranch {
   status: string
   prUrl: string | null
   draftPrompt: string | null
+  unread: boolean
   agent: string | null
   model: string | null
   sandbox: DbSandbox | null
@@ -90,6 +91,7 @@ export function transformBranch(dbBranch: DbBranch): Branch {
     status: dbBranch.status as Branch["status"],
     prUrl: dbBranch.prUrl || undefined,
     draftPrompt: dbBranch.draftPrompt || undefined,
+    unread: dbBranch.unread,
     agent: (dbBranch.agent || "claude-code") as Branch["agent"],
     model: dbBranch.model || undefined,
     sandboxId: dbBranch.sandbox?.sandboxId,
