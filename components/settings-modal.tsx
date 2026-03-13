@@ -399,7 +399,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                 </div>
                 <Input
                   type="password"
-                  placeholder={credentials?.hasDaytonaApiKey ? "••••••••••••••••" : "Leave empty to use platform key"}
+                  placeholder={credentials?.hasDaytonaApiKey ? "••••••••••••••••" : "dtn_..."}
                   value={daytonaApiKey}
                   onChange={(e) => {
                     setDaytonaApiKey(e.target.value)
