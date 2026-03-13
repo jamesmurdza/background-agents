@@ -49,8 +49,17 @@ export async function POST(req: Request) {
   const repoPath = `/home/daytona/${actualRepoName}`
 
   // Get agent and model from branch record
-  const agent = (sandboxRecord.branch?.agent as Agent) || "claude-code"
+  const rawAgent = sandboxRecord.branch?.agent
+  const agent = (rawAgent as Agent) || "claude-code"
   const model = sandboxRecord.branch?.model || undefined
+
+  console.log("[agent/execute] DEBUG branch data", {
+    branchId: sandboxRecord.branch?.id,
+    branchName: sandboxRecord.branch?.name,
+    rawAgent,
+    agent,
+    model,
+  })
 
   try {
     console.log("[agent/execute] start", {

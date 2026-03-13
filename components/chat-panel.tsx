@@ -195,7 +195,7 @@ export function ChatPanel({
   }, [gitActions])
 
   // Handle agent change request
-  const handleAgentChange = useCallback((agent: Agent) => {
+  const handleAgentChange = useCallback(async (agent: Agent) => {
     // If switching to the same agent, do nothing
     const currentAgent = (branch.agent || "claude-code") as Agent
     if (agent === currentAgent) return
@@ -207,8 +207,8 @@ export function ChatPanel({
     }
 
     // No messages, switch immediately
-    performAgentSwitch(agent)
-  }, [branch.agent, branch.messages.length])
+    await performAgentSwitch(agent)
+  }, [branch.agent, branch.messages.length, performAgentSwitch])
 
   // Perform the actual agent switch
   const performAgentSwitch = useCallback(async (agent: Agent) => {
@@ -233,8 +233,8 @@ export function ChatPanel({
   }, [branch.id, onUpdateBranch])
 
   // Handle agent switch confirmation
-  const handleAgentSwitchConfirm = useCallback((agent: Agent) => {
-    performAgentSwitch(agent)
+  const handleAgentSwitchConfirm = useCallback(async (agent: Agent) => {
+    await performAgentSwitch(agent)
     setPendingAgentSwitch(null)
   }, [performAgentSwitch])
 

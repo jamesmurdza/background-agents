@@ -58,11 +58,10 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       }
     }, [onSend])
 
+    // Note: performAgentSwitch in chat-panel already handles setting the default model
     const handleAgentChange = useCallback((newAgent: Agent) => {
       onAgentChange?.(newAgent)
-      // When agent changes, also set the default model for that agent
-      onModelChange?.(defaultAgentModel[newAgent])
-    }, [onAgentChange, onModelChange])
+    }, [onAgentChange])
 
     return (
       <div
