@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   DbMessage,
   DbRepo,
@@ -19,6 +19,9 @@ interface UseRepoDataOptions {
  */
 export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
   const [repos, setRepos] = useState<TransformedRepo[]>([])
+  // Keep a ref to repos for callbacks that need to read current value without re-creating
+  const reposRef = useRef(repos)
+  reposRef.current = repos
   const [quota, setQuota] = useState<Quota | null>(null)
   const [credentials, setCredentials] = useState<UserCredentials | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -116,13 +119,15 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
   }, [])
 
   // Load messages for a specific branch
+  // Uses reposRef to avoid recreating this callback when repos changes,
+  // which would cause unnecessary refetches via the useEffect in app/page.tsx
   const loadBranchMessages = useCallback(async (
     branchId: string,
     repoId: string,
     skipIfHasMessages: boolean = true
   ) => {
-    // Check if branch already has messages
-    const repo = repos.find((r) => r.id === repoId)
+    // Check if branch already has messages (read from ref to avoid dependency)
+    const repo = reposRef.current.find((r) => r.id === repoId)
     const branch = repo?.branches.find((b) => b.id === branchId)
     if (!branch) return
     if (skipIfHasMessages && branch.messages.length > 0) return
@@ -155,7 +160,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     } finally {
       setMessagesLoading(false)
     }
-  }, [repos])
+  }, [])
 
   return {
     // State
