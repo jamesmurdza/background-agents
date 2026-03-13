@@ -195,17 +195,10 @@ export function useSyncData({ setRepos, activeBranchIdRef }: UseSyncDataOptions)
             if (syncBranch.lastMessageId && syncBranch.lastMessageId !== lastKnownMessageId) {
               lastMessageIdsRef.current.set(syncBranch.id, syncBranch.lastMessageId)
 
-              // Mark as unread if not active branch
-              if (syncBranch.id !== activeBranchIdRef.current) {
-                setRepos((prev) =>
-                  prev.map((r) => ({
-                    ...r,
-                    branches: r.branches.map((b) =>
-                      b.id === syncBranch.id ? { ...b, unread: true } : b
-                    ),
-                  }))
-                )
-              } else {
+              // For non-active branches, just track the change in the ref - no state update needed.
+              // The unread indicator can be derived when rendering the sidebar.
+              // This avoids re-rendering the entire app every time a running agent produces a message.
+              if (syncBranch.id === activeBranchIdRef.current) {
                 // Reload messages for active branch
                 fetch(`/api/branches/messages?branchId=${syncBranch.id}`)
                   .then((r) => r.json())
