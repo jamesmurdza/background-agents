@@ -43,6 +43,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<{ message: string; isError: boolean } | null>(null)
   const [showDaytonaWarning, setShowDaytonaWarning] = useState(false)
+  const [daytonaWarningConfirmed, setDaytonaWarningConfirmed] = useState(false)
 
   // Sync form state when modal opens
   useEffect(() => {
@@ -57,12 +58,13 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
       setInitialAutoStopInterval(interval)
       setSaveStatus(null)
       setShowDaytonaWarning(false)
+      setDaytonaWarningConfirmed(false)
     }
   }, [open, credentials])
 
   if (!open) return null
 
-  async function handleSave() {
+  async function handleSave(skipDaytonaWarning = false) {
     const newAnthropicKey = anthropicApiKey.trim()
     const newAuthToken = anthropicAuthToken.trim()
     const newOpenaiKey = openaiApiKey.trim()
@@ -70,8 +72,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
     const newDaytonaKey = daytonaApiKey.trim()
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
-    // Check if Daytona key is being changed and show warning
-    if (newDaytonaKey && !showDaytonaWarning) {
+    // Check if Daytona key is being changed and show warning (if not already confirmed)
+    if (newDaytonaKey && !skipDaytonaWarning && !daytonaWarningConfirmed) {
       setShowDaytonaWarning(true)
       return
     }
@@ -437,20 +439,6 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   )}
                 </p>
 
-                {/* Warning when changing Daytona key */}
-                {showDaytonaWarning && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 mt-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                    <div className="flex flex-col gap-2">
-                      <p className="text-[11px] text-destructive font-medium">
-                        Warning: Changing your Daytona API key will delete all existing sandboxes and their conversation history.
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Click Save again to confirm this action.
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             </>
           )}
@@ -481,20 +469,66 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
               Cancel
             </button>
             <button
-              onClick={handleSave}
+              onClick={() => handleSave()}
               disabled={isSaving}
-              className={cn(
-                "cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                showDaytonaWarning
-                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
-              )}
+              className="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSaving ? "Saving..." : showDaytonaWarning ? "Confirm & Save" : "Save"}
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Daytona API Key Change Confirmation Modal */}
+      {showDaytonaWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-background/90 backdrop-blur-sm"
+            onClick={() => setShowDaytonaWarning(false)}
+          />
+          <div className="relative z-10 flex w-full max-w-sm flex-col rounded-xl border border-destructive/30 bg-card shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Delete All Sandboxes?</h3>
+                <p className="text-[11px] text-muted-foreground">This action cannot be undone</p>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-5 py-4">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Changing your Daytona API key will permanently delete all existing sandboxes and their conversation history.
+                New sandboxes will be created using your new API key.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+              <button
+                onClick={() => setShowDaytonaWarning(false)}
+                className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDaytonaWarning(false)
+                  setDaytonaWarningConfirmed(true)
+                  handleSave(true)
+                }}
+                disabled={isSaving}
+                className="cursor-pointer rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Delete & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
