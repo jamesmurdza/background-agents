@@ -38,6 +38,9 @@ export function useExecutionPolling({
     }
   }, [branch.id, branch.startCommit])
 
+  // Ref to track pending setTimeout for polling startup
+  const pendingPollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -45,13 +48,25 @@ export function useExecutionPolling({
         clearInterval(pollingRef.current)
         pollingRef.current = null
       }
+      if (pendingPollTimeoutRef.current) {
+        clearTimeout(pendingPollTimeoutRef.current)
+        pendingPollTimeoutRef.current = null
+      }
     }
   }, [])
 
   // Start polling for execution status
   const startPolling = useCallback((messageId: string, executionId?: string) => {
+    // Clear any existing polling interval
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+
+    // Clear any pending poll timeout (prevents double-start race condition)
+    if (pendingPollTimeoutRef.current) {
+      clearTimeout(pendingPollTimeoutRef.current)
+      pendingPollTimeoutRef.current = null
     }
 
     let notFoundRetries = 0
@@ -208,7 +223,8 @@ export function useExecutionPolling({
       }
     }
 
-    setTimeout(() => {
+    pendingPollTimeoutRef.current = setTimeout(() => {
+      pendingPollTimeoutRef.current = null
       poll()
       pollingRef.current = setInterval(poll, 500)
     }, 150)
@@ -221,6 +237,11 @@ export function useExecutionPolling({
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
       pollingRef.current = null
+    }
+
+    if (pendingPollTimeoutRef.current) {
+      clearTimeout(pendingPollTimeoutRef.current)
+      pendingPollTimeoutRef.current = null
     }
 
     if (currentMessageIdRef.current) {
@@ -239,7 +260,8 @@ export function useExecutionPolling({
   // Check and resume polling on mount/branch switch
   useEffect(() => {
     if (!branch.sandboxId) return
-    if (pollingRef.current) return
+    // Skip if polling is already active or pending
+    if (pollingRef.current || pendingPollTimeoutRef.current) return
 
     const currentStatus = branch.status
     const currentMessages = branch.messages
