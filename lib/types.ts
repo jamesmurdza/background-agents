@@ -37,6 +37,7 @@ export interface Branch {
   id: string
   name: string
   agent?: Agent
+  model?: string
   messages: Message[]
   status: BranchStatus
   lastActivity?: string
