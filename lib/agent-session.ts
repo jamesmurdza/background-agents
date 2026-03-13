@@ -490,56 +490,6 @@ export function clearBackgroundSessionCache(backgroundSessionId?: string) {
 }
 
 // =============================================================================
-// Lightweight Status Check (for sync endpoint)
-// =============================================================================
-
-export interface CheckBackgroundStatusOptions {
-  repoPath: string
-  agent?: Agent
-  model?: string
-}
-
-/**
- * Lightweight check to see if a background agent has completed.
- * Used by the sync endpoint to detect completion without full polling.
- * Does not update message content - just checks if the agent is done.
- */
-export async function checkBackgroundAgentStatus(
-  sandbox: DaytonaSandbox,
-  backgroundSessionId: string,
-  options: CheckBackgroundStatusOptions
-): Promise<{ completed: boolean }> {
-  try {
-    const systemPrompt = buildSystemPrompt(options.repoPath)
-    const modelToUse = options.model === "default" ? undefined : options.model
-
-    const bgSession = await sdkGetBackgroundSession({
-      sandbox: sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>,
-      backgroundSessionId,
-      systemPrompt,
-      model: modelToUse,
-    })
-
-    const isRunning = await bgSession.isRunning()
-
-    // Also check for end event in case isRunning has timing issues
-    if (!isRunning) {
-      return { completed: true }
-    }
-
-    // Do a quick event check to see if there's an end event
-    const { events } = await bgSession.getEvents()
-    const hasEndEvent = events.some(e => e.type === "end")
-
-    return { completed: hasEndEvent }
-  } catch (err) {
-    // If we can't check, assume not completed
-    console.warn("[checkBackgroundAgentStatus] Error:", err)
-    return { completed: false }
-  }
-}
-
-// =============================================================================
 // Re-exports for convenience
 // =============================================================================
 
