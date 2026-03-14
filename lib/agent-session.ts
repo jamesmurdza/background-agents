@@ -464,9 +464,8 @@ export async function pollBackgroundAgent(
 
     // agent_crashed = process exited without completing (crash/kill); has message?, output?
     const crashEvent = allEvents.find(
-      (e): e is Event & { type: "agent_crashed"; message?: string; output?: string } =>
-        e.type === "agent_crashed"
-    )
+      (e) => (e as { type: string }).type === "agent_crashed"
+    ) as { type: "agent_crashed"; message?: string; output?: string } | undefined
     if (crashEvent) {
       return {
         status: "error",
