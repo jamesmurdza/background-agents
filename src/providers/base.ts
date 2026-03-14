@@ -386,10 +386,11 @@ export abstract class Provider implements IProvider {
 
   /**
    * Check if the current turn's process is still running in the sandbox (kill -0 pid).
+   * Returns false when pid was never captured (e.g. pid -1) so the consumer can stop polling.
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (meta?.pid == null || !this.sandboxManager?.executeCommand) return false
+    if (meta?.pid == null || meta.pid < 1 || !this.sandboxManager?.executeCommand) return false
     const result = await this.sandboxManager.executeCommand(
       `kill -0 ${meta.pid} 2>/dev/null`,
       10
@@ -456,13 +457,17 @@ export abstract class Provider implements IProvider {
         : arg
     )].join(" ")
 
-    const bgCommand = `bash -lc "${fullCommand.replace(/"/g, '\\"')} >> ${options.outputFile} 2>&1 & echo $!"`
+    // Write PID to a file so we can read it; sandbox executeCommand often doesn't return
+    // stdout from "cmd & echo $!" (no real shell or no job control).
+    const pidFile = `${options.outputFile}.pid`
+    const bgCommand = `bash -lc "( ${fullCommand.replace(/"/g, '\\"')} >> ${options.outputFile} 2>&1 & echo \\$! > ${pidFile} )"`
     const timeout = options.timeout ?? 30
 
     debugLog(`startSandboxBackground executing provider=${this.name} outputFile=${options.outputFile}`)
-    const result = await this.sandboxManager.executeCommand(bgCommand, timeout)
-    const raw = result.output.trim()
-    const pid = Number(raw.split(/\s+/).pop() ?? "-1") || -1
+    await this.sandboxManager.executeCommand(bgCommand, timeout)
+    const pidResult = await this.sandboxManager.executeCommand(`cat ${pidFile} 2>/dev/null || true`, 5)
+    const raw = (pidResult.output ?? "").trim()
+    const pid = Number(raw.split(/\s+/)[0] ?? "-1") || -1
     debugLog(`startSandboxBackground done provider=${this.name} pid=${pid} rawOutput=${raw.slice(0, 80)}`)
 
     const executionId = randomUUID()
