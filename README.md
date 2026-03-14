@@ -175,6 +175,34 @@ DAYTONA_API_URL="https://api.daytona.io"
 
 > **Note**: For local GitHub OAuth, create a separate OAuth App with callback URL `http://localhost:3000/api/auth/callback/github`
 
+### Local coding-agents-sdk
+
+To develop against the local `@jamesmurdza/coding-agents-sdk` repo instead of the npm package:
+
+1. **Switch to local SDK** (run after clone or when you want to use local again):
+   ```bash
+   npm run install:local
+   ```
+   This installs deps, symlinks `node_modules/@jamesmurdza/coding-agents-sdk` to `/Users/jamie/codeagentsdk`, and builds the SDK.
+
+2. **Run dev with local SDK and debug logs**:
+   ```bash
+   npm run dev:local
+   ```
+   Runs `install:local` then `npm run dev` with `CODING_AGENTS_DEBUG=1`.
+
+3. **After changing the SDK**, rebuild so the app picks it up:
+   ```bash
+   npm run build-sdk
+   ```
+
+4. **Switch back to the published SDK**:
+   ```bash
+   npm install
+   ```
+
+The local SDK path is set in `scripts/link-local-sdk.js`; change it if your repo lives elsewhere.
+
 ---
 
 ## Database Schema
