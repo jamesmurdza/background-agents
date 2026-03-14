@@ -112,6 +112,8 @@ export async function ensureSandboxReady(
   anthropicAuthToken?: string,
   // Database session ID - this is the source of truth since it persists across sandbox rebuilds
   databaseSessionId?: string,
+  // Agent that created the stored session; when different from current agent, we start a new session
+  databaseSessionAgent?: string,
   // OpenAI API key for Codex and OpenCode agents
   openaiApiKey?: string,
   // Agent type to determine which credentials to include
@@ -136,8 +138,11 @@ export async function ensureSandboxReady(
 
   // Read stored session ID for agent resumption
   // Priority: file (latest conversation session, used by SDK) > database (fallback)
+  // When the user has changed agent, we always start with a blank session (OpenCode expects "ses..." or unset)
   const fileSessionId = await readPersistedSessionId(sandbox)
-  const resumeSessionId = fileSessionId || databaseSessionId
+  const sameAgent = !databaseSessionAgent || databaseSessionAgent === agent
+  const resumeSessionId =
+    sameAgent ? (fileSessionId || databaseSessionId) : undefined
 
   // For Claude Max, write credentials if needed
   if (anthropicAuthType === "claude-max" && anthropicAuthToken) {

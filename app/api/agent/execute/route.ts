@@ -76,6 +76,7 @@ export async function POST(req: Request) {
       anthropicAuthType,
       anthropicAuthToken,
       sandboxRecord.sessionId || undefined, // Pass database session ID for resumption
+      sandboxRecord.sessionAgent || undefined, // when different from current agent, we start a new session
       openaiApiKey,
       agent,
       model, // Pass model for API key selection
@@ -119,11 +120,11 @@ export async function POST(req: Request) {
       },
     })
 
-    // Persist the background session ID on the sandbox so future runs can reuse it
-    if (sandboxRecord.sessionId !== backgroundSessionId) {
+    // Persist the background session ID and agent on the sandbox so future runs can reuse (same agent) or start fresh (agent changed)
+    if (sandboxRecord.sessionId !== backgroundSessionId || sandboxRecord.sessionAgent !== agent) {
       await prisma.sandbox.update({
         where: { id: sandboxRecord.id },
-        data: { sessionId: backgroundSessionId },
+        data: { sessionId: backgroundSessionId, sessionAgent: agent },
       })
     }
 

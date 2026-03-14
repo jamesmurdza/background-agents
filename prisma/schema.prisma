@@ -145,6 +145,7 @@ model Sandbox {
 
   contextId         String?
   sessionId         String?
+  sessionAgent      String? // agent that created this session; when different, we start a new session
   previewUrlPattern String?
   status            String  @default("creating") // "creating" | "running" | "stopped" | "error"
 
