@@ -520,20 +520,26 @@ export abstract class Provider implements IProvider {
       const trimmed = line.trim()
       if (!trimmed) continue
       if (!isJsonLine(trimmed) && i === rawLines.length - 1) {
-        // Likely a partial line being written; skip it for now.
+        debugLog(`background poll skipped (partial last line) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
         continue
       }
       if (isJsonLine(trimmed)) {
         lines.push(trimmed)
+      } else {
+        debugLog(`background poll skipped (not JSONL) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
       }
     }
 
     if (startIndex >= lines.length) {
+      const hasContent = rawLines.some((l) => l.trim().length > 0)
+      const noValidLines = lines.length === 0 && hasContent
+      // Advance cursor past raw lines so we don't re-read and re-log the same content every poll.
+      const nextCursor = noValidLines ? rawLines.length : lines.length
       return {
-        status: "running",
+        status: noValidLines ? "completed" : "running",
         sessionId: this.sessionId,
         events: [],
-        cursor: encodeCursor(lines.length),
+        cursor: encodeCursor(nextCursor),
       }
     }
 
