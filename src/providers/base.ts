@@ -406,27 +406,20 @@ export abstract class Provider implements IProvider {
 
   /**
    * Check if the current turn's process is still running in the sandbox.
-   * Prefer a .done file written by the wrapper on exit (works when kill -0 is unreliable); else kill -0 pid.
+   * Uses only the .done file written by the wrapper on exit (no kill -0).
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (meta?.pid == null || meta.pid < 1 || !this.sandboxManager?.executeCommand) {
-      debugLog(`isRunning false (no valid pid) sessionDir=${sessionDir} pid=${meta?.pid ?? "null"}`)
+    if (!meta || (meta.currentTurn ?? -1) < 0 || !meta.runId || !this.sandboxManager?.executeCommand) {
+      debugLog(`isRunning false (no valid turn/runId) sessionDir=${sessionDir} turn=${meta?.currentTurn ?? "null"} runId=${meta?.runId ?? "null"}`)
       return false
     }
     const currentTurn = meta.currentTurn ?? 0
-    const runId = meta.runId ?? ""
-    const doneFile = runId
-      ? `${sessionDir}/${currentTurn}.jsonl.${runId}.pid.done`
-      : `${sessionDir}/${currentTurn}.jsonl.pid.done`
-    // Single shell check: .done exists => not running; else kill -0 (fallback for older runs). Output 0=running, 1=not.
-    const result = await this.sandboxManager.executeCommand(
-      `test -f "${doneFile}" && echo 1 || ( kill -0 ${meta.pid} 2>/dev/null; echo $? )`,
-      10
-    )
+    const doneFile = `${sessionDir}/${currentTurn}.jsonl.${meta.runId}.pid.done`
+    const result = await this.sandboxManager.executeCommand(`test -f "${doneFile}" && echo 1 || echo 0`, 10)
     const codeStr = (result.output ?? "").trim().split(/\s+/).pop() ?? "1"
     const running = codeStr !== "1"
-    debugLog(`isRunning pid=${meta.pid} doneFile or kill -0 => ${codeStr} => ${running}`)
+    debugLog(`isRunning doneFile=${doneFile} => ${running}`)
     return running
   }
 
