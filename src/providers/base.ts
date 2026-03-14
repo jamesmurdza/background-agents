@@ -441,6 +441,14 @@ export abstract class Provider implements IProvider {
   }> {
     const meta = await this.readSandboxMeta(sessionDir)
     const currentTurn = meta?.currentTurn ?? 0
+    if (currentTurn < 0) {
+      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} (no turn yet)`)
+      return {
+        sessionId: meta?.sessionId ?? this.sessionId ?? null,
+        events: [],
+        cursor: String(meta?.cursor ?? 0),
+      }
+    }
     const outputFile = `${sessionDir}/${currentTurn}.jsonl`
     const cursor = meta != null ? String(meta.cursor) : null
     debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} cursor=${cursor}`)
