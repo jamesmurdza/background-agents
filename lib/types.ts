@@ -25,27 +25,67 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
 
 /**
  * Get the correct provider based on the model string.
- * Models prefixed with "openai/" should use the openai provider.
- * Models prefixed with "anthropic/" or containing "claude" should use the anthropic/claude provider.
- * Otherwise, fall back to the agent's default provider.
+ * This determines which SDK provider to use for a given model.
+ *
+ * Provider routing rules:
+ * - "openai/*" models → openai provider
+ * - "anthropic/*" models or models containing "claude/haiku/opus/sonnet" → claude provider
+ * - "opencode/gpt-*" or "opencode/*codex*" models → openai provider (GPT models via opencode)
+ * - "opencode/*" free models (big-pickle, etc.) → opencode provider
+ * - Claude Code agent models (default, sonnet, opus, haiku) → claude provider
+ * - Otherwise → fall back to agent's default provider
  */
 export function getProviderForModel(model: string | undefined, agent: string | undefined): ProviderName {
   if (!model) {
     return getProviderForAgent(agent)
   }
 
-  // Check model prefix to determine provider
+  const modelLower = model.toLowerCase()
+
+  // Direct provider prefix - openai/*
   if (model.startsWith("openai/")) {
     return "openai"
   }
 
-  if (model.startsWith("anthropic/") || model.includes("claude")) {
+  // Direct provider prefix - anthropic/*
+  if (model.startsWith("anthropic/")) {
     return "claude"
   }
 
-  // For opencode/* models, use opencode provider
+  // Claude Code agent's models (default, sonnet, opus, haiku)
+  if (["default", "sonnet", "opus", "haiku"].includes(model)) {
+    return "claude"
+  }
+
+  // opencode/* models - need to check the model name to determine actual provider
   if (model.startsWith("opencode/")) {
+    const modelName = model.substring("opencode/".length).toLowerCase()
+
+    // Claude family models → use claude provider
+    if (modelName.includes("claude") || modelName.includes("haiku") ||
+        modelName.includes("opus") || modelName.includes("sonnet")) {
+      return "claude"
+    }
+
+    // GPT/Codex family models → use openai provider
+    if (modelName.includes("gpt") || modelName.includes("codex") || modelName.startsWith("o")) {
+      return "openai"
+    }
+
+    // Free models (big-pickle, minimax-free, mimo-free, nemotron-free) → opencode provider
+    // These are served directly by opencode
+    if (modelName === "big-pickle" || modelName.includes("-free")) {
+      return "opencode"
+    }
+
+    // Unknown opencode model - use opencode as fallback
     return "opencode"
+  }
+
+  // Models containing claude family names
+  if (modelLower.includes("claude") || modelLower.includes("haiku") ||
+      modelLower.includes("opus") || modelLower.includes("sonnet")) {
+    return "claude"
   }
 
   // Fall back to agent's default provider
