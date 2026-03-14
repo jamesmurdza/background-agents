@@ -5,14 +5,127 @@ import type { Agent, Branch, UserCredentialFlags } from "@/lib/types"
 import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Send, Terminal, ChevronDown, Sparkles, Check, Lock } from "lucide-react"
-import { forwardRef, useEffect, useCallback } from "react"
+import { forwardRef, useEffect, useCallback, useState, useMemo } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import type { ModelOption } from "@/lib/types"
+
+// ============================================================================
+// Model Combobox Component - Searchable model selector
+// ============================================================================
+
+interface ModelComboboxProps {
+  availableModels: ModelOption[]
+  currentModel: string
+  currentAgent: Agent
+  onModelChange?: (model: string) => void
+  onOpenSettings?: () => void
+}
+
+function ModelCombobox({
+  availableModels,
+  currentModel,
+  currentAgent,
+  onModelChange,
+  onOpenSettings,
+}: ModelComboboxProps) {
+  const [open, setOpen] = useState(false)
+
+  // Group models by requirement
+  const modelGroups = useMemo(() => {
+    const freeModels = availableModels.filter(m => m.requiresKey === "none")
+    const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
+    const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
+    const groups: { label: string; models: ModelOption[] }[] = []
+
+    if (freeModels.length > 0) groups.push({ label: "Free", models: freeModels })
+    if (anthropicModels.length > 0) groups.push({ label: "Anthropic", models: anthropicModels })
+    if (openaiModels.length > 0) groups.push({ label: "OpenAI", models: openaiModels })
+
+    return groups
+  }, [availableModels])
+
+  const handleSelect = useCallback((modelValue: string) => {
+    onModelChange?.(modelValue)
+    setOpen(false)
+  }, [onModelChange])
+
+  if (availableModels.length === 0) {
+    return (
+      <button
+        onClick={() => onOpenSettings?.()}
+        className="flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+      >
+        <Sparkles className="h-2.5 w-2.5 shrink-0" />
+        <span>Configure API keys</span>
+      </button>
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          role="combobox"
+          aria-expanded={open}
+          className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer"
+        >
+          <Sparkles className="h-2.5 w-2.5 shrink-0" />
+          <span>{getModelLabel(currentAgent, currentModel)}</span>
+          <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={4}
+        className="w-[220px] p-0 rounded-lg border border-border/60 shadow-md"
+      >
+        <Command>
+          <CommandInput placeholder="Search models..." className="h-8 text-[11px]" />
+          <CommandList className="max-h-[250px]">
+            <CommandEmpty className="py-3 text-[11px] text-center">
+              No models found.
+            </CommandEmpty>
+            {modelGroups.map((group) => (
+              <CommandGroup key={group.label} heading={group.label}>
+                {group.models.map((model) => (
+                  <CommandItem
+                    key={model.value}
+                    value={`${model.label} ${model.value}`}
+                    onSelect={() => handleSelect(model.value)}
+                    className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                  >
+                    <span>{model.label}</span>
+                    {model.value === currentModel && (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 // ============================================================================
 // Chat Input Component
@@ -151,57 +264,14 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Model Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
-              <Sparkles className="h-2.5 w-2.5 shrink-0" />
-              <span>{getModelLabel(currentAgent, currentModel)}</span>
-              <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={4} className="min-w-[180px] max-h-[300px] overflow-y-auto rounded-lg border border-border/60 py-0.5 shadow-md">
-              {availableModels.length === 0 ? (
-                <DropdownMenuItem
-                  onClick={() => onOpenSettings?.()}
-                  className="py-1.5 text-[11px] cursor-pointer text-muted-foreground"
-                >
-                  Configure API keys in Settings
-                </DropdownMenuItem>
-              ) : (
-                <>
-                  {/* Group models by requirement */}
-                  {(() => {
-                    const freeModels = availableModels.filter(m => m.requiresKey === "none")
-                    const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
-                    const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
-                    const sections: { label: string; models: typeof availableModels }[] = []
-
-                    if (freeModels.length > 0) sections.push({ label: "Free", models: freeModels })
-                    if (anthropicModels.length > 0) sections.push({ label: "Anthropic", models: anthropicModels })
-                    if (openaiModels.length > 0) sections.push({ label: "OpenAI", models: openaiModels })
-
-                    return sections.map((section, idx) => (
-                      <div key={section.label}>
-                        {idx > 0 && <DropdownMenuSeparator className="my-1" />}
-                        <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground/70">
-                          {section.label}
-                        </div>
-                        {section.models.map((model) => (
-                          <DropdownMenuItem
-                            key={model.value}
-                            onClick={() => onModelChange?.(model.value)}
-                            className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
-                          >
-                            {model.label}
-                            {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ))
-                  })()}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Model Combobox */}
+          <ModelCombobox
+            availableModels={availableModels}
+            currentModel={currentModel}
+            currentAgent={currentAgent}
+            onModelChange={onModelChange}
+            onOpenSettings={onOpenSettings}
+          />
         </div>
       </div>
     )
