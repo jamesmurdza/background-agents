@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:local": "npm run install:local && CODING_AGENTS_DEBUG=1 npm run dev",
     "build": "prisma generate && next build",
     "preinstall": "node scripts/preinstall-sdk.js",
     "postinstall": "prisma generate && npm run build-sdk && node scripts/postinstall-sdk.js",
+    "install:local": "npm install && node scripts/link-local-sdk.js && npm run build-sdk",
     "build-sdk": "cd node_modules/@jamesmurdza/coding-agents-sdk && npm install && npm run build || true",
     "start": "next start",
     "lint": "eslint ."
