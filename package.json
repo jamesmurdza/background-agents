@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "prisma generate && next build",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && npm run build-sdk",
+    "build-sdk": "cd node_modules/@jamesmurdza/coding-agents-sdk && npm install && npm run build || true",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -14,7 +15,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@daytonaio/sdk": "^0.148.0",
     "@hookform/resolvers": "^3.9.1",
-    "@jamesmurdza/coding-agents-sdk": "file:../coding-agents-sdk",
+    "@jamesmurdza/coding-agents-sdk": "file:/Users/jamie/codeagentsdk",
     "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-neon": "^7.4.2",
     "@prisma/client": "^7.4.2",
