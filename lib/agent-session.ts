@@ -456,14 +456,9 @@ export async function pollBackgroundAgent(
       await persistSessionId(sandbox, sessionId)
     }
 
-    // Stop if any of these is true: process exited, or we have an 'end' event, or step_finish(reason=stop)
+    // Completed = process not running or we saw an event with type === "end" (SDK turns step_finish/reason=stop into end)
     const hasEndEvent = allEvents.some(e => e.type === "end")
-    const hasStopFinish = allEvents.some(
-      (e) =>
-        (e as { type?: string; part?: { reason?: string } }).type === "step_finish" &&
-        (e as { part?: { reason?: string } }).part?.reason === "stop"
-    )
-    const isCompleted = !isRunning || hasEndEvent || hasStopFinish
+    const isCompleted = !isRunning || hasEndEvent
 
     return {
       status: isCompleted ? "completed" : "running",
