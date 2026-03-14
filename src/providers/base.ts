@@ -286,6 +286,7 @@ export abstract class Provider implements IProvider {
     cursor: number
     pid?: number
     runId?: string
+    outputFile?: string
     sawEnd?: boolean
     startedAt?: string
     provider?: import("../types/index.js").ProviderName
@@ -304,6 +305,7 @@ export abstract class Provider implements IProvider {
         cursor?: number
         pid?: number
         runId?: string
+        outputFile?: string
         sawEnd?: boolean
         startedAt?: string
         provider?: import("../types/index.js").ProviderName
@@ -315,6 +317,7 @@ export abstract class Provider implements IProvider {
         cursor: o.cursor,
         pid: o.pid,
         runId: o.runId,
+        outputFile: o.outputFile,
         sawEnd: o.sawEnd,
         startedAt: o.startedAt,
         provider: o.provider,
@@ -329,7 +332,7 @@ export abstract class Provider implements IProvider {
   async writeInitialSessionMeta(sessionDir: string): Promise<void> {
     if (!this.sandboxManager?.executeCommand) return
     await this.writeSandboxMeta(sessionDir, {
-      currentTurn: -1,
+      currentTurn: 0,
       cursor: 0,
       provider: this.name,
       sessionId: this.sessionId ?? null,
@@ -343,6 +346,7 @@ export abstract class Provider implements IProvider {
       cursor: number
       pid?: number
       runId?: string
+      outputFile?: string
       sawEnd?: boolean
       startedAt?: string
       provider?: import("../types/index.js").ProviderName
@@ -362,6 +366,7 @@ export abstract class Provider implements IProvider {
 
   /**
    * Start a new turn in a session directory: one log file per turn, meta in sandbox.
+   * Uses currentTurn for this run; currentTurn is incremented when the turn ends (in getEvents).
    */
   async startSandboxBackgroundTurn(
     sessionDir: string,
@@ -372,16 +377,17 @@ export abstract class Provider implements IProvider {
     }
     await this.sandboxManager.executeCommand(`mkdir -p "${sessionDir}"`, 10)
     const meta = await this.readSandboxMeta(sessionDir)
-    const nextTurn = (meta?.currentTurn ?? -1) + 1
-    const outputFile = `${sessionDir}/${nextTurn}.jsonl`
-    debugLog(`background turn start provider=${this.name} sessionDir=${sessionDir} turn=${nextTurn} outputFile=${outputFile}`)
+    const currentTurn = meta?.currentTurn ?? 0
+    const outputFile = `${sessionDir}/${currentTurn}.jsonl`
+    debugLog(`background turn start provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} outputFile=${outputFile}`)
     const result = await this.startSandboxBackground({ ...options, outputFile })
     debugLog(`background turn started provider=${this.name} pid=${result.pid} executionId=${result.executionId}`)
     await this.writeSandboxMeta(sessionDir, {
-      currentTurn: nextTurn,
+      currentTurn,
       cursor: 0,
       pid: result.pid,
       runId: result.runId,
+      outputFile,
       startedAt: new Date().toISOString(),
       provider: this.name,
       // Prefer the live provider session id when available, but fall back
@@ -406,16 +412,15 @@ export abstract class Provider implements IProvider {
 
   /**
    * Check if the current turn's process is still running in the sandbox.
-   * Uses only the .done file written by the wrapper on exit (no kill -0).
+   * True only while a turn is in progress; false until the next turn starts. Uses only the .done file.
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (!meta || (meta.currentTurn ?? -1) < 0 || !meta.runId || !this.sandboxManager?.executeCommand) {
-      debugLog(`isRunning false (no valid turn/runId) sessionDir=${sessionDir} turn=${meta?.currentTurn ?? "null"} runId=${meta?.runId ?? "null"}`)
+    if (!meta?.runId || !meta.outputFile || !this.sandboxManager?.executeCommand) {
+      debugLog(`isRunning false (no run in progress) sessionDir=${sessionDir} runId=${meta?.runId ?? "null"}`)
       return false
     }
-    const currentTurn = meta.currentTurn ?? 0
-    const doneFile = `${sessionDir}/${currentTurn}.jsonl.${meta.runId}.pid.done`
+    const doneFile = `${meta.outputFile}.${meta.runId}.pid.done`
     const result = await this.sandboxManager.executeCommand(`test -f "${doneFile}" && echo 1 || echo 0`, 10)
     const codeStr = (result.output ?? "").trim().split(/\s+/).pop() ?? "1"
     const running = codeStr !== "1"
@@ -433,31 +438,43 @@ export abstract class Provider implements IProvider {
     cursor: string
   }> {
     const meta = await this.readSandboxMeta(sessionDir)
-    const currentTurn = meta?.currentTurn ?? 0
-    if (currentTurn < 0) {
-      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} (no turn yet)`)
+    if (!meta?.runId || !meta.outputFile) {
+      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} (no turn in progress)`)
       return {
         sessionId: meta?.sessionId ?? this.sessionId ?? null,
         events: [],
         cursor: String(meta?.cursor ?? 0),
       }
     }
-    const outputFile = `${sessionDir}/${currentTurn}.jsonl`
-    const cursor = meta != null ? String(meta.cursor) : null
-    debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} cursor=${cursor}`)
+    const outputFile = meta.outputFile
+    const cursor = String(meta.cursor)
+    debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${meta.currentTurn} cursor=${cursor}`)
     const result = await this.pollSandboxBackground(outputFile, cursor)
-    const sawEnd = meta?.sawEnd || result.events.some((e) => e.type === "end")
-    await this.writeSandboxMeta(sessionDir, {
-      currentTurn,
-      cursor: Number(result.cursor) || 0,
-      pid: meta?.pid,
-      runId: meta?.runId,
-      sawEnd,
-      startedAt: meta?.startedAt,
-      provider: this.name,
-      sessionId: this.sessionId,
-    })
+    const sawEnd = meta.sawEnd || result.events.some((e) => e.type === "end")
     const stillRunning = await this.isSandboxBackgroundProcessRunning(sessionDir)
+    if (!stillRunning) {
+      // Turn ended: increment currentTurn for next start(), clear run so isRunning stays false
+      const nextTurn = (meta.currentTurn ?? 0) + 1
+      await this.writeSandboxMeta(sessionDir, {
+        currentTurn: nextTurn,
+        cursor: Number(result.cursor) || 0,
+        sawEnd,
+        provider: this.name,
+        sessionId: this.sessionId ?? meta.sessionId ?? null,
+      })
+    } else {
+      await this.writeSandboxMeta(sessionDir, {
+        currentTurn: meta.currentTurn,
+        cursor: Number(result.cursor) || 0,
+        pid: meta.pid,
+        runId: meta.runId,
+        outputFile: meta.outputFile,
+        sawEnd,
+        startedAt: meta.startedAt,
+        provider: this.name,
+        sessionId: this.sessionId,
+      })
+    }
     if (!stillRunning && !sawEnd) {
       const maxOutputChars = 4096
       let output: string | undefined
@@ -471,15 +488,13 @@ export abstract class Provider implements IProvider {
         message: "Agent process exited without completing (crashed or killed)",
         output,
       }
+      const nextTurn = (meta.currentTurn ?? 0) + 1
       await this.writeSandboxMeta(sessionDir, {
-        currentTurn,
+        currentTurn: nextTurn,
         cursor: Number(result.cursor) || 0,
-        pid: meta?.pid,
-        runId: meta?.runId,
         sawEnd: true,
-        startedAt: meta?.startedAt,
         provider: this.name,
-        sessionId: this.sessionId,
+        sessionId: this.sessionId ?? meta.sessionId ?? null,
       })
       return { sessionId: result.sessionId, events: [...result.events, crashEvent], cursor: result.cursor }
     }
