@@ -515,18 +515,19 @@ export abstract class Provider implements IProvider {
       return trimmed.startsWith("{") && trimmed.endsWith("}")
     }
 
+    const isRereading = startIndex >= rawLines.length
     for (let i = 0; i < rawLines.length; i++) {
       const line = rawLines[i]
       const trimmed = line.trim()
       if (!trimmed) continue
       if (!isJsonLine(trimmed) && i === rawLines.length - 1) {
-        debugLog(`background poll skipped (partial last line) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
+        if (!isRereading) debugLog(`background poll skipped (partial last line) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
         continue
       }
       if (isJsonLine(trimmed)) {
         lines.push(trimmed)
       } else {
-        debugLog(`background poll skipped (not JSONL) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
+        if (!isRereading) debugLog(`background poll skipped (not JSONL) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
       }
     }
 
