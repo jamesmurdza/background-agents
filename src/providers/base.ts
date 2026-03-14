@@ -285,6 +285,7 @@ export abstract class Provider implements IProvider {
     currentTurn: number
     cursor: number
     pid?: number
+    runId?: string
     startedAt?: string
     provider?: import("../types/index.js").ProviderName
     sessionId?: string | null
@@ -301,6 +302,7 @@ export abstract class Provider implements IProvider {
         currentTurn?: number
         cursor?: number
         pid?: number
+        runId?: string
         startedAt?: string
         provider?: import("../types/index.js").ProviderName
         sessionId?: string | null
@@ -310,6 +312,7 @@ export abstract class Provider implements IProvider {
         currentTurn: o.currentTurn,
         cursor: o.cursor,
         pid: o.pid,
+        runId: o.runId,
         startedAt: o.startedAt,
         provider: o.provider,
         sessionId: o.sessionId ?? null,
@@ -325,6 +328,7 @@ export abstract class Provider implements IProvider {
       currentTurn: number
       cursor: number
       pid?: number
+      runId?: string
       startedAt?: string
       provider?: import("../types/index.js").ProviderName
       sessionId?: string | null
@@ -362,6 +366,7 @@ export abstract class Provider implements IProvider {
       currentTurn: nextTurn,
       cursor: 0,
       pid: result.pid,
+      runId: result.runId,
       startedAt: new Date().toISOString(),
       provider: this.name,
       // Prefer the live provider session id when available, but fall back
@@ -385,8 +390,8 @@ export abstract class Provider implements IProvider {
   }
 
   /**
-   * Check if the current turn's process is still running in the sandbox (kill -0 pid).
-   * Returns false when pid was never captured (e.g. pid -1) so the consumer can stop polling.
+   * Check if the current turn's process is still running in the sandbox.
+   * Prefer a .done file written by the wrapper on exit (works when kill -0 is unreliable); else kill -0 pid.
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
@@ -394,12 +399,19 @@ export abstract class Provider implements IProvider {
       debugLog(`isRunning false (no valid pid) sessionDir=${sessionDir} pid=${meta?.pid ?? "null"}`)
       return false
     }
+    const currentTurn = meta.currentTurn ?? 0
+    const runId = meta.runId ?? ""
+    const doneFile = runId
+      ? `${sessionDir}/${currentTurn}.jsonl.${runId}.pid.done`
+      : `${sessionDir}/${currentTurn}.jsonl.pid.done`
+    // Single shell check: .done exists => not running; else kill -0 (fallback for older runs). Output 0=running, 1=not.
     const result = await this.sandboxManager.executeCommand(
-      `kill -0 ${meta.pid} 2>/dev/null`,
+      `test -f "${doneFile}" && echo 1 || ( kill -0 ${meta.pid} 2>/dev/null; echo $? )`,
       10
     )
-    const running = result.exitCode === 0
-    debugLog(`isRunning pid=${meta.pid} exitCode=${result.exitCode} => ${running}`)
+    const codeStr = (result.output ?? "").trim().split(/\s+/).pop() ?? "1"
+    const running = codeStr !== "1"
+    debugLog(`isRunning pid=${meta.pid} doneFile or kill -0 => ${codeStr} => ${running}`)
     return running
   }
 
@@ -422,6 +434,7 @@ export abstract class Provider implements IProvider {
       currentTurn,
       cursor: Number(result.cursor) || 0,
       pid: meta?.pid,
+      runId: meta?.runId,
       startedAt: meta?.startedAt,
       provider: this.name,
       sessionId: this.sessionId,
@@ -439,6 +452,7 @@ export abstract class Provider implements IProvider {
   ): Promise<{
     executionId: string
     pid: number
+    runId: string
     outputFile: string
     cursor: string
   }> {
@@ -462,13 +476,14 @@ export abstract class Provider implements IProvider {
         : arg
     )].join(" ")
 
-    // Write PID to a file so we can read it; sandbox executeCommand often doesn't return
-    // stdout from "cmd & echo $!" (no real shell or no job control).
-    const pidFile = `${options.outputFile}.pid`
-    const bgCommand = `bash -lc "( ${fullCommand.replace(/"/g, '\\"')} >> ${options.outputFile} 2>&1 & echo \\$! > ${pidFile} )"`
+    // Unique path per run so .done from a previous run never collides.
+    const runId = randomUUID().slice(0, 8)
+    const pidFile = `${options.outputFile}.${runId}.pid`
+    const doneFile = `${pidFile}.done`
+    const bgCommand = `bash -lc "( ( ${fullCommand.replace(/"/g, '\\"')} >> ${options.outputFile} 2>&1 ; echo 1 > ${doneFile} ) & echo \\$! > ${pidFile} )"`
     const timeout = options.timeout ?? 30
 
-    debugLog(`startSandboxBackground executing provider=${this.name} outputFile=${options.outputFile}`)
+    debugLog(`startSandboxBackground executing provider=${this.name} outputFile=${options.outputFile} runId=${runId}`)
     await this.sandboxManager.executeCommand(bgCommand, timeout)
     const pidResult = await this.sandboxManager.executeCommand(`cat ${pidFile} 2>/dev/null || true`, 5)
     const raw = (pidResult.output ?? "").trim()
@@ -480,6 +495,7 @@ export abstract class Provider implements IProvider {
     return {
       executionId,
       pid,
+      runId,
       outputFile: options.outputFile,
       cursor: "0",
     }
