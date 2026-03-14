@@ -2,10 +2,83 @@ import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import type { Agent } from "@/lib/types"
-import { pollBackgroundAgent, clearLastSnapshotForExecution, type PollBackgroundOptions } from "@/lib/agent-session"
+import {
+  pollBackgroundAgent,
+  clearLastSnapshotForExecution,
+  type PollBackgroundOptions,
+  type BackgroundPollResult,
+} from "@/lib/agent-session"
 
 // Track active pollers to ensure a single background loop per AgentExecution.
 const activePollers = new Map<string, Promise<void>>()
+
+/** Execution with message - for persistExecutionCompletion */
+type ExecutionWithMessage = NonNullable<
+  Awaited<
+    ReturnType<
+      typeof prisma.agentExecution.findUnique<{ where: { id: string }; include: { message: true } }>
+    >
+  >
+>
+
+/**
+ * Persist completion/error state to DB (message, execution, sandbox, branch).
+ * Shared by background poller and status-driven polling (serverless).
+ */
+export async function persistExecutionCompletion(
+  execution: NonNullable<ExecutionWithMessage>,
+  result: BackgroundPollResult
+): Promise<void> {
+  let content = result.content || ""
+  if (result.status === "error" && result.agentCrashed) {
+    const { message, output } = result.agentCrashed
+    const crashMsg = message ?? "Process exited without completing"
+    content = content ? `${content}\n\n[Agent crashed: ${crashMsg}]` : `[Agent crashed: ${crashMsg}]`
+    if (output) content += `\n\nOutput:\n${output}`
+  } else if (result.status === "error" && result.error) {
+    content = content ? `${content}\n\n[Agent stopped: ${result.error}]` : `[Agent stopped: ${result.error}]`
+  }
+
+  const updates = [
+    prisma.message.update({
+      where: { id: execution.messageId },
+      data: {
+        content,
+        toolCalls:
+          result.toolCalls?.length ? result.toolCalls : undefined,
+        contentBlocks:
+          result.contentBlocks?.length ? JSON.parse(JSON.stringify(result.contentBlocks)) : undefined,
+      },
+    }),
+    prisma.agentExecution.update({
+      where: { id: execution.id },
+      data: {
+        status: result.status,
+        completedAt: new Date(),
+        latestSnapshot:
+          result.agentCrashed != null
+            ? (result.agentCrashed as unknown as Prisma.InputJsonValue)
+            : Prisma.DbNull,
+        accumulatedEvents: Prisma.DbNull,
+        lastSnapshotPolledAt: null,
+      },
+    }),
+    prisma.sandbox.updateMany({
+      where: { id: execution.sandboxId },
+      data: { status: "idle" },
+    }),
+  ]
+  const tx = execution.message?.branchId
+    ? [
+        ...updates,
+        prisma.branch.updateMany({
+          where: { id: execution.message.branchId },
+          data: { status: "idle" },
+        }),
+      ]
+    : updates
+  await prisma.$transaction(tx)
+}
 
 export interface StartAgentPollerOptions extends Omit<PollBackgroundOptions, "agentExecutionId"> {
   agentExecutionId: string
@@ -38,77 +111,11 @@ export async function startAgentPoller(options: StartAgentPollerOptions): Promis
 
           const execution = await prisma.agentExecution.findUnique({
             where: { id: agentExecutionId },
-            include: {
-              message: true,
-            },
+            include: { message: true },
           })
 
           if (execution) {
-            const updates: any[] = []
-
-            // When the agent stopped with an error or agent_crashed, show a message in the chat.
-            let content = result.content || ""
-            if (result.status === "error" && result.agentCrashed) {
-              const { message, output } = result.agentCrashed
-              const crashMsg = message ?? "Process exited without completing"
-              content = content
-                ? `${content}\n\n[Agent crashed: ${crashMsg}]`
-                : `[Agent crashed: ${crashMsg}]`
-              if (output) content += `\n\nOutput:\n${output}`
-            } else if (result.status === "error" && result.error) {
-              content = content ? `${content}\n\n[Agent stopped: ${result.error}]` : `[Agent stopped: ${result.error}]`
-            }
-
-            updates.push(
-              prisma.message.update({
-                where: { id: execution.messageId },
-                data: {
-                  content,
-                  toolCalls:
-                    result.toolCalls && result.toolCalls.length > 0
-                      ? result.toolCalls
-                      : undefined,
-                  contentBlocks:
-                    result.contentBlocks && result.contentBlocks.length > 0
-                      ? JSON.parse(JSON.stringify(result.contentBlocks))
-                      : undefined,
-                },
-              }),
-            )
-
-            // Update execution status, completion time, and clear streaming snapshot (or store agentCrashed for status API).
-            updates.push(
-              prisma.agentExecution.update({
-                where: { id: execution.id },
-                data: {
-                  status: result.status,
-                  completedAt: new Date(),
-                  latestSnapshot:
-                    result.agentCrashed != null
-                      ? (result.agentCrashed as unknown as Prisma.InputJsonValue)
-                      : Prisma.DbNull,
-                },
-              }),
-            )
-
-            // Mark sandbox and branch as idle if they still exist.
-            updates.push(
-              prisma.sandbox.updateMany({
-                where: { id: execution.sandboxId },
-                data: { status: "idle" },
-              }),
-            )
-
-            if (execution.message?.branchId) {
-              updates.push(
-                prisma.branch.updateMany({
-                  where: { id: execution.message.branchId },
-                  data: { status: "idle" },
-                }),
-              )
-            }
-
-            await prisma.$transaction(updates)
+            await persistExecutionCompletion(execution, result)
           }
 
           break
@@ -125,7 +132,7 @@ export async function startAgentPoller(options: StartAgentPollerOptions): Promis
         })
         if (execution) {
           const errMsg = error instanceof Error ? error.message : "Unknown error"
-          await prisma.$transaction([
+          const tx = [
             prisma.message.update({
               where: { id: execution.messageId },
               data: {
@@ -134,7 +141,13 @@ export async function startAgentPoller(options: StartAgentPollerOptions): Promis
             }),
             prisma.agentExecution.update({
               where: { id: execution.id },
-              data: { status: "error", completedAt: new Date(), latestSnapshot: Prisma.DbNull },
+              data: {
+                status: "error",
+                completedAt: new Date(),
+                latestSnapshot: Prisma.DbNull,
+                accumulatedEvents: Prisma.DbNull,
+                lastSnapshotPolledAt: null,
+              },
             }),
             prisma.sandbox.updateMany({
               where: { id: execution.sandboxId },
@@ -148,7 +161,8 @@ export async function startAgentPoller(options: StartAgentPollerOptions): Promis
                   }),
                 ]
               : []),
-          ])
+          ]
+          await prisma.$transaction(tx)
         }
       } catch (e) {
         console.error("[agent-poller] loop error and failed to persist stop message", { agentExecutionId }, e)

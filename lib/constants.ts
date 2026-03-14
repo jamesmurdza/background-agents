@@ -47,6 +47,9 @@ export const EXECUTION_STATUS = {
 
 export type ExecutionStatus = (typeof EXECUTION_STATUS)[keyof typeof EXECUTION_STATUS]
 
+/** Throttle for status-driven sandbox polling (ms). Used in serverless so any instance can poll. */
+export const SNAPSHOT_POLL_THROTTLE_MS = 500
+
 // =============================================================================
 // Message Roles
 // =============================================================================

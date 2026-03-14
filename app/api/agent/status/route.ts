@@ -5,8 +5,35 @@ import {
   badRequest,
   notFound,
   unauthorized,
+  getDaytonaApiKey,
+  isDaytonaKeyError,
+  getSandboxWithAuth,
+  decryptUserCredentials,
 } from "@/lib/api-helpers"
 import { INCLUDE_EXECUTION_WITH_CONTEXT } from "@/lib/prisma-includes"
+import { PATHS, SNAPSHOT_POLL_THROTTLE_MS } from "@/lib/constants"
+import { ensureSandboxReady } from "@/lib/sandbox-resume"
+import { pollBackgroundAgent } from "@/lib/agent-session"
+import { updateSnapshot } from "@/lib/agent-events"
+import { persistExecutionCompletion } from "@/lib/agent-poller"
+import type { Agent } from "@/lib/types"
+
+function buildSnapshotResponse(
+  execution: { status: string; message: { content?: string; toolCalls?: unknown[]; contentBlocks?: unknown[] } },
+  snapshot: Record<string, unknown>
+) {
+  return Response.json({
+    status: execution.status,
+    content: snapshot.content ?? execution.message.content ?? "",
+    toolCalls: snapshot.toolCalls ?? execution.message.toolCalls ?? [],
+    contentBlocks: snapshot.contentBlocks ?? execution.message.contentBlocks ?? [],
+    error: undefined,
+    agentCrashed:
+      snapshot.agentCrashed && typeof snapshot.agentCrashed === "object"
+        ? (snapshot.agentCrashed as { message?: string; output?: string })
+        : undefined,
+  })
+}
 
 export async function POST(req: Request) {
   const auth = await requireAuth()
@@ -23,7 +50,7 @@ export async function POST(req: Request) {
   }
 
   // Look up the execution and its message/branch context.
-  const execution = await prisma.agentExecution.findFirst({
+  let execution = await prisma.agentExecution.findFirst({
     where: executionId ? { executionId } : { messageId },
     include: INCLUDE_EXECUTION_WITH_CONTEXT,
   })
@@ -38,20 +65,85 @@ export async function POST(req: Request) {
     return unauthorized()
   }
 
-  const snapshot = ((execution as { latestSnapshot?: unknown }).latestSnapshot as Record<string, unknown> | null) ?? {}
+  // Status-driven polling (serverless): when execution is running, poll sandbox from this request
+  // so events reach the frontend even when the execute handler's background poller never runs.
+  const execWithPolledAt = execution as typeof execution & { lastSnapshotPolledAt?: Date | null }
+  if (execution.status === "running") {
+    const now = Date.now()
+    const lastPolled = execWithPolledAt.lastSnapshotPolledAt?.getTime() ?? 0
+    const shouldPoll = now - lastPolled >= SNAPSHOT_POLL_THROTTLE_MS
 
-  return Response.json({
-    status: execution.status,
-    content: snapshot.content ?? execution.message.content ?? "",
-    toolCalls: snapshot.toolCalls ?? execution.message.toolCalls ?? [],
-    contentBlocks:
-      snapshot.contentBlocks ?? execution.message.contentBlocks ?? [],
-    error: undefined,
-    agentCrashed:
-      snapshot.agentCrashed && typeof snapshot.agentCrashed === "object"
-        ? (snapshot.agentCrashed as { message?: string; output?: string })
-        : undefined,
-  })
+    if (shouldPoll) {
+      const daytonaApiKey = getDaytonaApiKey()
+      if (!isDaytonaKeyError(daytonaApiKey)) {
+        const sandboxRecord = await getSandboxWithAuth(execution.sandboxId, auth.userId)
+        if (sandboxRecord) {
+          const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, openrouterApiKey } =
+            decryptUserCredentials(sandboxRecord.user.credentials)
+          const actualRepoName = execution.message.branch.repo?.name ?? "repo"
+          const repoPath = `${PATHS.SANDBOX_HOME}/${actualRepoName}`
+          const backgroundSessionId = sandboxRecord.sessionId
+
+          if (backgroundSessionId) {
+            try {
+              const branch = execution.message.branch as { previewUrlPattern?: string | null; model?: string | null; agent?: string | null }
+              const agent = branch.agent as Agent | undefined
+              const { sandbox, env } = await ensureSandboxReady(
+                daytonaApiKey,
+                execution.sandboxId,
+                actualRepoName,
+                branch.previewUrlPattern ?? sandboxRecord.previewUrlPattern ?? undefined,
+                anthropicApiKey,
+                anthropicAuthType,
+                anthropicAuthToken,
+                sandboxRecord.sessionId ?? undefined,
+                sandboxRecord.sessionAgent ?? undefined,
+                openaiApiKey,
+                agent,
+                branch.model ?? undefined,
+                openrouterApiKey
+              )
+
+              const result = await pollBackgroundAgent(sandbox, backgroundSessionId, {
+                agentExecutionId: execution.id,
+                repoPath,
+                previewUrlPattern: branch.previewUrlPattern ?? sandboxRecord.previewUrlPattern ?? undefined,
+                model: branch.model ?? undefined,
+                env,
+                agent,
+              })
+
+              if (result.status === "completed" || result.status === "error") {
+                const execWithMessage = await prisma.agentExecution.findUnique({
+                  where: { id: execution.id },
+                  include: { message: true },
+                })
+                if (execWithMessage) {
+                  await persistExecutionCompletion(execWithMessage, result)
+                }
+              } else {
+                await updateSnapshot(execution.id, { lastSnapshotPolledAt: new Date() })
+              }
+            } catch (err) {
+              console.error("[agent/status] status-driven poll failed", { executionId: execution.id }, err)
+            }
+          }
+        }
+      }
+      // Re-fetch so response uses latest snapshot
+      const refetched = await prisma.agentExecution.findFirst({
+        where: { id: execution.id },
+        include: INCLUDE_EXECUTION_WITH_CONTEXT,
+      })
+      if (refetched) execution = refetched
+    }
+  }
+
+  const snapshot = ((execution as { latestSnapshot?: unknown }).latestSnapshot as Record<string, unknown> | null) ?? {}
+  return buildSnapshotResponse(
+    execution as { status: string; message: { content?: string; toolCalls?: unknown[]; contentBlocks?: unknown[] } },
+    snapshot
+  )
 }
 
 // Optional GET variant for convenience

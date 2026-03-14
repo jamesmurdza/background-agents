@@ -189,6 +189,9 @@ model AgentExecution {
   completedAt DateTime?
 
   latestSnapshot Json? // { content?, toolCalls?, contentBlocks? } during run; cleared on completion
+  // Status-driven polling (serverless): throttle and event accumulation so any instance can poll
+  lastSnapshotPolledAt DateTime?
+  accumulatedEvents    Json? // full event list for building content when polling from different instances
 
   @@index([sandboxId, status])
 }

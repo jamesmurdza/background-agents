@@ -26,7 +26,7 @@ import {
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { type Agent, getProviderForAgent } from "@/lib/types"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
-import { updateSnapshot } from "@/lib/agent-events"
+import { updateSnapshot, getAccumulatedEvents } from "@/lib/agent-events"
 
 // =============================================================================
 // Types
@@ -431,11 +431,17 @@ export async function pollBackgroundAgent(
     const isRunning = await bgSession.isRunning()
     const { events: newEvents, sessionId } = await bgSession.getEvents()
 
-    // Accumulate events for this background session so we can build streaming
-    // content from the full history, not just the latest batch.
-    const cachedEvents = backgroundSessionEvents.get(backgroundSessionId) || []
-    const allEvents = [...cachedEvents, ...newEvents]
-    backgroundSessionEvents.set(backgroundSessionId, allEvents)
+    // Accumulate events: use DB when agentExecutionId is set (status-driven polling / serverless),
+    // otherwise in-memory so single-process poller keeps working.
+    let allEvents: Event[]
+    if (options.agentExecutionId) {
+      const cached = await getAccumulatedEvents(options.agentExecutionId)
+      allEvents = [...(cached as Event[]), ...newEvents]
+    } else {
+      const cachedEvents = backgroundSessionEvents.get(backgroundSessionId) || []
+      allEvents = [...cachedEvents, ...newEvents]
+      backgroundSessionEvents.set(backgroundSessionId, allEvents)
+    }
 
     const { content, toolCalls, contentBlocks } = buildContentBlocks(allEvents)
 
@@ -446,10 +452,26 @@ export async function pollBackgroundAgent(
       if (lastSnapshotByExecutionId.get(options.agentExecutionId) !== key) {
         lastSnapshotByExecutionId.set(options.agentExecutionId, key)
         try {
-          await updateSnapshot(options.agentExecutionId, payload)
+          await updateSnapshot(options.agentExecutionId, {
+            latestSnapshot: payload,
+            accumulatedEvents: allEvents,
+          })
         } catch (error) {
           console.error(
             "[agent-session] failed to update snapshot",
+            { agentExecutionId: options.agentExecutionId },
+            error,
+          )
+        }
+      } else {
+        // Snapshot unchanged but still persist accumulated events for next poll
+        try {
+          await updateSnapshot(options.agentExecutionId, {
+            accumulatedEvents: allEvents,
+          })
+        } catch (error) {
+          console.error(
+            "[agent-session] failed to update accumulated events",
             { agentExecutionId: options.agentExecutionId },
             error,
           )
