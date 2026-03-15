@@ -67,4 +67,38 @@ describe.skipIf(!hasSandboxKeys)("real sandbox background (Daytona + Claude)", (
       await sandbox.delete()
     }
   }, 100_000)
+
+  it("cancel() kills running background session (kill over SSH)", async () => {
+    const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
+    const sandbox = await daytona.create({
+      envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
+    })
+
+    try {
+      const bg = await createBackgroundSession("claude", {
+        sandbox: sandbox as any,
+        timeout: 120,
+      })
+
+      await bg.start(
+        "Run this in the shell and wait for it to finish: sleep 20 && echo DONE."
+      )
+      expect(await bg.isRunning()).toBe(true)
+
+      await new Promise((r) => setTimeout(r, 4000))
+      expect(await bg.isRunning()).toBe(true)
+
+      await bg.cancel()
+
+      const deadline = Date.now() + 15_000
+      while (Date.now() < deadline) {
+        const running = await bg.isRunning()
+        if (!running) break
+        await new Promise((r) => setTimeout(r, 500))
+      }
+      expect(await bg.isRunning()).toBe(false)
+    } finally {
+      await sandbox.delete()
+    }
+  }, 60_000)
 })

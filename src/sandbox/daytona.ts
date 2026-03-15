@@ -152,12 +152,20 @@ export function adaptDaytonaSandbox(
     return { pid }
   }
 
+  async function killBackgroundProcess(pid: number): Promise<void> {
+    if (!hasSshAccess(sandbox)) throw new Error("Sandbox has no createSshAccess(); cannot kill over SSH.")
+    if (!sshConnectPromise) return
+    const conn = await sshConnectPromise
+    await execOverSsh(conn, `kill ${pid} 2>/dev/null || kill -9 ${pid} 2>/dev/null || true`, 10_000)
+  }
+
   const result: CodeAgentSandbox = {
     setEnvVars(vars: Record<string, string>): void {
       Object.assign(envVars, vars)
     },
 
     executeCommand,
+    killBackgroundProcess,
 
     async ensureProvider(name: ProviderName): Promise<void> {
       const installed = await isProviderInstalled(name)

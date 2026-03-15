@@ -35,6 +35,11 @@ export interface CodeAgentSandbox {
    * this to avoid blocking on the command when using executeCommand.
    */
   executeBackground?(options: ExecuteBackgroundOptions): Promise<{ pid: number }>
+  /**
+   * Optional: kill a process by pid. Must use the same execution context that
+   * started it (e.g. SSH); process API kill won't see pids started over SSH.
+   */
+  killBackgroundProcess?(pid: number): Promise<void>
 }
 
 /** Command configuration for spawning a provider process */

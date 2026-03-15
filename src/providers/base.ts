@@ -429,61 +429,45 @@ export abstract class Provider implements IProvider {
 
   /**
    * Cancel the current turn's process in the sandbox (kill pid from meta).
+   * Uses killBackgroundProcess when available (same channel as start, e.g. SSH); else executeCommand.
+   * Writes the done file after kill so isRunning() becomes false (the wrapper never gets to write it).
    */
   async cancelSandboxBackground(sessionDir: string): Promise<void> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (meta?.pid == null || !this.sandboxManager?.executeCommand) return
-    await this.sandboxManager.executeCommand(
-      `kill ${meta.pid} 2>/dev/null || true`,
-      10
-    )
+    if (meta?.pid == null) return
+    const mgr = this.sandboxManager
+    if (mgr?.killBackgroundProcess) {
+      await mgr.killBackgroundProcess(meta.pid)
+    } else if (mgr?.executeCommand) {
+      await mgr.executeCommand(`kill ${meta.pid} 2>/dev/null || true`, 10)
+    }
+    if (meta.outputFile && mgr?.executeCommand) {
+      const donePath = meta.outputFile + ".done"
+      const escaped = donePath.replace(/'/g, "'\\''")
+      await mgr.executeCommand(`echo 1 > '${escaped}' 2>/dev/null || true`, 10)
+    }
   }
 
   /**
    * Check if the current turn's process is still running in the sandbox.
    * True only while a turn is in progress; false until the next turn starts.
-   * Tries: (1) done file if outputFile set, (2) kill -0, (3) ps -p (process API may not see SSH-started pids).
+   * Uses the done file (outputFile.done): the wrapper writes it when the command exits.
+   * We don't use kill -0 / ps here because the process is started over SSH; the process API
+   * runs in a different context and can't see that pid. Kill would only work over the same SSH.
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (!meta?.runId || !this.sandboxManager?.executeCommand) {
+    if (!meta?.runId || !meta.outputFile || !this.sandboxManager?.executeCommand) {
       debugLog(`isRunning false (no run) sessionDir=${sessionDir}`)
       return false
     }
-    const mgr = this.sandboxManager
-
-    // 1) Done file: wrapper writes outputFile.done when command exits (works across SSH vs process API)
-    if (meta.outputFile) {
-      const donePath = meta.outputFile + ".done"
-      const escaped = donePath.replace(/'/g, "'\\''")
-      const r = await mgr.executeCommand(`test -f '${escaped}' 2>/dev/null; echo $?`, 10)
-      const doneExists = Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
-      if (doneExists) {
-        debugLog(`isRunning false (done file exists) sessionDir=${sessionDir}`)
-        return false
-      }
-      // Run in progress (outputFile set) and no done file => still running
-      debugLog(`isRunning true (no done file) sessionDir=${sessionDir}`)
-      return true
-    }
-
-    // 2) kill -0 (may fail if pid was started over SSH and check runs in process API)
-    if (meta.pid != null && meta.pid >= 1) {
-      const r = await mgr.executeCommand(`kill -0 ${meta.pid} 2>/dev/null; echo $?`, 10)
-      const ok = Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
-      if (ok) {
-        debugLog(`isRunning true (kill -0) pid=${meta.pid}`)
-        return true
-      }
-      // 3) ps -p as fallback (different namespace / shell)
-      const ps = await mgr.executeCommand(`ps -p ${meta.pid} >/dev/null 2>&1; echo $?`, 10)
-      const psOk = Number((ps.output ?? "").trim().split(/\s+/).pop()) === 0
-      debugLog(`isRunning ${psOk ? "true" : "false"} (ps -p) pid=${meta.pid}`)
-      return psOk
-    }
-
-    debugLog(`isRunning false (no pid) sessionDir=${sessionDir}`)
-    return false
+    const donePath = meta.outputFile + ".done"
+    const escaped = donePath.replace(/'/g, "'\\''")
+    const r = await this.sandboxManager.executeCommand(`test -f '${escaped}' 2>/dev/null; echo $?`, 10)
+    const doneExists = Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
+    const running = !doneExists
+    debugLog(`isRunning ${running} (done file ${doneExists ? "exists" : "missing"}) sessionDir=${sessionDir}`)
+    return running
   }
 
   /**
