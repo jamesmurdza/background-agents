@@ -330,10 +330,22 @@ export async function* runAgentQuery(
 // Background Session Execution
 // =============================================================================
 
-export async function startBackgroundAgent(
+/** Background session handle returned by createBackgroundAgentSession. */
+export interface BackgroundAgentSession {
+  backgroundSessionId: string
+  /** Fire-and-forget: launch the agent process in the sandbox. */
+  start: (prompt: string) => Promise<void>
+}
+
+/**
+ * Create (or reattach to) a background session. This is fast — no sandbox
+ * commands are executed. Call session.start(prompt) separately to actually
+ * launch the agent process (that's the slow part).
+ */
+export async function createBackgroundAgentSession(
   sandbox: DaytonaSandbox,
-  options: BackgroundAgentOptions
-): Promise<{ executionId: string; backgroundSessionId: string }> {
+  options: Omit<BackgroundAgentOptions, "prompt">
+): Promise<BackgroundAgentSession> {
   const systemPrompt = buildSystemPrompt(
     options.repoPath,
     options.previewUrlPattern
@@ -351,6 +363,7 @@ export async function startBackgroundAgent(
 
   // If we have an existing background session ID, reuse it via getBackgroundSession.
   // Otherwise, create a new background session.
+  const t0 = Date.now()
   const bgSession = options.backgroundSessionId
     ? await sdkGetBackgroundSession({
         sandbox: sandboxForSdk,
@@ -367,27 +380,16 @@ export async function startBackgroundAgent(
         env: options.env,
         skipInstall: true, // TEMP: bypass install
       })
+  console.log(`[createBackgroundAgentSession] ${options.backgroundSessionId ? "get" : "create"} took ${Date.now() - t0}ms`)
 
-  const result = await bgSession.start(options.prompt)
-
-  // The background session ID serves as the execution ID
   return {
-    executionId: result.executionId,
     backgroundSessionId: bgSession.id,
+    async start(prompt: string) {
+      const t1 = Date.now()
+      await bgSession.start(prompt)
+      console.log(`[createBackgroundAgentSession] bgSession.start took ${Date.now() - t1}ms`)
+    },
   }
-}
-
-// In-memory cache for accumulated events per background session.
-// This is safe because pollBackgroundAgent is now only called from the
-// single-process agent poller (not per-request polling), so we don't rely on
-// this map for cross-instance state.
-const backgroundSessionEvents = new Map<string, Event[]>()
-
-// Last snapshot payload per execution; skip DB append when unchanged (e.g. agent thinking).
-const lastSnapshotByExecutionId = new Map<string, string>()
-
-export function clearLastSnapshotForExecution(agentExecutionId: string): void {
-  lastSnapshotByExecutionId.delete(agentExecutionId)
 }
 
 export interface PollBackgroundOptions {
@@ -396,11 +398,8 @@ export interface PollBackgroundOptions {
   model?: string
   env?: Record<string, string>
   agent?: Agent
-  /**
-   * Optional AgentExecution.id; when provided, each poll writes latest snapshot
-   * to execution.latestSnapshot for status API.
-   */
-  agentExecutionId?: string
+  /** AgentExecution.id – each poll writes latest snapshot to DB for status API. */
+  agentExecutionId: string
 }
 
 export async function pollBackgroundAgent(
@@ -431,52 +430,24 @@ export async function pollBackgroundAgent(
     const isRunning = await bgSession.isRunning()
     const { events: newEvents, sessionId } = await bgSession.getEvents()
 
-    // Accumulate events: use DB when agentExecutionId is set (status-driven polling / serverless),
-    // otherwise in-memory so single-process poller keeps working.
-    let allEvents: Event[]
-    if (options.agentExecutionId) {
-      const cached = await getAccumulatedEvents(options.agentExecutionId)
-      allEvents = [...(cached as Event[]), ...newEvents]
-    } else {
-      const cachedEvents = backgroundSessionEvents.get(backgroundSessionId) || []
-      allEvents = [...cachedEvents, ...newEvents]
-      backgroundSessionEvents.set(backgroundSessionId, allEvents)
-    }
+    // Accumulate events in DB so all clients share the same stream.
+    const cached = await getAccumulatedEvents(options.agentExecutionId)
+    const allEvents: Event[] = [...(cached as Event[]), ...newEvents]
 
     const { content, toolCalls, contentBlocks } = buildContentBlocks(allEvents)
 
-    // Persist snapshot to execution row only when it changed (reduces writes while agent is idle).
-    if (options.agentExecutionId) {
-      const payload = { content, toolCalls, contentBlocks }
-      const key = JSON.stringify(payload)
-      if (lastSnapshotByExecutionId.get(options.agentExecutionId) !== key) {
-        lastSnapshotByExecutionId.set(options.agentExecutionId, key)
-        try {
-          await updateSnapshot(options.agentExecutionId, {
-            latestSnapshot: payload,
-            accumulatedEvents: allEvents,
-          })
-        } catch (error) {
-          console.error(
-            "[agent-session] failed to update snapshot",
-            { agentExecutionId: options.agentExecutionId },
-            error,
-          )
-        }
-      } else {
-        // Snapshot unchanged but still persist accumulated events for next poll
-        try {
-          await updateSnapshot(options.agentExecutionId, {
-            accumulatedEvents: allEvents,
-          })
-        } catch (error) {
-          console.error(
-            "[agent-session] failed to update accumulated events",
-            { agentExecutionId: options.agentExecutionId },
-            error,
-          )
-        }
-      }
+    // Persist snapshot + accumulated events to DB.
+    try {
+      await updateSnapshot(options.agentExecutionId, {
+        latestSnapshot: { content, toolCalls, contentBlocks },
+        accumulatedEvents: allEvents,
+      })
+    } catch (error) {
+      console.error(
+        "[agent-session] failed to update snapshot",
+        { agentExecutionId: options.agentExecutionId },
+        error,
+      )
     }
 
     // Persist session ID if received
@@ -516,10 +487,20 @@ export async function pollBackgroundAgent(
       sessionId: sessionId || undefined,
     }
   } catch (err) {
-    // Sandbox/SDK error (e.g. disconnect, process gone) – return error so poller persists and shows in chat.
+    // Sandbox/SDK error (e.g. disconnect, process gone) – return error with whatever we have from DB.
     const msg = err instanceof Error ? err.message : "Unknown error polling background session"
-    const cachedEvents = backgroundSessionEvents.get(backgroundSessionId) || []
-    const { content, toolCalls, contentBlocks } = buildContentBlocks(cachedEvents)
+    let content = ""
+    let toolCalls: Array<{ tool: string; summary: string }> = []
+    let contentBlocks: ContentBlock[] = []
+    try {
+      const cached = await getAccumulatedEvents(options.agentExecutionId)
+      const rebuilt = buildContentBlocks(cached as Event[])
+      content = rebuilt.content
+      toolCalls = rebuilt.toolCalls
+      contentBlocks = rebuilt.contentBlocks
+    } catch {
+      // DB also failed – return empty content
+    }
 
     return {
       status: "error",

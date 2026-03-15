@@ -190,9 +190,7 @@ export function ChatPanel({
         throw new Error(data.error || "Failed to start agent")
       }
 
-      const { executionId } = await response.json()
-      currentExecutionIdRef.current = executionId
-      startPolling(messageId, executionId)
+      startPolling(messageId)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       onUpdateMessage(branch.id, messageId, { content: `Error: ${message}` })

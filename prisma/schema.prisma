@@ -182,7 +182,7 @@ model AgentExecution {
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   sandboxId   String
-  executionId String @unique // SDK execution id, used for client lookup
+  executionId String? @unique // SDK execution id (set after agent launches)
 
   status      String   @default("running") // "running" | "completed" | "error"
   startedAt   DateTime @default(now())

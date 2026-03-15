@@ -15,7 +15,7 @@ import { PATHS, SNAPSHOT_POLL_THROTTLE_MS } from "@/lib/constants"
 import { ensureSandboxReady } from "@/lib/sandbox-resume"
 import { pollBackgroundAgent } from "@/lib/agent-session"
 import { updateSnapshot } from "@/lib/agent-events"
-import { persistExecutionCompletion } from "@/lib/agent-poller"
+import { persistExecutionCompletion } from "@/lib/agent-events"
 import type { Agent } from "@/lib/types"
 
 function buildSnapshotResponse(
@@ -88,9 +88,11 @@ export async function POST(req: Request) {
             try {
               const branch = execution.message.branch as { previewUrlPattern?: string | null; model?: string | null; agent?: string | null }
               const agent = branch.agent as Agent | undefined
+              // Use same canonical Daytona sandbox ID as execute (sandboxRecord.sandboxId) so we read the same meta.json
+              const daytonaSandboxId = sandboxRecord.sandboxId
               const { sandbox, env } = await ensureSandboxReady(
                 daytonaApiKey,
-                execution.sandboxId,
+                daytonaSandboxId,
                 actualRepoName,
                 branch.previewUrlPattern ?? sandboxRecord.previewUrlPattern ?? undefined,
                 anthropicApiKey,

@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { ensureSandboxReady } from "@/lib/sandbox-resume"
-import { startBackgroundAgent } from "@/lib/agent-session"
-import { startAgentPoller } from "@/lib/agent-poller"
+import { createBackgroundAgentSession } from "@/lib/agent-session"
 import {
   requireAuth,
   isAuthError,
@@ -65,62 +64,51 @@ export async function POST(req: Request) {
     })
   }
 
+  // 4. Verify message exists before creating AgentExecution (prevents FK constraint violation)
+  const messageRecord = await prisma.message.findUnique({
+    where: { id: messageId },
+  })
+  if (!messageRecord) {
+    return notFound("Message not found - it may not have been saved yet")
+  }
+
+  // Canonical Daytona sandbox ID from DB — use this for session and execution so status reads the same meta
+  const daytonaSandboxId = sandboxRecord.sandboxId
+
   try {
-    // 4. Ensure sandbox is ready
+    // 5. Ensure sandbox is ready and create background session (fast — no sandbox process launched yet)
+    let t0 = Date.now()
     const { sandbox, resumeSessionId, env } = await ensureSandboxReady(
       daytonaApiKey,
-      sandboxId,
+      daytonaSandboxId,
       actualRepoName,
       previewUrlPattern || sandboxRecord.previewUrlPattern || undefined,
       anthropicApiKey,
       anthropicAuthType,
       anthropicAuthToken,
-      sandboxRecord.sessionId || undefined, // Pass database session ID for resumption
-      sandboxRecord.sessionAgent || undefined, // when different from current agent, we start a new session
+      sandboxRecord.sessionId || undefined,
+      sandboxRecord.sessionAgent || undefined,
       openaiApiKey,
       agent,
-      model, // Pass model for API key selection
+      model,
       openrouterApiKey
     )
+    console.log(`[agent/execute] ensureSandboxReady took ${Date.now() - t0}ms`)
 
-    // 5. Verify message exists before creating AgentExecution (prevents FK constraint violation)
-    const messageRecord = await prisma.message.findUnique({
-      where: { id: messageId },
+    t0 = Date.now()
+    const bgSession = await createBackgroundAgentSession(sandbox, {
+      repoPath,
+      previewUrlPattern:
+        previewUrlPattern || sandboxRecord.previewUrlPattern || undefined,
+      sessionId: resumeSessionId,
+      env,
+      agent,
+      model,
     })
-    if (!messageRecord) {
-      return notFound("Message not found - it may not have been saved yet")
-    }
+    console.log(`[agent/execute] createBackgroundAgentSession took ${Date.now() - t0}ms`)
 
-    // 6. Start background agent via SDK
-    const { executionId, backgroundSessionId } = await startBackgroundAgent(
-      sandbox,
-      {
-        prompt,
-        repoPath,
-        previewUrlPattern:
-          previewUrlPattern || sandboxRecord.previewUrlPattern || undefined,
-        // sessionId: resumeSessionId helps the provider reuse conversation state.
-        // We intentionally do NOT reuse backgroundSessionId across executions,
-        // so each run gets a fresh background session bound to the resumed conversation.
-        sessionId: resumeSessionId,
-        env,
-        agent,
-        model,
-      }
-    )
-
-    // 7. Create AgentExecution record with SDK's execution ID
-    const agentExecution = await prisma.agentExecution.create({
-      data: {
-        messageId,
-        sandboxId,
-        // Use SDK's executionId as the unique identifier for lookups from the client.
-        executionId,
-        status: "running",
-      },
-    })
-
-    // Persist the background session ID and agent on the sandbox so future runs can reuse (same agent) or start fresh (agent changed)
+    // 6. Persist session ID so polling can find it, create execution record
+    const { backgroundSessionId } = bgSession
     if (sandboxRecord.sessionId !== backgroundSessionId || sandboxRecord.sessionAgent !== agent) {
       await prisma.sandbox.update({
         where: { id: sandboxRecord.id },
@@ -128,27 +116,15 @@ export async function POST(req: Request) {
       })
     }
 
-    // 8. Start a single background poller for this execution.
-    // This loop polls the Daytona background session and writes streaming
-    // snapshots into execution.latestSnapshot for status API, then marks the execution
-    // complete and updates message / branch / sandbox status.
-    startAgentPoller({
-      agentExecutionId: agentExecution.id,
-      sandbox,
-      backgroundSessionId,
-      repoPath,
-      previewUrlPattern:
-        previewUrlPattern || sandboxRecord.previewUrlPattern || undefined,
-      model,
-      env,
-      agent,
-    }).catch((error) => {
-      console.error("[agent/execute] failed to start agent poller", {
-        agentExecutionId: agentExecution.id,
-      }, error)
+    const agentExecution = await prisma.agentExecution.create({
+      data: {
+        messageId,
+        sandboxId: daytonaSandboxId,
+        status: "running",
+      },
     })
 
-    // 9. Update sandbox and branch status
+    // 7. Update sandbox and branch status
     await updateSandboxAndBranchStatus(
       sandboxRecord.id,
       sandboxRecord.branch?.id,
@@ -156,39 +132,40 @@ export async function POST(req: Request) {
       { lastActiveAt: new Date() }
     )
 
-    // 10. Reset auto-stop timer
+    // 8. Return immediately — frontend can start polling by messageId
+    const response = Response.json({ success: true, messageId })
+
+    // 9. Fire-and-forget: launch the agent process (the slow part)
+    bgSession.start(prompt).catch(async (error) => {
+      console.error("[agent/execute] bgSession.start failed", { messageId }, error)
+      try {
+        const errMsg = error instanceof Error ? error.message : "Unknown error"
+        await prisma.$transaction([
+          prisma.agentExecution.update({
+            where: { id: agentExecution.id },
+            data: { status: "error", completedAt: new Date() },
+          }),
+          prisma.message.update({
+            where: { id: messageId },
+            data: { content: `Error starting agent: ${errMsg}` },
+          }),
+        ])
+      } catch {
+        // Ignore
+      }
+      await resetSandboxStatus(sandboxRecord.id, sandboxRecord.branch?.id)
+    })
+
     try {
       await sandbox.refreshActivity()
     } catch {
       // Non-critical
     }
 
-    return Response.json({
-      success: true,
-      // Return the SDK executionId for backwards compatibility; the SSE
-      // endpoint maps this back to AgentExecution.id internally.
-      executionId,
-      messageId,
-    })
+    return response
   } catch (error: unknown) {
-    // Update execution status to error if it was created
-    try {
-      const execution = await prisma.agentExecution.findFirst({
-        where: { messageId },
-      })
-      if (execution) {
-        await prisma.agentExecution.update({
-          where: { id: execution.id },
-          data: { status: "error", completedAt: new Date() },
-        })
-      }
-    } catch {
-      // Ignore
-    }
-
-    // Reset status
+    // Sync steps failed (sandbox not ready, session creation failed)
     await resetSandboxStatus(sandboxRecord.id, sandboxRecord.branch?.id)
-
     return internalError(error)
   }
 }

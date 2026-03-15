@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ["ssh2", "cpu-features"],
   transpilePackages: ["@jamesmurdza/coding-agents-sdk"],
   turbopack: {
     resolveAlias: {
@@ -17,6 +18,7 @@ const nextConfig = {
   },
   webpack: (config) => {
     config.resolve.alias["@jamesmurdza/coding-agents-sdk"] = sdkPath
+    config.module.rules.push({ test: /\.node$/, type: "asset/resource" })
     return config
   },
 }

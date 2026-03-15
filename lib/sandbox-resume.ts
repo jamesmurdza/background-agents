@@ -128,28 +128,36 @@ export async function ensureSandboxReady(
   resumeSessionId?: string
   env: Record<string, string>
 }> {
+  let t0 = Date.now()
   const daytona = new Daytona({ apiKey: daytonaApiKey })
   const sandbox = await daytona.get(sandboxId)
+  console.log(`[ensureSandboxReady] daytona.get took ${Date.now() - t0}ms`)
 
   // Start sandbox if not running
   if (sandbox.state !== "started") {
+    t0 = Date.now()
     await sandbox.start(SANDBOX_CONFIG.START_TIMEOUT_SECONDS)
+    console.log(`[ensureSandboxReady] sandbox.start took ${Date.now() - t0}ms`)
   }
 
   // Read stored session ID for agent resumption
   // Priority: file (latest conversation session, used by SDK) > database (fallback)
   // When the user has changed agent, we always start with a blank session (OpenCode expects "ses..." or unset)
+  t0 = Date.now()
   const fileSessionId = await readPersistedSessionId(sandbox)
+  console.log(`[ensureSandboxReady] readPersistedSessionId took ${Date.now() - t0}ms`)
   const sameAgent = !databaseSessionAgent || databaseSessionAgent === agent
   const resumeSessionId =
     sameAgent ? (fileSessionId || databaseSessionId) : undefined
 
   // For Claude Max, write credentials if needed
   if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
+    t0 = Date.now()
     const credentialsB64 = Buffer.from(anthropicAuthToken).toString("base64")
     await sandbox.process.executeCommand(
       `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
     )
+    console.log(`[ensureSandboxReady] claude-max credentials took ${Date.now() - t0}ms`)
   }
 
   // Get environment variables based on model and agent
