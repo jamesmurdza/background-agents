@@ -123,14 +123,13 @@ export function useBranchOperations({
     }
   }, [activeRepo, setRepos])
 
-  // Update an existing message
-  const handleUpdateMessage = useCallback((branchId: string, messageId: string, updates: Partial<Message>) => {
+  // Update an existing message. Returns a promise that resolves when the DB PATCH completes (for awaiting final save on completion).
+  const handleUpdateMessage = useCallback((branchId: string, messageId: string, updates: Partial<Message>): void | Promise<void> => {
     if (!activeRepo) return
 
     setRepos((prev) => updateMessageInBranch(prev, activeRepo.id, branchId, messageId, updates))
 
-    // Update message in database
-    fetch("/api/branches/messages", {
+    return fetch("/api/branches/messages", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -139,9 +138,11 @@ export function useBranchOperations({
         toolCalls: updates.toolCalls,
         contentBlocks: updates.contentBlocks,
       }),
-    }).catch((error) => {
-      console.error("Error updating message in database:", error)
     })
+      .then(() => {})
+      .catch((error) => {
+        console.error("Error updating message in database:", error)
+      })
   }, [activeRepo, setRepos])
 
   return {

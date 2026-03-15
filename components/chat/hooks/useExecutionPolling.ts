@@ -6,8 +6,8 @@ import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/constants"
 interface UseExecutionPollingOptions {
   branch: Branch
   repoName: string
-  /** Update message in a specific branch - branchId is required to avoid race conditions when user switches branches during execution */
-  onUpdateMessage: (branchId: string, messageId: string, updates: Partial<Message>) => void
+  /** Update message in a specific branch. May return a Promise so completion can await final save. */
+  onUpdateMessage: (branchId: string, messageId: string, updates: Partial<Message>) => void | Promise<void>
   onUpdateBranch: (branchId: string, updates: Partial<Branch>) => void
   /** Add message to a specific branch - branchId is required to avoid race conditions when user switches branches during execution */
   onAddMessage: (branchId: string, message: Message) => Promise<string>
@@ -217,7 +217,57 @@ export function useExecutionPolling({
           }
           currentExecutionIdRef.current = null
           currentMessageIdRef.current = null
-          // Delay clearing streaming ref so final PATCH can land before sync overwrites
+
+          // Persist final message to DB so refresh loads full content
+          const targetBranchId = pollingBranchIdRef.current
+          if (targetBranchId) {
+            const finalToolCalls = (data.toolCalls || []).map(
+              (tc: { tool: string; summary: string }, idx: number) => ({
+                id: `tc-${idx}`,
+                tool: tc.tool,
+                summary: tc.summary,
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              }),
+            )
+            const finalContentBlocks = (data.contentBlocks || []).map(
+              (
+                block: {
+                  type: string
+                  text?: string
+                  toolCalls?: Array<{ tool: string; summary: string }>
+                },
+                blockIdx: number,
+              ) => {
+                if (block.type === "tool_calls" && block.toolCalls) {
+                  return {
+                    type: "tool_calls" as const,
+                    toolCalls: block.toolCalls.map((tc, tcIdx) => ({
+                      id: `tc-${blockIdx}-${tcIdx}`,
+                      tool: tc.tool,
+                      summary: tc.summary,
+                      timestamp: new Date().toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }),
+                    })),
+                  }
+                }
+                return block
+              },
+            )
+            const savePromise = onUpdateMessage(targetBranchId, messageId, {
+              content: data.content || "",
+              toolCalls: finalToolCalls,
+              contentBlocks:
+                finalContentBlocks.length > 0 ? finalContentBlocks : undefined,
+            })
+            if (savePromise) await savePromise
+          }
+
+          // Delay clearing streaming ref so sync doesn't overwrite before next load
           const completedMessageId = messageId
           if (streamingMessageIdRef) {
             const ref = streamingMessageIdRef
@@ -227,8 +277,8 @@ export function useExecutionPolling({
           }
 
           if (data.status === EXECUTION_STATUS.ERROR) {
-            const targetBranchId = pollingBranchIdRef.current
-            if (targetBranchId) {
+            const errBranchId = pollingBranchIdRef.current
+            if (errBranchId) {
               let content = data.content ?? ""
               if (data.agentCrashed) {
                 const { message, output } = data.agentCrashed
@@ -240,7 +290,8 @@ export function useExecutionPolling({
                 content = content ? `${content}\n\n${runFailed}` : runFailed
               }
               if (content !== (data.content ?? "")) {
-                onUpdateMessage(targetBranchId, messageId, { content })
+                const errSave = onUpdateMessage(errBranchId, messageId, { content })
+                if (errSave) await errSave
               }
             }
           }
