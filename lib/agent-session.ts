@@ -179,7 +179,7 @@ export function transformEvent(event: Event): AgentEvent | null {
       return { type: "session", sessionId: (event as SessionEvent).id }
 
     case "end": {
-      const endEvent = event as EndEvent
+      const endEvent = event as EndEvent & { error?: string }
       if (endEvent.error) {
         return { type: "error", message: endEvent.error }
       }
@@ -480,7 +480,9 @@ export async function pollBackgroundAgent(
     }
 
     // Completed = process not running or we saw an event with type === "end" (SDK turns step_finish/reason=stop into end)
-    const endEvent = allEvents.find((e): e is EndEvent => e.type === "end")
+    const endEvent = allEvents.find((e): e is EndEvent => e.type === "end") as
+      | (EndEvent & { error?: string })
+      | undefined
     const hasEndEvent = !!endEvent
     const isCompleted = !isRunning || hasEndEvent
 

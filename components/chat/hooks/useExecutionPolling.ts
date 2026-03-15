@@ -217,9 +217,13 @@ export function useExecutionPolling({
           }
           currentExecutionIdRef.current = null
           currentMessageIdRef.current = null
-          // Clear streaming signal so sync can resume normal behavior
+          // Delay clearing streaming ref so final PATCH can land before sync overwrites
+          const completedMessageId = messageId
           if (streamingMessageIdRef) {
-            streamingMessageIdRef.current = null
+            const ref = streamingMessageIdRef
+            setTimeout(() => {
+              if (ref.current === completedMessageId) ref.current = null
+            }, 2000)
           }
 
           if (data.status === EXECUTION_STATUS.ERROR) {

@@ -250,13 +250,32 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
 }
 
 /**
- * Merges API messages with local optimistic messages
+ * Prefer local message when it has more streamed content than API (avoids sync
+ * overwriting in-progress or just-finished streamed content with stale DB data).
+ */
+function isLocalRicher(
+  local: Branch["messages"][0],
+  api: { content: string; toolCalls?: unknown[]; contentBlocks?: unknown[] }
+): boolean {
+  if ((local.content?.length ?? 0) > (api.content?.length ?? 0)) return true
+  const localTc = local.toolCalls?.length ?? 0
+  const apiTc = api.toolCalls?.length ?? 0
+  if (localTc > apiTc) return true
+  const localBlocks = local.contentBlocks?.length ?? 0
+  const apiBlocks = api.contentBlocks?.length ?? 0
+  if (localBlocks > apiBlocks) return true
+  return false
+}
+
+/**
+ * Merges API messages with local optimistic messages.
+ * For messages present in both, keeps the richer version (longer content / more
+ * toolCalls/contentBlocks) so sync does not overwrite streamed content with stale DB.
  */
 function mergeMessages(
   localMessages: Branch["messages"],
   apiMessages: DbMessage[]
 ): Branch["messages"] {
-  // Convert API messages to local format
   const convertedApiMessages = apiMessages.map((m: DbMessage) => ({
     id: m.id,
     role: m.role as "user" | "assistant",
@@ -267,16 +286,16 @@ function mergeMessages(
     commitHash: m.commitHash || undefined,
     commitMessage: m.commitMessage || undefined,
   }))
-
-  // Create a set of API message IDs for quick lookup
+  const localById = new Map(localMessages.map((m) => [m.id, m]))
   const apiMessageIds = new Set(convertedApiMessages.map((m) => m.id))
-
-  // Find local messages that aren't in the API response yet (optimistic updates)
-  // These are likely still being saved to the database
   const optimisticMessages = localMessages.filter((m) => !apiMessageIds.has(m.id))
 
-  // Merge: API messages first (they're authoritative), then optimistic messages
-  return [...convertedApiMessages, ...optimisticMessages]
+  const merged = convertedApiMessages.map((apiMsg) => {
+    const local = localById.get(apiMsg.id)
+    if (local && isLocalRicher(local, apiMsg)) return local
+    return apiMsg
+  })
+  return [...merged, ...optimisticMessages]
 }
 
 export type SyncDataHandler = ReturnType<typeof useSyncData>
