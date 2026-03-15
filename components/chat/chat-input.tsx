@@ -5,7 +5,7 @@ import type { Agent, Branch, UserCredentialFlags } from "@/lib/types"
 import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Send, Terminal, ChevronDown, Sparkles, Check, Lock } from "lucide-react"
-import { forwardRef, useEffect, useCallback } from "react"
+import { forwardRef, useEffect, useCallback, useState, useMemo } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,20 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+} from "@/components/ui/command"
 
 // ============================================================================
 // Chat Input Component
@@ -42,8 +56,25 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
     const currentAgent = normalizedAgent as Agent
     const currentModel = branch.model || defaultAgentModel[currentAgent]
 
+    // State for model combobox
+    const [modelOpen, setModelOpen] = useState(false)
+
     // Filter models based on available credentials
     const availableModels = getAvailableModels(currentAgent, credentials)
+
+    // Group models by requirement for display
+    const modelSections = useMemo(() => {
+      const freeModels = availableModels.filter(m => m.requiresKey === "none")
+      const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
+      const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
+      const sections: { label: string; models: typeof availableModels }[] = []
+
+      if (freeModels.length > 0) sections.push({ label: "Free", models: freeModels })
+      if (anthropicModels.length > 0) sections.push({ label: "Anthropic", models: anthropicModels })
+      if (openaiModels.length > 0) sections.push({ label: "OpenAI", models: openaiModels })
+
+      return sections
+    }, [availableModels])
 
     const canSend = input.trim() && branch.status !== BRANCH_STATUS.RUNNING && branch.status !== BRANCH_STATUS.CREATING && branch.sandboxId
     const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
@@ -151,57 +182,54 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Model Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
+          {/* Model Combobox */}
+          <Popover open={modelOpen} onOpenChange={setModelOpen}>
+            <PopoverTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
               <Sparkles className="h-2.5 w-2.5 shrink-0" />
               <span>{getModelLabel(currentAgent, currentModel)}</span>
               <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={4} className="min-w-[180px] max-h-[300px] overflow-y-auto rounded-lg border border-border/60 py-0.5 shadow-md">
-              {availableModels.length === 0 ? (
-                <DropdownMenuItem
-                  onClick={() => onOpenSettings?.()}
-                  className="py-1.5 text-[11px] cursor-pointer text-muted-foreground"
-                >
-                  Configure API keys in Settings
-                </DropdownMenuItem>
-              ) : (
-                <>
-                  {/* Group models by requirement */}
-                  {(() => {
-                    const freeModels = availableModels.filter(m => m.requiresKey === "none")
-                    const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
-                    const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
-                    const sections: { label: string; models: typeof availableModels }[] = []
-
-                    if (freeModels.length > 0) sections.push({ label: "Free", models: freeModels })
-                    if (anthropicModels.length > 0) sections.push({ label: "Anthropic", models: anthropicModels })
-                    if (openaiModels.length > 0) sections.push({ label: "OpenAI", models: openaiModels })
-
-                    return sections.map((section, idx) => (
-                      <div key={section.label}>
-                        {idx > 0 && <DropdownMenuSeparator className="my-1" />}
-                        <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground/70">
-                          {section.label}
-                        </div>
-                        {section.models.map((model) => (
-                          <DropdownMenuItem
-                            key={model.value}
-                            onClick={() => onModelChange?.(model.value)}
-                            className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
-                          >
-                            {model.label}
-                            {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ))
-                  })()}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </PopoverTrigger>
+            <PopoverContent align="end" sideOffset={4} className="w-[220px] p-0">
+              <Command>
+                <CommandInput placeholder="Search models..." className="h-8 text-[11px]" />
+                <CommandList>
+                  <CommandEmpty className="py-3 text-[11px]">
+                    {availableModels.length === 0 ? (
+                      <button
+                        onClick={() => {
+                          setModelOpen(false)
+                          onOpenSettings?.()
+                        }}
+                        className="text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        Configure API keys in Settings
+                      </button>
+                    ) : (
+                      "No models found."
+                    )}
+                  </CommandEmpty>
+                  {modelSections.map((section, idx) => (
+                    <CommandGroup key={section.label} heading={section.label}>
+                      {section.models.map((model) => (
+                        <CommandItem
+                          key={model.value}
+                          value={model.label}
+                          onSelect={() => {
+                            onModelChange?.(model.value)
+                            setModelOpen(false)
+                          }}
+                          className="flex items-center justify-between text-[11px] cursor-pointer"
+                        >
+                          {model.label}
+                          {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  ))}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
     )
