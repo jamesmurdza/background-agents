@@ -36,7 +36,6 @@ export function getProviderForModel(model: string | undefined, agent: Agent | un
     return getProviderForAgent(agent)
   }
 
-  const modelLower = model.toLowerCase()
   const [prefix, modelName] = model.split("/")
 
   // Direct provider prefixes
