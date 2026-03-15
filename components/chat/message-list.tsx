@@ -52,8 +52,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
       )
     }
 
-    // Loading messages
-    if (messagesLoading) {
+    // Loading messages (only show when branch already has messages — avoid loading screen for new/empty branches)
+    if (messagesLoading && branch.messages.length > 0) {
       return (
         <MessageListContainer ref={ref} onScroll={onScroll} isMobile={isMobile}>
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
