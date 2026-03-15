@@ -118,7 +118,7 @@ export abstract class Provider implements IProvider {
 
     options = this._applySystemPrompt(options)
 
-    debugLog(`run start provider=${this.name} promptLength=${options.prompt?.length ?? 0}`)
+    debugLog(`run start provider=${this.name} promptLength=${options.prompt?.length ?? 0}`, this.sessionId)
     if (this.sandboxManager) {
       yield* this.runSandbox(options)
     } else if (this.allowLocalExecution) {
@@ -126,7 +126,7 @@ export abstract class Provider implements IProvider {
     } else {
       throw new Error("No execution mode configured")
     }
-    debugLog(`run end provider=${this.name}`)
+    debugLog(`run end provider=${this.name}`, this.sessionId)
   }
 
   private async _codexLoginIfNeeded(env: Record<string, string> | undefined): Promise<void> {
@@ -187,13 +187,13 @@ export abstract class Provider implements IProvider {
 
     const timeout = options.timeout ?? 120
 
-    debugLog(`runSandbox command start provider=${this.name} timeout=${timeout}`)
+    debugLog(`runSandbox command start provider=${this.name} timeout=${timeout}`, this.sessionId)
     let pendingToolEnd = false
     for await (const line of this.sandboxManager.executeCommandStream(fullCommand, timeout)) {
-      debugLog(`raw line (sandbox): ${line.length > 300 ? line.slice(0, 300) + "…" : line}`)
+      debugLog(`raw line (sandbox): ${line.length > 300 ? line.slice(0, 300) + "…" : line}`, this.sessionId)
       const raw = this.parse(line)
       if (raw === null) {
-        debugLog(`unparsed line (sandbox): ${line.length > 200 ? line.slice(0, 200) + "…" : line}`)
+        debugLog(`unparsed line (sandbox):`, this.sessionId, line)
       }
       const events = raw === null ? [] : Array.isArray(raw) ? raw : [raw]
       for (const event of events) {
@@ -206,10 +206,15 @@ export abstract class Provider implements IProvider {
           yield { type: "tool_end" }
           pendingToolEnd = false
         }
+        if (event.type === "end") {
+          debugLog("session end", this.sessionId, event.error ? `reason=error ${event.error}` : "reason=completed")
+        } else if (event.type === "agent_crashed") {
+          debugLog("session end", this.sessionId, "reason=crashed", event.message ?? event.output ?? "")
+        }
         yield event
       }
     }
-    debugLog(`runSandbox stream ended provider=${this.name}`)
+    debugLog(`runSandbox stream ended provider=${this.name}`, this.sessionId)
   }
 
   /**
@@ -243,12 +248,12 @@ export abstract class Provider implements IProvider {
     const rl = readline.createInterface({ input: proc.stdout! })
     let pendingToolEnd = false
 
-    debugLog(`runLocal started provider=${this.name}`)
+    debugLog(`runLocal started provider=${this.name}`, this.sessionId)
     for await (const line of rl) {
-      debugLog(`raw line (local): ${line.length > 300 ? line.slice(0, 300) + "…" : line}`)
+      debugLog(`raw line (local): ${line.length > 300 ? line.slice(0, 300) + "…" : line}`, this.sessionId)
       const raw = this.parse(line)
       if (raw === null) {
-        debugLog(`unparsed line (local): ${line.length > 200 ? line.slice(0, 200) + "…" : line}`)
+        debugLog(`unparsed line (local):`, this.sessionId, line)
       }
       const events = raw === null ? [] : Array.isArray(raw) ? raw : [raw]
       for (const event of events) {
@@ -264,6 +269,11 @@ export abstract class Provider implements IProvider {
           yield { type: "tool_end" }
           pendingToolEnd = false
         }
+        if (event.type === "end") {
+          debugLog("session end", this.sessionId, event.error ? `reason=error ${event.error}` : "reason=completed")
+        } else if (event.type === "agent_crashed") {
+          debugLog("session end", this.sessionId, "reason=crashed", event.message ?? event.output ?? "")
+        }
         yield event
       }
     }
@@ -271,8 +281,9 @@ export abstract class Provider implements IProvider {
     // Wait for process to close
     await new Promise<void>((resolve, reject) => {
       proc.on("close", (code) => {
-        debugLog(`runLocal process closed provider=${this.name} code=${code}`)
-        if (code && code !== 0) {
+        debugLog(`runLocal process closed provider=${this.name} code=${code}`, this.sessionId)
+        if (code != null && code !== 0) {
+          debugLog("session end", this.sessionId, `reason=process exited with code ${code}`)
           reject(new Error(`Provider process exited with code ${code}`))
         } else {
           resolve()
@@ -387,7 +398,7 @@ export abstract class Provider implements IProvider {
     const currentTurn = meta?.currentTurn ?? 0
     const outputFile = `${sessionDir}/${currentTurn}.jsonl`
     const runId = randomUUID().slice(0, 8)
-    debugLog(`background turn start provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} outputFile=${outputFile}`)
+    debugLog(`background turn start provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} outputFile=${outputFile}`, this.sessionId)
     t = Date.now()
     await this.writeSandboxMeta(sessionDir, {
       currentTurn,
@@ -402,7 +413,7 @@ export abstract class Provider implements IProvider {
     t = Date.now()
     const result = await this.startSandboxBackground({ ...options, outputFile, runId })
     console.log(`[timing] startSandboxBackground took ${Date.now() - t}ms (elapsed ${Date.now() - t0}ms)`)
-    debugLog(`background turn started provider=${this.name} pid=${result.pid} executionId=${result.executionId}`)
+    debugLog(`background turn started provider=${this.name} pid=${result.pid} executionId=${result.executionId}`, this.sessionId)
     t = Date.now()
     await this.writeSandboxMeta(sessionDir, {
       currentTurn,
@@ -458,7 +469,7 @@ export abstract class Provider implements IProvider {
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
     if (!meta?.runId || !meta.outputFile || !this.sandboxManager?.executeCommand) {
-      debugLog(`isRunning false (no run) sessionDir=${sessionDir}`)
+      debugLog(`isRunning false (no run) sessionDir=${sessionDir}`, this.sessionId)
       return false
     }
     const donePath = meta.outputFile + ".done"
@@ -466,7 +477,7 @@ export abstract class Provider implements IProvider {
     const r = await this.sandboxManager.executeCommand(`test -f '${escaped}' 2>/dev/null; echo $?`, 10)
     const doneExists = Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
     const running = !doneExists
-    debugLog(`isRunning ${running} (done file ${doneExists ? "exists" : "missing"}) sessionDir=${sessionDir}`)
+    debugLog(`isRunning ${running} (done file ${doneExists ? "exists" : "missing"}) sessionDir=${sessionDir}`, this.sessionId)
     return running
   }
 
@@ -481,7 +492,7 @@ export abstract class Provider implements IProvider {
   }> {
     const meta = await this.readSandboxMeta(sessionDir)
     if (!meta?.runId || !meta.outputFile) {
-      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} (no turn in progress)`)
+      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} (no turn in progress)`, this.sessionId)
       return {
         sessionId: meta?.sessionId ?? this.sessionId ?? null,
         events: [],
@@ -490,7 +501,7 @@ export abstract class Provider implements IProvider {
     }
     const outputFile = meta.outputFile
     const cursor = String(meta.cursor)
-    debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${meta.currentTurn} cursor=${cursor}`)
+    debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${meta.currentTurn} cursor=${cursor}`, this.sessionId)
     const result = await this.pollSandboxBackground(outputFile, cursor)
     const sawEnd = meta.sawEnd || result.events.some((e) => e.type === "end")
     const stillRunning = await this.isSandboxBackgroundProcessRunning(sessionDir)
@@ -538,6 +549,7 @@ export abstract class Provider implements IProvider {
         message: "Agent process exited without completing (crashed or killed)",
         output,
       }
+      debugLog("session end", this.sessionId ?? meta.sessionId, "reason=crashed", crashEvent.message, output ? `output=${output.slice(0, 200)}${output.length > 200 ? "…" : ""}` : "")
       const nextTurn = (meta.currentTurn ?? 0) + 1
       await this.writeSandboxMeta(sessionDir, {
         currentTurn: nextTurn,
@@ -599,7 +611,7 @@ export abstract class Provider implements IProvider {
         "Background sessions require a sandbox with executeBackground (e.g. Daytona sandbox with createSshAccess())."
       )
     }
-    debugLog(`startSandboxBackground executing provider=${this.name} outputFile=${options.outputFile} runId=${runId}`)
+    debugLog(`startSandboxBackground executing provider=${this.name} outputFile=${options.outputFile} runId=${runId}`, this.sessionId)
     t = Date.now()
     const result = await this.sandboxManager.executeBackground({
       command: fullCommand,
@@ -609,7 +621,7 @@ export abstract class Provider implements IProvider {
     })
     console.log(`[timing] executeBackground took ${Date.now() - t}ms (total startSandboxBackground ${Date.now() - t0}ms)`)
     const pid = result.pid
-    debugLog(`startSandboxBackground done provider=${this.name} pid=${pid}`)
+    debugLog(`startSandboxBackground done provider=${this.name} pid=${pid}`, this.sessionId)
 
     const executionId = randomUUID()
 
@@ -649,7 +661,7 @@ export abstract class Provider implements IProvider {
     const rawOutput = result.output ?? ""
 
     const rawLines = rawOutput.split("\n")
-    debugLog(`pollSandboxBackground provider=${this.name} outputFile=${outputFile} cursor=${cursor ?? "null"} rawLines=${rawLines.length}`)
+    debugLog(`pollSandboxBackground provider=${this.name} outputFile=${outputFile} cursor=${cursor ?? "null"} rawLines=${rawLines.length}`, this.sessionId)
     const lines: string[] = []
 
     const isJsonLine = (line: string): boolean => {
@@ -663,13 +675,13 @@ export abstract class Provider implements IProvider {
       const trimmed = line.trim()
       if (!trimmed) continue
       if (!isJsonLine(trimmed) && i === rawLines.length - 1) {
-        if (!isRereading) debugLog(`background poll skipped (partial last line) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
+        if (!isRereading) debugLog(`background poll skipped (partial last line) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`, this.sessionId)
         continue
       }
       if (isJsonLine(trimmed)) {
         lines.push(trimmed)
       } else {
-        if (!isRereading) debugLog(`background poll skipped (not JSONL) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`)
+        if (!isRereading) debugLog(`background poll skipped (not JSONL) [${i}]: ${trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed}`, this.sessionId)
       }
     }
 
@@ -689,7 +701,7 @@ export abstract class Provider implements IProvider {
     const slice = lines.slice(startIndex)
     for (let i = 0; i < slice.length; i++) {
       const l = slice[i]
-      debugLog(`raw line (background poll) [${startIndex + i}]: ${(l ?? "").length > 300 ? (l ?? "").slice(0, 300) + "…" : l ?? ""}`)
+      debugLog(`raw line (background poll) [${startIndex + i}]: ${(l ?? "").length > 300 ? (l ?? "").slice(0, 300) + "…" : l ?? ""}`, this.sessionId)
     }
 
     const eventsOut: Event[] = []
@@ -698,7 +710,7 @@ export abstract class Provider implements IProvider {
     for (const line of slice) {
       const raw = this.parse(line)
       if (raw === null) {
-        debugLog(`unparsed line (background poll): ${line.length > 200 ? line.slice(0, 200) + "…" : line}`)
+        debugLog(`unparsed line (background poll):`, this.sessionId, line)
       }
       const events = raw === null ? [] : Array.isArray(raw) ? raw : [raw]
       for (const event of events) {
@@ -707,13 +719,16 @@ export abstract class Provider implements IProvider {
         }
         if (event.type === "end") {
           status = "completed"
+          debugLog("session end", this.sessionId, event.error ? `reason=error ${event.error}` : "reason=completed")
+        } else if (event.type === "agent_crashed") {
+          debugLog("session end", this.sessionId, "reason=crashed", event.message ?? event.output ?? "")
         }
         eventsOut.push(event)
       }
     }
 
     const newCursor = encodeCursor(lines.length)
-    debugLog(`pollSandboxBackground result provider=${this.name} status=${status} events=${eventsOut.length} newCursor=${newCursor}`)
+    debugLog(`pollSandboxBackground result provider=${this.name} status=${status} events=${eventsOut.length} newCursor=${newCursor}`, this.sessionId)
 
     return {
       status,

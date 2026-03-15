@@ -91,12 +91,12 @@ export interface BackgroundSession {
  * Returns the provider; call session.run(prompt) with just the prompt string.
  */
 export async function createSession(name: ProviderName, options: SessionOptions): Promise<Provider> {
-  debugLog("createSession", name)
+  debugLog("createSession", options.sessionId, name)
   const { model, sessionId, timeout, systemPrompt, skipInstall, env, ...providerOptions } = options
   const runDefaults: RunDefaults = { model, sessionId, timeout, systemPrompt, skipInstall, env }
   const provider = createProvider(name, { ...providerOptions, skipInstall, env, runDefaults })
   await provider.ready
-  debugLog("createSession ready", name)
+  debugLog("createSession ready", options.sessionId, name)
   return provider
 }
 
@@ -111,7 +111,7 @@ export async function createBackgroundSession(
 ): Promise<BackgroundSession> {
   const { backgroundSessionId, ...sessionOptions } = options
   const id = backgroundSessionId ?? randomUUID()
-  debugLog("createBackgroundSession", name, "id=" + id)
+  debugLog("createBackgroundSession", options.sessionId, name, "id=" + id)
   return createBackgroundSessionWithId(name, { ...sessionOptions, backgroundSessionId: id }, id)
 }
 
@@ -125,19 +125,19 @@ export async function getBackgroundSession(
   const { backgroundSessionId, sandbox } = options
   const cached = backgroundSessionCache.get(backgroundSessionId)
   if (cached) {
-    debugLog("getBackgroundSession", "id=" + backgroundSessionId, "cached")
+    debugLog("getBackgroundSession", cached.provider.sessionId, "id=" + backgroundSessionId, "cached")
     return cached
   }
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${backgroundSessionId}`
-  debugLog("getBackgroundSession", "id=" + backgroundSessionId, "sessionDir=" + sessionDir)
+  debugLog("getBackgroundSession", undefined, "id=" + backgroundSessionId, "sessionDir=" + sessionDir)
   const meta = await readProviderFromMeta(sandbox, sessionDir)
   if (!meta?.provider) {
-    debugLog("getBackgroundSession meta missing or no provider", backgroundSessionId)
+    debugLog("getBackgroundSession meta missing or no provider", meta?.sessionId ?? undefined, backgroundSessionId)
     throw new Error(
       "Cannot get background session: meta not found (start a turn first) or meta has no provider"
     )
   }
-  debugLog("getBackgroundSession reattach provider=" + meta.provider)
+  debugLog("getBackgroundSession reattach provider=" + meta.provider, meta.sessionId)
   return createBackgroundSessionWithId(
     meta.provider,
     {
@@ -145,24 +145,28 @@ export async function getBackgroundSession(
       // Seed sessionId so providers that support resume (e.g. Claude) can continue the same session.
       sessionId: meta.sessionId ?? options.sessionId,
     },
-    backgroundSessionId
+    backgroundSessionId,
+    { skipWriteInitialMeta: true }
   )
 }
 
 async function createBackgroundSessionWithId(
   name: ProviderName,
   options: Omit<BackgroundSessionOptions, "backgroundSessionId"> & { backgroundSessionId?: string },
-  id: string
+  id: string,
+  opts?: { skipWriteInitialMeta?: boolean }
 ): Promise<BackgroundSession> {
   const provider = await createSession(name, options)
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${id}`
-  await provider.writeInitialSessionMeta(sessionDir)
+  if (!opts?.skipWriteInitialMeta) {
+    await provider.writeInitialSessionMeta(sessionDir)
+  }
 
   const session: BackgroundSession = {
     id,
     provider,
     async start(prompt: string, extraOptions?: Omit<RunOptions, "prompt">) {
-      debugLog("BackgroundSession.start", "id=" + id, "sessionDir=" + sessionDir, "promptLength=" + prompt.length)
+      debugLog("BackgroundSession.start", provider.sessionId, "id=" + id, "sessionDir=" + sessionDir, "promptLength=" + prompt.length)
       const result = await provider.startSandboxBackgroundTurn(sessionDir, {
         // Re-apply core run defaults (model, timeout, env, systemPrompt) for each turn.
         model: options.model,
@@ -173,7 +177,7 @@ async function createBackgroundSessionWithId(
         ...(extraOptions ?? {}),
         prompt,
       })
-      debugLog("BackgroundSession.start returned", "id=" + id, "pid=" + result.pid, "outputFile=" + result.outputFile)
+      debugLog("BackgroundSession.start returned", provider.sessionId, "id=" + id, "pid=" + result.pid, "outputFile=" + result.outputFile)
       return result
     },
     async getEvents() {

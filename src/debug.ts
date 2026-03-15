@@ -14,8 +14,9 @@ export function isDebugEnabled(): boolean {
 
 const PREFIX = "[coding-agents-sdk]"
 
-export function debugLog(message: string, ...args: unknown[]): void {
+export function debugLog(message: string, sessionId?: string | null, ...args: unknown[]): void {
   if (!DEBUG_ENABLED) return
+  const sessionTag = sessionId != null && sessionId !== "" ? ` sessionId=${sessionId}` : ""
   const line = args.length ? `${message} ${args.map(a => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ")}` : message
-  process.stderr.write(`${PREFIX} ${line}\n`)
+  process.stderr.write(`${PREFIX}${sessionTag} ${line}\n`)
 }
