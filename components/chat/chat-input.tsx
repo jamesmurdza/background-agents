@@ -167,57 +167,112 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Model Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
+          {/* Model Combobox */}
+          <Popover open={modelOpen} onOpenChange={setModelOpen}>
+            <PopoverTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
               <Sparkles className="h-2.5 w-2.5 shrink-0" />
               <span>{getModelLabel(currentAgent, currentModel)}</span>
               <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={4} className="min-w-[180px] max-h-[300px] overflow-y-auto rounded-lg border border-border/60 py-0.5 shadow-md">
-              {availableModels.length === 0 ? (
-                <DropdownMenuItem
-                  onClick={() => onOpenSettings?.()}
-                  className="py-1.5 text-[11px] cursor-pointer text-muted-foreground"
-                >
-                  Configure API keys in Settings
-                </DropdownMenuItem>
-              ) : (
-                <>
-                  {/* Group models by requirement */}
-                  {(() => {
-                    const freeModels = availableModels.filter(m => m.requiresKey === "none")
-                    const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
-                    const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
-                    const sections: { label: string; models: typeof availableModels }[] = []
+            </PopoverTrigger>
+            <PopoverContent align="end" sideOffset={4} className="w-[220px] p-0">
+              <Command>
+                <CommandInput placeholder="Search models..." className="h-8 text-[11px]" />
+                <CommandList>
+                  <CommandEmpty className="py-3 text-[11px] text-center text-muted-foreground">
+                    No models found
+                  </CommandEmpty>
+                  {availableModels.length === 0 ? (
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={() => {
+                          onOpenSettings?.()
+                          setModelOpen(false)
+                        }}
+                        className="py-1.5 text-[11px] cursor-pointer text-muted-foreground"
+                      >
+                        <Settings className="mr-2 h-3 w-3" />
+                        Configure API keys in Settings
+                      </CommandItem>
+                    </CommandGroup>
+                  ) : (
+                    <>
+                      {/* Group models by requirement */}
+                      {(() => {
+                        const freeModels = availableModels.filter(m => m.requiresKey === "none")
+                        const anthropicModels = availableModels.filter(m => m.requiresKey === "anthropic")
+                        const openaiModels = availableModels.filter(m => m.requiresKey === "openai")
 
-                    if (freeModels.length > 0) sections.push({ label: "Free", models: freeModels })
-                    if (anthropicModels.length > 0) sections.push({ label: "Anthropic", models: anthropicModels })
-                    if (openaiModels.length > 0) sections.push({ label: "OpenAI", models: openaiModels })
-
-                    return sections.map((section, idx) => (
-                      <div key={section.label}>
-                        {idx > 0 && <DropdownMenuSeparator className="my-1" />}
-                        <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground/70">
-                          {section.label}
-                        </div>
-                        {section.models.map((model) => (
-                          <DropdownMenuItem
-                            key={model.value}
-                            onClick={() => onModelChange?.(model.value)}
-                            className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
-                          >
-                            {model.label}
-                            {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ))
-                  })()}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                        return (
+                          <>
+                            {freeModels.length > 0 && (
+                              <CommandGroup heading="Free">
+                                {freeModels.map((model) => (
+                                  <CommandItem
+                                    key={model.value}
+                                    value={model.label}
+                                    onSelect={() => {
+                                      onModelChange?.(model.value)
+                                      setModelOpen(false)
+                                    }}
+                                    className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                                  >
+                                    {model.label}
+                                    {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                            {anthropicModels.length > 0 && (
+                              <>
+                                {freeModels.length > 0 && <CommandSeparator />}
+                                <CommandGroup heading="Anthropic">
+                                  {anthropicModels.map((model) => (
+                                    <CommandItem
+                                      key={model.value}
+                                      value={model.label}
+                                      onSelect={() => {
+                                        onModelChange?.(model.value)
+                                        setModelOpen(false)
+                                      }}
+                                      className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                                    >
+                                      {model.label}
+                                      {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </>
+                            )}
+                            {openaiModels.length > 0 && (
+                              <>
+                                {(freeModels.length > 0 || anthropicModels.length > 0) && <CommandSeparator />}
+                                <CommandGroup heading="OpenAI">
+                                  {openaiModels.map((model) => (
+                                    <CommandItem
+                                      key={model.value}
+                                      value={model.label}
+                                      onSelect={() => {
+                                        onModelChange?.(model.value)
+                                        setModelOpen(false)
+                                      }}
+                                      className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                                    >
+                                      {model.label}
+                                      {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
     )
