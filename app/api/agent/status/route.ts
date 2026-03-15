@@ -67,13 +67,27 @@ export async function POST(req: Request) {
 
   // Status-driven polling (serverless): when execution is running, poll sandbox from this request
   // so events reach the frontend even when the execute handler's background poller never runs.
+  // Use an atomic claim (update lastSnapshotPolledAt) so only one concurrent request does the heavy poll;
+  // others skip and refetch, avoiding duplicate logs and duplicate message updates.
   const execWithPolledAt = execution as typeof execution & { lastSnapshotPolledAt?: Date | null }
   if (execution.status === "running") {
     const now = Date.now()
     const lastPolled = execWithPolledAt.lastSnapshotPolledAt?.getTime() ?? 0
     const shouldPoll = now - lastPolled >= SNAPSHOT_POLL_THROTTLE_MS
 
+    let claimed = false
     if (shouldPoll) {
+      const claimCutoff = new Date(now - SNAPSHOT_POLL_THROTTLE_MS)
+      const result = await prisma.$executeRaw`
+        UPDATE "AgentExecution"
+        SET "lastSnapshotPolledAt" = ${new Date()}
+        WHERE id = ${execution.id}
+          AND ("lastSnapshotPolledAt" IS NULL OR "lastSnapshotPolledAt" < ${claimCutoff})
+      `
+      claimed = Number(result) > 0
+    }
+
+    if (shouldPoll && claimed) {
       const daytonaApiKey = getDaytonaApiKey()
       if (!isDaytonaKeyError(daytonaApiKey)) {
         const sandboxRecord = await getSandboxWithAuth(execution.sandboxId, auth.userId)
@@ -132,13 +146,13 @@ export async function POST(req: Request) {
           }
         }
       }
-      // Re-fetch so response uses latest snapshot
-      const refetched = await prisma.agentExecution.findFirst({
-        where: { id: execution.id },
-        include: INCLUDE_EXECUTION_WITH_CONTEXT,
-      })
-      if (refetched) execution = refetched
     }
+    // Re-fetch so response uses latest snapshot (from us or another concurrent request)
+    const refetched = await prisma.agentExecution.findFirst({
+      where: { id: execution.id },
+      include: INCLUDE_EXECUTION_WITH_CONTEXT,
+    })
+    if (refetched) execution = refetched
   }
 
   const snapshot = ((execution as { latestSnapshot?: unknown }).latestSnapshot as Record<string, unknown> | null) ?? {}

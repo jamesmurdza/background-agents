@@ -35,6 +35,7 @@ export function useExecutionPolling({
   globalActiveBranchIdRef,
 }: UseExecutionPollingOptions) {
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
+  const pollInFlightRef = useRef(false)
   const resumeRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const currentExecutionIdRef = useRef<string | null>(null)
   const currentMessageIdRef = useRef<string | null>(null)
@@ -104,6 +105,8 @@ export function useExecutionPolling({
     }
 
     const poll = async () => {
+      if (pollInFlightRef.current) return
+      pollInFlightRef.current = true
       try {
         const res = await fetch("/api/agent/status", {
           method: "POST",
@@ -422,6 +425,8 @@ export function useExecutionPolling({
         }
       } catch (err) {
         console.error("[execution-poll] poll threw", { branchId: pollingBranchIdRef.current, err })
+      } finally {
+        pollInFlightRef.current = false
       }
     }
 
