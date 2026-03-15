@@ -143,6 +143,8 @@ export function ChatPanel({
     if (!prompt || branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING) return
     if (!branch.sandboxId) return
 
+    setInput("")
+
     const userMsg: Message = {
       id: generateId(),
       role: "user",
@@ -150,7 +152,6 @@ export function ChatPanel({
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }
     await onAddMessage(branch.id, userMsg)
-    setInput("")
 
     const now = Date.now()
     onUpdateBranch(branch.id, {
