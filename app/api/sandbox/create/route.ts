@@ -13,6 +13,7 @@ import {
 } from "@/lib/api-helpers"
 import { createSSEStream, sendProgress, sendError, sendDone } from "@/lib/streaming-helpers"
 import { SANDBOX_CONFIG, PATHS } from "@/lib/constants"
+import { getDefaultAgent } from "@/lib/types"
 
 // Sandbox creation timeout - 300 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 300
@@ -64,15 +65,17 @@ export async function POST(req: Request) {
     decryptUserCredentials(userCredentials)
   const sandboxAutoStopInterval = userCredentials?.sandboxAutoStopInterval ?? 5
 
+  // Check if user has Anthropic credentials - used to determine default agent
   const hasAnthropicCredential =
     (anthropicAuthType === "claude-max" && anthropicAuthToken) ||
     (anthropicAuthType !== "claude-max" && anthropicApiKey)
 
-  if (!hasAnthropicCredential) {
-    return badRequest(
-      "Anthropic credentials not configured. Please add them in Settings."
-    )
-  }
+  // Determine default agent based on available credentials
+  // Users without Anthropic credentials default to opencode with free models
+  const defaultAgent = getDefaultAgent({
+    hasAnthropicApiKey: !!anthropicApiKey,
+    hasAnthropicAuthToken: !!anthropicAuthToken,
+  })
 
   // Track records for cleanup on error
   let sandboxRecord: { id: string; sandboxId: string } | null = null
@@ -86,6 +89,8 @@ export async function POST(req: Request) {
         const daytona = new Daytona({ apiKey: daytonaApiKey })
         const sandboxName = generateSandboxName(userId)
 
+        // Only inject Anthropic API key if using claude-code agent or opencode with Anthropic models
+        // For opencode with free models, no API key is needed
         const sandbox = await daytona.create({
           name: sandboxName,
           snapshot: SANDBOX_CONFIG.DEFAULT_SNAPSHOT,
@@ -208,7 +213,7 @@ export async function POST(req: Request) {
           })
         }
 
-        // Create branch record
+        // Create branch record with appropriate default agent based on credentials
         branchRecord = await prisma.branch.create({
           data: {
             repoId: dbRepo.id,
@@ -216,7 +221,7 @@ export async function POST(req: Request) {
             baseBranch: baseBranch || "main",
             startCommit: headCommit, // Store the HEAD commit for commit detection baseline
             status: "idle",
-            agent: "claude-code",
+            agent: defaultAgent,
           },
         })
 

@@ -12,6 +12,9 @@ export const agentToProvider: Record<Agent, ProviderName> = {
 }
 
 // Helper to get provider from agent string (handles legacy "claude" value)
+// Note: For opencode agent, we always use the "opencode" provider. The OpenCode CLI
+// itself handles routing to different backends (OpenAI, Anthropic, OpenRouter) based
+// on the model string format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4").
 export function getProviderForAgent(agent: string | undefined): ProviderName {
   if (!agent || agent === "claude" || agent === "claude-code") {
     return "claude"
@@ -39,33 +42,29 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   ],
   "opencode": [
     // Free models (limited time) - no API key needed
-    { value: "opencode/big-pickle", label: "Big Pickle (Free)", requiresKey: "none" },
-    { value: "opencode/minimax-m2.5-free", label: "MiniMax M2.5 (Free)", requiresKey: "none" },
-    { value: "opencode/mimo-v2-flash-free", label: "MiMo v2 Flash (Free)", requiresKey: "none" },
-    { value: "opencode/nemotron-3-super-free", label: "Nemotron 3 Super (Free)", requiresKey: "none" },
+    // These use openrouter/ prefix as they're served via OpenRouter's free tier
+    { value: "openrouter/sao10k/l3.3-euryale-70b", label: "Big Pickle (Free)", requiresKey: "none" },
+    { value: "openrouter/minimax/minimax-01", label: "MiniMax M2.5 (Free)", requiresKey: "none" },
+    { value: "openrouter/xiaomi/mimo-vl-7b-free", label: "MiMo v2 Flash (Free)", requiresKey: "none" },
+    { value: "openrouter/nvidia/llama-3.1-nemotron-ultra-253b-v1:free", label: "Nemotron 3 Super (Free)", requiresKey: "none" },
     // Anthropic models (requires Anthropic API key)
-    { value: "opencode/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
-    { value: "opencode/claude-sonnet-4", label: "Claude Sonnet 4", requiresKey: "anthropic" },
-    { value: "opencode/claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
-    { value: "opencode/claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
-    // OpenAI models via OpenCode (requires OpenAI API key)
-    { value: "opencode/gpt-5.4-pro", label: "GPT-5.4 Pro", requiresKey: "openai" },
-    { value: "opencode/gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "openai" },
-    { value: "opencode/gpt-5.1-codex", label: "GPT-5.1 Codex", requiresKey: "openai" },
-    { value: "opencode/gpt-5", label: "GPT-5", requiresKey: "openai" },
-    // OpenAI direct models (requires OpenAI API key)
-    { value: "openai/gpt-5.2-chat-latest", label: "GPT-5.2 Chat", requiresKey: "openai" },
-    { value: "openai/gpt-5-mini", label: "GPT-5 Mini", requiresKey: "openai" },
-    { value: "openai/o3", label: "o3", requiresKey: "openai" },
+    // These use anthropic/ prefix as expected by OpenCode CLI
+    { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4", requiresKey: "anthropic" },
+    { value: "anthropic/claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet", requiresKey: "anthropic" },
+    { value: "anthropic/claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku", requiresKey: "anthropic" },
+    // OpenAI models (requires OpenAI API key)
+    // These use openai/ prefix as expected by OpenCode CLI
     { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
-    { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini", requiresKey: "openai" },
+    { value: "openai/gpt-4o-mini", label: "GPT-4o Mini", requiresKey: "openai" },
+    { value: "openai/o3-mini", label: "o3-mini", requiresKey: "openai" },
+    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
   ],
 }
 
 // Default model per agent
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
-  "opencode": "opencode/big-pickle",
+  "opencode": "openrouter/sao10k/l3.3-euryale-70b",
 }
 
 // User credentials for filtering
