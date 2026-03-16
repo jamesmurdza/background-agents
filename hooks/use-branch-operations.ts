@@ -72,14 +72,16 @@ export function useBranchOperations({
 
   // Add a message to a branch
   const handleAddMessage = useCallback(async (branchId: string, message: Message): Promise<string> => {
-    if (!activeRepo) return message.id
+    // Find which repo actually contains this branch (may not be activeRepo for background polling)
+    const targetRepo = repos.find(r => r.branches.some(b => b.id === branchId))
+    if (!targetRepo) return message.id
 
     const now = Date.now()
     // Add message and bump branch to top of list (lastActivityTs drives sort order)
     setRepos((prev) =>
       updateBranchInRepo(
-        addMessageToBranch(prev, activeRepo.id, branchId, message),
-        activeRepo.id,
+        addMessageToBranch(prev, targetRepo.id, branchId, message),
+        targetRepo.id,
         branchId,
         { lastActivity: "now", lastActivityTs: now }
       )
@@ -112,7 +114,7 @@ export function useBranchOperations({
 
       if (dbId && dbId !== message.id) {
         // Update local state with the real database ID
-        setRepos((prev) => updateMessageInBranch(prev, activeRepo.id, branchId, message.id, { id: dbId }))
+        setRepos((prev) => updateMessageInBranch(prev, targetRepo.id, branchId, message.id, { id: dbId }))
         return dbId
       }
       return message.id
@@ -121,7 +123,7 @@ export function useBranchOperations({
       // Re-throw so caller knows message wasn't saved - prevents foreign key errors
       throw error
     }
-  }, [activeRepo, setRepos])
+  }, [repos, setRepos])
 
   // Update an existing message. Returns a promise that resolves when the DB PATCH completes (for awaiting final save on completion).
   const handleUpdateMessage = useCallback((branchId: string, messageId: string, updates: Partial<Message>): void | Promise<void> => {
