@@ -27,6 +27,14 @@ function getEnvForModel(
     return env
   }
 
+  // For Codex agent, always use OpenAI credentials
+  if (agent === "codex") {
+    if (credentials.openaiApiKey) {
+      env.OPENAI_API_KEY = credentials.openaiApiKey
+    }
+    return env
+  }
+
   // For OpenCode agent, select API key based on model prefix
   if (agent === "opencode") {
     // Parse the model string to determine provider

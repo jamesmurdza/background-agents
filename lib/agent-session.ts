@@ -383,7 +383,7 @@ export async function createBackgroundAgentSession(
         model: modelToUse,
         sessionId: options.sessionId,
         env: options.env,
-        skipInstall: true, // TEMP: bypass install
+        // Note: skipInstall removed to allow CLI installation (Codex, etc.)
       })
   console.log(`[createBackgroundAgentSession] ${options.backgroundSessionId ? "get" : "create"} took ${Date.now() - t0}ms`)
 
