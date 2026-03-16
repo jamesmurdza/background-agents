@@ -52,6 +52,8 @@ interface ChatPanelProps {
   credentials?: UserCredentialFlags | null
   /** Callback to open settings modal */
   onOpenSettings?: () => void
+  /** Callback to open settings modal with a specific field highlighted */
+  onOpenSettingsWithHighlight?: (field: string) => void
 }
 
 export function ChatPanel({
@@ -73,6 +75,7 @@ export function ChatPanel({
   streamingMessageIdRef,
   credentials,
   onOpenSettings,
+  onOpenSettingsWithHighlight,
 }: ChatPanelProps) {
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -290,6 +293,7 @@ export function ChatPanel({
           onAgentChange={handleAgentChange}
           onModelChange={handleModelChange}
           onOpenSettings={onOpenSettings}
+          onOpenSettingsWithHighlight={onOpenSettingsWithHighlight}
           credentials={credentials}
           isMobile={isMobile}
         />

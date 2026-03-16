@@ -20,12 +20,16 @@ interface SettingsModalProps {
     sandboxAutoStopInterval?: number
   } | null
   onCredentialsUpdate: () => void
+  /** Field to highlight with error styling (e.g., "anthropicApiKey", "openaiApiKey") */
+  highlightField?: string | null
+  /** Callback to clear the highlight when user starts typing */
+  onClearHighlight?: () => void
 }
 
 // Track which keys should be cleared on save
 type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "openrouterApiKey" | "daytonaApiKey"
 
-export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
 
   // Anthropic credentials (separate API key and subscription)
@@ -68,6 +72,22 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
       setDaytonaWarningConfirmed(false)
     }
   }, [open, credentials])
+
+  // Handle highlight field - switch tab and scroll to field
+  useEffect(() => {
+    if (highlightField && open) {
+      // Switch to agents tab if highlighting an agent-related field
+      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "openrouterApiKey"].includes(highlightField)) {
+        setActiveTab("agents")
+      }
+      // Scroll field into view after a short delay to allow tab switch
+      setTimeout(() => {
+        const fieldElement = document.getElementById(`field-${highlightField}`)
+        fieldElement?.scrollIntoView({ behavior: "smooth", block: "center" })
+        fieldElement?.focus()
+      }, 100)
+    }
+  }, [highlightField, open])
 
   if (!open) return null
 
@@ -310,14 +330,20 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   </div>
                 </div>
                 <Input
+                  id="field-anthropicApiKey"
                   type="password"
                   placeholder="sk-ant-..."
                   value={anthropicApiKey}
-                  onChange={(e) => setAnthropicApiKey(e.target.value)}
+                  onChange={(e) => {
+                    setAnthropicApiKey(e.target.value)
+                    if (highlightField === "anthropicApiKey") onClearHighlight?.()
+                  }}
                   disabled={keysToClear.has("anthropicApiKey")}
+                  aria-invalid={highlightField === "anthropicApiKey"}
                   className={cn(
                     "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
-                    keysToClear.has("anthropicApiKey") && "opacity-50"
+                    keysToClear.has("anthropicApiKey") && "opacity-50",
+                    highlightField === "anthropicApiKey" && "border-destructive ring-1 ring-destructive"
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">
@@ -347,14 +373,20 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   </div>
                 </div>
                 <textarea
+                  id="field-anthropicAuthToken"
                   placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
                   value={anthropicAuthToken}
-                  onChange={(e) => setAnthropicAuthToken(e.target.value)}
+                  onChange={(e) => {
+                    setAnthropicAuthToken(e.target.value)
+                    if (highlightField === "anthropicAuthToken") onClearHighlight?.()
+                  }}
                   disabled={keysToClear.has("anthropicAuthToken")}
                   rows={3}
+                  aria-invalid={highlightField === "anthropicAuthToken"}
                   className={cn(
                     "w-full rounded-md bg-secondary border border-border px-3 py-2 text-xs font-mono placeholder:text-muted-foreground/40 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                    keysToClear.has("anthropicAuthToken") && "opacity-50"
+                    keysToClear.has("anthropicAuthToken") && "opacity-50",
+                    highlightField === "anthropicAuthToken" && "border-destructive ring-1 ring-destructive"
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">
@@ -400,14 +432,20 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   </div>
                 </div>
                 <Input
+                  id="field-openaiApiKey"
                   type="password"
                   placeholder="sk-..."
                   value={openaiApiKey}
-                  onChange={(e) => setOpenaiApiKey(e.target.value)}
+                  onChange={(e) => {
+                    setOpenaiApiKey(e.target.value)
+                    if (highlightField === "openaiApiKey") onClearHighlight?.()
+                  }}
                   disabled={keysToClear.has("openaiApiKey")}
+                  aria-invalid={highlightField === "openaiApiKey"}
                   className={cn(
                     "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
-                    keysToClear.has("openaiApiKey") && "opacity-50"
+                    keysToClear.has("openaiApiKey") && "opacity-50",
+                    highlightField === "openaiApiKey" && "border-destructive ring-1 ring-destructive"
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">
@@ -437,14 +475,20 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate 
                   </div>
                 </div>
                 <Input
+                  id="field-openrouterApiKey"
                   type="password"
                   placeholder="sk-or-..."
                   value={openrouterApiKey}
-                  onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                  onChange={(e) => {
+                    setOpenrouterApiKey(e.target.value)
+                    if (highlightField === "openrouterApiKey") onClearHighlight?.()
+                  }}
                   disabled={keysToClear.has("openrouterApiKey")}
+                  aria-invalid={highlightField === "openrouterApiKey"}
                   className={cn(
                     "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
-                    keysToClear.has("openrouterApiKey") && "opacity-50"
+                    keysToClear.has("openrouterApiKey") && "opacity-50",
+                    highlightField === "openrouterApiKey" && "border-destructive ring-1 ring-destructive"
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">

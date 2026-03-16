@@ -94,27 +94,34 @@ export function hasClaudeCodeCredentials(credentials: UserCredentialFlags | null
 }
 
 /**
- * Filter models based on available API keys.
- * Returns only models the user can actually use.
+ * Get all models for an agent (no filtering by credentials).
+ * All models are shown in the UI regardless of API key availability.
  */
 export function getAvailableModels(
   agent: Agent,
-  credentials: UserCredentialFlags | null | undefined
+  _credentials: UserCredentialFlags | null | undefined
 ): ModelOption[] {
-  const allModels = agentModels[agent]
+  return agentModels[agent]
+}
 
-  return allModels.filter(model => {
-    switch (model.requiresKey) {
-      case "none":
-        return true // Free models always available
-      case "anthropic":
-        return credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken
-      case "openai":
-        return credentials?.hasOpenaiApiKey
-      default:
-        return true // No requirement specified, show by default
-    }
-  })
+/**
+ * Check if user has credentials for a specific model.
+ * Returns true if the model can be used, false if credentials are missing.
+ */
+export function hasCredentialsForModel(
+  model: ModelOption,
+  credentials: UserCredentialFlags | null | undefined
+): boolean {
+  switch (model.requiresKey) {
+    case "none":
+      return true
+    case "anthropic":
+      return !!(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken)
+    case "openai":
+      return !!credentials?.hasOpenaiApiKey
+    default:
+      return true
+  }
 }
 
 /**
@@ -125,16 +132,20 @@ export function getDefaultModelForAgent(
   agent: Agent,
   credentials: UserCredentialFlags | null | undefined
 ): string {
-  const availableModels = getAvailableModels(agent, credentials)
-
-  // If the default model is available, use it
+  const allModels = agentModels[agent]
   const defaultModel = defaultAgentModel[agent]
-  if (availableModels.some(m => m.value === defaultModel)) {
+
+  // Find the default model config
+  const defaultModelConfig = allModels.find(m => m.value === defaultModel)
+
+  // If the default model can be used with current credentials, use it
+  if (defaultModelConfig && hasCredentialsForModel(defaultModelConfig, credentials)) {
     return defaultModel
   }
 
-  // Otherwise, return the first available model
-  return availableModels[0]?.value || defaultModel
+  // Otherwise, find the first model that can be used
+  const firstAvailable = allModels.find(m => hasCredentialsForModel(m, credentials))
+  return firstAvailable?.value || defaultModel
 }
 
 export interface ToolCall {

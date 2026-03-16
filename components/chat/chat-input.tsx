@@ -1,10 +1,10 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Agent, Branch, UserCredentialFlags } from "@/lib/types"
-import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials } from "@/lib/types"
+import type { Agent, Branch, UserCredentialFlags, ModelOption } from "@/lib/types"
+import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials, hasCredentialsForModel, agentModels } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
-import { Send, Terminal, ChevronDown, Sparkles, Check, Lock } from "lucide-react"
+import { Send, Terminal, ChevronDown, Sparkles, Check } from "lucide-react"
 import { forwardRef, useEffect, useCallback, useState, useMemo } from "react"
 import {
   DropdownMenu,
@@ -41,13 +41,14 @@ interface ChatInputProps {
   onAgentChange?: (agent: Agent) => void
   onModelChange?: (model: string) => void
   onOpenSettings?: () => void
+  onOpenSettingsWithHighlight?: (field: string) => void
   credentials?: UserCredentialFlags | null
   isMobile?: boolean
 }
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput(
-    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, credentials, isMobile },
+    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, onOpenSettingsWithHighlight, credentials, isMobile },
     ref
   ) {
     // Normalize agent value (handle legacy "claude" value from database)
@@ -98,15 +99,29 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       }
     }, [onSend])
 
-    // Handle agent change with credential check
+    // Handle agent change - allow selection but open settings with highlight if missing credentials
     const handleAgentChange = useCallback((newAgent: Agent) => {
-      if (newAgent === "claude-code" && !canUseClaudeCode) {
-        // Open settings to configure Claude credentials
-        onOpenSettings?.()
-        return
-      }
+      // Always allow the agent change
       onAgentChange?.(newAgent)
-    }, [onAgentChange, onOpenSettings, canUseClaudeCode])
+
+      // If switching to Claude Code without credentials, open settings with highlight
+      if (newAgent === "claude-code" && !canUseClaudeCode) {
+        onOpenSettingsWithHighlight?.("anthropicApiKey")
+      }
+    }, [onAgentChange, onOpenSettingsWithHighlight, canUseClaudeCode])
+
+    // Handle model change - allow selection but open settings with highlight if missing credentials
+    const handleModelChange = useCallback((model: ModelOption) => {
+      // Always allow the model change
+      onModelChange?.(model.value)
+
+      // Check if user has credentials for this model
+      if (!hasCredentialsForModel(model, credentials)) {
+        // Determine which field to highlight based on model requirement
+        const field = model.requiresKey === "openai" ? "openaiApiKey" : "anthropicApiKey"
+        onOpenSettingsWithHighlight?.(field)
+      }
+    }, [onModelChange, onOpenSettingsWithHighlight, credentials])
 
     return (
       <div
@@ -163,22 +178,18 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={4} className="min-w-[160px] rounded-lg border border-border/60 py-0.5 shadow-md">
-              {(Object.keys(agentLabels) as Agent[]).map((agent) => {
-                const isLocked = agent === "claude-code" && !canUseClaudeCode
-                return (
-                  <DropdownMenuItem
-                    key={agent}
-                    onClick={() => handleAgentChange(agent)}
-                    className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      {agentLabels[agent]}
-                      {isLocked && <Lock className="h-3 w-3 text-muted-foreground" />}
-                    </span>
-                    {agent === currentAgent && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                  </DropdownMenuItem>
-                )
-              })}
+              {(Object.keys(agentLabels) as Agent[]).map((agent) => (
+                <DropdownMenuItem
+                  key={agent}
+                  onClick={() => handleAgentChange(agent)}
+                  className="flex items-center justify-between py-1.5 text-[11px] cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5">
+                    {agentLabels[agent]}
+                  </span>
+                  {agent === currentAgent && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -208,14 +219,14 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
                       "No models found."
                     )}
                   </CommandEmpty>
-                  {modelSections.map((section, idx) => (
+                  {modelSections.map((section) => (
                     <CommandGroup key={section.label} heading={section.label}>
                       {section.models.map((model) => (
                         <CommandItem
                           key={model.value}
                           value={model.label}
                           onSelect={() => {
-                            onModelChange?.(model.value)
+                            handleModelChange(model)
                             setModelOpen(false)
                           }}
                           className="flex items-center justify-between text-[11px] cursor-pointer"

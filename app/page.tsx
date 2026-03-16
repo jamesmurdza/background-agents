@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { RepoSidebar } from "@/components/repo-sidebar"
@@ -119,10 +119,23 @@ export default function Home() {
   // UI state for desktop components
   const [branchListWidth, setBranchListWidth] = useState(260)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsHighlightField, setSettingsHighlightField] = useState<string | null>(null)
   const [addRepoOpen, setAddRepoOpen] = useState(false)
   const [gitHistoryOpen, setGitHistoryOpen] = useState(false)
   const [gitHistoryRefreshTrigger, setGitHistoryRefreshTrigger] = useState(0)
   const [pendingStartCommit, setPendingStartCommit] = useState<string | null>(null)
+
+  // Handler to open settings with a specific field highlighted
+  const handleOpenSettingsWithHighlight = useCallback((field: string) => {
+    setSettingsHighlightField(field)
+    setSettingsOpen(true)
+  }, [])
+
+  // Handler to close settings and clear highlight
+  const handleSettingsClose = useCallback(() => {
+    setSettingsOpen(false)
+    setSettingsHighlightField(null)
+  }, [])
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -312,6 +325,7 @@ export default function Home() {
                   streamingMessageIdRef={streamingMessageIdRef}
                   credentials={credentials}
                   onOpenSettings={() => setSettingsOpen(true)}
+                  onOpenSettingsWithHighlight={handleOpenSettingsWithHighlight}
                 />
               ) : (
                 <EmptyChatPanel hasRepos={repos.length > 0} />
@@ -341,6 +355,7 @@ export default function Home() {
               streamingMessageIdRef={streamingMessageIdRef}
               credentials={credentials}
               onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSettingsWithHighlight={handleOpenSettingsWithHighlight}
             />
           ) : (
             <EmptyChatPanel hasRepos={repos.length > 0} />
@@ -364,9 +379,11 @@ export default function Home() {
 
       <SettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={handleSettingsClose}
         credentials={credentials}
         onCredentialsUpdate={refreshCredentials}
+        highlightField={settingsHighlightField}
+        onClearHighlight={() => setSettingsHighlightField(null)}
       />
       <AddRepoModal
         open={addRepoOpen}
