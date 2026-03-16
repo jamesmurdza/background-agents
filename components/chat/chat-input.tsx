@@ -115,13 +115,13 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       // Always allow the model change
       onModelChange?.(model.value)
 
-      // Check if user has credentials for this model
-      if (!hasCredentialsForModel(model, credentials)) {
+      // Check if user has credentials for this model (pass current agent for proper credential checking)
+      if (!hasCredentialsForModel(model, credentials, currentAgent)) {
         // Determine which field to highlight based on model requirement
         const field = model.requiresKey === "openai" ? "openaiApiKey" : "anthropicApiKey"
         onOpenSettingsWithHighlight?.(field)
       }
-    }, [onModelChange, onOpenSettingsWithHighlight, credentials])
+    }, [onModelChange, onOpenSettingsWithHighlight, credentials, currentAgent])
 
     return (
       <div
@@ -204,7 +204,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               <Command>
                 <CommandInput placeholder="Search models..." className="h-8 text-[11px]" />
                 <CommandList>
-                  <CommandEmpty className="py-3 text-[11px]">
+                  <CommandEmpty className="py-3 px-3 text-[11px] text-center">
                     {availableModels.length === 0 ? (
                       <button
                         onClick={() => {
