@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Agent, Branch, UserCredentialFlags, ModelOption } from "@/lib/types"
-import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials, hasCredentialsForModel, agentModels } from "@/lib/types"
+import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials, hasCodexCredentials, hasCredentialsForModel, agentModels } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Send, Terminal, ChevronDown, Sparkles, Check } from "lucide-react"
 import { forwardRef, useEffect, useCallback, useState, useMemo } from "react"
@@ -80,8 +80,9 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
     const canSend = input.trim() && branch.status !== BRANCH_STATUS.RUNNING && branch.status !== BRANCH_STATUS.CREATING && branch.sandboxId
     const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
 
-    // Check if user can use Claude Code
+    // Check if user can use Claude Code or Codex
     const canUseClaudeCode = hasClaudeCodeCredentials(credentials)
+    const canUseCodex = hasCodexCredentials(credentials)
 
     // Auto-resize textarea
     useEffect(() => {
@@ -108,7 +109,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       if (newAgent === "claude-code" && !canUseClaudeCode) {
         onOpenSettingsWithHighlight?.("anthropicAuthToken")
       }
-    }, [onAgentChange, onOpenSettingsWithHighlight, canUseClaudeCode])
+      // If switching to Codex without OpenAI API key, open settings with highlight on API key field
+      else if (newAgent === "codex" && !canUseCodex) {
+        onOpenSettingsWithHighlight?.("openaiApiKey")
+      }
+    }, [onAgentChange, onOpenSettingsWithHighlight, canUseClaudeCode, canUseCodex])
 
     // Handle model change - allow selection but open settings with highlight if missing credentials
     const handleModelChange = useCallback((model: ModelOption) => {

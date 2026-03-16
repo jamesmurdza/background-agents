@@ -1,6 +1,6 @@
 import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType } from "./constants"
 
-export type Agent = "claude-code" | "opencode"
+export type Agent = "claude-code" | "opencode" | "codex"
 
 // SDK provider names (must match ProviderName from SDK)
 export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
@@ -9,6 +9,7 @@ export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
 export const agentToProvider: Record<Agent, ProviderName> = {
   "claude-code": "claude",
   "opencode": "opencode",
+  "codex": "codex",
 }
 
 // Helper to get provider from agent string (handles legacy "claude" value)
@@ -21,6 +22,9 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
   }
   if (agent === "opencode") {
     return "opencode"
+  }
+  if (agent === "codex") {
+    return "codex"
   }
   // Fallback for any other value
   return "claude"
@@ -59,12 +63,23 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o3-mini", label: "o3-mini", requiresKey: "openai" },
     { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
   ],
+  "codex": [
+    // Recommended models
+    { value: "gpt-5.4", label: "GPT-5.4 (Recommended)", requiresKey: "openai" },
+    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "openai" },
+    { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark", requiresKey: "openai" },
+    // Alternative models
+    { value: "gpt-5.2-codex", label: "GPT-5.2 Codex", requiresKey: "openai" },
+    { value: "gpt-5.2", label: "GPT-5.2", requiresKey: "openai" },
+    { value: "gpt-5.1", label: "GPT-5.1", requiresKey: "openai" },
+  ],
 }
 
 // Default model per agent
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
   "opencode": "openrouter/sao10k/l3.3-euryale-70b",
+  "codex": "gpt-5.4",
 }
 
 // User credentials for filtering
@@ -91,6 +106,13 @@ export function getDefaultAgent(credentials: UserCredentialFlags | null | undefi
  */
 export function hasClaudeCodeCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
   return !!(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken)
+}
+
+/**
+ * Check if user has credentials for Codex agent (requires OpenAI API key).
+ */
+export function hasCodexCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
+  return !!credentials?.hasOpenaiApiKey
 }
 
 /**
@@ -230,6 +252,7 @@ export interface Settings {
 export const agentLabels: Record<Agent, string> = {
   "claude-code": "Claude Code",
   "opencode": "OpenCode",
+  "codex": "Codex",
 }
 
 // Get model label from model value

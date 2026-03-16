@@ -449,7 +449,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Used by OpenCode agent for GPT-4o models
+                  Used by Codex and OpenCode agents for OpenAI models
                 </p>
               </div>
 
