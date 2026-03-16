@@ -20,6 +20,7 @@ export async function GET(req: Request) {
   const branchId = searchParams.get("branchId")
   const cursor = searchParams.get("cursor") // For pagination
   const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 500) // Default 100, max 500
+  const summary = searchParams.get("summary") === "true" // If true, return only metadata (no content)
 
   if (!branchId) {
     return badRequest("Missing branch ID")
@@ -38,6 +39,8 @@ export async function GET(req: Request) {
     })
   }
 
+  // When summary=true, only fetch metadata to reduce network transfer
+  // Full content is loaded on-demand when user views a specific branch
   const messages = await prisma.message.findMany({
     where: { branchId },
     orderBy: { createdAt: "asc" },
@@ -45,6 +48,16 @@ export async function GET(req: Request) {
     ...(cursor && {
       skip: 1,
       cursor: { id: cursor },
+    }),
+    ...(summary && {
+      select: {
+        id: true,
+        role: true,
+        createdAt: true,
+        timestamp: true,
+        commitHash: true,
+        commitMessage: true,
+      },
     }),
   })
 

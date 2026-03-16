@@ -25,6 +25,19 @@ export interface DbMessage {
   commitMessage: string | null
 }
 
+/**
+ * Summary version of DbMessage - returned when ?summary=true
+ * Used for lazy loading to reduce network transfer
+ */
+export interface DbMessageSummary {
+  id: string
+  role: string
+  createdAt: string
+  timestamp: string | null
+  commitHash: string | null
+  commitMessage: string | null
+}
+
 export interface DbBranch {
   id: string
   name: string
@@ -77,6 +90,22 @@ export function transformMessage(m: DbMessage): Message {
     timestamp: m.timestamp || "",
     commitHash: m.commitHash || undefined,
     commitMessage: m.commitMessage || undefined,
+  }
+}
+
+/**
+ * Transform a summary message to frontend format
+ * Sets contentLoaded=false to indicate full content needs to be fetched
+ */
+export function transformMessageSummary(m: DbMessageSummary): Message {
+  return {
+    id: m.id,
+    role: m.role as "user" | "assistant",
+    content: "", // Not loaded yet
+    timestamp: m.timestamp || "",
+    commitHash: m.commitHash || undefined,
+    commitMessage: m.commitMessage || undefined,
+    contentLoaded: false, // Flag to indicate content needs lazy loading
   }
 }
 

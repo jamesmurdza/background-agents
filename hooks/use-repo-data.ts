@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
   DbMessage,
+  DbMessageSummary,
   DbRepo,
   Quota,
   UserCredentials,
   TransformedRepo,
   transformRepo,
   transformMessage,
+  transformMessageSummary,
 } from "@/lib/db-types"
 import { BRANCH_STATUS } from "@/lib/constants"
 
@@ -49,10 +51,12 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
           )
 
           if (runningBranches.length > 0) {
-            // Load messages for all running branches in parallel
+            // Load message SUMMARIES for running branches (lazy loading optimization)
+            // Full content is loaded on-demand when user actually views the branch
+            // This reduces Neon network transfer by ~80%
             const messagePromises = runningBranches.map(async ({ repoId, branch }: { repoId: string; branch: { id: string } }) => {
               try {
-                const res = await fetch(`/api/branches/messages?branchId=${branch.id}`)
+                const res = await fetch(`/api/branches/messages?branchId=${branch.id}&summary=true`)
                 if (!res.ok) return null
                 const msgData = await res.json()
                 return { repoId, branchId: branch.id, messages: msgData.messages || [] }
@@ -62,7 +66,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
             })
 
             const results = await Promise.all(messagePromises)
-            const validResults = results.filter((r): r is { repoId: string; branchId: string; messages: DbMessage[] } => r !== null && r.messages.length > 0)
+            const validResults = results.filter((r): r is { repoId: string; branchId: string; messages: DbMessageSummary[] } => r !== null && r.messages.length > 0)
 
             if (validResults.length > 0) {
               setRepos((prev) =>
@@ -76,7 +80,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
                       if (!update) return b
                       return {
                         ...b,
-                        messages: update.messages.map(transformMessage),
+                        messages: update.messages.map(transformMessageSummary),
                       }
                     }),
                   }
@@ -127,14 +131,20 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     repoId: string,
     skipIfHasMessages: boolean = true
   ) => {
-    // Check if branch already has messages (read from ref to avoid dependency)
+    // Check if branch already has FULL messages (read from ref to avoid dependency)
     const repo = reposRef.current.find((r) => r.id === repoId)
     const branch = repo?.branches.find((b) => b.id === branchId)
     if (!branch) return
-    if (skipIfHasMessages && branch.messages.length > 0) return
+
+    // Skip if we already have messages with full content loaded
+    // Check contentLoaded flag - if any message has contentLoaded=false, we need to fetch
+    const hasFullContent = branch.messages.length > 0 &&
+      branch.messages.every(m => m.contentLoaded !== false)
+    if (skipIfHasMessages && hasFullContent) return
 
     setMessagesLoading(true)
     try {
+      // Fetch FULL messages (no summary param) when user views a branch
       const res = await fetch(`/api/branches/messages?branchId=${branchId}`)
       if (!res.ok) throw new Error(`Failed to fetch messages: ${res.status}`)
       const data = await res.json()

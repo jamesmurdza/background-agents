@@ -217,6 +217,7 @@ export interface Message {
   timestamp: string
   commitHash?: string
   commitMessage?: string
+  contentLoaded?: boolean  // false = summary only (content not loaded), true/undefined = full content available
 }
 
 export interface Branch {

@@ -194,9 +194,10 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
             if (syncBranch.lastMessageId && syncBranch.lastMessageId !== lastKnownMessageId) {
               lastMessageIdsRef.current.set(syncBranch.id, syncBranch.lastMessageId)
 
-              // For non-active branches, just track the change in the ref - no state update needed.
+              // LAZY LOADING OPTIMIZATION: For non-active branches, just track the change
+              // in the ref - no network fetch needed. Messages will be loaded when user
+              // selects the branch. This significantly reduces Neon network transfer.
               // The unread indicator can be derived when rendering the sidebar.
-              // This avoids re-rendering the entire app every time a running agent produces a message.
               if (syncBranch.id === activeBranchIdRef.current) {
                 // CRITICAL: Skip message reload if a message is currently being streamed
                 // This prevents sync from overwriting streaming content with stale DB data
