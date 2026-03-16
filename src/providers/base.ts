@@ -691,12 +691,11 @@ export abstract class Provider implements IProvider {
     }
 
     if (startIndex >= lines.length) {
-      const hasContent = rawLines.some((l) => l.trim().length > 0)
-      const noValidLines = lines.length === 0 && hasContent
-      // Advance cursor past raw lines so we don't re-read and re-log the same content every poll.
-      const nextCursor = noValidLines ? rawLines.length : lines.length
+      // No new JSONL events since the last cursor; keep status as running
+      // and only advance the cursor based on JSON lines, not raw lines.
+      const nextCursor = lines.length
       return {
-        status: noValidLines ? "completed" : "running",
+        status: "running",
         sessionId: this.sessionId,
         events: [],
         cursor: encodeCursor(nextCursor),
