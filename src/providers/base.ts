@@ -616,6 +616,7 @@ export abstract class Provider implements IProvider {
       )
     }
     debugLog(`startSandboxBackground executing provider=${this.name} outputFile=${options.outputFile} runId=${runId}`, this.sessionId)
+    debugLog("startSandboxBackground cli", this.sessionId, fullCommand)
     t = Date.now()
     const result = await this.sandboxManager.executeBackground({
       command: fullCommand,
