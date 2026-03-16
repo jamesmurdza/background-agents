@@ -8,6 +8,7 @@ import {
   notFound,
   getDaytonaApiKey,
   isDaytonaKeyError,
+  decryptUserCredentials,
 } from "@/lib/api-helpers"
 import { PATHS } from "@/lib/constants"
 import {
@@ -15,6 +16,7 @@ import {
   INCLUDE_BRANCH_WITH_REPO_AND_SANDBOX,
 } from "@/lib/prisma-includes"
 import { Daytona } from "@daytonaio/sdk"
+import { getDefaultAgent } from "@/lib/types"
 
 export async function POST(req: Request) {
   const authResult = await requireAuth()
@@ -48,6 +50,16 @@ export async function POST(req: Request) {
     return Response.json({ error: "Branch already exists" }, { status: 409 })
   }
 
+  // Determine default agent based on user credentials
+  const userCredentials = await prisma.userCredentials.findUnique({
+    where: { userId },
+  })
+  const { anthropicApiKey, anthropicAuthToken } = decryptUserCredentials(userCredentials)
+  const defaultAgent = getDefaultAgent({
+    hasAnthropicApiKey: !!anthropicApiKey,
+    hasAnthropicAuthToken: !!anthropicAuthToken,
+  })
+
   const branch = await prisma.branch.create({
     data: {
       repoId,
@@ -55,7 +67,7 @@ export async function POST(req: Request) {
       baseBranch,
       startCommit,
       status: "idle",
-      agent: "claude-code",
+      agent: defaultAgent,
     },
     include: INCLUDE_BRANCH_WITH_MESSAGES,
   })

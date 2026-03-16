@@ -27,22 +27,17 @@ function getEnvForModel(
     return env
   }
 
-  // For OpenCode agent, select API key based on model
+  // For OpenCode agent, select API key based on model prefix
   if (agent === "opencode") {
     // Parse the model string to determine provider
     // Model formats:
-    // - "anthropic/claude-sonnet-4-..." -> Anthropic API
-    // - "opencode/claude-sonnet-4" -> Anthropic API (opencode-hosted Claude)
-    // - "opencode/gpt-5" -> OpenAI API
-    // - "opencode/gemini-3-flash" -> OpenRouter API
-    // - "opencode/big-pickle" -> Free, no API key needed
-    // - "opencode/glm-*", "opencode/kimi-*", etc. -> OpenRouter API
+    // - "anthropic/claude-..." -> Anthropic API key needed
+    // - "openai/gpt-..." -> OpenAI API key needed
+    // - "openrouter/..." -> Free models, no API key needed (uses OpenRouter's free tier)
+    // - "google/..." -> OpenRouter API key needed
 
-    const modelLower = model?.toLowerCase() || ""
     const modelPrefix = model?.split("/")[0]?.toLowerCase()
-    const modelName = model?.split("/")[1]?.toLowerCase() || ""
 
-    // Direct provider prefixes
     if (modelPrefix === "anthropic") {
       if (credentials.anthropicApiKey) {
         env.ANTHROPIC_API_KEY = credentials.anthropicApiKey
@@ -51,34 +46,16 @@ function getEnvForModel(
       if (credentials.openaiApiKey) {
         env.OPENAI_API_KEY = credentials.openaiApiKey
       }
-    } else if (modelPrefix === "google") {
+    } else if (modelPrefix === "openrouter") {
+      // Free models via OpenRouter - no API key needed for free tier models
+      // If user has an OpenRouter key, include it for potential rate limit benefits
       if (credentials.openrouterApiKey) {
         env.OPENROUTER_API_KEY = credentials.openrouterApiKey
       }
-    } else if (modelPrefix === "opencode") {
-      // OpenCode-hosted models - determine by model name
-      if (modelName.includes("claude") || modelName.includes("haiku") || modelName.includes("opus") || modelName.includes("sonnet")) {
-        // Claude family models
-        if (credentials.anthropicApiKey) {
-          env.ANTHROPIC_API_KEY = credentials.anthropicApiKey
-        }
-      } else if (modelName.includes("gpt") || modelName.includes("codex")) {
-        // OpenAI models
-        if (credentials.openaiApiKey) {
-          env.OPENAI_API_KEY = credentials.openaiApiKey
-        }
-      } else if (modelName === "big-pickle" || modelName.includes("free")) {
-        // Free models - no API key needed
-      } else if (modelName.includes("gemini") || modelName.includes("glm") || modelName.includes("kimi") || modelName.includes("minimax") || modelName.includes("nemotron") || modelName.includes("mimo")) {
-        // Other providers via OpenRouter
-        if (credentials.openrouterApiKey) {
-          env.OPENROUTER_API_KEY = credentials.openrouterApiKey
-        }
-      } else {
-        // Unknown opencode model - try OpenRouter as fallback
-        if (credentials.openrouterApiKey) {
-          env.OPENROUTER_API_KEY = credentials.openrouterApiKey
-        }
+    } else if (modelPrefix === "google") {
+      // Google models via OpenRouter
+      if (credentials.openrouterApiKey) {
+        env.OPENROUTER_API_KEY = credentials.openrouterApiKey
       }
     } else {
       // Unknown provider - include all available keys for flexibility
