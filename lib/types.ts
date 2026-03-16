@@ -107,15 +107,24 @@ export function getAvailableModels(
 /**
  * Check if user has credentials for a specific model.
  * Returns true if the model can be used, false if credentials are missing.
+ *
+ * Note: For OpenCode agent, Anthropic models require the API key only (not Claude subscription).
+ * Claude subscription only works with the Claude Code agent.
  */
 export function hasCredentialsForModel(
   model: ModelOption,
-  credentials: UserCredentialFlags | null | undefined
+  credentials: UserCredentialFlags | null | undefined,
+  agent?: Agent
 ): boolean {
   switch (model.requiresKey) {
     case "none":
       return true
     case "anthropic":
+      // OpenCode agent requires API key only - Claude subscription doesn't work with it
+      if (agent === "opencode") {
+        return !!credentials?.hasAnthropicApiKey
+      }
+      // Claude Code agent can use either API key or subscription
       return !!(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken)
     case "openai":
       return !!credentials?.hasOpenaiApiKey
@@ -139,12 +148,12 @@ export function getDefaultModelForAgent(
   const defaultModelConfig = allModels.find(m => m.value === defaultModel)
 
   // If the default model can be used with current credentials, use it
-  if (defaultModelConfig && hasCredentialsForModel(defaultModelConfig, credentials)) {
+  if (defaultModelConfig && hasCredentialsForModel(defaultModelConfig, credentials, agent)) {
     return defaultModel
   }
 
   // Otherwise, find the first model that can be used
-  const firstAvailable = allModels.find(m => hasCredentialsForModel(m, credentials))
+  const firstAvailable = allModels.find(m => hasCredentialsForModel(m, credentials, agent))
   return firstAvailable?.value || defaultModel
 }
 
