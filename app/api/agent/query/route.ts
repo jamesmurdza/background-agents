@@ -44,8 +44,8 @@ export async function POST(req: Request) {
   const daytonaApiKey = getDaytonaApiKey()
   if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
-  // Decrypt user's credentials (Anthropic, OpenAI, and OpenRouter)
-  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, openrouterApiKey } =
+  // Decrypt user's credentials (Anthropic, OpenAI, and OpenCode)
+  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey } =
     decryptUserCredentials(sandboxRecord.user.credentials)
 
   // Get agent and model from branch for API key selection
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
           openaiApiKey,
           agent,
           model,
-          openrouterApiKey
+          opencodeApiKey
         )
 
         // Update last activity

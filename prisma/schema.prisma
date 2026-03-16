@@ -75,8 +75,8 @@ model UserCredentials {
   // Encrypted OpenAI credentials (for Codex and OpenCode agents)
   openaiApiKey String? @db.Text
 
-  // Encrypted OpenRouter credentials (for OpenCode agents with OpenRouter models)
-  openrouterApiKey String? @db.Text
+  // Encrypted OpenCode credentials (for OpenCode agent paid models)
+  opencodeApiKey String? @db.Text
 
   // Custom Daytona API key (replaces platform key, clears all sandboxes when changed)
   daytonaApiKey String? @db.Text

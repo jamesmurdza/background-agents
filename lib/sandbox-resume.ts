@@ -14,7 +14,7 @@ function getEnvForModel(
     anthropicApiKey?: string
     anthropicAuthType?: string
     openaiApiKey?: string
-    openrouterApiKey?: string
+    opencodeApiKey?: string
   }
 ): Record<string, string> {
   const env: Record<string, string> = {}
@@ -27,54 +27,25 @@ function getEnvForModel(
     return env
   }
 
-  // For Codex agent, always use OpenAI credentials
-  if (agent === "codex") {
-    if (credentials.openaiApiKey) {
-      env.OPENAI_API_KEY = credentials.openaiApiKey
-    }
-    return env
-  }
-
-  // For OpenCode agent, select API key based on model prefix
+  // For OpenCode agent, determine API key based on model prefix
   if (agent === "opencode") {
-    // Parse the model string to determine provider
-    // Model formats:
-    // - "anthropic/claude-..." -> Anthropic API key needed
-    // - "openai/gpt-..." -> OpenAI API key needed
-    // - "openrouter/..." -> Free models, no API key needed (uses OpenRouter's free tier)
-    // - "google/..." -> OpenRouter API key needed
-
-    const modelPrefix = model?.split("/")[0]?.toLowerCase()
+    const modelPrefix = model?.split("/")[0]
 
     if (modelPrefix === "anthropic") {
+      // anthropic/* models use Anthropic API key directly
       if (credentials.anthropicApiKey) {
         env.ANTHROPIC_API_KEY = credentials.anthropicApiKey
       }
     } else if (modelPrefix === "openai") {
+      // openai/* models use OpenAI API key directly
       if (credentials.openaiApiKey) {
         env.OPENAI_API_KEY = credentials.openaiApiKey
       }
-    } else if (modelPrefix === "openrouter") {
-      // Free models via OpenRouter - no API key needed for free tier models
-      // If user has an OpenRouter key, include it for potential rate limit benefits
-      if (credentials.openrouterApiKey) {
-        env.OPENROUTER_API_KEY = credentials.openrouterApiKey
-      }
-    } else if (modelPrefix === "google") {
-      // Google models via OpenRouter
-      if (credentials.openrouterApiKey) {
-        env.OPENROUTER_API_KEY = credentials.openrouterApiKey
-      }
-    } else {
-      // Unknown provider - include all available keys for flexibility
-      if (credentials.openrouterApiKey) {
-        env.OPENROUTER_API_KEY = credentials.openrouterApiKey
-      }
-      if (credentials.openaiApiKey) {
-        env.OPENAI_API_KEY = credentials.openaiApiKey
-      }
-      if (credentials.anthropicApiKey) {
-        env.ANTHROPIC_API_KEY = credentials.anthropicApiKey
+    } else if (modelPrefix === "opencode") {
+      // opencode/* models - free ones don't need a key, paid ones use OpenCode API key
+      const isFreeModel = model?.includes("-free") || model === "opencode/big-pickle"
+      if (!isFreeModel && credentials.opencodeApiKey) {
+        env.OPENCODE_API_KEY = credentials.opencodeApiKey
       }
     }
   }
@@ -105,8 +76,8 @@ export async function ensureSandboxReady(
   agent?: Agent,
   // Model selection for determining which API key to use
   model?: string,
-  // OpenRouter API key for OpenRouter models
-  openrouterApiKey?: string
+  // OpenCode API key for OpenCode paid models
+  opencodeApiKey?: string
 ): Promise<{
   sandbox: Awaited<ReturnType<InstanceType<typeof Daytona>["get"]>>
   wasResumed: boolean
@@ -150,7 +121,7 @@ export async function ensureSandboxReady(
     anthropicApiKey,
     anthropicAuthType,
     openaiApiKey,
-    openrouterApiKey,
+    opencodeApiKey,
   })
 
   return {

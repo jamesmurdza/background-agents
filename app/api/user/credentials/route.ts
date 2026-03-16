@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     anthropicApiKey,
     anthropicAuthToken,
     openaiApiKey,
-    openrouterApiKey,
+    opencodeApiKey,
     daytonaApiKey,
     sandboxAutoStopInterval,
   } = body
@@ -56,10 +56,10 @@ export async function POST(req: Request) {
     updateData.openaiApiKey = encrypt(openaiApiKey)
   }
 
-  if (openrouterApiKey === null) {
-    updateData.openrouterApiKey = null
-  } else if (openrouterApiKey) {
-    updateData.openrouterApiKey = encrypt(openrouterApiKey)
+  if (opencodeApiKey === null) {
+    updateData.opencodeApiKey = null
+  } else if (opencodeApiKey) {
+    updateData.opencodeApiKey = encrypt(opencodeApiKey)
   }
 
   if (sandboxAutoStopInterval !== undefined) {

@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       if (!isDaytonaKeyError(daytonaApiKey)) {
         const sandboxRecord = await getSandboxWithAuth(execution.sandboxId, auth.userId)
         if (sandboxRecord) {
-          const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, openrouterApiKey } =
+          const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey } =
             decryptUserCredentials(sandboxRecord.user.credentials)
           const actualRepoName = execution.message.branch.repo?.name ?? "repo"
           const repoPath = `${PATHS.SANDBOX_HOME}/${actualRepoName}`
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
                 openaiApiKey,
                 agent,
                 branch.model ?? undefined,
-                openrouterApiKey
+                opencodeApiKey
               )
 
               const result = await pollBackgroundAgent(sandbox, backgroundSessionId, {

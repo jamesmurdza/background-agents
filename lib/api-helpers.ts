@@ -22,7 +22,7 @@ export interface DecryptedCredentials {
   anthropicAuthToken?: string
   anthropicAuthType: AnthropicAuthType
   openaiApiKey?: string
-  openrouterApiKey?: string
+  opencodeApiKey?: string
   daytonaApiKey?: string
 }
 
@@ -45,7 +45,7 @@ export interface SandboxWithCredentials {
       anthropicAuthToken: string | null
       anthropicAuthType: string | null
       openaiApiKey: string | null
-      openrouterApiKey: string | null
+      opencodeApiKey: string | null
       daytonaApiKey: string | null
     } | null
   }
@@ -223,7 +223,7 @@ export function decryptUserCredentials(
     anthropicAuthToken: string | null
     anthropicAuthType: string | null
     openaiApiKey: string | null
-    openrouterApiKey: string | null
+    opencodeApiKey: string | null
     daytonaApiKey: string | null
   } | null
 ): DecryptedCredentials {
@@ -232,7 +232,7 @@ export function decryptUserCredentials(
   let anthropicApiKey: string | undefined
   let anthropicAuthToken: string | undefined
   let openaiApiKey: string | undefined
-  let openrouterApiKey: string | undefined
+  let opencodeApiKey: string | undefined
   let daytonaApiKey: string | undefined
 
   if (credentials?.anthropicApiKey) {
@@ -244,8 +244,8 @@ export function decryptUserCredentials(
   if (credentials?.openaiApiKey) {
     openaiApiKey = decrypt(credentials.openaiApiKey)
   }
-  if (credentials?.openrouterApiKey) {
-    openrouterApiKey = decrypt(credentials.openrouterApiKey)
+  if (credentials?.opencodeApiKey) {
+    opencodeApiKey = decrypt(credentials.opencodeApiKey)
   }
   if (credentials?.daytonaApiKey) {
     daytonaApiKey = decrypt(credentials.daytonaApiKey)
@@ -256,7 +256,7 @@ export function decryptUserCredentials(
     anthropicAuthToken,
     anthropicAuthType,
     openaiApiKey,
-    openrouterApiKey,
+    opencodeApiKey,
     daytonaApiKey,
   }
 }

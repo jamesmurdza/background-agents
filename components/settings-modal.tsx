@@ -15,7 +15,7 @@ interface SettingsModalProps {
     hasAnthropicApiKey: boolean
     hasAnthropicAuthToken: boolean
     hasOpenaiApiKey: boolean
-    hasOpenrouterApiKey: boolean
+    hasOpencodeApiKey: boolean
     hasDaytonaApiKey: boolean
     sandboxAutoStopInterval?: number
   } | null
@@ -27,7 +27,7 @@ interface SettingsModalProps {
 }
 
 // Track which keys should be cleared on save
-type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "openrouterApiKey" | "daytonaApiKey"
+type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "opencodeApiKey" | "daytonaApiKey"
 
 export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
@@ -38,7 +38,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
 
   // Other API keys
   const [openaiApiKey, setOpenaiApiKey] = useState("")
-  const [openrouterApiKey, setOpenrouterApiKey] = useState("")
+  const [opencodeApiKey, setOpencodeApiKey] = useState("")
 
   // Sandbox settings
   const [sandboxAutoStopInterval, setSandboxAutoStopInterval] = useState(5)
@@ -61,7 +61,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       setAnthropicApiKey("")
       setAnthropicAuthToken("")
       setOpenaiApiKey("")
-      setOpenrouterApiKey("")
+      setOpencodeApiKey("")
       setDaytonaApiKey("")
       setKeysToClear(new Set())
       const interval = credentials?.sandboxAutoStopInterval ?? 5
@@ -77,7 +77,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   useEffect(() => {
     if (highlightField && open) {
       // Switch to agents tab if highlighting an agent-related field
-      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "openrouterApiKey"].includes(highlightField)) {
+      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "opencodeApiKey"].includes(highlightField)) {
         setActiveTab("agents")
       }
       // Scroll field into view after a short delay to allow tab switch
@@ -107,7 +107,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     const newAnthropicKey = anthropicApiKey.trim()
     const newAuthToken = anthropicAuthToken.trim()
     const newOpenaiKey = openaiApiKey.trim()
-    const newOpenrouterKey = openrouterApiKey.trim()
+    const newOpencodeKey = opencodeApiKey.trim()
     const newDaytonaKey = daytonaApiKey.trim()
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
@@ -122,7 +122,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       newAnthropicKey ||
       newAuthToken ||
       newOpenaiKey ||
-      newOpenrouterKey ||
+      newOpencodeKey ||
       newDaytonaKey ||
       autoStopChanged ||
       keysToClear.size > 0
@@ -149,8 +149,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       if (newOpenaiKey) {
         payload.openaiApiKey = newOpenaiKey
       }
-      if (newOpenrouterKey) {
-        payload.openrouterApiKey = newOpenrouterKey
+      if (newOpencodeKey) {
+        payload.opencodeApiKey = newOpencodeKey
       }
       if (newDaytonaKey) {
         payload.daytonaApiKey = newDaytonaKey
@@ -453,19 +453,19 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 </p>
               </div>
 
-              {/* OpenRouter API Key */}
+              {/* OpenCode API Key */}
               <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
-                    <label className="text-xs font-medium text-foreground">OpenRouter API Key</label>
-                    {renderStatus(credentials?.hasOpenrouterApiKey ?? false, "openrouterApiKey")}
+                    <label className="text-xs font-medium text-foreground">OpenCode API Key</label>
+                    {renderStatus(credentials?.hasOpencodeApiKey ?? false, "opencodeApiKey")}
                   </div>
                   <div className="flex items-center gap-2">
-                    {renderClearButton(credentials?.hasOpenrouterApiKey ?? false, "openrouterApiKey")}
-                    {renderUndoClearButton("openrouterApiKey")}
+                    {renderClearButton(credentials?.hasOpencodeApiKey ?? false, "opencodeApiKey")}
+                    {renderUndoClearButton("opencodeApiKey")}
                     <a
-                      href="https://openrouter.ai/keys"
+                      href="https://opencode.ai/keys"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
@@ -475,24 +475,24 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   </div>
                 </div>
                 <Input
-                  id="field-openrouterApiKey"
+                  id="field-opencodeApiKey"
                   type="password"
-                  placeholder="sk-or-..."
-                  value={openrouterApiKey}
+                  placeholder="oc-..."
+                  value={opencodeApiKey}
                   onChange={(e) => {
-                    setOpenrouterApiKey(e.target.value)
-                    if (highlightField === "openrouterApiKey") onClearHighlight?.()
+                    setOpencodeApiKey(e.target.value)
+                    if (highlightField === "opencodeApiKey") onClearHighlight?.()
                   }}
-                  disabled={keysToClear.has("openrouterApiKey")}
-                  aria-invalid={highlightField === "openrouterApiKey"}
+                  disabled={keysToClear.has("opencodeApiKey")}
+                  aria-invalid={highlightField === "opencodeApiKey"}
                   className={cn(
                     "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
-                    keysToClear.has("openrouterApiKey") && "opacity-50",
-                    highlightField === "openrouterApiKey" && "border-destructive ring-1 ring-destructive"
+                    keysToClear.has("opencodeApiKey") && "opacity-50",
+                    highlightField === "opencodeApiKey" && "border-destructive ring-1 ring-destructive"
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Used by OpenCode agent for OpenRouter models
+                  Used by OpenCode agent for paid models
                 </p>
               </div>
             </>
