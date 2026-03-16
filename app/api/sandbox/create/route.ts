@@ -243,6 +243,7 @@ export async function POST(req: Request) {
           branchId: branchRecord.id,
           repoId: dbRepo.id,
           startCommit: headCommit,
+          agent: defaultAgent,
         })
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Unknown error"

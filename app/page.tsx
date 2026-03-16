@@ -248,6 +248,7 @@ export default function Home() {
             onAddBranch={handleAddBranch}
             onUpdateBranch={handleUpdateBranch}
             onQuotaRefresh={refreshQuota}
+            credentials={credentials}
           />
         )}
 
@@ -270,6 +271,7 @@ export default function Home() {
               pendingStartCommit={pendingStartCommit}
               onClearPendingCommit={() => setPendingStartCommit(null)}
               quota={quota}
+              credentials={credentials}
             />
           ) : (
             <div

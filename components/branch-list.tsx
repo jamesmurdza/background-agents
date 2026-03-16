@@ -1,8 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Repo, Branch } from "@/lib/types"
-import { agentLabels } from "@/lib/types"
+import type { Repo, Branch, UserCredentialFlags } from "@/lib/types"
+import { agentLabels, getDefaultAgent } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { randomBranchName, validateBranchName } from "@/lib/branch-utils"
 import { BRANCH_STATUS } from "@/lib/constants"
@@ -26,6 +26,7 @@ interface BranchListProps {
   pendingStartCommit?: string | null
   onClearPendingCommit?: () => void
   isMobile?: boolean
+  credentials?: UserCredentialFlags | null
 }
 
 export function BranchList({
@@ -42,6 +43,7 @@ export function BranchList({
   pendingStartCommit,
   onClearPendingCommit,
   isMobile = false,
+  credentials,
 }: BranchListProps) {
   const [search, setSearch] = useState("")
   const [branchFromOpen, setBranchFromOpen] = useState(false)
@@ -163,7 +165,7 @@ export function BranchList({
     const branch: Branch = {
       id: branchId,
       name: branchName,
-      agent: "claude-code",
+      agent: getDefaultAgent(credentials),
       messages: [],
       status: BRANCH_STATUS.CREATING,
       lastActivity: "now",
@@ -232,6 +234,7 @@ export function BranchList({
                   contextId: data.contextId,
                   previewUrlPattern: data.previewUrlPattern,
                   startCommit: data.startCommit,
+                  agent: data.agent, // Use server-determined agent
                 })
                 // Refresh quota now that sandbox is created in database
                 onQuotaRefresh?.()
@@ -257,7 +260,7 @@ export function BranchList({
     } finally {
       setCreating(false)
     }
-  }, [newBranchName, newBranchBase, creating, repo, quota, onAddBranch, onUpdateBranch, onQuotaRefresh, branchPlaceholder, startCommit, githubBranches])
+  }, [newBranchName, newBranchBase, creating, repo, quota, onAddBranch, onUpdateBranch, onQuotaRefresh, branchPlaceholder, startCommit, githubBranches, credentials])
 
   // Compute width style for desktop vs mobile
   const widthStyle = isMobile ? { width: "100%" } : { width: typeof width === "number" ? width : width }

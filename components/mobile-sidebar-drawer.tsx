@@ -1,8 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { Repo, Branch } from "@/lib/types"
-import { agentLabels } from "@/lib/types"
+import type { Repo, Branch, UserCredentialFlags } from "@/lib/types"
+import { agentLabels, getDefaultAgent } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { randomBranchName, validateBranchName } from "@/lib/branch-utils"
 import { BRANCH_STATUS } from "@/lib/constants"
@@ -51,6 +51,7 @@ interface MobileSidebarDrawerProps {
   onAddBranch?: (branch: Branch) => void
   onUpdateBranch?: (branchId: string, updates: Partial<Branch>) => void
   onQuotaRefresh?: () => void
+  credentials?: UserCredentialFlags | null
 }
 
 export function MobileSidebarDrawer({
@@ -72,6 +73,7 @@ export function MobileSidebarDrawer({
   onAddBranch,
   onUpdateBranch,
   onQuotaRefresh,
+  credentials,
 }: MobileSidebarDrawerProps) {
   const [removeModalRepo, setRemoveModalRepo] = useState<Repo | null>(null)
   const [newBranchOpen, setNewBranchOpen] = useState(false)
@@ -139,7 +141,7 @@ export function MobileSidebarDrawer({
     const branch: Branch = {
       id: branchId,
       name: branchName,
-      agent: "claude-code",
+      agent: getDefaultAgent(credentials),
       messages: [],
       status: BRANCH_STATUS.CREATING,
       lastActivity: "now",
@@ -206,6 +208,7 @@ export function MobileSidebarDrawer({
                   contextId: data.contextId,
                   previewUrlPattern: data.previewUrlPattern,
                   startCommit: data.startCommit,
+                  agent: data.agent, // Use server-determined agent
                 })
                 onQuotaRefresh?.()
               } else if (data.type === "error") {
@@ -228,7 +231,7 @@ export function MobileSidebarDrawer({
     } finally {
       setCreating(false)
     }
-  }, [activeRepo, newBranchName, branchPlaceholder, newBranchBase, creating, quota, githubBranches, onAddBranch, onUpdateBranch, onQuotaRefresh, onOpenChange])
+  }, [activeRepo, newBranchName, branchPlaceholder, newBranchBase, creating, quota, githubBranches, onAddBranch, onUpdateBranch, onQuotaRefresh, onOpenChange, credentials])
 
   const handleSelectRepo = (repoId: string) => {
     onSelectRepo(repoId)
