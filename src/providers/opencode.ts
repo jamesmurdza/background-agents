@@ -107,7 +107,7 @@ export class OpenCodeProvider extends Provider {
     // to ensure the sandbox PTY captures the JSONL stream.
     const quote = (s: string) => `'${s.replace(/'/g, "'\\''")}'`
 
-    const model = options?.model || "openai/gpt-4o"
+    const model = options?.model
     const session = this.sessionId || options?.sessionId
     const prompt = options?.prompt
 
@@ -118,9 +118,11 @@ export class OpenCodeProvider extends Provider {
       "json",
       "--variant",
       "medium",
-      "-m",
-      quote(model),
     ]
+
+    if (model) {
+      parts.push("-m", quote(model))
+    }
 
     if (session) {
       parts.push("-s", quote(session))

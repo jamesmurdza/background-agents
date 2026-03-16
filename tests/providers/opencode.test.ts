@@ -24,7 +24,7 @@ describe("OpenCodeProvider", () => {
   })
 
   describe("getCommand", () => {
-    it("should return basic command without session", () => {
+    it("should return basic command without session or model", () => {
       const provider = createTestProvider()
       const { cmd, args } = provider.getCommand()
 
@@ -33,8 +33,7 @@ describe("OpenCodeProvider", () => {
       expect(args[1]).toContain("opencode run")
       expect(args[1]).toContain("--format json")
       expect(args[1]).toContain("--variant medium")
-      expect(args[1]).toContain("-m")
-      expect(args[1]).toContain("openai/gpt-4o")
+      expect(args[1]).not.toContain("-m")
     })
 
     it("should include session flag with session ID", () => {
