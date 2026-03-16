@@ -12,9 +12,8 @@ export const agentToProvider: Record<Agent, ProviderName> = {
 }
 
 // Helper to get provider from agent string (handles legacy "claude" value)
-// Note: For opencode agent, we always use the "opencode" provider. The OpenCode CLI
-// itself handles routing to different backends (OpenAI, Anthropic, OpenRouter) based
-// on the model string format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4").
+// Note: For opencode agent, we always use the "opencode" provider with model IDs
+// in the format "opencode/model-name" (e.g., "opencode/big-pickle", "opencode/claude-sonnet-4").
 export function getProviderForAgent(agent: string | undefined): ProviderName {
   if (!agent || agent === "claude" || agent === "claude-code") {
     return "claude"
