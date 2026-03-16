@@ -104,9 +104,9 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       // Always allow the agent change
       onAgentChange?.(newAgent)
 
-      // If switching to Claude Code without credentials, open settings with highlight
+      // If switching to Claude Code without credentials, open settings with highlight on subscription field
       if (newAgent === "claude-code" && !canUseClaudeCode) {
-        onOpenSettingsWithHighlight?.("anthropicApiKey")
+        onOpenSettingsWithHighlight?.("anthropicAuthToken")
       }
     }, [onAgentChange, onOpenSettingsWithHighlight, canUseClaudeCode])
 
