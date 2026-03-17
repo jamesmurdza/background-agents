@@ -42,12 +42,14 @@ export function useExecutionPolling({
   const startingCommitRef = useRef<string | null>(branch.startCommit || null)
   const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
   const pollingBranchIdRef = useRef<string | null>(null)
-  // Use refs to always get the latest branch name/sandboxId in the polling callback
+  // Use refs to always get the latest branch name/sandboxId/baseBranch in the polling callback
   // This prevents stale closures when the branch is renamed during polling
   const branchNameRef = useRef(branch.name)
   const branchSandboxIdRef = useRef(branch.sandboxId)
+  const branchBaseBranchRef = useRef(branch.baseBranch)
   branchNameRef.current = branch.name
   branchSandboxIdRef.current = branch.sandboxId
+  branchBaseBranchRef.current = branch.baseBranch
 
   // Use a ref to track branch messages to avoid dependency array issues
   // This prevents the polling callback from being recreated on every message update
@@ -356,18 +358,29 @@ export function useExecutionPolling({
                     repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
                     action: "log",
                     sinceCommit: startingCommitRef.current,
+                    targetBranch: branchBaseBranchRef.current,
                   }),
                 })
                 const logData = await logRes.json()
-                const allCommits: { shortHash: string; message: string }[] =
+                const allCommits: { shortHash: string; message: string; hash: string }[] =
                   logData.commits || []
+                const mergeBase = logData.mergeBase || ""
+
+                // Filter out inherited commits (at or after merge-base)
+                // This prevents showing base branch commits in the chat
+                const mergeBaseIdx = mergeBase
+                  ? allCommits.findIndex((c) => c.hash === mergeBase)
+                  : -1
+                const branchCommits = mergeBaseIdx >= 0
+                  ? allCommits.slice(0, mergeBaseIdx)
+                  : allCommits
 
                 const chatCommits = new Set(
                   branchMessagesRef.current
                     .filter((m) => m.commitHash)
                     .map((m) => m.commitHash),
                 )
-                const newCommits = allCommits.filter(
+                const newCommits = branchCommits.filter(
                   (c) => !chatCommits.has(c.shortHash),
                 )
 
