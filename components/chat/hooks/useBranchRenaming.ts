@@ -87,7 +87,7 @@ export function useBranchRenaming({
 
     setSuggesting(true)
     setRenaming(true)
-    setRenameValue("") // Clear while loading
+    setRenameValue("Generating...") // Show loading state
 
     try {
       const res = await fetch("/api/branches/suggest-name", {

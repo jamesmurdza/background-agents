@@ -15,16 +15,16 @@ import { createOpenAI } from "@ai-sdk/openai"
 const SUGGESTION_PROMPT = `Based on the conversation below, suggest a concise Git branch name that describes the work being done.
 
 Requirements:
-- Use 2-4 words maximum
+- Use 2-4 words maximum (not counting the prefix)
 - All lowercase
 - Words separated by hyphens
-- Use conventional prefixes when appropriate: fix-, feat-, refactor-, docs-, test-, chore-
+- Use a conventional prefix with a SLASH separator: feat/, fix/, refactor/, docs/, test/, chore/
 - Be specific but concise
 
 Conversation:
 {conversation}
 
-Reply with ONLY the branch name, nothing else. Example: fix-auth-validation`
+Reply with ONLY the branch name, nothing else. Example: fix/auth-validation`
 
 /**
  * POST /api/branches/suggest-name
