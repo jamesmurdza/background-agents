@@ -391,7 +391,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   )}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  First sign in with{" "}
+                  First sign in with:{" "}
                   <code
                     className="text-[10px] cursor-pointer"
                     onClick={() => {
