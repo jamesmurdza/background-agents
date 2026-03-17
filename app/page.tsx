@@ -10,6 +10,7 @@ import { BackgroundExecutionPoller } from "@/components/chat/background-executio
 import { GitHistoryPanel } from "@/components/git-history-panel"
 import { GitHistorySheet } from "@/components/git-history-sheet"
 import { SettingsModal } from "@/components/settings-modal"
+import { RepoSettingsModal } from "@/components/repo-settings-modal"
 import { AddRepoModal } from "@/components/add-repo-modal"
 import { MobileHeader } from "@/components/mobile-header"
 import { MobileSidebarDrawer } from "@/components/mobile-sidebar-drawer"
@@ -125,6 +126,8 @@ export default function Home() {
   const [gitHistoryOpen, setGitHistoryOpen] = useState(false)
   const [gitHistoryRefreshTrigger, setGitHistoryRefreshTrigger] = useState(0)
   const [pendingStartCommit, setPendingStartCommit] = useState<string | null>(null)
+  const [repoSettingsOpen, setRepoSettingsOpen] = useState(false)
+  const [repoEnvVars, setRepoEnvVars] = useState<Record<string, boolean> | null>(null)
 
   // Handler to open settings with a specific field highlighted
   const handleOpenSettingsWithHighlight = useCallback((field: string) => {
@@ -136,6 +139,30 @@ export default function Home() {
   const handleSettingsClose = useCallback(() => {
     setSettingsOpen(false)
     setSettingsHighlightField(null)
+  }, [])
+
+  // Handler to open repo settings
+  const handleOpenRepoSettings = useCallback(async () => {
+    if (!activeRepoId) return
+    // Fetch env var keys for the repo
+    try {
+      const res = await fetch(`/api/repo/${activeRepoId}/env-vars`)
+      if (res.ok) {
+        const data = await res.json()
+        setRepoEnvVars(data.envVars || {})
+      } else {
+        setRepoEnvVars({})
+      }
+    } catch {
+      setRepoEnvVars({})
+    }
+    setRepoSettingsOpen(true)
+  }, [activeRepoId])
+
+  // Handler to close repo settings
+  const handleRepoSettingsClose = useCallback(() => {
+    setRepoSettingsOpen(false)
+    setRepoEnvVars(null)
   }, [])
 
   // Redirect to login if not authenticated
@@ -273,6 +300,7 @@ export default function Home() {
               onClearPendingCommit={() => setPendingStartCommit(null)}
               quota={quota}
               credentials={credentials}
+              onOpenRepoSettings={handleOpenRepoSettings}
             />
           ) : (
             <div
@@ -412,6 +440,17 @@ export default function Home() {
         onAddRepo={handleAddRepo}
         onSelectExistingRepo={selectRepo}
       />
+      {activeRepo && (
+        <RepoSettingsModal
+          open={repoSettingsOpen}
+          onClose={handleRepoSettingsClose}
+          repoId={activeRepo.id}
+          repoOwner={activeRepo.owner}
+          repoName={activeRepo.name}
+          initialEnvVars={repoEnvVars ?? undefined}
+          onEnvVarsUpdate={handleOpenRepoSettings}
+        />
+      )}
 
       {/* Mobile Diff Modal */}
       {isMobile && activeRepo && activeBranch && (

@@ -14,6 +14,7 @@ import {
 import { createSSEStream, sendProgress, sendError, sendDone } from "@/lib/streaming-helpers"
 import { SANDBOX_CONFIG, PATHS } from "@/lib/constants"
 import { getDefaultAgent } from "@/lib/types"
+import { decrypt } from "@/lib/encryption"
 
 // Sandbox creation timeout - 300 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 300
@@ -89,6 +90,31 @@ export async function POST(req: Request) {
         const daytona = new Daytona({ apiKey: daytonaApiKey })
         const sandboxName = generateSandboxName(userId)
 
+        // Get repository env vars if repo exists
+        let repoEnvVars: Record<string, string> = {}
+        if (repoId) {
+          const existingRepo = await prisma.repo.findUnique({
+            where: { id: repoId },
+            select: { envVars: true },
+          })
+          if (existingRepo?.envVars) {
+            const encryptedEnvVars = existingRepo.envVars as Record<string, string>
+            for (const [key, encryptedValue] of Object.entries(encryptedEnvVars)) {
+              try {
+                repoEnvVars[key] = decrypt(encryptedValue)
+              } catch {
+                // Skip keys that fail to decrypt
+              }
+            }
+          }
+        }
+
+        // Build env vars: repo env vars + Anthropic API key (if applicable)
+        const sandboxEnvVars: Record<string, string> = { ...repoEnvVars }
+        if (anthropicAuthType !== "claude-max" && anthropicApiKey) {
+          sandboxEnvVars.ANTHROPIC_API_KEY = anthropicApiKey
+        }
+
         // Only inject Anthropic API key if using claude-code agent or opencode with Anthropic models
         // For opencode with free models, no API key is needed
         const sandbox = await daytona.create({
@@ -101,10 +127,9 @@ export async function POST(req: Request) {
             branch: newBranch,
             userId: userId,
           },
-          ...(anthropicAuthType !== "claude-max" &&
-            anthropicApiKey && {
-              envVars: { ANTHROPIC_API_KEY: anthropicApiKey },
-            }),
+          ...(Object.keys(sandboxEnvVars).length > 0 && {
+            envVars: sandboxEnvVars,
+          }),
         })
 
         // For Claude Max, write stored credentials so the Agent SDK picks them up
