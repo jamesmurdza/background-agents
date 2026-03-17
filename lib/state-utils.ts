@@ -181,23 +181,6 @@ export function replaceMessageId(
   return updateMessageInBranch(repos, repoId, branchId, oldId, { id: newId })
 }
 
-// =============================================================================
-// Repo Update Utilities
-// =============================================================================
-
-/**
- * Updates a specific repo
- */
-export function updateRepo(
-  repos: TransformedRepo[],
-  repoId: string,
-  updates: Partial<TransformedRepo>
-): TransformedRepo[] {
-  return repos.map((repo) =>
-    repo.id === repoId ? { ...repo, ...updates } : repo
-  )
-}
-
 /**
  * Removes a repo from the list
  */
@@ -220,42 +203,4 @@ export function reorderRepos(
   const [moved] = result.splice(fromIndex, 1)
   result.splice(toIndex, 0, moved)
   return result
-}
-
-// =============================================================================
-// Finder Utilities
-// =============================================================================
-
-/**
- * Finds a branch by ID across all repos
- */
-export function findBranchById(
-  repos: TransformedRepo[],
-  branchId: string
-): { repo: TransformedRepo; branch: Branch } | null {
-  for (const repo of repos) {
-    const branch = repo.branches.find((b) => b.id === branchId)
-    if (branch) {
-      return { repo, branch }
-    }
-  }
-  return null
-}
-
-/**
- * Finds a message by ID across all repos and branches
- */
-export function findMessageById(
-  repos: TransformedRepo[],
-  messageId: string
-): { repo: TransformedRepo; branch: Branch; message: Message } | null {
-  for (const repo of repos) {
-    for (const branch of repo.branches) {
-      const message = branch.messages.find((m) => m.id === messageId)
-      if (message) {
-        return { repo, branch, message }
-      }
-    }
-  }
-  return null
 }
