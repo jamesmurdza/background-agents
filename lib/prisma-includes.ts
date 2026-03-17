@@ -17,13 +17,6 @@ import { PAGINATION } from "@/lib/constants"
 // =============================================================================
 
 /**
- * Branch include with sandbox - minimal include for lists
- */
-export const INCLUDE_BRANCH_WITH_SANDBOX = {
-  sandbox: true,
-} satisfies Prisma.BranchInclude
-
-/**
  * Branch include with sandbox and messages - for branch detail views
  */
 export const INCLUDE_BRANCH_WITH_MESSAGES = {
@@ -86,27 +79,6 @@ export const INCLUDE_REPO_WITH_BRANCHES = {
 } satisfies Prisma.RepoInclude
 
 // =============================================================================
-// User Includes
-// =============================================================================
-
-/**
- * User credentials select - for showing existence without values
- */
-export const SELECT_USER_CREDENTIALS = {
-  anthropicAuthType: true,
-  anthropicApiKey: true,
-  anthropicAuthToken: true,
-  sandboxAutoStopInterval: true,
-} satisfies Prisma.UserCredentialsSelect
-
-/**
- * Full user credentials include - for server-side decryption
- */
-export const INCLUDE_USER_WITH_CREDENTIALS = {
-  credentials: true,
-} satisfies Prisma.UserInclude
-
-// =============================================================================
 // Sandbox Includes
 // =============================================================================
 
@@ -163,10 +135,6 @@ export const INCLUDE_EXECUTION_WITH_CONTEXT = {
 
 // These types can be used to infer the return type of Prisma queries
 // using the include patterns above
-
-export type BranchWithSandbox = Prisma.BranchGetPayload<{
-  include: typeof INCLUDE_BRANCH_WITH_SANDBOX
-}>
 
 export type BranchWithMessages = Prisma.BranchGetPayload<{
   include: typeof INCLUDE_BRANCH_WITH_MESSAGES

@@ -11,7 +11,6 @@
  */
 
 import {
-  createSession as sdkCreateSession,
   createBackgroundSession as sdkCreateBackgroundSession,
   getBackgroundSession as sdkGetBackgroundSession,
   type Event,
@@ -20,7 +19,6 @@ import {
   type ToolStartEvent,
   type ToolEndEvent,
   type EndEvent,
-  type SessionOptions,
   type BackgroundSessionOptions,
 } from "@jamesmurdza/coding-agents-sdk"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
@@ -294,57 +292,6 @@ export async function readPersistedSessionId(
     // No stored session
   }
   return undefined
-}
-
-// =============================================================================
-// Streaming Session Creation and Execution
-// =============================================================================
-
-export async function createAgentSession(
-  sandbox: DaytonaSandbox,
-  options: AgentSessionOptions
-) {
-  const systemPrompt = buildSystemPrompt(
-    options.repoPath,
-    options.previewUrlPattern
-  )
-
-  // Note: We cast sandbox to 'unknown' then to SessionOptions['sandbox'] to handle
-  // version mismatch between @daytonaio/sdk in main project vs SDK's dependency.
-  // The runtime interface is compatible.
-  const sessionOptions: SessionOptions = {
-    sandbox: sandbox as unknown as SessionOptions['sandbox'],
-    systemPrompt,
-    // Pass undefined for model if "default" to let SDK choose
-    model: options.model === "default" ? undefined : options.model,
-    sessionId: options.sessionId,
-    env: options.env,
-  }
-
-  // Map agent type to SDK provider name (handles legacy "claude" values)
-  const agent = options.agent || "claude-code"
-  const provider = getProviderForAgent(agent)
-
-  const session = await sdkCreateSession(provider, sessionOptions)
-
-  return { session, sandbox }
-}
-
-export async function* runAgentQuery(
-  session: Awaited<ReturnType<typeof sdkCreateSession>>,
-  sandbox: DaytonaSandbox,
-  prompt: string
-): AsyncGenerator<AgentEvent> {
-  for await (const event of session.run(prompt)) {
-    const transformed = transformEvent(event)
-    if (transformed) {
-      // Persist session ID when received
-      if (transformed.type === "session" && transformed.sessionId) {
-        await persistSessionId(sandbox, transformed.sessionId)
-      }
-      yield transformed
-    }
-  }
 }
 
 // =============================================================================
