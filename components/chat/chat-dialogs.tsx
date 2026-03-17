@@ -54,7 +54,7 @@ export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDia
             <div className="flex flex-col items-center gap-1">
               {/* Source (top) */}
               {gitActions.mergeDirection === "from-current" ? (
-                <div className="w-full rounded-md bg-muted/50 px-3 py-2 text-sm font-medium text-center truncate">
+                <div className="w-full rounded-md bg-muted/50 px-3 py-2 text-sm font-medium text-left truncate">
                   {branch.name}
                 </div>
               ) : (
@@ -99,7 +99,7 @@ export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDia
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="w-full rounded-md bg-muted/50 px-3 py-2 text-sm font-medium text-center truncate">
+                <div className="w-full rounded-md bg-muted/50 px-3 py-2 text-sm font-medium text-left truncate">
                   {branch.name}
                 </div>
               )}
