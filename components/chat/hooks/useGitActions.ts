@@ -34,7 +34,6 @@ export function useGitActions({
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
   const [selectedBranch, setSelectedBranch] = useState("")
   const [branchesLoading, setBranchesLoading] = useState(false)
-  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
   const [tagNameInput, setTagNameInput] = useState("")
   const [diffModalOpen, setDiffModalOpen] = useState(false)
@@ -185,29 +184,6 @@ export function useGitActions({
     }
   }, [selectedBranch, branch.sandboxId, branch.name, repoFullName, repoName, addSystemMessage])
 
-  const handleReset = useCallback(async () => {
-    setResetConfirmOpen(false)
-    setActionLoading("reset")
-    try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId: branch.sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "reset",
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      addSystemMessage("Reset to HEAD — all uncommitted changes discarded.")
-    } catch (err: unknown) {
-      addSystemMessage(`Reset failed: ${err instanceof Error ? err.message : "Unknown error"}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }, [branch.sandboxId, repoName, addSystemMessage])
-
   const handleTag = useCallback(async () => {
     const name = tagNameInput.trim()
     if (!name) return
@@ -253,10 +229,6 @@ export function useGitActions({
     }
     if (action === "rebase") {
       openBranchPicker("rebase")
-      return
-    }
-    if (action === "reset") {
-      setResetConfirmOpen(true)
       return
     }
     if (action === "tag") {
@@ -330,10 +302,6 @@ export function useGitActions({
     selectedBranch,
     setSelectedBranch,
 
-    // Reset
-    resetConfirmOpen,
-    setResetConfirmOpen,
-
     // Tag
     tagPopoverOpen,
     setTagPopoverOpen,
@@ -360,7 +328,6 @@ export function useGitActions({
     handleCreatePR,
     handleMerge,
     handleRebase,
-    handleReset,
     handleTag,
     handleHeaderAction,
     handleVSCodeClick,

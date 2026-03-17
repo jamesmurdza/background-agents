@@ -83,30 +83,6 @@ export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDia
         </DialogContent>
       </Dialog>
 
-      {/* Reset confirmation dialog */}
-      <Dialog open={gitActions.resetConfirmOpen} onOpenChange={gitActions.setResetConfirmOpen}>
-        <DialogContent className="sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-sm">Reset to HEAD?</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">This will discard all uncommitted changes. This cannot be undone.</p>
-          <DialogFooter>
-            <button
-              onClick={() => gitActions.setResetConfirmOpen(false)}
-              className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={gitActions.handleReset}
-              className="cursor-pointer flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-            >
-              Reset
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Tag dialog */}
       <Dialog open={gitActions.tagPopoverOpen} onOpenChange={(open) => { gitActions.setTagPopoverOpen(open); if (!open) gitActions.setTagNameInput("") }}>
         <DialogContent className="sm:max-w-xs">
