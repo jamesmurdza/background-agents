@@ -66,7 +66,7 @@ function ToolCallTimeline({ toolCalls }: { toolCalls: ToolCall[] }) {
                     {tc.summary}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-md break-all font-mono text-[10px]">
+                <TooltipContent side="top" className="max-w-md font-mono text-[10px] whitespace-pre-wrap [overflow-wrap:anywhere]">
                   {tc.fullSummary}
                 </TooltipContent>
               </Tooltip>
