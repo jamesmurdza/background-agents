@@ -33,6 +33,9 @@ export function useGitActions({
   const [branchPickerModal, setBranchPickerModal] = useState<{ action: "merge" | "rebase" | "diff" } | null>(null)
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
   const [selectedBranch, setSelectedBranch] = useState("")
+  // For merge: "into-current" means merge selected branch INTO current branch
+  // "from-current" means merge current branch INTO selected branch
+  const [mergeDirection, setMergeDirection] = useState<"into-current" | "from-current">("from-current")
   const [branchesLoading, setBranchesLoading] = useState(false)
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
   const [tagNameInput, setTagNameInput] = useState("")
@@ -112,8 +115,13 @@ export function useGitActions({
   const openBranchPicker = useCallback((action: "merge" | "rebase" | "diff") => {
     setBranchPickerModal({ action })
     setSelectedBranch("")
+    setMergeDirection("from-current") // Reset to default direction
     fetchBranches()
   }, [fetchBranches])
+
+  const toggleMergeDirection = useCallback(() => {
+    setMergeDirection(prev => prev === "into-current" ? "from-current" : "into-current")
+  }, [])
 
   const handleSandboxToggle = useCallback(async () => {
     if (!branch.sandboxId || sandboxToggleLoading) return
@@ -171,6 +179,11 @@ export function useGitActions({
     if (!selectedBranch) return
     setBranchPickerModal(null)
     setActionLoading("merge")
+
+    // Determine source and target based on merge direction
+    const sourceBranch = mergeDirection === "from-current" ? branch.name : selectedBranch
+    const targetBranch = mergeDirection === "from-current" ? selectedBranch : branch.name
+
     try {
       const res = await fetch("/api/sandbox/git", {
         method: "POST",
@@ -179,19 +192,19 @@ export function useGitActions({
           sandboxId: branch.sandboxId,
           repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
           action: "merge",
-          targetBranch: selectedBranch,
-          currentBranch: branch.name,
+          targetBranch: targetBranch,
+          currentBranch: sourceBranch,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`Merged **${branch.name}** into **${selectedBranch}** and pushed.`)
+      addSystemMessage(`Merged **${sourceBranch}** into **${targetBranch}** and pushed.`)
     } catch (err: unknown) {
       addSystemMessage(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`)
     } finally {
       setActionLoading(null)
     }
-  }, [selectedBranch, branch.sandboxId, branch.name, repoName, addSystemMessage])
+  }, [selectedBranch, branch.sandboxId, branch.name, repoName, addSystemMessage, mergeDirection])
 
   const handleRebase = useCallback(async () => {
     if (!selectedBranch) return
@@ -339,6 +352,8 @@ export function useGitActions({
     remoteBranches,
     selectedBranch,
     setSelectedBranch,
+    mergeDirection,
+    toggleMergeDirection,
 
     // Tag
     tagPopoverOpen,
