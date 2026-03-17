@@ -1,7 +1,7 @@
 "use client"
 
 import type { Branch } from "@/lib/types"
-import { Loader2, Copy, Check, ArrowRightLeft } from "lucide-react"
+import { Loader2, Copy, Check, ArrowUpDown } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -39,11 +39,7 @@ export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDia
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-sm">
-              {gitActions.branchPickerModal?.action === "merge" && (
-                gitActions.mergeDirection === "from-current"
-                  ? `Merge ${branch.name} into...`
-                  : `Merge ... into ${branch.name}`
-              )}
+              {gitActions.branchPickerModal?.action === "merge" && "Merge branches"}
               {gitActions.branchPickerModal?.action === "rebase" && `Rebase ${branch.name} onto...`}
             </DialogTitle>
           </DialogHeader>
@@ -53,41 +49,70 @@ export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDia
             </div>
           ) : gitActions.remoteBranches.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">No other branches found.</p>
-          ) : (
-            <div className="space-y-3">
-              <Select value={gitActions.selectedBranch} onValueChange={gitActions.setSelectedBranch}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {gitActions.remoteBranches.map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {/* Merge direction indicator with swap button */}
-              {gitActions.branchPickerModal?.action === "merge" && gitActions.selectedBranch && (
-                <div className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
-                    <span className="truncate font-medium text-foreground">
-                      {gitActions.mergeDirection === "from-current" ? branch.name : gitActions.selectedBranch}
-                    </span>
-                    <span>→</span>
-                    <span className="truncate font-medium text-foreground">
-                      {gitActions.mergeDirection === "from-current" ? gitActions.selectedBranch : branch.name}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={gitActions.toggleMergeDirection}
-                    className="cursor-pointer flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                    title="Swap merge direction"
-                  >
-                    <ArrowRightLeft className="h-4 w-4" />
-                  </button>
+          ) : gitActions.branchPickerModal?.action === "merge" ? (
+            /* Merge: stacked vertical layout with swap */
+            <div className="flex flex-col items-center gap-1">
+              {/* Source (top) */}
+              {gitActions.mergeDirection === "from-current" ? (
+                <div className="w-full rounded-md bg-muted/50 px-3 py-2 text-sm font-medium text-center truncate">
+                  {branch.name}
+                </div>
+              ) : (
+                <Select value={gitActions.selectedBranch} onValueChange={gitActions.setSelectedBranch}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gitActions.remoteBranches.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Arrow with "into" and swap button */}
+              <div className="flex items-center gap-2 py-1">
+                <span className="text-xs text-muted-foreground">↓ into</span>
+                <button
+                  type="button"
+                  onClick={gitActions.toggleMergeDirection}
+                  className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  title="Swap merge direction"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Target (bottom) */}
+              {gitActions.mergeDirection === "from-current" ? (
+                <Select value={gitActions.selectedBranch} onValueChange={gitActions.setSelectedBranch}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gitActions.remoteBranches.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="w-full rounded-md bg-muted/50 px-3 py-2 text-sm font-medium text-center truncate">
+                  {branch.name}
                 </div>
               )}
             </div>
+          ) : (
+            /* Rebase: original simple dropdown */
+            <Select value={gitActions.selectedBranch} onValueChange={gitActions.setSelectedBranch}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {gitActions.remoteBranches.map((b) => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <DialogFooter>
             <button
