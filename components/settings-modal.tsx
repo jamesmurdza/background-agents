@@ -1,11 +1,11 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2 } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, RefreshCw } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 
-type SettingsTab = "agents" | "sandboxes"
+type SettingsTab = "agents" | "sandboxes" | "automation"
 
 interface SettingsModalProps {
   open: boolean
@@ -18,6 +18,7 @@ interface SettingsModalProps {
     hasOpencodeApiKey: boolean
     hasDaytonaApiKey: boolean
     sandboxAutoStopInterval?: number
+    defaultLoopMaxIterations?: number
   } | null
   onCredentialsUpdate: () => void
   /** Field to highlight with error styling (e.g., "anthropicApiKey", "openaiApiKey") */
@@ -45,6 +46,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   const [initialAutoStopInterval, setInitialAutoStopInterval] = useState(5)
   const [daytonaApiKey, setDaytonaApiKey] = useState("")
 
+  // Automation settings
+  const [defaultLoopMaxIterations, setDefaultLoopMaxIterations] = useState(10)
+  const [initialLoopMaxIterations, setInitialLoopMaxIterations] = useState(10)
+
   // Track keys to clear
   const [keysToClear, setKeysToClear] = useState<Set<ClearableKey>>(new Set())
 
@@ -68,6 +73,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       const interval = credentials?.sandboxAutoStopInterval ?? 5
       setSandboxAutoStopInterval(interval)
       setInitialAutoStopInterval(interval)
+      const loopIterations = credentials?.defaultLoopMaxIterations ?? 10
+      setDefaultLoopMaxIterations(loopIterations)
+      setInitialLoopMaxIterations(loopIterations)
       setSaveStatus(null)
       setShowDaytonaWarning(false)
       setDaytonaWarningConfirmed(false)
@@ -111,6 +119,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     const newOpencodeKey = opencodeApiKey.trim()
     const newDaytonaKey = daytonaApiKey.trim()
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
+    const loopIterationsChanged = defaultLoopMaxIterations !== initialLoopMaxIterations
 
     // Check if Daytona key is being changed and show warning (if not already confirmed)
     if ((newDaytonaKey || keysToClear.has("daytonaApiKey")) && !skipDaytonaWarning && !daytonaWarningConfirmed) {
@@ -126,6 +135,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       newOpencodeKey ||
       newDaytonaKey ||
       autoStopChanged ||
+      loopIterationsChanged ||
       keysToClear.size > 0
 
     if (!hasAnyChanges) {
@@ -158,6 +168,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       }
       if (autoStopChanged) {
         payload.sandboxAutoStopInterval = sandboxAutoStopInterval
+      }
+      if (loopIterationsChanged) {
+        payload.defaultLoopMaxIterations = defaultLoopMaxIterations
       }
 
       // Add keys to clear (send null to clear them)
@@ -302,6 +315,18 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
           >
             <Box className="h-3.5 w-3.5" />
             Sandboxes
+          </button>
+          <button
+            onClick={() => setActiveTab("automation")}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px",
+              activeTab === "automation"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Automation
           </button>
         </div>
 
@@ -592,6 +617,48 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 <p className="text-[11px] text-muted-foreground">
                   Sandboxes will auto-stop after {sandboxAutoStopInterval} minutes of inactivity
                 </p>
+              </div>
+            </>
+          )}
+
+          {activeTab === "automation" && (
+            <>
+              {/* Info about Loop Mode */}
+              <p className="text-[11px] text-muted-foreground">
+                Loop mode allows agents to automatically continue working until they indicate completion by responding with &quot;FINISHED&quot;.
+              </p>
+
+              {/* Default Loop Max Iterations */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                  <label className="text-xs font-medium text-foreground">Default Loop Iterations</label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={1}
+                    max={25}
+                    value={defaultLoopMaxIterations}
+                    onChange={(e) => setDefaultLoopMaxIterations(Number(e.target.value))}
+                    className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                  />
+                  <span className="text-xs font-medium text-foreground w-12 text-right">{defaultLoopMaxIterations}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Maximum number of times the agent will be re-prompted before stopping. This is the default for new branches with loop mode enabled.
+                </p>
+              </div>
+
+              {/* How it works section */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-border">
+                <h4 className="text-xs font-medium text-foreground">How Loop Mode Works</h4>
+                <ol className="text-[11px] text-muted-foreground list-decimal list-inside space-y-1">
+                  <li>Enable the loop toggle next to the agent selector in chat</li>
+                  <li>Send your initial message to the agent</li>
+                  <li>When the agent finishes, it will be asked to continue or say &quot;FINISHED&quot;</li>
+                  <li>The loop stops when the agent says &quot;FINISHED&quot; or reaches the max iterations</li>
+                </ol>
               </div>
             </>
           )}

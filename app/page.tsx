@@ -359,6 +359,7 @@ export default function Home() {
                   credentials={credentials}
                   onOpenSettings={() => setSettingsOpen(true)}
                   onOpenSettingsWithHighlight={handleOpenSettingsWithHighlight}
+                  defaultLoopMaxIterations={credentials?.defaultLoopMaxIterations}
                 />
               ) : (
                 <EmptyChatPanel hasRepos={repos.length > 0} />
@@ -405,6 +406,7 @@ export default function Home() {
               credentials={credentials}
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenSettingsWithHighlight={handleOpenSettingsWithHighlight}
+              defaultLoopMaxIterations={credentials?.defaultLoopMaxIterations}
             />
           ) : (
             <EmptyChatPanel hasRepos={repos.length > 0} />

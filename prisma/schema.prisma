@@ -91,6 +91,9 @@ model UserCredentials {
   // Sandbox settings
   sandboxAutoStopInterval Int @default(5) // 5-20 minutes
 
+  // Loop mode settings
+  defaultLoopMaxIterations Int @default(10) // Default max loop iterations for new branches (1-25)
+
   updatedAt DateTime @updatedAt
 }
 
@@ -130,6 +133,11 @@ model Branch {
   // Agent configuration
   agent String @default("claude-code") // "claude-code" | "opencode" | "codex"
   model String? // Model selection for the agent (e.g., "sonnet", "gpt-4o")
+
+  // Loop mode configuration
+  loopEnabled       Boolean @default(false) // Is loop mode active for this branch?
+  loopCount         Int     @default(0)     // Current number of loop iterations
+  loopMaxIterations Int     @default(10)    // Max iterations before stopping
 
   sandbox  Sandbox?
   messages Message[]
@@ -197,6 +205,9 @@ model AgentExecution {
   status      String   @default("running") // "running" | "completed" | "error"
   startedAt   DateTime @default(now())
   completedAt DateTime?
+
+  // Loop mode tracking
+  isLoopIteration Boolean @default(false) // Was this execution triggered by loop mode?
 
   latestSnapshot Json? // { content?, toolCalls?, contentBlocks? } during run; cleared on completion
   // Status-driven polling (serverless): throttle and event accumulation so any instance can poll

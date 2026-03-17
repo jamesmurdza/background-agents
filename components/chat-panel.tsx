@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { Agent, Branch, Message, UserCredentialFlags } from "@/lib/types"
-import { defaultAgentModel, getDefaultModelForAgent } from "@/lib/types"
+import { defaultAgentModel, getDefaultModelForAgent, LOOP_CONTINUATION_MESSAGE, DEFAULT_LOOP_MAX_ITERATIONS } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Terminal } from "lucide-react"
@@ -54,6 +54,8 @@ interface ChatPanelProps {
   onOpenSettings?: () => void
   /** Callback to open settings modal with a specific field highlighted */
   onOpenSettingsWithHighlight?: (field: string) => void
+  /** Default loop max iterations from user settings */
+  defaultLoopMaxIterations?: number
 }
 
 export function ChatPanel({
@@ -76,11 +78,18 @@ export function ChatPanel({
   credentials,
   onOpenSettings,
   onOpenSettingsWithHighlight,
+  defaultLoopMaxIterations = DEFAULT_LOOP_MAX_ITERATIONS,
 }: ChatPanelProps) {
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const globalActiveBranchIdRef = useRef<string | null>(branch.id)
+
+  // Keep global branch ID ref updated
+  useEffect(() => {
+    globalActiveBranchIdRef.current = branch.id
+  }, [branch.id])
 
   // State for agent switch dialog
   const [pendingAgentSwitch, setPendingAgentSwitch] = useState<Agent | null>(null)
@@ -90,6 +99,71 @@ export function ChatPanel({
     branch,
     onSaveDraftForBranch,
   })
+
+  // Loop continuation handler - sends the continuation message when loop should continue
+  const handleLoopContinue = useCallback(async (branchId: string) => {
+    // We need to access branch data for the specific branchId
+    // Since this is called after completion, branch state should be updated
+    if (branch.id !== branchId) return // Safety check
+    if (!branch.sandboxId) return
+
+    const userMsg: Message = {
+      id: generateId(),
+      role: "user",
+      content: LOOP_CONTINUATION_MESSAGE,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    }
+    await onAddMessage(branchId, userMsg)
+
+    const now = Date.now()
+    onUpdateBranch(branchId, {
+      status: BRANCH_STATUS.RUNNING,
+      lastActivity: "now",
+      lastActivityTs: now,
+    })
+
+    const assistantMsg: Message = {
+      id: generateId(),
+      role: "assistant",
+      content: "",
+      toolCalls: [],
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    }
+    const messageId = await onAddMessage(branchId, assistantMsg)
+
+    try {
+      const effectiveAgent = (branch.agent || "claude-code") as Agent
+      const effectiveModel = branch.model ?? getDefaultModelForAgent(effectiveAgent, credentials)
+
+      const response = await fetch("/api/agent/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId: branch.sandboxId,
+          prompt: LOOP_CONTINUATION_MESSAGE,
+          previewUrlPattern: branch.previewUrlPattern,
+          repoName,
+          messageId,
+          agent: effectiveAgent,
+          model: effectiveModel,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to start agent")
+      }
+
+      startPollingRef.current(messageId)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error"
+      onUpdateMessage(branchId, messageId, { content: `Error: ${message}` })
+      onUpdateBranch(branchId, { status: BRANCH_STATUS.IDLE, loopCount: 0 })
+    }
+  }, [branch, repoName, onAddMessage, onUpdateMessage, onUpdateBranch, credentials])
+
+  // Ref to hold startPolling so loop continue can use it
+  const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
 
   const {
     currentExecutionIdRef,
@@ -105,7 +179,14 @@ export function ChatPanel({
     onForceSave,
     onCommitsDetected,
     streamingMessageIdRef,
+    globalActiveBranchIdRef,
+    onLoopContinue: handleLoopContinue,
   })
+
+  // Update ref after hook returns
+  useEffect(() => {
+    startPollingRef.current = startPolling
+  }, [startPolling])
 
   const gitActions = useGitActions({
     branch,
@@ -261,6 +342,36 @@ export function ChatPanel({
     onUpdateBranch(branch.id, { model })
   }, [branch.id, onUpdateBranch])
 
+  // Handle loop toggle
+  const handleLoopToggle = useCallback(async (enabled: boolean) => {
+    // Update branch with loop settings
+    const updates: Partial<Branch> = {
+      loopEnabled: enabled,
+      loopCount: 0, // Reset count when toggling
+    }
+    // If enabling, set max iterations from user setting
+    if (enabled) {
+      updates.loopMaxIterations = defaultLoopMaxIterations
+    }
+    onUpdateBranch(branch.id, updates)
+
+    // Persist to server
+    try {
+      await fetch("/api/branches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: branch.id,
+          loopEnabled: enabled,
+          loopCount: 0,
+          ...(enabled && { loopMaxIterations: defaultLoopMaxIterations }),
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to persist loop toggle:", err)
+    }
+  }, [branch.id, onUpdateBranch, defaultLoopMaxIterations])
+
   return (
     <TooltipProvider delayDuration={0}>
       <div className={cn(
@@ -299,9 +410,11 @@ export function ChatPanel({
           onStop={handleStop}
           onAgentChange={handleAgentChange}
           onModelChange={handleModelChange}
+          onLoopToggle={handleLoopToggle}
           onOpenSettings={onOpenSettings}
           onOpenSettingsWithHighlight={onOpenSettingsWithHighlight}
           credentials={credentials}
+          defaultLoopMaxIterations={defaultLoopMaxIterations}
           isMobile={isMobile}
         />
       </div>

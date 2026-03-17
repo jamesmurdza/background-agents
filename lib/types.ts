@@ -281,6 +281,10 @@ export interface Branch {
   prUrl?: string
   previewUrlPattern?: string
   draftPrompt?: string
+  // Loop mode fields
+  loopEnabled?: boolean
+  loopCount?: number
+  loopMaxIterations?: number
 }
 
 export interface Repo {
@@ -308,4 +312,33 @@ export function getModelLabel(agent: Agent, modelValue: string | undefined): str
   const models = agentModels[agent] ?? []
   const model = models.find(m => m.value === modelValue)
   return model?.label || modelValue
+}
+
+// Loop mode constants and helpers
+export const LOOP_CONTINUATION_MESSAGE = "If you have finished all tasks, respond with just the phrase FINISHED. Otherwise, continue working on the remaining tasks."
+
+export const DEFAULT_LOOP_MAX_ITERATIONS = 10
+export const MAX_LOOP_ITERATIONS = 25
+
+/**
+ * Check if the agent response indicates completion (should stop looping).
+ * Returns true if:
+ * - The entire response (trimmed) is any case variation of "finished" (e.g., "finished", "FINISHED", "Finished")
+ * - The response contains "FINISHED" (all caps) anywhere in the text
+ */
+export function isLoopFinished(content: string | null | undefined): boolean {
+  if (!content) return false
+  const trimmed = content.trim()
+
+  // Check if entire response is any case variation of "finished"
+  if (trimmed.toLowerCase() === "finished") {
+    return true
+  }
+
+  // Check if response contains "FINISHED" (all caps) anywhere
+  if (content.includes("FINISHED")) {
+    return true
+  }
+
+  return false
 }

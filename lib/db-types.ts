@@ -48,6 +48,10 @@ export interface DbBranch {
   draftPrompt: string | null
   agent: string | null
   model: string | null
+  // Loop mode fields
+  loopEnabled: boolean
+  loopCount: number
+  loopMaxIterations: number
   sandbox: DbSandbox | null
   messages?: DbMessage[]
 }
@@ -75,6 +79,7 @@ export interface UserCredentials {
   hasOpencodeApiKey: boolean
   hasDaytonaApiKey: boolean
   sandboxAutoStopInterval?: number
+  defaultLoopMaxIterations?: number
 }
 
 /**
@@ -123,6 +128,10 @@ export function transformBranch(dbBranch: DbBranch): Branch {
     draftPrompt: dbBranch.draftPrompt || undefined,
     agent: (dbBranch.agent || "claude-code") as Branch["agent"],
     model: dbBranch.model || undefined,
+    // Loop mode fields
+    loopEnabled: dbBranch.loopEnabled ?? false,
+    loopCount: dbBranch.loopCount ?? 0,
+    loopMaxIterations: dbBranch.loopMaxIterations ?? 10,
     sandboxId: dbBranch.sandbox?.sandboxId,
     contextId: dbBranch.sandbox?.contextId || undefined,
     sessionId: dbBranch.sandbox?.sessionId || undefined,

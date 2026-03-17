@@ -21,12 +21,20 @@ export async function POST(req: Request) {
     opencodeApiKey,
     daytonaApiKey,
     sandboxAutoStopInterval,
+    defaultLoopMaxIterations,
   } = body
 
   // Validate sandboxAutoStopInterval if provided
   if (sandboxAutoStopInterval !== undefined) {
     if (typeof sandboxAutoStopInterval !== "number" || sandboxAutoStopInterval < 5 || sandboxAutoStopInterval > 20) {
       return badRequest("Invalid auto-stop interval. Must be between 5 and 20 minutes.")
+    }
+  }
+
+  // Validate defaultLoopMaxIterations if provided
+  if (defaultLoopMaxIterations !== undefined) {
+    if (typeof defaultLoopMaxIterations !== "number" || defaultLoopMaxIterations < 1 || defaultLoopMaxIterations > 25) {
+      return badRequest("Invalid loop max iterations. Must be between 1 and 25.")
     }
   }
 
@@ -64,6 +72,10 @@ export async function POST(req: Request) {
 
   if (sandboxAutoStopInterval !== undefined) {
     updateData.sandboxAutoStopInterval = sandboxAutoStopInterval
+  }
+
+  if (defaultLoopMaxIterations !== undefined) {
+    updateData.defaultLoopMaxIterations = defaultLoopMaxIterations
   }
 
   // Handle Daytona API key change or clear - this deletes all sandboxes

@@ -30,6 +30,7 @@ export async function GET() {
             opencodeApiKey: true,
             daytonaApiKey: true,
             sandboxAutoStopInterval: true,
+            defaultLoopMaxIterations: true,
           },
         },
         repos: {
@@ -72,6 +73,7 @@ export async function GET() {
           hasOpencodeApiKey: !!user.credentials.opencodeApiKey,
           hasDaytonaApiKey: !!user.credentials.daytonaApiKey,
           sandboxAutoStopInterval: user.credentials.sandboxAutoStopInterval,
+          defaultLoopMaxIterations: user.credentials.defaultLoopMaxIterations,
         }
       : null
 

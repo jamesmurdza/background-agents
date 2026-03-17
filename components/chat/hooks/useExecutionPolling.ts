@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/constants"
+import { isLoopFinished, LOOP_CONTINUATION_MESSAGE } from "@/lib/types"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -17,6 +18,8 @@ interface UseExecutionPollingOptions {
   streamingMessageIdRef?: React.MutableRefObject<string | null>
   /** Ref to the globally selected branch id – used for unread when polling a non-active branch */
   globalActiveBranchIdRef?: React.MutableRefObject<string | null>
+  /** Callback to trigger loop continuation - sends the continuation message */
+  onLoopContinue?: (branchId: string) => void
 }
 
 /**
@@ -33,6 +36,7 @@ export function useExecutionPolling({
   onCommitsDetected,
   streamingMessageIdRef,
   globalActiveBranchIdRef,
+  onLoopContinue,
 }: UseExecutionPollingOptions) {
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const pollInFlightRef = useRef(false)
@@ -55,6 +59,14 @@ export function useExecutionPolling({
   branchMessagesRef.current = branch.messages
   const activeBranchIdRef = useRef(branch.id)
   activeBranchIdRef.current = branch.id
+
+  // Loop mode refs - track loop state without recreating callbacks
+  const loopEnabledRef = useRef(branch.loopEnabled)
+  const loopCountRef = useRef(branch.loopCount || 0)
+  const loopMaxIterationsRef = useRef(branch.loopMaxIterations || 10)
+  loopEnabledRef.current = branch.loopEnabled
+  loopCountRef.current = branch.loopCount || 0
+  loopMaxIterationsRef.current = branch.loopMaxIterations || 10
 
   // Update startingCommitRef when branch changes
   useEffect(() => {
@@ -400,31 +412,59 @@ export function useExecutionPolling({
           }
 
           const completedBranchId = completedBranchIdForLog ?? pollingBranchIdRef.current
-          if (completedBranchId) {
+
+          // Check if loop mode should continue
+          const shouldContinueLoop =
+            completedBranchId &&
+            loopEnabledRef.current &&
+            data.status === EXECUTION_STATUS.COMPLETED &&
+            loopCountRef.current < loopMaxIterationsRef.current &&
+            !isLoopFinished(data.content)
+
+          if (shouldContinueLoop && completedBranchId) {
+            // Increment loop count and trigger continuation
+            const newLoopCount = loopCountRef.current + 1
             onUpdateBranch(completedBranchId, {
-              status: "idle",
+              loopCount: newLoopCount,
               lastActivity: "now",
               lastActivityTs: Date.now(),
-              unread,
             })
-          }
-          try {
-            const ctx = new AudioContext()
-            const osc = ctx.createOscillator()
-            const gain = ctx.createGain()
-            osc.connect(gain)
-            gain.connect(ctx.destination)
-            osc.frequency.value = 880
-            osc.type = "sine"
-            gain.gain.setValueAtTime(0.15, ctx.currentTime)
-            gain.gain.exponentialRampToValueAtTime(
-              0.001,
-              ctx.currentTime + 0.3,
-            )
-            osc.start(ctx.currentTime)
-            osc.stop(ctx.currentTime + 0.3)
-          } catch {
-            // Ignore audio errors
+            // Trigger loop continuation after a short delay to ensure state is updated
+            setTimeout(() => {
+              onLoopContinue?.(completedBranchId)
+            }, 500)
+          } else {
+            // Normal completion - set status to idle
+            if (completedBranchId) {
+              // If loop was enabled but stopped (finished or max reached), reset loop count
+              const loopUpdates = loopEnabledRef.current ? { loopCount: 0 } : {}
+              onUpdateBranch(completedBranchId, {
+                status: "idle",
+                lastActivity: "now",
+                lastActivityTs: Date.now(),
+                unread,
+                ...loopUpdates,
+              })
+            }
+            // Play completion sound only when loop is done
+            try {
+              const ctx = new AudioContext()
+              const osc = ctx.createOscillator()
+              const gain = ctx.createGain()
+              osc.connect(gain)
+              gain.connect(ctx.destination)
+              osc.frequency.value = 880
+              osc.type = "sine"
+              gain.gain.setValueAtTime(0.15, ctx.currentTime)
+              gain.gain.exponentialRampToValueAtTime(
+                0.001,
+                ctx.currentTime + 0.3,
+              )
+              osc.start(ctx.currentTime)
+              osc.stop(ctx.currentTime + 0.3)
+            } catch {
+              // Ignore audio errors
+            }
           }
         }
       } catch (err) {
