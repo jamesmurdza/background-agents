@@ -87,7 +87,7 @@ export function useBranchRenaming({
 
     setSuggesting(true)
     setRenaming(true)
-    setRenameValue("Loading...") // Show loading state
+    setRenameValue("loading...") // Show loading state
 
     try {
       const res = await fetch("/api/branches/suggest-name", {
@@ -103,10 +103,26 @@ export function useBranchRenaming({
       }
 
       setRenameValue(data.suggestedName)
+      // Focus the input with cursor at the end after a brief delay for state to update
+      setTimeout(() => {
+        const input = renameInputRef.current
+        if (input) {
+          input.focus()
+          input.setSelectionRange(input.value.length, input.value.length)
+        }
+      }, 0)
     } catch (err: unknown) {
       // On error, fall back to current branch name
       setRenameValue(branch.name)
       addSystemMessage(`Suggestion failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      // Still focus the input on error
+      setTimeout(() => {
+        const input = renameInputRef.current
+        if (input) {
+          input.focus()
+          input.setSelectionRange(input.value.length, input.value.length)
+        }
+      }, 0)
     } finally {
       setSuggesting(false)
     }
