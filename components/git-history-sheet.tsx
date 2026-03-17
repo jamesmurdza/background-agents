@@ -98,7 +98,7 @@ export function GitHistorySheet({
       <SheetContent
         side="right"
         title="Git History"
-        className="w-full sm:max-w-full p-0 flex flex-col [&>button]:hidden"
+        className="w-[300px] max-w-[85vw] p-0 flex flex-col [&>button]:hidden"
         style={{
           paddingTop: 'var(--safe-area-inset-top)',
           paddingBottom: 'var(--safe-area-inset-bottom)',
