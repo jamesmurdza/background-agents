@@ -11,6 +11,7 @@ import {
   INCLUDE_REPO_FOR_LIST,
   INCLUDE_REPO_WITH_BRANCHES,
 } from "@/lib/prisma-includes"
+import { deleteSandboxesForRepo } from "@/lib/daytona-cleanup"
 
 export async function GET() {
   const auth = await requireAuth()
@@ -95,12 +96,25 @@ export async function DELETE(req: Request) {
       return notFound("Repo not found")
     }
 
+    // 1. Delete all Daytona sandboxes for this repo first (cloud + DB records)
+    // This must happen before repo deletion since cascade would orphan cloud resources
+    const cleanupResult = await deleteSandboxesForRepo(repoId)
+    if (cleanupResult.failed > 0) {
+      console.warn(
+        `[repos/DELETE] Sandbox cleanup: ${cleanupResult.succeeded}/${cleanupResult.total} succeeded for repo ${repoId}`
+      )
+      // Continue with repo deletion even if some sandbox cleanups had issues
+      // The sandboxes may already be deleted or inaccessible
+    }
+
+    // 2. Delete repo (cascade will clean up branches, messages, and any remaining sandbox records)
     await prisma.repo.delete({
       where: { id: repoId },
     })
 
     return Response.json({ success: true })
   } catch (error) {
+    console.error(`[repos/DELETE] Error deleting repo ${repoId}:`, error)
     return internalError(error)
   }
 }

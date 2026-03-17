@@ -14,6 +14,7 @@ import {
 import { createSSEStream, sendProgress, sendError, sendDone } from "@/lib/streaming-helpers"
 import { SANDBOX_CONFIG, PATHS } from "@/lib/constants"
 import { getDefaultAgent } from "@/lib/types"
+import { cleanupDaytonaSandbox } from "@/lib/daytona-cleanup"
 
 // Sandbox creation timeout - 300 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 300
@@ -80,18 +81,20 @@ export async function POST(req: Request) {
   // Track records for cleanup on error
   let sandboxRecord: { id: string; sandboxId: string } | null = null
   let branchRecord: { id: string } | null = null
+  let daytonaClient: Daytona | null = null
+  let daytonaSandboxId: string | null = null
 
   return createSSEStream({
     onStart: async (controller) => {
       try {
         sendProgress(controller, "Creating sandbox...")
 
-        const daytona = new Daytona({ apiKey: daytonaApiKey })
+        daytonaClient = new Daytona({ apiKey: daytonaApiKey })
         const sandboxName = generateSandboxName(userId)
 
         // Only inject Anthropic API key if using claude-code agent or opencode with Anthropic models
         // For opencode with free models, no API key is needed
-        const sandbox = await daytona.create({
+        const sandbox = await daytonaClient.create({
           name: sandboxName,
           snapshot: SANDBOX_CONFIG.DEFAULT_SNAPSHOT,
           autoStopInterval: sandboxAutoStopInterval,
@@ -106,6 +109,9 @@ export async function POST(req: Request) {
               envVars: { ANTHROPIC_API_KEY: anthropicApiKey },
             }),
         })
+
+        // Track sandbox ID for cleanup if subsequent steps fail
+        daytonaSandboxId = sandbox.id
 
         // For Claude Max, write stored credentials so the Agent SDK picks them up
         if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
@@ -247,14 +253,29 @@ export async function POST(req: Request) {
         })
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Unknown error"
+        console.error(`[sandbox/create] Error creating sandbox: ${message}`)
         sendError(controller, message)
 
-        // Clean up database records if created
+        // Clean up in reverse order of creation:
+        // 1. Database sandbox record
+        // 2. Database branch record
+        // 3. Daytona cloud sandbox (if created but DB records failed)
+
         if (sandboxRecord) {
-          await prisma.sandbox.delete({ where: { id: sandboxRecord.id } }).catch(() => {})
+          await prisma.sandbox.delete({ where: { id: sandboxRecord.id } }).catch((err: unknown) => {
+            console.warn(`[sandbox/create] Failed to cleanup sandbox record: ${err}`)
+          })
         }
         if (branchRecord) {
-          await prisma.branch.delete({ where: { id: branchRecord.id } }).catch(() => {})
+          await prisma.branch.delete({ where: { id: branchRecord.id } }).catch((err: unknown) => {
+            console.warn(`[sandbox/create] Failed to cleanup branch record: ${err}`)
+          })
+        }
+
+        // Clean up Daytona cloud sandbox if it was created but subsequent steps failed
+        // This prevents orphaned cloud resources
+        if (daytonaSandboxId && daytonaClient) {
+          await cleanupDaytonaSandbox(daytonaClient, daytonaSandboxId)
         }
       }
     },

@@ -65,27 +65,14 @@ export function useRepoOperations({
   )
 
   // Remove a repo and its sandboxes
-  const handleRemoveRepo = useCallback((repoId: string) => {
+  const handleRemoveRepo = useCallback(async (repoId: string) => {
     const repo = repos.find((r) => r.id === repoId)
     if (!repo) return
 
-    // Clean up sandboxes for all branches
-    for (const branch of repo.branches) {
-      if (branch.sandboxId) {
-        fetch("/api/sandbox/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sandboxId: branch.sandboxId }),
-        }).catch(() => {})
-      }
-    }
-
-    // Delete repo from database
-    fetch(`/api/repos?id=${repoId}`, { method: "DELETE" }).catch(() => {})
-
+    // Update UI state immediately for responsiveness
     setRepos((prev) => {
       const newRepos = removeRepo(prev, repoId)
-      // Persist the new order to database (fire and forget)
+      // Persist the new order to database (fire and forget - non-critical)
       fetch("/api/user/repo-order", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -93,10 +80,21 @@ export function useRepoOperations({
       }).catch(() => {})
       return newRepos
     })
+
     if (activeRepoId === repoId) {
       const remaining = repos.filter((r) => r.id !== repoId)
       selectRepo(remaining[0]?.id ?? "")
       setActiveBranchId(null)
+    }
+
+    // Server handles Daytona sandbox cleanup
+    try {
+      const res = await fetch(`/api/repos?id=${repoId}`, { method: "DELETE" })
+      if (!res.ok) {
+        console.error(`[handleRemoveRepo] Failed to delete repo ${repoId}: ${res.status}`)
+      }
+    } catch (error) {
+      console.error(`[handleRemoveRepo] Error deleting repo ${repoId}:`, error)
     }
   }, [repos, activeRepoId, setRepos, selectRepo, setActiveBranchId])
 
@@ -122,19 +120,22 @@ export function useRepoOperations({
   }, [activeRepo, setRepos, setActiveBranchId])
 
   // Remove a branch from the active repo
-  const handleRemoveBranch = useCallback((branchId: string, deleteRemote?: boolean, activeBranchId?: string) => {
+  const handleRemoveBranch = useCallback(async (branchId: string, deleteRemote?: boolean, activeBranchId?: string) => {
     if (!activeRepo) return
     const branch = activeRepo.branches.find((b) => b.id === branchId)
 
-    if (branch?.sandboxId) {
-      fetch("/api/sandbox/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sandboxId: branch.sandboxId }),
-      }).catch(() => {})
+    // Update UI state immediately for responsiveness
+    setRepos((prev) => removeBranchFromRepo(prev, activeRepo.id, branchId))
 
-      if (deleteRemote && branch) {
-        fetch("/api/sandbox/git", {
+    if (activeBranchId === branchId) {
+      const remaining = activeRepo.branches.filter((b) => b.id !== branchId)
+      setActiveBranchId(remaining[0]?.id ?? null)
+    }
+
+    // Delete remote branch if requested (must happen before sandbox is deleted)
+    if (deleteRemote && branch?.sandboxId) {
+      try {
+        await fetch("/api/sandbox/git", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -145,18 +146,21 @@ export function useRepoOperations({
             repoOwner: activeRepo.owner,
             repoApiName: activeRepo.name,
           }),
-        }).catch(() => {})
+        })
+      } catch (error) {
+        console.error(`[handleRemoveBranch] Error deleting remote branch:`, error)
+        // Continue with branch deletion even if remote delete fails
       }
     }
 
-    // Delete from database
-    fetch(`/api/branches?id=${branchId}`, { method: "DELETE" }).catch(() => {})
-
-    setRepos((prev) => removeBranchFromRepo(prev, activeRepo.id, branchId))
-
-    if (activeBranchId === branchId) {
-      const remaining = activeRepo.branches.filter((b) => b.id !== branchId)
-      setActiveBranchId(remaining[0]?.id ?? null)
+    // Server handles Daytona sandbox cleanup
+    try {
+      const res = await fetch(`/api/branches?id=${branchId}`, { method: "DELETE" })
+      if (!res.ok) {
+        console.error(`[handleRemoveBranch] Failed to delete branch ${branchId}: ${res.status}`)
+      }
+    } catch (error) {
+      console.error(`[handleRemoveBranch] Error deleting branch ${branchId}:`, error)
     }
 
     // Refresh quota

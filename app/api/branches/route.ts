@@ -6,6 +6,7 @@ import {
   getBranchWithAuth,
   badRequest,
   notFound,
+  internalError,
   getDaytonaApiKey,
   isDaytonaKeyError,
   decryptUserCredentials,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/prisma-includes"
 import { Daytona } from "@daytonaio/sdk"
 import { getDefaultAgent } from "@/lib/types"
+import { deleteSandboxForBranch } from "@/lib/daytona-cleanup"
 
 export async function POST(req: Request) {
   const authResult = await requireAuth()
@@ -93,11 +95,29 @@ export async function DELETE(req: Request) {
     return notFound("Branch not found")
   }
 
-  await prisma.branch.delete({
-    where: { id: branchId },
-  })
+  try {
+    // 1. Delete Daytona sandbox first (cloud + DB record)
+    // This must happen before branch deletion since cascade would orphan the cloud resource
+    const cleanupResult = await deleteSandboxForBranch(branchId)
+    if (cleanupResult && !cleanupResult.success) {
+      console.warn(
+        `[branches/DELETE] Sandbox cleanup warning for branch ${branchId}:`,
+        cleanupResult.error
+      )
+      // Continue with branch deletion even if sandbox cleanup had issues
+      // The sandbox may already be deleted or inaccessible
+    }
 
-  return Response.json({ success: true })
+    // 2. Delete branch (cascade will clean up messages and any remaining sandbox record)
+    await prisma.branch.delete({
+      where: { id: branchId },
+    })
+
+    return Response.json({ success: true })
+  } catch (error) {
+    console.error(`[branches/DELETE] Error deleting branch ${branchId}:`, error)
+    return internalError(error)
+  }
 }
 
 // Update branch status/metadata
