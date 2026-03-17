@@ -2,6 +2,7 @@ import { useState, useCallback } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, PATHS } from "@/lib/constants"
+import type { MergeConflictData } from "@/components/merge-conflict-modal"
 
 // Export the return type for use in sub-components
 export type UseGitActionsReturn = ReturnType<typeof useGitActions>
@@ -44,6 +45,10 @@ export function useGitActions({
   const [rsyncCommand, setRsyncCommand] = useState("")
   const [rsyncCopied, setRsyncCopied] = useState(false)
   const [sandboxToggleLoading, setSandboxToggleLoading] = useState(false)
+
+  // Merge conflict state
+  const [mergeConflictModalOpen, setMergeConflictModalOpen] = useState(false)
+  const [mergeConflictData, setMergeConflictData] = useState<MergeConflictData | null>(null)
 
   const addSystemMessage = useCallback((content: string) => {
     // System messages go to the current branch (user-initiated git actions)
@@ -135,26 +140,57 @@ export function useGitActions({
     setBranchPickerModal(null)
     setActionLoading("merge")
     try {
-      const res = await fetch("/api/sandbox/git", {
+      // Use the new merge-conflict endpoint that handles conflicts
+      const res = await fetch("/api/sandbox/merge-conflict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sandboxId: branch.sandboxId,
           repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "merge",
+          action: "start-merge",
           targetBranch: selectedBranch,
           currentBranch: branch.name,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`Merged **${branch.name}** into **${selectedBranch}** and pushed.`)
+
+      if (!res.ok) {
+        throw new Error(data.error || "Merge failed")
+      }
+
+      // Check if there are conflicts
+      if (data.hasConflicts) {
+        // Show conflict resolution UI
+        setMergeConflictData({
+          hasConflicts: true,
+          conflictFiles: data.conflictFiles,
+          currentBranch: branch.name,
+          targetBranch: selectedBranch,
+          message: data.message,
+        })
+        setMergeConflictModalOpen(true)
+      } else {
+        // Merge succeeded without conflicts
+        addSystemMessage(`Merged **${branch.name}** into **${selectedBranch}** and pushed.`)
+      }
     } catch (err: unknown) {
       addSystemMessage(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`)
     } finally {
       setActionLoading(null)
     }
   }, [selectedBranch, branch.sandboxId, branch.name, repoName, addSystemMessage])
+
+  const handleMergeConflictResolved = useCallback((message: string) => {
+    addSystemMessage(`Merge conflict resolved. ${message}`)
+    setMergeConflictModalOpen(false)
+    setMergeConflictData(null)
+  }, [addSystemMessage])
+
+  const handleMergeConflictAborted = useCallback(() => {
+    addSystemMessage("Merge aborted due to conflicts.")
+    setMergeConflictModalOpen(false)
+    setMergeConflictData(null)
+  }, [addSystemMessage])
 
   const handleRebase = useCallback(async () => {
     if (!selectedBranch) return
@@ -366,5 +402,13 @@ export function useGitActions({
     handleVSCodeClick,
     handleRsyncClick,
     addSystemMessage,
+
+    // Merge conflict
+    mergeConflictModalOpen,
+    setMergeConflictModalOpen,
+    mergeConflictData,
+    setMergeConflictData,
+    handleMergeConflictResolved,
+    handleMergeConflictAborted,
   }
 }

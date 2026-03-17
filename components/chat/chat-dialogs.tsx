@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { DiffModal } from "@/components/diff-modal"
+import { MergeConflictModal } from "@/components/merge-conflict-modal"
+import { PATHS } from "@/lib/constants"
 import type { UseGitActionsReturn } from "./hooks/useGitActions"
 
 // ============================================================================
@@ -187,6 +189,20 @@ export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDia
           baseBranch={branch.baseBranch}
           commitHash={gitActions.commitDiffHash}
           commitMessage={gitActions.commitDiffMessage}
+        />
+      )}
+
+      {/* Merge conflict resolution modal */}
+      {branch.sandboxId && (
+        <MergeConflictModal
+          open={gitActions.mergeConflictModalOpen}
+          onClose={() => gitActions.setMergeConflictModalOpen(false)}
+          conflictData={gitActions.mergeConflictData}
+          sandboxId={branch.sandboxId}
+          repoPath={`${PATHS.SANDBOX_HOME}/${repoName}`}
+          repoName={repoName}
+          onResolved={gitActions.handleMergeConflictResolved}
+          onAborted={gitActions.handleMergeConflictAborted}
         />
       )}
     </>
