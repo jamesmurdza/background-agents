@@ -11,6 +11,7 @@ A sophisticated multi-tenant web application that enables users to run AI coding
 - **Real-time Streaming** - Live agent output via Server-Sent Events (SSE)
 - **Background Execution** - Agent tasks continue even when browser is closed
 - **Persistent Chat History** - Full conversation history with tool calls and content blocks
+- **Loop Mode** - Agents automatically continue working until they respond "FINISHED"
 
 ### User Experience
 - **Slack-like Interface** - Repository sidebar with branch-based conversations
@@ -27,6 +28,11 @@ A sophisticated multi-tenant web application that enables users to run AI coding
 - **Git History** - Browse commit history per branch
 - **Environment Variables** - Per-repository encrypted env vars for sandboxes
 - **Auto-Stop** - Configurable sandbox auto-stop intervals (5-20 minutes)
+
+### Automation
+- **Loop Mode** - Toggle per-branch to have agents continue until task completion
+- **Configurable Iterations** - Set max loop iterations (1-25) in Settings → Automation
+- **Background Loop Checking** - Vercel cron job continues loops even when browser is closed
 
 ---
 
@@ -167,6 +173,7 @@ Add these to Vercel (Settings → Environment Variables):
 | `ENCRYPTION_KEY` | For encrypting API keys | (output of `openssl rand -hex 32`) |
 | `DAYTONA_API_KEY` | Your shared Daytona API key | `dtn_...` |
 | `DAYTONA_API_URL` | Daytona API endpoint | `https://api.daytona.io` |
+| `CRON_SECRET` | Secret for Vercel cron jobs (loop mode) | (output of `openssl rand -base64 32`) |
 
 ### 5. Deploy
 
@@ -200,6 +207,7 @@ Or push to Vercel - the build script handles migrations automatically.
 [ ] ENCRYPTION_KEY set
 [ ] DAYTONA_API_KEY set
 [ ] DAYTONA_API_URL set
+[ ] CRON_SECRET set (optional, for loop mode)
 ```
 
 ---
@@ -303,7 +311,8 @@ UserCredentials
 ├── openaiApiKey (AES encrypted)
 ├── opencodeApiKey (AES encrypted)
 ├── daytonaApiKey (optional custom key)
-└── sandboxAutoStopInterval (5-20 minutes)
+├── sandboxAutoStopInterval (5-20 minutes)
+└── defaultLoopMaxIterations (1-25, default 10)
 
 Repo
 ├── owner, name, avatar, defaultBranch
@@ -317,6 +326,7 @@ Branch
 ├── model (selected model name)
 ├── draftPrompt (unsent message)
 ├── prUrl (pull request link)
+├── loopEnabled, loopCount, loopMaxIterations (loop mode)
 ├── sandbox (1:1) → Sandbox
 └── messages (1:n) → Message
 
@@ -340,6 +350,7 @@ Message
 AgentExecution
 ├── executionId (SDK execution ID)
 ├── status ("running" | "completed" | "error")
+├── isLoopIteration (triggered by loop mode)
 ├── latestSnapshot (streaming content)
 ├── accumulatedEvents (full event list)
 └── lastSnapshotPolledAt (500ms throttle)
@@ -391,6 +402,40 @@ For long-running tasks, the app supports background execution that continues eve
 3. **Polling**: `BackgroundExecutionPoller` component polls `/api/agent/execution/active`
 4. **Snapshot Updates**: Server saves snapshots every 500ms (throttled)
 5. **Resumption**: On page reload, active executions are detected and resumed in UI
+
+---
+
+## Loop Mode
+
+Loop mode allows agents to automatically continue working on multi-step tasks until they explicitly indicate completion.
+
+### How It Works
+
+1. **Enable Loop** - Click the loop toggle (🔁) next to the agent selector in the chat input
+2. **Send Initial Prompt** - Describe your task to the agent
+3. **Automatic Continuation** - When the agent finishes, it's asked to continue or say "FINISHED"
+4. **Termination** - Loop stops when:
+   - Agent responds with "FINISHED" (case-insensitive exact match)
+   - Agent includes "FINISHED" (all caps) anywhere in response
+   - Maximum iterations reached (configurable, default 10, max 25)
+   - User toggles loop off
+
+### Configuration
+
+- **Default Max Iterations**: Settings → Automation tab (1-25, default 10)
+- **Per-Branch Setting**: Each branch tracks its own loop state independently
+
+### Background Loop Checking
+
+A Vercel cron job runs every minute to check for completed executions where loop should continue:
+- Handles cases where the browser is closed mid-loop
+- Waits 30 seconds after completion before triggering (to let frontend handle first)
+- Protected with `CRON_SECRET` environment variable
+
+### Continuation Message
+
+When loop continues, the agent receives:
+> "If you have finished all tasks, respond with just the phrase FINISHED. Otherwise, continue working on the remaining tasks."
 
 ---
 
