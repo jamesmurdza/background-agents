@@ -26,6 +26,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
   reposRef.current = repos
   const [quota, setQuota] = useState<Quota | null>(null)
   const [credentials, setCredentials] = useState<UserCredentials | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [messagesLoading, setMessagesLoading] = useState(false)
 
@@ -94,6 +95,9 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
         }
         if (data.credentials) {
           setCredentials(data.credentials)
+        }
+        if (data.user?.isAdmin) {
+          setIsAdmin(data.user.isAdmin)
         }
         setLoaded(true)
       })
@@ -181,6 +185,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     setQuota,
     credentials,
     setCredentials,
+    isAdmin,
     loaded,
     messagesLoading,
 

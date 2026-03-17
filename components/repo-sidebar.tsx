@@ -3,7 +3,8 @@
 import { cn } from "@/lib/utils"
 import type { Repo } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
-import { Plus, X, LogOut, Settings, Box } from "lucide-react"
+import { Plus, X, LogOut, Settings, Box, Shield } from "lucide-react"
+import Link from "next/link"
 import { useState, useRef } from "react"
 import {
   Tooltip,
@@ -45,6 +46,7 @@ export interface RepoSidebarProps {
   onOpenAddRepo: () => void
   onSignOut?: () => void
   quota?: Quota | null
+  isAdmin?: boolean
 }
 
 export function RepoSidebar({
@@ -60,6 +62,7 @@ export function RepoSidebar({
   onOpenAddRepo,
   onSignOut,
   quota,
+  isAdmin,
 }: RepoSidebarProps) {
   const [removeModalRepo, setRemoveModalRepo] = useState<Repo | null>(null)
   const dragIndexRef = useRef<number | null>(null)
@@ -253,6 +256,15 @@ export function RepoSidebar({
                 <Settings className="h-3.5 w-3.5" />
                 Settings
               </DropdownMenuItem>
+
+              {isAdmin && (
+                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                  <Link href="/admin">
+                    <Shield className="h-3.5 w-3.5" />
+                    Admin
+                  </Link>
+                </DropdownMenuItem>
+              )}
 
               {onSignOut && (
                 <>

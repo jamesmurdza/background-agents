@@ -1,41 +1,58 @@
 import { prisma } from "@/lib/prisma"
 import { BRANCH_STATUS } from "@/lib/constants"
 
-const MAX_CONCURRENT_SANDBOXES = 10
+const DEFAULT_MAX_CONCURRENT_SANDBOXES = 10
 
 // Statuses that count toward the active sandbox quota
 const ACTIVE_STATUSES = [BRANCH_STATUS.CREATING, BRANCH_STATUS.RUNNING, BRANCH_STATUS.STOPPED]
+
+/**
+ * Gets the user's sandbox limit (per-user or global default)
+ */
+async function getUserSandboxLimit(userId: string): Promise<number> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxSandboxes: true },
+  })
+  return user?.maxSandboxes ?? DEFAULT_MAX_CONCURRENT_SANDBOXES
+}
 
 export async function checkQuota(userId: string): Promise<{
   allowed: boolean
   current: number
   max: number
 }> {
-  const activeSandboxes = await prisma.sandbox.count({
-    where: {
-      userId,
-      status: { in: ACTIVE_STATUSES },
-    },
-  })
+  const [activeSandboxes, maxSandboxes] = await Promise.all([
+    prisma.sandbox.count({
+      where: {
+        userId,
+        status: { in: ACTIVE_STATUSES },
+      },
+    }),
+    getUserSandboxLimit(userId),
+  ])
 
   return {
-    allowed: activeSandboxes < MAX_CONCURRENT_SANDBOXES,
+    allowed: activeSandboxes < maxSandboxes,
     current: activeSandboxes,
-    max: MAX_CONCURRENT_SANDBOXES,
+    max: maxSandboxes,
   }
 }
 
 export async function getQuota(userId: string) {
-  const activeSandboxes = await prisma.sandbox.count({
-    where: {
-      userId,
-      status: { in: ACTIVE_STATUSES },
-    },
-  })
+  const [activeSandboxes, maxSandboxes] = await Promise.all([
+    prisma.sandbox.count({
+      where: {
+        userId,
+        status: { in: ACTIVE_STATUSES },
+      },
+    }),
+    getUserSandboxLimit(userId),
+  ])
 
   return {
     current: activeSandboxes,
-    max: MAX_CONCURRENT_SANDBOXES,
-    remaining: Math.max(0, MAX_CONCURRENT_SANDBOXES - activeSandboxes),
+    max: maxSandboxes,
+    remaining: Math.max(0, maxSandboxes - activeSandboxes),
   }
 }

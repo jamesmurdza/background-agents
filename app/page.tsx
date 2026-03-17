@@ -42,6 +42,7 @@ export default function Home() {
     setRepos,
     quota,
     credentials,
+    isAdmin,
     loaded,
     messagesLoading,
     refreshQuota,
@@ -249,6 +250,7 @@ export default function Home() {
             onOpenAddRepo={() => setAddRepoOpen(true)}
             onSignOut={() => signOut({ callbackUrl: "/login" })}
             quota={quota}
+            isAdmin={isAdmin}
           />
         )}
 

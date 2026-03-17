@@ -18,6 +18,7 @@ export async function GET() {
         email: true,
         image: true,
         githubLogin: true,
+        isAdmin: true,
         repoOrder: true,
         credentials: {
           select: {
@@ -97,6 +98,7 @@ export async function GET() {
         email: user.email,
         image: user.image,
         githubLogin: user.githubLogin,
+        isAdmin: user.isAdmin,
       },
       credentials,
       repos: orderedRepos,

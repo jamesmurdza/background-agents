@@ -46,6 +46,10 @@ model User {
   // User preferences
   repoOrder Json? // Array of repo IDs in display order
 
+  // Admin settings
+  isAdmin      Boolean @default(false)
+  maxSandboxes Int? // Per-user sandbox limit (null = use global default)
+
   accounts    Account[]
   sessions    Session[]
   credentials UserCredentials?
