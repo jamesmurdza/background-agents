@@ -17,11 +17,6 @@ export const BRANCH_STATUS = {
 
 export type BranchStatus = (typeof BRANCH_STATUS)[keyof typeof BRANCH_STATUS]
 
-// Type guard to check if a string is a valid BranchStatus
-export function isBranchStatus(value: string): value is BranchStatus {
-  return Object.values(BRANCH_STATUS).includes(value as BranchStatus)
-}
-
 // =============================================================================
 // Delete Modal Merge Status
 // =============================================================================
