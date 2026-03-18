@@ -154,6 +154,15 @@ export async function POST(req: Request) {
       include: INCLUDE_EXECUTION_WITH_CONTEXT,
     })
     if (refetched) execution = refetched
+  } else if (execution.status === "completed" || execution.status === "error") {
+    // For completed/error status, always refetch to ensure we have the final message content.
+    // This avoids a race condition where the initial load might have stale content
+    // if persistExecutionCompletion was called by another request concurrently.
+    const refetched = await prisma.agentExecution.findFirst({
+      where: { id: execution.id },
+      include: INCLUDE_EXECUTION_WITH_CONTEXT,
+    })
+    if (refetched) execution = refetched
   }
 
   const snapshot = ((execution as { latestSnapshot?: unknown }).latestSnapshot as Record<string, unknown> | null) ?? {}
