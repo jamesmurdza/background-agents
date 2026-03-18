@@ -10,6 +10,7 @@ import {
   isDaytonaKeyError,
   internalError,
 } from "@/lib/api-helpers"
+import { generateCommitMessage } from "@/lib/commit-message"
 // Git operation timeout - 60 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 60
 
@@ -113,12 +114,29 @@ export async function POST(req: Request) {
         }
         // Check for uncommitted changes and commit them if any
         let committed = false
+        let commitMessage = ""
         const statusResult = await sandbox.process.executeCommand(
           `cd ${repoPath} && git status --porcelain 2>&1`
         )
         if (!statusResult.exitCode && statusResult.result.trim()) {
+          // Get the diff to generate an AI commit message
+          const diffResult = await sandbox.process.executeCommand(
+            `cd ${repoPath} && git diff HEAD 2>&1`
+          )
+          const diff = diffResult.exitCode ? "" : diffResult.result
+
+          // Generate AI commit message (falls back to default if LLM unavailable)
+          const commitMessageResult = await generateCommitMessage({
+            userId: auth.userId,
+            diff,
+          })
+          commitMessage = commitMessageResult.message
+
+          // Escape the commit message for shell (handle quotes and special chars)
+          const escapedMessage = commitMessage.replace(/'/g, "'\\''")
+
           const commitResult = await sandbox.process.executeCommand(
-            `cd ${repoPath} && git add -A && git commit -m "Auto-commit: agent changes" 2>&1`
+            `cd ${repoPath} && git add -A && git commit -m '${escapedMessage}' 2>&1`
           )
           if (commitResult.exitCode) {
             return Response.json({ error: "Commit failed: " + commitResult.result }, { status: 500 })
@@ -132,7 +150,7 @@ export async function POST(req: Request) {
         }
         // Always push — covers agent-made commits AND new branches with no upstream.
         await sandbox.git.push(repoPath, "x-access-token", githubToken)
-        return Response.json({ committed, pushed: true })
+        return Response.json({ committed, pushed: true, commitMessage })
       }
 
       case "push": {
