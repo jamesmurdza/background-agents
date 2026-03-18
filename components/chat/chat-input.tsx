@@ -216,9 +216,11 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             </DropdownMenu>
 
             {/* Loop Toggle */}
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={handleLoopToggle}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleLoopToggle(); } }}
               className="flex items-center gap-1.5 cursor-pointer rounded px-1.5 py-0.5 -mr-1.5 hover:bg-muted/60 transition-colors"
             >
               <Switch
@@ -238,7 +240,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               )}>
                 {branch.loopCount ?? 0}/{branch.loopMaxIterations ?? defaultLoopMaxIterations}
               </span>
-            </button>
+            </div>
           </div>
 
           {/* Right: Model Combobox */}
