@@ -195,7 +195,7 @@ export const PATHS = {
   AGENT_SESSION_FILE: "/home/daytona/.agent_session_id",
   /** MCP config paths per agent */
   MCP_CONFIG: {
-    "claude-code": "/home/daytona/.claude/mcp_servers.json",
+    "claude-code": "/home/daytona/.claude.json",
     "opencode": "/home/daytona/.config/opencode/opencode.jsonc",
     "codex": "/home/daytona/.codex/config.toml",
   },

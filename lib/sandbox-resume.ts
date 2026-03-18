@@ -138,7 +138,7 @@ export async function ensureSandboxReady(
       if (mcpServers.length > 0) {
         const { configPath, configContent, configDir } = buildMcpConfig(mcpServers, agent)
         if (configContent) {
-          const mcpCommand = getMcpConfigWriteCommand(configDir, configPath, configContent)
+          const mcpCommand = getMcpConfigWriteCommand(configDir, configPath, configContent, agent)
           await sandbox.process.executeCommand(mcpCommand)
           console.log(`[ensureSandboxReady] MCP config (${mcpServers.length} servers) took ${Date.now() - t0}ms`)
         }

@@ -67,15 +67,16 @@ export function buildMcpConfig(
 
 /**
  * Claude Code MCP config format (JSON)
- * Path: ~/.claude/mcp_servers.json
+ * Path: ~/.claude.json
+ *
+ * The mcpServers config is stored at the root level of ~/.claude.json
+ * Each server has: type, url, and optional headers for auth
  */
 function buildClaudeCodeConfig(servers: McpServerData[]): string {
-  const config: Record<string, unknown> = {
-    mcpServers: {},
-  }
+  const mcpServers: Record<string, unknown> = {}
 
   for (const server of servers) {
-    (config.mcpServers as Record<string, unknown>)[server.slug] = {
+    mcpServers[server.slug] = {
       type: "http",
       url: server.url,
       headers: {
@@ -84,7 +85,8 @@ function buildClaudeCodeConfig(servers: McpServerData[]): string {
     }
   }
 
-  return JSON.stringify(config, null, 2)
+  // Return only the mcpServers object - will be merged with existing config
+  return JSON.stringify({ mcpServers }, null, 2)
 }
 
 /**
@@ -148,16 +150,36 @@ function escapeTomlString(str: string): string {
 
 /**
  * Get the shell command to write MCP config to sandbox
+ * For Claude Code (~/.claude.json), we need to merge with existing config
  */
 export function getMcpConfigWriteCommand(
   configDir: string,
   configPath: string,
-  configContent: string
+  configContent: string,
+  agent: Agent
 ): string {
   if (!configContent) {
     return ""
   }
 
   const base64Content = Buffer.from(configContent).toString("base64")
+
+  // For Claude Code, we need to merge mcpServers with existing ~/.claude.json
+  if (agent === "claude-code") {
+    // Read existing config, merge mcpServers, write back
+    // Uses jq-like approach with Node.js one-liner
+    return `mkdir -p ${configDir} && ` +
+      `existing=$(cat ${configPath} 2>/dev/null || echo '{}') && ` +
+      `new_servers=$(echo '${base64Content}' | base64 -d) && ` +
+      `node -e "` +
+      `const existing = JSON.parse(process.argv[1] || '{}'); ` +
+      `const newConfig = JSON.parse(process.argv[2]); ` +
+      `existing.mcpServers = { ...(existing.mcpServers || {}), ...newConfig.mcpServers }; ` +
+      `console.log(JSON.stringify(existing, null, 2));" ` +
+      `"\${existing}" "\${new_servers}" > ${configPath}.tmp && ` +
+      `mv ${configPath}.tmp ${configPath} && chmod 600 ${configPath}`
+  }
+
+  // For other agents, just write the file directly
   return `mkdir -p ${configDir} && echo '${base64Content}' | base64 -d > ${configPath} && chmod 600 ${configPath}`
 }
