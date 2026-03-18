@@ -36,7 +36,7 @@ export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const isMobile = useIsMobile()
-  const { repoFromUrl, navigateToRepo } = useRepoNavigation()
+  const { repoFromUrl, updateUrlToRepo } = useRepoNavigation()
 
   // Core data state
   const {
@@ -64,16 +64,16 @@ export default function Home() {
     setActiveBranchId,
   } = useBranchSelection({ repos, loaded, repoFromUrl })
 
-  // Wrap selectRepo to also update URL
+  // Wrap selectRepo to also update URL (without triggering page reload)
   const selectRepo = useCallback(
     (repoId: string) => {
       const repo = repos.find((r) => r.id === repoId)
       if (repo) {
-        navigateToRepo(repo.owner, repo.name)
+        updateUrlToRepo(repo.owner, repo.name)
       }
       selectRepoInternal(repoId)
     },
-    [repos, navigateToRepo, selectRepoInternal]
+    [repos, updateUrlToRepo, selectRepoInternal]
   )
 
   // Repo operations
