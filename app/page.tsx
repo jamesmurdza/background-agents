@@ -187,6 +187,15 @@ export default function Home() {
     }
   }, [status, router])
 
+  // Update URL when repo is auto-selected on root page
+  useEffect(() => {
+    if (!loaded || !activeRepo) return
+    // Only update if we're at root (no repo in URL)
+    if (!repoFromUrl) {
+      updateUrlToRepo(activeRepo.owner, activeRepo.name)
+    }
+  }, [loaded, activeRepo, repoFromUrl, updateUrlToRepo])
+
   // Redirect to home if URL repo is not found in user's repos
   useEffect(() => {
     if (!loaded || repos.length === 0 || !repoFromUrl) return
