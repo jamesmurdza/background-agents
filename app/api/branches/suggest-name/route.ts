@@ -6,11 +6,8 @@ import {
   badRequest,
   notFound,
   internalError,
-  decryptUserCredentials,
 } from "@/lib/api-helpers"
-import { generateText } from "ai"
-import { createAnthropic } from "@ai-sdk/anthropic"
-import { createOpenAI } from "@ai-sdk/openai"
+import { generateWithUserLLM } from "@/lib/llm"
 
 const SUGGESTION_PROMPT = `Based on the conversation below, suggest a concise Git branch name that describes the work being done.
 
@@ -55,17 +52,6 @@ export async function POST(req: Request) {
     return notFound("Branch not found")
   }
 
-  // Get user's API keys
-  const userCredentials = await prisma.userCredentials.findUnique({
-    where: { userId },
-  })
-  const { anthropicApiKey, openaiApiKey } = decryptUserCredentials(userCredentials)
-
-  // Need at least one API key
-  if (!anthropicApiKey && !openaiApiKey) {
-    return badRequest("No API key configured. Please add an Anthropic or OpenAI API key in settings.")
-  }
-
   // Get messages for this branch (limit to first few for context)
   const messages = await prisma.message.findMany({
     where: { branchId },
@@ -91,35 +77,20 @@ export async function POST(req: Request) {
 
   const prompt = SUGGESTION_PROMPT.replace("{conversation}", conversationSummary)
 
-  try {
-    let suggestedName: string
+  const result = await generateWithUserLLM({ userId, prompt })
 
-    if (anthropicApiKey) {
-      // Prefer Anthropic (Claude) - use haiku for speed
-      const anthropic = createAnthropic({ apiKey: anthropicApiKey })
-      const result = await generateText({
-        model: anthropic("claude-3-haiku-20240307"),
-        prompt,
-      })
-      suggestedName = result.text.trim()
-    } else {
-      // Fallback to OpenAI - use gpt-4o-mini for speed
-      const openai = createOpenAI({ apiKey: openaiApiKey })
-      const result = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt,
-      })
-      suggestedName = result.text.trim()
-    }
-
-    // Sanitize the suggestion to ensure it's a valid branch name
-    suggestedName = sanitizeBranchName(suggestedName)
-
-    return Response.json({ suggestedName })
-  } catch (error) {
-    console.error("[suggest-name] Error generating suggestion:", error)
-    return internalError(error)
+  if (result.error === "no_api_key") {
+    return badRequest("No API key configured. Please add an Anthropic or OpenAI API key in settings.")
   }
+
+  if (result.error || !result.text) {
+    return internalError(new Error("Failed to generate branch name suggestion"))
+  }
+
+  // Sanitize the suggestion to ensure it's a valid branch name
+  const suggestedName = sanitizeBranchName(result.text)
+
+  return Response.json({ suggestedName })
 }
 
 /**

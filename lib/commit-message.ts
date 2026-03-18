@@ -1,8 +1,4 @@
-import { prisma } from "@/lib/prisma"
-import { decryptUserCredentials } from "@/lib/api-helpers"
-import { generateText } from "ai"
-import { createAnthropic } from "@ai-sdk/anthropic"
-import { createOpenAI } from "@ai-sdk/openai"
+import { generateWithUserLLM } from "@/lib/llm"
 
 const COMMIT_MESSAGE_PROMPT = `Based on the git diff below, write a concise and descriptive commit message.
 
@@ -71,69 +67,36 @@ export async function generateCommitMessage(
     }
   }
 
-  try {
-    // Get user's API keys
-    const userCredentials = await prisma.userCredentials.findUnique({
-      where: { userId },
-    })
-    const { anthropicApiKey, openaiApiKey } = decryptUserCredentials(userCredentials)
+  // Truncate diff if too long (keep first ~4000 chars to stay within token limits)
+  const truncatedDiff =
+    diff.length > 4000 ? diff.slice(0, 4000) + "\n... (diff truncated)" : diff
 
-    // If no API keys, return default message
-    if (!anthropicApiKey && !openaiApiKey) {
-      return {
-        message: DEFAULT_COMMIT_MESSAGE,
-        isAiGenerated: false,
-        reason: "no_api_key",
-      }
-    }
+  const prompt = COMMIT_MESSAGE_PROMPT.replace("{diff}", truncatedDiff)
 
-    // Truncate diff if too long (keep first ~4000 chars to stay within token limits)
-    const truncatedDiff =
-      diff.length > 4000 ? diff.slice(0, 4000) + "\n... (diff truncated)" : diff
+  const result = await generateWithUserLLM({ userId, prompt })
 
-    const prompt = COMMIT_MESSAGE_PROMPT.replace("{diff}", truncatedDiff)
-
-    let suggestedMessage: string
-
-    if (anthropicApiKey) {
-      // Prefer Anthropic (Claude) - use haiku for speed
-      const anthropic = createAnthropic({ apiKey: anthropicApiKey })
-      const result = await generateText({
-        model: anthropic("claude-3-haiku-20240307"),
-        prompt,
-      })
-      suggestedMessage = sanitizeCommitMessage(result.text.trim())
-    } else {
-      // Fallback to OpenAI - use gpt-4o-mini for speed
-      const openai = createOpenAI({ apiKey: openaiApiKey! })
-      const result = await generateText({
-        model: openai("gpt-4o-mini"),
-        prompt,
-      })
-      suggestedMessage = sanitizeCommitMessage(result.text.trim())
-    }
-
-    // If the sanitized message is empty, use default
-    if (!suggestedMessage) {
-      return {
-        message: DEFAULT_COMMIT_MESSAGE,
-        isAiGenerated: false,
-        reason: "llm_error",
-      }
-    }
-
+  if (result.error || !result.text) {
     return {
-      message: suggestedMessage,
-      isAiGenerated: true,
-      reason: "success",
+      message: DEFAULT_COMMIT_MESSAGE,
+      isAiGenerated: false,
+      reason: result.error || "llm_error",
     }
-  } catch (error) {
-    console.error("[generateCommitMessage] Error generating suggestion:", error)
-    // Return default message on any error
+  }
+
+  const sanitizedMessage = sanitizeCommitMessage(result.text)
+
+  // If the sanitized message is empty, use default
+  if (!sanitizedMessage) {
     return {
       message: DEFAULT_COMMIT_MESSAGE,
       isAiGenerated: false,
       reason: "llm_error",
     }
+  }
+
+  return {
+    message: sanitizedMessage,
+    isAiGenerated: true,
+    reason: "success",
   }
 }
