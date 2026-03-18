@@ -9,16 +9,34 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ["ssh2", "cpu-features"],
-  transpilePackages: ["@jamesmurdza/coding-agents-sdk"],
+  // Mark native addon packages as external so they're not bundled by webpack
+  serverExternalPackages: [
+    "ssh2",
+    "cpu-features",
+    "@jamesmurdza/coding-agents-sdk",
+  ],
   turbopack: {
     resolveAlias: {
       "@jamesmurdza/coding-agents-sdk": "./node_modules/@jamesmurdza/coding-agents-sdk",
     },
   },
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.alias["@jamesmurdza/coding-agents-sdk"] = sdkPath
-    config.module.rules.push({ test: /\.node$/, type: "asset/resource" })
+
+    // Exclude .node files from webpack bundling entirely
+    config.module.noParse = /\.node$/
+
+    // Mark packages with native addons as external on the server
+    if (isServer) {
+      const externals = config.externals || []
+      config.externals = [
+        ...externals,
+        "cpu-features",
+        "ssh2",
+        "@jamesmurdza/coding-agents-sdk",
+      ]
+    }
+
     return config
   },
 }
