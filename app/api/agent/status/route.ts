@@ -117,7 +117,8 @@ export async function POST(req: Request) {
                 openaiApiKey,
                 agent,
                 branch.model ?? undefined,
-                opencodeApiKey
+                opencodeApiKey,
+                execution.message.branch.repo?.id // Pass repoId for MCP config
               )
 
               const result = await pollBackgroundAgent(sandbox, backgroundSessionId, {

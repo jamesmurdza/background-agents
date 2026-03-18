@@ -110,12 +110,41 @@ model Repo {
   // Encrypted environment variables for sandboxes (JSON: { KEY: "encrypted_value", ... })
   envVars Json?
 
-  branches Branch[]
+  branches   Branch[]
+  mcpServers RepoMcpServer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, owner, name])
+}
+
+// MCP Server configuration per repository
+model RepoMcpServer {
+  id     String @id @default(cuid())
+  repoId String
+  repo   Repo   @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  // Server identification (from registry)
+  slug    String  // "notion", "figma", "sentry", etc.
+  name    String  // Display name
+  url     String  // MCP server URL (https://mcp.notion.com/mcp)
+  iconUrl String? // Icon URL from registry
+
+  // OAuth tokens (encrypted)
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  tokenExpiry  DateTime?
+
+  // Status
+  status    String  @default("pending") // "pending" | "connected" | "expired" | "error"
+  lastError String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([repoId, slug]) // One per service per repo
+  @@index([repoId])
 }
 
 model Branch {

@@ -181,7 +181,8 @@ export async function GET(req: Request) {
           openaiApiKey,
           agent,
           model,
-          opencodeApiKey
+          opencodeApiKey,
+          branch.repo.id // Pass repoId for MCP config
         )
 
         const bgSession = await createBackgroundAgentSession(daytonaSandbox, {
