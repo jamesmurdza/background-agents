@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import type { Agent, Branch, UserCredentialFlags, ModelOption } from "@/lib/types"
 import { agentLabels, getModelLabel, defaultAgentModel, getAvailableModels, hasClaudeCodeCredentials, hasCodexCredentials, hasCredentialsForModel, agentModels } from "@/lib/types"
 import { BRANCH_STATUS } from "@/lib/constants"
-import { Send, ChevronDown, Sparkles, Check, RefreshCw } from "lucide-react"
+import { Send, ChevronDown, Sparkles, Check } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
 import { forwardRef, useEffect, useCallback, useState, useMemo } from "react"
 import {
@@ -24,6 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
 import {
   Command,
   CommandInput,
@@ -189,8 +190,30 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
           </button>
         </div>
         <div className="mt-2 flex items-center justify-between">
-          {/* Agent Dropdown */}
-          <DropdownMenu>
+          {/* Left side: Loop Toggle + Agent Dropdown */}
+          <div className="flex items-center gap-3">
+            {/* Loop Toggle */}
+            <div className="flex items-center gap-1.5">
+              <Switch
+                checked={branch.loopEnabled ?? false}
+                onCheckedChange={handleLoopToggle}
+                className="h-4 w-7 data-[state=checked]:bg-primary"
+              />
+              <span className={cn(
+                "text-[11px] transition-colors",
+                branch.loopEnabled ? "text-foreground" : "text-muted-foreground"
+              )}>
+                Loop until finished
+              </span>
+              {branch.loopEnabled && (
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  ({branch.loopCount || 0}/{branch.loopMaxIterations || defaultLoopMaxIterations})
+                </span>
+              )}
+            </div>
+
+            {/* Agent Dropdown */}
+            <DropdownMenu>
             <DropdownMenuTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
               <AgentIcon agent={currentAgent} className="h-2.5 w-2.5 shrink-0" />
               <span>{agentLabels[currentAgent]}</span>
@@ -212,38 +235,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {/* Loop Toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleLoopToggle}
-                className={cn(
-                  "flex items-center gap-1 px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer rounded",
-                  branch.loopEnabled
-                    ? "text-primary bg-primary/10 hover:bg-primary/20"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <RefreshCw className={cn(
-                  "h-2.5 w-2.5 shrink-0",
-                  branch.loopEnabled && branch.status === "running" && "animate-spin"
-                )} />
-                {branch.loopEnabled && (
-                  <span className="tabular-nums">
-                    {branch.loopCount || 0}/{branch.loopMaxIterations || defaultLoopMaxIterations}
-                  </span>
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
-              {branch.loopEnabled ? (
-                <span>Loop mode on ({branch.loopCount || 0}/{branch.loopMaxIterations || defaultLoopMaxIterations} iterations)</span>
-              ) : (
-                <span>Enable loop mode</span>
-              )}
-            </TooltipContent>
-          </Tooltip>
+          </div>
 
           {/* Model Combobox */}
           <Popover open={modelOpen} onOpenChange={setModelOpen}>

@@ -623,16 +623,11 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
 
           {activeTab === "automation" && (
             <>
-              {/* Info about Loop Mode */}
-              <p className="text-[11px] text-muted-foreground">
-                Loop mode allows agents to automatically continue working until they indicate completion by responding with &quot;FINISHED&quot;.
-              </p>
-
               {/* Default Loop Max Iterations */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
                   <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                  <label className="text-xs font-medium text-foreground">Default Loop Iterations</label>
+                  <label className="text-xs font-medium text-foreground">Max Loop Iterations</label>
                 </div>
                 <div className="flex items-center gap-3">
                   <input
@@ -646,19 +641,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   <span className="text-xs font-medium text-foreground w-12 text-right">{defaultLoopMaxIterations}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Maximum number of times the agent will be re-prompted before stopping. This is the default for new branches with loop mode enabled.
+                  Agent will continue working until it says &quot;FINISHED&quot; or reaches this limit.
                 </p>
-              </div>
-
-              {/* How it works section */}
-              <div className="flex flex-col gap-2 pt-2 border-t border-border">
-                <h4 className="text-xs font-medium text-foreground">How Loop Mode Works</h4>
-                <ol className="text-[11px] text-muted-foreground list-decimal list-inside space-y-1">
-                  <li>Enable the loop toggle next to the agent selector in chat</li>
-                  <li>Send your initial message to the agent</li>
-                  <li>When the agent finishes, it will be asked to continue or say &quot;FINISHED&quot;</li>
-                  <li>The loop stops when the agent says &quot;FINISHED&quot; or reaches the max iterations</li>
-                </ol>
               </div>
             </>
           )}
