@@ -1,6 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
 import { readPersistedSessionId } from "@/lib/agent-session"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
+import { prisma } from "@/lib/prisma"
+import { buildMcpConfig, getMcpConfigWriteCommand } from "@/lib/mcp-config"
 import type { Agent } from "@/lib/types"
 
 /**
@@ -77,7 +79,9 @@ export async function ensureSandboxReady(
   // Model selection for determining which API key to use
   model?: string,
   // OpenCode API key for OpenCode paid models
-  opencodeApiKey?: string
+  opencodeApiKey?: string,
+  // Repository ID for fetching MCP server configs
+  repoId?: string
 ): Promise<{
   sandbox: Awaited<ReturnType<InstanceType<typeof Daytona>["get"]>>
   wasResumed: boolean
@@ -114,6 +118,35 @@ export async function ensureSandboxReady(
       `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
     )
     console.log(`[ensureSandboxReady] claude-max credentials took ${Date.now() - t0}ms`)
+  }
+
+  // Write MCP server configurations if any are configured for this repo
+  if (repoId && agent) {
+    t0 = Date.now()
+    try {
+      const mcpServers = await prisma.repoMcpServer.findMany({
+        where: { repoId, status: "connected" },
+        select: {
+          slug: true,
+          name: true,
+          url: true,
+          accessToken: true,
+          refreshToken: true,
+        },
+      })
+
+      if (mcpServers.length > 0) {
+        const { configPath, configContent, configDir } = buildMcpConfig(mcpServers, agent)
+        if (configContent) {
+          const mcpCommand = getMcpConfigWriteCommand(configDir, configPath, configContent, agent)
+          await sandbox.process.executeCommand(mcpCommand)
+          console.log(`[ensureSandboxReady] MCP config (${mcpServers.length} servers) took ${Date.now() - t0}ms`)
+        }
+      }
+    } catch (err) {
+      // Non-critical - log but don't fail the sandbox startup
+      console.error("[ensureSandboxReady] Failed to write MCP config:", err)
+    }
   }
 
   // Get environment variables based on model and agent

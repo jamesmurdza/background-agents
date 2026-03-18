@@ -91,7 +91,8 @@ export async function POST(req: Request) {
       openaiApiKey,
       agent,
       model,
-      opencodeApiKey
+      opencodeApiKey,
+      sandboxRecord.branch?.repo?.id // Pass repoId for MCP config
     )
     console.log(`[agent/execute] ensureSandboxReady took ${Date.now() - t0}ms`)
 
