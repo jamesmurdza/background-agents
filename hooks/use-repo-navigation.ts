@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useMemo } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 
 interface RepoFromUrl {
   owner: string
@@ -11,9 +11,9 @@ interface RepoFromUrl {
 /**
  * Hook for URL-based repo navigation
  * Parses repo from URL path and provides navigation functions
+ * Uses history.replaceState for URL updates to avoid page reloads
  */
 export function useRepoNavigation() {
-  const router = useRouter()
   const pathname = usePathname()
 
   // Parse current repo from URL path
@@ -29,25 +29,30 @@ export function useRepoNavigation() {
     return null
   }, [pathname])
 
-  // Navigate to a specific repo
-  const navigateToRepo = useCallback(
-    (owner: string, name: string) => {
-      const encodedOwner = encodeURIComponent(owner)
-      const encodedName = encodeURIComponent(name)
-      router.push(`/repos/${encodedOwner}/${encodedName}`)
-    },
-    [router]
-  )
+  // Update URL to a specific repo without triggering navigation/reload
+  const updateUrlToRepo = useCallback((owner: string, name: string) => {
+    const encodedOwner = encodeURIComponent(owner)
+    const encodedName = encodeURIComponent(name)
+    const newUrl = `/repos/${encodedOwner}/${encodedName}`
 
-  // Navigate to home (no repo selected)
-  const navigateHome = useCallback(() => {
-    router.push("/")
-  }, [router])
+    // Use replaceState to update URL without reload
+    // This keeps the URL in sync but doesn't trigger React re-render
+    if (typeof window !== "undefined" && window.location.pathname !== newUrl) {
+      window.history.replaceState(null, "", newUrl)
+    }
+  }, [])
+
+  // Update URL to home without triggering navigation
+  const updateUrlToHome = useCallback(() => {
+    if (typeof window !== "undefined" && window.location.pathname !== "/") {
+      window.history.replaceState(null, "", "/")
+    }
+  }, [])
 
   return {
     repoFromUrl,
-    navigateToRepo,
-    navigateHome,
+    updateUrlToRepo,
+    updateUrlToHome,
   }
 }
 
