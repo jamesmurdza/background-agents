@@ -190,30 +190,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
           </button>
         </div>
         <div className="mt-2 flex items-center justify-between">
-          {/* Left side: Loop Toggle + Agent Dropdown */}
-          <div className="flex items-center gap-3">
-            {/* Loop Toggle */}
-            <div className="flex items-center gap-1.5">
-              <Switch
-                checked={branch.loopEnabled ?? false}
-                onCheckedChange={handleLoopToggle}
-                className="h-4 w-7 data-[state=checked]:bg-primary"
-              />
-              <span className={cn(
-                "text-[11px] transition-colors",
-                branch.loopEnabled ? "text-foreground" : "text-muted-foreground"
-              )}>
-                Loop until finished
-              </span>
-              {branch.loopEnabled && (
-                <span className="text-[10px] text-muted-foreground tabular-nums">
-                  ({branch.loopCount || 0}/{branch.loopMaxIterations || defaultLoopMaxIterations})
-                </span>
-              )}
-            </div>
-
-            {/* Agent Dropdown */}
-            <DropdownMenu>
+          {/* Left: Agent Dropdown */}
+          <DropdownMenu>
             <DropdownMenuTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
               <AgentIcon agent={currentAgent} className="h-2.5 w-2.5 shrink-0" />
               <span>{agentLabels[currentAgent]}</span>
@@ -235,56 +213,81 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          </div>
 
-          {/* Model Combobox */}
-          <Popover open={modelOpen} onOpenChange={setModelOpen}>
-            <PopoverTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
-              <Sparkles className="h-2.5 w-2.5 shrink-0" />
-              <span>{getModelLabel(currentAgent, currentModel)}</span>
-              <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </PopoverTrigger>
-            <PopoverContent align="end" sideOffset={4} className="w-[220px] p-0">
-              <Command>
-                <CommandInput placeholder="Search models..." className="h-8 text-[11px]" />
-                <CommandList>
-                  <CommandEmpty className="py-3 px-3 text-[11px] text-center">
-                    {availableModels.length === 0 ? (
-                      <button
-                        onClick={() => {
-                          setModelOpen(false)
-                          onOpenSettings?.()
-                        }}
-                        className="text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        Configure API keys in Settings
-                      </button>
-                    ) : (
-                      "No models found."
-                    )}
-                  </CommandEmpty>
-                  {modelSections.map((section) => (
-                    <CommandGroup key={section.label} heading={section.label}>
-                      {section.models.map((model) => (
-                        <CommandItem
-                          key={model.value}
-                          value={model.label}
-                          onSelect={() => {
-                            handleModelChange(model)
+          {/* Right: Model Combobox + Loop Toggle */}
+          <div className="flex items-center gap-3">
+            <Popover open={modelOpen} onOpenChange={setModelOpen}>
+              <PopoverTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
+                <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                <span>{getModelLabel(currentAgent, currentModel)}</span>
+                <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </PopoverTrigger>
+              <PopoverContent align="end" sideOffset={4} className="w-[220px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search models..." className="h-8 text-[11px]" />
+                  <CommandList>
+                    <CommandEmpty className="py-3 px-3 text-[11px] text-center">
+                      {availableModels.length === 0 ? (
+                        <button
+                          onClick={() => {
                             setModelOpen(false)
+                            onOpenSettings?.()
                           }}
-                          className="flex items-center justify-between text-[11px] cursor-pointer"
+                          className="text-muted-foreground hover:text-foreground cursor-pointer"
                         >
-                          {model.label}
-                          {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  ))}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+                          Configure API keys in Settings
+                        </button>
+                      ) : (
+                        "No models found."
+                      )}
+                    </CommandEmpty>
+                    {modelSections.map((section) => (
+                      <CommandGroup key={section.label} heading={section.label}>
+                        {section.models.map((model) => (
+                          <CommandItem
+                            key={model.value}
+                            value={model.label}
+                            onSelect={() => {
+                              handleModelChange(model)
+                              setModelOpen(false)
+                            }}
+                            className="flex items-center justify-between text-[11px] cursor-pointer"
+                          >
+                            {model.label}
+                            {model.value === currentModel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    ))}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* Loop Toggle */}
+            <button
+              type="button"
+              onClick={handleLoopToggle}
+              className="flex items-center gap-1.5 cursor-pointer rounded px-1.5 py-0.5 -mr-1.5 hover:bg-muted/60 transition-colors"
+            >
+              <Switch
+                checked={branch.loopEnabled ?? false}
+                onCheckedChange={handleLoopToggle}
+                className="h-3 w-5 data-[state=checked]:bg-primary [&_[data-slot=switch-thumb]]:size-2.5"
+              />
+              <span className={cn(
+                "text-[11px] transition-colors",
+                branch.loopEnabled ? "text-foreground" : "text-muted-foreground"
+              )}>
+                Loop until finished
+              </span>
+              {branch.loopEnabled && (
+                <span className="rounded px-1.5 py-0.5 text-[10px] tabular-nums bg-primary/20 text-primary font-medium">
+                  {branch.loopCount ?? 0}/{branch.loopMaxIterations ?? defaultLoopMaxIterations}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     )
