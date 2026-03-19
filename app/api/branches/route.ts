@@ -92,6 +92,8 @@ export async function DELETE(req: Request) {
   // Verify ownership through repo
   const branch = await getBranchWithAuth(branchId, userId)
   if (!branch) {
+    // Branch not found or not owned by this user - could be already deleted or auth mismatch
+    console.warn(`[branches/DELETE] Branch ${branchId} not found for user ${userId}`)
     return notFound("Branch not found")
   }
 

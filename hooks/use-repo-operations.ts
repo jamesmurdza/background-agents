@@ -157,7 +157,11 @@ export function useRepoOperations({
     try {
       const res = await fetch(`/api/branches?id=${branchId}`, { method: "DELETE" })
       if (!res.ok) {
-        console.error(`[handleRemoveBranch] Failed to delete branch ${branchId}: ${res.status}`)
+        // 404 means branch was already deleted (e.g., from another tab or concurrent deletion)
+        // This is not an error condition since the desired state is achieved
+        if (res.status !== 404) {
+          console.error(`[handleRemoveBranch] Failed to delete branch ${branchId}: ${res.status}`)
+        }
       }
     } catch (error) {
       console.error(`[handleRemoveBranch] Error deleting branch ${branchId}:`, error)
