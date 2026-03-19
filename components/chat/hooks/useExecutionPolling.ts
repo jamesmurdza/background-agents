@@ -367,9 +367,17 @@ export function useExecutionPolling({
                     .filter((m) => m.commitHash)
                     .map((m) => m.commitHash),
                 )
-                const newCommits = allCommits.filter(
-                  (c) => !chatCommits.has(c.shortHash),
+
+                // Only show commits that are newer than any already-displayed commit.
+                // git log returns commits newest-first, so stop at the first commit
+                // we've already seen to avoid showing out-of-order/repeated commits.
+                const firstSeenIdx = allCommits.findIndex((c) =>
+                  chatCommits.has(c.shortHash),
                 )
+                const newCommits =
+                  firstSeenIdx === -1
+                    ? allCommits // No overlap, all are new
+                    : allCommits.slice(0, firstSeenIdx) // Only commits before first seen
 
                 // Use pollingBranchIdRef to ensure commits go to the correct branch
                 // even if user switched branches during execution
