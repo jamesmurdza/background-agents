@@ -1,16 +1,14 @@
 import { useState } from "react"
 
 /**
- * Manages all mobile-specific UI state (modals, drawers, loading states)
+ * Manages mobile-specific UI state (modals, drawers, loading states)
+ * Note: merge/rebase/tag dialogs are now handled by the shared useGitDialogs hook
  */
 export function useMobileUIState() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSandboxToggleLoading, setMobileSandboxToggleLoading] = useState(false)
   const [mobilePrLoading, setMobilePrLoading] = useState(false)
   const [mobileDiffOpen, setMobileDiffOpen] = useState(false)
-  const [mobileMergeOpen, setMobileMergeOpen] = useState(false)
-  const [mobileRebaseOpen, setMobileRebaseOpen] = useState(false)
-  const [mobileTagOpen, setMobileTagOpen] = useState(false)
 
   return {
     // Sidebar
@@ -25,15 +23,9 @@ export function useMobileUIState() {
     mobilePrLoading,
     setMobilePrLoading,
 
-    // Modals
+    // Diff modal
     mobileDiffOpen,
     setMobileDiffOpen,
-    mobileMergeOpen,
-    setMobileMergeOpen,
-    mobileRebaseOpen,
-    setMobileRebaseOpen,
-    mobileTagOpen,
-    setMobileTagOpen,
   }
 }
 
