@@ -245,18 +245,37 @@ export function useDeleteBranchDialog({ repo, onRemoveBranch }: UseDeleteBranchD
   const [deletingBranch, setDeletingBranch] = useState<Branch | null>(null)
   const [deletingBranchId, setDeletingBranchId] = useState<string | null>(null)
 
-  // Handle delete button click - check if branch exists on GitHub first
+  // Handle delete button click
+  // - show spinner immediately
+  // - check if branch exists on GitHub
+  //   - if not found, auto-delete immediately (no modal)
+  //   - if found, open the modal (modal will do merge-status loading)
   const handleDeleteClick = useCallback(async (branchId: string) => {
     const branch = repo.branches.find((b) => b.id === branchId)
     if (!branch) return
 
-    // Show the spinner first (row-level feedback).
     setDeletingBranchId(branchId)
 
-    // Then open the modal on the next frame so React can paint the spinner immediately.
-    requestAnimationFrame(() => {
-      setDeletingBranch(branch)
-    })
+    try {
+      const baseBranch = branch.baseBranch || repo.defaultBranch || "main"
+      const res = await fetch(
+        `/api/github/check-merged?owner=${encodeURIComponent(repo.owner)}&repo=${encodeURIComponent(repo.name)}&branch=${encodeURIComponent(branch.name)}&baseBranch=${encodeURIComponent(baseBranch)}`
+      )
+      const data = await res.json()
+
+      // If branch doesn't exist on GitHub, delete immediately without modal.
+      if (res.ok && data.notFound) {
+        await onRemoveBranch(branchId, false)
+        setDeletingBranchId(null)
+        return
+      }
+    } catch {
+      // Fall through: if check fails, we'll show the modal.
+    }
+
+    // Branch exists (or couldn't verify): show modal.
+    setDeletingBranch(branch)
+    setDeletingBranchId(null)
   }, [repo, onRemoveBranch])
 
   const handleClose = useCallback(() => {
@@ -266,6 +285,7 @@ export function useDeleteBranchDialog({ repo, onRemoveBranch }: UseDeleteBranchD
 
   const handleConfirm = useCallback(
     async (branchId: string, deleteRemote: boolean) => {
+      setDeletingBranchId(branchId)
       await onRemoveBranch(branchId, deleteRemote)
       setDeletingBranch(null)
       setDeletingBranchId(null)
