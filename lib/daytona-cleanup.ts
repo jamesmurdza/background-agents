@@ -3,6 +3,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/prisma"
 import { getDaytonaApiKey } from "@/lib/api-helpers"
+import { logActivity } from "@/lib/activity-log"
 
 // Deletes a Daytona sandbox from both cloud and database
 async function deleteSandbox(sandboxId: string, apiKey: string): Promise<boolean> {
@@ -27,10 +28,10 @@ async function deleteSandbox(sandboxId: string, apiKey: string): Promise<boolean
 }
 
 // Deletes the sandbox associated with a branch. Call BEFORE deleting branch from DB.
-export async function deleteSandboxForBranch(branchId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteSandboxForBranch(branchId: string, userId?: string): Promise<{ success: boolean; error?: string }> {
   const sandbox = await prisma.sandbox.findUnique({
     where: { branchId },
-    select: { sandboxId: true },
+    select: { sandboxId: true, userId: true, branch: { select: { name: true, repo: { select: { owner: true, name: true } } } } },
   })
 
   if (!sandbox) {
@@ -43,6 +44,18 @@ export async function deleteSandboxForBranch(branchId: string): Promise<{ succes
   }
 
   const success = await deleteSandbox(sandbox.sandboxId, apiKey)
+
+  // Log activity for metrics
+  if (success) {
+    const logUserId = userId || sandbox.userId
+    logActivity(logUserId, "sandbox_deleted", {
+      sandboxId: sandbox.sandboxId,
+      repoOwner: sandbox.branch?.repo?.owner,
+      repoName: sandbox.branch?.repo?.name,
+      branchName: sandbox.branch?.name,
+    })
+  }
+
   return { success }
 }
 

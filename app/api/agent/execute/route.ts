@@ -16,6 +16,7 @@ import {
 } from "@/lib/api-helpers"
 import { PATHS } from "@/lib/constants"
 import type { Agent } from "@/lib/types"
+import { logActivity } from "@/lib/activity-log"
 
 // Agent execution timeout - 60 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 60
@@ -162,6 +163,16 @@ export async function POST(req: Request) {
     } catch {
       // Non-critical
     }
+
+    // Log activity for metrics
+    logActivity(auth.userId, "agent_executed", {
+      sandboxId: daytonaSandboxId,
+      repoOwner: sandboxRecord.branch?.repo?.owner,
+      repoName: actualRepoName,
+      branchName: sandboxRecord.branch?.name,
+      agent,
+      model,
+    })
 
     return Response.json({ success: true, messageId, executionId: agentExecution.id })
   } catch (error: unknown) {

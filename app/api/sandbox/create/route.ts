@@ -16,6 +16,7 @@ import { SANDBOX_CONFIG, PATHS } from "@/lib/constants"
 import { getDefaultAgent } from "@/lib/types"
 import { cleanupDaytonaSandbox } from "@/lib/daytona-cleanup"
 import { decrypt } from "@/lib/encryption"
+import { logActivity } from "@/lib/activity-log"
 
 // Sandbox creation timeout - 300 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 300
@@ -279,6 +280,15 @@ export async function POST(req: Request) {
             previewUrlPattern,
             status: "running",
           },
+        })
+
+        // Log activity for metrics
+        logActivity(userId, "sandbox_created", {
+          repoOwner,
+          repoName,
+          branchName: newBranch,
+          sandboxId: sandbox.id,
+          agent: defaultAgent,
         })
 
         sendDone(controller, {

@@ -246,3 +246,18 @@ model AgentExecution {
 
   @@index([sandboxId, status])
 }
+
+// Activity log for tracking platform usage metrics
+model ActivityLog {
+  id     String @id @default(cuid())
+  userId String
+
+  action   String // "sandbox_created" | "sandbox_deleted" | "agent_executed"
+  metadata Json?  // { repoName, branchName, sandboxId, agent, model, etc. }
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}

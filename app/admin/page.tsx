@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Search, ChevronLeft, ChevronRight, Loader2, Save, ArrowLeft, Shield } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Loader2, Save, ArrowLeft, Shield, Users, Box, Zap, Activity } from "lucide-react"
 import Link from "next/link"
 
 interface User {
@@ -25,12 +25,71 @@ interface Pagination {
   totalPages: number
 }
 
+interface Stats {
+  totalUsers: number
+  activeSandboxes: number
+  sandboxesCreatedToday: number
+  sandboxesCreatedThisWeek: number
+  agentExecutionsToday: number
+  agentExecutionsThisWeek: number
+}
+
+interface ActivityEntry {
+  id: string
+  userId: string
+  action: string
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
 const DEFAULT_MAX_SANDBOXES = 10
+
+function StatCard({ icon: Icon, label, value, subValue }: { icon: React.ElementType; label: string; value: number; subValue?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-2xl font-semibold text-foreground">{value}</p>
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {subValue && <p className="text-xs text-muted-foreground">{subValue}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return "just now"
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  return `${diffDays}d ago`
+}
+
+function getActionLabel(action: string): string {
+  switch (action) {
+    case "sandbox_created": return "Created sandbox"
+    case "sandbox_deleted": return "Deleted sandbox"
+    case "agent_executed": return "Ran agent"
+    default: return action
+  }
+}
 
 export default function AdminPage() {
   const { status } = useSession()
   const router = useRouter()
 
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [recentActivity, setRecentActivity] = useState<ActivityEntry[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -40,10 +99,30 @@ export default function AdminPage() {
   })
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<string>("")
   const [saving, setSaving] = useState(false)
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      const res = await fetch("/api/admin/stats")
+      if (res.status === 403) {
+        router.push("/")
+        return
+      }
+      if (!res.ok) throw new Error("Failed to fetch stats")
+      const data = await res.json()
+      setStats(data.stats)
+      setRecentActivity(data.recentActivity || [])
+    } catch (err) {
+      console.error("Failed to fetch stats:", err)
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [router])
 
   const fetchUsers = useCallback(async (page: number, searchQuery: string) => {
     setLoading(true)
@@ -80,6 +159,7 @@ export default function AdminPage() {
       return
     }
     if (status === "authenticated") {
+      fetchStats()
       fetchUsers(pagination.page, search)
     }
   }, [status, router]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -165,11 +245,72 @@ export default function AdminPage() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-foreground">Admin</h1>
-                <p className="text-sm text-muted-foreground">Manage user sandbox limits</p>
+                <p className="text-sm text-muted-foreground">Platform metrics and user management</p>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Stats Cards */}
+        <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {statsLoading ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-lg border border-border bg-card p-4 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-secondary" />
+                    <div className="space-y-2">
+                      <div className="h-6 w-12 rounded bg-secondary" />
+                      <div className="h-3 w-20 rounded bg-secondary" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : stats ? (
+            <>
+              <StatCard icon={Users} label="Total Users" value={stats.totalUsers} />
+              <StatCard icon={Box} label="Active Sandboxes" value={stats.activeSandboxes} />
+              <StatCard
+                icon={Box}
+                label="Sandboxes Created"
+                value={stats.sandboxesCreatedToday}
+                subValue={`${stats.sandboxesCreatedThisWeek} this week`}
+              />
+              <StatCard
+                icon={Zap}
+                label="Agent Runs Today"
+                value={stats.agentExecutionsToday}
+                subValue={`${stats.agentExecutionsThisWeek} this week`}
+              />
+            </>
+          ) : null}
+        </div>
+
+        {/* Recent Activity */}
+        {recentActivity.length > 0 && (
+          <div className="mb-8">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-foreground">
+              <Activity className="h-4 w-4" />
+              Recent Activity
+            </h2>
+            <div className="rounded-lg border border-border bg-card divide-y divide-border max-h-48 overflow-y-auto">
+              {recentActivity.slice(0, 10).map((entry) => (
+                <div key={entry.id} className="px-4 py-2 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{formatTimeAgo(entry.createdAt)}</span>
+                    <span className="text-foreground">{getActionLabel(entry.action)}</span>
+                    {entry.metadata && (
+                      <span className="text-muted-foreground">
+                        {(entry.metadata as Record<string, string>).repoOwner}/{(entry.metadata as Record<string, string>).repoName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Search */}
         <form onSubmit={handleSearch} className="mb-6">
