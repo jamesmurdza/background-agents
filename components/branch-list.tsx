@@ -334,6 +334,7 @@ export function BranchList({
             {filtered.map((branch) => {
               const isActive = branch.id === activeBranchId
               const isBold = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING || (branch.unread && !isActive)
+              const isDeleting = deleteDialog.deletingBranchId === branch.id
               return (
                 <div key={branch.id} className="group relative">
                   <button
@@ -370,13 +371,17 @@ export function BranchList({
                       e.stopPropagation()
                       deleteDialog.handleDeleteClick(branch.id)
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground/60 transition-all hover:bg-muted-foreground/10 hover:text-foreground"
+                    disabled={isDeleting}
+                    className={cn(
+                      "absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground/60 transition-all hover:bg-muted-foreground/10 hover:text-foreground",
+                      isDeleting ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    )}
                   >
-                      {deleteDialog.deletingBranchId === branch.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <X className="h-4 w-4" />
-                      )}
+                    {isDeleting ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <X className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               )
