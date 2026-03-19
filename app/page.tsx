@@ -15,7 +15,7 @@ import { AddRepoModal } from "@/components/add-repo-modal"
 import { MobileHeader } from "@/components/mobile-header"
 import { MobileSidebarDrawer } from "@/components/mobile-sidebar-drawer"
 import { DiffModal } from "@/components/diff-modal"
-import { MobileGitDialogs } from "@/components/mobile-git-dialogs"
+import { GitDialogs, useGitDialogs } from "@/components/git"
 import { BRANCH_STATUS } from "@/lib/constants"
 import { Loader2 } from "lucide-react"
 
@@ -124,6 +124,15 @@ export default function Home() {
     setMobileSandboxToggleLoading: mobileUI.setMobileSandboxToggleLoading,
     mobilePrLoading: mobileUI.mobilePrLoading,
     setMobilePrLoading: mobileUI.setMobilePrLoading,
+  })
+
+  // Mobile git dialogs (merge, rebase, tag) - uses shared hook
+  const mobileGitDialogs = useGitDialogs({
+    branch: activeBranch!,
+    repoName: activeRepo?.name || "",
+    repoOwner: activeRepo?.owner || "",
+    repoFullName: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : "",
+    onAddMessage: handleAddMessage,
   })
 
   // Cross-device sync
@@ -377,10 +386,9 @@ export default function Home() {
               onOpenDiff={() => mobileUI.setMobileDiffOpen(true)}
               onCreatePR={handleMobileCreatePR}
               onSandboxToggle={handleMobileSandboxToggle}
-              onMerge={() => mobileUI.setMobileMergeOpen(true)}
-              onRebase={() => mobileUI.setMobileRebaseOpen(true)}
-              onReset={() => mobileUI.setMobileResetOpen(true)}
-              onTag={() => mobileUI.setMobileTagOpen(true)}
+              onMerge={() => mobileGitDialogs.setMergeOpen(true)}
+              onRebase={() => mobileGitDialogs.setRebaseOpen(true)}
+              onTag={() => mobileGitDialogs.setTagOpen(true)}
               gitHistoryOpen={gitHistoryOpen}
               sandboxToggleLoading={mobileUI.mobileSandboxToggleLoading}
               prLoading={mobileUI.mobilePrLoading}
@@ -518,22 +526,9 @@ export default function Home() {
         />
       )}
 
-      {/* Mobile Git Dialogs (Merge, Rebase, Tag, Reset) */}
+      {/* Mobile Git Dialogs (Merge, Rebase, Tag) - shared component */}
       {isMobile && activeRepo && activeBranch && activeBranch.sandboxId && (
-        <MobileGitDialogs
-          branch={activeBranch}
-          repoOwner={activeRepo.owner}
-          repoName={activeRepo.name}
-          mergeOpen={mobileUI.mobileMergeOpen}
-          rebaseOpen={mobileUI.mobileRebaseOpen}
-          tagOpen={mobileUI.mobileTagOpen}
-          resetOpen={mobileUI.mobileResetOpen}
-          onMergeClose={() => mobileUI.setMobileMergeOpen(false)}
-          onRebaseClose={() => mobileUI.setMobileRebaseOpen(false)}
-          onTagClose={() => mobileUI.setMobileTagOpen(false)}
-          onResetClose={() => mobileUI.setMobileResetOpen(false)}
-          onAddMessage={handleAddMessage}
-        />
+        <GitDialogs gitDialogs={mobileGitDialogs} />
       )}
     </>
   )

@@ -15,7 +15,6 @@ import {
   GitMerge,
   GitCompareArrows,
   Tag,
-  RotateCcw,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -36,7 +35,6 @@ interface MobileHeaderProps {
   onSandboxToggle: () => void
   onMerge: () => void
   onRebase: () => void
-  onReset: () => void
   onTag: () => void
   gitHistoryOpen: boolean
   sandboxToggleLoading: boolean
@@ -54,7 +52,6 @@ export function MobileHeader({
   onSandboxToggle,
   onMerge,
   onRebase,
-  onReset,
   onTag,
   gitHistoryOpen,
   sandboxToggleLoading,
@@ -199,14 +196,6 @@ export function MobileHeader({
                 <DropdownMenuItem onClick={onTag} className="cursor-pointer">
                   <Tag className="h-4 w-4" />
                   Create Tag
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                {/* Reset */}
-                <DropdownMenuItem onClick={onReset} className="cursor-pointer text-red-400 focus:text-red-400">
-                  <RotateCcw className="h-4 w-4" />
-                  Reset to HEAD
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

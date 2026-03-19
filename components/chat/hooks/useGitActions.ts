@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, PATHS } from "@/lib/constants"
+import { useGitDialogs } from "@/components/git/hooks/useGitDialogs"
 
 // Export the return type for use in sub-components
 export type UseGitActionsReturn = ReturnType<typeof useGitActions>
@@ -19,6 +20,7 @@ interface UseGitActionsOptions {
 
 /**
  * Handles git operations: PR creation, merge, rebase, reset, tag
+ * Uses useGitDialogs for merge/rebase/tag operations
  */
 export function useGitActions({
   branch,
@@ -29,16 +31,17 @@ export function useGitActions({
   onAddMessage,
   onToggleGitHistory,
 }: UseGitActionsOptions) {
+  // Use shared git dialogs hook for merge/rebase/tag
+  const gitDialogs = useGitDialogs({
+    branch,
+    repoName,
+    repoOwner,
+    repoFullName,
+    onAddMessage,
+  })
+
+  // Desktop-specific state
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [branchPickerModal, setBranchPickerModal] = useState<{ action: "merge" | "rebase" | "diff" } | null>(null)
-  const [remoteBranches, setRemoteBranches] = useState<string[]>([])
-  const [selectedBranch, setSelectedBranch] = useState("")
-  // For merge: "into-current" means merge selected branch INTO current branch
-  // "from-current" means merge current branch INTO selected branch
-  const [mergeDirection, setMergeDirection] = useState<"into-current" | "from-current">("from-current")
-  const [branchesLoading, setBranchesLoading] = useState(false)
-  const [tagPopoverOpen, setTagPopoverOpen] = useState(false)
-  const [tagNameInput, setTagNameInput] = useState("")
   const [diffModalOpen, setDiffModalOpen] = useState(false)
   const [commitDiffHash, setCommitDiffHash] = useState<string | null>(null)
   const [commitDiffMessage, setCommitDiffMessage] = useState<string | null>(null)
@@ -95,34 +98,6 @@ export function useGitActions({
     return () => clearInterval(interval)
   }, [checkForChanges, branch.status])
 
-  const fetchBranches = useCallback(async () => {
-    setBranchesLoading(true)
-    try {
-      const res = await fetch(
-        `/api/github/branches?owner=${encodeURIComponent(repoOwner)}&repo=${encodeURIComponent(repoName)}`
-      )
-      const data = await res.json()
-      const branches = (data.branches || []).filter((b: string) => b !== branch.name)
-      setRemoteBranches(branches)
-      setSelectedBranch(branches.includes(branch.baseBranch) ? branch.baseBranch : branches[0] || "")
-    } catch {
-      setRemoteBranches([])
-    } finally {
-      setBranchesLoading(false)
-    }
-  }, [repoOwner, repoName, branch.name, branch.baseBranch])
-
-  const openBranchPicker = useCallback((action: "merge" | "rebase" | "diff") => {
-    setBranchPickerModal({ action })
-    setSelectedBranch("")
-    setMergeDirection("from-current") // Reset to default direction
-    fetchBranches()
-  }, [fetchBranches])
-
-  const toggleMergeDirection = useCallback(() => {
-    setMergeDirection(prev => prev === "into-current" ? "from-current" : "into-current")
-  }, [])
-
   const handleSandboxToggle = useCallback(async () => {
     if (!branch.sandboxId || sandboxToggleLoading) return
     const isStopped = branch.status === BRANCH_STATUS.STOPPED
@@ -144,7 +119,7 @@ export function useGitActions({
     } finally {
       setSandboxToggleLoading(false)
     }
-  }, [branch.sandboxId, branch.status, sandboxToggleLoading, onUpdateBranch])
+  }, [branch.sandboxId, branch.status, branch.id, sandboxToggleLoading, onUpdateBranch])
 
   const handleCreatePR = useCallback(async () => {
     if (branch.prUrl) {
@@ -173,97 +148,7 @@ export function useGitActions({
     } finally {
       setActionLoading(null)
     }
-  }, [branch.prUrl, branch.name, branch.baseBranch, repoFullName, onUpdateBranch])
-
-  const handleMerge = useCallback(async () => {
-    if (!selectedBranch) return
-    setBranchPickerModal(null)
-    setActionLoading("merge")
-
-    // Determine source and target based on merge direction
-    const sourceBranch = mergeDirection === "from-current" ? branch.name : selectedBranch
-    const targetBranch = mergeDirection === "from-current" ? selectedBranch : branch.name
-
-    try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId: branch.sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "merge",
-          targetBranch: targetBranch,
-          currentBranch: sourceBranch,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`Merged **${sourceBranch}** into **${targetBranch}** and pushed.`)
-    } catch (err: unknown) {
-      addSystemMessage(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }, [selectedBranch, branch.sandboxId, branch.name, repoName, addSystemMessage, mergeDirection])
-
-  const handleRebase = useCallback(async () => {
-    if (!selectedBranch) return
-    const [owner, repo] = repoFullName.split("/")
-    setBranchPickerModal(null)
-    setActionLoading("rebase")
-    try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId: branch.sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "rebase",
-          targetBranch: selectedBranch,
-          currentBranch: branch.name,
-          repoOwner: owner,
-          repoApiName: repo,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`Rebased **${branch.name}** onto **${selectedBranch}** and force-pushed.`)
-    } catch (err: unknown) {
-      addSystemMessage(`Rebase failed: ${err instanceof Error ? err.message : "Unknown error"}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }, [selectedBranch, branch.sandboxId, branch.name, repoFullName, repoName, addSystemMessage])
-
-  const handleTag = useCallback(async () => {
-    const name = tagNameInput.trim()
-    if (!name) return
-    const [owner, repo] = repoFullName.split("/")
-    setTagPopoverOpen(false)
-    setTagNameInput("")
-    setActionLoading("tag")
-    try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId: branch.sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "tag",
-          tagName: name,
-          repoOwner: owner,
-          repoApiName: repo,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`Tag **${name}** created and pushed.`)
-    } catch (err: unknown) {
-      addSystemMessage(`Tag failed: ${err instanceof Error ? err.message : "Unknown error"}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }, [tagNameInput, branch.sandboxId, repoFullName, repoName, addSystemMessage])
+  }, [branch.prUrl, branch.name, branch.baseBranch, branch.id, repoFullName, onUpdateBranch])
 
   const handleHeaderAction = useCallback((action: string) => {
     if (action === "log") {
@@ -275,22 +160,22 @@ export function useGitActions({
       return
     }
     if (action === "merge") {
-      openBranchPicker("merge")
+      gitDialogs.setMergeOpen(true)
       return
     }
     if (action === "rebase") {
-      openBranchPicker("rebase")
+      gitDialogs.setRebaseOpen(true)
       return
     }
     if (action === "tag") {
-      setTagPopoverOpen(true)
+      gitDialogs.setTagOpen(true)
       return
     }
     if (action === "diff") {
       setDiffModalOpen(true)
       return
     }
-  }, [onToggleGitHistory, handleCreatePR, openBranchPicker])
+  }, [onToggleGitHistory, handleCreatePR, gitDialogs])
 
   const handleVSCodeClick = useCallback(async () => {
     try {
@@ -341,25 +226,12 @@ export function useGitActions({
   }, [branch.sandboxId, branch.name, repoFullName, repoName])
 
   return {
-    // Loading states
+    // Git dialogs (shared between mobile and desktop)
+    gitDialogs,
+
+    // Desktop-specific loading states
     actionLoading,
-    branchesLoading,
     sandboxToggleLoading,
-
-    // Branch picker
-    branchPickerModal,
-    setBranchPickerModal,
-    remoteBranches,
-    selectedBranch,
-    setSelectedBranch,
-    mergeDirection,
-    toggleMergeDirection,
-
-    // Tag
-    tagPopoverOpen,
-    setTagPopoverOpen,
-    tagNameInput,
-    setTagNameInput,
 
     // Diff
     diffModalOpen,
@@ -382,9 +254,6 @@ export function useGitActions({
     // Actions
     handleSandboxToggle,
     handleCreatePR,
-    handleMerge,
-    handleRebase,
-    handleTag,
     handleHeaderAction,
     handleVSCodeClick,
     handleRsyncClick,
