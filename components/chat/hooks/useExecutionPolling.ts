@@ -530,7 +530,12 @@ export function useExecutionPolling({
       streamingMessageIdRef.current = null
     }
     if (pollingBranchIdRef.current) {
-      onUpdateBranch(pollingBranchIdRef.current, { status: BRANCH_STATUS.IDLE })
+      // Disable loop mode when user manually stops - prevents cron job from restarting
+      onUpdateBranch(pollingBranchIdRef.current, {
+        status: BRANCH_STATUS.IDLE,
+        loopEnabled: false,
+        loopCount: 0
+      })
     }
   }, [onUpdateMessage, onUpdateBranch, streamingMessageIdRef, detectAndShowCommits])
 
