@@ -424,18 +424,25 @@ export function BranchList({
                           const defaultBranch = repo.defaultBranch || "main"
                           const allBranches = githubBranches.length > 0 ? githubBranches : [defaultBranch]
 
-                          // Sort: default branch first, then selected branch (if different), then rest alphabetically
+                          // Get the base branch of the currently active sandbox
+                          const activeBranch = activeBranchId
+                            ? repo.branches.find((b) => b.id === activeBranchId)
+                            : null
+                          const currentBranch = activeBranch?.baseBranch || null
+
+                          // Sort: default branch first, then current branch (if different), then rest alphabetically
                           const sortedBranches = [...allBranches].sort((a, b) => {
                             if (a === defaultBranch) return -1
                             if (b === defaultBranch) return 1
-                            if (a === newBranchBase) return -1
-                            if (b === newBranchBase) return 1
+                            if (a === currentBranch) return -1
+                            if (b === currentBranch) return 1
                             return a.localeCompare(b)
                           })
 
                           return sortedBranches.map((branch) => {
                             const isDefault = branch === defaultBranch
                             const isSelected = branch === newBranchBase
+                            const isCurrent = branch === currentBranch
 
                             return (
                               <CommandItem
@@ -453,7 +460,7 @@ export function BranchList({
                                   {isDefault && (
                                     <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">default</span>
                                   )}
-                                  {isSelected && !isDefault && (
+                                  {isCurrent && !isDefault && (
                                     <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary">current</span>
                                   )}
                                 </span>
