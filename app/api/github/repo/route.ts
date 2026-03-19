@@ -22,6 +22,7 @@ export async function GET(req: Request) {
       defaultBranch: data.default_branch,
       fullName: data.full_name,
       private: data.private,
+      canPush: data.permissions?.push ?? false,
     })
   } catch (error: unknown) {
     return internalError(error)

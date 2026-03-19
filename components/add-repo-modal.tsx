@@ -15,6 +15,7 @@ interface GitHubRepo {
   defaultBranch: string
   private: boolean
   description: string | null
+  canPush: boolean
 }
 
 interface AddRepoModalProps {
@@ -120,8 +121,8 @@ export function AddRepoModal({ open, onClose, githubUser, existingRepos, onAddRe
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to fetch repository")
 
-      // Check if user owns the repo
-      if (githubUser && data.owner !== githubUser) {
+      // Check if user has push access to the repo
+      if (!data.canPush) {
         setForkPrompt({
           owner: data.owner,
           name: data.name,
@@ -164,7 +165,7 @@ export function AddRepoModal({ open, onClose, githubUser, existingRepos, onAddRe
   }
 
   async function handleSelectRepo(repo: GitHubRepo) {
-    if (githubUser && repo.owner !== githubUser) {
+    if (!repo.canPush) {
       setForkPrompt({
         owner: repo.owner,
         name: repo.name,

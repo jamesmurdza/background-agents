@@ -107,6 +107,7 @@ export interface GitHubRepo {
   default_branch: string
   private: boolean
   description: string | null
+  permissions?: { push: boolean; pull: boolean; admin: boolean }
 }
 
 export interface GitHubBranch {

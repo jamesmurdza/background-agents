@@ -15,6 +15,7 @@ export async function GET() {
       defaultBranch: r.default_branch,
       private: r.private,
       description: r.description,
+      canPush: r.permissions?.push ?? false,
     }))
     return Response.json({ repos })
   } catch (error: unknown) {
