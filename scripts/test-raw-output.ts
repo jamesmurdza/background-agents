@@ -73,7 +73,7 @@ async function testGeminiRaw() {
 
   const daytona = new Daytona({ apiKey: DAYTONA_API_KEY })
   const sandbox = await daytona.create({
-    envVars: { GOOGLE_API_KEY: GEMINI_API_KEY, GEMINI_API_KEY },
+    envVars: { GEMINI_API_KEY },
   })
   console.log("Sandbox created, installing gemini-cli...\n")
 
