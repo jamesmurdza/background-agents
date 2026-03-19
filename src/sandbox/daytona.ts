@@ -180,6 +180,12 @@ export function adaptDaytonaSandbox(
           throw new Error(`Failed to install ${name} CLI in sandbox`)
         }
         console.log(`Installed ${name} CLI`)
+
+        // Post-install setup for Gemini
+        if (name === "gemini") {
+          // Create config directory for Gemini CLI
+          await sandbox.process.executeCommand("mkdir -p ~/.gemini", undefined, undefined, 30)
+        }
       }
     },
 

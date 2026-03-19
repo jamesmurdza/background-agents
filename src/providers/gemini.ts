@@ -16,6 +16,18 @@ interface GeminiAssistantDelta {
   text: string
 }
 
+interface GeminiMessage {
+  type: "message"
+  role: string
+  content: string
+  delta?: boolean
+}
+
+interface GeminiResult {
+  type: "result"
+  status: string
+}
+
 interface GeminiToolStart {
   type: "tool.start"
   name: string
@@ -38,6 +50,8 @@ interface GeminiAssistantComplete {
 type GeminiEvent =
   | GeminiInit
   | GeminiAssistantDelta
+  | GeminiMessage
+  | GeminiResult
   | GeminiToolStart
   | GeminiToolDelta
   | GeminiToolEnd
@@ -77,11 +91,8 @@ export class GeminiProvider extends Provider {
   getCommand(options?: RunOptions): ProviderCommand {
     const args: string[] = []
 
-    // Print mode + stream JSON for event parsing
-    args.push("-p", "--output-format", "stream-json")
-
-    // Skip permission prompts when already running in a sandbox
-    args.push("--yolo")
+    // Stream JSON for event parsing
+    args.push("--output-format", "stream-json")
 
     // Add model if specified (e.g., "gemini-2.0-flash", "gemini-1.5-pro")
     if (options?.model) {
@@ -92,9 +103,9 @@ export class GeminiProvider extends Provider {
       args.push("--resume", this.sessionId || options!.sessionId!)
     }
 
-    // Add the prompt if provided
+    // Add prompt with -p flag if provided
     if (options?.prompt) {
-      args.push(options.prompt)
+      args.push("-p", options.prompt)
     }
 
     return {
@@ -115,9 +126,23 @@ export class GeminiProvider extends Provider {
       return { type: "session", id: json.session_id }
     }
 
-    // Assistant text delta
+    // Assistant text delta (legacy format)
     if (json.type === "assistant.delta") {
       return { type: "token", text: json.text }
+    }
+
+    // Message event (new format)
+    if (json.type === "message") {
+      if (json.role === "assistant" && json.content) {
+        return { type: "token", text: json.content }
+      }
+      // Skip user messages
+      return null
+    }
+
+    // Result event (new format) - marks completion
+    if (json.type === "result") {
+      return { type: "end" }
     }
 
     // Tool start
@@ -140,7 +165,7 @@ export class GeminiProvider extends Provider {
       return { type: "tool_end", output }
     }
 
-    // Assistant complete
+    // Assistant complete (legacy format)
     if (json.type === "assistant.complete") {
       return { type: "end" }
     }
