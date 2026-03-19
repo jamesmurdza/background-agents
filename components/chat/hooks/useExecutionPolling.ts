@@ -3,6 +3,7 @@ import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/constants"
 import { isLoopFinished, LOOP_CONTINUATION_MESSAGE } from "@/lib/types"
+import { notifyAgentComplete, notifyAgentError } from "@/lib/notifications"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -445,6 +446,15 @@ export function useExecutionPolling({
                 ...loopUpdates,
               })
             }
+
+            // Show native notification for completion or error
+            const branchDisplayName = branchNameRef.current || "branch"
+            if (data.status === EXECUTION_STATUS.ERROR) {
+              notifyAgentError(branchDisplayName, data.error)
+            } else {
+              notifyAgentComplete(branchDisplayName)
+            }
+
             // Play completion sound only when loop is done
             try {
               const ctx = new AudioContext()

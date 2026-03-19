@@ -1,9 +1,10 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, RefreshCw } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, RefreshCw, Bell } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
+import { getNotificationPermission, requestNotificationPermission, notificationsSupported } from "@/lib/notifications"
 
 type SettingsTab = "agents" | "sandboxes" | "automation"
 
@@ -50,6 +51,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   const [defaultLoopMaxIterations, setDefaultLoopMaxIterations] = useState(10)
   const [initialLoopMaxIterations, setInitialLoopMaxIterations] = useState(10)
 
+  // Notification settings
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default")
+
   // Track keys to clear
   const [keysToClear, setKeysToClear] = useState<Set<ClearableKey>>(new Set())
 
@@ -79,6 +83,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       setSaveStatus(null)
       setShowDaytonaWarning(false)
       setDaytonaWarningConfirmed(false)
+      setNotificationPermission(getNotificationPermission())
     }
   }, [open, credentials])
 
@@ -642,6 +647,47 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   Agent will continue working until it says &quot;FINISHED&quot; or reaches this limit.
+                </p>
+              </div>
+
+              {/* Notifications */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-3.5 w-3.5 text-muted-foreground" />
+                    <label className="text-xs font-medium text-foreground">Desktop Notifications</label>
+                    {notificationPermission === "granted" && (
+                      <span className="text-green-500 text-[10px]">Enabled</span>
+                    )}
+                    {notificationPermission === "denied" && (
+                      <span className="text-destructive text-[10px]">Blocked</span>
+                    )}
+                    {notificationPermission === "default" && (
+                      <span className="text-muted-foreground/50 text-[10px]">Not set</span>
+                    )}
+                    {notificationPermission === "unsupported" && (
+                      <span className="text-muted-foreground/50 text-[10px]">Not supported</span>
+                    )}
+                  </div>
+                  {notificationsSupported() && notificationPermission !== "granted" && notificationPermission !== "denied" && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const granted = await requestNotificationPermission()
+                        setNotificationPermission(granted ? "granted" : "denied")
+                      }}
+                      className="text-[10px] text-primary hover:text-primary/80 transition-colors cursor-pointer"
+                    >
+                      Enable
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {notificationPermission === "granted"
+                    ? "You'll receive notifications when agents complete or encounter errors."
+                    : notificationPermission === "denied"
+                    ? "Notifications are blocked. Enable them in your browser settings."
+                    : "Get notified when agents finish their tasks."}
                 </p>
               </div>
             </>
