@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import type { Agent, Branch, Message, UserCredentialFlags } from "@/lib/types"
 import { defaultAgentModel, getDefaultModelForAgent, LOOP_CONTINUATION_MESSAGE, DEFAULT_LOOP_MAX_ITERATIONS } from "@/lib/types"
 import { generateId } from "@/lib/store"
-import { BRANCH_STATUS } from "@/lib/constants"
+import { BRANCH_STATUS, PATHS } from "@/lib/constants"
 import { Terminal } from "lucide-react"
 import { useRef, useEffect, useCallback, useState } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -254,6 +254,37 @@ export function ChatPanel({
       lastActivityTs: now,
     })
 
+    // Fetch current HEAD and persist it as lastShownCommitHash before starting execution
+    // This ensures we can accurately detect new commits made during this execution
+    try {
+      const headRes = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId: branch.sandboxId,
+          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+          action: "head",
+        }),
+      })
+      if (headRes.ok) {
+        const headData = await headRes.json()
+        if (headData.head) {
+          // Persist to server and update local state
+          await fetch("/api/branches", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              branchId: branch.id,
+              lastShownCommitHash: headData.head,
+            }),
+          })
+          onUpdateBranch(branch.id, { lastShownCommitHash: headData.head })
+        }
+      }
+    } catch {
+      // Non-critical - commit detection will fall back to existing behavior
+    }
+
     const assistantMsg: Message = {
       id: generateId(),
       role: "assistant",
@@ -295,7 +326,7 @@ export function ChatPanel({
       currentMessageIdRef.current = null
       currentExecutionIdRef.current = null
     }
-  }, [input, branch, repoName, onAddMessage, onUpdateMessage, onUpdateBranch, startPolling, currentMessageIdRef, currentExecutionIdRef, setInput])
+  }, [input, branch, repoName, onAddMessage, onUpdateMessage, onUpdateBranch, startPolling, currentMessageIdRef, currentExecutionIdRef, setInput, credentials])
 
   // Stop handler
   const handleStop = useCallback(() => {

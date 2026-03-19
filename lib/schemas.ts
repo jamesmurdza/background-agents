@@ -117,6 +117,7 @@ export const branchUpdateSchema = z.object({
   prUrl: optionalString,
   name: optionalString,
   draftPrompt: optionalString,
+  lastShownCommitHash: optionalString,
 })
 
 export const messageCreateSchema = z.object({

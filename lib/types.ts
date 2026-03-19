@@ -285,6 +285,8 @@ export interface Branch {
   loopEnabled?: boolean
   loopCount?: number
   loopMaxIterations?: number
+  // Commit tracking - HEAD at start of last execution, used for detecting new commits
+  lastShownCommitHash?: string
 }
 
 export interface Repo {

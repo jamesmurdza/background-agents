@@ -169,6 +169,9 @@ model Branch {
   loopCount         Int     @default(0)     // Current number of loop iterations
   loopMaxIterations Int     @default(10)    // Max iterations before stopping
 
+  // Commit tracking - HEAD at start of last execution, used for detecting new commits
+  lastShownCommitHash String?
+
   sandbox  Sandbox?
   messages Message[]
 

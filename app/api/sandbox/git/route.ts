@@ -69,6 +69,17 @@ export async function POST(req: Request) {
         return Response.json(status)
       }
 
+      case "head": {
+        // Get current HEAD commit hash
+        const headResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rev-parse --short HEAD 2>&1`
+        )
+        if (headResult.exitCode) {
+          return Response.json({ error: "Failed to get HEAD: " + headResult.result }, { status: 500 })
+        }
+        return Response.json({ head: headResult.result.trim() })
+      }
+
       case "log": {
         const sinceCommit = body.sinceCommit
         // If sinceCommit is provided, only get commits after that point

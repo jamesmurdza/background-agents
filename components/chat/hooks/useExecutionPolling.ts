@@ -43,7 +43,6 @@ export function useExecutionPolling({
   const resumeRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const currentExecutionIdRef = useRef<string | null>(null)
   const currentMessageIdRef = useRef<string | null>(null)
-  const startingCommitRef = useRef<string | null>(branch.startCommit || null)
   const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
   const pollingBranchIdRef = useRef<string | null>(null)
   // Use refs to always get the latest branch name/sandboxId in the polling callback
@@ -68,12 +67,100 @@ export function useExecutionPolling({
   loopCountRef.current = branch.loopCount || 0
   loopMaxIterationsRef.current = branch.loopMaxIterations || 10
 
-  // Update startingCommitRef when branch changes
+  // Commit tracking ref - uses lastShownCommitHash which is set at execution start
+  const lastShownCommitHashRef = useRef<string | null>(branch.lastShownCommitHash || null)
   useEffect(() => {
-    if (branch.startCommit) {
-      startingCommitRef.current = branch.startCommit
+    if (branch.lastShownCommitHash) {
+      lastShownCommitHashRef.current = branch.lastShownCommitHash
     }
-  }, [branch.id, branch.startCommit])
+  }, [branch.id, branch.lastShownCommitHash])
+
+  /**
+   * Detects and displays new commits made since lastShownCommitHash.
+   * Called on execution completion and when user stops execution.
+   * @param runAutoCommit - Whether to run auto-commit before checking for commits
+   */
+  const detectAndShowCommits = useCallback(async (runAutoCommit: boolean = true) => {
+    const currentSandboxId = branchSandboxIdRef.current
+    const currentBranchName = branchNameRef.current
+    const targetBranchId = pollingBranchIdRef.current
+
+    if (!currentSandboxId || !targetBranchId) return
+
+    try {
+      // Optionally run auto-commit first
+      if (runAutoCommit) {
+        await fetch("/api/sandbox/git", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sandboxId: currentSandboxId,
+            repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+            action: "auto-commit-push",
+            branchName: currentBranchName,
+          }),
+        })
+      }
+
+      // Check for new commits since lastShownCommitHash
+      if (lastShownCommitHashRef.current) {
+        const logRes = await fetch("/api/sandbox/git", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sandboxId: currentSandboxId,
+            repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+            action: "log",
+            sinceCommit: lastShownCommitHashRef.current,
+          }),
+        })
+        const logData = await logRes.json()
+        const allCommits: { shortHash: string; message: string }[] =
+          logData.commits || []
+
+        // Safety check: filter out commits already shown in chat (deduplication)
+        const chatCommits = new Set(
+          branchMessagesRef.current
+            .filter((m) => m.commitHash)
+            .map((m) => m.commitHash),
+        )
+
+        // Only show commits that are newer than any already-displayed commit.
+        // git log returns commits newest-first, so stop at the first commit
+        // we've already seen to avoid showing out-of-order/repeated commits.
+        const firstSeenIdx = allCommits.findIndex((c) =>
+          chatCommits.has(c.shortHash),
+        )
+        const newCommits =
+          firstSeenIdx === -1
+            ? allCommits // No overlap, all are new
+            : allCommits.slice(0, firstSeenIdx) // Only commits before first seen
+
+        // Add commit messages to chat (oldest first)
+        for (const c of [...newCommits].reverse()) {
+          onAddMessage(targetBranchId, {
+            id: generateId(),
+            role: "assistant",
+            content: "",
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            commitHash: c.shortHash,
+            commitMessage: c.message,
+          })
+        }
+
+        if (newCommits.length > 0) {
+          // Update the ref to the latest commit
+          lastShownCommitHashRef.current = allCommits[0].shortHash
+          onCommitsDetected?.()
+        }
+      }
+    } catch {
+      // Non-critical - commit detection failure shouldn't break the flow
+    }
+  }, [repoName, onAddMessage, onCommitsDetected])
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -344,80 +431,7 @@ export function useExecutionPolling({
           onForceSave()
 
           // Run auto-commit and commit-detection before going idle (spinner stays until this finishes)
-          const currentSandboxId = branchSandboxIdRef.current
-          const currentBranchName = branchNameRef.current
-          if (currentSandboxId) {
-            try {
-              await fetch("/api/sandbox/git", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  sandboxId: currentSandboxId,
-                  repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-                  action: "auto-commit-push",
-                  branchName: currentBranchName,
-                }),
-              })
-
-              if (startingCommitRef.current) {
-                const logRes = await fetch("/api/sandbox/git", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    sandboxId: currentSandboxId,
-                    repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-                    action: "log",
-                    sinceCommit: startingCommitRef.current,
-                  }),
-                })
-                const logData = await logRes.json()
-                const allCommits: { shortHash: string; message: string }[] =
-                  logData.commits || []
-
-                const chatCommits = new Set(
-                  branchMessagesRef.current
-                    .filter((m) => m.commitHash)
-                    .map((m) => m.commitHash),
-                )
-
-                // Only show commits that are newer than any already-displayed commit.
-                // git log returns commits newest-first, so stop at the first commit
-                // we've already seen to avoid showing out-of-order/repeated commits.
-                const firstSeenIdx = allCommits.findIndex((c) =>
-                  chatCommits.has(c.shortHash),
-                )
-                const newCommits =
-                  firstSeenIdx === -1
-                    ? allCommits // No overlap, all are new
-                    : allCommits.slice(0, firstSeenIdx) // Only commits before first seen
-
-                // Use pollingBranchIdRef to ensure commits go to the correct branch
-                // even if user switched branches during execution
-                const targetBranchId = pollingBranchIdRef.current
-                if (targetBranchId) {
-                  for (const c of [...newCommits].reverse()) {
-                    onAddMessage(targetBranchId, {
-                      id: generateId(),
-                      role: "assistant",
-                      content: "",
-                      timestamp: new Date().toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }),
-                      commitHash: c.shortHash,
-                      commitMessage: c.message,
-                    })
-                  }
-                }
-                if (newCommits.length > 0) {
-                  startingCommitRef.current = allCommits[0].shortHash
-                  onCommitsDetected?.()
-                }
-              }
-            } catch {
-              // Non-critical
-            }
-          }
+          await detectAndShowCommits(true)
 
           const completedBranchId = completedBranchIdForLog ?? pollingBranchIdRef.current
 
@@ -486,12 +500,12 @@ export function useExecutionPolling({
   // Note: branch.sandboxId, branch.name, and branch.messages are accessed via refs to avoid stale closures
   // This is critical - including branch.messages in deps causes the callback to be recreated on every
   // message update, which clears the polling interval and causes streaming content to disappear
-  }, [repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, onCommitsDetected, streamingMessageIdRef])
+  }, [repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits])
 
   startPollingRef.current = startPolling
 
   // Stop polling and update message
-  const stopPolling = useCallback(() => {
+  const stopPolling = useCallback(async () => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
       pollingRef.current = null
@@ -505,6 +519,10 @@ export function useExecutionPolling({
       })
     }
 
+    // Detect and show any commits made before the user stopped execution
+    // This ensures commits are not lost when the user manually stops
+    await detectAndShowCommits(true)
+
     currentExecutionIdRef.current = null
     currentMessageIdRef.current = null
     // Clear streaming signal so sync can resume normal behavior
@@ -514,7 +532,7 @@ export function useExecutionPolling({
     if (pollingBranchIdRef.current) {
       onUpdateBranch(pollingBranchIdRef.current, { status: BRANCH_STATUS.IDLE })
     }
-  }, [onUpdateMessage, onUpdateBranch, streamingMessageIdRef])
+  }, [onUpdateMessage, onUpdateBranch, streamingMessageIdRef, detectAndShowCommits])
 
   // Check and resume polling on mount/branch switch
   useEffect(() => {

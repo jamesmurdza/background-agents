@@ -52,6 +52,8 @@ export interface DbBranch {
   loopEnabled: boolean
   loopCount: number
   loopMaxIterations: number
+  // Commit tracking
+  lastShownCommitHash: string | null
   sandbox: DbSandbox | null
   messages?: DbMessage[]
 }
@@ -132,6 +134,8 @@ export function transformBranch(dbBranch: DbBranch): Branch {
     loopEnabled: dbBranch.loopEnabled ?? false,
     loopCount: dbBranch.loopCount ?? 0,
     loopMaxIterations: dbBranch.loopMaxIterations ?? 10,
+    // Commit tracking
+    lastShownCommitHash: dbBranch.lastShownCommitHash || undefined,
     sandboxId: dbBranch.sandbox?.sandboxId,
     contextId: dbBranch.sandbox?.contextId || undefined,
     sessionId: dbBranch.sandbox?.sessionId || undefined,
