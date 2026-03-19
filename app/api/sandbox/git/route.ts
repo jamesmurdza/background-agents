@@ -413,6 +413,31 @@ export async function POST(req: Request) {
         if (renameBranchError) {
           return badRequest(renameBranchError)
         }
+
+        // Check if new branch name already exists on GitHub BEFORE making local changes
+        // This prevents the inconsistent state where local rename succeeds but GitHub push fails
+        if (githubToken && repoOwner && repoApiName) {
+          const checkBranchRes = await fetch(
+            `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${newName}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${githubToken}`,
+                Accept: "application/vnd.github.v3+json",
+              },
+            }
+          )
+          // If we get a 200, the branch already exists on GitHub
+          if (checkBranchRes.ok) {
+            return Response.json(
+              { error: `Branch '${newName}' already exists on GitHub. Please choose a different name.` },
+              { status: 409 }
+            )
+          }
+          // 404 means the branch doesn't exist, which is what we want
+          // Any other error (403, 500, etc.) we'll let proceed and handle later
+        }
+
         const renameResult = await sandbox.process.executeCommand(
           `cd ${repoPath} && git branch -m ${currentBranch} ${newName} 2>&1`
         )
@@ -426,7 +451,19 @@ export async function POST(req: Request) {
           if (renameVerifyStatus.currentBranch !== newName) {
             return badRequest(`Branch mismatch after rename: expected ${newName} but on ${renameVerifyStatus.currentBranch}`)
           }
-          await sandbox.git.push(repoPath, "x-access-token", githubToken)
+          try {
+            await sandbox.git.push(repoPath, "x-access-token", githubToken)
+          } catch (pushError) {
+            // Push failed - rollback the local rename to keep sandbox in sync with GitHub
+            await sandbox.process.executeCommand(
+              `cd ${repoPath} && git branch -m ${newName} ${currentBranch} 2>&1`
+            )
+            const errorMessage = pushError instanceof Error ? pushError.message : "Unknown push error"
+            return Response.json(
+              { error: `Failed to push renamed branch to GitHub: ${errorMessage}. Local rename has been reverted.` },
+              { status: 500 }
+            )
+          }
           // Delete old remote branch (best effort)
           if (repoOwner && repoApiName) {
             await fetch(
