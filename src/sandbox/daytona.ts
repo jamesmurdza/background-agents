@@ -209,12 +209,18 @@ export function adaptDaytonaSandbox(
           buffer = lines.pop() ?? ""
           for (const line of lines) {
             const cleaned = stripAnsi(line).trim()
-            if (cleaned && isJsonLine(cleaned)) {
-              if (resolveNext) {
-                resolveNext({ value: cleaned, done: false })
-                resolveNext = null
-              } else {
-                lineQueue.push(cleaned)
+            if (cleaned) {
+              // Log all non-empty lines for debugging
+              if (process.env.CODING_AGENTS_DEBUG) {
+                console.error(`[sandbox-stream] ${cleaned.substring(0, 200)}`)
+              }
+              if (isJsonLine(cleaned)) {
+                if (resolveNext) {
+                  resolveNext({ value: cleaned, done: false })
+                  resolveNext = null
+                } else {
+                  lineQueue.push(cleaned)
+                }
               }
             }
           }

@@ -51,7 +51,7 @@ const providers = [
     apiKeyEnvVar: "ANTHROPIC_API_KEY", // opencode can use multiple, we use anthropic
     apiKey: ANTHROPIC_API_KEY,
     hasKey: !!ANTHROPIC_API_KEY,
-    model: "claude-sonnet-4-6",
+    // Don't specify model - let OpenCode use its default
   },
 ]
 
