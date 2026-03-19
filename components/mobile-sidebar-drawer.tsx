@@ -357,90 +357,13 @@ export function MobileSidebarDrawer({
 
             {/* Branches list - like Slack channels */}
             <div className="flex-1 overflow-y-auto py-2">
-              <div className="px-4 pb-2 flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Branches
-                </span>
-                <div className="flex items-center gap-2">
-                  {activeRepo && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {activeRepo.branches.length}
-                    </span>
-                  )}
-                  {activeRepo && onAddBranch && (
-                    <button
-                      onClick={() => handleCreateBranch()}
-                      disabled={creating}
-                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-                    >
-                      {creating ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Plus className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {!activeRepo ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-muted-foreground">
-                  <GitBranch className="h-5 w-5" />
-                  <p className="text-xs text-center">Select a repository to see branches</p>
-                </div>
-              ) : sortedBranches.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-muted-foreground">
-                  <GitBranch className="h-5 w-5" />
-                  <p className="text-xs text-center">No branches yet</p>
-                  <p className="text-[10px] text-muted-foreground/60 text-center">
-                    Create a branch to start working
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col">
-                  {sortedBranches.map((branch) => {
-                    const isActive = branch.id === activeBranchId
-                    const isBold = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING || (branch.unread && !isActive)
-                    return (
-                      <button
-                        key={branch.id}
-                        onClick={() => handleSelectBranch(branch.id)}
-                        className={cn(
-                          "flex w-full cursor-pointer items-center gap-2.5 px-4 py-2.5 text-left transition-colors",
-                          isActive
-                            ? "bg-accent text-foreground"
-                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                        )}
-                      >
-                        <StatusDot status={branch.status} unread={branch.unread} isActive={isActive} />
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className={cn(
-                            "truncate text-sm",
-                            isBold ? "font-semibold text-foreground" : "font-medium"
-                          )}>
-                            {branch.name}
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                            <AgentIcon agent={branch.agent || "claude-code"} className="h-2 w-2" />
-                            {branch.status === BRANCH_STATUS.CREATING ? "Setting up..." : agentLabels[branch.agent || "claude-code"]}
-                          </span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* New Branch Section */}
-            {activeRepo && onAddBranch && (
-              <div className="border-t border-border p-3">
-                <div className="flex flex-col gap-2">
-                  {/* Starting branch selector */}
+              {/* Starting branch selector + header */}
+              {activeRepo && onAddBranch && (
+                <div className="px-4 pb-1">
                   <Popover open={baseBranchOpen} onOpenChange={handleBaseBranchOpenChange}>
-                    <PopoverTrigger className="group flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
+                    <PopoverTrigger className="group flex items-center gap-1 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
                       <GitBranch className="h-2.5 w-2.5 shrink-0" />
-                      <span>Starting branch: {newBranchBase}</span>
+                      <span>from {newBranchBase}</span>
                       <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </PopoverTrigger>
                     <PopoverContent align="start" sideOffset={4} className="w-[220px] p-0">
@@ -519,26 +442,87 @@ export function MobileSidebarDrawer({
                       </Command>
                     </PopoverContent>
                   </Popover>
+                </div>
+              )}
 
-                  <button
-                    onClick={() => handleCreateBranch()}
-                    disabled={creating || githubBranchesLoading}
-                    className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-secondary px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-                  >
-                    {creating ? (
-                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                    ) : (
-                      <Plus className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <span className="truncate">{creating ? "Creating..." : "New branch"}</span>
-                  </button>
-
-                  {createError && (
-                    <p className="text-[11px] text-red-400">{createError}</p>
+              <div className="px-4 pb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Branches
+                </span>
+                <div className="flex items-center gap-2">
+                  {activeRepo && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {activeRepo.branches.length}
+                    </span>
+                  )}
+                  {activeRepo && onAddBranch && (
+                    <button
+                      onClick={() => handleCreateBranch()}
+                      disabled={creating}
+                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                    >
+                      {creating ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="h-3.5 w-3.5" />
+                      )}
+                    </button>
                   )}
                 </div>
               </div>
-            )}
+
+              {createError && (
+                <p className="px-4 pb-2 text-[11px] text-red-400">{createError}</p>
+              )}
+
+              {!activeRepo ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-muted-foreground">
+                  <GitBranch className="h-5 w-5" />
+                  <p className="text-xs text-center">Select a repository to see branches</p>
+                </div>
+              ) : sortedBranches.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-muted-foreground">
+                  <GitBranch className="h-5 w-5" />
+                  <p className="text-xs text-center">No branches yet</p>
+                  <p className="text-[10px] text-muted-foreground/60 text-center">
+                    Create a branch to start working
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {sortedBranches.map((branch) => {
+                    const isActive = branch.id === activeBranchId
+                    const isBold = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING || (branch.unread && !isActive)
+                    return (
+                      <button
+                        key={branch.id}
+                        onClick={() => handleSelectBranch(branch.id)}
+                        className={cn(
+                          "flex w-full cursor-pointer items-center gap-2.5 px-4 py-2.5 text-left transition-colors",
+                          isActive
+                            ? "bg-accent text-foreground"
+                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        )}
+                      >
+                        <StatusDot status={branch.status} unread={branch.unread} isActive={isActive} />
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className={cn(
+                            "truncate text-sm",
+                            isBold ? "font-semibold text-foreground" : "font-medium"
+                          )}>
+                            {branch.name}
+                          </span>
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <AgentIcon agent={branch.agent || "claude-code"} className="h-2 w-2" />
+                            {branch.status === BRANCH_STATUS.CREATING ? "Setting up..." : agentLabels[branch.agent || "claude-code"]}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Quota display */}
             {quota && (
