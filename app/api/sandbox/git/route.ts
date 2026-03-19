@@ -414,69 +414,44 @@ export async function POST(req: Request) {
           return badRequest(renameBranchError)
         }
 
-        // Check if new branch name already exists on GitHub BEFORE making local changes
-        // This prevents the inconsistent state where local rename succeeds but GitHub push fails
+        // Rename on GitHub first via API, then sync locally
+        // This ensures GitHub and sandbox stay in sync - if GitHub fails, we haven't touched local
         if (githubToken && repoOwner && repoApiName) {
-          const checkBranchRes = await fetch(
-            `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${newName}`,
+          const renameRes = await fetch(
+            `https://api.github.com/repos/${repoOwner}/${repoApiName}/branches/${currentBranch}/rename`,
             {
-              method: "GET",
+              method: "POST",
               headers: {
                 Authorization: `Bearer ${githubToken}`,
                 Accept: "application/vnd.github.v3+json",
+                "Content-Type": "application/json",
               },
+              body: JSON.stringify({ new_name: newName }),
             }
           )
-          // If we get a 200, the branch already exists on GitHub
-          if (checkBranchRes.ok) {
+          if (!renameRes.ok) {
+            const errorData = await renameRes.json().catch(() => ({}))
+            const errorMessage = (errorData as { message?: string }).message || `Status ${renameRes.status}`
             return Response.json(
-              { error: `Branch '${newName}' already exists on GitHub. Please choose a different name.` },
-              { status: 409 }
+              { error: `GitHub rename failed: ${errorMessage}` },
+              { status: renameRes.status }
             )
           }
-          // 404 means the branch doesn't exist, which is what we want
-          // Any other error (403, 500, etc.) we'll let proceed and handle later
         }
 
+        // GitHub rename succeeded (or no GitHub token), now sync local branch
         const renameResult = await sandbox.process.executeCommand(
           `cd ${repoPath} && git branch -m ${currentBranch} ${newName} 2>&1`
         )
         if (renameResult.exitCode) {
-          return Response.json({ error: "Rename failed: " + renameResult.result }, { status: 500 })
+          return Response.json({ error: "Local rename failed: " + renameResult.result }, { status: 500 })
         }
-        // Push new branch name and delete old remote branch
+
+        // Set upstream tracking to the new remote branch name
         if (githubToken) {
-          // Verify we're on the newly renamed branch before pushing
-          const renameVerifyStatus = await sandbox.git.status(repoPath)
-          if (renameVerifyStatus.currentBranch !== newName) {
-            return badRequest(`Branch mismatch after rename: expected ${newName} but on ${renameVerifyStatus.currentBranch}`)
-          }
-          try {
-            await sandbox.git.push(repoPath, "x-access-token", githubToken)
-          } catch (pushError) {
-            // Push failed - rollback the local rename to keep sandbox in sync with GitHub
-            await sandbox.process.executeCommand(
-              `cd ${repoPath} && git branch -m ${newName} ${currentBranch} 2>&1`
-            )
-            const errorMessage = pushError instanceof Error ? pushError.message : "Unknown push error"
-            return Response.json(
-              { error: `Failed to push renamed branch to GitHub: ${errorMessage}. Local rename has been reverted.` },
-              { status: 500 }
-            )
-          }
-          // Delete old remote branch (best effort)
-          if (repoOwner && repoApiName) {
-            await fetch(
-              `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
-              {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${githubToken}`,
-                  Accept: "application/vnd.github.v3+json",
-                },
-              }
-            ).catch(() => {})
-          }
+          await sandbox.process.executeCommand(
+            `cd ${repoPath} && git branch -u origin/${newName} 2>&1`
+          )
         }
 
         // Update branch name in database
