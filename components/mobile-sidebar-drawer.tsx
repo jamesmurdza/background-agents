@@ -357,118 +357,115 @@ export function MobileSidebarDrawer({
 
             {/* Branches list - like Slack channels */}
             <div className="flex-1 overflow-y-auto py-2">
-              {/* Starting branch selector + header */}
-              {activeRepo && onAddBranch && (
-                <div className="px-4 pb-1">
-                  <Popover open={baseBranchOpen} onOpenChange={handleBaseBranchOpenChange}>
-                    <PopoverTrigger className="group flex items-center gap-1 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground cursor-pointer">
-                      <GitBranch className="h-2.5 w-2.5 shrink-0" />
-                      <span>from {newBranchBase}</span>
-                      <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </PopoverTrigger>
-                    <PopoverContent align="start" sideOffset={4} className="w-[220px] p-0">
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Search branches..."
-                          className="h-8 text-[11px]"
-                          value={branchSearch}
-                          onValueChange={setBranchSearch}
-                        />
-                        <CommandList>
-                          {githubBranchesLoading ? (
-                            <div className="flex items-center justify-center gap-2 py-6 text-[11px] text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Loading branches...</span>
-                            </div>
-                          ) : (
-                            <>
-                              {(() => {
-                                const defaultBranch = activeRepo.defaultBranch || "main"
-                                const allBranches = githubBranches.length > 0 ? githubBranches : [defaultBranch]
-
-                                // Filter by search term
-                                const filteredBranches = branchSearch
-                                  ? allBranches.filter(b => b.toLowerCase().includes(branchSearch.toLowerCase()))
-                                  : allBranches
-
-                                // Sort: default branch first, then rest alphabetically
-                                const sortedBaseBranches = [...filteredBranches].sort((a, b) => {
-                                  if (a === defaultBranch) return -1
-                                  if (b === defaultBranch) return 1
-                                  return a.localeCompare(b)
-                                })
-
-                                if (sortedBaseBranches.length === 0) {
-                                  return (
-                                    <div className="py-3 px-3 text-[11px] text-center text-muted-foreground">
-                                      No branches found.
-                                    </div>
-                                  )
-                                }
-
-                                return (
-                                  <CommandGroup>
-                                    {sortedBaseBranches.map((branch) => {
-                                      const isDefault = branch === defaultBranch
-                                      const isSelected = branch === newBranchBase
-
-                                      return (
-                                        <CommandItem
-                                          key={branch}
-                                          value={branch}
-                                          onSelect={() => {
-                                            setNewBranchBase(branch)
-                                            setBaseBranchOpen(false)
-                                          }}
-                                          className="flex items-center justify-between text-[11px] cursor-pointer"
-                                        >
-                                          <span className="flex items-center gap-1.5">
-                                            <GitBranch className="h-3 w-3 shrink-0" />
-                                            <span>{branch}</span>
-                                            {isDefault && (
-                                              <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">default</span>
-                                            )}
-                                          </span>
-                                          {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                                        </CommandItem>
-                                      )
-                                    })}
-                                  </CommandGroup>
-                                )
-                              })()}
-                            </>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
-
-              <div className="px-4 pb-2 flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="flex items-center justify-between gap-2 px-4 pb-2">
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Branches
                 </span>
-                <div className="flex items-center gap-2">
-                  {activeRepo && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {activeRepo.branches.length}
-                    </span>
-                  )}
-                  {activeRepo && onAddBranch && (
+                {activeRepo && onAddBranch && (
+                  <div className="flex min-w-0 items-center gap-1">
+                    <Popover open={baseBranchOpen} onOpenChange={handleBaseBranchOpenChange}>
+                      <PopoverTrigger
+                        type="button"
+                        className="group flex max-w-[min(11rem,42vw)] cursor-pointer items-center gap-0.5 rounded-md py-1 pl-1 pr-0.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground data-[state=open]:bg-accent/50 data-[state=open]:text-foreground"
+                      >
+                        <GitBranch className="h-2.5 w-2.5 shrink-0" />
+                        <span className="min-w-0 truncate">
+                          from{" "}
+                          <span className="text-foreground">
+                            {newBranchBase || activeRepo.defaultBranch || "main"}
+                          </span>
+                        </span>
+                        <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                      </PopoverTrigger>
+                      <PopoverContent align="end" sideOffset={4} className="w-[220px] p-0">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search branches..."
+                            className="h-8 text-[11px]"
+                            value={branchSearch}
+                            onValueChange={setBranchSearch}
+                          />
+                          <CommandList>
+                            {githubBranchesLoading ? (
+                              <div className="flex items-center justify-center gap-2 py-6 text-[11px] text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>Loading branches...</span>
+                              </div>
+                            ) : (
+                              <>
+                                {(() => {
+                                  const defaultBranch = activeRepo.defaultBranch || "main"
+                                  const allBranches = githubBranches.length > 0 ? githubBranches : [defaultBranch]
+
+                                  const filteredBranches = branchSearch
+                                    ? allBranches.filter(b => b.toLowerCase().includes(branchSearch.toLowerCase()))
+                                    : allBranches
+
+                                  const sortedBaseBranches = [...filteredBranches].sort((a, b) => {
+                                    if (a === defaultBranch) return -1
+                                    if (b === defaultBranch) return 1
+                                    return a.localeCompare(b)
+                                  })
+
+                                  if (sortedBaseBranches.length === 0) {
+                                    return (
+                                      <div className="py-3 px-3 text-[11px] text-center text-muted-foreground">
+                                        No branches found.
+                                      </div>
+                                    )
+                                  }
+
+                                  return (
+                                    <CommandGroup>
+                                      {sortedBaseBranches.map((branch) => {
+                                        const isDefault = branch === defaultBranch
+                                        const isSelected = branch === newBranchBase
+
+                                        return (
+                                          <CommandItem
+                                            key={branch}
+                                            value={branch}
+                                            onSelect={() => {
+                                              setNewBranchBase(branch)
+                                              setBaseBranchOpen(false)
+                                            }}
+                                            className="flex cursor-pointer items-center justify-between text-[11px]"
+                                          >
+                                            <span className="flex items-center gap-1.5">
+                                              <GitBranch className="h-3 w-3 shrink-0" />
+                                              <span>{branch}</span>
+                                              {isDefault && (
+                                                <span className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">default</span>
+                                              )}
+                                            </span>
+                                            {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                                          </CommandItem>
+                                        )
+                                      })}
+                                    </CommandGroup>
+                                  )
+                                })()}
+                              </>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     <button
+                      type="button"
                       onClick={() => handleCreateBranch()}
-                      disabled={creating}
-                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                      disabled={creating || githubBranchesLoading}
+                      title="New branch"
+                      className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
                     >
                       {creating ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4" />
                       )}
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {createError && (
