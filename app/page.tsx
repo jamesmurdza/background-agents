@@ -343,7 +343,8 @@ export default function Home() {
         )}
 
         {/* Desktop: Branch List (always visible) */}
-        <div className="hidden sm:flex">
+        {!isMobile && (
+          <div className="flex">
           {activeRepo ? (
             <BranchList
               repo={activeRepo}
@@ -373,10 +374,11 @@ export default function Home() {
             </div>
           )}
         </div>
+        )}
 
         {/* Mobile: Header + Chat (Slack-like layout) */}
         {isMobile && (
-          <div className="flex flex-1 flex-col min-h-0 min-w-0 w-full max-w-full overflow-hidden sm:hidden">
+          <div className="flex flex-1 flex-col min-h-0 min-w-0 w-full max-w-full overflow-hidden">
             {/* Mobile Header with hamburger and actions */}
             <MobileHeader
               repoOwner={activeRepo?.owner || null}
@@ -445,7 +447,8 @@ export default function Home() {
         )}
 
         {/* Desktop: Main content area */}
-        <div className="hidden sm:flex min-w-0 flex-1">
+        {!isMobile && (
+        <div className="flex min-w-0 flex-1">
           {activeBranch && activeRepo ? (
             <ChatPanel
               branch={activeBranch}
@@ -486,6 +489,7 @@ export default function Home() {
             />
           )}
         </div>
+        )}
       </main>
 
       <SettingsModal
