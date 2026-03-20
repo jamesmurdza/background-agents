@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 
-export type ActivityAction = "sandbox_created" | "sandbox_deleted" | "agent_executed"
+export type ActivityAction = "sandbox_created" | "sandbox_deleted" | "sandbox_recreated" | "agent_executed"
 
 export interface ActivityMetadata {
   repoOwner?: string

@@ -232,6 +232,17 @@ export function isGitHubAuthError(result: GitHubAuthResult | Response): result i
   return result instanceof Response
 }
 
+/**
+ * Gets the GitHub token for a user by userId
+ * Returns null if no GitHub account is linked
+ */
+export async function getGitHubTokenForUser(userId: string): Promise<string | null> {
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: "github" },
+  })
+  return account?.access_token ?? null
+}
+
 // =============================================================================
 // Credential Helpers
 // =============================================================================
