@@ -3,7 +3,6 @@ import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/constants"
 import { isLoopFinished, LOOP_CONTINUATION_MESSAGE } from "@/lib/types"
-import { toast } from "@/hooks/use-toast"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -102,14 +101,18 @@ export function useExecutionPolling({
           }),
         })
 
-        // Show error toast if push failed
+        // Show error in chat if push failed
         if (!autoCommitRes.ok) {
           const errorData = await autoCommitRes.json().catch(() => ({}))
           const errorMessage = (errorData as { error?: string }).error || `Push failed (${autoCommitRes.status})`
-          toast({
-            variant: "destructive",
-            title: "Push failed",
-            description: errorMessage,
+          onAddMessage(targetBranchId, {
+            id: generateId(),
+            role: "assistant",
+            content: `⚠️ **Push failed:** ${errorMessage}`,
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
           })
         }
       }
