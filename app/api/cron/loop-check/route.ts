@@ -220,8 +220,8 @@ export async function GET(req: Request) {
           { lastActiveAt: new Date() }
         )
 
-        // Start the agent
-        await bgSession.start(LOOP_CONTINUATION_MESSAGE)
+        // Start the agent with fresh env (run-level overrides session-level)
+        await bgSession.start(LOOP_CONTINUATION_MESSAGE, { env })
 
         continued++
         console.log(`[cron/loop-check] Successfully continued loop for branch ${branch.id}`)

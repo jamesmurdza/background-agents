@@ -135,8 +135,9 @@ export async function POST(req: Request) {
     )
 
     // 8. Start the turn and write meta before returning (so client polling sees runId/outputFile)
+    // Pass env at start() time for freshest credentials (run-level overrides session-level)
     try {
-      await bgSession.start(prompt)
+      await bgSession.start(prompt, { env })
     } catch (error) {
       console.error("[agent/execute] bgSession.start failed", { messageId }, error)
       try {
