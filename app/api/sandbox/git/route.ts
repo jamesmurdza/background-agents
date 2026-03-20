@@ -47,12 +47,13 @@ async function pushWithRetry(
       return { success: true }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err)
+      const errorLower = errorMessage.toLowerCase()
       // Check if this is a "nothing to push" error (400 with up-to-date message)
       // or an axios 400 which often means nothing to push
       const isNothingToPush =
-        errorMessage.includes("up-to-date") ||
-        errorMessage.includes("up to date") ||
-        (errorMessage.includes("400") && !errorMessage.includes("permission") && !errorMessage.includes("denied"))
+        errorLower.includes("up-to-date") ||
+        errorLower.includes("up to date") ||
+        (errorLower.includes("400") && !errorLower.includes("permission") && !errorLower.includes("denied"))
 
       if (isNothingToPush) {
         return { success: true, nothingToPush: true }
