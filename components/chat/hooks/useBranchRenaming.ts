@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from "react"
 import type { Branch } from "@/lib/types"
 import { PATHS } from "@/lib/constants"
-import { isRandomBranchName } from "@/lib/branch-utils"
 
 // Export the return type for use in sub-components
 export type UseBranchRenamingReturn = ReturnType<typeof useBranchRenaming>
@@ -54,7 +53,7 @@ export function useBranchRenaming({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      onUpdateBranch(branch.id, { name: newName })
+      onUpdateBranch(branch.id, { name: newName, hasCustomName: true })
       setRenaming(false)
     } catch (err: unknown) {
       addSystemMessage(`Rename failed: ${err instanceof Error ? err.message : "Unknown error"}`)
@@ -139,8 +138,8 @@ export function useBranchRenaming({
    * Used when the user sends their first message without changing the branch name.
    */
   const autoSuggestBranchName = useCallback(async () => {
-    // Only auto-suggest if the branch still has a random placeholder name
-    if (!isRandomBranchName(branch.name)) {
+    // Only auto-suggest if the user hasn't manually renamed the branch
+    if (branch.hasCustomName) {
       return
     }
 
@@ -185,7 +184,7 @@ export function useBranchRenaming({
       // Silently fail - auto-suggestion is not critical
       console.warn("Auto branch name suggestion failed:", err)
     }
-  }, [branch.id, branch.name, branch.sandboxId, repoName, repoFullName, onUpdateBranch])
+  }, [branch.id, branch.name, branch.hasCustomName, branch.sandboxId, repoName, repoFullName, onUpdateBranch])
 
   return {
     renaming,

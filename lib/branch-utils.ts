@@ -16,17 +16,6 @@ export function randomBranchName(): string {
 }
 
 /**
- * Checks if a branch name matches the random branch name pattern (word-word-word)
- * where each word is from BRANCH_NAME_WORDS.
- * Used to detect if the user hasn't changed the default generated branch name.
- */
-export function isRandomBranchName(name: string): boolean {
-  const parts = name.split("-")
-  if (parts.length !== 3) return false
-  return parts.every((part) => BRANCH_NAME_WORDS.includes(part as typeof BRANCH_NAME_WORDS[number]))
-}
-
-/**
  * Validation errors for branch names
  */
 export const BRANCH_NAME_ERRORS = {

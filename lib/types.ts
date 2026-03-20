@@ -287,6 +287,8 @@ export interface Branch {
   loopMaxIterations?: number
   // Commit tracking - HEAD at start of last execution, used for detecting new commits
   lastShownCommitHash?: string
+  // Branch naming - tracks if user has manually renamed the branch
+  hasCustomName?: boolean
 }
 
 export interface Repo {
