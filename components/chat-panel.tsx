@@ -331,6 +331,12 @@ export function ChatPanel({
       }
 
       startPolling(messageId)
+
+      // Auto-suggest branch name on first message if user hasn't changed the default name
+      // This runs in the background and doesn't block message sending
+      if (branch.messages.length === 0 && canSuggestName) {
+        renaming.autoSuggestBranchName()
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       onUpdateMessage(branch.id, messageId, { content: `Error: ${message}` })
@@ -338,7 +344,7 @@ export function ChatPanel({
       currentMessageIdRef.current = null
       currentExecutionIdRef.current = null
     }
-  }, [input, branch, repoName, onAddMessage, onUpdateMessage, onUpdateBranch, startPolling, currentMessageIdRef, currentExecutionIdRef, setInput, credentials])
+  }, [input, branch, repoName, onAddMessage, onUpdateMessage, onUpdateBranch, startPolling, currentMessageIdRef, currentExecutionIdRef, setInput, credentials, canSuggestName, renaming])
 
   // Stop handler
   const handleStop = useCallback(() => {

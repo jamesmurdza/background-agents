@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react"
 import type { Branch } from "@/lib/types"
 import { PATHS } from "@/lib/constants"
+import { isRandomBranchName } from "@/lib/branch-utils"
 
 // Export the return type for use in sub-components
 export type UseBranchRenamingReturn = ReturnType<typeof useBranchRenaming>
@@ -132,6 +133,60 @@ export function useBranchRenaming({
     }
   }, [branch.id, branch.name, branch.messages.length, addSystemMessage])
 
+  /**
+   * Automatically suggests and applies a branch name based on conversation history.
+   * Unlike suggestBranchName, this does NOT enter edit mode or require confirmation.
+   * Used when the user sends their first message without changing the branch name.
+   */
+  const autoSuggestBranchName = useCallback(async () => {
+    // Only auto-suggest if the branch still has a random placeholder name
+    if (!isRandomBranchName(branch.name)) {
+      return
+    }
+
+    try {
+      const res = await fetch("/api/branches/suggest-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId: branch.id }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        // Silently fail - auto-suggestion is not critical
+        console.warn("Auto branch name suggestion failed:", data.error)
+        return
+      }
+
+      const suggestedName = data.suggestedName
+
+      // Apply the rename directly via API
+      const [owner, repo] = repoFullName.split("/")
+      const renameRes = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId: branch.sandboxId,
+          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+          action: "rename-branch",
+          currentBranch: branch.name,
+          newBranchName: suggestedName,
+          repoOwner: owner,
+          repoApiName: repo,
+        }),
+      })
+
+      if (renameRes.ok) {
+        onUpdateBranch(branch.id, { name: suggestedName })
+      }
+      // Silently fail if rename doesn't work - auto-suggestion is not critical
+    } catch (err) {
+      // Silently fail - auto-suggestion is not critical
+      console.warn("Auto branch name suggestion failed:", err)
+    }
+  }, [branch.id, branch.name, branch.sandboxId, repoName, repoFullName, onUpdateBranch])
+
   return {
     renaming,
     setRenaming,
@@ -145,6 +200,7 @@ export function useBranchRenaming({
     // Suggestion features
     suggesting,
     suggestBranchName,
+    autoSuggestBranchName,
     canSuggestName: canSuggestName && branch.messages.length > 0,
   }
 }
