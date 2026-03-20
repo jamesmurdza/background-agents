@@ -7,8 +7,11 @@ import { Daytona } from "@daytonaio/sdk"
 import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
-const session = await createSession("claude", { sandbox })
+const sandbox = await daytona.create()
+const session = await createSession("claude", {
+  sandbox,
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }
+})
 
 for await (const event of session.run("Hello!")) {
   if (event.type === "token") process.stdout.write(event.text)
@@ -77,23 +80,22 @@ export default { ...codeagentsdk, ...yourConfig }
 
 ## Quick start
 
-**1. Create a sandbox** — Pass provider API keys via the sandbox; the SDK does not read your host env.
+**1. Create a sandbox** — The SDK does not read your host env; pass API keys when creating the session.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
 import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-const sandbox = await daytona.create({
-  envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
-})
+const sandbox = await daytona.create()
 ```
 
-**2. Create a session** — The provider CLI is installed in the sandbox (unless `skipInstall: true`).
+**2. Create a session** — The provider CLI is installed in the sandbox (unless `skipInstall: true`). Pass environment variables at session creation.
 
 ```typescript
 const session = await createSession("claude", {
   sandbox,
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
   timeout: 120,
   systemPrompt: "You are a helpful coding assistant.",
@@ -137,12 +139,13 @@ import { createSession } from "@jamesmurdza/coding-agents-sdk"
 
 async function main() {
   const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-  const sandbox = await daytona.create({
-    envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
-  })
+  const sandbox = await daytona.create()
 
   try {
-    const session = await createSession("claude", { sandbox })
+    const session = await createSession("claude", {
+      sandbox,
+      env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }
+    })
 
     for await (const event of session.run("List /tmp then write /tmp/out.txt with 'done'")) {
       switch (event.type) {
@@ -182,11 +185,12 @@ Each provider is invoked via its CLI. Optional flags in brackets.
 
 ### `createSession(provider, options)`
 
-Creates a session with the given provider and options (e.g. `sandbox`, `model`, `timeout`, `systemPrompt`). Installs the provider CLI in the sandbox before returning unless `skipInstall: true`. Codex login runs automatically on each `run()` when needed.
+Creates a session with the given provider and options (e.g. `sandbox`, `env`, `model`, `timeout`, `systemPrompt`). Installs the provider CLI in the sandbox before returning unless `skipInstall: true`. Codex login runs automatically on each `run()` when needed.
 
 ```typescript
 const session = await createSession("claude", {
   sandbox,
+  env: { ANTHROPIC_API_KEY: "sk-..." },  // Session-level env (persistent)
   model: "sonnet",
   timeout: 120,
   systemPrompt: "You are a helpful coding assistant.",
@@ -241,6 +245,28 @@ Tool names are normalized across providers. Each has a defined `tool_start` inpu
 
 ---
 
+## Environment variables
+
+Pass environment variables at **session creation** (not sandbox creation):
+
+```typescript
+const session = await createSession("claude", {
+  sandbox,
+  env: { ANTHROPIC_API_KEY: "sk-..." }
+})
+```
+
+Override per-run if needed:
+
+```typescript
+await session.run({
+  prompt: "Task",
+  env: { ANTHROPIC_API_KEY: "sk-override-..." }
+})
+```
+
+---
+
 ## Model selection
 
 Set `model` when creating the session.
@@ -270,12 +296,11 @@ import { Daytona } from "@daytonaio/sdk"
 import { createBackgroundSession, getBackgroundSession } from "@jamesmurdza/coding-agents-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
-const sandbox = await daytona.create({
-  envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
-})
+const sandbox = await daytona.create()
 
 const bgSession = await createBackgroundSession("claude", {
   sandbox,
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
   model: "sonnet",
   // Optional: per-session system prompt (applied once, persisted across turns).
   systemPrompt: "You are a helpful coding assistant.",
@@ -288,8 +313,9 @@ const sandboxAgain = await daytona.get(sandboxId)
 const bgAgain = await getBackgroundSession({
   sandbox: sandboxAgain,
   backgroundSessionId,
-  // Re-apply session options so the provider is recreated with the same model
-  // and system prompt when reattaching.
+  // Re-apply session options so the provider is recreated with the same env,
+  // model, and system prompt when reattaching.
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
   model: "sonnet",
   systemPrompt: "You are a helpful coding assistant.",
 })
