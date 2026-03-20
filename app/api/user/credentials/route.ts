@@ -50,20 +50,12 @@ export async function POST(req: Request) {
     updateData.anthropicApiKey = null
   } else if (anthropicApiKey) {
     updateData.anthropicApiKey = encrypt(anthropicApiKey)
-    // When setting API key, switch to api-key auth type (unless auth token is also being set)
-    if (!anthropicAuthToken) {
-      updateData.anthropicAuthType = "api-key"
-    }
   }
 
   if (anthropicAuthToken === null) {
     updateData.anthropicAuthToken = null
-    // When clearing auth token, revert to api-key auth type (if they have an API key)
-    updateData.anthropicAuthType = "api-key"
   } else if (anthropicAuthToken) {
     updateData.anthropicAuthToken = encrypt(anthropicAuthToken)
-    // When setting auth token, switch to claude-max auth type
-    updateData.anthropicAuthType = "claude-max"
   }
 
   if (openaiApiKey === null) {

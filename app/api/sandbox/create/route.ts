@@ -182,8 +182,8 @@ export async function POST(req: Request) {
         // Track sandbox ID for cleanup if subsequent steps fail
         daytonaSandboxId = sandbox.id
 
-        // For Claude Max, write stored credentials so the Agent SDK picks them up
-        if (anthropicAuthType === "claude-max" && anthropicAuthToken) {
+        // Write Claude credentials so the Agent SDK picks them up
+        if (anthropicAuthToken) {
           const credentialsB64 = Buffer.from(anthropicAuthToken).toString("base64")
           await sandbox.process.executeCommand(
             `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
