@@ -54,6 +54,8 @@ export interface DbBranch {
   loopMaxIterations: number
   // Commit tracking
   lastShownCommitHash: string | null
+  // Timestamps
+  updatedAt: string
   sandbox: DbSandbox | null
   messages?: DbMessage[]
 }
@@ -136,6 +138,8 @@ export function transformBranch(dbBranch: DbBranch): Branch {
     loopMaxIterations: dbBranch.loopMaxIterations ?? 10,
     // Commit tracking
     lastShownCommitHash: dbBranch.lastShownCommitHash || undefined,
+    // Activity timestamp for sorting (uses DB updatedAt)
+    lastActivityTs: dbBranch.updatedAt ? new Date(dbBranch.updatedAt).getTime() : undefined,
     sandboxId: dbBranch.sandbox?.sandboxId,
     contextId: dbBranch.sandbox?.contextId || undefined,
     sessionId: dbBranch.sandbox?.sessionId || undefined,
