@@ -394,7 +394,7 @@ export function RepoSettingsModal({
 
               {envVars.length > 0 && (
                 <p className="text-[10px] text-muted-foreground/70">
-                  Note: Changes will only apply to newly created sandboxes.
+                  Changes take effect on the next message.
                 </p>
               )}
             </>
