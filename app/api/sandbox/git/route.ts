@@ -202,37 +202,20 @@ export async function POST(req: Request) {
         if (verifyStatus.currentBranch !== branchName) {
           return badRequest(`Branch changed during operation: expected ${branchName} but on ${verifyStatus.currentBranch}`)
         }
-        // Push with retry - handles transient failures and "nothing to push" gracefully
-        const pushResult = await pushWithRetry(sandbox, repoPath, githubToken)
-        if (!pushResult.success) {
-          return Response.json({ error: "Push failed: " + pushResult.error }, { status: 500 })
+        // Check if there are unpushed commits
+        const aheadResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rev-list @{upstream}..HEAD --count 2>&1`
+        )
+        const aheadCount = parseInt(aheadResult.result.trim(), 10) || 0
+        let pushed = false
+        if (aheadCount > 0) {
+          const pushResult = await pushWithRetry(sandbox, repoPath, githubToken)
+          if (!pushResult.success) {
+            return Response.json({ error: "Push failed: " + pushResult.error }, { status: 500 })
+          }
+          pushed = true
         }
-        // pushed is true if we actually pushed (not if already up-to-date)
-        return Response.json({ committed, pushed: true, commitMessage })
-      }
-
-      case "push": {
-        if (!githubToken) {
-          return badRequest("GitHub token not found")
-        }
-        if (!branchName) {
-          return badRequest("Branch name required for push")
-        }
-        // Ensure we're on the correct branch before pushing
-        const pushBranchError = await ensureCorrectBranch(sandbox, repoPath, branchName)
-        if (pushBranchError) {
-          return badRequest(pushBranchError)
-        }
-        // Double-check before push
-        const pushVerifyStatus = await sandbox.git.status(repoPath)
-        if (pushVerifyStatus.currentBranch !== branchName) {
-          return badRequest(`Branch mismatch: expected ${branchName} but on ${pushVerifyStatus.currentBranch}`)
-        }
-        const manualPushResult = await pushWithRetry(sandbox, repoPath, githubToken)
-        if (!manualPushResult.success) {
-          return Response.json({ error: "Push failed: " + manualPushResult.error }, { status: 500 })
-        }
-        return Response.json({ success: true })
+        return Response.json({ committed, pushed, commitMessage })
       }
 
       case "pull": {
