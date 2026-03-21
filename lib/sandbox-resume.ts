@@ -256,8 +256,15 @@ export async function ensureSandboxStarted(
     throw error
   }
 
-  if (sandbox.state !== "started") {
+  const wasStarted = sandbox.state === "started"
+
+  if (!wasStarted) {
     await sandbox.start(SANDBOX_CONFIG.START_TIMEOUT_SECONDS)
+    // Clean up any stale lock files from previous runs
+    // Lock files are created by /api/agent/completion and should be cleaned on sandbox restart
+    await sandbox.process.executeCommand(
+      `rm -f ${PATHS.AGENT_COMPLETION_LOCK_PREFIX}*.lock 2>/dev/null || true`
+    )
   }
 
   return sandbox

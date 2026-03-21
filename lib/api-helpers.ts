@@ -148,6 +148,24 @@ export function isAuthError(result: AuthResult | Response): result is Response {
 }
 
 /**
+ * Requires authentication for completion endpoint - supports both user auth and cron secret
+ * Returns userId or throws Response
+ * For cron requests, returns a special "SYSTEM_CRON" userId
+ */
+export async function requireCompletionAuth(req: Request): Promise<AuthResult | Response> {
+  // Check for cron secret first (Bearer token auth)
+  const authHeader = req.headers.get("authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7)
+    if (token === process.env.CRON_SECRET) {
+      return { userId: "SYSTEM_CRON" }
+    }
+  }
+  // Fall back to user session auth
+  return requireAuth()
+}
+
+/**
  * Requires admin authentication - returns userId or throws Response
  * Usage: const auth = await requireAdmin()
  * If not authenticated or not admin, returns an unauthorized/forbidden Response

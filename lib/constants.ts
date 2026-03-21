@@ -199,6 +199,8 @@ export const PATHS = {
     "opencode": "/home/daytona/.config/opencode/opencode.jsonc",
     "codex": "/home/daytona/.codex/config.toml",
   },
+  /** Prefix for agent completion lock files (appended with execution ID) */
+  AGENT_COMPLETION_LOCK_PREFIX: "/home/daytona/.agent_completion_",
 } as const
 
 // =============================================================================
