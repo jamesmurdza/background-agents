@@ -61,6 +61,7 @@ function mergeSyncBranchIntoExisting(
 ): Branch {
   return {
     ...existingBranch,
+    name: syncBranch.name, // Sync name in case agent renamed the branch
     status: syncBranch.status as Branch["status"],
     prUrl: syncBranch.prUrl || undefined,
     sandboxId: syncBranch.sandboxId || undefined,
