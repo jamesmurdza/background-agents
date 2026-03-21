@@ -402,6 +402,7 @@ export default function Home() {
             <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
               {activeBranch && activeRepo ? (
                 <ChatPanel
+                  key={activeBranch.id}
                   branch={activeBranch}
                   repoFullName={`${activeRepo.owner}/${activeRepo.name}`}
                   repoName={activeRepo.name}
@@ -451,6 +452,7 @@ export default function Home() {
         <div className="flex min-w-0 flex-1">
           {activeBranch && activeRepo ? (
             <ChatPanel
+              key={activeBranch.id}
               branch={activeBranch}
               repoFullName={`${activeRepo.owner}/${activeRepo.name}`}
               repoName={activeRepo.name}
