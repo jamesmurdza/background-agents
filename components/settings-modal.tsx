@@ -640,8 +640,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 These features are experimental and may change or be removed in future updates.
               </p>
 
-              {/* Loop Until Finished Toggle */}
-              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+              {/* Loop Until Finished */}
+              <div className="flex flex-col gap-3 pt-2 border-t border-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FlaskConical className="h-3.5 w-3.5 text-muted-foreground" />
@@ -656,28 +656,29 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 <p className="text-[11px] text-muted-foreground">
                   When enabled, the &quot;Loop until finished&quot; toggle will appear in the chat input area.
                 </p>
-              </div>
 
-              {/* Default Loop Max Iterations */}
-              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <FlaskConical className="h-3.5 w-3.5 text-muted-foreground" />
-                  <label className="text-xs font-medium text-foreground">Max Loop Iterations</label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={1}
-                    max={25}
-                    value={defaultLoopMaxIterations}
-                    onChange={(e) => setDefaultLoopMaxIterations(Number(e.target.value))}
-                    className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
-                  />
-                  <span className="text-xs font-medium text-foreground w-12 text-right">{defaultLoopMaxIterations}</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Agent will continue working until it says &quot;FINISHED&quot; or reaches this limit.
-                </p>
+                {/* Max Loop Iterations - only shown when loop is enabled */}
+                {loopUntilFinishedEnabled && (
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-foreground">Max Loop Iterations</label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1}
+                        max={25}
+                        value={defaultLoopMaxIterations}
+                        onChange={(e) => setDefaultLoopMaxIterations(Number(e.target.value))}
+                        className="flex-1 h-1.5 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+                      />
+                      <span className="text-xs font-medium text-foreground w-12 text-right">{defaultLoopMaxIterations}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Agent will continue working until it says &quot;FINISHED&quot; or reaches this limit.
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           )}
