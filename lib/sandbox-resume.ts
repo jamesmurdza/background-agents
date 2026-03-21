@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { buildMcpConfig, getMcpConfigWriteCommand } from "@/lib/mcp-config"
 import { decrypt } from "@/lib/encryption"
 import type { Agent } from "@/lib/types"
+import { getClaudeHooksSetupCommand } from "@/lib/claude-hooks"
 
 /**
  * Error thrown when a sandbox is not found in Daytona but exists in the database.
@@ -182,6 +183,14 @@ export async function ensureSandboxReady(
       `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
     )
     console.log(`[ensureSandboxReady] claude credentials written, took ${Date.now() - t0}ms`)
+  }
+
+  // Set up Claude Code hooks on every resume to ensure they're always present
+  // This handles cases where hooks may have been removed or sandbox was rebuilt
+  if (agent === "claude-code" || !agent) {
+    t0 = Date.now()
+    await sandbox.process.executeCommand(getClaudeHooksSetupCommand())
+    console.log(`[ensureSandboxReady] claude hooks written, took ${Date.now() - t0}ms`)
   }
 
   // Write MCP server configurations if any are configured for this repo

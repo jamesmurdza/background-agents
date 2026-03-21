@@ -191,6 +191,10 @@ export const PATHS = {
   CLAUDE_CREDENTIALS_DIR: "/home/daytona/.claude",
   /** Claude credentials file */
   CLAUDE_CREDENTIALS_FILE: "/home/daytona/.claude/.credentials.json",
+  /** Claude hooks directory */
+  CLAUDE_HOOKS_DIR: "/home/daytona/.claude/hooks",
+  /** Claude settings file */
+  CLAUDE_SETTINGS_FILE: "/home/daytona/.claude/settings.json",
   /** Agent session ID persistence file */
   AGENT_SESSION_FILE: "/home/daytona/.agent_session_id",
   /** MCP config paths per agent */

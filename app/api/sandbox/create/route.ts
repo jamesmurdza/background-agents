@@ -17,6 +17,7 @@ import { getDefaultAgent } from "@/lib/types"
 import { cleanupDaytonaSandbox } from "@/lib/daytona-cleanup"
 import { decrypt } from "@/lib/encryption"
 import { logActivity } from "@/lib/activity-log"
+import { getClaudeHooksSetupCommand } from "@/lib/claude-hooks"
 
 // Sandbox creation timeout - 300 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 300
@@ -189,6 +190,9 @@ export async function POST(req: Request) {
             `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
           )
         }
+
+        // Set up Claude Code hooks (e.g., prevent git commit --amend)
+        await sandbox.process.executeCommand(getClaudeHooksSetupCommand())
 
         sendProgress(controller, "Cloning repository...")
 
