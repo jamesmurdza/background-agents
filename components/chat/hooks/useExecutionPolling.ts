@@ -45,17 +45,16 @@ export function useExecutionPolling({
   const currentMessageIdRef = useRef<string | null>(null)
   const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
   const pollingBranchIdRef = useRef<string | null>(null)
-  // Use refs to always get the latest branch name/sandboxId in the polling callback
-  // This prevents stale closures when the branch is renamed during polling
-  const branchNameRef = useRef(branch.name)
-  const branchSandboxIdRef = useRef(branch.sandboxId)
-  branchNameRef.current = branch.name
-  branchSandboxIdRef.current = branch.sandboxId
 
-  // Use a ref to track branch messages to avoid dependency array issues
-  // This prevents the polling callback from being recreated on every message update
-  const branchMessagesRef = useRef(branch.messages)
-  branchMessagesRef.current = branch.messages
+  // Store the branch context at polling start time to avoid using wrong branch data
+  // when the user switches branches during execution. These are ONLY updated when
+  // polling starts, not on every render.
+  const pollingBranchNameRef = useRef<string | null>(null)
+  const pollingBranchSandboxIdRef = useRef<string | undefined>(undefined)
+  const pollingBranchMessagesRef = useRef<Message[]>([])
+  const pollingLastShownCommitHashRef = useRef<string | null>(null)
+
+  // Track the currently viewed branch (used for determining unread status)
   const activeBranchIdRef = useRef(branch.id)
   activeBranchIdRef.current = branch.id
 
@@ -67,22 +66,15 @@ export function useExecutionPolling({
   loopCountRef.current = branch.loopCount || 0
   loopMaxIterationsRef.current = branch.loopMaxIterations || 10
 
-  // Commit tracking ref - uses lastShownCommitHash which is set at execution start
-  const lastShownCommitHashRef = useRef<string | null>(branch.lastShownCommitHash || null)
-  useEffect(() => {
-    if (branch.lastShownCommitHash) {
-      lastShownCommitHashRef.current = branch.lastShownCommitHash
-    }
-  }, [branch.id, branch.lastShownCommitHash])
-
   /**
    * Detects and displays new commits made since lastShownCommitHash.
    * Called on execution completion and when user stops execution.
    * @param runAutoCommit - Whether to run auto-commit before checking for commits
    */
   const detectAndShowCommits = useCallback(async (runAutoCommit: boolean = true) => {
-    const currentSandboxId = branchSandboxIdRef.current
-    const currentBranchName = branchNameRef.current
+    // Use the branch context captured at polling start, not the currently viewed branch
+    const currentSandboxId = pollingBranchSandboxIdRef.current
+    const currentBranchName = pollingBranchNameRef.current
     const targetBranchId = pollingBranchIdRef.current
 
     if (!currentSandboxId || !targetBranchId) return
@@ -117,8 +109,8 @@ export function useExecutionPolling({
         }
       }
 
-      // Check for new commits since lastShownCommitHash
-      if (lastShownCommitHashRef.current) {
+      // Check for new commits since lastShownCommitHash (captured at polling start)
+      if (pollingLastShownCommitHashRef.current) {
         const logRes = await fetch("/api/sandbox/git", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -126,7 +118,7 @@ export function useExecutionPolling({
             sandboxId: currentSandboxId,
             repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
             action: "log",
-            sinceCommit: lastShownCommitHashRef.current,
+            sinceCommit: pollingLastShownCommitHashRef.current,
           }),
         })
         const logData = await logRes.json()
@@ -134,8 +126,9 @@ export function useExecutionPolling({
           logData.commits || []
 
         // Safety check: filter out commits already shown in chat (deduplication)
+        // Use the messages from the branch being polled, not the currently viewed branch
         const chatCommits = new Set(
-          branchMessagesRef.current
+          pollingBranchMessagesRef.current
             .filter((m) => m.commitHash)
             .map((m) => m.commitHash),
         )
@@ -153,7 +146,7 @@ export function useExecutionPolling({
 
         // Add commit messages to chat (oldest first)
         for (const c of [...newCommits].reverse()) {
-          onAddMessage(targetBranchId, {
+          const commitMessage: Message = {
             id: generateId(),
             role: "assistant",
             content: "",
@@ -163,12 +156,15 @@ export function useExecutionPolling({
             }),
             commitHash: c.shortHash,
             commitMessage: c.message,
-          })
+          }
+          onAddMessage(targetBranchId, commitMessage)
+          // Update our local ref so subsequent deduplication checks include this commit
+          pollingBranchMessagesRef.current = [...pollingBranchMessagesRef.current, commitMessage]
         }
 
         if (newCommits.length > 0) {
-          // Update the ref to the latest commit
-          lastShownCommitHashRef.current = allCommits[0].shortHash
+          // Update the polling ref to the latest commit for subsequent checks
+          pollingLastShownCommitHashRef.current = allCommits[0].shortHash
           onCommitsDetected?.()
         }
       }
@@ -189,7 +185,14 @@ export function useExecutionPolling({
 
   // Start polling for execution status via HTTP snapshots
   const startPolling = useCallback((messageId: string, executionId?: string) => {
+    // Capture the branch context at polling start time
+    // This ensures we use the correct branch data even if the user switches branches
     pollingBranchIdRef.current = branch.id
+    pollingBranchNameRef.current = branch.name
+    pollingBranchSandboxIdRef.current = branch.sandboxId
+    pollingBranchMessagesRef.current = branch.messages
+    pollingLastShownCommitHashRef.current = branch.lastShownCommitHash || null
+
     if (streamingMessageIdRef) {
       streamingMessageIdRef.current = messageId
     }
@@ -211,7 +214,7 @@ export function useExecutionPolling({
     const appendStoppedWithoutEndNote = () => {
       const targetBranchId = pollingBranchIdRef.current
       if (!targetBranchId) return
-      const lastMsg = branchMessagesRef.current.find((m) => m.id === messageId)
+      const lastMsg = pollingBranchMessagesRef.current.find((m) => m.id === messageId)
       const currentContent = lastMsg?.content ?? ""
       onUpdateMessage(targetBranchId, messageId, {
         content: currentContent + STOPPED_WITHOUT_END_NOTE,
@@ -513,10 +516,13 @@ export function useExecutionPolling({
 
     poll()
     pollingRef.current = setInterval(poll, 500)
-  // Note: branch.sandboxId, branch.name, and branch.messages are accessed via refs to avoid stale closures
-  // This is critical - including branch.messages in deps causes the callback to be recreated on every
-  // message update, which clears the polling interval and causes streaming content to disappear
-  }, [repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits])
+  // Note: We intentionally access branch.id, branch.name, branch.sandboxId, and branch.messages directly
+  // (not through refs) because we want to capture their values at the moment startPolling is called.
+  // However, we don't include branch.messages in deps because it changes on every message update,
+  // which would cause the callback to be recreated and reset the polling interval.
+  // The branch context is captured once when startPolling is called and stored in refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branch.id, branch.name, branch.sandboxId, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits])
 
   startPollingRef.current = startPolling
 
@@ -527,8 +533,8 @@ export function useExecutionPolling({
       pollingRef.current = null
     }
     if (currentMessageIdRef.current && pollingBranchIdRef.current) {
-      // Use ref to get current messages to avoid dependency issues
-      const lastMsg = branchMessagesRef.current.find(m => m.id === currentMessageIdRef.current)
+      // Use the captured branch messages from polling start to avoid using wrong branch data
+      const lastMsg = pollingBranchMessagesRef.current.find(m => m.id === currentMessageIdRef.current)
       const currentContent = lastMsg?.content || ""
       onUpdateMessage(pollingBranchIdRef.current, currentMessageIdRef.current, {
         content: currentContent ? `${currentContent}\n\n[Stopped by user]` : "[Stopped by user]"
