@@ -2,7 +2,6 @@ import { useRef, useCallback, useEffect } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/constants"
-import { isLoopFinished, LOOP_CONTINUATION_MESSAGE } from "@/lib/types"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -344,6 +343,8 @@ export function useExecutionPolling({
           const completedBranchIdForLog = pollingBranchIdRef.current
           const viewingBranchId = globalActiveBranchIdRef?.current ?? activeBranchIdRef.current
           const unread = viewingBranchId !== completedBranchIdForLog
+          // Save execution ID before clearing refs
+          const currentExecutionId = currentExecutionIdRef.current || executionId
 
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
@@ -445,62 +446,104 @@ export function useExecutionPolling({
 
           onForceSave()
 
-          // Run auto-commit and commit-detection before going idle (spinner stays until this finishes)
-          await detectAndShowCommits(true)
-
           const completedBranchId = completedBranchIdForLog ?? pollingBranchIdRef.current
 
-          // Check if loop mode should continue
-          const shouldContinueLoop =
-            completedBranchId &&
-            loopEnabledRef.current &&
-            data.status === EXECUTION_STATUS.COMPLETED &&
-            loopCountRef.current < loopMaxIterationsRef.current &&
-            !isLoopFinished(data.content)
+          // Call unified completion handler - handles auto-commit, loop check, and status update
+          // This uses a lockfile on the sandbox to prevent race conditions with cron job
+          if (completedBranchId && currentExecutionId) {
+            try {
+              const completionRes = await fetch("/api/agent/completion", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  branchId: completedBranchId,
+                  executionId: currentExecutionId,
+                  status: data.status === EXECUTION_STATUS.COMPLETED ? "completed" : "error",
+                  content: data.content,
+                  source: "client",
+                }),
+              })
 
-          if (shouldContinueLoop && completedBranchId) {
-            // Increment loop count and set status to running immediately
-            // This prevents the cron job from also triggering a continuation (race condition)
-            const newLoopCount = loopCountRef.current + 1
-            onUpdateBranch(completedBranchId, {
-              status: "running",
-              loopCount: newLoopCount,
-              lastActivity: "now",
-              lastActivityTs: Date.now(),
-            })
-            // Trigger loop continuation
-            onLoopContinue?.(completedBranchId)
-          } else {
-            // Normal completion - set status to idle
-            if (completedBranchId) {
-              // If loop was enabled but stopped (finished or max reached), reset loop count
-              const loopUpdates = loopEnabledRef.current ? { loopCount: 0 } : {}
+              const completionResult = await completionRes.json()
+
+              if (completionResult.handled) {
+                // Show commits in chat (without re-running auto-commit since server already did it)
+                if (completionResult.commitInfo?.committed) {
+                  await detectAndShowCommits(false)
+                }
+
+                if (completionResult.loopContinued) {
+                  // Server already started new execution and updated branch status
+                  // Update local state to reflect running status and incremented loop count
+                  onUpdateBranch(completedBranchId, {
+                    status: "running",
+                    loopCount: (loopCountRef.current || 0) + 1,
+                    lastActivity: "now",
+                    lastActivityTs: Date.now(),
+                  })
+                } else {
+                  // Normal completion - server already set status to idle
+                  // Update local state to reflect idle status
+                  const loopUpdates = loopEnabledRef.current ? { loopCount: 0 } : {}
+                  onUpdateBranch(completedBranchId, {
+                    status: "idle",
+                    lastActivity: "now",
+                    lastActivityTs: Date.now(),
+                    unread,
+                    ...loopUpdates,
+                  })
+                  // Play completion sound only when loop is done
+                  try {
+                    const ctx = new AudioContext()
+                    const osc = ctx.createOscillator()
+                    const gain = ctx.createGain()
+                    osc.connect(gain)
+                    gain.connect(ctx.destination)
+                    osc.frequency.value = 880
+                    osc.type = "sine"
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime)
+                    gain.gain.exponentialRampToValueAtTime(
+                      0.001,
+                      ctx.currentTime + 0.3,
+                    )
+                    osc.start(ctx.currentTime)
+                    osc.stop(ctx.currentTime + 0.3)
+                  } catch {
+                    // Ignore audio errors
+                  }
+                }
+              } else {
+                // Completion not handled (lock not acquired) - another process handled it
+                // Just detect and show commits, then update local state
+                await detectAndShowCommits(false)
+                onUpdateBranch(completedBranchId, {
+                  status: "idle",
+                  lastActivity: "now",
+                  lastActivityTs: Date.now(),
+                  unread,
+                })
+              }
+            } catch (completionErr) {
+              console.error("[execution-poll] completion handler error", completionErr)
+              // Fallback: run auto-commit locally and set idle
+              await detectAndShowCommits(true)
               onUpdateBranch(completedBranchId, {
                 status: "idle",
                 lastActivity: "now",
                 lastActivityTs: Date.now(),
                 unread,
-                ...loopUpdates,
               })
             }
-            // Play completion sound only when loop is done
-            try {
-              const ctx = new AudioContext()
-              const osc = ctx.createOscillator()
-              const gain = ctx.createGain()
-              osc.connect(gain)
-              gain.connect(ctx.destination)
-              osc.frequency.value = 880
-              osc.type = "sine"
-              gain.gain.setValueAtTime(0.15, ctx.currentTime)
-              gain.gain.exponentialRampToValueAtTime(
-                0.001,
-                ctx.currentTime + 0.3,
-              )
-              osc.start(ctx.currentTime)
-              osc.stop(ctx.currentTime + 0.3)
-            } catch {
-              // Ignore audio errors
+          } else {
+            // No branch ID or execution ID - fallback to old behavior
+            await detectAndShowCommits(true)
+            if (completedBranchId) {
+              onUpdateBranch(completedBranchId, {
+                status: "idle",
+                lastActivity: "now",
+                lastActivityTs: Date.now(),
+                unread,
+              })
             }
           }
         }
@@ -522,22 +565,57 @@ export function useExecutionPolling({
 
   // Stop polling and update message
   const stopPolling = useCallback(async () => {
+    // Save refs before clearing
+    const stoppedExecutionId = currentExecutionIdRef.current
+    const stoppedBranchId = pollingBranchIdRef.current
+
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
       pollingRef.current = null
     }
-    if (currentMessageIdRef.current && pollingBranchIdRef.current) {
+    if (currentMessageIdRef.current && stoppedBranchId) {
       // Use ref to get current messages to avoid dependency issues
       const lastMsg = branchMessagesRef.current.find(m => m.id === currentMessageIdRef.current)
       const currentContent = lastMsg?.content || ""
-      onUpdateMessage(pollingBranchIdRef.current, currentMessageIdRef.current, {
+      onUpdateMessage(stoppedBranchId, currentMessageIdRef.current, {
         content: currentContent ? `${currentContent}\n\n[Stopped by user]` : "[Stopped by user]"
       })
     }
 
-    // Detect and show any commits made before the user stopped execution
-    // This ensures commits are not lost when the user manually stops
-    await detectAndShowCommits(true)
+    // Call completion handler with stopped flag to do auto-commit-push
+    // This ensures commits are pushed even when user manually stops
+    if (stoppedBranchId && stoppedExecutionId) {
+      try {
+        const completionRes = await fetch("/api/agent/completion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            branchId: stoppedBranchId,
+            executionId: stoppedExecutionId,
+            status: "completed",
+            source: "client",
+            stopped: true,
+          }),
+        })
+
+        const completionResult = await completionRes.json()
+
+        // Show commits in chat if any were created
+        if (completionResult.handled && completionResult.commitInfo?.committed) {
+          await detectAndShowCommits(false)
+        } else if (!completionResult.handled) {
+          // Lock not acquired - another process handled it, just show commits
+          await detectAndShowCommits(false)
+        }
+      } catch (completionErr) {
+        console.error("[execution-poll] stopPolling completion handler error", completionErr)
+        // Fallback: run auto-commit locally
+        await detectAndShowCommits(true)
+      }
+    } else {
+      // No branch ID or execution ID - fallback to old behavior
+      await detectAndShowCommits(true)
+    }
 
     currentExecutionIdRef.current = null
     currentMessageIdRef.current = null
@@ -545,9 +623,10 @@ export function useExecutionPolling({
     if (streamingMessageIdRef) {
       streamingMessageIdRef.current = null
     }
-    if (pollingBranchIdRef.current) {
-      // Disable loop mode when user manually stops - prevents cron job from restarting
-      onUpdateBranch(pollingBranchIdRef.current, {
+    if (stoppedBranchId) {
+      // Disable loop mode when user manually stops - server already did this,
+      // but update local state to match
+      onUpdateBranch(stoppedBranchId, {
         status: BRANCH_STATUS.IDLE,
         loopEnabled: false,
         loopCount: 0
