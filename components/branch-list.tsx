@@ -187,7 +187,7 @@ export function BranchList({
           repoName: repo.name,
           baseBranch: newBranchBase,
           newBranch: branchName,
-          startCommit: commitToUse,
+          startCommit: commitToUse || undefined,
         },
         {
           onDone: (result) => {
