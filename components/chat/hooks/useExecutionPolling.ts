@@ -502,7 +502,12 @@ export function useExecutionPolling({
               }
             | null
 
-          if (completedBranchId && completionResult?.handled) {
+          const shouldUseLocalCommitFallback =
+            !completionRes.ok || !completionResult?.handled
+
+          if (shouldUseLocalCommitFallback) {
+            await detectAndShowCommits(true)
+          } else if (completedBranchId) {
             if (completionResult.commitInfo?.error) {
               await onAddMessage(completedBranchId, {
                 id: generateId(),
