@@ -172,6 +172,15 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
             const lastBranch = lastBranchMap.get(syncBranch.id)
             if (!lastBranch) continue
 
+            // Branch name change (e.g., from auto-suggest during agent execution)
+            if (lastBranch.name !== syncBranch.name) {
+              setRepos((prev) =>
+                updateBranchAcrossRepos(prev, syncBranch.id, {
+                  name: syncBranch.name,
+                })
+              )
+            }
+
             // Status change
             if (lastBranch.status !== syncBranch.status) {
               setRepos((prev) =>
