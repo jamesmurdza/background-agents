@@ -205,6 +205,7 @@ model AgentExecution {
   status               String    @default("running")
   startedAt            DateTime  @default(now())
   completedAt          DateTime?
+  completionHandledAt  DateTime?
   latestSnapshot       Json?
   accumulatedEvents    Json?
   lastSnapshotPolledAt DateTime?

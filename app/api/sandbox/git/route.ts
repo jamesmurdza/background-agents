@@ -10,7 +10,7 @@ import {
   isDaytonaKeyError,
   internalError,
 } from "@/lib/api-helpers"
-import { generateCommitMessage } from "@/lib/commit-message"
+import { autoCommitPush, pushWithRetry } from "@/lib/sandbox-git"
 // Git operation timeout - 60 seconds (must be literal for Next.js static analysis)
 export const maxDuration = 60
 
@@ -31,60 +31,12 @@ async function ensureCorrectBranch(
   return null
 }
 
-/**
- * Push with retry logic for transient errors.
- * Returns the raw error message on failure - let frontend handle display.
- */
-async function pushWithRetry(
-  sandbox: Sandbox,
-  repoPath: string,
-  githubToken: string,
-  maxRetries = 2
-): Promise<{ success: boolean; error?: string }> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      await sandbox.git.push(repoPath, "x-access-token", githubToken)
-      return { success: true }
-    } catch (err: unknown) {
-      // Extract detailed error info from axios response if available
-      const axiosResponse = (err as { response?: { data?: unknown; status?: number } })?.response
-      let errorMessage = err instanceof Error ? err.message : String(err)
-      if (axiosResponse?.data) {
-        const data = axiosResponse.data
-        if (typeof data === "string") {
-          errorMessage = data
-        } else if (typeof data === "object" && data !== null) {
-          const dataObj = data as { message?: string; error?: string }
-          errorMessage = dataObj.message || dataObj.error || JSON.stringify(data)
-        }
-      }
-
-      // If it's a transient error and we have retries left, wait and retry
-      const isTransient =
-        errorMessage.includes("timeout") ||
-        errorMessage.includes("ETIMEDOUT") ||
-        errorMessage.includes("ECONNRESET") ||
-        errorMessage.includes("503") ||
-        errorMessage.includes("502")
-
-      if (isTransient && attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
-        continue
-      }
-
-      // Non-transient error or out of retries
-      return { success: false, error: errorMessage }
-    }
-  }
-  return { success: false, error: "Max retries exceeded" }
-}
-
 export async function POST(req: Request) {
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
 
   const body = await req.json()
-  const { sandboxId, repoPath, action, targetBranch, currentBranch, repoOwner, repoApiName, tagName, branchName } = body
+  const { sandboxId, repoPath, action, targetBranch, currentBranch, repoOwner, repoApiName, tagName } = body
 
   if (!sandboxId || !repoPath || !action) {
     return badRequest("Missing required fields")
@@ -163,71 +115,16 @@ export async function POST(req: Request) {
         if (!githubToken) {
           return badRequest("GitHub token not found")
         }
-        // Get the current branch from the sandbox (don't rely on frontend branchName
-        // since the agent may have renamed the branch during execution)
-        const currentStatus = await sandbox.git.status(repoPath)
-        const currentBranch = currentStatus.currentBranch
-        if (!currentBranch) {
-          return badRequest("Could not determine current branch")
+        const result = await autoCommitPush({
+          sandbox,
+          repoPath,
+          githubToken,
+          userId: auth.userId,
+        })
+        if (result.error) {
+          return Response.json({ error: result.error }, { status: 500 })
         }
-        // Check for uncommitted changes and commit them if any
-        let committed = false
-        let commitMessage = ""
-        const statusResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git status --porcelain 2>&1`
-        )
-        if (!statusResult.exitCode && statusResult.result.trim()) {
-          // Stage all changes first so we can get a complete diff
-          await sandbox.process.executeCommand(
-            `cd ${repoPath} && git add -A 2>&1`
-          )
-
-          // Get the staged diff to generate an AI commit message
-          // Use --cached to see what's staged, and --no-color for clean output
-          const diffResult = await sandbox.process.executeCommand(
-            `cd ${repoPath} && git diff --cached --no-color 2>&1`
-          )
-          const diff = diffResult.exitCode ? "" : diffResult.result
-
-          // Generate AI commit message (falls back to default if LLM unavailable)
-          const commitMessageResult = await generateCommitMessage({
-            userId: auth.userId,
-            diff,
-          })
-          commitMessage = commitMessageResult.message
-
-          // Escape the commit message for shell (handle quotes and special chars)
-          const escapedMessage = commitMessage.replace(/'/g, "'\\''")
-
-          const commitResult = await sandbox.process.executeCommand(
-            `cd ${repoPath} && git commit -m '${escapedMessage}' 2>&1`
-          )
-          if (commitResult.exitCode) {
-            return Response.json({ error: "Commit failed: " + commitResult.result }, { status: 500 })
-          }
-          committed = true
-        }
-        // Check if there are unpushed commits by comparing local HEAD with remote
-        // Use ls-remote since single-branch clones don't have origin/branchName refs
-        const localHead = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git rev-parse HEAD 2>/dev/null`
-        )
-        const remoteHead = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git ls-remote origin refs/heads/${currentBranch} 2>/dev/null | cut -f1`
-        )
-        const localSha = localHead.result.trim()
-        const remoteSha = remoteHead.result.trim()
-        // Push if local has commits and remote is different (or doesn't exist)
-        const needsPush = localSha && localSha !== remoteSha
-        let pushed = false
-        if (needsPush) {
-          const pushResult = await pushWithRetry(sandbox, repoPath, githubToken)
-          if (!pushResult.success) {
-            return Response.json({ error: "Push failed: " + pushResult.error }, { status: 500 })
-          }
-          pushed = true
-        }
-        return Response.json({ committed, pushed, commitMessage })
+        return Response.json(result)
       }
 
       case "pull": {

@@ -51,7 +51,14 @@ export async function POST(req: Request) {
 
   // Look up the execution and its message/branch context.
   let execution = await prisma.agentExecution.findFirst({
-    where: executionId ? { executionId } : { messageId },
+    where: executionId
+      ? {
+          OR: [
+            { id: executionId },
+            { executionId },
+          ],
+        }
+      : { messageId },
     include: INCLUDE_EXECUTION_WITH_CONTEXT,
   })
 

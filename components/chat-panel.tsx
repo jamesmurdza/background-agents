@@ -192,7 +192,8 @@ export function ChatPanel({
         throw new Error(data.error || "Failed to start agent")
       }
 
-      startPollingRef.current(messageId)
+      const data = await response.json()
+      startPollingRef.current(messageId, data.executionId)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"
       onUpdateMessage(branchId, messageId, { content: `Error: ${message}` })
@@ -448,14 +449,16 @@ export function ChatPanel({
             throw new Error(retryData.error || retryData.message || "Failed to start agent after sandbox recreation")
           }
 
-          startPolling(messageId)
+          const retryData = await retryRes.json()
+          startPolling(messageId, retryData.executionId)
           return
         }
 
         throw new Error(data.error || "Failed to start agent")
       }
 
-      startPolling(messageId)
+      const data = await response.json()
+      startPolling(messageId, data.executionId)
 
       // Auto-suggest branch name on first message if user hasn't changed the default name
       // This runs in the background and doesn't block message sending

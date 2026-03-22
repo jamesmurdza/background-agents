@@ -2,7 +2,6 @@ import { useRef, useCallback, useEffect } from "react"
 import type { Branch, Message } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/constants"
-import { isLoopFinished, LOOP_CONTINUATION_MESSAGE } from "@/lib/types"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -220,6 +219,7 @@ export function useExecutionPolling({
       streamingMessageIdRef.current = messageId
     }
     currentMessageIdRef.current = messageId
+    currentExecutionIdRef.current = executionId || currentExecutionIdRef.current
 
     // Clear any existing polling interval
     if (pollingRef.current) {
@@ -371,6 +371,7 @@ export function useExecutionPolling({
           completionHandledRef.current = true
 
           const completedBranchIdForLog = pollingBranchIdRef.current
+          const completedExecutionId = currentExecutionIdRef.current
           const viewingBranchId = globalActiveBranchIdRef?.current ?? activeBranchIdRef.current
           const unread = viewingBranchId !== completedBranchIdForLog
 
@@ -475,32 +476,51 @@ export function useExecutionPolling({
 
           onForceSave()
 
-          // Run auto-commit and commit-detection before going idle (spinner stays until this finishes)
-          await detectAndShowCommits(true)
-
           const completedBranchId = completedBranchIdForLog ?? pollingBranchIdRef.current
+          const completionRes = await fetch("/api/agent/completion", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              branchId: completedBranchId,
+              executionId: completedExecutionId,
+              status: data.status === EXECUTION_STATUS.COMPLETED ? "completed" : "error",
+              content: data.content,
+              source: "client",
+            }),
+          })
+          const completionResult = await completionRes.json().catch(() => null) as
+            | {
+                handled?: boolean
+                loopContinued?: boolean
+                loopContinuationRequired?: boolean
+                commitInfo?: {
+                  committed?: boolean
+                  pushed?: boolean
+                  commitMessage?: string
+                  error?: string
+                }
+              }
+            | null
 
-          // Check if loop mode should continue
-          const shouldContinueLoop =
-            completedBranchId &&
-            loopEnabledRef.current &&
-            data.status === EXECUTION_STATUS.COMPLETED &&
-            loopCountRef.current < loopMaxIterationsRef.current &&
-            !isLoopFinished(data.content)
+          if (completedBranchId && completionResult?.handled) {
+            if (completionResult.commitInfo?.error) {
+              await onAddMessage(completedBranchId, {
+                id: generateId(),
+                role: "assistant",
+                content: `⚠️ **Push failed:** ${completionResult.commitInfo.error}`,
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              })
+            }
 
-          if (shouldContinueLoop && completedBranchId) {
-            // Increment loop count and set status to running immediately
-            // This prevents the cron job from also triggering a continuation (race condition)
-            const newLoopCount = loopCountRef.current + 1
-            onUpdateBranch(completedBranchId, {
-              status: "running",
-              loopCount: newLoopCount,
-              lastActivity: "now",
-              lastActivityTs: Date.now(),
-            })
-            // Trigger loop continuation
+            await detectAndShowCommits(false)
+          }
+
+          if (completionResult?.loopContinuationRequired && completedBranchId) {
             onLoopContinue?.(completedBranchId)
-          } else {
+          } else if (!completionResult?.loopContinued) {
             // Normal completion - set status to idle
             if (completedBranchId) {
               // If loop was enabled but stopped (finished or max reached), reset loop count
@@ -549,7 +569,7 @@ export function useExecutionPolling({
   // which would cause the callback to be recreated and reset the polling interval.
   // The branch context is captured once when startPolling is called and stored in refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branch.id, branch.name, branch.sandboxId, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits])
+  }, [branch.id, branch.name, branch.sandboxId, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits, onLoopContinue, globalActiveBranchIdRef])
 
   startPollingRef.current = startPolling
 

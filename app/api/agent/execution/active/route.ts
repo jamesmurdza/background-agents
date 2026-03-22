@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   return Response.json({
     execution: {
       id: execution.id,
-      executionId: execution.executionId,
+      executionId: execution.executionId || execution.id,
       messageId: execution.messageId,
       status: execution.status,
       sandboxId: execution.sandboxId,

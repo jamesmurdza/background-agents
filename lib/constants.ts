@@ -187,6 +187,8 @@ export const QUOTA = {
 export const PATHS = {
   /** Base directory for repo clones in sandbox */
   SANDBOX_HOME: "/home/daytona",
+  /** Prefix for per-execution completion lock files */
+  AGENT_COMPLETION_LOCK_PREFIX: "/home/daytona/.agent_completion_",
   /** Claude credentials directory */
   CLAUDE_CREDENTIALS_DIR: "/home/daytona/.claude",
   /** Claude credentials file */

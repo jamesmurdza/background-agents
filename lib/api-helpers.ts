@@ -17,6 +17,10 @@ export interface AuthResult {
   userId: string
 }
 
+export interface CompletionAuthResult extends AuthResult {
+  isCron: boolean
+}
+
 export interface DecryptedCredentials {
   anthropicApiKey?: string
   anthropicAuthToken?: string
@@ -138,6 +142,34 @@ export async function requireAuth(): Promise<AuthResult | Response> {
     return unauthorized()
   }
   return { userId }
+}
+
+/**
+ * Allows either cron-secret auth or a normal user session.
+ * Cron requests are identified as SYSTEM_CRON and must still perform explicit
+ * ownership checks against the execution they operate on.
+ */
+export async function requireCompletionAuth(req: Request): Promise<CompletionAuthResult | Response> {
+  const authHeader = req.headers.get("authorization")
+  const cronSecret = process.env.CRON_SECRET
+
+  if (authHeader?.startsWith("Bearer ") && cronSecret) {
+    const token = authHeader.slice(7)
+    if (token === cronSecret) {
+      return {
+        userId: "SYSTEM_CRON",
+        isCron: true,
+      }
+    }
+  }
+
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
+
+  return {
+    ...auth,
+    isCron: false,
+  }
 }
 
 /**
