@@ -6,6 +6,7 @@ import { agentLabels, getDefaultAgent } from "@/lib/types"
 import { generateId } from "@/lib/store"
 import { randomBranchName, validateBranchName } from "@/lib/branch-utils"
 import { BRANCH_STATUS } from "@/lib/constants"
+import { createBranchWithSandbox } from "@/lib/branch-actions"
 import { StatusDot } from "@/components/ui/status-dot"
 import { Plus, LogOut, Settings, Box, ChevronDown, Check, Loader2, GitBranch, Trash2 } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
@@ -192,76 +193,33 @@ export function MobileSidebarDrawer({
     onOpenChange(false) // Close drawer after starting creation
 
     try {
-      const res = await fetch("/api/sandbox/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await createBranchWithSandbox(
+        {
           repoId: activeRepo.id,
           repoOwner: activeRepo.owner,
           repoName: activeRepo.name,
           baseBranch,
           newBranch: branchName,
-        }),
-      })
-
-      if (!res.ok) {
-        let message = `Failed to create branch (${res.status})`
-        try {
-          const data = await res.json()
-          message = data.error || data.message || message
-        } catch {
-          // Ignore parse errors and use fallback message
+        },
+        {
+          onDone: (result) => {
+            onUpdateBranch(branchId, {
+              id: result.branchId,
+              status: BRANCH_STATUS.IDLE,
+              sandboxId: result.sandboxId,
+              contextId: result.contextId,
+              previewUrlPattern: result.previewUrlPattern,
+              startCommit: result.startCommit,
+              agent: result.agent,
+            })
+            onQuotaRefresh?.()
+          },
+          onError: (message) => {
+            onUpdateBranch(branchId, { status: BRANCH_STATUS.ERROR })
+            setCreateError(message)
+          },
         }
-        throw new Error(message)
-      }
-
-      if (!res.body) {
-        throw new Error("Failed to create branch: empty server response")
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-      let hasTerminalEvent = false
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split("\n\n")
-        buffer = parts.pop()!
-
-        for (const part of parts) {
-          for (const line of part.split("\n")) {
-            if (!line.startsWith("data: ")) continue
-            try {
-              const data = JSON.parse(line.slice(6))
-              if (data.type === "done") {
-                hasTerminalEvent = true
-                onUpdateBranch(branchId, {
-                  id: data.branchId,
-                  status: BRANCH_STATUS.IDLE,
-                  sandboxId: data.sandboxId,
-                  contextId: data.contextId,
-                  previewUrlPattern: data.previewUrlPattern,
-                  startCommit: data.startCommit,
-                  agent: data.agent, // Use server-determined agent
-                })
-                onQuotaRefresh?.()
-              } else if (data.type === "error") {
-                hasTerminalEvent = true
-                onUpdateBranch(branchId, { status: BRANCH_STATUS.ERROR })
-                setCreateError(data.message)
-              }
-            } catch {}
-          }
-        }
-      }
-
-      if (!hasTerminalEvent) {
-        throw new Error("Branch creation did not complete. Please try again.")
-      }
+      )
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create branch"
       onUpdateBranch(branchId, { status: BRANCH_STATUS.ERROR })
