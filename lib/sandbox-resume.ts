@@ -6,7 +6,7 @@ import { buildMcpConfig, getMcpConfigWriteCommand } from "@/lib/mcp-config"
 import { decrypt } from "@/lib/encryption"
 import type { Agent } from "@/lib/types"
 import { setupClaudeHooks } from "@/lib/claude-hooks"
-import { setupOpenCodePermissions, OPENCODE_CONFIG_PATH, OPENCODE_PERMISSION_ENV } from "@/lib/opencode-permissions"
+import { OPENCODE_PERMISSION_ENV } from "@/lib/opencode-permissions"
 import { setupCodexRules } from "@/lib/codex-rules"
 
 /**
@@ -195,12 +195,9 @@ export async function ensureSandboxReady(
     console.log(`[ensureSandboxReady] claude hooks written, took ${Date.now() - t0}ms`)
   }
 
-  // Set up OpenCode permissions on every resume to ensure they're always present
-  if (agent === "opencode") {
-    t0 = Date.now()
-    await setupOpenCodePermissions(sandbox)
-    console.log(`[ensureSandboxReady] opencode permissions written, took ${Date.now() - t0}ms`)
-  }
+  // NOTE: OpenCode permissions are NOT written to the config file.
+  // They are passed via OPENCODE_PERMISSION env var (see below) because the SDK
+  // sets OPENCODE_PERMISSION='{"*":"allow"}' by default, which overrides config file permissions.
 
   // Set up Codex rules on every resume to ensure they're always present
   if (agent === "codex") {
@@ -253,10 +250,9 @@ export async function ensureSandboxReady(
   // Merge: repo env vars first, then API keys (API keys take precedence if same key)
   const env: Record<string, string> = { ...repoEnv, ...apiKeyEnv }
 
-  // For OpenCode, set permission env vars
+  // For OpenCode, pass permissions via env var (NOT config file - see opencode-permissions.ts for why)
   // OPENCODE_PERMISSION overrides the SDK's default '{"*":"allow"}' that bypasses all permissions
   if (agent === "opencode") {
-    env.OPENCODE_CONFIG = OPENCODE_CONFIG_PATH
     env.OPENCODE_PERMISSION = OPENCODE_PERMISSION_ENV
   }
 
