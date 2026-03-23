@@ -77,10 +77,10 @@ export async function setupOpenCodePermissions(sandbox: Sandbox): Promise<void> 
   // Set proper permissions
   await sandbox.process.executeCommand(`chmod 600 ${configPath}`)
 
-  // Add OPENCODE_CONFIG to .bashrc so it's available in login shells
+  // Add OPENCODE_CONFIG to .bash_profile so it's available in login shells (bash -lc)
   // This works around an SDK bug where env vars don't propagate through nohup sh -c
   const exportLine = `export OPENCODE_CONFIG="${configPath}"`
   await sandbox.process.executeCommand(
-    `grep -qF 'OPENCODE_CONFIG' ~/.bashrc 2>/dev/null || echo '${exportLine}' >> ~/.bashrc`
+    `grep -qF 'OPENCODE_CONFIG' ~/.bash_profile 2>/dev/null || echo '${exportLine}' >> ~/.bash_profile`
   )
 }
