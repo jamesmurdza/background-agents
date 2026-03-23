@@ -157,13 +157,23 @@ export async function POST(req: Request) {
         if (!githubToken) {
           return badRequest("GitHub token not found")
         }
-        // Get the current branch from the sandbox (don't rely on frontend branchName
-        // since the agent may have renamed the branch during execution)
+        const expectedBranch = typeof branchName === "string" && branchName.trim()
+          ? branchName.trim()
+          : null
+        // If caller provides an expected branch, enforce it so we never commit/push to the wrong branch.
+        if (expectedBranch) {
+          const branchError = await ensureCorrectBranch(sandbox, repoPath, expectedBranch)
+          if (branchError) {
+            return badRequest(branchError)
+          }
+        }
+        // Get the current branch from the sandbox after verification
         const currentStatus = await sandbox.git.status(repoPath)
         const currentBranch = currentStatus.currentBranch
         if (!currentBranch) {
           return badRequest("Could not determine current branch")
         }
+        const pushBranch = expectedBranch || currentBranch
         // Check for uncommitted changes and commit them if any
         let committed = false
         let commitMessage = ""
@@ -207,7 +217,7 @@ export async function POST(req: Request) {
           `cd ${repoPath} && git rev-parse HEAD 2>/dev/null`
         )
         const remoteHead = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git ls-remote origin refs/heads/${currentBranch} 2>/dev/null | cut -f1`
+          `cd ${repoPath} && git ls-remote origin refs/heads/${pushBranch} 2>/dev/null | cut -f1`
         )
         const localSha = localHead.result.trim()
         const remoteSha = remoteHead.result.trim()
@@ -215,13 +225,13 @@ export async function POST(req: Request) {
         const needsPush = localSha && localSha !== remoteSha
         let pushed = false
         if (needsPush) {
-          const pushResult = await pushWithRetry(sandbox, repoPath, githubToken, currentBranch)
+          const pushResult = await pushWithRetry(sandbox, repoPath, githubToken, pushBranch)
           if (!pushResult.success) {
             return Response.json({ error: "Push failed: " + pushResult.error }, { status: 500 })
           }
           pushed = true
         }
-        return Response.json({ committed, pushed, commitMessage, currentBranch })
+        return Response.json({ committed, pushed, commitMessage, currentBranch: pushBranch })
       }
 
       case "pull": {
