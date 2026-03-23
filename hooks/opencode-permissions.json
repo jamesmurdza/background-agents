@@ -8,18 +8,19 @@
       "git reset --hard*": "deny",
       "git reset * --hard*": "deny",
       "git push*": "deny",
-      "git branch -d *": "deny",
-      "git branch -D *": "deny",
-      "git branch * -d *": "deny",
-      "git branch * -D *": "deny",
-      "git branch -m *": "deny",
-      "git branch -M *": "deny",
-      "git branch * -m *": "deny",
-      "git branch * -M *": "deny",
-      "git checkout -b *": "deny",
-      "git checkout * -b *": "deny",
-      "git switch -c *": "deny",
-      "git switch * -c *": "deny"
+      "git branch -d*": "deny",
+      "git branch -D*": "deny",
+      "git branch * -d*": "deny",
+      "git branch * -D*": "deny",
+      "git branch -m*": "deny",
+      "git branch -M*": "deny",
+      "git branch * -m*": "deny",
+      "git branch * -M*": "deny",
+      "git checkout -b*": "deny",
+      "git checkout * -b*": "deny",
+      "git switch -c*": "deny",
+      "git switch * -c*": "deny",
+      "git switch [a-zA-Z]*": "deny"
     }
   }
 }
