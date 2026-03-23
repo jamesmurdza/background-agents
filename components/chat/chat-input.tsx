@@ -169,7 +169,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             }
             rows={1}
             disabled={!isReady && branch.status !== BRANCH_STATUS.CREATING}
-            className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+            className="flex-1 resize-none bg-transparent text-base sm:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
           />
           <button
             onClick={branch.status === BRANCH_STATUS.RUNNING ? onStop : onSend}
