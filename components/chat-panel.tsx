@@ -84,20 +84,6 @@ export function ChatPanel({
   defaultLoopMaxIterations = DEFAULT_LOOP_MAX_ITERATIONS,
   loopUntilFinishedEnabled = false,
 }: ChatPanelProps) {
-  // Debug: Log component mount/unmount
-  useEffect(() => {
-    console.log(`[POLLER-DEBUG] ChatPanel MOUNTED for branch ${branch.id} (${branch.name})`)
-    return () => {
-      console.log(`[POLLER-DEBUG] ChatPanel UNMOUNTING for branch ${branch.id} (${branch.name})`)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Debug: Log when branch prop changes
-  useEffect(() => {
-    console.log(`[POLLER-DEBUG] ChatPanel branch prop changed to ${branch.id} (${branch.name})`)
-  }, [branch.id, branch.name])
-
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
