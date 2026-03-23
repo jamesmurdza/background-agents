@@ -18,9 +18,28 @@
       "git branch * -M*": "deny",
       "git checkout -b*": "deny",
       "git checkout * -b*": "deny",
+      "git checkout main*": "deny",
+      "git checkout master*": "deny",
+      "git checkout develop*": "deny",
+      "git checkout dev*": "deny",
+      "git checkout staging*": "deny",
+      "git checkout production*": "deny",
+      "git checkout feature/*": "deny",
+      "git checkout bugfix/*": "deny",
+      "git checkout hotfix/*": "deny",
+      "git checkout release/*": "deny",
       "git switch -c*": "deny",
       "git switch * -c*": "deny",
-      "git switch [a-zA-Z]*": "deny"
+      "git switch main*": "deny",
+      "git switch master*": "deny",
+      "git switch develop*": "deny",
+      "git switch dev*": "deny",
+      "git switch staging*": "deny",
+      "git switch production*": "deny",
+      "git switch feature/*": "deny",
+      "git switch bugfix/*": "deny",
+      "git switch hotfix/*": "deny",
+      "git switch release/*": "deny"
     }
   }
 }
