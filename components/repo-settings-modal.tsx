@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Plus, Trash2, Loader2, Variable, AlertTriangle, Plug, ExternalLink, Search, CheckCircle2, XCircle, Clock } from "lucide-react"
+import { X, Plus, Trash2, Loader2, Variable, AlertTriangle, Plug, ExternalLink, Search, CheckCircle2, XCircle, Clock, BadgeCheck } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 
@@ -30,6 +30,9 @@ interface RegistryServer {
   toolCount: number
   requiresAuth: boolean
   useCases: string[]
+  verified: boolean
+  useCount: number
+  isDeployed: boolean
 }
 
 type SettingsTab = "env-vars" | "mcp-servers"
@@ -68,6 +71,9 @@ export function RepoSettingsModal({
   const [isLoadingRegistry, setIsLoadingRegistry] = useState(false)
   const [registrySearch, setRegistrySearch] = useState("")
   const [connectingSlug, setConnectingSlug] = useState<string | null>(null)
+  const [registryPage, setRegistryPage] = useState(1)
+  const [registryTotalPages, setRegistryTotalPages] = useState(1)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // UI state
   const [isSaving, setIsSaving] = useState(false)
@@ -90,21 +96,30 @@ export function RepoSettingsModal({
   }, [repoId])
 
   // Load registry servers
-  const loadRegistry = useCallback(async (search: string = "") => {
-    setIsLoadingRegistry(true)
+  const loadRegistry = useCallback(async (search: string = "", page: number = 1, append: boolean = false) => {
+    if (append) {
+      setIsLoadingMore(true)
+    } else {
+      setIsLoadingRegistry(true)
+    }
     try {
-      const url = search
-        ? `/api/mcp-registry?search=${encodeURIComponent(search)}`
-        : "/api/mcp-registry"
-      const response = await fetch(url)
+      const params = new URLSearchParams({ page: String(page) })
+      if (search) params.set("search", search)
+      const response = await fetch(`/api/mcp-registry?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setRegistryServers(data.servers || [])
+        if (append) {
+          setRegistryServers((prev) => [...prev, ...(data.servers || [])])
+        } else {
+          setRegistryServers(data.servers || [])
+        }
+        setRegistryTotalPages(data.totalPages || 1)
       }
     } catch (err) {
       console.error("Failed to load registry:", err)
     } finally {
       setIsLoadingRegistry(false)
+      setIsLoadingMore(false)
     }
   }, [])
 
@@ -127,6 +142,7 @@ export function RepoSettingsModal({
   // Load registry when showing
   useEffect(() => {
     if (showRegistry) {
+      setRegistryPage(1)
       loadRegistry(registrySearch)
     }
   }, [showRegistry, loadRegistry, registrySearch])
@@ -135,6 +151,7 @@ export function RepoSettingsModal({
   useEffect(() => {
     if (!showRegistry) return
     const timer = setTimeout(() => {
+      setRegistryPage(1)
       loadRegistry(registrySearch)
     }, 300)
     return () => clearTimeout(timer)
@@ -215,15 +232,27 @@ export function RepoSettingsModal({
 
   // MCP servers handlers
   async function handleConnectServer(server: RegistryServer) {
-    if (!server.url) return
-
     setConnectingSlug(server.slug)
 
     try {
+      // If no URL (non-deployed server), fetch details first
+      let serverUrl = server.url
+      if (!serverUrl) {
+        const detailRes = await fetch(`/api/mcp-registry/${server.slug}`)
+        if (!detailRes.ok) {
+          throw new Error("Failed to fetch server details")
+        }
+        const detail = await detailRes.json()
+        serverUrl = detail.url
+        if (!serverUrl) {
+          throw new Error("Server does not have a remote URL")
+        }
+      }
+
       // Start OAuth flow
       const params = new URLSearchParams({
         slug: server.slug,
-        url: server.url,
+        url: serverUrl,
         name: server.name,
         ...(server.iconUrl && { iconUrl: server.iconUrl }),
       })
@@ -235,17 +264,48 @@ export function RepoSettingsModal({
         throw new Error(data.error || "Failed to start OAuth")
       }
 
-      // Open OAuth popup
+      // Smithery server connected immediately (no OAuth needed)
+      if (data.connected) {
+        setConnectingSlug(null)
+        loadMcpServers()
+        setShowRegistry(false)
+        return
+      }
+
+      // Open OAuth popup (works for both Smithery auth and standard MCP OAuth)
       const popup = window.open(
         data.authUrl,
         "mcp-oauth",
         "width=600,height=700,scrollbars=yes"
       )
 
+      // Handle popup blocked by browser
+      if (!popup || popup.closed) {
+        setConnectingSlug(null)
+        return
+      }
+
+      const isSmithery = !!data.smitheryConnect
+      const serverId = data.serverId
+
       // Poll for popup close and refresh
-      const checkPopup = setInterval(() => {
+      const checkPopup = setInterval(async () => {
         if (popup?.closed) {
           clearInterval(checkPopup)
+
+          // For Smithery connections, finalize after popup closes
+          if (isSmithery && serverId) {
+            try {
+              await fetch(`/api/repo/${repoId}/mcp-servers/smithery-finalize`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ serverId }),
+              })
+            } catch (err) {
+              console.error("Failed to finalize Smithery connection:", err)
+            }
+          }
+
           setConnectingSlug(null)
           loadMcpServers()
           setShowRegistry(false)
@@ -524,11 +584,18 @@ export function RepoSettingsModal({
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground">{server.name}</p>
+                          <div className="flex items-center gap-1">
+                            <p className="text-xs font-medium text-foreground">{server.name}</p>
+                            {server.verified && (
+                              <BadgeCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                            )}
+                          </div>
                           <p className="text-[10px] text-muted-foreground line-clamp-2">{server.description}</p>
-                          {server.toolCount > 0 && (
+                          {server.useCount > 0 && (
                             <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-                              {server.toolCount} tools
+                              {server.useCount >= 1000
+                                ? `${(server.useCount / 1000).toFixed(1).replace(/\.0$/, "")}k uses`
+                                : `${server.useCount} uses`}
                             </p>
                           )}
                         </div>
@@ -538,7 +605,7 @@ export function RepoSettingsModal({
                           ) : (
                             <button
                               onClick={() => handleConnectServer(server)}
-                              disabled={isConnecting || !server.url}
+                              disabled={isConnecting}
                               className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
                               {isConnecting ? (
@@ -555,6 +622,23 @@ export function RepoSettingsModal({
                       </div>
                     )
                   })}
+                  {registryPage < registryTotalPages && (
+                    <button
+                      onClick={() => {
+                        const nextPage = registryPage + 1
+                        setRegistryPage(nextPage)
+                        loadRegistry(registrySearch, nextPage, true)
+                      }}
+                      disabled={isLoadingMore}
+                      className="flex items-center justify-center gap-1.5 rounded-md bg-secondary px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer disabled:opacity-50"
+                    >
+                      {isLoadingMore ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        "Load More"
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
             </>

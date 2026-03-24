@@ -27,6 +27,7 @@ A sophisticated multi-tenant web application that enables users to run AI coding
 - **Git Diff Viewer** - Compare branches and view changes
 - **Git History** - Browse commit history per branch
 - **Advanced Git Operations** - Merge, rebase, reset, tag, rename, and delete remote branches
+- **MCP Server Registry** - Browse and connect 3,000+ MCP servers via [Smithery](https://smithery.ai)
 - **Environment Variables** - Per-repository encrypted env vars for sandboxes
 - **Auto-Stop** - Configurable sandbox auto-stop intervals (5-20 minutes)
 - **Safe Push Handling** - Branch checks plus retry and graceful "already up-to-date" handling
@@ -57,11 +58,11 @@ A sophisticated multi-tenant web application that enables users to run AI coding
           └────────┬────────┘ └─────────────────┘ └─────────────────┘
                    │
                    ▼
-          ┌─────────────────┐
-          │  Coding Agents  │
-          │  - Claude Code  │
-          │  - OpenCode     │
-          │  - Codex        │
+          ┌─────────────────┐         ┌─────────────────┐
+          │  Coding Agents  │────────▶│  Smithery       │
+          │  - Claude Code  │         │  (MCP Registry  │
+          │  - OpenCode     │◀────────│   + Connect)    │
+          │  - Codex        │         └─────────────────┘
           └─────────────────┘
 ```
 
@@ -84,6 +85,8 @@ A sophisticated multi-tenant web application that enables users to run AI coding
 | Anthropic API Key | AES encrypted in database | User provides, decrypted at runtime |
 | OpenAI API Key | AES encrypted in database | User provides, decrypted at runtime |
 | OpenCode API Key | AES encrypted in database | User provides, decrypted at runtime |
+| Smithery API Key | Environment variable | Shared infrastructure, server-side |
+| MCP Server Tokens | AES encrypted in database | Per-repo per-server, managed by Smithery Connect |
 | Repository Env Vars | AES encrypted in database | Per-repo, injected into sandbox |
 
 ---
@@ -111,6 +114,7 @@ A sophisticated multi-tenant web application that enables users to run AI coding
 - **Sandboxes**: Daytona SDK (@daytonaio/sdk)
 - **Agent Runner**: background-agents
 - **LLM Providers**: Anthropic SDK, OpenAI SDK
+- **MCP Registry**: [Smithery](https://smithery.ai) (server discovery + managed connections)
 
 ---
 
@@ -175,6 +179,7 @@ Add these to Vercel (Settings → Environment Variables):
 | `ENCRYPTION_KEY` | For encrypting API keys | (output of `openssl rand -hex 32`) |
 | `DAYTONA_API_KEY` | Your shared Daytona API key | `dtn_...` |
 | `DAYTONA_API_URL` | Daytona API endpoint | `https://api.daytona.io` |
+| `SMITHERY_API_KEY` | Smithery API key for MCP registry | (from [smithery.ai/account/api-keys](https://smithery.ai/account/api-keys)) |
 | `CRON_SECRET` | Secret for Vercel cron jobs (loop mode) | (output of `openssl rand -base64 32`) |
 
 ### 5. Deploy
@@ -209,6 +214,7 @@ Or push to Vercel - the build script handles migrations automatically.
 [ ] ENCRYPTION_KEY set
 [ ] DAYTONA_API_KEY set
 [ ] DAYTONA_API_URL set
+[ ] SMITHERY_API_KEY set (optional, for MCP server registry)
 [ ] CRON_SECRET set (optional, for loop mode)
 ```
 
@@ -439,6 +445,35 @@ A Vercel cron job runs every minute to check for completed executions where loop
 
 When loop continues, the agent receives:
 > "If you have finished all tasks, respond with just the phrase FINISHED. Otherwise, continue working on the remaining tasks."
+
+---
+
+## MCP Server Integration
+
+The platform integrates with [Smithery](https://smithery.ai) to provide a registry of 3,000+ MCP (Model Context Protocol) servers that extend agent capabilities with external tools and services.
+
+### How It Works
+
+1. **Browse** - Users open repo settings → MCP Servers → Browse Registry to search Smithery's catalog
+2. **Connect** - Clicking "Connect" creates a managed connection via [Smithery Connect](https://smithery.ai/docs/use/connect)
+   - **Authless servers** (e.g. Context7) connect instantly, no popup needed
+   - **OAuth servers** (e.g. GitHub, Slack) open a popup for user authorization
+3. **Agent Access** - Connected servers are injected into the agent's MCP config at sandbox startup
+4. **Execution** - MCP tool calls route through `api.smithery.ai/connect/{namespace}/{connectionId}/mcp`
+
+### Setup
+
+1. Get a free API key from [smithery.ai/account/api-keys](https://smithery.ai/account/api-keys)
+2. Add `SMITHERY_API_KEY` to your `.env.local` or Vercel environment variables
+3. The app auto-detects or creates a Smithery namespace on first connection (or set `SMITHERY_NAMESPACE` to use a specific one)
+
+### Pricing
+
+Smithery's free tier includes **25,000 RPCs/month**. Each MCP tool call from an agent counts as one RPC. Registry browsing and connection setup are separate. See [smithery.ai/pricing](https://smithery.ai/pricing) for details.
+
+### Connection Isolation
+
+Each connection is scoped to `{repoId}-{serverSlug}`, so OAuth credentials are isolated per repo per server. Smithery stores credentials encrypted and write-only — they can execute requests but are never readable. All connections share a single `SMITHERY_API_KEY`. The namespace is auto-resolved per API key.
 
 ---
 

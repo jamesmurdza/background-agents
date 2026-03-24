@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { encrypt } from "@/lib/encryption"
 import {
   requireAuth,
   isAuthError,
@@ -13,6 +14,11 @@ import {
   registerClient,
   type McpOAuthState,
 } from "@/lib/mcp-oauth"
+import {
+  isSmitheryServer,
+  createSmitheryConnection,
+  getSmitheryConnectionId,
+} from "@/lib/smithery-connect"
 
 // GET - Start OAuth flow for MCP server
 export async function GET(
@@ -83,6 +89,52 @@ export async function GET(
   }
 
   try {
+    // Smithery-hosted servers use Smithery Connect instead of standard OAuth
+    if (isSmitheryServer(url)) {
+      const apiKey = process.env.SMITHERY_API_KEY
+      if (!apiKey) {
+        return Response.json(
+          { error: "Smithery is not configured" },
+          { status: 500 }
+        )
+      }
+
+      const connectionId = getSmitheryConnectionId(repoId, slug)
+      const result = await createSmitheryConnection(url, connectionId, name, apiKey)
+
+      if (result.status === "auth_required" && result.authorizationUrl) {
+        // Store connection metadata for callback
+        await prisma.repoMcpServer.update({
+          where: { id: serverId },
+          data: { clientId: connectionId },
+        })
+
+        return Response.json({
+          authUrl: result.authorizationUrl,
+          serverId,
+          smitheryConnect: true,
+        })
+      }
+
+      if (result.status === "connected") {
+        // No OAuth needed — mark as connected immediately
+        await prisma.repoMcpServer.update({
+          where: { id: serverId },
+          data: {
+            url: result.mcpEndpoint,
+            accessToken: encrypt(apiKey),
+            status: "connected",
+            lastError: null,
+          },
+        })
+        return Response.json({ authUrl: null, serverId, connected: true })
+      }
+
+      // Error case
+      throw new Error(result.error || "Smithery connection failed")
+    }
+
+    // Non-Smithery servers: use standard MCP OAuth discovery
     // Get OAuth endpoints via discovery or defaults
     const endpoints = await getOAuthEndpoints(url)
 
