@@ -465,7 +465,7 @@ The platform integrates with [Smithery](https://smithery.ai) to provide a regist
 
 1. Get a free API key from [smithery.ai/account/api-keys](https://smithery.ai/account/api-keys)
 2. Add `SMITHERY_API_KEY` to your `.env.local` or Vercel environment variables
-3. The app auto-creates a Smithery namespace (`upstream-agents`) on first connection
+3. The app auto-detects or creates a Smithery namespace on first connection (or set `SMITHERY_NAMESPACE` to use a specific one)
 
 ### Pricing
 
@@ -473,7 +473,7 @@ Smithery's free tier includes **25,000 RPCs/month**. Each MCP tool call from an 
 
 ### Connection Isolation
 
-Each connection is scoped to `{repoId}-{serverSlug}`, so OAuth credentials are isolated per repo per server. Smithery stores credentials encrypted and write-only — they can execute requests but are never readable. All connections share a single `SMITHERY_API_KEY` and namespace.
+Each connection is scoped to `{repoId}-{serverSlug}`, so OAuth credentials are isolated per repo per server. Smithery stores credentials encrypted and write-only — they can execute requests but are never readable. All connections share a single `SMITHERY_API_KEY`. The namespace is auto-resolved per API key.
 
 ---
 

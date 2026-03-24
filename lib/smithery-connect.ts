@@ -2,7 +2,53 @@ import { encrypt } from "@/lib/encryption"
 import { prisma } from "@/lib/prisma"
 
 const SMITHERY_API_BASE = "https://api.smithery.ai"
-const SMITHERY_NAMESPACE = "upstream-agents"
+
+// Each Smithery API key owns its own namespaces.
+// Use SMITHERY_NAMESPACE env var if set, otherwise auto-create one.
+let resolvedNamespace: string | null = null
+
+async function getNamespace(apiKey: string): Promise<string | null> {
+  // Return cached namespace
+  if (resolvedNamespace) return resolvedNamespace
+
+  // Use explicit env var if set
+  const envNamespace = process.env.SMITHERY_NAMESPACE
+  if (envNamespace) {
+    const ok = await ensureNamespace(envNamespace, apiKey)
+    if (ok) {
+      resolvedNamespace = envNamespace
+      return resolvedNamespace
+    }
+    return null
+  }
+
+  // Auto-detect: fetch user's existing namespaces
+  try {
+    const response = await fetch(`${SMITHERY_API_BASE}/namespaces`, {
+      headers: { "Authorization": `Bearer ${apiKey}` },
+    })
+    if (response.ok) {
+      const data = await response.json()
+      const namespaces = data.data || data.namespaces || data
+      if (Array.isArray(namespaces) && namespaces.length > 0) {
+        resolvedNamespace = namespaces[0].name
+        return resolvedNamespace
+      }
+    }
+  } catch (err) {
+    console.error("[Smithery Connect] Failed to list namespaces:", err)
+  }
+
+  // No namespaces exist — create one
+  const newName = `upstream-${Date.now().toString(36)}`
+  const ok = await ensureNamespace(newName, apiKey)
+  if (ok) {
+    resolvedNamespace = newName
+    return resolvedNamespace
+  }
+
+  return null
+}
 
 /**
  * Check if a URL points to a Smithery-hosted MCP server
@@ -26,17 +72,17 @@ export function getSmitheryConnectionId(repoId: string, slug: string): string {
 /**
  * Get the Smithery Connect MCP endpoint URL for a connection
  */
-export function getSmitheryMcpEndpoint(connectionId: string): string {
-  return `${SMITHERY_API_BASE}/connect/${SMITHERY_NAMESPACE}/${connectionId}/mcp`
+export function getSmitheryMcpEndpoint(namespace: string, connectionId: string): string {
+  return `${SMITHERY_API_BASE}/connect/${namespace}/${connectionId}/mcp`
 }
 
 /**
  * Ensure the Smithery namespace exists (idempotent PUT)
  */
-async function ensureNamespace(apiKey: string): Promise<boolean> {
+async function ensureNamespace(name: string, apiKey: string): Promise<boolean> {
   try {
     const response = await fetch(
-      `${SMITHERY_API_BASE}/namespaces/${SMITHERY_NAMESPACE}`,
+      `${SMITHERY_API_BASE}/namespaces/${name}`,
       {
         method: "PUT",
         headers: {
@@ -79,23 +125,23 @@ export async function createSmitheryConnection(
   name: string,
   apiKey: string
 ): Promise<SmitheryConnectionResult> {
-  const mcpEndpoint = getSmitheryMcpEndpoint(connectionId)
-
   try {
-    // Ensure namespace exists first (idempotent)
-    const nsOk = await ensureNamespace(apiKey)
-    if (!nsOk) {
+    // Resolve namespace for this API key
+    const namespace = await getNamespace(apiKey)
+    if (!namespace) {
       return {
         status: "error",
         connectionId,
-        mcpEndpoint,
-        error: "Failed to create Smithery namespace",
+        mcpEndpoint: "",
+        error: "Failed to resolve Smithery namespace",
       }
     }
 
+    const mcpEndpoint = getSmitheryMcpEndpoint(namespace, connectionId)
+
     // Create or update connection via PUT
     const response = await fetch(
-      `${SMITHERY_API_BASE}/connect/${SMITHERY_NAMESPACE}/${connectionId}`,
+      `${SMITHERY_API_BASE}/connect/${namespace}/${connectionId}`,
       {
         method: "PUT",
         headers: {
@@ -161,7 +207,7 @@ export async function createSmitheryConnection(
     return {
       status: "error",
       connectionId,
-      mcpEndpoint,
+      mcpEndpoint: "",
       error: err instanceof Error ? err.message : "Connection failed",
     }
   }
@@ -176,12 +222,15 @@ export async function finalizeSmitheryConnection(
   connectionId: string,
   apiKey: string
 ): Promise<boolean> {
-  const mcpEndpoint = getSmitheryMcpEndpoint(connectionId)
-
   try {
+    const namespace = await getNamespace(apiKey)
+    if (!namespace) return false
+
+    const mcpEndpoint = getSmitheryMcpEndpoint(namespace, connectionId)
+
     // Check connection status via GET
     const response = await fetch(
-      `${SMITHERY_API_BASE}/connect/${SMITHERY_NAMESPACE}/${connectionId}`,
+      `${SMITHERY_API_BASE}/connect/${namespace}/${connectionId}`,
       {
         headers: {
           "Authorization": `Bearer ${apiKey}`,
