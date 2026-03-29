@@ -12,6 +12,7 @@ import {
   isAuthSkipped,
   ensureDevUserExists,
   warnAboutSkippedAuth,
+  getDevGitHubToken,
   DEV_USER_ID,
 } from "@/lib/dev-auth"
 
@@ -128,7 +129,7 @@ export function internalError(error: unknown) {
  * Gets the authenticated user's ID from the session
  * Returns null if not authenticated
  *
- * When SKIP_AUTH=true (development only), returns the dev user ID
+ * When GITHUB_PAT is set (development only), returns the dev user ID
  * and ensures the dev user exists in the database.
  */
 export async function getAuthUserId(): Promise<string | null> {
@@ -219,6 +220,12 @@ export interface GitHubAuthResult {
 }
 
 async function getPreferredGitHubToken(userId: string): Promise<string | null> {
+  // Dev mode: use PAT from environment
+  const devToken = getDevGitHubToken()
+  if (devToken) {
+    return devToken
+  }
+
   const [user, accounts] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -246,8 +253,8 @@ async function getPreferredGitHubToken(userId: string): Promise<string | null> {
  * Returns userId and token or an error Response
  * Combines session check, account lookup, and token validation in one call
  *
- * When SKIP_AUTH=true, uses the dev user but still requires a GitHub token
- * to be configured in the database for GitHub operations to work.
+ * When GITHUB_PAT is set (development only), uses the dev user and the PAT
+ * for all GitHub operations.
  */
 export async function requireGitHubAuth(): Promise<GitHubAuthResult | Response> {
   let userId: string | null = null
