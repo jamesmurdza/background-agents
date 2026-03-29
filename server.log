@@ -32,3 +32,12 @@ Authentication is bypassed. DO NOT use in production!
 ○ Compiling / ...
  GET / 200 in 4.0s (compile: 3.8s, render: 163ms)
  GET / 200 in 42ms (compile: 4ms, render: 38ms)
+ GET /login 200 in 72ms (compile: 21ms, render: 52ms)
+ GET /login 200 in 35ms (compile: 20ms, render: 16ms)
+ GET /login 200 in 126ms (compile: 110ms, render: 16ms)
+ GET /login 200 in 486ms (compile: 464ms, render: 21ms)
+ GET /login 200 in 25ms (compile: 4ms, render: 21ms)
+ GET /login 200 in 88ms (compile: 65ms, render: 23ms)
+ GET /api/auth/dev-mode 200 in 689ms (compile: 678ms, render: 11ms)
+ GET /api/auth/dev-session 302 in 365ms (compile: 341ms, render: 24ms)
+[?25h
