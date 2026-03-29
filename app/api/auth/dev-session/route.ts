@@ -35,7 +35,12 @@ export async function GET() {
     const cookieStore = await cookies()
     const isSecure = process.env.NEXTAUTH_URL?.startsWith("https") ?? false
 
-    cookieStore.set("next-auth.session-token", token, {
+    // NextAuth uses different cookie names for secure vs non-secure contexts
+    const cookieName = isSecure
+      ? "__Secure-next-auth.session-token"
+      : "next-auth.session-token"
+
+    cookieStore.set(cookieName, token, {
       httpOnly: true,
       secure: isSecure,
       sameSite: "lax",
