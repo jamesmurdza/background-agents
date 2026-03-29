@@ -5,11 +5,11 @@
  * Only works when GITHUB_PAT is set and NODE_ENV !== "production"
  */
 
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { encode } from "next-auth/jwt"
 import { isAuthSkipped, ensureDevUserExists, DEV_USER_ID, DEV_USER } from "@/lib/dev-auth"
 
-export async function GET() {
+export async function GET(request: Request) {
   // Only allow in dev mode
   if (!isAuthSkipped()) {
     return Response.json({ error: "Not available" }, { status: 404 })
@@ -33,7 +33,13 @@ export async function GET() {
 
     // Set the session cookie
     const cookieStore = await cookies()
-    const isSecure = process.env.NEXTAUTH_URL?.startsWith("https") ?? false
+
+    // Determine the base URL from the request (handles proxies like Daytona)
+    const headersList = await headers()
+    const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+    const protocol = headersList.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https")
+    const baseUrl = `${protocol}://${host}`
+    const isSecure = protocol === "https"
 
     cookieStore.set("next-auth.session-token", token, {
       httpOnly: true,
@@ -44,7 +50,7 @@ export async function GET() {
     })
 
     // Redirect to home
-    return Response.redirect(new URL("/", process.env.NEXTAUTH_URL || "http://localhost:3000"))
+    return Response.redirect(new URL("/", baseUrl))
   } catch (error) {
     console.error("Dev session error:", error)
     return Response.json({ error: "Failed to create dev session" }, { status: 500 })
