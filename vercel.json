@@ -1,4 +1,7 @@
 {
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "packages/web/.next",
   "crons": [
     {
       "path": "/api/cron/loop-check",
