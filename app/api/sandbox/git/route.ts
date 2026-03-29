@@ -155,10 +155,20 @@ export async function POST(req: Request) {
         if (!githubToken) {
           return badRequest("GitHub token not found")
         }
-        const expectedBranch = typeof branchName === "string" && branchName.trim()
-          ? branchName.trim()
-          : null
-        // If caller provides an expected branch, enforce it so we never commit/push to the wrong branch.
+        // Look up the current branch name from DB using branchId
+        // This avoids race conditions where client has stale branch name after rename
+        const branchId = body.branchId
+        let expectedBranch: string | null = null
+        if (branchId) {
+          const branchRecord = await prisma.branch.findUnique({
+            where: { id: branchId },
+            select: { name: true },
+          })
+          if (branchRecord) {
+            expectedBranch = branchRecord.name
+          }
+        }
+        // If we have an expected branch from DB, enforce it so we never commit/push to the wrong branch.
         if (expectedBranch) {
           const branchError = await ensureCorrectBranch(sandbox, repoPath, expectedBranch)
           if (branchError) {
