@@ -1,12 +1,13 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, FlaskConical } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, FlaskConical, Palette, Sun, Moon, Monitor } from "lucide-react"
 import { useState, useEffect } from "react"
+import { useTheme } from "next-themes"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 
-type SettingsTab = "agents" | "sandboxes" | "experimental"
+type SettingsTab = "agents" | "sandboxes" | "appearance" | "experimental"
 
 interface SettingsModalProps {
   open: boolean
@@ -34,6 +35,7 @@ type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | 
 
 export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
+  const { theme, setTheme } = useTheme()
 
   // Anthropic credentials (separate API key and subscription)
   const [anthropicApiKey, setAnthropicApiKey] = useState("")
@@ -327,6 +329,18 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
           >
             <Box className="h-3.5 w-3.5" />
             Sandboxes
+          </button>
+          <button
+            onClick={() => setActiveTab("appearance")}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px",
+              activeTab === "appearance"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Palette className="h-3.5 w-3.5" />
+            Appearance
           </button>
           <button
             onClick={() => setActiveTab("experimental")}
