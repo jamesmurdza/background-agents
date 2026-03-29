@@ -7,7 +7,7 @@ import { createOpenAI } from "@ai-sdk/openai"
 // OpenRouter API configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-const OPENROUTER_FREE_MODEL = "arcee-ai/trinity-mini:free"
+const OPENROUTER_MODEL = "openai/gpt-oss-20b"
 
 export interface LLMGenerateOptions {
   userId: string
@@ -20,7 +20,7 @@ export interface LLMGenerateResult {
 }
 
 /**
- * Generates text using OpenRouter's free model (arcee-ai/trinity-mini:free).
+ * Generates text using OpenRouter (openai/gpt-oss-20b).
  * This is used as a fallback when users don't have their own API keys configured.
  *
  * @returns The generated text, or null if generation failed.
@@ -38,7 +38,7 @@ async function generateWithOpenRouter(prompt: string): Promise<string | null> {
     console.log(
       "[generateWithOpenRouter] start",
       JSON.stringify({
-        model: OPENROUTER_FREE_MODEL,
+        model: OPENROUTER_MODEL,
         baseURL: OPENROUTER_BASE_URL,
         promptChars: prompt.length,
       }),
@@ -54,7 +54,7 @@ async function generateWithOpenRouter(prompt: string): Promise<string | null> {
 
     const genT0 = Date.now()
     const result = await generateText({
-      model: openrouter(OPENROUTER_FREE_MODEL),
+      model: openrouter(OPENROUTER_MODEL),
       prompt,
     })
 
