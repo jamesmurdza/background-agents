@@ -13,6 +13,8 @@ export interface SyncBranch {
   status: string
   baseBranch: string | null
   prUrl: string | null
+  agent: string | null
+  model: string | null
   sandboxId: string | null
   lastMessageId: string | null
 }
@@ -47,6 +49,8 @@ function syncBranchToBranch(syncBranch: SyncBranch): Branch {
     status: syncBranch.status as Branch["status"],
     baseBranch: syncBranch.baseBranch || "main",
     prUrl: syncBranch.prUrl || undefined,
+    agent: (syncBranch.agent || "claude-code") as Branch["agent"],
+    model: syncBranch.model || undefined,
     sandboxId: syncBranch.sandboxId || undefined,
     messages: [],
   }
@@ -64,6 +68,9 @@ function mergeSyncBranchIntoExisting(
     name: syncBranch.name, // Sync name in case agent renamed the branch
     status: syncBranch.status as Branch["status"],
     prUrl: syncBranch.prUrl || undefined,
+    // Sync agent/model from server - user may have changed it from another device
+    agent: (syncBranch.agent || existingBranch.agent || "claude-code") as Branch["agent"],
+    model: syncBranch.model || existingBranch.model || undefined,
     sandboxId: syncBranch.sandboxId || undefined,
   }
 }

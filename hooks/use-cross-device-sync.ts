@@ -8,6 +8,8 @@ interface SyncBranch {
   status: string
   baseBranch: string | null
   prUrl: string | null
+  agent: string | null
+  model: string | null
   sandboxId: string | null
   sandboxStatus: string | null
   lastMessageId: string | null
