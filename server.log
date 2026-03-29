@@ -64,3 +64,16 @@ manually inserting an Account record in the database.
  GET /api/user/quota 200 in 98ms (compile: 7ms, render: 91ms)
 ○ Compiling / ...
  GET / 200 in 5.0s (compile: 4.8s, render: 193ms)
+ GET / 200 in 95ms (compile: 12ms, render: 83ms)
+⚠ Cross origin request detected from 3000-5ad314d2-4756-4540-ab46-fa51fc3e78cd.daytonaproxy01.net to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ GET /api/auth/session 200 in 1371ms (compile: 1330ms, render: 41ms)
+ GET /login 200 in 468ms (compile: 450ms, render: 19ms)
+ GET /api/auth/providers 200 in 94ms (compile: 80ms, render: 14ms)
+ GET /api/auth/csrf 200 in 61ms (compile: 40ms, render: 21ms)
+ POST /api/auth/signin/github 200 in 64ms (compile: 41ms, render: 23ms)
+ GET /login 200 in 155ms (compile: 5ms, render: 151ms)
+ GET /api/auth/session 200 in 49ms (compile: 37ms, render: 11ms)
+ GET / 200 in 224ms (compile: 41ms, render: 183ms)
+ GET /api/auth/session 200 in 55ms (compile: 43ms, render: 12ms)
+ GET /login 200 in 21ms (compile: 3ms, render: 18ms)
