@@ -7,7 +7,7 @@ const sdkPath = path.join(__dirname, "node_modules/background-agents")
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   allowedDevOrigins: [
-    "https://3000-2a501f2f-e61d-4fef-9d19-b8727f21f23b.daytonaproxy01.net",
+    "**.daytonaproxy01.net",
   ],
   images: {
     unoptimized: true,
