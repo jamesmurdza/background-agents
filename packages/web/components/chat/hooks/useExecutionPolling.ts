@@ -115,43 +115,72 @@ export function useExecutionPolling({
     try {
       // Optionally run auto-commit first
       if (runAutoCommit) {
-        const autoCommitRes = await fetch("/api/sandbox/git", {
+        const statusRes = await fetch("/api/sandbox/git", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sandboxId: currentSandboxId,
             repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-            action: "auto-commit-push",
-            branchId: targetBranchId,
+            action: "check-rebase-status",
           }),
         })
+        const statusData = (await statusRes.json().catch(() => ({}))) as {
+          inRebase?: boolean
+          inMerge?: boolean
+        }
+        const gitConflictInProgress =
+          statusRes.ok && !!(statusData.inRebase || statusData.inMerge)
 
-        // Show error in chat if push failed, with option to retry
-        if (!autoCommitRes.ok) {
-          const errorData = await autoCommitRes.json().catch(() => ({}))
-          const errorMessage = (errorData as { error?: string }).error || `Push failed (${autoCommitRes.status})`
-
-          // Include push error info so user can retry by deleting remote branch
-          const pushError: PushErrorInfo = {
-            errorMessage,
-            branchName: branch.name,
-            sandboxId: currentSandboxId,
-            repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-            repoOwner,
-            repoApiName,
-          }
-
-          onAddMessage(targetBranchId, {
-            id: generateId(),
-            role: "assistant",
-            assistantSource: ASSISTANT_SOURCE.SYSTEM,
-            content: `⚠️ **Push failed:** ${errorMessage}`,
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
+        if (!gitConflictInProgress) {
+          const autoCommitRes = await fetch("/api/sandbox/git", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sandboxId: currentSandboxId,
+              repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+              action: "auto-commit-push",
+              branchId: targetBranchId,
             }),
-            pushError,
           })
+
+          // Show error in chat if push failed, with option to retry (not for merge/rebase conflicts)
+          if (!autoCommitRes.ok) {
+            const errorData = (await autoCommitRes.json().catch(() => ({}))) as {
+              error?: string
+              inRebase?: boolean
+              inMerge?: boolean
+            }
+            const errorMessage = errorData.error || `Push failed (${autoCommitRes.status})`
+            const isConflictStateError =
+              autoCommitRes.status === 409 &&
+              (errorData.inRebase ||
+                errorData.inMerge ||
+                errorMessage.includes("Merge in progress") ||
+                errorMessage.includes("Rebase in progress"))
+
+            if (!isConflictStateError) {
+              const pushError: PushErrorInfo = {
+                errorMessage,
+                branchName: branch.name,
+                sandboxId: currentSandboxId,
+                repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+                repoOwner,
+                repoApiName,
+              }
+
+              onAddMessage(targetBranchId, {
+                id: generateId(),
+                role: "assistant",
+                assistantSource: ASSISTANT_SOURCE.SYSTEM,
+                content: `⚠️ **Push failed:** ${errorMessage}`,
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                pushError,
+              })
+            }
+          }
         }
       }
 
