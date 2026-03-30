@@ -68,19 +68,28 @@ interface UseRepoDataOptions {
 }
 
 /**
- * Manages fetching and state for repos, quota, and credentials using TanStack Query
+ * Manages fetching and state for repos, quota, and credentials.
+ * Uses TanStack Query for initial fetch and quota/credentials,
+ * but local state for repos to avoid transform/untransform issues during streaming.
  */
 export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
   const queryClient = useQueryClient()
+
+  // Local state for repos - avoids transform/untransform issues with TanStack Query cache
+  const [repos, setRepos] = useState<TransformedRepo[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   // Per-branch request sequencing to ignore stale/out-of-order responses.
   const messageLoadSeqRef = useRef(new Map<string, number>())
   const [loadingMessageBranchIds, setLoadingMessageBranchIds] = useState<Set<string>>(new Set())
 
-  // Main user data query
+  // Keep a ref to repos for callbacks that need current value without re-creating
+  const reposRef = useRef(repos)
+  reposRef.current = repos
+
+  // Main user data query - only for initial fetch and quota/credentials
   const {
     data: userData,
-    isLoading,
     isSuccess,
   } = useQuery({
     queryKey: queryKeys.user.me(),
@@ -90,19 +99,16 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     refetchOnWindowFocus: true,
   })
 
-  // Transform repos from API response
-  const transformedRepos = userData?.repos?.map(transformRepo) ?? []
-
-  // Store repos in ref for callbacks that need current value
-  const reposRef = useRef<TransformedRepo[]>(transformedRepos)
-  reposRef.current = transformedRepos
-
-  // Load message summaries for running branches on initial load
+  // Initialize repos from query data on first success
   useEffect(() => {
-    if (!isSuccess || !userData?.repos) return
+    if (!isSuccess || !userData?.repos || loaded) return
 
-    const transformed = userData.repos.map(transformRepo)
-    const runningBranches = transformed.flatMap((r) =>
+    const transformedRepos = userData.repos.map(transformRepo)
+    setRepos(transformedRepos)
+    setLoaded(true)
+
+    // Load message summaries for running branches
+    const runningBranches = transformedRepos.flatMap((r) =>
       r.branches
         .filter((b) => b.status === BRANCH_STATUS.RUNNING)
         .map((b) => ({ repoId: r.id, branch: b }))
@@ -110,7 +116,6 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
 
     if (runningBranches.length === 0) return
 
-    // Load message summaries for running branches
     Promise.all(
       runningBranches.map(async ({ repoId, branch }) => {
         try {
@@ -127,93 +132,38 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
       )
 
       if (validResults.length > 0) {
-        // Update the cache with message summaries
-        queryClient.setQueryData<UserMeResponse>(queryKeys.user.me(), (old) => {
-          if (!old) return old
-          return {
-            ...old,
-            repos: old.repos.map((repo) => {
-              const branchUpdates = validResults.filter((u) => u.repoId === repo.id)
-              if (branchUpdates.length === 0) return repo
-              return {
-                ...repo,
-                branches: (repo as any).branches?.map((b: any) => {
-                  const update = branchUpdates.find((u) => u.branchId === b.id)
-                  if (!update) return b
-                  return {
-                    ...b,
-                    messages: update.messages,
-                  }
-                }),
-              }
-            }),
-          }
-        })
+        setRepos((prev) =>
+          prev.map((r) => {
+            const branchUpdates = validResults.filter((u) => u.repoId === r.id)
+            if (branchUpdates.length === 0) return r
+            return {
+              ...r,
+              branches: r.branches.map((b) => {
+                const update = branchUpdates.find((u) => u.branchId === b.id)
+                if (!update) return b
+                return {
+                  ...b,
+                  messages: update.messages.map(transformMessageSummary),
+                }
+              }),
+            }
+          })
+        )
       }
     })
-  }, [isSuccess, userData?.repos, queryClient])
+  }, [isSuccess, userData?.repos, loaded])
 
-  // Refresh user data (quota, credentials, repos) from server
+  // Refresh user data from server - refetches and resets local state
   const refresh = useCallback(() => {
+    setLoaded(false) // Allow re-initialization from query
     queryClient.invalidateQueries({ queryKey: queryKeys.user.me() })
   }, [queryClient])
-
-  // Get repos with setter that updates the cache
-  const setRepos = useCallback(
-    (updater: React.SetStateAction<TransformedRepo[]>) => {
-      queryClient.setQueryData<UserMeResponse>(queryKeys.user.me(), (old) => {
-        if (!old) return old
-        const currentRepos = old.repos.map(transformRepo)
-        const newRepos = typeof updater === "function" ? updater(currentRepos) : updater
-
-        // Convert back to DbRepo format for cache
-        return {
-          ...old,
-          repos: newRepos.map((r) => ({
-            id: r.id,
-            name: r.name,
-            owner: r.owner,
-            avatar: r.avatar,
-            defaultBranch: r.defaultBranch,
-            branches: r.branches.map((b) => ({
-              id: b.id,
-              name: b.name,
-              status: b.status,
-              baseBranch: b.baseBranch,
-              prUrl: b.prUrl || null,
-              agent: b.agent || null,
-              model: b.model || null,
-              draftPrompt: b.draftPrompt || null,
-              loopEnabled: b.loopEnabled ?? false,
-              loopCount: b.loopCount ?? 0,
-              loopMaxIterations: b.loopMaxIterations ?? 10,
-              startCommit: b.startCommit || null,
-              lastShownCommitHash: b.lastShownCommitHash || null,
-              // Required fields for DbBranch
-              updatedAt: b.lastActivityTs ? new Date(b.lastActivityTs).toISOString() : new Date().toISOString(),
-              sandbox: b.sandboxId ? {
-                id: b.sandboxId,
-                sandboxId: b.sandboxId,
-                contextId: b.contextId || null,
-                sessionId: b.sessionId || null,
-                previewUrlPattern: b.previewUrlPattern || null,
-                status: "running",
-              } : null,
-              messages: b.messages,
-            })),
-          })) as DbRepo[],
-        }
-      })
-    },
-    [queryClient]
-  )
 
   // Load messages for a specific branch
   const loadBranchMessages = useCallback(
     async (branchId: string, repoId: string, skipIfHasMessages: boolean = true) => {
-      // Check if branch already has FULL messages
-      const repos = reposRef.current
-      const repo = repos.find((r) => r.id === repoId)
+      const currentRepos = reposRef.current
+      const repo = currentRepos.find((r) => r.id === repoId)
       const branch = repo?.branches.find((b) => b.id === branchId)
       if (!branch) return
 
@@ -265,12 +215,12 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
         }
       }
     },
-    [setRepos]
+    []
   )
 
   return {
     // State
-    repos: transformedRepos,
+    repos,
     setRepos,
     quota: userData?.quota ?? null,
     setQuota: (quota: Quota | null) => {
@@ -287,7 +237,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
       })
     },
     isAdmin: userData?.user?.isAdmin ?? false,
-    loaded: isSuccess,
+    loaded,
     messagesLoading: loadingMessageBranchIds.size > 0,
     messagesLoadingBranchIds: loadingMessageBranchIds,
 
