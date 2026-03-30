@@ -17,7 +17,6 @@ import {
   GitBranch,
   RefreshCw,
   Loader2,
-  Trash2,
 } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
 import Markdown from "react-markdown"
@@ -107,7 +106,7 @@ const markdownComponents = {
 
 /** Shared rounded yellow notice bubble (workspace markdown + push-retry UI). Lemon-leaning yellow-400/500 — less orange than yellow-600. */
 const WORKSPACE_NOTICE_PANEL_CLASS =
-  "rounded-lg bg-yellow-400/[0.11] dark:bg-yellow-500/[0.12] px-4 py-2.5 text-sm text-yellow-950 dark:text-yellow-50 [&_a]:text-yellow-700 dark:[&_a]:text-yellow-300 [&_code]:rounded [&_code]:bg-yellow-500/14 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-yellow-900 dark:[&_code]:bg-yellow-500/18 dark:[&_code]:text-yellow-100"
+  "rounded-lg bg-yellow-400/[0.11] dark:bg-yellow-500/[0.12] px-4 py-2.5 text-sm leading-relaxed text-yellow-950 dark:text-yellow-50 [&_p]:text-sm [&_p]:my-1 [&_p]:leading-relaxed [&_strong]:font-medium [&_a]:text-yellow-700 dark:[&_a]:text-yellow-300 [&_code]:rounded [&_code]:bg-yellow-500/14 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-yellow-900 dark:[&_code]:bg-yellow-500/18 dark:[&_code]:text-yellow-100"
 
 function TextBlockContent({ text }: { text: string }) {
   return (
@@ -133,9 +132,19 @@ interface PushErrorRetryProps {
   onRetry: (pushError: PushErrorInfo) => Promise<{ success: boolean; error?: string }>
   messageId: string
   onClearError: () => void
+  /** Render inside parent notice panel (no second box); optional separator when markdown sits above */
+  embedded?: boolean
+  hasSeparator?: boolean
 }
 
-function PushErrorRetry({ pushError, onRetry, messageId, onClearError }: PushErrorRetryProps) {
+function PushErrorRetry({
+  pushError,
+  onRetry,
+  messageId,
+  onClearError,
+  embedded = false,
+  hasSeparator = false,
+}: PushErrorRetryProps) {
   const [isRetrying, setIsRetrying] = useState(false)
   const [retryError, setRetryError] = useState<string | null>(null)
 
@@ -156,43 +165,43 @@ function PushErrorRetry({ pushError, onRetry, messageId, onClearError }: PushErr
     }
   }
 
-  return (
-    <div className={cn("mt-2", WORKSPACE_NOTICE_PANEL_CLASS)}>
-      <div className="flex items-start gap-2">
-        <Trash2 className="h-4 w-4 text-yellow-700 dark:text-yellow-300 mt-0.5 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
-            Push failed
-          </p>
-          <p className="text-xs mt-1 text-yellow-950/80 dark:text-yellow-50/80">
-            Would you like to delete the remote branch and push again? This will replace the remote branch with your local changes.
-          </p>
-          {retryError && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-              {retryError}
-            </p>
-          )}
-          <button
-            onClick={handleRetry}
-            disabled={isRetrying}
-            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-yellow-500/25 text-yellow-900 dark:text-yellow-100 hover:bg-yellow-500/35 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isRetrying ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Deleting and pushing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-3 w-3" />
-                Delete remote branch and push
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+  const body = (
+    <>
+      <p className="text-sm font-medium text-yellow-950 dark:text-yellow-50">Push failed</p>
+      <p className="text-sm mt-1.5 text-yellow-950/90 dark:text-yellow-50/90">
+        Would you like to delete the remote branch and push again? This will replace the remote branch with your local changes.
+      </p>
+      {retryError && (
+        <p className="text-sm mt-1.5 text-red-600 dark:text-red-400">{retryError}</p>
+      )}
+      <button
+        type="button"
+        onClick={handleRetry}
+        disabled={isRetrying}
+        className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md bg-yellow-500/25 text-yellow-950 dark:text-yellow-50 hover:bg-yellow-500/35 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {isRetrying ? (
+          <>
+            <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+            Deleting and pushing...
+          </>
+        ) : (
+          <>
+            <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+            Delete remote branch and push
+          </>
+        )}
+      </button>
+    </>
   )
+
+  if (embedded) {
+    return (
+      <div className={cn(hasSeparator && "mt-3 pt-3 border-t border-yellow-500/20")}>{body}</div>
+    )
+  }
+
+  return <div className={cn("mt-2", WORKSPACE_NOTICE_PANEL_CLASS)}>{body}</div>
 }
 
 // ============================================================================
@@ -265,15 +274,17 @@ export function MessageBubble({ message, agent = "claude-code", agentLabel, onCo
               {message.content}
             </Markdown>
           ) : null}
+          {message.pushError && onRetryPush && (
+            <PushErrorRetry
+              embedded
+              hasSeparator={Boolean(message.content?.trim())}
+              pushError={message.pushError}
+              onRetry={onRetryPush}
+              messageId={message.id}
+              onClearError={() => onClearPushError?.(message.id)}
+            />
+          )}
         </div>
-        {message.pushError && onRetryPush && (
-          <PushErrorRetry
-            pushError={message.pushError}
-            onRetry={onRetryPush}
-            messageId={message.id}
-            onClearError={() => onClearPushError?.(message.id)}
-          />
-        )}
       </div>
     )
   }
