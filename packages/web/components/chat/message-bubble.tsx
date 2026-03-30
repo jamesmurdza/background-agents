@@ -167,9 +167,8 @@ function PushErrorRetry({
 
   const body = (
     <>
-      <p className="text-sm font-medium text-yellow-950 dark:text-yellow-50">Push failed</p>
       <p className="text-sm mt-1.5 text-yellow-950/90 dark:text-yellow-50/90">
-        Would you like to delete the remote branch and push again? This will replace the remote branch with your local changes.
+        You can delete the remote branch and push again to apply your changes:
       </p>
       {retryError && (
         <p className="text-sm mt-1.5 text-red-600 dark:text-red-400">{retryError}</p>
