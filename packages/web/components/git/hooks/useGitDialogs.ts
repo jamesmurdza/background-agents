@@ -197,7 +197,7 @@ export function useGitDialogs({
           .map((f: string) => `- \`${f}\``)
           .join("\n")
         addSystemMessage(
-          `⚠️ **Merge conflict detected**\n\n` +
+          `::icon-warning:: **Merge conflict detected**\n\n` +
             `Merging **${sourceBranch}** into **${targetBranch}** resulted in conflicts.\n\n` +
             `**Conflicted files:**\n${fileList}\n\n` +
             `You can ask the agent to resolve these conflicts, or click **Abort Merge** to cancel.`
@@ -257,7 +257,7 @@ export function useGitDialogs({
           .join('\n')
 
         addSystemMessage(
-          `⚠️ **Rebase conflict detected**\n\n` +
+          `::icon-warning:: **Rebase conflict detected**\n\n` +
           `Rebasing **${branchName}** onto **${selectedBranch}** resulted in conflicts.\n\n` +
           `**Conflicted files:**\n${fileList}\n\n` +
           `You can ask the agent to resolve these conflicts, or click **Abort Rebase** to cancel.`
@@ -283,7 +283,7 @@ export function useGitDialogs({
             repoApiName: apiRepo,
           }
           const content =
-            `⚠️ **Rebase finished locally** but the remote branch could not be updated.\n\n${errMsg}`
+            `::icon-warning:: **Rebase finished locally** but the remote branch could not be updated.\n\n${errMsg}`
           await upsertPushErrorSystemMessage(branchId, branch.messages, content, pushError, {
             onUpdateMessage,
             onAddMessage,

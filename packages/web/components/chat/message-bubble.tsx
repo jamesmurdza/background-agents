@@ -19,8 +19,10 @@ import {
   Loader2,
 } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
+import { NoticeIcon, type NoticeIconType } from "@/components/icons/notice-icons"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import React from "react"
 import {
   Tooltip,
   TooltipContent,
@@ -86,6 +88,56 @@ function ToolCallTimeline({ toolCalls }: { toolCalls: ToolCall[] }) {
   )
 }
 
+// ============================================================================
+// Notice Icon Content Processing
+// ============================================================================
+
+/** Pattern to match notice icon markers like ::icon-warning:: */
+const NOTICE_ICON_PATTERN = /::icon-(warning|success|info|error)::/g
+
+/**
+ * Inline notice icon component rendered within text
+ */
+function InlineNoticeIcon({ type }: { type: NoticeIconType }) {
+  return (
+    <span className="inline-flex items-center align-middle mr-1.5">
+      <NoticeIcon type={type} className="h-4 w-4" />
+    </span>
+  )
+}
+
+/**
+ * Process text content and replace ::icon-*:: markers with React components
+ */
+function processContentWithIcons(content: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  // Reset the regex state
+  NOTICE_ICON_PATTERN.lastIndex = 0
+
+  while ((match = NOTICE_ICON_PATTERN.exec(content)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+
+    // Add the icon component
+    const iconType = match[1] as NoticeIconType
+    parts.push(<InlineNoticeIcon key={match.index} type={iconType} />)
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining text after last match
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : [content]
+}
+
 // Markdown component customizations for proper list rendering
 const markdownComponents = {
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
@@ -102,6 +154,42 @@ const markdownComponents = {
   li: ({ children }: { children?: React.ReactNode }) => (
     <li className="pl-1">{children}</li>
   ),
+}
+
+/**
+ * Notice markdown components - extends base components with icon processing for paragraphs
+ */
+const noticeMarkdownComponents = {
+  ...markdownComponents,
+  p: ({ children }: { children?: React.ReactNode }) => {
+    // Process children to handle icon markers in text nodes
+    const processedChildren = React.Children.map(children, (child) => {
+      if (typeof child === "string") {
+        const processed = processContentWithIcons(child)
+        // If processing resulted in just the original string, return it as-is
+        if (processed.length === 1 && processed[0] === child) {
+          return child
+        }
+        return <>{processed}</>
+      }
+      return child
+    })
+    return <p>{processedChildren}</p>
+  },
+  // Also handle strong tags since bold text is common in notices
+  strong: ({ children }: { children?: React.ReactNode }) => {
+    const processedChildren = React.Children.map(children, (child) => {
+      if (typeof child === "string") {
+        const processed = processContentWithIcons(child)
+        if (processed.length === 1 && processed[0] === child) {
+          return child
+        }
+        return <>{processed}</>
+      }
+      return child
+    })
+    return <strong>{processedChildren}</strong>
+  },
 }
 
 /** Shared rounded yellow notice bubble (workspace markdown + push-retry UI). Lemon-leaning yellow-400/500 — less orange than yellow-600. */
@@ -269,7 +357,7 @@ export function MessageBubble({ message, agent = "claude-code", agentLabel, onCo
         <span className="text-[10px] text-muted-foreground/40 mb-1">{message.timestamp}</span>
         <div className={WORKSPACE_NOTICE_PANEL_CLASS}>
           {message.content ? (
-            <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            <Markdown remarkPlugins={[remarkGfm]} components={noticeMarkdownComponents}>
               {message.content}
             </Markdown>
           ) : null}

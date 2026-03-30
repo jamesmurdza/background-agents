@@ -48,8 +48,8 @@ describe('mergeMessages', () => {
 
   it('keeps local pushError when API has same content', () => {
     const pushError = { errorMessage: 'Force push failed', branchName: 'b', sandboxId: 's', repoPath: 'p', repoOwner: 'o', repoApiName: 'r' }
-    const local: MessageLike[] = [{ id: '1', role: 'assistant', content: '⚠️ push failed', pushError }]
-    const api: ApiMessage[] = [{ id: '1', role: 'assistant', content: '⚠️ push failed' }]
+    const local: MessageLike[] = [{ id: '1', role: 'assistant', content: '::icon-warning:: push failed', pushError }]
+    const api: ApiMessage[] = [{ id: '1', role: 'assistant', content: '::icon-warning:: push failed' }]
     const result = mergeMessages(local, api)
     expect(result[0].pushError).toEqual(pushError)
   })

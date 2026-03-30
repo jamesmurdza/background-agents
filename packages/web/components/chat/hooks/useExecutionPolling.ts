@@ -182,7 +182,7 @@ export function useExecutionPolling({
               await upsertPushErrorSystemMessage(
                 targetBranchId,
                 pollingBranchMessagesRef.current,
-                `⚠️ **Push failed:** ${errorMessage}`,
+                `::icon-warning:: **Push failed:** ${errorMessage}`,
                 pushError,
                 {
                   onUpdateMessage,

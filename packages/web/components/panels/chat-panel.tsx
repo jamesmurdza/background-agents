@@ -614,7 +614,7 @@ export function ChatPanel({
     if (message) {
       // Update the message to remove pushError and update content
       onUpdateMessage(branch.id, messageId, {
-        content: "✅ Force push succeeded.",
+        content: "::icon-success:: **Force push succeeded.**",
         pushError: undefined,
       })
     }
