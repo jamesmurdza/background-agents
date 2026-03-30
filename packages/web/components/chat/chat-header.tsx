@@ -98,32 +98,7 @@ export function ChatHeader({
             />
           </div>
           {(renaming.renameLoading || renaming.suggesting) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
-        </div>
-      ) : (
-        <div className="flex items-center gap-1 min-w-0 ml-2.5 group/branch-section">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <a
-                href={`https://github.com/${repoFullName}/tree/${branch.name}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 min-w-0 py-1 cursor-pointer"
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-muted-foreground">
-                  <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
-                </svg>
-                <span className="truncate text-xs font-mono text-muted-foreground">{branch.name}</span>
-              </a>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">Open on GitHub</TooltipContent>
-          </Tooltip>
-          <button
-            onClick={renaming.startRenaming}
-            className="cursor-pointer px-1"
-          >
-            <Pencil className="h-2.5 w-2.5 shrink-0 text-muted-foreground/60 group-hover/branch-section:text-muted-foreground transition-colors" />
-          </button>
-          {/* Magic wand button for AI-suggested branch name */}
+          {/* Magic wand button for AI-suggested branch name - only shown when editing */}
           {renaming.canSuggestName && (
             <button
               onClick={renaming.suggestBranchName}
@@ -134,10 +109,35 @@ export function ChatHeader({
               {renaming.suggesting ? (
                 <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin text-muted-foreground" />
               ) : (
-                <Sparkles className="h-2.5 w-2.5 shrink-0 text-muted-foreground/70 group-hover/branch-section:text-foreground transition-colors" />
+                <Sparkles className="h-2.5 w-2.5 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
               )}
             </button>
           )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 min-w-0 ml-2.5 group/branch-section">
+          <a
+            href={`https://github.com/${repoFullName}/tree/${branch.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 min-w-0 py-1 cursor-pointer group/branch-link"
+          >
+            {/* Branch icon - shown by default, hidden on hover */}
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-muted-foreground group-hover/branch-link:hidden">
+              <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
+            </svg>
+            {/* GitHub icon - hidden by default, shown on hover */}
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 text-muted-foreground hidden group-hover/branch-link:block">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+            <span className="truncate text-xs font-mono text-muted-foreground">{branch.name}</span>
+          </a>
+          <button
+            onClick={renaming.startRenaming}
+            className="cursor-pointer px-1"
+          >
+            <Pencil className="h-2.5 w-2.5 shrink-0 text-muted-foreground/60 group-hover/branch-section:text-muted-foreground transition-colors" />
+          </button>
         </div>
       )}
 
