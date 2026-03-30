@@ -81,6 +81,10 @@ export default function Home() {
     loadBranchMessages,
   } = useRepoData({ isAuthenticated: status === "authenticated" })
 
+  // Ref for repos to avoid stale closures and unnecessary callback recreations
+  const reposRef = useRef(repos)
+  reposRef.current = repos
+
   // Selection state
   const {
     activeRepoId,
@@ -96,13 +100,13 @@ export default function Home() {
   // Wrap selectRepo to also update URL (without triggering page reload)
   const selectRepo = useCallback(
     (repoId: string) => {
-      const repo = repos.find((r) => r.id === repoId)
+      const repo = reposRef.current.find((r) => r.id === repoId)
       if (repo) {
         updateUrlToRepo(repo.owner, repo.name)
       }
       selectRepoInternal(repoId)
     },
-    [repos, updateUrlToRepo, selectRepoInternal]
+    [updateUrlToRepo, selectRepoInternal]
   )
 
   // Repo operations
