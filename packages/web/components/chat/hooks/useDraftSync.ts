@@ -122,9 +122,19 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
         debounceTimerRef.current = null
       }
 
-      // Save the current input to the OLD branch before switching
       const currentInput = inputRef.current
-      if (currentInput !== lastSavedDraftRef.current && !prevBranchId.startsWith("temp-")) {
+      // Client-created branches use a temporary id until the server returns the real one.
+      // Same name + different id means an id handoff, not a sidebar branch switch.
+      const isIdMigration =
+        prevBranchNameRef.current === branch.name && prevBranchId !== branch.id
+
+      // Save the current input to the OLD branch before a real branch switch (not id migration).
+      // During id migration the old id is not valid server-side; draft was also skipped while CREATING.
+      if (
+        currentInput !== lastSavedDraftRef.current &&
+        !prevBranchId.startsWith("temp-") &&
+        !isIdMigration
+      ) {
         if (onSaveDraftForBranch) {
           onSaveDraftForBranch(prevBranchId, currentInput)
         } else {
@@ -136,9 +146,29 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
         }
       }
 
-      // Now load the NEW branch's draft
-      setInput(branch.draftPrompt ?? "")
-      lastSavedDraftRef.current = branch.draftPrompt ?? ""
+      // Load draft for the branch we're on. For id migration, keep local text if nothing was saved yet.
+      const mergedDraft = isIdMigration
+        ? (branch.draftPrompt ?? currentInput)
+        : (branch.draftPrompt ?? "")
+      setInput(mergedDraft)
+      lastSavedDraftRef.current = mergedDraft
+
+      // Persist under the real branch id — autosave was disabled while CREATING so DB never got the draft.
+      if (
+        isIdMigration &&
+        mergedDraft !== "" &&
+        !branch.id.startsWith("temp-")
+      ) {
+        if (onSaveDraftForBranch) {
+          onSaveDraftForBranch(branch.id, mergedDraft)
+        } else {
+          fetch("/api/branches", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branchId: branch.id, draftPrompt: mergedDraft }),
+          }).catch(() => {})
+        }
+      }
 
       // Update refs to track the new branch
       prevBranchIdRef.current = branch.id
