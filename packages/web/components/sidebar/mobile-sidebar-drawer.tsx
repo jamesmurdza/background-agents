@@ -206,6 +206,8 @@ export function MobileSidebarDrawer({
         },
         {
           onDone: (result) => {
+            // Don't include agent here - it's already set in local state and
+            // result.agent is the default, which would overwrite user's selection
             onUpdateBranch(branchId, {
               id: result.branchId,
               status: BRANCH_STATUS.IDLE,
@@ -213,7 +215,6 @@ export function MobileSidebarDrawer({
               contextId: result.contextId,
               previewUrlPattern: result.previewUrlPattern,
               startCommit: result.startCommit,
-              agent: result.agent,
             })
             onQuotaRefresh?.()
           },
