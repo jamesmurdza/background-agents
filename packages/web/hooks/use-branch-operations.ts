@@ -131,7 +131,8 @@ export function useBranchOperations({
     // Only update in database if branch exists there (not during creation)
     const shouldPersist = !isBeingCreated || updates.id
     const hasFieldsToPersist = updates.status || updates.prUrl || updates.name || updates.draftPrompt !== undefined ||
-      updates.loopEnabled !== undefined || updates.loopCount !== undefined || updates.loopMaxIterations !== undefined
+      updates.loopEnabled !== undefined || updates.loopCount !== undefined || updates.loopMaxIterations !== undefined ||
+      updates.agent !== undefined || updates.model !== undefined
 
     if (shouldPersist && hasFieldsToPersist) {
       updateBranchMutation.mutate({ branchId: dbBranchId, updates })
