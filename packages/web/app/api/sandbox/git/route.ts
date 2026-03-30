@@ -637,9 +637,8 @@ export async function POST(req: Request) {
 
       case "force-push": {
         // Force-push to sync diverged history while preserving PRs
-        // Strategy: push to a temp branch (normal push), then use GitHub API to
-        // force-update the real branch ref. This works around sandbox force-push
-        // restrictions while preserving PRs (unlike delete + push).
+        // Strategy: create temp branch, push via Daytona SDK to get commits on GitHub,
+        // then use GitHub API to force-update the real branch ref.
         if (!currentBranch || !githubToken || !repoOwner || !repoApiName) {
           return badRequest("Missing required fields for force-push")
         }
@@ -653,16 +652,32 @@ export async function POST(req: Request) {
         }
         const sha = shaResult.result.trim()
 
-        // Step 1: Push to a temp branch so GitHub has the commit objects
+        // Step 1: Create and checkout a temp branch at current HEAD
         const tempBranch = `temp-force-push-${Date.now()}`
-        const pushResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git push https://x-access-token:${githubToken}@github.com/${repoOwner}/${repoApiName}.git HEAD:refs/heads/${tempBranch} 2>&1`
+        const createBranchResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git checkout -b ${tempBranch} 2>&1`
         )
-        if (pushResult.exitCode !== 0) {
-          return Response.json({ error: "Failed to push commits: " + pushResult.result }, { status: 500 })
+        if (createBranchResult.exitCode !== 0) {
+          return Response.json({ error: "Failed to create temp branch: " + createBranchResult.result }, { status: 500 })
         }
 
-        // Step 2: Use GitHub API to force-update the branch ref to the new SHA
+        // Step 2: Push temp branch via Daytona SDK (uploads commits to GitHub)
+        try {
+          await sandbox.git.push(repoPath, "x-access-token", githubToken)
+        } catch (pushErr) {
+          // Restore original branch before returning error
+          await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
+          await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
+          return Response.json({
+            error: "Failed to push temp branch: " + (pushErr instanceof Error ? pushErr.message : String(pushErr))
+          }, { status: 500 })
+        }
+
+        // Step 3: Checkout original branch and delete temp local branch
+        await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
+        await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
+
+        // Step 4: Use GitHub API to force-update the real branch ref to the new SHA
         const refRes = await fetch(
           `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
           {
@@ -675,7 +690,7 @@ export async function POST(req: Request) {
           }
         )
 
-        // Step 3: Delete the temp branch (best effort)
+        // Step 5: Delete the temp remote branch (best effort)
         await fetch(
           `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${tempBranch}`,
           {
