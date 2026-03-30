@@ -59,6 +59,8 @@ interface ChatPanelProps {
   defaultLoopMaxIterations?: number
   /** Whether the loop until finished feature is enabled (experimental) */
   loopUntilFinishedEnabled?: boolean
+  /** Notifies parent when rebase conflict state changes (e.g. for layout chrome) */
+  onRebaseConflictChange?: (inRebaseConflict: boolean) => void
 }
 
 export function ChatPanel({
@@ -83,6 +85,7 @@ export function ChatPanel({
   onOpenSettingsWithHighlight,
   defaultLoopMaxIterations = DEFAULT_LOOP_MAX_ITERATIONS,
   loopUntilFinishedEnabled = false,
+  onRebaseConflictChange,
 }: ChatPanelProps) {
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -239,6 +242,10 @@ export function ChatPanel({
     onAddMessage,
     onToggleGitHistory,
   })
+
+  useEffect(() => {
+    onRebaseConflictChange?.(!!gitActions.gitDialogs.rebaseConflict?.inRebase)
+  }, [gitActions.gitDialogs.rebaseConflict?.inRebase, onRebaseConflictChange])
 
   const canSuggestName = !!(
     credentials?.hasAnthropicApiKey ||

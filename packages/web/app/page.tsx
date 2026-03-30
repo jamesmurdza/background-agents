@@ -16,6 +16,7 @@ import { MobileSidebarDrawer } from "@/components/sidebar/mobile-sidebar-drawer"
 import { DiffModal } from "@/components/modals/diff-modal"
 import { GitDialogs, useGitDialogs } from "@/components/git"
 import { BRANCH_STATUS } from "@/lib/shared/constants"
+import { cn } from "@/lib/shared/utils"
 import { Loader2 } from "lucide-react"
 
 // Import hooks
@@ -152,6 +153,7 @@ export default function Home() {
   const [pendingStartCommit, setPendingStartCommit] = useState<string | null>(null)
   const [repoSettingsOpen, setRepoSettingsOpen] = useState(false)
   const [repoEnvVars, setRepoEnvVars] = useState<Record<string, boolean> | null>(null)
+  const [desktopRebaseConflict, setDesktopRebaseConflict] = useState(false)
 
   // Handler to open settings with a specific field highlighted
   const handleOpenSettingsWithHighlight = useCallback((field: string) => {
@@ -227,6 +229,10 @@ export default function Home() {
       loadBranchMessages(activeBranchId, activeRepoId)
     }
   }, [activeBranchId, activeRepoId, loadBranchMessages])
+
+  useEffect(() => {
+    if (!activeBranch) setDesktopRebaseConflict(false)
+  }, [activeBranch])
 
   // Dynamic page title with org/repo and notification counts
   useEffect(() => {
@@ -355,7 +361,14 @@ export default function Home() {
 
         {/* Mobile: Header + Chat (Slack-like layout) */}
         {isMobile && (
-          <div className="flex flex-1 flex-col min-h-0 min-w-0 w-full max-w-full overflow-hidden">
+          <div
+            className={cn(
+              "flex flex-1 flex-col min-h-0 min-w-0 w-full max-w-full overflow-hidden",
+              activeBranch &&
+                mobileGitDialogs.rebaseConflict?.inRebase &&
+                "border-2 border-red-600 dark:border-red-500"
+            )}
+          >
             {/* Mobile Header with hamburger and actions */}
             <MobileHeader
               repoOwner={activeRepo?.owner || null}
@@ -428,9 +441,14 @@ export default function Home() {
           />
         )}
 
-        {/* Desktop: Main content area */}
+        {/* Desktop: Main content area (branch list is outside this wrapper) */}
         {!isMobile && (
-        <div className="flex min-w-0 flex-1">
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1",
+            desktopRebaseConflict && "border-2 border-red-600 dark:border-red-500"
+          )}
+        >
           {activeBranch && activeRepo ? (
             <ChatPanel
               key={`${activeRepo.id}-${activeBranch.name}`}
@@ -454,6 +472,7 @@ export default function Home() {
               onOpenSettingsWithHighlight={handleOpenSettingsWithHighlight}
               defaultLoopMaxIterations={credentials?.defaultLoopMaxIterations}
               loopUntilFinishedEnabled={credentials?.loopUntilFinishedEnabled}
+              onRebaseConflictChange={setDesktopRebaseConflict}
             />
           ) : (
             <EmptyChatPanel hasRepos={repos.length > 0} />
