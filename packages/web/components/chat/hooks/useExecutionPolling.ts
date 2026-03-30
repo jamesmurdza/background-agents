@@ -3,6 +3,21 @@ import type { Branch, Message, PushErrorInfo } from "@/lib/shared/types"
 import { generateId } from "@/lib/shared/store"
 import { BRANCH_STATUS, EXECUTION_STATUS, PATHS } from "@/lib/shared/constants"
 import { isLoopFinished, LOOP_CONTINUATION_MESSAGE } from "@/lib/shared/types"
+import {
+  addToolCallIds,
+  addContentBlockIds,
+  shouldContinueLoop,
+  buildErrorContent,
+  MAX_NOT_FOUND_RETRIES,
+  STOPPED_WITHOUT_END_NOTE,
+  type ToolCallWithId,
+  type ContentBlockWithId,
+} from "@/lib/core/polling"
+import {
+  getExistingCommitHashes,
+  filterNewCommits,
+} from "@/lib/core/git"
+import type { ToolCall, ContentBlock } from "@/lib/shared/types"
 
 interface UseExecutionPollingOptions {
   branch: Branch
@@ -157,25 +172,18 @@ export function useExecutionPolling({
 
         // Safety check: filter out commits already shown in chat (deduplication)
         // Use the messages from the branch being polled, not the currently viewed branch
-        const chatCommits = new Set(
-          pollingBranchMessagesRef.current
-            .filter((m) => m.commitHash)
-            .map((m) => m.commitHash),
-        )
+        // Map to simplified format for pure function
+        const messagesForDedup = pollingBranchMessagesRef.current.map(m => ({
+          id: m.id,
+          commitHash: m.commitHash
+        }))
+        const existingHashes = getExistingCommitHashes(messagesForDedup)
 
-        // Only show commits that are newer than any already-displayed commit.
-        // git log returns commits newest-first, so stop at the first commit
-        // we've already seen to avoid showing out-of-order/repeated commits.
-        const firstSeenIdx = allCommits.findIndex((c) =>
-          chatCommits.has(c.shortHash),
-        )
-        const newCommits =
-          firstSeenIdx === -1
-            ? allCommits // No overlap, all are new
-            : allCommits.slice(0, firstSeenIdx) // Only commits before first seen
+        // Filter to only new commits (uses pure function from lib/core/git)
+        const newCommits = filterNewCommits(allCommits, existingHashes)
 
-        // Add commit messages to chat (oldest first)
-        for (const c of [...newCommits].reverse()) {
+        // Add commit messages to chat (already in oldest-first order from filterNewCommits)
+        for (const c of newCommits) {
           const commitMessage: Message = {
             id: generateId(),
             role: "assistant",
@@ -248,12 +256,11 @@ export function useExecutionPolling({
     }
 
     let notFoundRetries = 0
-    const MAX_NOT_FOUND_RETRIES = 10
+    // MAX_NOT_FOUND_RETRIES imported from lib/core/polling
     // Reset completion flag for new polling session
     completionHandledRef.current = false
 
-    const STOPPED_WITHOUT_END_NOTE =
-      "\n\n---\n*Agent stopped without responding. Please try again.*"
+    // STOPPED_WITHOUT_END_NOTE imported from lib/core/polling
 
     const appendStoppedWithoutEndNote = () => {
       const targetBranchId = pollingBranchIdRef.current
@@ -329,46 +336,10 @@ export function useExecutionPolling({
           (data.toolCalls && data.toolCalls.length > 0) ||
           (data.contentBlocks && data.contentBlocks.length > 0)
         ) {
-          const toolCallsWithIds = (data.toolCalls || []).map(
-            (tc: { tool: string; summary: string; fullSummary?: string }, idx: number) => ({
-              id: `tc-${idx}`,
-              tool: tc.tool,
-              summary: tc.summary,
-              fullSummary: tc.fullSummary,
-              timestamp: new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            }),
-          )
-
-          const contentBlocksWithIds = (data.contentBlocks || []).map(
-            (
-              block: {
-                type: string
-                text?: string
-                toolCalls?: Array<{ tool: string; summary: string; fullSummary?: string }>
-              },
-              blockIdx: number,
-            ) => {
-              if (block.type === "tool_calls" && block.toolCalls) {
-                return {
-                  type: "tool_calls" as const,
-                  toolCalls: block.toolCalls.map((tc, tcIdx) => ({
-                    id: `tc-${blockIdx}-${tcIdx}`,
-                    tool: tc.tool,
-                    summary: tc.summary,
-                    fullSummary: tc.fullSummary,
-                    timestamp: new Date().toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }),
-                  })),
-                }
-              }
-              return block
-            },
-          )
+          // Use pure functions from lib/core/polling for ID generation
+          // Cast to app types since the pure functions use simpler internal types
+          const toolCallsWithIds = addToolCallIds(data.toolCalls || []) as ToolCall[]
+          const contentBlocksWithIds = addContentBlockIds(data.contentBlocks || []) as ContentBlock[]
 
           // Use pollingBranchIdRef to ensure updates go to the correct branch
           const targetBranchId = pollingBranchIdRef.current
@@ -405,45 +376,11 @@ export function useExecutionPolling({
           // Persist final message to DB so refresh loads full content
           const targetBranchId = pollingBranchIdRef.current
           if (targetBranchId) {
-            const finalToolCalls = (data.toolCalls || []).map(
-              (tc: { tool: string; summary: string; fullSummary?: string }, idx: number) => ({
-                id: `tc-${idx}`,
-                tool: tc.tool,
-                summary: tc.summary,
-                fullSummary: tc.fullSummary,
-                timestamp: new Date().toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-              }),
-            )
-            const finalContentBlocks = (data.contentBlocks || []).map(
-              (
-                block: {
-                  type: string
-                  text?: string
-                  toolCalls?: Array<{ tool: string; summary: string; fullSummary?: string }>
-                },
-                blockIdx: number,
-              ) => {
-                if (block.type === "tool_calls" && block.toolCalls) {
-                  return {
-                    type: "tool_calls" as const,
-                    toolCalls: block.toolCalls.map((tc, tcIdx) => ({
-                      id: `tc-${blockIdx}-${tcIdx}`,
-                      tool: tc.tool,
-                      summary: tc.summary,
-                      fullSummary: tc.fullSummary,
-                      timestamp: new Date().toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }),
-                    })),
-                  }
-                }
-                return block
-              },
-            )
+            // Use pure functions from lib/core/polling for ID generation
+            // Cast to app types since the pure functions use simpler internal types
+            const finalToolCalls = addToolCallIds(data.toolCalls || []) as ToolCall[]
+            const finalContentBlocks = addContentBlockIds(data.contentBlocks || []) as ContentBlock[]
+
             let finalContent = data.content || ""
             const hasNoOutput =
               !finalContent &&
@@ -476,16 +413,8 @@ export function useExecutionPolling({
           if (data.status === EXECUTION_STATUS.ERROR) {
             const errBranchId = pollingBranchIdRef.current
             if (errBranchId) {
-              let content = data.content ?? ""
-              if (data.agentCrashed) {
-                const { message, output } = data.agentCrashed
-                const crashMsg = message ?? "Process exited without completing"
-                content = content ? `${content}\n\n[Agent crashed: ${crashMsg}]` : `[Agent crashed: ${crashMsg}]`
-                if (output) content += `\n\nOutput:\n${output}`
-              } else if (data.error) {
-                const runFailed = `Run failed: ${data.error}`
-                content = content ? `${content}\n\n${runFailed}` : runFailed
-              }
+              // Use pure function from lib/core/polling for error content building
+              const content = buildErrorContent(data.content ?? "", data.error, data.agentCrashed)
               if (content !== (data.content ?? "")) {
                 const errSave = onUpdateMessage(errBranchId, messageId, { content })
                 if (errSave) await errSave
@@ -500,15 +429,19 @@ export function useExecutionPolling({
 
           const completedBranchId = completedBranchIdForLog ?? pollingBranchIdRef.current
 
-          // Check if loop mode should continue
-          const shouldContinueLoop =
+          // Check if loop mode should continue (uses pure function from lib/core/polling)
+          const loopShouldContinue =
             completedBranchId &&
-            loopEnabledRef.current &&
-            data.status === EXECUTION_STATUS.COMPLETED &&
-            loopCountRef.current < loopMaxIterationsRef.current &&
-            !isLoopFinished(data.content)
+            shouldContinueLoop(
+              data.status as 'completed' | 'error',
+              loopEnabledRef.current ?? false,
+              loopCountRef.current,
+              loopMaxIterationsRef.current,
+              data.content || "",
+              isLoopFinished
+            )
 
-          if (shouldContinueLoop && completedBranchId) {
+          if (loopShouldContinue && completedBranchId) {
             // Increment loop count and set status to running immediately
             // This prevents the cron job from also triggering a continuation (race condition)
             const newLoopCount = loopCountRef.current + 1
