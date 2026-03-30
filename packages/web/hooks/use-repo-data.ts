@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useEffect, useState } from "react"
+import { useCallback, useRef, useEffect, useState, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   DbMessage,
@@ -90,8 +90,11 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     refetchOnWindowFocus: true,
   })
 
-  // Transform repos from API response
-  const transformedRepos = userData?.repos?.map(transformRepo) ?? []
+  // Transform repos from API response - memoized to prevent unnecessary re-renders
+  const transformedRepos = useMemo(
+    () => userData?.repos?.map(transformRepo) ?? [],
+    [userData?.repos]
+  )
 
   // Store repos in ref for callbacks that need current value
   const reposRef = useRef<TransformedRepo[]>(transformedRepos)

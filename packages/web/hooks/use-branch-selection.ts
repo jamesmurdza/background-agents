@@ -33,9 +33,12 @@ export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSele
     markInitialSelectionDone,
   } = useSelectionStore()
 
-  // Keep a ref for accessing current value in callbacks without dependency
+  // Keep refs for accessing current values in callbacks without dependency
   const activeBranchIdRef = useRef(activeBranchId)
   activeBranchIdRef.current = activeBranchId
+
+  const reposRef = useRef(repos)
+  reposRef.current = repos
 
   // Handle URL-based repo selection on initial load
   useEffect(() => {
@@ -112,9 +115,9 @@ export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSele
 
   // Selection handlers that also find the first branch
   const selectRepo = useCallback((repoId: string) => {
-    const repo = repos.find((r) => r.id === repoId)
+    const repo = reposRef.current.find((r) => r.id === repoId)
     storeSelectRepo(repoId, repo?.branches[0]?.id ?? null)
-  }, [repos, storeSelectRepo])
+  }, [storeSelectRepo])
 
   const selectBranch = useCallback((branchId: string) => {
     storeSelectBranch(branchId)
