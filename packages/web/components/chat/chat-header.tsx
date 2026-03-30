@@ -64,7 +64,7 @@ export function ChatHeader({
 }: ChatHeaderProps) {
   const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
   const isBusy = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING
-  const inConflict = rebaseConflict?.inRebase ?? false
+  const inConflict = (rebaseConflict?.inRebase || rebaseConflict?.inMerge) ?? false
 
   return (
     <header className={cn(
@@ -195,7 +195,9 @@ export function ChatHeader({
           <>
             <div className="flex items-center gap-1.5 text-red-500">
               <AlertTriangle className="h-3.5 w-3.5" />
-              <span className="text-xs font-medium">Rebase Conflict</span>
+              <span className="text-xs font-medium">
+                {rebaseConflict?.inMerge ? "Merge" : "Rebase"} Conflict
+              </span>
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -209,11 +211,13 @@ export function ChatHeader({
                   ) : (
                     <XCircle className="h-3.5 w-3.5" />
                   )}
-                  <span className="text-xs font-medium">Abort Rebase</span>
+                  <span className="text-xs font-medium">
+                    Abort {rebaseConflict?.inMerge ? "Merge" : "Rebase"}
+                  </span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
-                Abort the rebase and return to the previous state
+                Abort the {rebaseConflict?.inMerge ? "merge" : "rebase"} and return to the previous state
               </TooltipContent>
             </Tooltip>
             <div className="mx-1.5 h-4 w-px bg-red-500/30 shrink-0" />

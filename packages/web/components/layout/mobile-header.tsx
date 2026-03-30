@@ -77,7 +77,7 @@ export function MobileHeader({
   const hasPR = !!branch?.prUrl
   const hasSandbox = !!branch?.sandboxId
   const showMenu = !!(repoOwner && repoName && branch)
-  const inConflict = rebaseConflict?.inRebase ?? false
+  const inConflict = (rebaseConflict?.inRebase || rebaseConflict?.inMerge) ?? false
 
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState("")
