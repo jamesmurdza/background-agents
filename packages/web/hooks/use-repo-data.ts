@@ -153,13 +153,8 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     })
   }, [isSuccess, userData?.repos, queryClient])
 
-  // Refresh quota from server
-  const refreshQuota = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.user.me() })
-  }, [queryClient])
-
-  // Refresh credentials from server
-  const refreshCredentials = useCallback(() => {
+  // Refresh user data (quota, credentials, repos) from server
+  const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.user.me() })
   }, [queryClient])
 
@@ -297,8 +292,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
     messagesLoadingBranchIds: loadingMessageBranchIds,
 
     // Actions
-    refreshQuota,
-    refreshCredentials,
+    refresh,
     loadBranchMessages,
   }
 }

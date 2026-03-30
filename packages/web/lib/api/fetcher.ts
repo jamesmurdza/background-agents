@@ -21,7 +21,6 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options ?? {}
 
-  // Create abort controller for timeout
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeout)
 
@@ -52,7 +51,6 @@ export async function apiFetch<T>(
       )
     }
 
-    // Handle empty responses
     const text = await response.text()
     if (!text) {
       return {} as T
@@ -104,18 +102,5 @@ export async function apiPatch<T, B = unknown>(
     ...options,
     method: "PATCH",
     body: JSON.stringify(body),
-  })
-}
-
-/**
- * DELETE request helper
- */
-export async function apiDelete<T>(
-  url: string,
-  options?: Omit<FetchOptions, "method">
-): Promise<T> {
-  return apiFetch<T>(url, {
-    ...options,
-    method: "DELETE",
   })
 }

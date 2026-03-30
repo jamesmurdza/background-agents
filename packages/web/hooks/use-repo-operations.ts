@@ -17,7 +17,7 @@ interface UseRepoOperationsOptions {
   activeRepo: TransformedRepo | null
   selectRepo: (repoId: string) => void
   setActiveBranchId: (branchId: string | null) => void
-  refreshQuota: () => void
+  refresh: () => void
 }
 
 /**
@@ -30,7 +30,7 @@ export function useRepoOperations({
   activeRepo,
   selectRepo,
   setActiveBranchId,
-  refreshQuota,
+  refresh,
 }: UseRepoOperationsOptions) {
   // Add a new repo (persists to DB, then updates state and selection)
   const handleAddRepo = useCallback(
@@ -167,9 +167,9 @@ export function useRepoOperations({
       setActiveBranchId(remainingAfterDeletion[0]?.id ?? null)
     }
 
-    // Refresh quota
-    refreshQuota()
-  }, [activeRepo, setRepos, setActiveBranchId, refreshQuota])
+    // Refresh data
+    refresh()
+  }, [activeRepo, setRepos, setActiveBranchId, refresh])
 
   return {
     handleAddRepo,

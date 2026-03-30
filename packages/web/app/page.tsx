@@ -25,7 +25,6 @@ import {
   useBranchSelection,
   useRepoOperations,
   useBranchOperations,
-  useMobileUIState,
   useMobileHandlers,
   useSyncData,
   useCrossDeviceSync,
@@ -78,8 +77,7 @@ export default function Home() {
     isAdmin,
     loaded,
     messagesLoadingBranchIds,
-    refreshQuota,
-    refreshCredentials,
+    refresh,
     loadBranchMessages,
   } = useRepoData({ isAuthenticated: status === "authenticated" })
 
@@ -121,7 +119,7 @@ export default function Home() {
     activeRepo,
     selectRepo,
     setActiveBranchId,
-    refreshQuota,
+    refresh,
   })
 
   // Branch operations
@@ -157,18 +155,28 @@ export default function Home() {
   // This is used to prevent sync from overwriting streaming content
   const streamingMessageIdRef = useRef<string | null>(null)
 
-  // Mobile UI state (now using Zustand)
-  const mobileUI = useMobileUIState()
+  // Mobile UI state from Zustand
+  const {
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
+    mobileSandboxToggleLoading,
+    setMobileSandboxToggleLoading,
+    mobilePrLoading,
+    setMobilePrLoading,
+    mobileDiffOpen,
+    closeMobileDiff,
+    openMobileDiff,
+  } = useUIStore()
 
   // Mobile handlers
   const { handleMobileSandboxToggle, handleMobileCreatePR } = useMobileHandlers({
     activeBranch,
     activeRepo,
     handleUpdateBranch,
-    mobileSandboxToggleLoading: mobileUI.mobileSandboxToggleLoading,
-    setMobileSandboxToggleLoading: mobileUI.setMobileSandboxToggleLoading,
-    mobilePrLoading: mobileUI.mobilePrLoading,
-    setMobilePrLoading: mobileUI.setMobilePrLoading,
+    mobileSandboxToggleLoading,
+    setMobileSandboxToggleLoading,
+    mobilePrLoading,
+    setMobilePrLoading,
   })
 
   // Mobile git dialogs (merge, rebase, tag) - uses shared hook
@@ -331,8 +339,8 @@ export default function Home() {
         {/* Mobile Sidebar Drawer */}
         {isMobile && (
           <MobileSidebarDrawer
-            open={mobileUI.mobileSidebarOpen}
-            onOpenChange={mobileUI.setMobileSidebarOpen}
+            open={mobileSidebarOpen}
+            onOpenChange={setMobileSidebarOpen}
             repos={repos}
             activeRepoId={activeRepoId}
             activeBranchId={activeBranchId}
@@ -351,7 +359,7 @@ export default function Home() {
             quota={quota}
             onAddBranch={handleAddBranch}
             onUpdateBranch={handleUpdateBranch}
-            onQuotaRefresh={refreshQuota}
+            onQuotaRefresh={refresh}
             credentials={credentials}
             onRemoveBranch={(branchId, deleteRemote) => handleRemoveBranch(branchId, deleteRemote, activeBranchId ?? undefined)}
             onSwitchAwayFromBranchBeforeDelete={switchAwayFromBranchBeforeDelete}
@@ -373,7 +381,7 @@ export default function Home() {
               onRemoveBranch={(branchId, deleteRemote) => handleRemoveBranch(branchId, deleteRemote, activeBranchId ?? undefined)}
               onSwitchAwayFromBranchBeforeDelete={switchAwayFromBranchBeforeDelete}
               onUpdateBranch={handleUpdateBranch}
-              onQuotaRefresh={refreshQuota}
+              onQuotaRefresh={refresh}
               width={branchListWidth}
               onWidthChange={setBranchListWidth}
               pendingStartCommit={pendingStartCommit}
@@ -409,16 +417,16 @@ export default function Home() {
               repoOwner={activeRepo?.owner || null}
               repoName={activeRepo?.name || null}
               branch={activeBranch}
-              onOpenSidebar={() => mobileUI.setMobileSidebarOpen(true)}
+              onOpenSidebar={() => setMobileSidebarOpen(true)}
               onToggleGitHistory={toggleGitHistory}
-              onOpenDiff={() => mobileUI.setMobileDiffOpen(true)}
+              onOpenDiff={openMobileDiff}
               onCreatePR={handleMobileCreatePR}
               onSandboxToggle={handleMobileSandboxToggle}
               onMerge={() => mobileGitDialogs.setMergeOpen(true)}
               onRebase={() => mobileGitDialogs.setRebaseOpen(true)}
               gitHistoryOpen={gitHistoryOpen}
-              sandboxToggleLoading={mobileUI.mobileSandboxToggleLoading}
-              prLoading={mobileUI.mobilePrLoading}
+              sandboxToggleLoading={mobileSandboxToggleLoading}
+              prLoading={mobilePrLoading}
               onUpdateBranch={handleUpdateBranch}
               credentials={credentials}
               rebaseConflict={mobileGitDialogs.rebaseConflict}
@@ -532,7 +540,7 @@ export default function Home() {
         open={settingsOpen}
         onClose={handleSettingsClose}
         credentials={credentials}
-        onCredentialsUpdate={refreshCredentials}
+        onCredentialsUpdate={refresh}
         highlightField={settingsHighlightField}
         onClearHighlight={clearSettingsHighlight}
       />
@@ -559,8 +567,8 @@ export default function Home() {
       {/* Mobile Diff Modal */}
       {isMobile && activeRepo && activeBranch && (
         <DiffModal
-          open={mobileUI.mobileDiffOpen}
-          onClose={() => mobileUI.setMobileDiffOpen(false)}
+          open={mobileDiffOpen}
+          onClose={closeMobileDiff}
           repoOwner={activeRepo.owner}
           repoName={activeRepo.name}
           branchName={activeBranch.name}

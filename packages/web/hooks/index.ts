@@ -14,9 +14,6 @@ export type { RepoOperations } from "./use-repo-operations"
 export { useBranchOperations } from "./use-branch-operations"
 export type { BranchOperations } from "./use-branch-operations"
 
-export { useMobileUIState } from "./use-mobile-ui-state"
-export type { MobileUIState } from "./use-mobile-ui-state"
-
 export { useMobileHandlers } from "./use-mobile-handlers"
 export type { MobileHandlers } from "./use-mobile-handlers"
 
