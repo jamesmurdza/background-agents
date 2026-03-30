@@ -637,16 +637,61 @@ export async function POST(req: Request) {
 
       case "force-push": {
         // Force-push to sync diverged history while preserving PRs
-        // Uses git push --force which uploads commits and updates the ref atomically
+        // Strategy: push to a temp branch (normal push), then use GitHub API to
+        // force-update the real branch ref. This works around sandbox force-push
+        // restrictions while preserving PRs (unlike delete + push).
         if (!currentBranch || !githubToken || !repoOwner || !repoApiName) {
           return badRequest("Missing required fields for force-push")
         }
 
+        // Get local HEAD SHA
+        const shaResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rev-parse HEAD 2>&1`
+        )
+        if (shaResult.exitCode !== 0) {
+          return Response.json({ error: "Failed to get HEAD: " + shaResult.result }, { status: 500 })
+        }
+        const sha = shaResult.result.trim()
+
+        // Step 1: Push to a temp branch so GitHub has the commit objects
+        const tempBranch = `temp-force-push-${Date.now()}`
         const pushResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git push --force https://x-access-token:${githubToken}@github.com/${repoOwner}/${repoApiName}.git HEAD:${currentBranch} 2>&1`
+          `cd ${repoPath} && git push https://x-access-token:${githubToken}@github.com/${repoOwner}/${repoApiName}.git HEAD:refs/heads/${tempBranch} 2>&1`
         )
         if (pushResult.exitCode !== 0) {
-          return Response.json({ error: "Force push failed: " + pushResult.result }, { status: 500 })
+          return Response.json({ error: "Failed to push commits: " + pushResult.result }, { status: 500 })
+        }
+
+        // Step 2: Use GitHub API to force-update the branch ref to the new SHA
+        const refRes = await fetch(
+          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${githubToken}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+            body: JSON.stringify({ sha, force: true }),
+          }
+        )
+
+        // Step 3: Delete the temp branch (best effort)
+        await fetch(
+          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${tempBranch}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${githubToken}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+          }
+        ).catch(() => {})
+
+        if (!refRes.ok) {
+          const refData = await refRes.json().catch(() => ({}))
+          return Response.json({
+            error: "Force push failed: " + ((refData as { message?: string }).message || refRes.status)
+          }, { status: 500 })
         }
 
         return Response.json({ success: true })
