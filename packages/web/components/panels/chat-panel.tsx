@@ -25,6 +25,14 @@ import { MessageList } from "@/components/chat/message-list"
 import { ChatInput } from "@/components/chat/chat-input"
 import { ChatDialogs } from "@/components/chat/chat-dialogs"
 
+function focusTextareaAtEnd(el: HTMLTextAreaElement) {
+  el.focus()
+  const n = el.value.length
+  if (n > 0) {
+    el.setSelectionRange(n, n)
+  }
+}
+
 // ============================================================================
 // Main ChatPanel Component
 // ============================================================================
@@ -104,6 +112,36 @@ export function ChatPanel({
   // Track previous status to detect when sandbox creation completes
   const prevStatusRef = useRef(branch.status)
 
+  // Desktop: focus the prompt when switching branches (not on id migration client→server).
+  const prevBranchFocusRef = useRef({
+    id: branch.id,
+    name: branch.name,
+    repoFullName,
+  })
+  useEffect(() => {
+    if (isMobile) {
+      prevBranchFocusRef.current = { id: branch.id, name: branch.name, repoFullName }
+      return
+    }
+    const prev = prevBranchFocusRef.current
+    const isIdMigration =
+      prev.repoFullName === repoFullName &&
+      prev.name === branch.name &&
+      prev.id !== branch.id
+    const switchedBranch = prev.id !== branch.id && !isIdMigration
+    prevBranchFocusRef.current = { id: branch.id, name: branch.name, repoFullName }
+
+    if (!switchedBranch) return
+
+    const t = window.setTimeout(() => {
+      const el = textareaRef.current
+      if (el && document.activeElement !== el) {
+        focusTextareaAtEnd(el)
+      }
+    }, 0)
+    return () => window.clearTimeout(t)
+  }, [branch.id, branch.name, repoFullName, isMobile])
+
   // When a new branch is created or when sandbox creation completes, focus the chat input.
   // We focus during CREATING status and also when transitioning from CREATING to IDLE.
   useEffect(() => {
@@ -117,8 +155,9 @@ export function ChatPanel({
     // Focus if currently creating, or if just finished creating (transitioned to idle)
     if (isCreating || (wasCreating && isNowIdle)) {
       const t = window.setTimeout(() => {
-        if (textareaRef.current && document.activeElement !== textareaRef.current) {
-          textareaRef.current.focus()
+        const el = textareaRef.current
+        if (el && document.activeElement !== el) {
+          focusTextareaAtEnd(el)
         }
       }, 0)
       return () => window.clearTimeout(t)
