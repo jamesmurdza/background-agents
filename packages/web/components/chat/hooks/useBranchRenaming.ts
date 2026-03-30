@@ -147,8 +147,10 @@ export function useBranchRenaming({
    * Automatically suggests and applies a branch name based on conversation history.
    * Unlike suggestBranchName, this does NOT require confirmation but still shows loading state.
    * Used when the user sends their first message without changing the branch name.
+   *
+   * @param prompt - Optional prompt to use for immediate suggestion (before message is saved to DB)
    */
-  const autoSuggestBranchName = useCallback(async () => {
+  const autoSuggestBranchName = useCallback(async (prompt?: string) => {
     // Only auto-suggest if the user hasn't manually renamed the branch
     if (branch.hasCustomName) {
       return
@@ -168,7 +170,7 @@ export function useBranchRenaming({
       const res = await fetch("/api/branches/suggest-name", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchId: targetBranchId }),
+        body: JSON.stringify({ branchId: targetBranchId, prompt }),
       })
 
       const data = await res.json()

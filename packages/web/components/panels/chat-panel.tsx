@@ -481,9 +481,9 @@ export function ChatPanel({
       startPolling(messageId)
 
       // Auto-suggest branch name on first message if user hasn't changed the default name
-      // This runs in the background and doesn't block message sending
+      // Pass the prompt directly to start generating right away (before message is saved to DB)
       if (branch.messages.length === 0 && canSuggestName) {
-        renaming.autoSuggestBranchName()
+        renaming.autoSuggestBranchName(prompt)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error"

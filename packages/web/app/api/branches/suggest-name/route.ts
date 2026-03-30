@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const { userId } = authResult
 
   const body = await req.json()
-  const { branchId } = body
+  const { branchId, prompt: userPrompt } = body
 
   if (!branchId) {
     return badRequest("Missing branch ID")
@@ -34,26 +34,38 @@ export async function POST(req: Request) {
     return notFound("Branch not found")
   }
 
-  const messages = await prisma.message.findMany({
-    where: { branchId },
-    orderBy: { createdAt: "asc" },
-    take: 4,
-    select: {
-      role: true,
-      content: true,
-    },
-  })
+  // If a prompt is provided directly (for immediate suggestion on first message),
+  // use it instead of fetching from database
+  let conversationSummary: string
 
-  if (messages.length === 0) {
-    return badRequest("No conversation history to generate suggestion from")
-  }
-
-  const conversationSummary = messages
-    .map((m) => {
-      const content = m.content.length > 220 ? m.content.slice(0, 220) + "..." : m.content
-      return `${m.role}: ${content}`
+  if (userPrompt && typeof userPrompt === "string" && userPrompt.trim()) {
+    // Use the provided prompt directly - this enables immediate suggestion
+    // before the message is saved to the database
+    const content = userPrompt.length > 220 ? userPrompt.slice(0, 220) + "..." : userPrompt
+    conversationSummary = `user: ${content}`
+  } else {
+    // Fall back to fetching messages from database
+    const messages = await prisma.message.findMany({
+      where: { branchId },
+      orderBy: { createdAt: "asc" },
+      take: 4,
+      select: {
+        role: true,
+        content: true,
+      },
     })
-    .join("\n\n")
+
+    if (messages.length === 0) {
+      return badRequest("No conversation history to generate suggestion from")
+    }
+
+    conversationSummary = messages
+      .map((m) => {
+        const content = m.content.length > 220 ? m.content.slice(0, 220) + "..." : m.content
+        return `${m.role}: ${content}`
+      })
+      .join("\n\n")
+  }
 
   const prompt = SUGGESTION_PROMPT.replace("{conversation}", conversationSummary)
 
