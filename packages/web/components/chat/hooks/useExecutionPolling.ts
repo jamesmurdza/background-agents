@@ -86,6 +86,11 @@ export function useExecutionPolling({
   const pollingBranchSandboxIdRef = useRef<string | undefined>(undefined)
   const pollingBranchMessagesRef = useRef<Message[]>([])
   const pollingLastShownCommitHashRef = useRef<string | null>(null)
+  // Store repo context at polling start time to avoid using wrong repo when user switches repos
+  const pollingRepoNameRef = useRef<string>("")
+  const pollingRepoOwnerRef = useRef<string>("")
+  const pollingRepoApiNameRef = useRef<string>("")
+  const pollingBranchNameRef = useRef<string>("")
 
   // Track the currently viewed branch (used for determining unread status)
   const activeBranchIdRef = useRef(branch.id)
@@ -113,8 +118,13 @@ export function useExecutionPolling({
     // Use the branch context captured at polling start, not the currently viewed branch
     const currentSandboxId = pollingBranchSandboxIdRef.current
     const targetBranchId = pollingBranchIdRef.current
+    // Use captured repo context to avoid using wrong repo when user switches repos
+    const capturedRepoName = pollingRepoNameRef.current
+    const capturedRepoOwner = pollingRepoOwnerRef.current
+    const capturedRepoApiName = pollingRepoApiNameRef.current
+    const capturedBranchName = pollingBranchNameRef.current
 
-    if (!currentSandboxId || !targetBranchId) {
+    if (!currentSandboxId || !targetBranchId || !capturedRepoName) {
       commitDetectionRunningRef.current = false
       return
     }
@@ -127,7 +137,7 @@ export function useExecutionPolling({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sandboxId: currentSandboxId,
-            repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+            repoPath: `${PATHS.SANDBOX_HOME}/${capturedRepoName}`,
             action: "check-rebase-status",
           }),
         })
@@ -144,7 +154,7 @@ export function useExecutionPolling({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sandboxId: currentSandboxId,
-              repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+              repoPath: `${PATHS.SANDBOX_HOME}/${capturedRepoName}`,
               action: "auto-commit-push",
               branchId: targetBranchId,
             }),
@@ -172,11 +182,11 @@ export function useExecutionPolling({
             if (!isConflictStateError && !isNothingToCommitNoise) {
               const pushError: PushErrorInfo = {
                 errorMessage,
-                branchName: branch.name,
+                branchName: capturedBranchName,
                 sandboxId: currentSandboxId,
-                repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-                repoOwner,
-                repoApiName,
+                repoPath: `${PATHS.SANDBOX_HOME}/${capturedRepoName}`,
+                repoOwner: capturedRepoOwner,
+                repoApiName: capturedRepoApiName,
               }
 
               await upsertPushErrorSystemMessage(
@@ -208,7 +218,7 @@ export function useExecutionPolling({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sandboxId: currentSandboxId,
-            repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+            repoPath: `${PATHS.SANDBOX_HOME}/${capturedRepoName}`,
             action: "log",
             sinceCommit: pollingLastShownCommitHashRef.current,
           }),
@@ -260,7 +270,9 @@ export function useExecutionPolling({
       onRefreshGitConflictState?.()
       commitDetectionRunningRef.current = false
     }
-  }, [repoName, repoOwner, repoApiName, branch.name, onAddMessage, onUpdateMessage, onCommitsDetected, onRefreshGitConflictState])
+  // Note: We use refs (pollingRepoNameRef, etc.) instead of props (repoName, etc.) to capture
+  // the repo context at polling start time. This avoids using the wrong repo when user switches.
+  }, [onAddMessage, onUpdateMessage, onCommitsDetected, onRefreshGitConflictState])
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -290,6 +302,11 @@ export function useExecutionPolling({
     pollingBranchSandboxIdRef.current = branch.sandboxId
     pollingBranchMessagesRef.current = branch.messages
     pollingLastShownCommitHashRef.current = branch.lastShownCommitHash || null
+    // Capture repo context at polling start time to avoid using wrong repo when user switches repos
+    pollingRepoNameRef.current = repoName
+    pollingRepoOwnerRef.current = repoOwner
+    pollingRepoApiNameRef.current = repoApiName
+    pollingBranchNameRef.current = branch.name
     // Reset commit detection guard for new execution
     commitDetectionRunningRef.current = false
 
@@ -547,13 +564,13 @@ export function useExecutionPolling({
 
     poll()
     pollingRef.current = setInterval(poll, 500)
-  // Note: We intentionally access branch.id, branch.sandboxId, and branch.messages directly
+  // Note: We intentionally access branch.id, branch.sandboxId, branch.name, and branch.messages directly
   // (not through refs) because we want to capture their values at the moment startPolling is called.
   // However, we don't include branch.messages in deps because it changes on every message update,
   // which would cause the callback to be recreated and reset the polling interval.
-  // The branch context is captured once when startPolling is called and stored in refs.
+  // The branch and repo context is captured once when startPolling is called and stored in refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branch.id, branch.sandboxId, repoName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits])
+  }, [branch.id, branch.sandboxId, branch.name, repoName, repoOwner, repoApiName, onUpdateMessage, onUpdateBranch, onAddMessage, onForceSave, streamingMessageIdRef, detectAndShowCommits])
 
   startPollingRef.current = startPolling
 
