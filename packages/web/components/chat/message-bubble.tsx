@@ -100,7 +100,7 @@ const NOTICE_ICON_PATTERN = /::icon-(warning|success|info|error)::/g
  */
 function InlineNoticeIcon({ type }: { type: NoticeIconType }) {
   return (
-    <span className="inline-flex items-center mr-1.5 translate-y-[0.5px]">
+    <span className="inline-flex items-center mr-1 translate-y-[2.5px]">
       <NoticeIcon type={type} className="h-4 w-4" />
     </span>
   )
