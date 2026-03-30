@@ -20,13 +20,20 @@ const AUTOSAVE_DEBOUNCE_MS = 1000
  * 4. Loads draft from DB when switching to a new branch
  */
 export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptions) {
-  const [input, setInput] = useState(branch.draftPrompt ?? "")
+  const [input, setInputState] = useState(branch.draftPrompt ?? "")
   const inputRef = useRef(input)
-  inputRef.current = input
 
-  // Track the branch we're currently editing
+  // Wrapper that updates ref immediately (before React re-renders)
+  // This ensures inputRef.current is always current, even if the component
+  // unmounts before the next render (e.g., when switching branches quickly)
+  const setInput = useCallback((value: string) => {
+    inputRef.current = value
+    setInputState(value)
+  }, [])
+
+  // Track the branch we're currently editing - captured once on mount
+  // DO NOT update this on every render, or it will have the wrong value during unmount
   const branchIdRef = useRef(branch.id)
-  branchIdRef.current = branch.id
 
   const prevBranchIdRef = useRef(branch.id)
   const prevBranchNameRef = useRef(branch.name)
@@ -80,7 +87,7 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
     }
   }, [input, branch.id, branch.status, saveDraft])
 
-  // Save draft immediately on unmount (handles branch/repo switches)
+  // Save draft on unmount (e.g., when navigating away from the page entirely)
   useEffect(() => {
     return () => {
       // Clear any pending debounced save
@@ -88,45 +95,60 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
         clearTimeout(debounceTimerRef.current)
       }
 
-      // Save current draft immediately
+      // Save current draft immediately using sendBeacon for reliable delivery
       const currentInput = inputRef.current
       const currentBranchId = branchIdRef.current
 
-      if (currentInput !== lastSavedDraftRef.current) {
-        // Use sendBeacon for reliable delivery during unmount
-        if (!currentBranchId.startsWith("temp-")) {
-          navigator.sendBeacon(
-            "/api/branches/draft",
-            new Blob(
-              [JSON.stringify({ branchId: currentBranchId, draftPrompt: currentInput })],
-              { type: "application/json" }
-            )
+      if (currentInput !== lastSavedDraftRef.current && !currentBranchId.startsWith("temp-")) {
+        navigator.sendBeacon(
+          "/api/branches/draft",
+          new Blob(
+            [JSON.stringify({ branchId: currentBranchId, draftPrompt: currentInput })],
+            { type: "application/json" }
           )
-        }
+        )
       }
     }
   }, []) // Empty deps - only runs on mount/unmount
 
-  // Sync input when switching branches - load new branch's draft
+  // Handle branch switches - save old draft, then load new draft
   useEffect(() => {
-    if (prevBranchIdRef.current !== branch.id) {
-      const prevBranchName = prevBranchNameRef.current
+    const prevBranchId = prevBranchIdRef.current
 
-      // Check if this is a real branch switch (different branch name) or just an ID update
-      const isRealBranchSwitch = prevBranchName !== branch.name
-
-      // Only load draft from new branch if it's a real branch switch
-      if (isRealBranchSwitch) {
-        setInput(branch.draftPrompt ?? "")
-        lastSavedDraftRef.current = branch.draftPrompt ?? ""
-        // Reset scroll behavior on branch switch so we scroll to bottom
-        isNearBottomRef.current = true
+    if (prevBranchId !== branch.id) {
+      // Clear any pending debounced save for the old branch
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
       }
 
+      // Save the current input to the OLD branch before switching
+      const currentInput = inputRef.current
+      if (currentInput !== lastSavedDraftRef.current && !prevBranchId.startsWith("temp-")) {
+        if (onSaveDraftForBranch) {
+          onSaveDraftForBranch(prevBranchId, currentInput)
+        } else {
+          fetch("/api/branches", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branchId: prevBranchId, draftPrompt: currentInput }),
+          }).catch(() => {})
+        }
+      }
+
+      // Now load the NEW branch's draft
+      setInput(branch.draftPrompt ?? "")
+      lastSavedDraftRef.current = branch.draftPrompt ?? ""
+
+      // Update refs to track the new branch
       prevBranchIdRef.current = branch.id
+      branchIdRef.current = branch.id
       prevBranchNameRef.current = branch.name
+
+      // Reset scroll behavior on branch switch so we scroll to bottom
+      isNearBottomRef.current = true
     }
-  }, [branch.id, branch.name, branch.draftPrompt])
+  }, [branch.id, branch.name, branch.draftPrompt, setInput, onSaveDraftForBranch])
 
   // Save draft on page unload/close
   useEffect(() => {
