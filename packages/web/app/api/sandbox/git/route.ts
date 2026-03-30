@@ -411,9 +411,12 @@ export async function POST(req: Request) {
         )
         const sha = shaResult.result.trim()
 
+        // URL-encode the branch name (handles slashes like feature/foo)
+        const encodedBranch = encodeURIComponent(currentBranch)
+
         // Try PATCH first (update existing ref)
         const refRes = await fetch(
-          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
+          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${encodedBranch}`,
           {
             method: "PATCH",
             headers: {
