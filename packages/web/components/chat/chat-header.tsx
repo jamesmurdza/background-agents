@@ -98,31 +98,38 @@ export function ChatHeader({
               autoFocus
             />
           </div>
-          {(renaming.renameLoading || renaming.suggesting) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
-          {/* Magic wand button for AI-suggested branch name - only shown when editing */}
+          {(renaming.renameLoading || renaming.suggesting) && (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" aria-hidden />
+          )}
+          {/* Magic wand — single spinner is shown beside input; keep icon here while loading */}
           {renaming.canSuggestName && (
             <button
+              type="button"
               onClick={renaming.suggestBranchName}
-              disabled={renaming.suggesting}
+              disabled={renaming.suggesting || renaming.renameLoading}
               title="Suggest branch name from chat"
               className="cursor-pointer disabled:cursor-not-allowed"
             >
-              {renaming.suggesting ? (
-                <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
-              ) : (
-                <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
-              )}
+              <Sparkles
+                className={cn(
+                  "h-3 w-3 shrink-0 text-muted-foreground/70 transition-colors",
+                  renaming.suggesting && "opacity-40",
+                  !renaming.suggesting && "hover:text-foreground"
+                )}
+              />
             </button>
           )}
-          {/* Cancel button */}
-          <button
-            onClick={renaming.cancelRenaming}
-            disabled={renaming.renameLoading || renaming.suggesting}
-            title="Cancel"
-            className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <X className="h-3 w-3 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
-          </button>
+          {/* Cancel — hidden while loading so only one spinner shows; Escape still cancels */}
+          {!(renaming.renameLoading || renaming.suggesting) && (
+            <button
+              type="button"
+              onClick={renaming.cancelRenaming}
+              title="Cancel"
+              className="cursor-pointer"
+            >
+              <X className="h-3 w-3 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex items-center gap-1 min-w-0 ml-2.5">
