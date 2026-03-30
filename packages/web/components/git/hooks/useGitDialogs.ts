@@ -8,9 +8,10 @@ import { PATHS } from "@/lib/shared/constants"
 // Export the return type for use in components
 export type UseGitDialogsReturn = ReturnType<typeof useGitDialogs>
 
-// Conflict state type
+// Conflict state type (covers both rebase and merge conflicts)
 export interface RebaseConflictState {
   inRebase: boolean
+  inMerge?: boolean
   conflictedFiles: string[]
 }
 
@@ -56,9 +57,10 @@ export function useGitDialogs({
   // Tag-specific state
   const [tagNameInput, setTagNameInput] = useState("")
 
-  // Rebase conflict state
+  // Rebase/merge conflict state
   const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>({
     inRebase: false,
+    inMerge: false,
     conflictedFiles: [],
   })
 
@@ -147,6 +149,31 @@ export function useGitDialogs({
         }),
       })
       const data = await res.json()
+
+      // Check for conflict response
+      if (res.status === 409 && data.conflict) {
+        // Set conflict state
+        setRebaseConflict({
+          inRebase: false,
+          inMerge: true,
+          conflictedFiles: data.conflictedFiles || [],
+        })
+
+        // Show user-facing message about the conflict
+        const fileList = (data.conflictedFiles || [])
+          .map((f: string) => `- \`${f}\``)
+          .join('\n')
+
+        addSystemMessage(
+          `⚠️ **Merge conflict detected**\n\n` +
+          `Merging **${sourceBranch}** into **${targetBranch}** resulted in conflicts.\n\n` +
+          `**Conflicted files:**\n${fileList}\n\n` +
+          `You can ask the agent to resolve these conflicts, or click **Abort Merge** to cancel.`
+        )
+        setMergeOpen(false)
+        return
+      }
+
       if (!res.ok) throw new Error(data.error)
       addSystemMessage(`${squashMerge ? "Squash merged" : "Merged"} **${sourceBranch}** into **${targetBranch}** and pushed.`)
       setMergeOpen(false)
@@ -248,10 +275,14 @@ export function useGitDialogs({
     }
   }, [tagNameInput, branch, sandboxId, repoFullName, repoName, addSystemMessage])
 
-  // Abort an in-progress rebase
+  // Abort an in-progress rebase or merge - auto-detects which one
   const handleAbortRebase = useCallback(async () => {
     if (!sandboxId) return
     setActionLoading(true)
+
+    // Determine which action to use based on current conflict state
+    const action = rebaseConflict.inMerge ? "abort-merge" : "abort-rebase"
+    const actionLabel = rebaseConflict.inMerge ? "Merge" : "Rebase"
 
     try {
       const res = await fetch("/api/sandbox/git", {
@@ -260,23 +291,23 @@ export function useGitDialogs({
         body: JSON.stringify({
           sandboxId,
           repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "abort-rebase",
+          action,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
       // Clear conflict state
-      setRebaseConflict({ inRebase: false, conflictedFiles: [] })
-      addSystemMessage(`Rebase aborted. Your branch is back to its previous state.`)
+      setRebaseConflict({ inRebase: false, inMerge: false, conflictedFiles: [] })
+      addSystemMessage(`${actionLabel} aborted. Your branch is back to its previous state.`)
     } catch (err: unknown) {
       addSystemMessage(`Abort failed: ${err instanceof Error ? err.message : "Unknown error"}`)
     } finally {
       setActionLoading(false)
     }
-  }, [sandboxId, repoName, addSystemMessage])
+  }, [sandboxId, repoName, addSystemMessage, rebaseConflict.inMerge])
 
-  // Check if repo is currently in a rebase state (for live detection)
+  // Check if repo is currently in a rebase or merge conflict state (for live detection)
   const checkRebaseStatus = useCallback(async () => {
     if (!sandboxId) return
 
@@ -294,6 +325,7 @@ export function useGitDialogs({
       if (res.ok) {
         setRebaseConflict({
           inRebase: data.inRebase || false,
+          inMerge: data.inMerge || false,
           conflictedFiles: data.conflictedFiles || [],
         })
       }
