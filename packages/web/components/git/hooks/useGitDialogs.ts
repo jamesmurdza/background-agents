@@ -206,10 +206,12 @@ export function useGitDialogs({
         return
       }
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Merge failed")
-      addSystemMessage(`::icon-success:: ${squashMerge ? "Squash merged" : "Merged"} **${sourceBranch}** into **${targetBranch}** and pushed.`)
+      addSystemMessage(
+        `::icon-success:: ${squashMerge ? "**Squash merged**" : "**Merged**"} **${sourceBranch}** into **${targetBranch}** and pushed.`
+      )
       setMergeOpen(false)
     } catch (err: unknown) {
-      addSystemMessage(`::icon-error:: Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **Merge failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
       setMergeOpen(false)
     } finally {
       setActionLoading(false)
@@ -295,11 +297,11 @@ export function useGitDialogs({
         throw new Error(errMsg)
       }
       addSystemMessage(
-        `::icon-success:: Rebased **${branchName}** onto **${selectedBranch}**. The branch on GitHub now points at your rebased commits.`
+        `::icon-success:: **Rebased** **${branchName}** onto **${selectedBranch}**. The branch on GitHub now points at your rebased commits.`
       )
       setRebaseOpen(false)
     } catch (err: unknown) {
-      addSystemMessage(`::icon-error:: Rebase failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **Rebase failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
       setRebaseOpen(false)
     } finally {
       setActionLoading(false)
@@ -328,11 +330,11 @@ export function useGitDialogs({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`::icon-success:: Tag **${name}** created and pushed.`)
+      addSystemMessage(`::icon-success:: **Tag** **${name}** created and pushed.`)
       setTagOpen(false)
       setTagNameInput("")
     } catch (err: unknown) {
-      addSystemMessage(`::icon-error:: Tag failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **Tag failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
     } finally {
       setActionLoading(false)
     }
@@ -361,11 +363,11 @@ export function useGitDialogs({
       if (branchId && sandboxId) putRebaseConflictInCache(sandboxId, branchId, cleared)
       addSystemMessage(
         isMerge
-          ? `::icon-success:: Merge aborted. Your branch is back to its previous state.`
-          : `::icon-success:: Rebase aborted. Your branch is back to its previous state.`
+          ? `::icon-success:: **Merge aborted.** Your branch is back to its previous state.`
+          : `::icon-success:: **Rebase aborted.** Your branch is back to its previous state.`
       )
     } catch (err: unknown) {
-      addSystemMessage(`::icon-error:: Abort failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **Abort failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
     } finally {
       setActionLoading(false)
     }

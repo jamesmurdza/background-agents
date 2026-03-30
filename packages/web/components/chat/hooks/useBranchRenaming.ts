@@ -66,7 +66,7 @@ export function useBranchRenaming({
       onUpdateBranch(branch.id, { name: newName, hasCustomName: true })
       setRenaming(false)
     } catch (err: unknown) {
-      addSystemMessage(`::icon-error:: Rename failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **Rename failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
       setRenaming(false)
     } finally {
       setRenameLoading(false)
@@ -91,7 +91,9 @@ export function useBranchRenaming({
   const suggestBranchName = useCallback(async () => {
     // Only allow if there are messages to base suggestion on
     if (branch.messages.length === 0) {
-      addSystemMessage("::icon-info:: No conversation history to generate a branch name suggestion from.")
+      addSystemMessage(
+        "::icon-info:: **No conversation history** to generate a branch name suggestion from."
+      )
       return
     }
 
@@ -128,7 +130,7 @@ export function useBranchRenaming({
       // On error, fall back to current branch name
       const fallbackName = branch.name
       setRenameValue(fallbackName)
-      addSystemMessage(`::icon-error:: Suggestion failed: ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **Suggestion failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
       // Still focus the input on error
       requestAnimationFrame(() => {
         const input = renameInputRef.current
