@@ -31,9 +31,9 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
     setInputState(value)
   }, [])
 
-  // Track the branch we're currently editing
+  // Track the branch we're currently editing - captured once on mount
+  // DO NOT update this on every render, or it will have the wrong value during unmount
   const branchIdRef = useRef(branch.id)
-  branchIdRef.current = branch.id
 
   const prevBranchIdRef = useRef(branch.id)
   const prevBranchNameRef = useRef(branch.name)
@@ -89,6 +89,9 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
 
   // Save draft immediately on unmount (handles branch/repo switches)
   useEffect(() => {
+    const mountedBranchId = branch.id
+    console.log("[useDraftSync] Mounted for branch:", mountedBranchId)
+
     return () => {
       // Clear any pending debounced save
       if (debounceTimerRef.current) {
@@ -99,7 +102,10 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
       const currentInput = inputRef.current
       const currentBranchId = branchIdRef.current
 
+      console.log("[useDraftSync] Unmounting. branchIdRef:", currentBranchId, "inputRef:", currentInput, "lastSaved:", lastSavedDraftRef.current)
+
       if (currentInput !== lastSavedDraftRef.current) {
+        console.log("[useDraftSync] Saving draft via sendBeacon for branch:", currentBranchId)
         // Use sendBeacon for reliable delivery during unmount
         if (!currentBranchId.startsWith("temp-")) {
           navigator.sendBeacon(
@@ -110,6 +116,8 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
             )
           )
         }
+      } else {
+        console.log("[useDraftSync] Skipping save - no changes")
       }
     }
   }, []) // Empty deps - only runs on mount/unmount
