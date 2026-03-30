@@ -74,6 +74,7 @@ export interface BackgroundSession {
     sessionId: string | null
     events: Event[]
     cursor: string
+    running: boolean
   }>
 
   /** True if the current turn's process is still running in the sandbox (e.g. detect crash). */

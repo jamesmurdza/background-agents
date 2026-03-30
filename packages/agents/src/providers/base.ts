@@ -419,6 +419,7 @@ export abstract class Provider implements IProvider {
     sessionId: string | null
     events: Event[]
     cursor: string
+    running: boolean
   }> {
     const meta = await this.readSandboxMeta(sessionDir)
     if (!meta?.runId || !meta.outputFile) {
@@ -427,6 +428,7 @@ export abstract class Provider implements IProvider {
         sessionId: meta?.sessionId ?? this.sessionId ?? null,
         events: [],
         cursor: String(meta?.cursor ?? 0),
+        running: false,
       }
     }
     const outputFile = meta.outputFile
@@ -495,9 +497,12 @@ export abstract class Provider implements IProvider {
         provider: this.name,
         sessionId: this.sessionId ?? meta.sessionId ?? null,
       })
-      return { sessionId: result.sessionId, events: [...result.events, crashEvent], cursor: result.cursor }
+      return { sessionId: result.sessionId, events: [...result.events, crashEvent], cursor: result.cursor, running: false }
     }
-    return { sessionId: result.sessionId, events: result.events, cursor: result.cursor }
+    if (!stillRunning || sawEnd) {
+      return { sessionId: result.sessionId, events: result.events, cursor: result.cursor, running: false }
+    }
+    return { sessionId: result.sessionId, events: result.events, cursor: result.cursor, running: true }
   }
 
   /**

@@ -357,6 +357,15 @@ export async function pollBackgroundAgent(
   backgroundSessionId: string,
   options: PollBackgroundOptions
 ): Promise<BackgroundPollResult> {
+  const startedAt = Date.now()
+  const logPrefix = "[pollBackgroundAgent]"
+  const logStep = (step: string, stepStartedAt: number) => {
+    console.log(`${logPrefix} ${step} took ${Date.now() - stepStartedAt}ms`, {
+      agentExecutionId: options.agentExecutionId,
+      backgroundSessionId,
+    })
+  }
+
   try {
     const systemPrompt = buildSystemPrompt(
       options.repoPath,
@@ -369,28 +378,35 @@ export async function pollBackgroundAgent(
     // Cast sandbox for SDK version compatibility
     // getBackgroundSession only needs sandbox + backgroundSessionId for polling (no env needed)
 
+    let stepStartedAt = Date.now()
     const bgSession = await sdkGetBackgroundSession({
       sandbox: sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>,
       backgroundSessionId,
       systemPrompt,
       model: modelToUse,
     })
+    logStep("sdkGetBackgroundSession", stepStartedAt)
 
-    const isRunning = await bgSession.isRunning()
-    const { events: newEvents, sessionId } = await bgSession.getEvents()
+    stepStartedAt = Date.now()
+    const { events: newEvents, sessionId, running } = await bgSession.getEvents()
+    logStep("getEvents", stepStartedAt)
 
     // Accumulate events in DB so all clients share the same stream.
+    stepStartedAt = Date.now()
     const cached = await getAccumulatedEvents(options.agentExecutionId)
+    logStep("getAccumulatedEvents", stepStartedAt)
     const allEvents: Event[] = [...(cached as Event[]), ...newEvents]
 
     const { content, toolCalls, contentBlocks } = buildContentBlocks(allEvents)
 
     // Persist snapshot + accumulated events to DB.
     try {
+      stepStartedAt = Date.now()
       await updateSnapshot(options.agentExecutionId, {
         latestSnapshot: { content, toolCalls, contentBlocks },
         accumulatedEvents: allEvents,
       })
+      logStep("updateSnapshot", stepStartedAt)
     } catch (error) {
       console.error(
         "[agent-session] failed to update snapshot",
@@ -423,8 +439,8 @@ export async function pollBackgroundAgent(
       }
     }
 
-    // Prefer explicit "end" event for completion; the SDK can briefly report isRunning false during reattach.
-    // When isRunning is false and there is no end event, treat as stopped so we don't poll forever.
+    // Prefer explicit "end" event for completion.
+    // When running is false and there is no end event, treat as stopped so we don't poll forever.
     const endEvent = allEvents.find((e): e is EndEvent => e.type === "end") as
       | (EndEvent & { error?: string })
       | undefined
@@ -442,7 +458,7 @@ export async function pollBackgroundAgent(
       }
     }
 
-    if (!isRunning && !hasEndEvent) {
+    if (!running && !hasEndEvent) {
       return {
         status: "error",
         content,
@@ -484,6 +500,11 @@ export async function pollBackgroundAgent(
       contentBlocks,
       error: msg,
     }
+  } finally {
+    console.log(`${logPrefix} total took ${Date.now() - startedAt}ms`, {
+      agentExecutionId: options.agentExecutionId,
+      backgroundSessionId,
+    })
   }
 }
 
