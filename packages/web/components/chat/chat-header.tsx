@@ -99,15 +99,6 @@ export function ChatHeader({
             />
           </div>
           {(renaming.renameLoading || renaming.suggesting) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
-          {/* Cancel button */}
-          <button
-            onClick={renaming.cancelRenaming}
-            disabled={renaming.renameLoading || renaming.suggesting}
-            title="Cancel"
-            className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <X className="h-3 w-3 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
-          </button>
           {/* Magic wand button for AI-suggested branch name - only shown when editing */}
           {renaming.canSuggestName && (
             <button
@@ -123,6 +114,15 @@ export function ChatHeader({
               )}
             </button>
           )}
+          {/* Cancel button */}
+          <button
+            onClick={renaming.cancelRenaming}
+            disabled={renaming.renameLoading || renaming.suggesting}
+            title="Cancel"
+            className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X className="h-3 w-3 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
+          </button>
         </div>
       ) : (
         <div className="flex items-center gap-1 min-w-0 ml-2.5 group/branch-section">
