@@ -33,6 +33,37 @@ function focusTextareaAtEnd(el: HTMLTextAreaElement) {
   }
 }
 
+type ExecuteErrorBody = {
+  error?: string
+  message?: string
+  recreateInfo?: { branchId?: string }
+}
+
+/** Read body as text then parse JSON so empty/non-JSON error responses (timeouts, proxies) don't break the UI. */
+async function readExecuteErrorResponse(response: Response): Promise<{
+  data: ExecuteErrorBody
+  rawText: string
+}> {
+  const rawText = await response.text()
+  const trimmed = rawText.trim()
+  if (!trimmed) {
+    return { data: {}, rawText }
+  }
+  try {
+    return { data: JSON.parse(trimmed) as ExecuteErrorBody, rawText }
+  } catch {
+    return { data: {}, rawText: trimmed }
+  }
+}
+
+function executeHttpErrorMessage(response: Response, data: ExecuteErrorBody, rawText: string): string {
+  if (typeof data.error === "string" && data.error.length > 0) return data.error
+  if (typeof data.message === "string" && data.message.length > 0) return data.message
+  const t = rawText.trim()
+  if (t.length > 0) return t.length > 800 ? `${t.slice(0, 800)}…` : t
+  return `Request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`
+}
+
 // ============================================================================
 // Main ChatPanel Component
 // ============================================================================
@@ -226,14 +257,14 @@ export function ChatPanel({
       })
 
       if (!response.ok) {
-        const data = await response.json()
+        const { data, rawText } = await readExecuteErrorResponse(response)
         // For sandbox deleted during loop, just stop the loop gracefully
         if (response.status === 410 && data.error === "SANDBOX_NOT_FOUND") {
           onUpdateMessage(branchId, messageId, { content: "Sandbox was deleted. Please send a new message to recreate it." })
           onUpdateBranch(branchId, { status: BRANCH_STATUS.IDLE, loopCount: 0, loopEnabled: false })
           return
         }
-        throw new Error(data.error || "Failed to start agent")
+        throw new Error(executeHttpErrorMessage(response, data, rawText) || "Failed to start agent")
       }
 
       startPollingRef.current(messageId)
@@ -408,7 +439,7 @@ export function ChatPanel({
       })
 
       if (!response.ok) {
-        const data = await response.json()
+        const { data, rawText } = await readExecuteErrorResponse(response)
 
         // Handle sandbox deleted - trigger recreation
         if (response.status === 410 && data.error === "SANDBOX_NOT_FOUND" && data.recreateInfo?.branchId) {
@@ -474,7 +505,7 @@ export function ChatPanel({
           return
         }
 
-        throw new Error(data.error || "Failed to start agent")
+        throw new Error(executeHttpErrorMessage(response, data, rawText) || "Failed to start agent")
       }
 
       console.log(`[POLLER-DEBUG] ChatPanel calling startPolling for branch ${branch.id}`)
