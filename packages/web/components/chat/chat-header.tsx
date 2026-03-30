@@ -16,6 +16,7 @@ import {
   Pause,
   Sparkles,
   XCircle,
+  X,
 } from "lucide-react"
 import type { RebaseConflictState } from "@/components/git/hooks/useGitDialogs"
 import {
@@ -98,6 +99,15 @@ export function ChatHeader({
             />
           </div>
           {(renaming.renameLoading || renaming.suggesting) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
+          {/* Cancel button */}
+          <button
+            onClick={renaming.cancelRenaming}
+            disabled={renaming.renameLoading || renaming.suggesting}
+            title="Cancel"
+            className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X className="h-3 w-3 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors" />
+          </button>
           {/* Magic wand button for AI-suggested branch name - only shown when editing */}
           {renaming.canSuggestName && (
             <button
