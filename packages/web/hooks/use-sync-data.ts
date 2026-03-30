@@ -5,6 +5,11 @@ import {
   updateBranchAcrossRepos,
   setBranchesInRepo,
 } from "@/lib/shared/state-utils"
+import {
+  isLocalRicher,
+  shouldSkipSync,
+  hasNewMessages,
+} from "@/lib/core/sync"
 
 // Sync data shape from the API
 export interface SyncBranch {
@@ -206,9 +211,9 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
               )
             }
 
-            // New message detection
+            // New message detection (uses pure function from lib/core/sync)
             const lastKnownMessageId = lastMessageIdsRef.current.get(syncBranch.id)
-            if (syncBranch.lastMessageId && syncBranch.lastMessageId !== lastKnownMessageId) {
+            if (hasNewMessages(lastKnownMessageId ?? null, syncBranch.lastMessageId)) {
               lastMessageIdsRef.current.set(syncBranch.id, syncBranch.lastMessageId)
 
               // LAZY LOADING OPTIMIZATION: For non-active branches, just track the change
@@ -219,7 +224,12 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
                 // CRITICAL: Skip message reload if a message is currently being streamed
                 // This prevents sync from overwriting streaming content with stale DB data
                 // The polling mechanism handles real-time updates during streaming
-                if (streamingMessageIdRef?.current) {
+                // Uses pure function from lib/core/sync for this check
+                if (shouldSkipSync(
+                  streamingMessageIdRef?.current ?? null,
+                  syncBranch.id,
+                  activeBranchIdRef.current
+                )) {
                   // Skip this sync cycle - streaming is in progress
                   return
                 }
@@ -267,23 +277,7 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
   }
 }
 
-/**
- * Prefer local message when it has more streamed content than API (avoids sync
- * overwriting in-progress or just-finished streamed content with stale DB data).
- */
-function isLocalRicher(
-  local: Branch["messages"][0],
-  api: { content: string; toolCalls?: unknown[]; contentBlocks?: unknown[] }
-): boolean {
-  if ((local.content?.length ?? 0) > (api.content?.length ?? 0)) return true
-  const localTc = local.toolCalls?.length ?? 0
-  const apiTc = api.toolCalls?.length ?? 0
-  if (localTc > apiTc) return true
-  const localBlocks = local.contentBlocks?.length ?? 0
-  const apiBlocks = api.contentBlocks?.length ?? 0
-  if (localBlocks > apiBlocks) return true
-  return false
-}
+// isLocalRicher is now imported from lib/core/sync
 
 /**
  * Merges API messages with local optimistic messages.
@@ -310,7 +304,8 @@ function mergeMessages(
 
   const merged = convertedApiMessages.map((apiMsg) => {
     const local = localById.get(apiMsg.id)
-    if (local && isLocalRicher(local, apiMsg)) return local
+    // Use type assertion - MessageLike is a subset of Message, but TS can't infer it
+    if (local && isLocalRicher(local as unknown as import("@/lib/core/sync").MessageLike, apiMsg)) return local
     return apiMsg
   })
   return [...merged, ...optimisticMessages]
