@@ -247,9 +247,20 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
                 ...r,
                 branches: r.branches.map((b) => {
                   if (b.id !== branchId) return b
+
+                  // Merge API messages with local messages to preserve optimistic updates
+                  const apiMessages = data.messages.map(transformMessage)
+                  const apiMessageIds = new Set(apiMessages.map((m) => m.id))
+
+                  // Keep any local messages that aren't in the API response yet
+                  // (these are optimistically added messages pending server sync)
+                  const localOnlyMessages = b.messages.filter(
+                    (m) => !apiMessageIds.has(m.id)
+                  )
+
                   return {
                     ...b,
-                    messages: data.messages.map(transformMessage),
+                    messages: [...apiMessages, ...localOnlyMessages],
                   }
                 }),
               }
