@@ -314,7 +314,9 @@ export function BranchList({
                     )}
                   >
                     {isDeleting ? (
-                      <Loader2 className="h-5 w-5 shrink-0 animate-spin text-muted-foreground" />
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary opacity-40" />
+                      </span>
                     ) : (
                       <StatusDot status={branch.status} unread={branch.unread} isActive={isActive} />
                     )}
