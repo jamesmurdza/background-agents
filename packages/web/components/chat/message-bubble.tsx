@@ -255,9 +255,6 @@ function PushErrorRetry({
 
   const body = (
     <>
-      <p className="text-sm mt-1.5 text-yellow-950/90 dark:text-yellow-50/90">
-        You can force push to sync your changes:
-      </p>
       {retryError && (
         <p className="text-sm mt-1.5 text-red-600 dark:text-red-400">{retryError}</p>
       )}
@@ -275,7 +272,7 @@ function PushErrorRetry({
         ) : (
           <>
             <RefreshCw className="h-3.5 w-3.5 shrink-0" />
-            Force push
+            Force push to sync changes
           </>
         )}
       </button>
