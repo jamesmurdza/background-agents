@@ -102,8 +102,33 @@ export function useExecutionPoller({
           if (cancelled) return
           if (data.execution?.messageId && data.execution?.status === "running") {
             resolvedId = data.execution.messageId as string
+          } else if (data.execution?.messageId && (data.execution?.status === "completed" || data.execution?.status === "error")) {
+            // Execution completed while we were away (e.g. page refresh raced with
+            // completion). Do one final status fetch to get the persisted content,
+            // then mark idle.
+            try {
+              const statusRes = await fetch("/api/agent/status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messageId: data.execution.messageId }),
+              })
+              if (!cancelled && statusRes.ok) {
+                const statusData = await statusRes.json()
+                if (statusData.content || statusData.toolCalls?.length > 0 || statusData.contentBlocks?.length > 0) {
+                  const tc = addToolCallIds(statusData.toolCalls || []) as ToolCall[]
+                  const cb = addContentBlockIds(statusData.contentBlocks || []) as ContentBlock[]
+                  cbRef.current.onUpdateMessage(branchId, data.execution.messageId, {
+                    content: statusData.content || "",
+                    toolCalls: tc,
+                    contentBlocks: cb.length > 0 ? cb : undefined,
+                  })
+                }
+              }
+            } catch { /* best effort */ }
+            cbRef.current.onUpdateBranch(branchId, { status: BRANCH_STATUS.IDLE })
+            return
           } else {
-            // Branch says RUNNING but server has no running execution — stale status
+            // No execution at all — truly stale branch status
             cbRef.current.onUpdateBranch(branchId, { status: BRANCH_STATUS.IDLE })
             return
           }

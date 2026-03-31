@@ -1,14 +1,11 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth/auth"
 import { prisma } from "@/lib/db/prisma"
+import { requireAuth, isAuthError } from "@/lib/shared/api-helpers"
 
 // Check for active (running) execution for a branch
 // Used to resume polling after page refresh when messages haven't loaded yet
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
 
   const body = await req.json()
   const { branchId } = body
@@ -23,17 +20,16 @@ export async function POST(req: Request) {
     include: { repo: true },
   })
 
-  if (!branch || branch.repo.userId !== session.user.id) {
+  if (!branch || branch.repo.userId !== auth.userId) {
     return Response.json({ error: "Branch not found" }, { status: 404 })
   }
 
-  // Find any running execution for this branch
+  // Find the most recent execution for this branch (any status).
+  // Returning completed/error executions allows the client to fetch
+  // final content after a page refresh that races with completion.
   const execution = await prisma.agentExecution.findFirst({
     where: {
-      status: "running",
-      message: {
-        branchId: branchId,
-      },
+      message: { branchId },
     },
     orderBy: {
       startedAt: "desc",
