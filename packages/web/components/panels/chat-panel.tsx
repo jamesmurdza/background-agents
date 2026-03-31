@@ -14,10 +14,10 @@ import { SwitchAgentDialog } from "@/components/modals/switch-agent-dialog"
 // Import hooks
 import {
   useDraftSync,
-  useExecutionPolling,
   useGitActions,
   useBranchRenaming,
 } from "@/components/chat/hooks"
+import { useExecutionManager } from "@/hooks"
 
 // Import sub-components
 import { ChatHeader } from "@/components/chat/chat-header"
@@ -385,31 +385,54 @@ export function ChatPanel({
     onRebaseConflictChange?.(!!(r?.inRebase || r?.inMerge))
   }, [gitActions.gitDialogs.rebaseConflict?.inRebase, gitActions.gitDialogs.rebaseConflict?.inMerge, onRebaseConflictChange])
 
+  // Execution manager (replaces useExecutionPolling)
   const {
-    currentExecutionIdRef,
-    currentMessageIdRef,
-    startPolling,
-    stopPolling,
-  } = useExecutionPolling({
-    branch,
-    repoName,
-    repoOwner,
-    repoApiName: repoName, // repoName is the API name (without owner)
+    startPolling: startExecutionPolling,
+    stopPolling: stopExecutionPolling,
+    isStreaming,
+  } = useExecutionManager({
     onUpdateMessage,
     onUpdateBranch,
     onAddMessage,
     onForceSave,
     onCommitsDetected,
-    streamingMessageIdRef,
-    globalActiveBranchIdRef,
     onLoopContinue: handleLoopContinue,
     onRefreshGitConflictState: refreshGitConflictState,
   })
 
-  // Update ref after hook returns
+  // Refs to track current execution (for retry/error handling)
+  const currentMessageIdRef = useRef<string | null>(null)
+  const currentExecutionIdRef = useRef<string | null>(null)
+
+  // Update startPollingRef to use new execution manager
   useEffect(() => {
-    startPollingRef.current = startPolling
-  }, [startPolling])
+    startPollingRef.current = (messageId: string, executionId?: string) => {
+      // The executionId might not be returned yet, use messageId as fallback
+      const execId = executionId || messageId
+      startExecutionPolling(messageId, execId, branch, {
+        repoName,
+        repoOwner,
+        repoApiName: repoName,
+      })
+      currentMessageIdRef.current = messageId
+      currentExecutionIdRef.current = execId
+    }
+  }, [startExecutionPolling, branch, repoName, repoOwner])
+
+  // Update streamingMessageIdRef based on execution store (for cross-device sync)
+  useEffect(() => {
+    if (streamingMessageIdRef) {
+      // Find any active execution for this branch
+      const lastAssistantMsg = branch.messages
+        .filter(m => m.role === "assistant")
+        .slice(-1)[0]
+      if (lastAssistantMsg && isStreaming(lastAssistantMsg.id)) {
+        streamingMessageIdRef.current = lastAssistantMsg.id
+      } else if (branch.status !== BRANCH_STATUS.RUNNING) {
+        streamingMessageIdRef.current = null
+      }
+    }
+  }, [branch.messages, branch.status, isStreaming, streamingMessageIdRef])
 
   const handleRetryExecute = useCallback(
     async (messageId: string): Promise<{ success: boolean; error?: string }> => {
@@ -577,9 +600,14 @@ export function ChatPanel({
 
   // Stop handler
   const handleStop = useCallback(() => {
-    stopPolling()
+    // Stop polling for the current message
+    if (currentMessageIdRef.current) {
+      stopExecutionPolling(currentMessageIdRef.current)
+    }
     abortControllerRef.current?.abort()
-  }, [stopPolling])
+    currentMessageIdRef.current = null
+    currentExecutionIdRef.current = null
+  }, [stopExecutionPolling])
 
   // Handle commit click
   const handleCommitClick = useCallback((hash: string, msg: string) => {

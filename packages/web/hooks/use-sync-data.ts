@@ -7,9 +7,9 @@ import {
 } from "@/lib/shared/state-utils"
 import {
   isLocalRicher,
-  shouldSkipSync,
   hasNewMessages,
 } from "@/lib/core/sync"
+import { useExecutionStore } from "@/lib/stores/execution-store"
 
 // Sync data shape from the API
 export interface SyncBranch {
@@ -40,7 +40,7 @@ export interface SyncData {
 interface UseSyncDataOptions {
   setRepos: React.Dispatch<React.SetStateAction<TransformedRepo[]>>
   activeBranchIdRef: React.MutableRefObject<string | null>
-  /** Ref to check if a message is currently being streamed - skip sync if so */
+  /** @deprecated No longer used - execution store is checked directly */
   streamingMessageIdRef?: React.MutableRefObject<string | null>
 }
 
@@ -222,15 +222,15 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
               // selects the branch. This significantly reduces Neon network transfer.
               // The unread indicator can be derived when rendering the sidebar.
               if (syncBranch.id === activeBranchIdRef.current) {
-                // CRITICAL: Skip message reload if a message is currently being streamed
+                // CRITICAL: Skip message reload if any execution is active for this branch
                 // This prevents sync from overwriting streaming content with stale DB data
                 // The polling mechanism handles real-time updates during streaming
-                // Uses pure function from lib/core/sync for this check
-                if (shouldSkipSync(
-                  streamingMessageIdRef?.current ?? null,
-                  syncBranch.id,
-                  activeBranchIdRef.current
-                )) {
+                // Check execution store directly (no more ref passing needed)
+                const activeExecutions = useExecutionStore.getState().activeExecutions
+                const hasActiveExecution = Array.from(activeExecutions.values()).some(
+                  exec => exec.branchId === syncBranch.id
+                )
+                if (hasActiveExecution) {
                   // Skip this sync cycle - streaming is in progress
                   return
                 }
@@ -240,7 +240,11 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
                   .then((r) => r.json())
                   .then((msgData) => {
                     // Double-check streaming hasn't started while we were fetching
-                    if (streamingMessageIdRef?.current) {
+                    const execsAfterFetch = useExecutionStore.getState().activeExecutions
+                    const stillStreaming = Array.from(execsAfterFetch.values()).some(
+                      exec => exec.branchId === syncBranch.id
+                    )
+                    if (stillStreaming) {
                       return
                     }
                     if (msgData.messages) {
@@ -270,7 +274,7 @@ export function useSyncData({ setRepos, activeBranchIdRef, streamingMessageIdRef
         lastMessageIdsRef.current.set(branch.id, branch.lastMessageId)
       }
     }
-  }, [setRepos, activeBranchIdRef, streamingMessageIdRef])
+  }, [setRepos, activeBranchIdRef])
 
   return {
     handleSyncData,
