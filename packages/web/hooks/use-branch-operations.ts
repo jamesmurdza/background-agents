@@ -157,15 +157,11 @@ export function useBranchOperations({
   // Add a message to a branch
   const handleAddMessage = useCallback(async (branchId: string, message: Message): Promise<string> => {
     const now = Date.now()
-    console.log("[handleAddMessage] adding message", { branchId, tempId: message.id })
     // Add message and bump branch to top of list
     // Find the repo inside setRepos to use latest state (not stale closure)
     setRepos((prev) => {
       const targetRepo = prev.find(r => r.branches.some(b => b.id === branchId))
-      if (!targetRepo) {
-        console.warn("[handleAddMessage] no repo found for branchId", { branchId })
-        return prev
-      }
+      if (!targetRepo) return prev
       return updateBranchInRepo(
         addMessageToBranch(prev, targetRepo.id, branchId, message),
         targetRepo.id,
@@ -178,32 +174,16 @@ export function useBranchOperations({
     try {
       const data = await addMessageMutation.mutateAsync({ branchId, message })
       const dbId = data.message?.id
-      console.log("[handleAddMessage] got DB ID", { branchId, tempId: message.id, dbId })
 
       if (dbId && dbId !== message.id) {
         // Update local state with the real database ID
         // Find repo inside setRepos to use latest state
-        console.log("[handleAddMessage] updating ID in state", { branchId, oldId: message.id, newId: dbId })
         setRepos((prev) => {
           const targetRepo = prev.find(r => r.branches.some(b => b.id === branchId))
-          if (!targetRepo) {
-            console.warn("[handleAddMessage] ID update: no repo found", { branchId })
-            return prev
-          }
+          if (!targetRepo) return prev
           const targetBranch = targetRepo.branches.find(b => b.id === branchId)
           const messageExists = targetBranch?.messages.some(m => m.id === message.id)
-          console.log("[handleAddMessage] ID update check", {
-            branchId,
-            oldId: message.id,
-            newId: dbId,
-            messageExists,
-            messagesInBranch: targetBranch?.messages.length,
-            messageIds: targetBranch?.messages.map(m => m.id),
-          })
-          if (!messageExists) {
-            console.warn("[handleAddMessage] message with temp ID not found, cannot update to DB ID!", { branchId, tempId: message.id, dbId })
-            return prev
-          }
+          if (!messageExists) return prev
           return updateMessageInBranch(prev, targetRepo.id, branchId, message.id, { id: dbId })
         })
         return dbId
@@ -221,32 +201,8 @@ export function useBranchOperations({
     // (don't rely on activeRepo from closure which may be stale during polling)
     setRepos((prev) => {
       const targetRepo = prev.find(r => r.branches.some(b => b.id === branchId))
-      if (!targetRepo) {
-        console.warn("[handleUpdateMessage] no repo found for branchId", { branchId, messageId })
-        return prev
-      }
-      const targetBranch = targetRepo.branches.find(b => b.id === branchId)
-      const targetMessage = targetBranch?.messages.find(m => m.id === messageId)
-      console.log("[handleUpdateMessage] updating", {
-        branchId,
-        messageId,
-        contentLength: (updates.content || "").length,
-        repoId: targetRepo.id,
-        branchFound: !!targetBranch,
-        messageFound: !!targetMessage,
-        prevContentLength: (targetMessage?.content || "").length,
-        messagesInBranch: targetBranch?.messages.length,
-      })
-      const result = updateMessageInBranch(prev, targetRepo.id, branchId, messageId, updates)
-      // Verify the update happened
-      const updatedRepo = result.find(r => r.id === targetRepo.id)
-      const updatedBranch = updatedRepo?.branches.find(b => b.id === branchId)
-      const updatedMessage = updatedBranch?.messages.find(m => m.id === messageId)
-      console.log("[handleUpdateMessage] result", {
-        updatedContentLength: (updatedMessage?.content || "").length,
-        sameReference: prev === result,
-      })
-      return result
+      if (!targetRepo) return prev
+      return updateMessageInBranch(prev, targetRepo.id, branchId, messageId, updates)
     })
 
     return updateMessageMutation.mutateAsync({ messageId, updates }).then(() => {})

@@ -299,21 +299,32 @@ export function useExecutionPolling({
     }
     pollingActiveRef.current = true
 
-    // Capture the branch context at polling start time
-    // This ensures we use the correct branch data even if the user switches branches
-    pollingBranchIdRef.current = branch.id
-    pollingBranchSandboxIdRef.current = branch.sandboxId
-    pollingBranchMessagesRef.current = branch.messages
-    pollingLastShownCommitHashRef.current = branch.lastShownCommitHash || null
-    // Capture repo context at polling start time to avoid using wrong repo when user switches repos
-    pollingRepoNameRef.current = repoName
-    pollingRepoOwnerRef.current = repoOwner
-    pollingRepoApiNameRef.current = repoApiName
-    pollingBranchNameRef.current = branch.name
+    // Capture the branch context at polling start time in CLOSURE VARIABLES (not refs)
+    // This ensures the poll function uses the correct branch even if another branch starts polling
+    // The refs are still updated for other parts of the code (e.g., detectAndShowCommits)
+    const capturedBranchId = branch.id
+    const capturedSandboxId = branch.sandboxId
+    const capturedMessages = branch.messages
+    const capturedLastShownCommitHash = branch.lastShownCommitHash || null
+    const capturedRepoName = repoName
+    const capturedRepoOwner = repoOwner
+    const capturedRepoApiName = repoApiName
+    const capturedBranchName = branch.name
+
+    // Also update refs for backwards compatibility with detectAndShowCommits and other code
+    pollingBranchIdRef.current = capturedBranchId
+    pollingBranchSandboxIdRef.current = capturedSandboxId
+    pollingBranchMessagesRef.current = capturedMessages
+    pollingLastShownCommitHashRef.current = capturedLastShownCommitHash
+    pollingRepoNameRef.current = capturedRepoName
+    pollingRepoOwnerRef.current = capturedRepoOwner
+    pollingRepoApiNameRef.current = capturedRepoApiName
+    pollingBranchNameRef.current = capturedBranchName
     // Reset commit detection guard for new execution
     commitDetectionRunningRef.current = false
 
-    void clearPushErrorMessages(branch.id, branch.messages, onUpdateMessage)
+
+    void clearPushErrorMessages(capturedBranchId, capturedMessages, onUpdateMessage)
 
     if (streamingMessageIdRef) {
       streamingMessageIdRef.current = messageId
@@ -335,11 +346,10 @@ export function useExecutionPolling({
     // STOPPED_WITHOUT_END_NOTE imported from lib/core/polling
 
     const appendStoppedWithoutEndNote = () => {
-      const targetBranchId = pollingBranchIdRef.current
-      if (!targetBranchId) return
-      const lastMsg = pollingBranchMessagesRef.current.find((m) => m.id === messageId)
+      // Use captured branch ID from closure, not ref (which may have been overwritten)
+      const lastMsg = capturedMessages.find((m) => m.id === messageId)
       const currentContent = lastMsg?.content ?? ""
-      onUpdateMessage(targetBranchId, messageId, {
+      onUpdateMessage(capturedBranchId, messageId, {
         content: currentContent + STOPPED_WITHOUT_END_NOTE,
       })
     }
@@ -368,9 +378,8 @@ export function useExecutionPolling({
               currentExecutionIdRef.current = null
               currentMessageIdRef.current = null
               appendStoppedWithoutEndNote()
-              if (pollingBranchIdRef.current) {
-                onUpdateBranch(pollingBranchIdRef.current, { status: BRANCH_STATUS.IDLE })
-              }
+              // Use captured branch ID from closure
+              onUpdateBranch(capturedBranchId, { status: BRANCH_STATUS.IDLE })
             }
             return
           }
@@ -384,19 +393,8 @@ export function useExecutionPolling({
         // This prevents race conditions where an older response arrives after a newer one,
         // which could cause the UI to show stale content or trigger completion prematurely.
         const responseVersion = typeof data.snapshotVersion === "number" ? data.snapshotVersion : 0
-        console.log("[execution-poll] received response", {
-          status: data.status,
-          snapshotVersion: responseVersion,
-          highestSeen: highestSnapshotVersionRef.current,
-          contentLength: (data.content || "").length,
-          toolCallsCount: (data.toolCalls || []).length,
-          contentBlocksCount: (data.contentBlocks || []).length,
-          messageId,
-          targetBranchId: pollingBranchIdRef.current,
-        })
         if (responseVersion < highestSnapshotVersionRef.current) {
           // Stale response - ignore it entirely
-          console.log("[execution-poll] rejecting stale response", { responseVersion, highestSeen: highestSnapshotVersionRef.current })
           return
         }
         highestSnapshotVersionRef.current = responseVersion
@@ -417,34 +415,26 @@ export function useExecutionPolling({
           currentMessageIdRef.current = null
           if (streamingMessageIdRef) streamingMessageIdRef.current = null
           appendStoppedWithoutEndNote()
-          if (pollingBranchIdRef.current) {
-            onUpdateBranch(pollingBranchIdRef.current, { status: BRANCH_STATUS.IDLE })
-          }
+          // Use captured branch ID from closure
+          onUpdateBranch(capturedBranchId, { status: BRANCH_STATUS.IDLE })
           return
         }
 
         // Update message content
         const hasContent = data.content || (data.toolCalls && data.toolCalls.length > 0) || (data.contentBlocks && data.contentBlocks.length > 0)
-        console.log("[execution-poll] hasContent check", { hasContent, content: !!data.content, toolCalls: (data.toolCalls || []).length, contentBlocks: (data.contentBlocks || []).length })
         if (hasContent) {
           // Use pure functions from lib/core/polling for ID generation
           // Cast to app types since the pure functions use simpler internal types
           const toolCallsWithIds = addToolCallIds(data.toolCalls || []) as ToolCall[]
           const contentBlocksWithIds = addContentBlockIds(data.contentBlocks || []) as ContentBlock[]
 
-          // Use pollingBranchIdRef to ensure updates go to the correct branch
-          const targetBranchId = pollingBranchIdRef.current
-          console.log("[execution-poll] updating message", { targetBranchId, messageId, contentLength: (data.content || "").length })
-          if (targetBranchId) {
-            onUpdateMessage(targetBranchId, messageId, {
-              content: data.content || "",
-              toolCalls: toolCallsWithIds,
-              contentBlocks:
-                contentBlocksWithIds.length > 0 ? contentBlocksWithIds : undefined,
-            })
-          } else {
-            console.warn("[execution-poll] targetBranchId is null, skipping message update!")
-          }
+          // Use captured branch ID from closure (not ref which may have been overwritten by another branch)
+          onUpdateMessage(capturedBranchId, messageId, {
+            content: data.content || "",
+            toolCalls: toolCallsWithIds,
+            contentBlocks:
+              contentBlocksWithIds.length > 0 ? contentBlocksWithIds : undefined,
+          })
         }
 
         // Check if completed or error (only run completion once; multiple in-flight polls can all see "completed")
@@ -452,14 +442,12 @@ export function useExecutionPolling({
           data.status === EXECUTION_STATUS.COMPLETED ||
           data.status === EXECUTION_STATUS.ERROR
         ) {
-          console.log("[execution-poll] completion detected", { status: data.status, alreadyHandled: completionHandledRef.current })
           if (completionHandledRef.current) return
           completionHandledRef.current = true
-          console.log("[execution-poll] handling completion")
 
-          const completedBranchIdForLog = pollingBranchIdRef.current
+          // Use captured branch ID from closure
           const viewingBranchId = globalActiveBranchIdRef?.current ?? activeBranchIdRef.current
-          const unread = viewingBranchId !== completedBranchIdForLog
+          const unread = viewingBranchId !== capturedBranchId
 
           if (pollingRef.current) {
             clearInterval(pollingRef.current)
@@ -470,32 +458,29 @@ export function useExecutionPolling({
           currentMessageIdRef.current = null
 
           // Persist final message to DB so refresh loads full content
-          const targetBranchId = pollingBranchIdRef.current
-          if (targetBranchId) {
-            // Use pure functions from lib/core/polling for ID generation
-            // Cast to app types since the pure functions use simpler internal types
-            const finalToolCalls = addToolCallIds(data.toolCalls || []) as ToolCall[]
-            const finalContentBlocks = addContentBlockIds(data.contentBlocks || []) as ContentBlock[]
+          // Use pure functions from lib/core/polling for ID generation
+          // Cast to app types since the pure functions use simpler internal types
+          const finalToolCalls = addToolCallIds(data.toolCalls || []) as ToolCall[]
+          const finalContentBlocks = addContentBlockIds(data.contentBlocks || []) as ContentBlock[]
 
-            let finalContent = data.content || ""
-            const hasNoOutput =
-              !finalContent &&
-              finalToolCalls.length === 0 &&
-              finalContentBlocks.length === 0
-            if (
-              data.status === EXECUTION_STATUS.COMPLETED &&
-              hasNoOutput
-            ) {
-              finalContent = STOPPED_WITHOUT_END_NOTE.trim()
-            }
-            const savePromise = onUpdateMessage(targetBranchId, messageId, {
-              content: finalContent,
-              toolCalls: finalToolCalls,
-              contentBlocks:
-                finalContentBlocks.length > 0 ? finalContentBlocks : undefined,
-            })
-            if (savePromise) await savePromise
+          let finalContent = data.content || ""
+          const hasNoOutput =
+            !finalContent &&
+            finalToolCalls.length === 0 &&
+            finalContentBlocks.length === 0
+          if (
+            data.status === EXECUTION_STATUS.COMPLETED &&
+            hasNoOutput
+          ) {
+            finalContent = STOPPED_WITHOUT_END_NOTE.trim()
           }
+          const savePromise = onUpdateMessage(capturedBranchId, messageId, {
+            content: finalContent,
+            toolCalls: finalToolCalls,
+            contentBlocks:
+              finalContentBlocks.length > 0 ? finalContentBlocks : undefined,
+          })
+          if (savePromise) await savePromise
 
           // Delay clearing streaming ref so sync doesn't overwrite before next load
           const completedMessageId = messageId
@@ -507,14 +492,11 @@ export function useExecutionPolling({
           }
 
           if (data.status === EXECUTION_STATUS.ERROR) {
-            const errBranchId = pollingBranchIdRef.current
-            if (errBranchId) {
-              // Use pure function from lib/core/polling for error content building
-              const content = buildErrorContent(data.content ?? "", data.error, data.agentCrashed)
-              if (content !== (data.content ?? "")) {
-                const errSave = onUpdateMessage(errBranchId, messageId, { content })
-                if (errSave) await errSave
-              }
+            // Use pure function from lib/core/polling for error content building
+            const content = buildErrorContent(data.content ?? "", data.error, data.agentCrashed)
+            if (content !== (data.content ?? "")) {
+              const errSave = onUpdateMessage(capturedBranchId, messageId, { content })
+              if (errSave) await errSave
             }
           }
 
@@ -523,11 +505,8 @@ export function useExecutionPolling({
           // Run auto-commit and commit-detection before going idle (spinner stays until this finishes)
           await detectAndShowCommits(true)
 
-          const completedBranchId = completedBranchIdForLog ?? pollingBranchIdRef.current
-
           // Check if loop mode should continue (uses pure function from lib/core/polling)
           const loopShouldContinue =
-            completedBranchId &&
             shouldContinueLoop(
               data.status as 'completed' | 'error',
               loopEnabledRef.current ?? false,
@@ -537,31 +516,29 @@ export function useExecutionPolling({
               isLoopFinished
             )
 
-          if (loopShouldContinue && completedBranchId) {
+          if (loopShouldContinue) {
             // Increment loop count and set status to running immediately
             // This prevents the cron job from also triggering a continuation (race condition)
             const newLoopCount = loopCountRef.current + 1
-            onUpdateBranch(completedBranchId, {
+            onUpdateBranch(capturedBranchId, {
               status: "running",
               loopCount: newLoopCount,
               lastActivity: "now",
               lastActivityTs: Date.now(),
             })
             // Trigger loop continuation
-            onLoopContinue?.(completedBranchId)
+            onLoopContinue?.(capturedBranchId)
           } else {
             // Normal completion - set status to idle
-            if (completedBranchId) {
-              // If loop was enabled but stopped (finished or max reached), reset loop count
-              const loopUpdates = loopEnabledRef.current ? { loopCount: 0 } : {}
-              onUpdateBranch(completedBranchId, {
-                status: "idle",
-                lastActivity: "now",
-                lastActivityTs: Date.now(),
-                unread,
-                ...loopUpdates,
-              })
-            }
+            // If loop was enabled but stopped (finished or max reached), reset loop count
+            const loopUpdates = loopEnabledRef.current ? { loopCount: 0 } : {}
+            onUpdateBranch(capturedBranchId, {
+              status: "idle",
+              lastActivity: "now",
+              lastActivityTs: Date.now(),
+              unread,
+              ...loopUpdates,
+            })
             // Play completion sound only when loop is done
             try {
               const ctx = new AudioContext()
@@ -584,7 +561,7 @@ export function useExecutionPolling({
           }
         }
       } catch (err) {
-        console.error("[execution-poll] poll threw", { branchId: pollingBranchIdRef.current, err })
+        console.error("[execution-poll] poll threw", { capturedBranchId, err })
       } finally {
         pollInFlightRef.current = false
       }

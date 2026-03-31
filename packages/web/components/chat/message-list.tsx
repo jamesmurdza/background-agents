@@ -90,15 +90,6 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
     }
 
     // Messages list
-    // Debug: log messages being rendered to trace state updates
-    const lastAssistantMsg = branch.messages.filter(m => m.role === "assistant").slice(-1)[0]
-    console.log("[MessageList] rendering", {
-      branchId: branch.id,
-      messageCount: branch.messages.length,
-      lastAssistantMsgId: lastAssistantMsg?.id,
-      lastAssistantContentLength: (lastAssistantMsg?.content || "").length,
-      lastAssistantContent: (lastAssistantMsg?.content || "").slice(0, 50),
-    })
     return (
       <MessageListContainer ref={ref} onScroll={onScroll} isMobile={isMobile}>
         <div className="flex flex-col gap-5 min-w-0 w-full max-w-full">

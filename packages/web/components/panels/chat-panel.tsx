@@ -549,21 +549,16 @@ export function ChatPanel({
       toolCalls: [],
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }
-    console.log("[handleSend] creating assistant message", { branchId: branch.id, tempId: assistantMsg.id })
     const messageId = await onAddMessage(branch.id, assistantMsg)
-    console.log("[handleSend] got messageId from onAddMessage", { branchId: branch.id, tempId: assistantMsg.id, messageId })
     currentMessageIdRef.current = messageId
 
     try {
-      console.log("[handleSend] calling runAgentExecute", { branchId: branch.id, messageId })
       await runAgentExecute({
         branchId: branch.id,
         messageId,
         prompt,
         b: branch,
       })
-
-      console.log(`[POLLER-DEBUG] ChatPanel runAgentExecute finished for branch ${branch.id}`)
 
       if (branch.messages.length === 0 && canSuggestName) {
         renaming.autoSuggestBranchName(prompt)
