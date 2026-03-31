@@ -9,14 +9,17 @@
 
 import { Daytona } from "@daytonaio/sdk"
 
+// Clean API key (remove hidden chars like \r)
+const cleanEnv = (val: string) => val.replace(/[\r\n\s]/g, "")
+
 async function main() {
   console.log("=== executeSessionCommand Background Method ===\n")
 
   // 1. Create sandbox
   console.log("1. Creating sandbox...")
-  const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
+  const daytona = new Daytona({ apiKey: cleanEnv(process.env.DAYTONA_API_KEY!) })
   const sandbox = await daytona.create({
-    envVars: { OPENAI_API_KEY: process.env.OPENAI_API_KEY! },
+    envVars: { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
 
@@ -35,7 +38,7 @@ async function main() {
     // 4. Set up environment in session
     console.log("4. Setting up environment in session...")
     await sandbox.process.executeSessionCommand(sessionId, {
-      command: `export OPENAI_API_KEY='${process.env.OPENAI_API_KEY}'`,
+      command: `export OPENAI_API_KEY='${cleanEnv(process.env.OPENAI_API_KEY!)}'`,
     })
     console.log("   Environment set.\n")
 

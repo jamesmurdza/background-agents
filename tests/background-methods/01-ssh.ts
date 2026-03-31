@@ -13,25 +13,23 @@ import { Client } from "ssh2"
 const SSH_HOST = "ssh.app.daytona.io"
 const SSH_PORT = 22
 
+// Clean API key (remove hidden chars like \r)
+const cleanEnv = (val: string) => val.replace(/[\r\n\s]/g, "")
+
 async function main() {
   console.log("=== SSH Background Method ===\n")
 
   // 1. Create sandbox
   console.log("1. Creating sandbox...")
-  const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
+  const daytona = new Daytona({ apiKey: cleanEnv(process.env.DAYTONA_API_KEY!) })
   const sandbox = await daytona.create({
-    envVars: { OPENAI_API_KEY: process.env.OPENAI_API_KEY! },
+    envVars: { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
 
   try {
-    // 2. Install codex CLI
-    console.log("2. Installing codex CLI...")
-    await sandbox.process.executeCommand("npm install -g @openai/codex", undefined, undefined, 120)
-    console.log("   Codex installed.\n")
-
-    // 3. Get SSH access for background execution
-    console.log("3. Establishing SSH connection...")
+    // 2. Get SSH access for background execution
+    console.log("2. Establishing SSH connection...")
     const { token } = await sandbox.createSshAccess(60)
     const ssh = new Client()
     await new Promise<void>((resolve, reject) => {
@@ -41,12 +39,11 @@ async function main() {
     })
     console.log("   SSH connected.\n")
 
-    // 4. Start codex in background via SSH (returns immediately)
-    console.log("4. Starting Codex in background...")
+    // 4. Start slow command in background via SSH (returns immediately)
+    console.log("4. Starting slow command in background...")
     const outputFile = "/tmp/codex-output.jsonl"
-    const prompt = "Write a hello world Python script and run it"
-    const apiKey = process.env.OPENAI_API_KEY!.replace(/'/g, "'\\''")
-    const command = `OPENAI_API_KEY='${apiKey}' codex exec --json --skip-git-repo-check --yolo "${prompt}"`
+    // Use a simple slow command that outputs JSON lines (simulating codex)
+    const command = `for i in 1 2 3 4 5; do echo '{"type":"event","count":'$i',"ts":'$(date +%s)'}'; sleep 1; done`
     const safeCmd = command.replace(/'/g, "'\\''")
     const wrapper = `nohup sh -c '${safeCmd} >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done' > /dev/null 2>&1 & echo $!`
 
