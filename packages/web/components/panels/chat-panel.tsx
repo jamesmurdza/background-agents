@@ -205,7 +205,8 @@ export function ChatPanel({
   })
 
   // Ref to hold startPolling so loop continue and runAgentExecute can start polling before the hook returns
-  const startPollingRef = useRef<(messageId: string, executionId?: string) => void>(() => {})
+  // IMPORTANT: Branch must be passed explicitly to avoid closure capture bugs when switching branches
+  const startPollingRef = useRef<(messageId: string, forBranch: Branch, executionId?: string) => void>(() => {})
 
   const runAgentExecute = useCallback(
     async (args: {
@@ -301,14 +302,17 @@ export function ChatPanel({
             throw new Error(executeHttpErrorMessage(retryRes, rData, rRaw) || "Failed to start agent after sandbox recreation")
           }
 
-          startPollingRef.current(messageId)
+          // Pass the branch explicitly to avoid closure capture bugs
+          // The sandboxId was updated, so create a modified branch with new sandboxId
+          startPollingRef.current(messageId, { ...b, sandboxId, previewUrlPattern })
           return
         }
 
         throw new Error(executeHttpErrorMessage(response, data, rawText) || "Failed to start agent")
       }
 
-      startPollingRef.current(messageId)
+      // Pass the branch explicitly to avoid closure capture bugs
+      startPollingRef.current(messageId, b)
     },
     [credentials, onUpdateMessage, onUpdateBranch, repoName]
   )
@@ -405,11 +409,13 @@ export function ChatPanel({
   const currentExecutionIdRef = useRef<string | null>(null)
 
   // Update startPollingRef to use new execution manager
+  // IMPORTANT: The branch is now passed explicitly to avoid closure capture bugs
   useEffect(() => {
-    startPollingRef.current = (messageId: string, executionId?: string) => {
+    startPollingRef.current = (messageId: string, forBranch: Branch, executionId?: string) => {
       // The executionId might not be returned yet, use messageId as fallback
       const execId = executionId || messageId
-      startExecutionPolling(messageId, execId, branch, {
+      // Use the passed branch, NOT the closure branch - this is critical for background branches
+      startExecutionPolling(messageId, execId, forBranch, {
         repoName,
         repoOwner,
         repoApiName: repoName,
@@ -417,7 +423,7 @@ export function ChatPanel({
       currentMessageIdRef.current = messageId
       currentExecutionIdRef.current = execId
     }
-  }, [startExecutionPolling, branch, repoName, repoOwner])
+  }, [startExecutionPolling, repoName, repoOwner])
 
   // Update streamingMessageIdRef based on execution store (for cross-device sync)
   useEffect(() => {
