@@ -379,6 +379,39 @@ cd packages/agents && npm run test:coverage
 
 See [`packages/agents/README.md`](packages/agents/README.md) for full SDK documentation.
 
+### End-to-end tests (Playwright)
+
+The web package includes E2E tests that start a **real** Next.js dev server, use a **dedicated PostgreSQL database**, create **real Daytona sandboxes**, and drive the **same UI** users see (chat, polling, sync). They authenticate via `POST /api/e2e/setup` (that route returns 404 when `NODE_ENV=production`).
+
+**Prerequisites**
+
+- `DAYTONA_API_KEY` available to the process (Playwright loads repo root `.env` via `playwright.config.ts`).
+- `packages/web/.env.e2e` with at least `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEXTAUTH_SECRET`, and `ENCRYPTION_KEY`. Use a **separate database** from your normal dev DB so tests do not clobber local data.
+
+**Run** (from `packages/web`):
+
+```bash
+npm run test:e2e
+```
+
+**Run a subset**:
+
+```bash
+npx playwright test e2e/app/single-agent.spec.ts
+npx playwright test e2e/app
+npx playwright test e2e/regression
+```
+
+**Layout**
+
+| Path | Purpose |
+|------|---------|
+| `e2e/fixtures/` | Shared fixture (`agent-fixture.ts`) and named timeouts (`timeouts.ts`) |
+| `e2e/app/` | Full-app flows: `single-agent.spec.ts`, `multi-agent.spec.ts` |
+| `e2e/regression/` | Targeted regressions, e.g. `active-branch-stuck.spec.ts` |
+
+Config: `packages/web/playwright.config.ts` (dev server on port 3001, isolated `NEXT_DIST_DIR=.next-e2e`, `workers: 1`).
+
 ### Troubleshooting
 
 **"Can't reach database server"**

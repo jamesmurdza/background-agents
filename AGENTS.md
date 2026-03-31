@@ -70,7 +70,7 @@ DAYTONA_API_KEY=dtn_... ANTHROPIC_API_KEY=sk-ant-... npm run test -w @upstream/a
 DAYTONA_API_KEY=dtn_... ANTHROPIC_API_KEY=sk-ant-... npm run test -w @upstream/agents
 ```
 
-Web app E2E (Playwright, real UI + sandboxes) is documented in `CLAUDE.md`.
+Web app E2E (Playwright) is documented in the root **README** (*End-to-end tests*).
 
 ### Manual SDK Testing
 
