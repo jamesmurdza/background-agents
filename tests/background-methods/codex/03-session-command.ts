@@ -21,7 +21,7 @@ async function main() {
   console.log("1. Creating sandbox...")
   const daytona = new Daytona({ apiKey: cleanEnv(process.env.DAYTONA_API_KEY!) })
   const sandbox = await daytona.create({
-    envVars: { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
+    envVars: { TEST_OPENAI_API_KEY: cleanEnv(process.env.TEST_OPENAI_API_KEY!) },
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
 
@@ -58,7 +58,7 @@ async function main() {
     // 4. Set up environment in session
     console.log("4. Setting up environment in session...")
     await sandbox.process.executeSessionCommand(sessionId, {
-      command: `export OPENAI_API_KEY='${cleanEnv(process.env.OPENAI_API_KEY!)}'`,
+      command: `export TEST_OPENAI_API_KEY='${cleanEnv(process.env.TEST_OPENAI_API_KEY!)}'`,
     })
     console.log("   Environment set.\n")
 

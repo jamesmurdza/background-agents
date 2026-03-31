@@ -26,7 +26,7 @@ async function main() {
   console.log("1. Creating sandbox...")
   const daytona = new Daytona({ apiKey: cleanEnv(process.env.DAYTONA_API_KEY!) })
   const sandbox = await daytona.create({
-    envVars: { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
+    envVars: { TEST_OPENAI_API_KEY: cleanEnv(process.env.TEST_OPENAI_API_KEY!) },
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
 
@@ -51,8 +51,8 @@ async function main() {
     console.log("4. Starting Codex in background...")
     const outputFile = "/tmp/codex-output.jsonl"
     const prompt = "Write a hello world Python script and run it"
-    const apiKey = cleanEnv(process.env.OPENAI_API_KEY!).replace(/'/g, "'\\''")
-    const command = `OPENAI_API_KEY='${apiKey}' codex exec --json --skip-git-repo-check --yolo "${prompt}"`
+    const apiKey = cleanEnv(process.env.TEST_OPENAI_API_KEY!).replace(/'/g, "'\\''")
+    const command = `TEST_OPENAI_API_KEY='${apiKey}' codex exec --json --skip-git-repo-check --yolo "${prompt}"`
     const safeCmd = command.replace(/'/g, "'\\''")
     const wrapper = `nohup sh -c '${safeCmd} >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done' > /dev/null 2>&1 & echo $!`
 

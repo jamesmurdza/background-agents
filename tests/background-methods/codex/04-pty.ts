@@ -21,7 +21,7 @@ async function main() {
   console.log("1. Creating sandbox...")
   const daytona = new Daytona({ apiKey: cleanEnv(process.env.DAYTONA_API_KEY!) })
   const sandbox = await daytona.create({
-    envVars: { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
+    envVars: { TEST_OPENAI_API_KEY: cleanEnv(process.env.TEST_OPENAI_API_KEY!) },
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
 
@@ -63,7 +63,7 @@ async function main() {
       cwd: "/home/daytona",
       envs: {
         TERM: "xterm-256color",
-        OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!),
+        TEST_OPENAI_API_KEY: cleanEnv(process.env.TEST_OPENAI_API_KEY!),
       },
       cols: 200,
       rows: 50,
