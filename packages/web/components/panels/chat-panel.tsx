@@ -427,9 +427,19 @@ export function ChatPanel({
 
   // Recovery: If branch shows as RUNNING but we're not polling, check server for active execution
   // This handles page refresh, tab close/reopen, or switching to a branch that's running
+  const recoveryCheckedRef = useRef<string | null>(null)
   useEffect(() => {
-    // Only check if branch is marked as running but we're not already tracking it
-    if (branch.status !== BRANCH_STATUS.RUNNING) return
+    // Only check if branch is marked as running
+    if (branch.status !== BRANCH_STATUS.RUNNING) {
+      // Reset when branch stops running so we can check again if it restarts
+      if (recoveryCheckedRef.current === branch.id) {
+        recoveryCheckedRef.current = null
+      }
+      return
+    }
+
+    // Only check once per branch (prevent duplicate calls)
+    if (recoveryCheckedRef.current === branch.id) return
 
     // Check if we already have an active execution for any message in this branch
     const lastAssistantMsg = branch.messages
@@ -438,8 +448,12 @@ export function ChatPanel({
 
     if (lastAssistantMsg && isStreaming(lastAssistantMsg.id)) {
       // Already tracking this execution
+      recoveryCheckedRef.current = branch.id
       return
     }
+
+    // Mark as checked before making the request
+    recoveryCheckedRef.current = branch.id
 
     // Ask server if there's an active execution for this branch
     const checkActiveExecution = async () => {
