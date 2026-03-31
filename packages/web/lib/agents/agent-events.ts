@@ -39,19 +39,18 @@ export async function persistExecutionCompletion(
           result.contentBlocks?.length ? JSON.parse(JSON.stringify(result.contentBlocks)) : undefined,
       },
     }),
-    prisma.agentExecution.update({
-      where: { id: execution.id },
-      data: {
-        status: result.status,
-        completedAt: new Date(),
-        latestSnapshot:
-          result.agentCrashed != null
-            ? (result.agentCrashed as unknown as Prisma.InputJsonValue)
-            : Prisma.DbNull,
-        accumulatedEvents: Prisma.DbNull,
-        lastSnapshotPolledAt: null,
-      },
-    }),
+    // Increment snapshotVersion on completion so frontend knows this is the final state
+    prisma.$executeRaw`
+      UPDATE "AgentExecution"
+      SET
+        "status" = ${result.status},
+        "completedAt" = ${new Date()},
+        "latestSnapshot" = ${result.agentCrashed != null ? JSON.stringify(result.agentCrashed) : null}::jsonb,
+        "accumulatedEvents" = NULL,
+        "lastSnapshotPolledAt" = NULL,
+        "snapshotVersion" = "snapshotVersion" + 1
+      WHERE id = ${execution.id}
+    `,
     prisma.sandbox.updateMany({
       where: { id: execution.sandboxId },
       data: { status: "idle" },
@@ -84,29 +83,43 @@ export interface SnapshotUpdate {
 /**
  * Write the latest streaming snapshot to the execution row.
  * Status API reads this until completion (then final content is on Message).
+ * Atomically increments snapshotVersion to enable optimistic concurrency control.
+ * Returns the new snapshotVersion after the update.
  */
 export async function updateSnapshot(
   executionId: string,
   data: SnapshotData | SnapshotUpdate
-): Promise<void> {
-  const update: Record<string, unknown> = {}
+): Promise<number> {
   const withSnapshot =
     "latestSnapshot" in data && data.latestSnapshot != null
       ? data.latestSnapshot
       : "content" in data
         ? (data as SnapshotData)
         : null
-  if (withSnapshot) update.latestSnapshot = withSnapshot
-  if ("accumulatedEvents" in data && data.accumulatedEvents !== undefined) {
-    update.accumulatedEvents = data.accumulatedEvents
-  }
-  if ("lastSnapshotPolledAt" in data && data.lastSnapshotPolledAt !== undefined) {
-    update.lastSnapshotPolledAt = data.lastSnapshotPolledAt
-  }
-  await (prisma as any).agentExecution.update({
-    where: { id: executionId },
-    data: update,
-  })
+
+  const snapshotJson = withSnapshot ? JSON.stringify(withSnapshot) : null
+  const eventsJson =
+    "accumulatedEvents" in data && data.accumulatedEvents !== undefined
+      ? JSON.stringify(data.accumulatedEvents)
+      : null
+  const polledAt =
+    "lastSnapshotPolledAt" in data && data.lastSnapshotPolledAt !== undefined
+      ? data.lastSnapshotPolledAt
+      : null
+
+  // Use raw SQL for atomic increment of snapshotVersion
+  const result = await prisma.$queryRaw<{ snapshotVersion: number }[]>`
+    UPDATE "AgentExecution"
+    SET
+      "snapshotVersion" = "snapshotVersion" + 1,
+      "latestSnapshot" = COALESCE(${snapshotJson}::jsonb, "latestSnapshot"),
+      "accumulatedEvents" = COALESCE(${eventsJson}::jsonb, "accumulatedEvents"),
+      "lastSnapshotPolledAt" = COALESCE(${polledAt}, "lastSnapshotPolledAt")
+    WHERE id = ${executionId}
+    RETURNING "snapshotVersion"
+  `
+
+  return result[0]?.snapshotVersion ?? 0
 }
 
 /** Load accumulated events for an execution (for status-driven polling across instances). */

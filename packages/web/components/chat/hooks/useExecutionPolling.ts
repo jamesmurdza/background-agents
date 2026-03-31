@@ -79,6 +79,9 @@ export function useExecutionPolling({
   const pollingActiveRef = useRef(false)
   // Guard to prevent detectAndShowCommits from running multiple times for the same execution
   const commitDetectionRunningRef = useRef(false)
+  // Monotonic counter to detect and reject stale responses (prevents race conditions)
+  // Only accept responses with snapshotVersion >= this value
+  const highestSnapshotVersionRef = useRef(0)
 
   // Store the branch context at polling start time to avoid using wrong branch data
   // when the user switches branches during execution. These are ONLY updated when
@@ -325,8 +328,9 @@ export function useExecutionPolling({
 
     let notFoundRetries = 0
     // MAX_NOT_FOUND_RETRIES imported from lib/core/polling
-    // Reset completion flag for new polling session
+    // Reset completion flag and snapshot version for new polling session
     completionHandledRef.current = false
+    highestSnapshotVersionRef.current = 0
 
     // STOPPED_WITHOUT_END_NOTE imported from lib/core/polling
 
@@ -375,6 +379,16 @@ export function useExecutionPolling({
         }
 
         notFoundRetries = 0
+
+        // Reject stale responses using monotonic snapshotVersion counter.
+        // This prevents race conditions where an older response arrives after a newer one,
+        // which could cause the UI to show stale content or trigger completion prematurely.
+        const responseVersion = typeof data.snapshotVersion === "number" ? data.snapshotVersion : 0
+        if (responseVersion < highestSnapshotVersionRef.current) {
+          // Stale response - ignore it entirely
+          return
+        }
+        highestSnapshotVersionRef.current = responseVersion
 
         // Safety: stop polling when agent is no longer running (avoids looping after agent ends)
         if (

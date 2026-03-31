@@ -218,6 +218,7 @@ model AgentExecution {
   accumulatedEvents    Json?
   lastSnapshotPolledAt DateTime?
   isLoopIteration      Boolean   @default(false)
+  snapshotVersion      Int       @default(0) // Monotonic counter for optimistic concurrency
   message              Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([sandboxId, status])

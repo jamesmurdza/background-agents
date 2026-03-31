@@ -23,11 +23,12 @@ import type { Agent } from "@/lib/shared/types"
 const STATUS_POLL_LEASE_MS = 5000
 
 function buildSnapshotResponse(
-  execution: { status: string; message: { content?: string; toolCalls?: unknown[]; contentBlocks?: unknown[] } },
+  execution: { status: string; snapshotVersion: number; message: { content?: string; toolCalls?: unknown[]; contentBlocks?: unknown[] } },
   snapshot: Record<string, unknown>
 ) {
   return Response.json({
     status: execution.status,
+    snapshotVersion: execution.snapshotVersion,
     content: snapshot.content ?? execution.message.content ?? "",
     toolCalls: snapshot.toolCalls ?? execution.message.toolCalls ?? [],
     contentBlocks: snapshot.contentBlocks ?? execution.message.contentBlocks ?? [],
@@ -148,7 +149,7 @@ export async function POST(req: Request) {
 
   const snapshot = ((execution as { latestSnapshot?: unknown }).latestSnapshot as Record<string, unknown> | null) ?? {}
   return buildSnapshotResponse(
-    execution as { status: string; message: { content?: string; toolCalls?: unknown[]; contentBlocks?: unknown[] } },
+    execution as { status: string; snapshotVersion: number; message: { content?: string; toolCalls?: unknown[]; contentBlocks?: unknown[] } },
     snapshot
   )
 }
