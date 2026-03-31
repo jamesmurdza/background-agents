@@ -9,6 +9,7 @@ import {
   removeBranchFromRepo,
 } from "@/lib/shared/state-utils"
 import { PATHS } from "@/lib/shared/constants"
+import { markBranchDeleting, unmarkBranchDeleting } from "@/hooks/use-sync-data"
 
 interface UseRepoOperationsOptions {
   repos: TransformedRepo[]
@@ -123,6 +124,14 @@ export function useRepoOperations({
     const branch = activeRepo.branches.find((b) => b.id === branchId)
     const remainingAfterDeletion = activeRepo.branches.filter((b) => b.id !== branchId)
 
+    // Optimistically remove from UI and prevent sync from re-adding
+    markBranchDeleting(branchId)
+    setRepos((prev) => removeBranchFromRepo(prev, activeRepo.id, branchId))
+
+    if (activeBranchId === branchId) {
+      setActiveBranchId(remainingAfterDeletion[0]?.id ?? null)
+    }
+
     // Delete remote branch if requested (must happen before sandbox is deleted)
     if (deleteRemote && branch?.sandboxId) {
       try {
@@ -140,33 +149,20 @@ export function useRepoOperations({
         })
       } catch (error) {
         console.error(`[handleRemoveBranch] Error deleting remote branch:`, error)
-        // Continue with branch deletion even if remote delete fails
       }
     }
 
     // Server handles Daytona sandbox cleanup
     try {
       const res = await fetch(`/api/branches?id=${branchId}`, { method: "DELETE" })
-      if (!res.ok) {
-        // 404 means branch was already deleted (e.g., from another tab or concurrent deletion)
-        // This is not an error condition since the desired state is achieved
-        if (res.status !== 404) {
-          console.error(`[handleRemoveBranch] Failed to delete branch ${branchId}: ${res.status}`)
-        }
+      if (!res.ok && res.status !== 404) {
+        console.error(`[handleRemoveBranch] Failed to delete branch ${branchId}: ${res.status}`)
       }
     } catch (error) {
       console.error(`[handleRemoveBranch] Error deleting branch ${branchId}:`, error)
+    } finally {
+      unmarkBranchDeleting(branchId)
     }
-
-    // Update UI after server deletion completes so row-level spinners can be shown immediately.
-    setRepos((prev) => removeBranchFromRepo(prev, activeRepo.id, branchId))
-
-    if (activeBranchId === branchId) {
-      setActiveBranchId(remainingAfterDeletion[0]?.id ?? null)
-    }
-
-    // Note: Don't call refresh() here - local state is already correct.
-    // Cross-device sync will handle eventual consistency if needed.
   }, [activeRepo, setRepos, setActiveBranchId])
 
   return {

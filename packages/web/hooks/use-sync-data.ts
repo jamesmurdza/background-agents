@@ -11,6 +11,10 @@ import {
 } from "@/lib/core/sync"
 import { isBranchPolling } from "@/hooks/use-execution-poller"
 
+const pendingDeletes = new Set<string>()
+export function markBranchDeleting(branchId: string) { pendingDeletes.add(branchId) }
+export function unmarkBranchDeleting(branchId: string) { pendingDeletes.delete(branchId) }
+
 // Sync data shape from the API
 export interface SyncBranch {
   id: string
@@ -90,13 +94,15 @@ function mergeBranchesWithLocalOnly(
   syncBranches: SyncBranch[]
 ): Branch[] {
   const syncIds = new Set(syncBranches.map((b) => b.id))
-  const localOnly = existingBranches.filter((b) => !syncIds.has(b.id))
-  const fromSync = syncBranches.map((syncBranch) => {
-    const existing = existingBranches.find((b) => b.id === syncBranch.id)
-    return existing
-      ? mergeSyncBranchIntoExisting(existing, syncBranch)
-      : syncBranchToBranch(syncBranch)
-  })
+  const localOnly = existingBranches.filter((b) => !syncIds.has(b.id) && !pendingDeletes.has(b.id))
+  const fromSync = syncBranches
+    .filter((b) => !pendingDeletes.has(b.id))
+    .map((syncBranch) => {
+      const existing = existingBranches.find((b) => b.id === syncBranch.id)
+      return existing
+        ? mergeSyncBranchIntoExisting(existing, syncBranch)
+        : syncBranchToBranch(syncBranch)
+    })
   return [...fromSync, ...localOnly]
 }
 
