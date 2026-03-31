@@ -47,8 +47,8 @@ export function adaptDaytonaSandbox(
     const safeOutput = escapeShell(opts.outputFile)
     const safeDone = escapeShell(opts.outputFile + ".done")
 
-    // nohup wrapper: run command, redirect output, create .done file when complete
-    const wrapper = `nohup sh -c '${safeCmd} >> ${safeOutput} 2>&1; echo 1 > ${safeDone}' > /dev/null 2>&1 & echo $!`
+    // nohup wrapper: run command, redirect output, sync to flush buffers, then create .done file
+    const wrapper = `nohup sh -c '${safeCmd} >> ${safeOutput} 2>&1; sync; echo 1 > ${safeDone}' > /dev/null 2>&1 & echo $!`
 
     const result = await sandbox.process.executeCommand(wrapper, undefined, undefined, 30)
     const pid = Number((result.result ?? "").trim().split(/\s+/).pop() ?? "")

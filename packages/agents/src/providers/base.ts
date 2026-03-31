@@ -488,7 +488,7 @@ export abstract class Provider implements IProvider {
     let stillRunning: boolean
 
     if (this.sandboxManager?.pollBackgroundState) {
-      const state = await this.sandboxManager.pollBackgroundState(sessionDir)
+      let state = await this.sandboxManager.pollBackgroundState(sessionDir)
       if (state?.meta) {
         try {
           const parsed = JSON.parse(state.meta)
@@ -497,6 +497,16 @@ export abstract class Provider implements IProvider {
           }
         } catch { /* invalid JSON */ }
       }
+
+      // If done, wait briefly and re-read to catch any final buffered output
+      if (state?.done) {
+        await new Promise(r => setTimeout(r, 100))
+        const finalState = await this.sandboxManager.pollBackgroundState(sessionDir)
+        if (finalState) {
+          state = finalState
+        }
+      }
+
       outputContent = state?.output ?? null
       stillRunning = !state?.done
     } else {
