@@ -105,6 +105,7 @@ export function ChatHeader({
           {renaming.canSuggestName && (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()} // Prevent input blur before click
               onClick={renaming.suggestBranchName}
               disabled={renaming.suggesting || renaming.renameLoading}
               title="Suggest branch name from chat"
@@ -123,6 +124,7 @@ export function ChatHeader({
           {!(renaming.renameLoading || renaming.suggesting) && (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()} // Prevent input blur before click
               onClick={renaming.cancelRenaming}
               title="Cancel"
               className="cursor-pointer"
