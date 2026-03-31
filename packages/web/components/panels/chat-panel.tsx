@@ -328,6 +328,35 @@ export function ChatPanel({
       }
       await onAddMessage(branchId, userMsg)
 
+      // Snapshot HEAD before the next run so detectAndShowCommits can list new commits (same as handleSend).
+      try {
+        const headRes = await fetch("/api/sandbox/git", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sandboxId: currentBranch.sandboxId,
+            repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+            action: "head",
+          }),
+        })
+        if (headRes.ok) {
+          const headData = await headRes.json()
+          if (headData.head) {
+            await fetch("/api/branches", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                branchId: currentBranch.id,
+                lastShownCommitHash: headData.head,
+              }),
+            })
+            onUpdateBranch(currentBranch.id, { lastShownCommitHash: headData.head })
+          }
+        }
+      } catch {
+        // Non-critical
+      }
+
       const assistantMsg: Message = {
         id: generateId(),
         role: "assistant",
@@ -362,7 +391,7 @@ export function ChatPanel({
         onUpdateBranch(branchId, { status: BRANCH_STATUS.IDLE, loopCount: 0 })
       }
     },
-    [onAddMessage, onUpdateBranch, onUpdateMessage, runAgentExecute]
+    [onAddMessage, onUpdateBranch, onUpdateMessage, runAgentExecute, repoName]
   )
 
   const gitActions = useGitActions({

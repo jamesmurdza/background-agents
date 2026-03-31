@@ -96,6 +96,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
         <div className="flex flex-col gap-5 min-w-0 w-full max-w-full">
           {branch.messages
             .filter((msg) => {
+              // Inline git commit chips (always show; empty content is expected)
+              if (msg.commitHash) return true
               if (msg.role !== "assistant" || msg.assistantSource !== ASSISTANT_SOURCE.SYSTEM) {
                 return true
               }
