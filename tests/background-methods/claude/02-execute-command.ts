@@ -53,7 +53,7 @@ async function main() {
     console.log("3. Starting Claude with nohup...")
     const outputFile = "/tmp/claude-output.jsonl"
     const prompt = "Write a hello world Python script and run it"
-    const nohupCommand = `nohup sh -c 'claude --print --output-format stream-json --dangerously-skip-permissions "${prompt}" >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done' > /dev/null 2>&1 & echo $!`
+    const nohupCommand = `nohup sh -c 'claude --print --output-format stream-json --verbose --dangerously-skip-permissions "${prompt}" >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done' > /dev/null 2>&1 & echo $!`
 
     const startTime = Date.now()
     const result = await sandbox.process.executeCommand(

@@ -68,7 +68,7 @@ async function main() {
     const pidFile = "/tmp/claude-session.pid"
     const prompt = "Write a hello world Python script and run it"
     // Store the PID so we can track/kill it
-    const command = `claude --print --output-format stream-json --dangerously-skip-permissions "${prompt}" >> ${outputFile} 2>&1 & echo $! > ${pidFile}; echo 1 > ${outputFile}.done`
+    const command = `claude --print --output-format stream-json --verbose --dangerously-skip-permissions "${prompt}" >> ${outputFile} 2>&1 & echo $! > ${pidFile}; echo 1 > ${outputFile}.done`
 
     const startTime = Date.now()
     const result = await sandbox.process.executeSessionCommand(

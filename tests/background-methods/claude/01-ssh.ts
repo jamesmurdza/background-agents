@@ -52,7 +52,7 @@ async function main() {
     const outputFile = "/tmp/claude-output.jsonl"
     const prompt = "Write a hello world Python script and run it"
     const apiKey = cleanEnv(process.env.TEST_ANTHROPIC_API_KEY!).replace(/'/g, "'\\''")
-    const command = `ANTHROPIC_API_KEY='${apiKey}' claude --print --output-format stream-json --dangerously-skip-permissions "${prompt}"`
+    const command = `ANTHROPIC_API_KEY='${apiKey}' claude --print --output-format stream-json --verbose --dangerously-skip-permissions "${prompt}"`
     const safeCmd = command.replace(/'/g, "'\\''")
     const wrapper = `nohup sh -c '${safeCmd} >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done' > /dev/null 2>&1 & echo $!`
 

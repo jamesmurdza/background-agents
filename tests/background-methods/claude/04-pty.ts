@@ -79,7 +79,7 @@ async function main() {
     console.log("4. Starting Claude in PTY...")
     const prompt = "Write a hello world Python script and run it"
     // Run claude in background within PTY, capture PID
-    const command = `claude --print --output-format stream-json --dangerously-skip-permissions "${prompt}" 2>&1 | tee ${outputFile} & echo $! > ${pidFile}; wait; echo "DONE_MARKER" >> ${outputFile}\n`
+    const command = `claude --print --output-format stream-json --verbose --dangerously-skip-permissions "${prompt}" 2>&1 | tee ${outputFile} & echo $! > ${pidFile}; wait; echo "DONE_MARKER" >> ${outputFile}\n`
 
     const startTime = Date.now()
     await ptyHandle.sendInput(command)
