@@ -1,18 +1,12 @@
 /**
  * Daytona sandbox adapter: wraps a Sandbox from @daytonaio/sdk into CodeAgentSandbox.
  *
- * Background execution uses executeCommand + nohup (simple, fast, no dependencies).
- * Streaming uses PTY for real-time output.
+ * Background execution uses executeCommand + nohup.
+ * Streaming uses executeSessionCommand + getSessionCommandLogs.
  */
 import type { Sandbox } from "@daytonaio/sdk"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, ProviderName } from "../types/index.js"
 import { getPackageName } from "../utils/install.js"
-
-/** Strip ANSI escape codes from text */
-function stripAnsi(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][AB012]|\x1b\[[\?]?[0-9;]*[hlm]|\r/g, "")
-}
 
 /** Check if a line looks like JSON */
 function isJsonLine(line: string): boolean {
@@ -248,7 +242,7 @@ export function adaptDaytonaSandbox(
     },
 
     /**
-     * Stream command output via PTY.
+     * Stream command output using executeSessionCommand + getSessionCommandLogs.
      * Yields JSON lines as they arrive.
      */
     async *executeCommandStream(
@@ -261,65 +255,67 @@ export function adaptDaytonaSandbox(
       const timedCommand = timeout > 0 ? `timeout ${timeout}s ${command}` : command
       const fullCommand = envExports ? `${envExports}; ${timedCommand}` : timedCommand
 
-      let buffer = ""
+      // Create session and start command async
+      const sessionId = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      await sandbox.process.createSession(sessionId)
+
+      const { cmdId } = await sandbox.process.executeSessionCommand(sessionId, {
+        command: fullCommand,
+        runAsync: true,
+      })
+
+      // Stream logs via callbacks
       const lineQueue: string[] = []
       let resolveNext: ((value: IteratorResult<string, void>) => void) | null = null
-      let ptyDone = false
+      let streamDone = false
+      let buffer = ""
 
-      const ptyId = `pty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const ptyHandle = await sandbox.process.createPty({
-        id: ptyId,
-        onData: (data: Uint8Array) => {
-          const text = new TextDecoder().decode(data)
-          buffer += text
-          const lines = buffer.split("\n")
-          buffer = lines.pop() ?? ""
+      const processChunk = (chunk: string) => {
+        buffer += chunk
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
 
-          for (const line of lines) {
-            const cleaned = stripAnsi(line).trim()
-            if (cleaned) {
-              if (process.env.CODING_AGENTS_DEBUG) {
-                console.error(`[sandbox-stream] ${cleaned.substring(0, 200)}`)
-              }
-              if (isJsonLine(cleaned)) {
-                if (resolveNext) {
-                  resolveNext({ value: cleaned, done: false })
-                  resolveNext = null
-                } else {
-                  lineQueue.push(cleaned)
-                }
-              }
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed && isJsonLine(trimmed)) {
+            if (resolveNext) {
+              resolveNext({ value: trimmed, done: false })
+              resolveNext = null
+            } else {
+              lineQueue.push(trimmed)
             }
           }
-        },
+        }
+      }
+
+      const logsPromise = sandbox.process.getSessionCommandLogs(
+        sessionId,
+        cmdId,
+        (chunk) => processChunk(chunk), // onStdout
+        (chunk) => processChunk(chunk)  // onStderr
+      ).then(() => {
+        // Process any remaining buffer
+        const trimmed = buffer.trim()
+        if (trimmed && isJsonLine(trimmed)) {
+          if (resolveNext) {
+            resolveNext({ value: trimmed, done: false })
+            resolveNext = null
+          } else {
+            lineQueue.push(trimmed)
+          }
+        }
+        streamDone = true
+        if (resolveNext) {
+          resolveNext({ value: undefined, done: true })
+          resolveNext = null
+        }
       })
 
       try {
-        await ptyHandle.waitForConnection()
-        await ptyHandle.sendInput(`${fullCommand}\n`)
-        await ptyHandle.sendInput("exit\n")
-
-        const waitPromise = ptyHandle.wait().then(() => {
-          ptyDone = true
-          const cleaned = stripAnsi(buffer).trim()
-          if (cleaned && isJsonLine(cleaned)) {
-            if (resolveNext) {
-              resolveNext({ value: cleaned, done: false })
-              resolveNext = null
-            } else {
-              lineQueue.push(cleaned)
-            }
-          }
-          if (resolveNext) {
-            resolveNext({ value: undefined, done: true })
-            resolveNext = null
-          }
-        })
-
         while (true) {
           if (lineQueue.length > 0) {
             yield lineQueue.shift()!
-          } else if (ptyDone) {
+          } else if (streamDone) {
             break
           } else {
             const result = await new Promise<IteratorResult<string, void>>((resolve) => {
@@ -327,7 +323,7 @@ export function adaptDaytonaSandbox(
               if (lineQueue.length > 0) {
                 resolve({ value: lineQueue.shift()!, done: false })
                 resolveNext = null
-              } else if (ptyDone) {
+              } else if (streamDone) {
                 resolve({ value: undefined, done: true })
                 resolveNext = null
               }
@@ -336,10 +332,9 @@ export function adaptDaytonaSandbox(
             yield result.value
           }
         }
-
-        await waitPromise
+        await logsPromise
       } finally {
-        await ptyHandle.disconnect()
+        await sandbox.process.deleteSession(sessionId).catch(() => {})
       }
     },
   }
