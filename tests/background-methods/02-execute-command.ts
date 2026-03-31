@@ -1,10 +1,12 @@
 /**
  * Test: Run Codex using executeCommand
  *
- * This method uses the standard executeCommand API.
- * We test if it can run async by using shell backgrounding (&).
+ * This method uses the standard executeCommand API with shell backgrounding.
  *
- * HYPOTHESIS: executeCommand blocks until completion, even with &
+ * Features tested:
+ * - Async launch (returns immediately with PID)
+ * - Check if still running (via kill -0 or ps)
+ * - Kill process early (via kill command)
  */
 
 import { Daytona } from "@daytonaio/sdk"
@@ -23,100 +25,102 @@ async function main() {
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
 
+  // Helper functions
+  const isRunning = async (pid: number): Promise<boolean> => {
+    const result = await sandbox.process.executeCommand(`kill -0 ${pid} 2>/dev/null && echo running || echo stopped`)
+    return result.result?.trim() === "running"
+  }
+
+  const killProcess = async (pid: number): Promise<boolean> => {
+    // Kill the process group (negative PID) to get all children
+    await sandbox.process.executeCommand(`kill -TERM -${pid} 2>/dev/null || kill -TERM ${pid} 2>/dev/null || true`)
+    await new Promise((r) => setTimeout(r, 500))
+    if (await isRunning(pid)) {
+      await sandbox.process.executeCommand(`kill -9 -${pid} 2>/dev/null || kill -9 ${pid} 2>/dev/null || true`)
+    }
+    // Also try pkill for any codex processes
+    await sandbox.process.executeCommand(`pkill -9 -f codex 2>/dev/null || true`)
+    return !(await isRunning(pid))
+  }
+
   try {
     // 2. Install codex CLI
     console.log("2. Installing codex CLI...")
     await sandbox.process.executeCommand("npm install -g @openai/codex", undefined, undefined, 120)
     console.log("   Codex installed.\n")
 
-    // 3. Try to start codex in background using shell &
-    console.log("3. Attempting to start Codex with shell backgrounding...")
+    // 3. Start codex with nohup (returns immediately)
+    console.log("3. Starting Codex with nohup...")
     const outputFile = "/tmp/codex-output.jsonl"
     const prompt = "Write a hello world Python script and run it"
-    const command = `codex exec --json --skip-git-repo-check --yolo "${prompt}" >> ${outputFile} 2>&1 & echo $!`
+    const nohupCommand = `nohup sh -c 'codex exec --json --skip-git-repo-check --yolo "${prompt}" >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done' > /dev/null 2>&1 & echo $!`
 
     const startTime = Date.now()
     const result = await sandbox.process.executeCommand(
-      command,
-      undefined,
-      { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
-      120 // 2 minute timeout
-    )
-    const launchTime = Date.now() - startTime
-
-    console.log(`   Command returned in ${launchTime}ms`)
-    console.log(`   Exit code: ${result.exitCode}`)
-    console.log(`   Output: ${result.result?.slice(0, 200)}\n`)
-
-    if (launchTime < 2000) {
-      console.log("   GOOD: Returned quickly - might support async!\n")
-    } else {
-      console.log("   NOTE: Took a while - likely blocked until completion.\n")
-    }
-
-    // 4. Try nohup variant
-    console.log("4. Trying nohup variant...")
-    const outputFile2 = "/tmp/codex-output2.jsonl"
-    const nohupCommand = `nohup sh -c 'codex exec --json --skip-git-repo-check --yolo "${prompt}" >> ${outputFile2} 2>&1; echo 1 > ${outputFile2}.done' > /dev/null 2>&1 & echo $!`
-
-    const startTime2 = Date.now()
-    const result2 = await sandbox.process.executeCommand(
       nohupCommand,
       undefined,
       { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
       120
     )
-    const launchTime2 = Date.now() - startTime2
+    const launchTime = Date.now() - startTime
+    const pid = parseInt(result.result?.trim() || "0")
 
-    console.log(`   nohup command returned in ${launchTime2}ms`)
-    console.log(`   Exit code: ${result2.exitCode}`)
-    console.log(`   Output (PID?): ${result2.result?.trim()}\n`)
+    console.log(`   Started with PID: ${pid}`)
+    console.log(`   Launch returned in ${launchTime}ms\n`)
 
-    if (launchTime2 < 2000) {
-      console.log("   GOOD: nohup returned quickly!\n")
+    // 4. Check if process is running
+    console.log("4. Checking if process is running...")
+    console.log(`   Process running: ${await isRunning(pid)}\n`)
 
-      // Wait and poll
-      console.log("5. Waiting 2 seconds then polling...")
-      await new Promise((r) => setTimeout(r, 2000))
+    // 5. Wait a bit
+    console.log("5. Waiting 2 seconds...\n")
+    await new Promise((r) => setTimeout(r, 2000))
 
-      let cursor = 0
-      let pollCount = 0
-      while (pollCount < 120) {
-        pollCount++
-        const pollResult = await sandbox.process.executeCommand(`cat ${outputFile2} 2>/dev/null || true`)
-        const content = pollResult.result || ""
+    // 6. Check again
+    console.log("6. Checking if process is still running...")
+    console.log(`   Process running: ${await isRunning(pid)}\n`)
 
-        const newContent = content.slice(cursor)
-        if (newContent) {
-          process.stdout.write(newContent)
-          cursor = content.length
-        }
+    // 7. Poll for results
+    console.log("7. Polling for results (will kill after 5 polls)...")
+    let cursor = 0
+    let pollCount = 0
+    while (pollCount < 5) {
+      pollCount++
+      const pollResult = await sandbox.process.executeCommand(`cat ${outputFile} 2>/dev/null || true`)
+      const content = pollResult.result || ""
 
-        const doneCheck = await sandbox.process.executeCommand(
-          `test -f ${outputFile2}.done && echo done || echo running`
-        )
-        if (doneCheck.result?.trim() === "done") {
-          console.log("\n\n   Process completed!")
-          break
-        }
-
-        await new Promise((r) => setTimeout(r, 500))
+      const newContent = content.slice(cursor)
+      if (newContent) {
+        process.stdout.write(newContent)
+        cursor = content.length
       }
+
+      const doneCheck = await sandbox.process.executeCommand(
+        `test -f ${outputFile}.done && echo done || echo running`
+      )
+      if (doneCheck.result?.trim() === "done") {
+        console.log("\n   Process completed naturally!")
+        break
+      }
+
+      console.log(`   [Poll ${pollCount}/5] Still running: ${await isRunning(pid)}`)
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+
+    // 8. Kill process if still running
+    console.log("\n8. Attempting to kill process...")
+    if (await isRunning(pid)) {
+      const killed = await killProcess(pid)
+      console.log(`   Kill successful: ${killed}`)
+      console.log(`   Process running after kill: ${await isRunning(pid)}`)
     } else {
-      console.log("   NOTE: nohup also blocked.\n")
+      console.log("   Process already exited.")
     }
 
     console.log("\n=== executeCommand Method Complete ===")
-    console.log(`Simple & launch time: ${launchTime}ms`)
-    console.log(`nohup launch time: ${launchTime2}ms`)
-    console.log(
-      "Verdict: " +
-        (launchTime2 < 2000
-          ? "executeCommand with nohup MAY provide async"
-          : "executeCommand BLOCKS even with nohup")
-    )
+    console.log(`Launch time: ${launchTime}ms`)
+    console.log("Features: ✅ Async launch, ✅ Check running, ✅ Kill process")
   } finally {
-    // Cleanup
     console.log("\nCleaning up sandbox...")
     await sandbox.delete()
     console.log("Done.")

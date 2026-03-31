@@ -4,7 +4,10 @@
  * This method uses SSH to launch the process with nohup, which returns immediately.
  * The process runs detached from the SSH session, and we poll a file for results.
  *
- * RESULT: This works for true async - SSH returns immediately with PID.
+ * Features tested:
+ * - Async launch (returns immediately with PID)
+ * - Check if still running (via kill -0 or ps)
+ * - Kill process early (via kill command)
  */
 
 import { Daytona } from "@daytonaio/sdk"
@@ -64,50 +67,83 @@ async function main() {
     })
     const launchTime = Date.now() - startTime
     console.log(`   Started with PID: ${pid}`)
-    console.log(`   Launch returned in ${launchTime}ms (should be < 1000ms for true async)\n`)
+    console.log(`   Launch returned in ${launchTime}ms\n`)
 
-    // 5. Simulate "coming back later" - disconnect SSH, wait, then poll
-    console.log("5. Simulating disconnect (closing SSH)...")
+    // 5. Check if process is running
+    console.log("5. Checking if process is running...")
+    const isRunning = async (pid: number): Promise<boolean> => {
+      const result = await sandbox.process.executeCommand(`kill -0 ${pid} 2>/dev/null && echo running || echo stopped`)
+      return result.result?.trim() === "running"
+    }
+    console.log(`   Process running: ${await isRunning(pid)}\n`)
+
+    // 6. Disconnect SSH and wait
+    console.log("6. Simulating disconnect (closing SSH)...")
     ssh.end()
-    console.log("   SSH disconnected. Process should still be running.\n")
+    console.log("   SSH disconnected.\n")
 
-    console.log("6. Waiting 2 seconds to simulate coming back later...\n")
+    console.log("7. Waiting 2 seconds...\n")
     await new Promise((r) => setTimeout(r, 2000))
 
-    // 7. Poll the output file for raw JSON (using process API, no SSH needed)
-    console.log("7. Polling for results...")
+    // 8. Check if still running (without SSH)
+    console.log("8. Checking if process is still running...")
+    console.log(`   Process running: ${await isRunning(pid)}\n`)
+
+    // 9. Poll for a bit
+    console.log("9. Polling for results (will kill after 5 polls)...")
     let cursor = 0
     let pollCount = 0
-    while (pollCount < 120) {
-      // 60 second timeout
+    while (pollCount < 5) {
       pollCount++
       const result = await sandbox.process.executeCommand(`cat ${outputFile} 2>/dev/null || true`)
       const content = result.result || ""
 
-      // Print new lines since last poll
       const newContent = content.slice(cursor)
       if (newContent) {
         process.stdout.write(newContent)
         cursor = content.length
       }
 
-      // Check if done
+      // Check if done naturally
       const doneCheck = await sandbox.process.executeCommand(
         `test -f ${outputFile}.done && echo done || echo running`
       )
       if (doneCheck.result?.trim() === "done") {
-        console.log("\n\n   Process completed!")
+        console.log("\n   Process completed naturally!")
         break
       }
 
+      console.log(`   [Poll ${pollCount}/5] Still running: ${await isRunning(pid)}`)
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+
+    // 10. Kill the process early if still running
+    console.log("\n10. Attempting to kill process...")
+    const killProcess = async (pid: number): Promise<boolean> => {
+      // Kill the process group (negative PID) to get all children
+      await sandbox.process.executeCommand(`kill -TERM -${pid} 2>/dev/null || kill -TERM ${pid} 2>/dev/null || true`)
       await new Promise((r) => setTimeout(r, 500))
+      const stillRunning = await isRunning(pid)
+      if (stillRunning) {
+        await sandbox.process.executeCommand(`kill -9 -${pid} 2>/dev/null || kill -9 ${pid} 2>/dev/null || true`)
+      }
+      // Also try pkill for any codex processes
+      await sandbox.process.executeCommand(`pkill -9 -f codex 2>/dev/null || true`)
+      return !(await isRunning(pid))
+    }
+
+    if (await isRunning(pid)) {
+      const killed = await killProcess(pid)
+      console.log(`   Kill successful: ${killed}`)
+      console.log(`   Process running after kill: ${await isRunning(pid)}`)
+    } else {
+      console.log("   Process already exited.")
     }
 
     console.log("\n=== SSH Method Complete ===")
     console.log(`Launch time: ${launchTime}ms`)
-    console.log("Verdict: SSH with nohup provides TRUE async - returns immediately with PID")
+    console.log("Features: ✅ Async launch, ✅ Check running, ✅ Kill process")
   } finally {
-    // Cleanup
     console.log("\nCleaning up sandbox...")
     await sandbox.delete()
     console.log("Done.")

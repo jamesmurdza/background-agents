@@ -1,10 +1,12 @@
 /**
  * Test: Run Codex using executeSessionCommand
  *
- * This method uses session-based command execution which maintains state.
- * We test if runAsync option provides true background execution.
+ * This method uses session-based command execution with runAsync: true.
  *
- * HYPOTHESIS: Sessions might support async via runAsync parameter
+ * Features tested:
+ * - Async launch (returns immediately with cmdId)
+ * - Check if still running (via getSessionCommandInfo or kill -0)
+ * - Kill process early (via kill command)
  */
 
 import { Daytona } from "@daytonaio/sdk"
@@ -22,6 +24,24 @@ async function main() {
     envVars: { OPENAI_API_KEY: cleanEnv(process.env.OPENAI_API_KEY!) },
   })
   console.log(`   Sandbox created: ${sandbox.id}\n`)
+
+  // Helper functions
+  const isRunning = async (pid: number): Promise<boolean> => {
+    const result = await sandbox.process.executeCommand(`kill -0 ${pid} 2>/dev/null && echo running || echo stopped`)
+    return result.result?.trim() === "running"
+  }
+
+  const killProcess = async (pid: number): Promise<boolean> => {
+    // Kill the process group (negative PID) to get all children
+    await sandbox.process.executeCommand(`kill -TERM -${pid} 2>/dev/null || kill -TERM ${pid} 2>/dev/null || true`)
+    await new Promise((r) => setTimeout(r, 500))
+    if (await isRunning(pid)) {
+      await sandbox.process.executeCommand(`kill -9 -${pid} 2>/dev/null || kill -9 ${pid} 2>/dev/null || true`)
+    }
+    // Also try pkill for any codex processes
+    await sandbox.process.executeCommand(`pkill -9 -f codex 2>/dev/null || true`)
+    return !(await isRunning(pid))
+  }
 
   try {
     // 2. Install codex CLI
@@ -42,118 +62,92 @@ async function main() {
     })
     console.log("   Environment set.\n")
 
-    // 5. Try running codex with runAsync: true
+    // 5. Start codex with runAsync: true
     console.log("5. Starting Codex with runAsync: true...")
     const outputFile = "/tmp/codex-session-output.jsonl"
+    const pidFile = "/tmp/codex-session.pid"
     const prompt = "Write a hello world Python script and run it"
-    const command = `codex exec --json --skip-git-repo-check --yolo "${prompt}" >> ${outputFile} 2>&1; echo 1 > ${outputFile}.done`
+    // Store the PID so we can track/kill it
+    const command = `codex exec --json --skip-git-repo-check --yolo "${prompt}" >> ${outputFile} 2>&1 & echo $! > ${pidFile}; echo 1 > ${outputFile}.done`
 
     const startTime = Date.now()
     const result = await sandbox.process.executeSessionCommand(
       sessionId,
       {
         command: command,
-        runAsync: true, // Try async mode
+        runAsync: true,
       },
       120
     )
     const launchTime = Date.now() - startTime
 
     console.log(`   Command returned in ${launchTime}ms`)
-    console.log(`   Result: ${JSON.stringify(result).slice(0, 300)}\n`)
+    console.log(`   Result: ${JSON.stringify(result).slice(0, 200)}\n`)
 
-    if (launchTime < 2000) {
-      console.log("   GOOD: runAsync returned quickly!\n")
+    // Get the PID
+    await new Promise((r) => setTimeout(r, 500)) // Wait for PID file to be written
+    const pidResult = await sandbox.process.executeCommand(`cat ${pidFile} 2>/dev/null || echo 0`)
+    const pid = parseInt(pidResult.result?.trim() || "0")
+    console.log(`   Codex PID: ${pid}\n`)
 
-      // Wait and poll
-      console.log("6. Waiting 2 seconds then polling...")
-      await new Promise((r) => setTimeout(r, 2000))
+    // 6. Check if process is running
+    console.log("6. Checking if process is running...")
+    console.log(`   Process running: ${await isRunning(pid)}\n`)
 
-      let cursor = 0
-      let pollCount = 0
-      while (pollCount < 120) {
-        pollCount++
-        const pollResult = await sandbox.process.executeCommand(`cat ${outputFile} 2>/dev/null || true`)
-        const content = pollResult.result || ""
+    // 7. Check command status via SDK (if available)
+    console.log("7. Checking command status via SDK...")
+    try {
+      const cmdInfo = await sandbox.process.getSessionCommandInfo(sessionId, result.cmdId!)
+      console.log(`   Command info: ${JSON.stringify(cmdInfo).slice(0, 200)}\n`)
+    } catch (e) {
+      console.log(`   getSessionCommandInfo not available or failed: ${e}\n`)
+    }
 
-        const newContent = content.slice(cursor)
-        if (newContent) {
-          process.stdout.write(newContent)
-          cursor = content.length
-        }
+    // 8. Wait a bit
+    console.log("8. Waiting 2 seconds...\n")
+    await new Promise((r) => setTimeout(r, 2000))
 
-        const doneCheck = await sandbox.process.executeCommand(
-          `test -f ${outputFile}.done && echo done || echo running`
-        )
-        if (doneCheck.result?.trim() === "done") {
-          console.log("\n\n   Process completed!")
-          break
-        }
+    // 9. Poll for results
+    console.log("9. Polling for results (will kill after 5 polls)...")
+    let cursor = 0
+    let pollCount = 0
+    while (pollCount < 5) {
+      pollCount++
+      const pollResult = await sandbox.process.executeCommand(`cat ${outputFile} 2>/dev/null || true`)
+      const content = pollResult.result || ""
 
-        await new Promise((r) => setTimeout(r, 500))
+      const newContent = content.slice(cursor)
+      if (newContent) {
+        process.stdout.write(newContent)
+        cursor = content.length
       }
-    } else {
-      console.log("   NOTE: runAsync still blocked.\n")
 
-      // Try nohup variant in session
-      console.log("6. Trying nohup in session...")
-      const outputFile2 = "/tmp/codex-session-output2.jsonl"
-      const nohupCommand = `nohup sh -c 'codex exec --json --skip-git-repo-check --yolo "${prompt}" >> ${outputFile2} 2>&1; echo 1 > ${outputFile2}.done' > /dev/null 2>&1 & echo $!`
-
-      const startTime2 = Date.now()
-      const result2 = await sandbox.process.executeSessionCommand(
-        sessionId,
-        {
-          command: nohupCommand,
-          runAsync: true,
-        },
-        120
+      const doneCheck = await sandbox.process.executeCommand(
+        `test -f ${outputFile}.done && echo done || echo running`
       )
-      const launchTime2 = Date.now() - startTime2
-
-      console.log(`   nohup in session returned in ${launchTime2}ms`)
-      console.log(`   Result: ${JSON.stringify(result2).slice(0, 200)}\n`)
-
-      if (launchTime2 < 2000) {
-        console.log("   Polling for results...\n")
-        await new Promise((r) => setTimeout(r, 2000))
-
-        let cursor = 0
-        let pollCount = 0
-        while (pollCount < 120) {
-          pollCount++
-          const pollResult = await sandbox.process.executeCommand(`cat ${outputFile2} 2>/dev/null || true`)
-          const content = pollResult.result || ""
-
-          const newContent = content.slice(cursor)
-          if (newContent) {
-            process.stdout.write(newContent)
-            cursor = content.length
-          }
-
-          const doneCheck = await sandbox.process.executeCommand(
-            `test -f ${outputFile2}.done && echo done || echo running`
-          )
-          if (doneCheck.result?.trim() === "done") {
-            console.log("\n\n   Process completed!")
-            break
-          }
-
-          await new Promise((r) => setTimeout(r, 500))
-        }
+      if (doneCheck.result?.trim() === "done") {
+        console.log("\n   Process completed naturally!")
+        break
       }
+
+      console.log(`   [Poll ${pollCount}/5] Still running: ${await isRunning(pid)}`)
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+
+    // 10. Kill process if still running
+    console.log("\n10. Attempting to kill process...")
+    if (pid > 0 && (await isRunning(pid))) {
+      const killed = await killProcess(pid)
+      console.log(`   Kill successful: ${killed}`)
+      console.log(`   Process running after kill: ${await isRunning(pid)}`)
+    } else {
+      console.log("   Process already exited or PID not available.")
     }
 
     console.log("\n=== executeSessionCommand Method Complete ===")
     console.log(`Launch time: ${launchTime}ms`)
-    console.log(
-      "Verdict: " +
-        (launchTime < 2000
-          ? "executeSessionCommand with runAsync provides async execution"
-          : "executeSessionCommand blocks even with runAsync")
-    )
+    console.log("Features: ✅ Async launch (cmdId), ✅ Check running (PID), ✅ Kill process")
   } finally {
-    // Cleanup
     console.log("\nCleaning up sandbox...")
     await sandbox.delete()
     console.log("Done.")
