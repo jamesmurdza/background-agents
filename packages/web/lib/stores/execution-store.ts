@@ -24,6 +24,7 @@ import {
   STOPPED_WITHOUT_END_NOTE,
 } from "@/lib/core/polling"
 import { isLoopFinished } from "@/lib/shared/types"
+import { detectAndShowCommits } from "@/lib/core/execution/detect-and-show-commits"
 
 // =============================================================================
 // Types
@@ -369,10 +370,24 @@ async function processExecution(messageId: string): Promise<void> {
 
     callbacks.onForceSave?.()
 
-    // Run commit detection (TODO: implement detectAndShowCommits in store or as separate module)
-    // For now, trigger refresh
-    callbacks.onCommitsDetected?.()
-    callbacks.onRefreshGitConflictState?.()
+    if (callbacks.onAddMessage && callbacks.onUpdateMessage) {
+      await detectAndShowCommits({
+        runAutoCommit: true,
+        sandboxId: execution.sandboxId,
+        branchId: execution.branchId,
+        branchName: execution.branchName,
+        repoName: execution.repoName,
+        repoOwner: execution.repoOwner,
+        repoApiName: execution.repoApiName,
+        lastShownCommitHash: execution.lastShownCommitHash,
+        messages: execution.messages,
+        onAddMessage: callbacks.onAddMessage,
+        onUpdateMessage: callbacks.onUpdateMessage,
+        onUpdateBranch: callbacks.onUpdateBranch ?? undefined,
+        onCommitsDetected: callbacks.onCommitsDetected ?? undefined,
+        onRefreshGitConflictState: callbacks.onRefreshGitConflictState ?? undefined,
+      })
+    }
 
     // Check loop continuation
     const loopShouldContinue = shouldContinueLoop(

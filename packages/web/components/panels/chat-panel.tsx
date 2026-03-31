@@ -389,8 +389,12 @@ export function ChatPanel({
   // No external recovery logic needed; the hook auto-detects running branches on mount.
   const { startPolling } = useExecutionPoller({
     branch,
+    repoName,
+    repoOwner,
+    repoApiName: repoName,
     onUpdateMessage,
     onUpdateBranch,
+    onAddMessage,
     onForceSave,
     onCommitsDetected,
     onLoopContinue: handleLoopContinue,

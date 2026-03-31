@@ -11,6 +11,7 @@ import {
   shouldContinueLoop,
   STOPPED_WITHOUT_END_NOTE,
 } from "@/lib/core/polling"
+import { detectAndShowCommits } from "@/lib/core/execution/detect-and-show-commits"
 
 // Module-level tracking for sync guard — prevents sync from overwriting
 // streaming content while a branch is being actively polled.
@@ -30,8 +31,14 @@ function sleep(ms: number) {
 
 interface UseExecutionPollerOptions {
   branch: Branch
+  /** Sandbox repo folder name and GitHub identifiers (captured for commit/push; must match agent run). */
+  repoName: string
+  repoOwner: string
+  /** Often same as `repoName`; used in push-error payload. */
+  repoApiName: string
   onUpdateMessage: (branchId: string, messageId: string, updates: Partial<Message>) => void | Promise<void>
   onUpdateBranch: (branchId: string, updates: Partial<Branch>) => void
+  onAddMessage: (branchId: string, message: Message) => Promise<string>
   onForceSave: () => void
   onCommitsDetected?: () => void
   onLoopContinue?: (branchId: string) => void
@@ -52,8 +59,12 @@ interface UseExecutionPollerOptions {
  */
 export function useExecutionPoller({
   branch,
+  repoName,
+  repoOwner,
+  repoApiName,
   onUpdateMessage,
   onUpdateBranch,
+  onAddMessage,
   onForceSave,
   onCommitsDetected,
   onLoopContinue,
@@ -62,9 +73,25 @@ export function useExecutionPoller({
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
 
   // Always-fresh refs for async code
-  const cbRef = useRef({ onUpdateMessage, onUpdateBranch, onForceSave, onCommitsDetected, onLoopContinue, onRefreshGitConflictState })
+  const cbRef = useRef({
+    onUpdateMessage,
+    onUpdateBranch,
+    onAddMessage,
+    onForceSave,
+    onCommitsDetected,
+    onLoopContinue,
+    onRefreshGitConflictState,
+  })
   useEffect(() => {
-    cbRef.current = { onUpdateMessage, onUpdateBranch, onForceSave, onCommitsDetected, onLoopContinue, onRefreshGitConflictState }
+    cbRef.current = {
+      onUpdateMessage,
+      onUpdateBranch,
+      onAddMessage,
+      onForceSave,
+      onCommitsDetected,
+      onLoopContinue,
+      onRefreshGitConflictState,
+    }
   })
   const branchRef = useRef(branch)
   branchRef.current = branch
@@ -242,8 +269,27 @@ export function useExecutionPoller({
       }
 
       cbRef.current.onForceSave?.()
-      cbRef.current.onCommitsDetected?.()
-      cbRef.current.onRefreshGitConflictState?.()
+
+      const b = branchRef.current
+      const sandboxId = b.sandboxId || ""
+      if (sandboxId && repoName) {
+        await detectAndShowCommits({
+          runAutoCommit: true,
+          sandboxId,
+          branchId,
+          branchName: b.name,
+          repoName,
+          repoOwner,
+          repoApiName,
+          lastShownCommitHash: b.lastShownCommitHash || null,
+          messages: b.messages,
+          onAddMessage: cbRef.current.onAddMessage,
+          onUpdateMessage: cbRef.current.onUpdateMessage,
+          onUpdateBranch: cbRef.current.onUpdateBranch,
+          onCommitsDetected: cbRef.current.onCommitsDetected,
+          onRefreshGitConflictState: cbRef.current.onRefreshGitConflictState,
+        })
+      }
 
       const cur = branchRef.current
       const continueLoop = shouldContinueLoop(
@@ -292,7 +338,7 @@ export function useExecutionPoller({
       cancelled = true
       pollingBranches.delete(branchId)
     }
-  }, [branch.id, branch.status, activeMessageId])
+  }, [branch.id, branch.status, activeMessageId, repoName, repoOwner, repoApiName])
 
   const startPolling = useCallback((messageId: string) => {
     setActiveMessageId(messageId)
