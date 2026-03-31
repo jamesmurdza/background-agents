@@ -455,12 +455,17 @@ export async function pollBackgroundAgent(
     }
 
     if (!running && !hasEndEvent) {
+      // Process exited without an explicit "end" event. If we have meaningful
+      // content or tool calls, the agent likely finished its work — treat as
+      // completed rather than errored (some agents, e.g. OpenCode, don't emit
+      // an end event). Only flag as error when the process stopped with nothing.
+      const hasOutput = !!(content?.trim()) || toolCalls.length > 0
       return {
-        status: "error",
+        status: hasOutput ? "completed" : "error",
         content,
         toolCalls,
         contentBlocks,
-        error: "Agent stopped without completing (process ended without end event)",
+        error: hasOutput ? undefined : "Agent stopped without completing (process ended without end event)",
         sessionId: sessionId || undefined,
       }
     }
