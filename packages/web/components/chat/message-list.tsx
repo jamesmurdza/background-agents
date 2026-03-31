@@ -74,8 +74,9 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
     const normalizedAgent = (!rawAgent || rawAgent === "claude") ? "claude-code" : rawAgent
     const currentAgentLabel = agentLabels[normalizedAgent as Agent] || "Claude Code"
 
-    // Empty state
-    if (branch.messages.length === 0) {
+    // Empty state — but not while the agent is already running (optimistic RUNNING can
+    // land before the first message is in state; we must still show the working spinner).
+    if (branch.messages.length === 0 && branch.status !== BRANCH_STATUS.RUNNING) {
       return (
         <MessageListContainer ref={ref} onScroll={onScroll} isMobile={isMobile}>
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
