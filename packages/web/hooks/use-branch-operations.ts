@@ -187,12 +187,20 @@ export function useBranchOperations({
 
   // Update an existing message
   const handleUpdateMessage = useCallback((branchId: string, messageId: string, updates: Partial<Message>): void | Promise<void> => {
-    if (!activeRepo) return
-
-    setRepos((prev) => updateMessageInBranch(prev, activeRepo.id, branchId, messageId, updates))
+    // Find the repo that actually contains this branch inside setRepos to use latest state
+    // (don't rely on activeRepo from closure which may be stale during polling)
+    setRepos((prev) => {
+      const targetRepo = prev.find(r => r.branches.some(b => b.id === branchId))
+      if (!targetRepo) {
+        console.warn("[handleUpdateMessage] no repo found for branchId", { branchId, messageId })
+        return prev
+      }
+      console.log("[handleUpdateMessage] updating", { branchId, messageId, contentLength: (updates.content || "").length, repoId: targetRepo.id })
+      return updateMessageInBranch(prev, targetRepo.id, branchId, messageId, updates)
+    })
 
     return updateMessageMutation.mutateAsync({ messageId, updates }).then(() => {})
-  }, [activeRepo, setRepos, updateMessageMutation])
+  }, [setRepos, updateMessageMutation])
 
   return {
     handleUpdateBranch,

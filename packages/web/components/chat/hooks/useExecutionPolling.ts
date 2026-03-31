@@ -384,8 +384,19 @@ export function useExecutionPolling({
         // This prevents race conditions where an older response arrives after a newer one,
         // which could cause the UI to show stale content or trigger completion prematurely.
         const responseVersion = typeof data.snapshotVersion === "number" ? data.snapshotVersion : 0
+        console.log("[execution-poll] received response", {
+          status: data.status,
+          snapshotVersion: responseVersion,
+          highestSeen: highestSnapshotVersionRef.current,
+          contentLength: (data.content || "").length,
+          toolCallsCount: (data.toolCalls || []).length,
+          contentBlocksCount: (data.contentBlocks || []).length,
+          messageId,
+          targetBranchId: pollingBranchIdRef.current,
+        })
         if (responseVersion < highestSnapshotVersionRef.current) {
           // Stale response - ignore it entirely
+          console.log("[execution-poll] rejecting stale response", { responseVersion, highestSeen: highestSnapshotVersionRef.current })
           return
         }
         highestSnapshotVersionRef.current = responseVersion
@@ -413,11 +424,9 @@ export function useExecutionPolling({
         }
 
         // Update message content
-        if (
-          data.content ||
-          (data.toolCalls && data.toolCalls.length > 0) ||
-          (data.contentBlocks && data.contentBlocks.length > 0)
-        ) {
+        const hasContent = data.content || (data.toolCalls && data.toolCalls.length > 0) || (data.contentBlocks && data.contentBlocks.length > 0)
+        console.log("[execution-poll] hasContent check", { hasContent, content: !!data.content, toolCalls: (data.toolCalls || []).length, contentBlocks: (data.contentBlocks || []).length })
+        if (hasContent) {
           // Use pure functions from lib/core/polling for ID generation
           // Cast to app types since the pure functions use simpler internal types
           const toolCallsWithIds = addToolCallIds(data.toolCalls || []) as ToolCall[]
@@ -425,6 +434,7 @@ export function useExecutionPolling({
 
           // Use pollingBranchIdRef to ensure updates go to the correct branch
           const targetBranchId = pollingBranchIdRef.current
+          console.log("[execution-poll] updating message", { targetBranchId, messageId, contentLength: (data.content || "").length })
           if (targetBranchId) {
             onUpdateMessage(targetBranchId, messageId, {
               content: data.content || "",
@@ -432,6 +442,8 @@ export function useExecutionPolling({
               contentBlocks:
                 contentBlocksWithIds.length > 0 ? contentBlocksWithIds : undefined,
             })
+          } else {
+            console.warn("[execution-poll] targetBranchId is null, skipping message update!")
           }
         }
 
@@ -440,8 +452,10 @@ export function useExecutionPolling({
           data.status === EXECUTION_STATUS.COMPLETED ||
           data.status === EXECUTION_STATUS.ERROR
         ) {
+          console.log("[execution-poll] completion detected", { status: data.status, alreadyHandled: completionHandledRef.current })
           if (completionHandledRef.current) return
           completionHandledRef.current = true
+          console.log("[execution-poll] handling completion")
 
           const completedBranchIdForLog = pollingBranchIdRef.current
           const viewingBranchId = globalActiveBranchIdRef?.current ?? activeBranchIdRef.current
