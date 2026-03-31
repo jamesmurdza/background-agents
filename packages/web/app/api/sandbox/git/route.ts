@@ -57,7 +57,7 @@ async function pushWithRetry(
           // Retry on branch mismatch - this can happen during branch rename operations
           // where DB is updated before git branch -m completes
           if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)))
             continue
           }
           return { success: false, error: branchError }
