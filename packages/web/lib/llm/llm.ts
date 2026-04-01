@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
-import { decryptUserCredentials } from "@/lib/shared/api-helpers"
+import { resolveUserCredentials } from "@/lib/shared/api-helpers"
 import { generateText } from "ai"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createOpenAI } from "@ai-sdk/openai"
@@ -132,7 +132,7 @@ export async function generateWithUserLLM(
       JSON.stringify({ userId, dbMs: Date.now() - dbT0, hasRow: !!userCredentials }),
     )
 
-    const { anthropicApiKey, openaiApiKey } = decryptUserCredentials(userCredentials)
+    const { anthropicApiKey, openaiApiKey } = await resolveUserCredentials(userCredentials)
 
     // If no user API keys available, try OpenRouter as fallback
     if (!anthropicApiKey && !openaiApiKey) {
@@ -208,11 +208,11 @@ export async function hasUserLLMKey(userId: string): Promise<boolean> {
     return true
   }
 
-  // Check user's personal API keys
+  // Check user's personal API keys (follows sharing pointer if set)
   const userCredentials = await prisma.userCredentials.findUnique({
     where: { userId },
   })
-  const { anthropicApiKey, openaiApiKey } = decryptUserCredentials(userCredentials)
+  const { anthropicApiKey, openaiApiKey } = await resolveUserCredentials(userCredentials)
   return !!(anthropicApiKey || openaiApiKey)
 }
 

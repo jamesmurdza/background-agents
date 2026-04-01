@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     sandboxAutoStopInterval,
     defaultLoopMaxIterations,
     loopUntilFinishedEnabled,
+    useCredentialsFromUserId,
   } = body
 
   // Validate sandboxAutoStopInterval if provided
@@ -81,6 +82,27 @@ export async function POST(req: Request) {
 
   if (loopUntilFinishedEnabled !== undefined) {
     updateData.loopUntilFinishedEnabled = loopUntilFinishedEnabled
+  }
+
+  // Handle credential sharing - set to use another user's credentials
+  // If value is null: clear the sharing (use own credentials)
+  // If value is a user ID string: use that user's credentials
+  if (useCredentialsFromUserId === null) {
+    updateData.useCredentialsFromUserId = null
+  } else if (useCredentialsFromUserId) {
+    // Verify the source user exists
+    const sourceUser = await prisma.user.findUnique({
+      where: { id: useCredentialsFromUserId },
+      select: { id: true },
+    })
+    if (!sourceUser) {
+      return badRequest("Source user not found")
+    }
+    // Prevent self-referencing
+    if (useCredentialsFromUserId === userId) {
+      return badRequest("Cannot share credentials with yourself")
+    }
+    updateData.useCredentialsFromUserId = useCredentialsFromUserId
   }
 
   // Handle Daytona API key change or clear - this deletes all sandboxes

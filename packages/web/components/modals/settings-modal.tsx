@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/shared/utils"
-import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, FlaskConical } from "lucide-react"
+import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, FlaskConical, Users, Link2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -21,7 +21,10 @@ interface SettingsModalProps {
     sandboxAutoStopInterval?: number
     defaultLoopMaxIterations?: number
     loopUntilFinishedEnabled?: boolean
+    useCredentialsFromUserId?: string | null
+    credentialSourceUser?: { id: string; name: string | null; githubLogin: string | null } | null
   } | null
+  currentUserId?: string
   onCredentialsUpdate: () => void
   /** Field to highlight with error styling (e.g., "anthropicApiKey", "openaiApiKey") */
   highlightField?: string | null
@@ -32,7 +35,7 @@ interface SettingsModalProps {
 // Track which keys should be cleared on save
 type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "opencodeApiKey" | "daytonaApiKey"
 
-export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, credentials, currentUserId, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
 
   // Anthropic credentials (separate API key and subscription)
@@ -53,6 +56,11 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   const [initialLoopMaxIterations, setInitialLoopMaxIterations] = useState(10)
   const [loopUntilFinishedEnabled, setLoopUntilFinishedEnabled] = useState(false)
   const [initialLoopUntilFinishedEnabled, setInitialLoopUntilFinishedEnabled] = useState(false)
+
+  // Credential sharing
+  const [useCredentialsFromUserId, setUseCredentialsFromUserId] = useState("")
+  const [initialUseCredentialsFromUserId, setInitialUseCredentialsFromUserId] = useState<string | null>(null)
+  const [copiedUserId, setCopiedUserId] = useState(false)
 
   // Track keys to clear
   const [keysToClear, setKeysToClear] = useState<Set<ClearableKey>>(new Set())
@@ -83,6 +91,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       const loopEnabled = credentials?.loopUntilFinishedEnabled ?? false
       setLoopUntilFinishedEnabled(loopEnabled)
       setInitialLoopUntilFinishedEnabled(loopEnabled)
+      const credSource = credentials?.useCredentialsFromUserId ?? null
+      setUseCredentialsFromUserId(credSource ?? "")
+      setInitialUseCredentialsFromUserId(credSource)
       setSaveStatus(null)
       setShowDaytonaWarning(false)
       setDaytonaWarningConfirmed(false)
@@ -128,6 +139,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
     const loopIterationsChanged = defaultLoopMaxIterations !== initialLoopMaxIterations
     const loopEnabledChanged = loopUntilFinishedEnabled !== initialLoopUntilFinishedEnabled
+    const newCredSource = useCredentialsFromUserId.trim()
+    const credSourceChanged = newCredSource !== (initialUseCredentialsFromUserId ?? "")
 
     // Check if Daytona key is being changed and show warning (if not already confirmed)
     if ((newDaytonaKey || keysToClear.has("daytonaApiKey")) && !skipDaytonaWarning && !daytonaWarningConfirmed) {
@@ -145,6 +158,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       autoStopChanged ||
       loopIterationsChanged ||
       loopEnabledChanged ||
+      credSourceChanged ||
       keysToClear.size > 0
 
     if (!hasAnyChanges) {
@@ -183,6 +197,11 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       }
       if (loopEnabledChanged) {
         payload.loopUntilFinishedEnabled = loopUntilFinishedEnabled
+      }
+
+      // Handle credential sharing change
+      if (credSourceChanged) {
+        payload.useCredentialsFromUserId = newCredSource || null
       }
 
       // Add keys to clear (send null to clear them)
@@ -548,6 +567,64 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 <p className="text-[11px] text-muted-foreground">
                   Used by OpenCode agent for paid models
                 </p>
+              </div>
+
+              {/* Credential Sharing */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <label className="text-xs font-medium text-foreground">Credential Sharing</label>
+                </div>
+
+                {/* Show current user ID for sharing */}
+                {currentUserId && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/50">
+                    <span className="text-[11px] text-muted-foreground">Your User ID:</span>
+                    <code
+                      className="text-[10px] font-mono text-foreground cursor-pointer hover:text-primary flex items-center gap-1"
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentUserId)
+                        setCopiedUserId(true)
+                        setTimeout(() => setCopiedUserId(false), 1500)
+                      }}
+                      title="Click to copy"
+                    >
+                      {copiedUserId ? (
+                        <Check className="h-2.5 w-2.5 text-green-500" />
+                      ) : (
+                        <Copy className="h-2.5 w-2.5 text-muted-foreground/60" />
+                      )}
+                      {currentUserId.slice(0, 8)}...
+                    </code>
+                    <span className="text-[10px] text-muted-foreground/70">(share this with others)</span>
+                  </div>
+                )}
+
+                {/* Show current credential source */}
+                {credentials?.credentialSourceUser && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-green-500/10 border border-green-500/20">
+                    <Link2 className="h-3.5 w-3.5 text-green-500" />
+                    <span className="text-[11px] text-green-600 dark:text-green-400">
+                      Using credentials from: <strong>{credentials.credentialSourceUser.name || credentials.credentialSourceUser.githubLogin || "Unknown user"}</strong>
+                    </span>
+                  </div>
+                )}
+
+                <Input
+                  type="text"
+                  placeholder="Enter user ID to use their credentials..."
+                  value={useCredentialsFromUserId}
+                  onChange={(e) => setUseCredentialsFromUserId(e.target.value)}
+                  className="h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Use another user&apos;s API credentials. Leave empty to use your own keys.
+                </p>
+                {credentials?.credentialSourceUser && useCredentialsFromUserId === "" && (
+                  <p className="text-[10px] text-amber-500">
+                    Clearing this will stop using shared credentials
+                  </p>
+                )}
               </div>
             </>
           )}

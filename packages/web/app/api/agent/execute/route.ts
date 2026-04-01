@@ -7,7 +7,7 @@ import {
   getDaytonaApiKey,
   isDaytonaKeyError,
   getSandboxWithAuth,
-  decryptUserCredentials,
+  resolveUserCredentials,
   badRequest,
   notFound,
   internalError,
@@ -44,9 +44,9 @@ export async function POST(req: Request) {
   const daytonaApiKey = getDaytonaApiKey()
   if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
-  // Decrypt user's credentials (Anthropic, OpenAI, and OpenCode)
+  // Resolve user's credentials (follows sharing pointer if set)
   const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey } =
-    decryptUserCredentials(sandboxRecord.user.credentials)
+    await resolveUserCredentials(sandboxRecord.user.credentials)
 
   // Determine repo name from database or request
   const actualRepoName = repoName || sandboxRecord.branch?.repo?.name || "repo"

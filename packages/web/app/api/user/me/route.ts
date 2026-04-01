@@ -33,6 +33,7 @@ export async function GET() {
             sandboxAutoStopInterval: true,
             defaultLoopMaxIterations: true,
             loopUntilFinishedEnabled: true,
+            useCredentialsFromUserId: true,
           },
         },
         repos: {
@@ -67,6 +68,16 @@ export async function GET() {
 
     // Transform credentials to just show existence, not values
     const serverLlmFallback = hasOpenRouterKey()
+
+    // If using shared credentials, fetch source user info
+    let credentialSourceUser: { id: string; name: string | null; githubLogin: string | null } | null = null
+    if (user.credentials?.useCredentialsFromUserId) {
+      credentialSourceUser = await prisma.user.findUnique({
+        where: { id: user.credentials.useCredentialsFromUserId },
+        select: { id: true, name: true, githubLogin: true },
+      })
+    }
+
     const credentials = user.credentials
       ? {
           anthropicAuthType: user.credentials.anthropicAuthType,
@@ -78,6 +89,8 @@ export async function GET() {
           sandboxAutoStopInterval: user.credentials.sandboxAutoStopInterval,
           defaultLoopMaxIterations: user.credentials.defaultLoopMaxIterations,
           loopUntilFinishedEnabled: user.credentials.loopUntilFinishedEnabled,
+          useCredentialsFromUserId: user.credentials.useCredentialsFromUserId,
+          credentialSourceUser,
           ...(serverLlmFallback ? { hasServerLlmFallback: true } : {}),
         }
       : serverLlmFallback

@@ -265,6 +265,7 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
       })
     },
     isAdmin: userData?.user?.isAdmin ?? false,
+    userId: userData?.user?.id ?? null,
     loaded,
     messagesLoading: loadingMessageBranchIds.size > 0,
     messagesLoadingBranchIds: loadingMessageBranchIds,

@@ -4,7 +4,7 @@ import { createBackgroundAgentSession } from "@/lib/agents/agent-session"
 import {
   getDaytonaApiKey,
   isDaytonaKeyError,
-  decryptUserCredentials,
+  resolveUserCredentials,
   updateSandboxAndBranchStatus,
 } from "@/lib/shared/api-helpers"
 import { PATHS, EXECUTION_STATUS } from "@/lib/shared/constants"
@@ -133,7 +133,7 @@ export async function GET(req: Request) {
         }
 
         const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey } =
-          decryptUserCredentials(sandbox.user.credentials)
+          await resolveUserCredentials(sandbox.user.credentials)
 
         const agent = (branch.agent as Agent) || "claude-code"
         const model = branch.model || undefined

@@ -88,6 +88,9 @@ model UserCredentials {
   defaultLoopMaxIterations  Int      @default(10)
   loopUntilFinishedEnabled  Boolean  @default(false)
   user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Credential sharing: if set, use credentials from this user instead of own
+  useCredentialsFromUserId  String?
 }
 
 model Repo {

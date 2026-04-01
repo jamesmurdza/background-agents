@@ -75,6 +75,7 @@ export default function Home() {
     quota,
     credentials,
     isAdmin,
+    userId,
     loaded,
     messagesLoadingBranchIds,
     refresh,
@@ -576,6 +577,7 @@ export default function Home() {
         open={settingsOpen}
         onClose={handleSettingsClose}
         credentials={credentials}
+        currentUserId={userId ?? undefined}
         onCredentialsUpdate={refresh}
         highlightField={settingsHighlightField}
         onClearHighlight={clearSettingsHighlight}

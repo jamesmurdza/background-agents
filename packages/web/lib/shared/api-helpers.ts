@@ -302,18 +302,27 @@ export async function getGitHubTokenForUser(userId: string): Promise<string | nu
 // =============================================================================
 
 /**
+ * Raw credentials type from database (includes sharing pointer)
+ */
+interface RawCredentials {
+  anthropicApiKey: string | null
+  anthropicAuthToken: string | null
+  anthropicAuthType: string | null
+  openaiApiKey: string | null
+  opencodeApiKey: string | null
+  daytonaApiKey: string | null
+  useCredentialsFromUserId?: string | null
+}
+
+/**
  * Decrypts user credentials from database format
  * Returns typed credentials object with decrypted values
+ *
+ * NOTE: This does NOT follow useCredentialsFromUserId pointer.
+ * Use resolveUserCredentials() for credential sharing support.
  */
 export function decryptUserCredentials(
-  credentials: {
-    anthropicApiKey: string | null
-    anthropicAuthToken: string | null
-    anthropicAuthType: string | null
-    openaiApiKey: string | null
-    opencodeApiKey: string | null
-    daytonaApiKey: string | null
-  } | null
+  credentials: RawCredentials | null
 ): DecryptedCredentials {
   const anthropicAuthType = (credentials?.anthropicAuthType || "api-key") as AnthropicAuthType
 
@@ -347,6 +356,36 @@ export function decryptUserCredentials(
     opencodeApiKey,
     daytonaApiKey,
   }
+}
+
+/**
+ * Resolves and decrypts user credentials, following the sharing pointer if set.
+ * If useCredentialsFromUserId is set, fetches and uses that user's credentials instead.
+ *
+ * @param credentials - The user's credentials from database (may have sharing pointer)
+ * @returns Decrypted credentials (either own or from shared source)
+ */
+export async function resolveUserCredentials(
+  credentials: RawCredentials | null
+): Promise<DecryptedCredentials> {
+  // If sharing pointer is set, fetch the source user's credentials
+  if (credentials?.useCredentialsFromUserId) {
+    const sourceCredentials = await prisma.userCredentials.findUnique({
+      where: { userId: credentials.useCredentialsFromUserId },
+    })
+
+    if (sourceCredentials) {
+      // Decrypt and return the source user's credentials
+      // Don't follow the pointer recursively (prevent chains)
+      return decryptUserCredentials({
+        ...sourceCredentials,
+        useCredentialsFromUserId: null, // Don't follow chains
+      })
+    }
+    // If source user not found, fall back to own credentials
+  }
+
+  return decryptUserCredentials(credentials)
 }
 
 // =============================================================================
