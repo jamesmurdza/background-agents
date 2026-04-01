@@ -51,6 +51,8 @@ model User {
   sessions      Session[]
   credentials   UserCredentials?
   activityLogs  ActivityLog[]
+  ownedTeam     Team?            @relation("TeamOwner")
+  teamMembership TeamMember?
 }
 
 model ActivityLog {
@@ -88,6 +90,23 @@ model UserCredentials {
   defaultLoopMaxIterations  Int      @default(10)
   loopUntilFinishedEnabled  Boolean  @default(false)
   user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Team {
+  id        String       @id @default(cuid())
+  ownerId   String       @unique
+  owner     User         @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   TeamMember[]
+  createdAt DateTime     @default(now())
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String   @unique
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model Repo {

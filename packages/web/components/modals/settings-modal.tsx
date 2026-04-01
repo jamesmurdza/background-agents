@@ -549,6 +549,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   Used by OpenCode agent for paid models
                 </p>
               </div>
+
             </>
           )}
 

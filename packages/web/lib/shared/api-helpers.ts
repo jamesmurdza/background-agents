@@ -302,18 +302,26 @@ export async function getGitHubTokenForUser(userId: string): Promise<string | nu
 // =============================================================================
 
 /**
+ * Raw credentials type from database
+ */
+interface RawCredentials {
+  anthropicApiKey: string | null
+  anthropicAuthToken: string | null
+  anthropicAuthType: string | null
+  openaiApiKey: string | null
+  opencodeApiKey: string | null
+  daytonaApiKey: string | null
+}
+
+/**
  * Decrypts user credentials from database format
  * Returns typed credentials object with decrypted values
+ *
+ * NOTE: This does NOT check team membership.
+ * Use resolveUserCredentials() for team-based credential sharing.
  */
 export function decryptUserCredentials(
-  credentials: {
-    anthropicApiKey: string | null
-    anthropicAuthToken: string | null
-    anthropicAuthType: string | null
-    openaiApiKey: string | null
-    opencodeApiKey: string | null
-    daytonaApiKey: string | null
-  } | null
+  credentials: RawCredentials | null
 ): DecryptedCredentials {
   const anthropicAuthType = (credentials?.anthropicAuthType || "api-key") as AnthropicAuthType
 
@@ -347,6 +355,51 @@ export function decryptUserCredentials(
     opencodeApiKey,
     daytonaApiKey,
   }
+}
+
+/**
+ * Resolves and decrypts user credentials, checking team membership.
+ * If user is a team member, uses the team owner's Claude subscription (anthropicAuthToken only).
+ *
+ * @param credentials - The user's credentials from database
+ * @param userId - The user's ID (needed to check team membership)
+ * @returns Decrypted credentials (with team owner's anthropicAuthToken if member)
+ */
+export async function resolveUserCredentials(
+  credentials: RawCredentials | null,
+  userId?: string
+): Promise<DecryptedCredentials> {
+  const ownCredentials = decryptUserCredentials(credentials)
+
+  // If no userId provided, can't check team membership
+  if (!userId) {
+    return ownCredentials
+  }
+
+  // Check if user is a team member
+  const teamMember = await prisma.teamMember.findUnique({
+    where: { userId },
+    include: {
+      team: {
+        include: {
+          owner: {
+            include: { credentials: true }
+          }
+        }
+      }
+    }
+  })
+
+  // If user is a team member and owner has Claude subscription, use it
+  if (teamMember?.team?.owner?.credentials?.anthropicAuthToken) {
+    return {
+      ...ownCredentials,
+      anthropicAuthToken: decrypt(teamMember.team.owner.credentials.anthropicAuthToken),
+      anthropicAuthType: "claude-max" as AnthropicAuthType,
+    }
+  }
+
+  return ownCredentials
 }
 
 // =============================================================================

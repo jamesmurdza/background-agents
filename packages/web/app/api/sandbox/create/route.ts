@@ -9,7 +9,7 @@ import {
   isDaytonaKeyError,
   badRequest,
   unauthorized,
-  decryptUserCredentials,
+  resolveUserCredentials,
   getGitHubTokenForUser,
 } from "@/lib/shared/api-helpers"
 import { createSSEStream, sendProgress, sendError, sendDone } from "@/lib/llm/streaming-helpers"
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   })
 
   const { anthropicApiKey, anthropicAuthToken, anthropicAuthType } =
-    decryptUserCredentials(userCredentials)
+    await resolveUserCredentials(userCredentials, userId)
   const sandboxAutoStopInterval = userCredentials?.sandboxAutoStopInterval ?? 5
 
   // Check if user has Anthropic credentials - used to determine default agent

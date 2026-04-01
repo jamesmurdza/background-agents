@@ -35,6 +35,29 @@ export async function GET() {
             loopUntilFinishedEnabled: true,
           },
         },
+        // Include team membership info
+        teamMembership: {
+          include: {
+            team: {
+              include: {
+                owner: {
+                  select: { id: true, name: true, githubLogin: true, image: true },
+                },
+              },
+            },
+          },
+        },
+        ownedTeam: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: { id: true, name: true, githubLogin: true, image: true },
+                },
+              },
+            },
+          },
+        },
         repos: {
           include: {
             branches: {
@@ -67,6 +90,7 @@ export async function GET() {
 
     // Transform credentials to just show existence, not values
     const serverLlmFallback = hasOpenRouterKey()
+
     const credentials = user.credentials
       ? {
           anthropicAuthType: user.credentials.anthropicAuthType,
@@ -82,6 +106,30 @@ export async function GET() {
         }
       : serverLlmFallback
         ? { hasServerLlmFallback: true as const }
+        : null
+
+    // Build team info
+    const team = user.ownedTeam
+      ? {
+          isOwner: true as const,
+          members: user.ownedTeam.members.map((m) => ({
+            id: m.user.id,
+            name: m.user.name,
+            githubLogin: m.user.githubLogin,
+            image: m.user.image,
+            joinedAt: m.createdAt,
+          })),
+        }
+      : user.teamMembership
+        ? {
+            isOwner: false as const,
+            owner: {
+              id: user.teamMembership.team.owner.id,
+              name: user.teamMembership.team.owner.name,
+              githubLogin: user.teamMembership.team.owner.githubLogin,
+              image: user.teamMembership.team.owner.image,
+            },
+          }
         : null
 
     // Apply saved repo order if it exists
@@ -110,6 +158,7 @@ export async function GET() {
         isAdmin: user.isAdmin,
       },
       credentials,
+      team,
       repos: orderedRepos,
       quota,
     })

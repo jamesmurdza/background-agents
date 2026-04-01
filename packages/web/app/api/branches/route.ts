@@ -9,7 +9,7 @@ import {
   internalError,
   getDaytonaApiKey,
   isDaytonaKeyError,
-  decryptUserCredentials,
+  resolveUserCredentials,
 } from "@/lib/shared/api-helpers"
 import { PATHS } from "@/lib/shared/constants"
 import {
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   const userCredentials = await prisma.userCredentials.findUnique({
     where: { userId },
   })
-  const { anthropicApiKey, anthropicAuthToken } = decryptUserCredentials(userCredentials)
+  const { anthropicApiKey, anthropicAuthToken } = await resolveUserCredentials(userCredentials, userId)
   const defaultAgent = getDefaultAgent({
     hasAnthropicApiKey: !!anthropicApiKey,
     hasAnthropicAuthToken: !!anthropicAuthToken,
