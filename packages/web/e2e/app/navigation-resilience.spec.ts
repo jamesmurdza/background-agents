@@ -14,6 +14,7 @@ import {
   expectProseContent,
   expectNotWorking,
   waitForCompletionViaAPI,
+  waitForExecutionStarted,
   expect,
 } from "../fixtures/agent-fixture"
 import { TIMEOUT } from "../fixtures/timeouts"
@@ -104,6 +105,9 @@ test.describe("navigation resilience", () => {
     await selectBranch(page, 0)
     await sendMessage(page, PROMPT)
     await expectAgentWorking(page)
+
+    // CRITICAL: Wait for execution record to exist before navigating away
+    await waitForExecutionStarted(page, branchId)
 
     // Navigate away while agent is working
     await page.goto("/admin")

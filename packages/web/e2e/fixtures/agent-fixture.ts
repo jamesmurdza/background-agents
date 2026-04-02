@@ -114,6 +114,30 @@ export async function expectNotWorking(page: Page) {
   expect(stuck).toBe(false)
 }
 
+/**
+ * Wait for execution record to exist in DB (any status).
+ * Use this BEFORE reload/navigation to ensure the execute API call completed.
+ * Without this, reload can race with message creation → execution never created.
+ */
+export async function waitForExecutionStarted(page: Page, branchId: string) {
+  const shortBranchId = branchId.slice(0, 8)
+  const startTime = Date.now()
+
+  await expect(async () => {
+    const res = await page.request.post("/api/agent/execution/active", {
+      data: { branchId },
+    })
+    const data = await res.json()
+    const status = data.execution?.status
+    const elapsedMs = Date.now() - startTime
+
+    console.log(`[waitExec] branch=${shortBranchId} status=${status ?? 'undefined'} elapsed=${elapsedMs}ms`)
+
+    // We just need ANY status (running, completed, error) - not undefined
+    expect(status).toBeDefined()
+  }).toPass({ timeout: TIMEOUT.AGENT_START, intervals: [200, 500, 1000] })
+}
+
 /** Poll the API until a branch's execution is completed or errored. */
 export async function waitForCompletionViaAPI(page: Page, branchId: string) {
   let undefinedCount = 0

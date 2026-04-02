@@ -1,68 +1,68 @@
 {
-  "timestamp": "2026-04-02T18:01:00.020Z",
-  "duration": 759416.7509999999,
-  "status": "failed",
-  "passed": 20,
-  "failed": 6,
+  "timestamp": "2026-04-02T20:03:21.891Z",
+  "duration": 521106.053,
+  "status": "passed",
+  "passed": 26,
+  "failed": 0,
   "skipped": 0,
   "tests": [
     {
       "title": "each branch shows its own content",
       "file": "e2e/app/multi-agent-isolation.spec.ts",
       "status": "passed",
-      "duration": 32457,
+      "duration": 28882,
       "steps": []
     },
     {
       "title": "branch switching shows correct content",
       "file": "e2e/app/multi-agent-isolation.spec.ts",
       "status": "passed",
-      "duration": 30063,
+      "duration": 26949,
       "steps": []
     },
     {
       "title": "one branch erroring does not affect others",
       "file": "e2e/app/multi-agent-isolation.spec.ts",
       "status": "passed",
-      "duration": 22024,
+      "duration": 21999,
       "steps": []
     },
     {
       "title": "concurrent completions render correctly",
       "file": "e2e/app/multi-agent-isolation.spec.ts",
       "status": "passed",
-      "duration": 23162,
+      "duration": 25579,
       "steps": []
     },
     {
       "title": "3 concurrent agents: send, stream, complete, refresh",
       "file": "e2e/app/multi-agent.spec.ts",
       "status": "passed",
-      "duration": 29775,
+      "duration": 32382,
       "steps": [
         {
           "title": "navigate to repo",
-          "duration": 1490,
+          "duration": 1334,
           "status": "passed"
         },
         {
           "title": "send message on each branch",
-          "duration": 2430,
+          "duration": 2226,
           "status": "passed"
         },
         {
           "title": "all agents complete (via API)",
-          "duration": 15168,
+          "duration": 18271,
           "status": "passed"
         },
         {
           "title": "each branch has content and is idle",
-          "duration": 3523,
+          "duration": 3488,
           "status": "passed"
         },
         {
           "title": "refresh preserves all branches",
-          "duration": 5889,
+          "duration": 5999,
           "status": "passed"
         }
       ]
@@ -71,125 +71,121 @@
       "title": "content preserved after visiting admin page",
       "file": "e2e/app/navigation-resilience.spec.ts",
       "status": "passed",
-      "duration": 22599,
+      "duration": 23583,
       "steps": []
     },
     {
       "title": "content preserved after opening and closing settings modal",
       "file": "e2e/app/navigation-resilience.spec.ts",
       "status": "passed",
-      "duration": 17769,
+      "duration": 19458,
       "steps": []
     },
     {
       "title": "content preserved after switching branches",
       "file": "e2e/app/navigation-resilience.spec.ts",
       "status": "passed",
-      "duration": 6075,
+      "duration": 21140,
       "steps": []
     },
     {
       "title": "agent continues while navigated away",
       "file": "e2e/app/navigation-resilience.spec.ts",
-      "status": "failed",
-      "duration": 62650,
-      "steps": [],
-      "error": "Error: No execution found for branch cmnhru6qu003rwa0jaeqqmalz after 5 polls\n\nCall Log:\n- Timeout 60000ms exceeded while waiting on the predicate"
+      "status": "passed",
+      "duration": 43313,
+      "steps": []
     },
     {
       "title": "rapid branch switching preserves state",
       "file": "e2e/app/navigation-resilience.spec.ts",
       "status": "passed",
-      "duration": 22388,
+      "duration": 22968,
       "steps": []
     },
     {
       "title": "recovers after reload mid-stream",
       "file": "e2e/app/recovery.spec.ts",
-      "status": "failed",
-      "duration": 62269,
-      "steps": [],
-      "error": "Error: No execution found for branch cmnhrw11a0047wa0jdqiqs29c after 5 polls\n\nCall Log:\n- Timeout 60000ms exceeded while waiting on the predicate"
+      "status": "passed",
+      "duration": 15315,
+      "steps": []
     },
     {
       "title": "recovers after navigating away mid-stream",
       "file": "e2e/app/recovery.spec.ts",
-      "status": "failed",
-      "duration": 61251,
-      "steps": [],
-      "error": "Error: No execution found for branch cmnhrxe1h004bwa0jkorfpnks after 5 polls\n\nCall Log:\n- Timeout 60000ms exceeded while waiting on the predicate"
+      "status": "passed",
+      "duration": 20798,
+      "steps": []
     },
     {
       "title": "shows correct state after multiple reloads",
       "file": "e2e/app/recovery.spec.ts",
       "status": "passed",
-      "duration": 16860,
+      "duration": 18615,
       "steps": []
     },
     {
       "title": "polling resumes after tab becomes visible",
       "file": "e2e/app/recovery.spec.ts",
-      "status": "failed",
-      "duration": 61557,
-      "steps": [],
-      "error": "Error: No execution found for branch cmnhrz2uq004nwa0j4j45s3vj after 5 polls\n\nCall Log:\n- Timeout 60000ms exceeded while waiting on the predicate"
+      "status": "passed",
+      "duration": 16708,
+      "steps": []
     },
     {
       "title": "error state renders correctly",
       "file": "e2e/app/recovery.spec.ts",
       "status": "passed",
-      "duration": 20818,
+      "duration": 11096,
       "steps": []
     },
     {
       "title": "send → stream → complete → refresh",
       "file": "e2e/app/single-agent.spec.ts",
       "status": "passed",
-      "duration": 14394,
+      "duration": 19478,
       "steps": [
         {
           "title": "navigate and select branch",
-          "duration": 1701,
+          "duration": 1444,
           "status": "passed"
         },
         {
           "title": "send message",
-          "duration": 90,
+          "duration": 94,
           "status": "passed"
         },
         {
           "title": "agent starts working",
-          "duration": 5,
+          "duration": 48,
           "status": "passed"
         },
         {
           "title": "user message rendered",
-          "duration": 5,
+          "duration": 10,
           "status": "passed"
         },
         {
           "title": "streaming content appears",
-          "duration": 373,
+          "duration": 361,
           "status": "passed"
         },
         {
           "title": "tool calls appear",
-          "duration": 8933,
+          "duration": 13004,
           "status": "passed"
         },
         {
           "title": "agent completes",
-          "duration": 155,
+          "duration": 902,
           "status": "passed"
         },
         {
           "title": "snapshot pre-refresh content",
-          "duration": 8,
+          "duration": 4,
           "status": "passed"
         },
         {
           "title": "refresh preserves content",
-          "duration": 2314,
+          "duration": 2973,
           "status": "passed"
         }
       ]
@@ -198,83 +194,82 @@
       "title": "UI updates when agent completes",
       "file": "e2e/app/state-sync.spec.ts",
       "status": "passed",
-      "duration": 20738,
+      "duration": 17178,
       "steps": []
     },
     {
       "title": "content persists after page refresh",
       "file": "e2e/app/state-sync.spec.ts",
       "status": "passed",
-      "duration": 14483,
+      "duration": 14312,
       "steps": []
     },
     {
       "title": "working state persists after refresh mid-execution",
       "file": "e2e/app/state-sync.spec.ts",
-      "status": "failed",
-      "duration": 63825,
-      "steps": [],
-      "error": "Error: No execution found for branch cmnhs1xgk005mwa0j8xn4togh after 5 polls\n\nCall Log:\n- Timeout 60000ms exceeded while waiting on the predicate"
+      "status": "passed",
+      "duration": 19410,
+      "steps": []
     },
     {
       "title": "idle state correct after completion",
       "file": "e2e/app/state-sync.spec.ts",
       "status": "passed",
-      "duration": 12574,
+      "duration": 15502,
       "steps": []
     },
     {
       "title": "no empty prose blocks after completion",
       "file": "e2e/app/stream-integrity.spec.ts",
       "status": "passed",
-      "duration": 11120,
+      "duration": 17344,
       "steps": []
     },
     {
       "title": "no empty tool call blocks after completion",
       "file": "e2e/app/stream-integrity.spec.ts",
       "status": "passed",
-      "duration": 19222,
+      "duration": 18537,
       "steps": []
     },
     {
       "title": "user message renders completely",
       "file": "e2e/app/stream-integrity.spec.ts",
       "status": "passed",
-      "duration": 2691,
+      "duration": 2228,
       "steps": []
     },
     {
       "title": "content blocks have non-zero height",
       "file": "e2e/app/stream-integrity.spec.ts",
       "status": "passed",
-      "duration": 22126,
+      "duration": 12330,
       "steps": []
     },
     {
       "title": "baseline: send → stream → complete (instrumented)",
       "file": "e2e/diagnostics/stream-bug-repro.spec.ts",
       "status": "passed",
-      "duration": 17495,
+      "duration": 17863,
       "steps": [
         {
           "title": "navigate",
-          "duration": 1577,
+          "duration": 1615,
           "status": "passed"
         },
         {
           "title": "send",
-          "duration": 51,
+          "duration": 50,
           "status": "passed"
         },
         {
           "title": "working + content",
-          "duration": 413,
+          "duration": 405,
           "status": "passed"
         },
         {
           "title": "complete",
-          "duration": 14912,
+          "duration": 14951,
           "status": "passed"
         }
       ]
@@ -282,21 +277,20 @@
     {
       "title": "stress: reload mid-run then expect eventual idle",
       "file": "e2e/diagnostics/stream-bug-repro.spec.ts",
-      "status": "failed",
-      "duration": 61808,
+      "status": "passed",
+      "duration": 15489,
       "steps": [
         {
           "title": "reload while agent working",
-          "duration": 826,
+          "duration": 820,
           "status": "passed"
         },
         {
           "title": "server run completes then UI shows prose",
-          "duration": 57363,
-          "status": "failed"
+          "duration": 9094,
+          "status": "passed"
         }
-      ],
-      "error": "Error: No execution found for branch cmnhs55ap006zwa0jv7hgt40a after 5 polls\n\nCall Log:\n- Timeout 60000ms exceeded while waiting on the predicate"
+      ]
     }
   ]
 }

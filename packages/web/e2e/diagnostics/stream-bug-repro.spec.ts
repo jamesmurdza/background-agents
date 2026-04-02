@@ -13,6 +13,7 @@ import {
   expectAgentWorking,
   waitForAgentComplete,
   waitForCompletionViaAPI,
+  waitForExecutionStarted,
   expectProseContent,
   expect,
 } from "../fixtures/agent-fixture"
@@ -67,6 +68,9 @@ test.describe("stream diagnostics", () => {
     await selectBranch(page, 0)
     await sendMessage(page, PROMPT)
     await expectAgentWorking(page)
+
+    // CRITICAL: Wait for execution record to exist before reload
+    await waitForExecutionStarted(page, branchId)
 
     await test.step("reload while agent working", async () => {
       await page.reload({ waitUntil: "load" })

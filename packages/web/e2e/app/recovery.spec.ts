@@ -13,6 +13,7 @@ import {
   expectProseContent,
   expectNotWorking,
   waitForCompletionViaAPI,
+  waitForExecutionStarted,
   expect,
 } from "../fixtures/agent-fixture"
 import { TIMEOUT } from "../fixtures/timeouts"
@@ -29,6 +30,10 @@ test.describe("recovery", () => {
     await selectBranch(page, 0)
     await sendMessage(page, PROMPT)
     await expectAgentWorking(page)
+
+    // CRITICAL: Wait for execution record to exist before reload
+    // Otherwise reload can race with message creation
+    await waitForExecutionStarted(page, branchId)
 
     // Reload while streaming
     await page.reload()
@@ -57,6 +62,9 @@ test.describe("recovery", () => {
     await sendMessage(page, PROMPT)
     await expectAgentWorking(page)
 
+    // CRITICAL: Wait for execution record to exist before navigating away
+    await waitForExecutionStarted(page, branchId)
+
     // Navigate to a different page
     await page.goto("/admin")
     await page.waitForTimeout(1000)
@@ -79,6 +87,9 @@ test.describe("recovery", () => {
     await navigateToRepo(page, repoName)
     await selectBranch(page, 0)
     await sendMessage(page, PROMPT)
+
+    // CRITICAL: Wait for execution record to exist before any reload
+    await waitForExecutionStarted(page, branchId)
 
     // Multiple reloads during execution
     await page.waitForTimeout(1000)
@@ -106,11 +117,14 @@ test.describe("recovery", () => {
     await sendMessage(page, PROMPT)
     await expectAgentWorking(page)
 
-    // Simulate tab being hidden (best we can do is navigate away briefly)
-    await page.goto("about:blank")
+    // CRITICAL: Wait for execution record to exist before navigating away
+    await waitForExecutionStarted(page, branchId)
+
+    // Navigate to a different page (not about:blank which breaks API access)
+    await page.goto("/admin")
     await page.waitForTimeout(2000)
 
-    // Agent completes while we're "away"
+    // Agent continues server-side - wait for completion
     await waitForCompletionViaAPI(page, branchId)
 
     // Come back
