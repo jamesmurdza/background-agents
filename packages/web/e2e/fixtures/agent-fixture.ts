@@ -116,13 +116,28 @@ export async function expectNotWorking(page: Page) {
 
 /** Poll the API until a branch's execution is completed or errored. */
 export async function waitForCompletionViaAPI(page: Page, branchId: string) {
+  let undefinedCount = 0
+  const maxUndefined = 5 // Fail fast if execution is missing after 5 polls
+
   await expect(async () => {
     const res = await page.request.post("/api/agent/execution/active", {
       data: { branchId },
     })
     const data = await res.json()
-    expect(data.execution?.status).toMatch(/completed|error/)
-  }).toPass({ timeout: TIMEOUT.AGENT_COMPLETE })
+    const status = data.execution?.status
+
+    // Fail fast if execution is consistently undefined
+    if (status === undefined) {
+      undefinedCount++
+      if (undefinedCount >= maxUndefined) {
+        throw new Error(`No execution found for branch ${branchId} after ${maxUndefined} polls`)
+      }
+    } else {
+      undefinedCount = 0 // Reset if we get a valid status
+    }
+
+    expect(status).toMatch(/completed|error/)
+  }).toPass({ timeout: TIMEOUT.AGENT_COMPLETE, intervals: [1000, 2000, 3000] })
 }
 
 export { expect }

@@ -47,8 +47,8 @@ test.describe("multi-agent isolation", () => {
       await selectBranch(page, i)
       await page.waitForTimeout(1000)
 
-      // Should see this branch's prompt
-      await expect(page.locator(`text=file${i}.txt`)).toBeVisible({ timeout: TIMEOUT.POST_REFRESH })
+      // Should see this branch's prompt (use first() to avoid strict mode with multiple matches)
+      await expect(page.locator(`text=file${i}.txt`).first()).toBeVisible({ timeout: TIMEOUT.POST_REFRESH })
       await expectProseContent(page, TIMEOUT.POST_REFRESH)
     }
   })
@@ -74,8 +74,8 @@ test.describe("multi-agent isolation", () => {
       await selectBranch(page, i)
       await page.waitForTimeout(800)
 
-      // Verify we see the correct branch's content
-      await expect(page.locator(`text=file${i}.txt`)).toBeVisible({ timeout: TIMEOUT.POST_REFRESH })
+      // Verify we see the correct branch's content (use first() to avoid strict mode)
+      await expect(page.locator(`text=file${i}.txt`).first()).toBeVisible({ timeout: TIMEOUT.POST_REFRESH })
     }
   })
 

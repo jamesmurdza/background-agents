@@ -15,7 +15,7 @@ export const TIMEOUT = {
   /** Tool calls appear in the timeline */
   TOOL_CALLS: 90_000,
   /** Agent finishes (working indicator hidden / API says completed) */
-  AGENT_COMPLETE: 3 * 60_000,
+  AGENT_COMPLETE: 60_000,
   /** Content survives a refresh or branch switch */
   POST_REFRESH: 15_000,
 }
