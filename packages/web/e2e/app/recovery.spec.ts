@@ -1,8 +1,8 @@
 /**
  * Recovery Tests
  *
- * Verify the system recovers correctly from interruptions.
- * These tests catch issues with polling, reconnection, and state recovery.
+ * Verify the system recovers correctly from page reloads during execution.
+ * Navigation-away tests are in navigation-resilience.spec.ts.
  */
 import {
   agentTest,
@@ -11,7 +11,6 @@ import {
   sendMessage,
   expectAgentWorking,
   expectProseContent,
-  expectNotWorking,
   waitForCompletionViaAPI,
   waitForExecutionStarted,
   expect,
@@ -54,34 +53,7 @@ test.describe("recovery", () => {
     })
   })
 
-  test("recovers after navigating away mid-stream", async ({ page, branches, repoName }) => {
-    const { branchId } = branches[0]
-
-    await navigateToRepo(page, repoName)
-    await selectBranch(page, 0)
-    await sendMessage(page, PROMPT)
-    await expectAgentWorking(page)
-
-    // CRITICAL: Wait for execution record to exist before navigating away
-    await waitForExecutionStarted(page, branchId)
-
-    // Navigate to a different page
-    await page.goto("/admin")
-    await page.waitForTimeout(1000)
-
-    // Agent continues server-side
-    await waitForCompletionViaAPI(page, branchId)
-
-    // Navigate back
-    await navigateToRepo(page, repoName)
-    await selectBranch(page, 0)
-
-    // Should show completed content
-    await expectProseContent(page, TIMEOUT.POST_REFRESH)
-    await expectNotWorking(page)
-  })
-
-  test("shows correct state after multiple reloads", async ({ page, branches, repoName }) => {
+  test("recovers after multiple reloads", async ({ page, branches, repoName }) => {
     const { branchId } = branches[0]
 
     await navigateToRepo(page, repoName)
@@ -107,59 +79,5 @@ test.describe("recovery", () => {
 
     // Verify correct final state
     await expectProseContent(page, TIMEOUT.AGENT_COMPLETE)
-  })
-
-  test("polling resumes after tab becomes visible", async ({ page, branches, repoName }) => {
-    const { branchId } = branches[0]
-
-    await navigateToRepo(page, repoName)
-    await selectBranch(page, 0)
-    await sendMessage(page, PROMPT)
-    await expectAgentWorking(page)
-
-    // CRITICAL: Wait for execution record to exist before navigating away
-    await waitForExecutionStarted(page, branchId)
-
-    // Navigate to a different page (not about:blank which breaks API access)
-    await page.goto("/admin")
-    await page.waitForTimeout(2000)
-
-    // Agent continues server-side - wait for completion
-    await waitForCompletionViaAPI(page, branchId)
-
-    // Come back
-    await navigateToRepo(page, repoName)
-    await selectBranch(page, 0)
-
-    // Should reflect completed state
-    await expectProseContent(page, TIMEOUT.POST_REFRESH)
-    await expectNotWorking(page)
-  })
-
-  test("error state renders correctly", async ({ page, branches, repoName }) => {
-    await navigateToRepo(page, repoName)
-    await selectBranch(page, 0)
-
-    // Send a message that should complete (we can't easily force an error)
-    await sendMessage(page, PROMPT)
-    await expectAgentWorking(page)
-
-    // Wait for completion - this should succeed
-    const { branchId } = branches[0]
-    await waitForCompletionViaAPI(page, branchId)
-
-    // After completion, we should have content and not be working
-    await expectProseContent(page)
-    await expectNotWorking(page)
-
-    // No empty bubbles
-    const proseBlocks = page.locator('[class*="prose"]')
-    const count = await proseBlocks.count()
-    expect(count).toBeGreaterThan(0)
-
-    for (let i = 0; i < count; i++) {
-      const text = await proseBlocks.nth(i).textContent()
-      expect(text?.trim().length).toBeGreaterThan(0)
-    }
   })
 })
