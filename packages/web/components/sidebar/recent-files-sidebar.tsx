@@ -99,11 +99,12 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(minutes / 60)}h ago`
 }
 
-function FileIcon({ file, isLoading, onClick, isOpen }: {
+function FileIcon({ file, isLoading, onClick, isOpen, isPinned }: {
   file: ModifiedFile
   isLoading: boolean
   onClick: () => void
   isOpen: boolean
+  isPinned: boolean
 }) {
   const { letter, ext, filename } = getFileDisplayInfo(file.path)
   const extColor = getExtColor(ext)
@@ -112,11 +113,15 @@ function FileIcon({ file, isLoading, onClick, isOpen }: {
     <Tooltip>
       <TooltipTrigger asChild>
         <button
-          onClick={onClick}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick()
+          }}
           className={cn(
             "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
             "bg-secondary hover:bg-accent",
-            isOpen && "ring-2 ring-primary bg-accent"
+            isOpen && "ring-2 ring-primary bg-accent",
+            isPinned && "ring-2 ring-primary"
           )}
         >
           <div className="flex flex-col items-center justify-center leading-none">
@@ -128,11 +133,18 @@ function FileIcon({ file, isLoading, onClick, isOpen }: {
               <Loader2 className="h-3 w-3 animate-spin" />
             </div>
           )}
+          {/* Pin indicator */}
+          {isPinned && (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+          )}
         </button>
       </TooltipTrigger>
       <TooltipContent side="left" className="max-w-xs">
         <p className="font-mono text-xs truncate">{filename}</p>
-        <p className="text-[10px] text-muted-foreground">{formatRelativeTime(file.modifiedAt)}</p>
+        <p className="text-[10px] text-muted-foreground">
+          {formatRelativeTime(file.modifiedAt)}
+          {isPinned && " • Pinned"}
+        </p>
       </TooltipContent>
     </Tooltip>
   )
@@ -145,6 +157,8 @@ function FilePreviewPopover({
   error,
   open,
   onOpenChange,
+  onMouseEnter,
+  onMouseLeave,
   children,
 }: {
   file: ModifiedFile
@@ -153,6 +167,8 @@ function FilePreviewPopover({
   error: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
   children: React.ReactNode
 }) {
   const { filename, ext } = getFileDisplayInfo(file.path)
@@ -165,6 +181,8 @@ function FilePreviewPopover({
         align="start"
         sideOffset={8}
         className="w-[500px] max-w-[90vw] max-h-[80vh] p-0 overflow-hidden"
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-muted/30">
@@ -206,11 +224,13 @@ function FilePreviewPopover({
 
 export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFilesSidebarProps) {
   const [files, setFiles] = useState<ModifiedFile[]>([])
-  const [openFileIndex, setOpenFileIndex] = useState<number | null>(null)
+  const [pinnedFileIndex, setPinnedFileIndex] = useState<number | null>(null)
+  const [hoveredFileIndex, setHoveredFileIndex] = useState<number | null>(null)
   const [loadingContent, setLoadingContent] = useState<string | null>(null)
   const [fileContents, setFileContents] = useState<Map<string, FileContent>>(new Map())
   const [contentError, setContentError] = useState<string | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch modified files
   const fetchModifiedFiles = useCallback(async () => {
@@ -298,7 +318,8 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
       setFiles([])
     }
     // Clear open popover on branch switch
-    setOpenFileIndex(null)
+    setPinnedFileIndex(null)
+    setHoveredFileIndex(null)
   }, [cacheKey])
 
   // Poll for modified files
@@ -321,26 +342,75 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
     }
   }, [sandboxId, repoPath, fetchModifiedFiles])
 
-  // Handle file icon click
-  const handleFileClick = useCallback((index: number, file: ModifiedFile) => {
-    if (openFileIndex === index) {
-      // Close if already open
-      setOpenFileIndex(null)
+  // Handle file icon click - pins the popover open
+  const handleFileClick = useCallback((index: number) => {
+    if (pinnedFileIndex === index) {
+      // Unpin if already pinned
+      setPinnedFileIndex(null)
     } else {
-      // Open and fetch content if needed
-      setOpenFileIndex(index)
-      if (!fileContents.has(file.path)) {
-        fetchFileContent(file.path)
+      // Pin this file
+      setPinnedFileIndex(index)
+    }
+  }, [pinnedFileIndex])
+
+  // Handle mouse enter - show popover on hover
+  const handleMouseEnter = useCallback((index: number, file: ModifiedFile) => {
+    // Clear any pending timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+
+    // Don't override pinned state
+    if (pinnedFileIndex !== null) return
+
+    setHoveredFileIndex(index)
+
+    // Fetch content if needed
+    if (!fileContents.has(file.path)) {
+      fetchFileContent(file.path)
+    }
+  }, [pinnedFileIndex, fileContents, fetchFileContent])
+
+  // Handle mouse leave - hide popover after a short delay (unless pinned)
+  const handleMouseLeave = useCallback(() => {
+    // Don't close if pinned
+    if (pinnedFileIndex !== null) return
+
+    // Small delay to allow moving to the popover
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredFileIndex(null)
+    }, 200)
+  }, [pinnedFileIndex])
+
+  // Handle popover content mouse enter - cancel the close timeout
+  const handlePopoverMouseEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+  }, [])
+
+  // Handle popover open change (for clicking outside when pinned)
+  const handleOpenChange = useCallback((index: number, open: boolean) => {
+    if (!open) {
+      if (pinnedFileIndex === index) {
+        setPinnedFileIndex(null)
+      }
+      if (hoveredFileIndex === index) {
+        setHoveredFileIndex(null)
       }
     }
-  }, [openFileIndex, fileContents, fetchFileContent])
+  }, [pinnedFileIndex, hoveredFileIndex])
 
-  // Handle popover open change (for clicking outside)
-  const handleOpenChange = useCallback((index: number, open: boolean) => {
-    if (!open && openFileIndex === index) {
-      setOpenFileIndex(null)
+  // Cleanup hover timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
     }
-  }, [openFileIndex])
+  }, [])
 
   // Don't render if no files
   if (files.length === 0) {
@@ -351,7 +421,9 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
     <TooltipProvider delayDuration={300}>
       <aside className="flex h-full w-[52px] shrink-0 flex-col items-center gap-1.5 border-l border-border bg-sidebar py-3 overflow-y-auto">
         {files.map((file, index) => {
-          const isOpen = openFileIndex === index
+          const isPinned = pinnedFileIndex === index
+          const isHovered = hoveredFileIndex === index
+          const isOpen = isPinned || isHovered
           const content = fileContents.get(file.path) || null
           const isLoadingThis = loadingContent === file.path
 
@@ -364,13 +436,19 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
               error={isOpen && !isLoadingThis && !content ? contentError : null}
               open={isOpen}
               onOpenChange={(open) => handleOpenChange(index, open)}
+              onMouseEnter={handlePopoverMouseEnter}
+              onMouseLeave={handleMouseLeave}
             >
-              <div>
+              <div
+                onMouseEnter={() => handleMouseEnter(index, file)}
+                onMouseLeave={handleMouseLeave}
+              >
                 <FileIcon
                   file={file}
                   isLoading={isLoadingThis}
-                  onClick={() => handleFileClick(index, file)}
+                  onClick={() => handleFileClick(index)}
                   isOpen={isOpen}
+                  isPinned={isPinned}
                 />
               </div>
             </FilePreviewPopover>
