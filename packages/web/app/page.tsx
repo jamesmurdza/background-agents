@@ -30,10 +30,13 @@ import {
   useCrossDeviceSync,
   useIsMobile,
   useRepoNavigation,
+  useExecutionManager,
 } from "@/hooks"
 
 // Import Zustand stores
 import { useUIStore } from "@/lib/stores"
+import { useExecutionStore, recoverActiveExecutions } from "@/lib/stores/execution-store"
+import type { Branch } from "@/lib/shared/types"
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -136,6 +139,34 @@ export default function Home() {
     activeBranchIdRef,
     setActiveBranchId,
   })
+
+  const getBranchById = useCallback(
+    (branchId: string): Branch | undefined =>
+      repos.flatMap((r) => r.branches).find((b) => b.id === branchId),
+    [repos]
+  )
+
+  const executionLoopContinueRef = useRef<(branchId: string) => void | Promise<void>>(async () => {})
+  const executionRefreshGitRef = useRef<(() => void) | null>(null)
+
+  useExecutionManager({
+    onUpdateMessage: handleUpdateMessage,
+    onUpdateBranch: handleUpdateBranch,
+    onAddMessage: handleAddMessage,
+    onForceSave: () => {},
+    onCommitsDetected: triggerGitHistoryRefresh,
+    onLoopContinue: (branchId) => executionLoopContinueRef.current(branchId),
+    onRefreshGitConflictState: () => executionRefreshGitRef.current?.(),
+  })
+
+  useEffect(() => {
+    useExecutionStore.getState().setActiveBranchId(activeBranchId)
+  }, [activeBranchId])
+
+  useEffect(() => {
+    if (!loaded || status !== "authenticated") return
+    void recoverActiveExecutions()
+  }, [loaded, status])
 
   const switchAwayFromBranchBeforeDelete = useCallback(
     (branchId: string) => {
@@ -272,42 +303,6 @@ export default function Home() {
       loadBranchMessages(activeBranchId, activeRepoId)
     }
   }, [activeBranchId, activeRepoId, loadBranchMessages])
-
-  // Background heartbeat: trigger server-side polling for running branches that
-  // aren't currently visible (the active branch has its own poller in ChatPanel).
-  // This ensures server-side lease-based polling keeps checking Daytona even when
-  // the user is looking at a different branch.
-  const reposRef = useRef(repos)
-  reposRef.current = repos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      for (const repo of reposRef.current) {
-        for (const b of repo.branches) {
-          if (b.status !== BRANCH_STATUS.RUNNING) continue
-          if (b.id === activeBranchIdRef.current) continue
-          const lastMsg = b.messages.filter((m: { role: string }) => m.role === "assistant").at(-1)
-          if (!lastMsg || !("id" in lastMsg)) continue
-          fetch("/api/agent/status", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messageId: lastMsg.id }),
-          }).then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
-            if (data.status === "completed" || data.status === "error") {
-              handleUpdateBranch(b.id, {
-                status: BRANCH_STATUS.IDLE,
-                unread: true,
-                lastActivity: "now",
-                lastActivityTs: Date.now(),
-              })
-            }
-          }).catch(() => {})
-        }
-      }
-    }, 10_000)
-    return () => clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     if (!activeBranch) setDesktopRebaseConflict(false)
@@ -496,6 +491,9 @@ export default function Home() {
                   onOpenSettingsWithHighlight={handleOpenSettingsWithHighlight}
                   defaultLoopMaxIterations={credentials?.defaultLoopMaxIterations}
                   loopUntilFinishedEnabled={credentials?.loopUntilFinishedEnabled}
+                  getBranchById={getBranchById}
+                  executionLoopContinueRef={executionLoopContinueRef}
+                  executionRefreshGitRef={executionRefreshGitRef}
                 />
               ) : (
                 <EmptyChatPanel hasRepos={repos.length > 0} />
@@ -551,6 +549,9 @@ export default function Home() {
               defaultLoopMaxIterations={credentials?.defaultLoopMaxIterations}
               loopUntilFinishedEnabled={credentials?.loopUntilFinishedEnabled}
               onRebaseConflictChange={setDesktopRebaseConflict}
+              getBranchById={getBranchById}
+              executionLoopContinueRef={executionLoopContinueRef}
+              executionRefreshGitRef={executionRefreshGitRef}
             />
           ) : (
             <EmptyChatPanel hasRepos={repos.length > 0} />
