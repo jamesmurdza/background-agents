@@ -110,11 +110,10 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(minutes / 60)}h ago`
 }
 
-function FileIcon({ file, isLoading, onClick, isOpen, isPinned }: {
+function FileIcon({ file, isLoading, onClick, isPinned }: {
   file: ModifiedFile
   isLoading: boolean
   onClick: () => void
-  isOpen: boolean
   isPinned: boolean
 }) {
   const { shortName, ext } = getFileDisplayInfo(file.path)
@@ -132,7 +131,6 @@ function FileIcon({ file, isLoading, onClick, isOpen, isPinned }: {
       className={cn(
         "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
         "bg-secondary hover:bg-accent",
-        isOpen && "ring-2 ring-primary bg-accent",
         isPinned && "ring-2 ring-primary"
       )}
     >
@@ -144,10 +142,6 @@ function FileIcon({ file, isLoading, onClick, isOpen, isPinned }: {
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
           <Loader2 className="h-3 w-3 animate-spin" />
         </div>
-      )}
-      {/* Pin indicator */}
-      {isPinned && (
-        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
       )}
     </button>
   )
@@ -254,7 +248,7 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
           sandboxId,
           repoPath,
           action: "list-modified",
-          since: 150, // 2.5 minutes
+          since: 300, // 5 minutes
         }),
       })
 
@@ -449,7 +443,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
                   file={file}
                   isLoading={isLoadingThis}
                   onClick={() => handleFileClick(index)}
-                  isOpen={isOpen}
                   isPinned={isPinned}
                 />
               </div>
