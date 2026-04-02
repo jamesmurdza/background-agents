@@ -277,6 +277,17 @@ To add a new integration test:
 - **Use smaller prompts** for faster responses
 - **Skip installation** when possible (advanced)
 
+## JSONL Reference Files
+
+Raw JSONL output from each provider is captured in `tests/fixtures/jsonl-reference/`. These files show the native CLI output format before SDK normalization.
+
+To regenerate:
+```bash
+npm run generate:jsonl-refs
+```
+
+Requires API keys for each provider you want to capture.
+
 ## Questions?
 
 See:
