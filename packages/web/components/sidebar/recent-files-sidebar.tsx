@@ -255,7 +255,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
           sandboxId,
           repoPath,
           action: "list-modified",
-          since: 86400, // 24 hours (effectively all files since clone)
         }),
       })
 

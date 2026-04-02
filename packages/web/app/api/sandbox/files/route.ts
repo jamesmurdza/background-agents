@@ -25,13 +25,13 @@ const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".json", ".py", ".go",
 const DEFAULT_IGNORE = ["node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "vendor"]
 
 /**
- * Build the find command to locate modified files
+ * Build the find command to locate files modified after the .git directory was created
+ * (i.e., since the repo was cloned)
  */
-function buildFindCommand(
+function buildFindCommandSinceClone(
   path: string,
   extensions: string[],
-  ignore: string[],
-  sinceSeconds: number
+  ignore: string[]
 ): string {
   const safePath = escapeShell(path)
 
@@ -45,12 +45,9 @@ function buildFindCommand(
     .map((ext) => `-name '*${escapeShell(ext)}'`)
     .join(" -o ")
 
-  // Calculate time for -newermt
-  const sinceDate = new Date(Date.now() - sinceSeconds * 1000).toISOString()
-
-  // Use -newermt for precise time-based filtering
+  // Use -newer to find files modified after .git directory was created (when repo was cloned)
   // Output: path|mtime|size (using stat for metadata)
-  const command = `find '${safePath}' \\( ${ignoreArgs} \\) -o -type f \\( ${extPatterns} \\) -newermt '${sinceDate}' -print0 2>/dev/null | xargs -0 -r stat --format='%n|%Y|%s' 2>/dev/null | head -20 || true`
+  const command = `find '${safePath}' \\( ${ignoreArgs} \\) -o -type f \\( ${extPatterns} \\) -newer '${safePath}/.git' -print0 2>/dev/null | xargs -0 -r stat --format='%n|%Y|%s' 2>/dev/null | head -20 || true`
 
   return command
 }
@@ -113,9 +110,8 @@ export async function POST(req: Request) {
 
     switch (action) {
       case "list-modified": {
-        // Get files modified within the time window (default 150 seconds = 2.5 minutes)
-        const sinceSeconds = since || 150
-        const command = buildFindCommand(repoPath, DEFAULT_EXTENSIONS, DEFAULT_IGNORE, sinceSeconds)
+        // Get files modified since the repo was cloned (using .git dir as reference)
+        const command = buildFindCommandSinceClone(repoPath, DEFAULT_EXTENSIONS, DEFAULT_IGNORE)
 
         const result = await sandbox.process.executeCommand(command, undefined, undefined, 30)
         const files = parseStatOutput(result.result || "")
