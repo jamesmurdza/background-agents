@@ -12,6 +12,7 @@ import {
   STOPPED_WITHOUT_END_NOTE,
 } from "@/lib/core/polling"
 import { detectAndShowCommits } from "@/lib/core/execution/detect-and-show-commits"
+import { useDebouncedCommitDetection } from "@/hooks/use-debounced-commit-detection"
 
 // Module-level tracking for sync guard — prevents sync from overwriting
 // streaming content while a branch is being actively polled.
@@ -96,6 +97,19 @@ export function useExecutionPoller({
   const branchRef = useRef(branch)
   branchRef.current = branch
 
+  // Debounced commit detection triggered by Bash tool calls
+  const { checkAfterToolCalls, reset: resetCommitDetection, flush: flushCommitDetection } = useDebouncedCommitDetection({
+    branchRef,
+    repoName,
+    repoOwner,
+    repoApiName,
+    onAddMessage,
+    onUpdateMessage,
+    onUpdateBranch,
+    onCommitsDetected,
+    onRefreshGitConflictState,
+  })
+
   // Clear tracking when branch stops running
   useEffect(() => {
     if (branch.status !== BRANCH_STATUS.RUNNING && activeMessageId) {
@@ -111,6 +125,9 @@ export function useExecutionPoller({
     const branchId = branch.id
 
     const run = async () => {
+      // Reset debounced commit detection for new polling session
+      resetCommitDetection()
+
       let resolvedId: string | null = activeMessageId
 
       // Recovery: no explicit messageId — ask the server which execution is running.
@@ -292,6 +309,11 @@ export function useExecutionPoller({
               toolCalls: tc,
               contentBlocks: cb.length > 0 ? cb : undefined,
             })
+
+            // Check for new commits after Bash tool calls (debounced)
+            if (data.status === "running") {
+              checkAfterToolCalls(tc, branchId)
+            }
           }
 
           // Completion / error
@@ -338,6 +360,9 @@ export function useExecutionPoller({
       }
 
       cbRef.current.onForceSave?.()
+
+      // Clear any pending debounced commit check - final detection happens below
+      flushCommitDetection()
 
       const b = branchRef.current
       const sandboxId = b.sandboxId || ""
@@ -406,8 +431,9 @@ export function useExecutionPoller({
     return () => {
       cancelled = true
       pollingBranches.delete(branchId)
+      resetCommitDetection()
     }
-  }, [branch.id, branch.status, activeMessageId, repoName, repoOwner, repoApiName])
+  }, [branch.id, branch.status, activeMessageId, repoName, repoOwner, repoApiName, resetCommitDetection])
 
   const startPolling = useCallback((messageId: string) => {
     setActiveMessageId(messageId)
