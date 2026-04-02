@@ -110,6 +110,11 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(minutes / 60)}h ago`
 }
 
+/** Check if file is older than 5 minutes */
+function isOldFile(modifiedAt: number): boolean {
+  return Date.now() - modifiedAt > 5 * 60 * 1000
+}
+
 function FileIcon({ file, isLoading, onClick, isPinned }: {
   file: ModifiedFile
   isLoading: boolean
@@ -118,6 +123,7 @@ function FileIcon({ file, isLoading, onClick, isPinned }: {
 }) {
   const { shortName, ext } = getFileDisplayInfo(file.path)
   const extColor = getExtColor(ext)
+  const isOld = isOldFile(file.modifiedAt)
 
   // Adjust font size based on name length
   const nameSize = shortName.length <= 2 ? "text-[10px]" : shortName.length <= 3 ? "text-[9px]" : "text-[8px]"
@@ -131,7 +137,8 @@ function FileIcon({ file, isLoading, onClick, isPinned }: {
       className={cn(
         "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
         "bg-secondary hover:bg-accent",
-        isPinned && "ring-2 ring-primary"
+        isPinned && "ring-2 ring-primary",
+        isOld && "opacity-40 hover:opacity-100"
       )}
     >
       <div className="flex flex-col items-center justify-center leading-none gap-0.5">
@@ -248,7 +255,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
           sandboxId,
           repoPath,
           action: "list-modified",
-          since: 300, // 5 minutes
         }),
       })
 
