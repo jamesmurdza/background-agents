@@ -9,40 +9,44 @@
 import * as readline from "node:readline"
 import { Daytona } from "@daytonaio/sdk"
 import {
-  createBackgroundSession,
-  getBackgroundSession,
-  getProviderNames,
-  isValidProvider,
-  type ProviderName,
+  createSession,
+  getSession,
+  getAgentNames,
 } from "../src/index.js"
 
-// Provider -> API key environment variable mapping
-const PROVIDER_API_KEYS: Record<ProviderName, { envVar: string; name: string }> = {
+type AgentName = "claude" | "codex" | "gemini" | "opencode"
+
+function isValidAgent(name: string): name is AgentName {
+  return getAgentNames().includes(name)
+}
+
+// Agent -> API key environment variable mapping
+const AGENT_API_KEYS: Record<AgentName, { envVar: string; name: string }> = {
   claude: { envVar: "ANTHROPIC_API_KEY", name: "Anthropic API Key" },
   codex: { envVar: "OPENAI_API_KEY", name: "OpenAI API Key" },
   gemini: { envVar: "GEMINI_API_KEY", name: "Gemini API Key" },
   opencode: { envVar: "OPENAI_API_KEY", name: "OpenAI API Key" }, // OpenCode typically uses OpenAI
 }
 
-function parseArgs(): { provider: ProviderName; model?: string } {
+function parseArgs(): { agent: AgentName; model?: string } {
   const args = process.argv.slice(2)
-  let provider: ProviderName = "claude" // Default
+  let agent: AgentName = "claude" // Default
   let model: string | undefined
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--provider" || args[i] === "-p") {
-      const providerName = args[i + 1]
-      if (!providerName) {
-        console.error("Error: --provider requires a provider name")
-        console.error(`Valid providers: ${getProviderNames().join(", ")}`)
+    if (args[i] === "--agent" || args[i] === "-a") {
+      const agentName = args[i + 1]
+      if (!agentName) {
+        console.error("Error: --agent requires an agent name")
+        console.error(`Valid agents: ${getAgentNames().join(", ")}`)
         process.exit(1)
       }
-      if (!isValidProvider(providerName)) {
-        console.error(`Error: Unknown provider '${providerName}'`)
-        console.error(`Valid providers: ${getProviderNames().join(", ")}`)
+      if (!isValidAgent(agentName)) {
+        console.error(`Error: Unknown agent '${agentName}'`)
+        console.error(`Valid agents: ${getAgentNames().join(", ")}`)
         process.exit(1)
       }
-      provider = providerName
+      agent = agentName
       i++ // Skip next arg
     } else if (args[i] === "--model" || args[i] === "-m") {
       model = args[i + 1]
@@ -58,70 +62,70 @@ Coding Agents SDK - Polling REPL
 Usage: npx tsx scripts/repl-polling.ts [options]
 
 Options:
-  -p, --provider <name>  Provider to use (default: claude)
-  -m, --model <model>    Model to use (provider-specific)
-  -h, --help             Show this help message
+  -a, --agent <name>   Agent to use (default: claude)
+  -m, --model <model>  Model to use (agent-specific)
+  -h, --help           Show this help message
 
-Supported providers: ${getProviderNames().join(", ")}
+Supported agents: ${getAgentNames().join(", ")}
 
 Environment variables:
-  DAYTONA_API_KEY     Required for all providers (sandbox execution)
-  ANTHROPIC_API_KEY   Required for claude provider
-  OPENAI_API_KEY      Required for codex and opencode providers
-  GEMINI_API_KEY      Required for gemini provider
+  DAYTONA_API_KEY     Required for all agents (sandbox execution)
+  ANTHROPIC_API_KEY   Required for claude agent
+  OPENAI_API_KEY      Required for codex and opencode agents
+  GEMINI_API_KEY      Required for gemini agent
 `)
       process.exit(0)
     }
   }
 
-  return { provider, model }
+  return { agent, model }
 }
 
-const { provider: selectedProvider, model: selectedModel } = parseArgs()
+const { agent: selectedAgent, model: selectedModel } = parseArgs()
 
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
-const providerKeyConfig = PROVIDER_API_KEYS[selectedProvider]
-const PROVIDER_API_KEY = process.env[providerKeyConfig.envVar]
+const agentKeyConfig = AGENT_API_KEYS[selectedAgent]
+const AGENT_API_KEY = process.env[agentKeyConfig.envVar]
 
 if (!DAYTONA_API_KEY) {
   console.error("Error: DAYTONA_API_KEY environment variable is required")
   process.exit(1)
 }
 
-if (!PROVIDER_API_KEY) {
-  console.error(`Error: ${providerKeyConfig.envVar} environment variable is required for ${selectedProvider} provider`)
+if (!AGENT_API_KEY) {
+  console.error(`Error: ${agentKeyConfig.envVar} environment variable is required for ${selectedAgent} agent`)
   process.exit(1)
 }
 
 async function main() {
   console.log("============================================================")
   console.log("  Coding Agents SDK - Polling REPL")
-  console.log(`  Provider: ${selectedProvider}${selectedModel ? ` (model: ${selectedModel})` : ""}`)
+  console.log(`  Agent: ${selectedAgent}${selectedModel ? ` (model: ${selectedModel})` : ""}`)
   console.log("============================================================")
   console.log()
   console.log("Creating sandbox...")
   const daytona = new Daytona({ apiKey: DAYTONA_API_KEY })
   const sandbox = await daytona.create({
-    envVars: { [providerKeyConfig.envVar]: PROVIDER_API_KEY! },
+    envVars: { [agentKeyConfig.envVar]: AGENT_API_KEY! },
   })
   console.log("Sandbox created!")
   console.log()
 
-  const bgSession = await createBackgroundSession(selectedProvider, {
+  const session = await createSession(selectedAgent, {
     sandbox,
     model: selectedModel,
     timeout: 120,
     systemPrompt: "You are a helpful coding assistant who responds in clear, concise French.",
   })
 
-  const backgroundSessionId = bgSession.id
+  const sessionId = session.id
   const sandboxId = sandbox.id
   let hasStarted = false
 
-  console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready (polling mode). Session ID: ${bgSession.id}`)
+  console.log(`${selectedAgent.charAt(0).toUpperCase() + selectedAgent.slice(1)} ready (polling mode). Session ID: ${session.id}`)
   console.log()
   console.log("Commands:")
-  console.log(`  Type a prompt and press Enter to send to ${selectedProvider}`)
+  console.log(`  Type a prompt and press Enter to send to ${selectedAgent}`)
   console.log("  /quit or /exit - Exit the REPL")
   console.log("  /clear - Clear session (start fresh)")
   console.log("------------------------------------------------------------")
@@ -150,43 +154,33 @@ async function main() {
       }
 
       if (trimmed === "/clear") {
-        bgSession.provider.sessionId = null
         console.log("Session cleared.\n")
         prompt()
         return
       }
 
       try {
-        // On first prompt, use the existing background session so meta is created.
-        // On subsequent prompts, re-fetch sandbox and background session to simulate reconnect.
+        // On first prompt, use the existing session so meta is created.
+        // On subsequent prompts, re-fetch sandbox and session to simulate reconnect.
         const sandboxForTurn = hasStarted ? await daytona.get(sandboxId) : sandbox
-        const bg =
-          hasStarted
-            ? await getBackgroundSession({
-                sandbox: sandboxForTurn,
-                backgroundSessionId,
-                // Re-apply core session options so the provider is recreated with
-                // the same model and system prompt on each reattach.
-                model: selectedModel,
-                timeout: 120,
-                systemPrompt: "You are a helpful coding assistant who responds in clear, concise French.",
-              })
-            : bgSession
+        const currentSession = hasStarted
+          ? await getSession(sessionId, { sandbox: sandboxForTurn })
+          : session
 
         // Show thinking indicator
         process.stdout.write("\x1b[90mThinking (polling)...\x1b[0m")
         let firstToken = true
         let sawAnyOutput = false
 
-        const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
+        const agentLabel = selectedAgent.charAt(0).toUpperCase() + selectedAgent.slice(1)
 
-        // Start sandboxed background run via background session
-        await bg.start(trimmed)
+        // Start background run
+        await currentSession.start(trimmed)
         hasStarted = true
         let done = false
 
         while (!done) {
-          const res = await bg.getEvents()
+          const res = await currentSession.getEvents()
           // Use res.running (not isRunning()) so startup grace matches getEvents / runPhase.
           const turnActive = res.running
 
@@ -195,16 +189,16 @@ async function main() {
             if (event.type === "session") continue
             if (event.type === "token") {
               if (firstToken) {
-                // Clear "Thinking..." and show provider's response
-                process.stdout.write(`\r\x1b[K\x1b[33m${providerLabel}:\x1b[0m `)
+                // Clear "Thinking..." and show agent's response
+                process.stdout.write(`\r\x1b[K\x1b[33m${agentLabel}:\x1b[0m `)
                 firstToken = false
               }
               sawAnyOutput = true
               process.stdout.write(event.text)
             } else if (event.type === "tool_start") {
               if (firstToken) {
-                // Clear "Thinking..." and show provider label even if first output is a tool.
-                process.stdout.write(`\r\x1b[K\x1b[33m${providerLabel}:\x1b[0m\n`)
+                // Clear "Thinking..." and show agent label even if first output is a tool.
+                process.stdout.write(`\r\x1b[K\x1b[33m${agentLabel}:\x1b[0m\n`)
                 firstToken = false
               }
               sawAnyOutput = true

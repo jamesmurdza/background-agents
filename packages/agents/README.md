@@ -4,12 +4,12 @@ A TypeScript SDK for running AI coding agents (Claude, Codex, Gemini, OpenCode) 
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createBackgroundSession } from "background-agents"
+import { createSession } from "@upstream/agents"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create()
 
-const session = await createBackgroundSession("claude", {
+const session = await createSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }
 })
@@ -64,7 +64,7 @@ export DAYTONA_API_KEY=dtn_your_api_key
 ## Installation
 
 ```bash
-npm install background-agents @daytonaio/sdk
+npm install @upstream/agents @daytonaio/sdk
 ```
 
 ---
@@ -73,14 +73,14 @@ npm install background-agents @daytonaio/sdk
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createBackgroundSession } from "background-agents"
+import { createSession } from "@upstream/agents"
 
 // 1. Create sandbox
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create()
 
-// 2. Create background session
-const session = await createBackgroundSession("claude", {
+// 2. Create session
+const session = await createSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
@@ -113,13 +113,13 @@ The SDK is designed for long-running tasks that may outlive your server process.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createBackgroundSession, getBackgroundSession } from "background-agents"
+import { createSession, getSession } from "@upstream/agents"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
 const sandbox = await daytona.create()
 
 // Start a task
-const session = await createBackgroundSession("claude", {
+const session = await createSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
   model: "sonnet",
@@ -128,44 +128,38 @@ await session.start("Do a long-running refactor...")
 
 // Persist these IDs, then exit
 const sandboxId = sandbox.id
-const sessionId = session.id
+const sessionId = session.id  // Save this to reattach later
 
 // --- After restart ---
 
 // Reattach to existing session
-const sandboxAgain = await daytona.get(sandboxId)
-const sessionAgain = await getBackgroundSession({
-  sandbox: sandboxAgain,
-  backgroundSessionId: sessionId,
-  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
-  model: "sonnet",
-})
+const sandbox = await daytona.get(sandboxId)
+const session = await getSession(sessionId, { sandbox })
 
 // Continue polling
-const { events, running } = await sessionAgain.getEvents()
+const { events, running } = await session.getEvents()
 for (const event of events) {
   if (event.type === "token") process.stdout.write(event.text)
 }
 
 // Cancel if needed
-await sessionAgain.cancel()
+await session.cancel()
 ```
 
 ---
 
 ## API reference
 
-### `createBackgroundSession(provider, options)`
+### `createSession(provider, options)`
 
-Creates a background session. The provider CLI is installed automatically.
+Creates a session. The provider CLI is installed automatically.
 
 ```typescript
-const session = await createBackgroundSession("claude", {
+const session = await createSession("claude", {
   sandbox,                                    // Daytona sandbox
   env: { ANTHROPIC_API_KEY: "sk-..." },      // Environment variables
   model: "sonnet",                            // Optional: model name
   systemPrompt: "You are helpful.",           // Optional: system prompt
-  skipInstall: false,                         // Optional: skip CLI install
 })
 ```
 
@@ -195,17 +189,15 @@ Returns `true` while the agent is running.
 
 Kills the running agent process.
 
-### `getBackgroundSession(options)`
+### `getSession(sessionId, options)`
 
-Reattaches to an existing background session.
+Reattaches to an existing session by ID.
 
 ```typescript
-const session = await getBackgroundSession({
-  sandbox,
-  backgroundSessionId: "uuid-from-earlier",
-  env: { ... },  // Re-supply session options
-  model: "...",
-})
+const session = await getSession(
+  sessionId,   // session.id from createSession()
+  { sandbox }
+)
 ```
 
 ---
