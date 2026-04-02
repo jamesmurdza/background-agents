@@ -119,35 +119,29 @@ export async function POST(req: Request) {
         const safePath = escapeShell(repoPath)
         // Use birth time (%W) so the baseline doesn't shift on every git commit.
         // Fall back to mtime (%Y) if birth time is unavailable (returns 0 or -).
-        const gitStatCmd = `stat --format='%W' '${safePath}/.git' 2>/dev/null || echo '0'`
-        console.log("[files/list-modified] gitStatCmd:", gitStatCmd)
-        const gitStatResult = await sandbox.process.executeCommand(gitStatCmd)
-        console.log("[files/list-modified] gitStatResult:", JSON.stringify({ result: gitStatResult.result, exitCode: gitStatResult.exitCode }))
+        const gitStatResult = await sandbox.process.executeCommand(
+          `stat --format='%W' '${safePath}/.git' 2>/dev/null || echo '0'`
+        )
         let cloneTimestamp = parseInt(gitStatResult.result?.trim() || "0", 10)
 
         // Birth time unavailable — fall back to mtime of .git/config (stable across commits)
         if (cloneTimestamp <= 0) {
-          const fallbackCmd = `stat --format='%Y' '${safePath}/.git/config' 2>/dev/null || echo '0'`
-          console.log("[files/list-modified] birth time unavailable, falling back to .git/config mtime:", fallbackCmd)
-          const fallbackResult = await sandbox.process.executeCommand(fallbackCmd)
+          const fallbackResult = await sandbox.process.executeCommand(
+            `stat --format='%Y' '${safePath}/.git/config' 2>/dev/null || echo '0'`
+          )
           cloneTimestamp = parseInt(fallbackResult.result?.trim() || "0", 10)
         }
-        console.log("[files/list-modified] cloneTimestamp:", cloneTimestamp, "date:", new Date(cloneTimestamp * 1000).toISOString())
 
         if (cloneTimestamp === 0) {
           // No .git directory found, return empty
-          console.log("[files/list-modified] cloneTimestamp is 0, returning empty (no .git dir?)")
           return Response.json({ files: [] })
         }
 
         // Get files modified AFTER the clone completed (with buffer)
         const command = buildFindCommandSinceClone(repoPath, DEFAULT_EXTENSIONS, DEFAULT_IGNORE, cloneTimestamp)
-        console.log("[files/list-modified] find command:", command)
 
         const result = await sandbox.process.executeCommand(command, undefined, undefined, 30)
-        console.log("[files/list-modified] find raw output:", JSON.stringify(result.result?.slice(0, 2000)), "exitCode:", result.exitCode)
         const files = parseStatOutput(result.result || "")
-        console.log("[files/list-modified] parsed files:", files.length, files.map(f => f.path))
 
         return Response.json({ files })
       }
