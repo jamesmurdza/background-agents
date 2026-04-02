@@ -7,12 +7,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { Loader2 } from "lucide-react"
 
 interface ModifiedFile {
@@ -45,17 +39,32 @@ const CONTENT_CACHE_TTL = 60000 // 1 minute
 
 /**
  * Extract display info from file path
- * Returns first letter of filename and extension
+ * Returns short name (2-4 chars) and extension
  */
-function getFileDisplayInfo(filePath: string): { letter: string; ext: string; filename: string } {
+function getFileDisplayInfo(filePath: string): { shortName: string; ext: string; filename: string } {
   const parts = filePath.split("/")
   const filename = parts[parts.length - 1] || ""
   const dotIndex = filename.lastIndexOf(".")
 
-  const letter = filename[0]?.toUpperCase() || "?"
+  const baseName = dotIndex > 0 ? filename.slice(0, dotIndex) : filename
   const ext = dotIndex > 0 ? filename.slice(dotIndex) : ""
 
-  return { letter, ext, filename }
+  // Create a short name: up to 4 chars, smart truncation
+  let shortName: string
+  if (baseName.length <= 4) {
+    shortName = baseName
+  } else {
+    // Try to find natural break points (camelCase, snake_case, kebab-case)
+    const camelMatch = baseName.match(/^[a-z]+/i)
+    if (camelMatch && camelMatch[0].length >= 2 && camelMatch[0].length <= 4) {
+      shortName = camelMatch[0]
+    } else {
+      // Just take first 3-4 chars
+      shortName = baseName.slice(0, 4)
+    }
+  }
+
+  return { shortName: shortName.toLowerCase(), ext, filename }
 }
 
 /**
@@ -74,6 +83,8 @@ function getExtColor(ext: string): string {
     ".md": "text-gray-500",
     ".css": "text-pink-500",
     ".html": "text-red-500",
+    ".txt": "text-gray-400",
+    ".log": "text-amber-500",
   }
   return colors[ext] || "text-muted-foreground"
 }
@@ -106,47 +117,39 @@ function FileIcon({ file, isLoading, onClick, isOpen, isPinned }: {
   isOpen: boolean
   isPinned: boolean
 }) {
-  const { letter, ext, filename } = getFileDisplayInfo(file.path)
+  const { shortName, ext } = getFileDisplayInfo(file.path)
   const extColor = getExtColor(ext)
 
+  // Adjust font size based on name length
+  const nameSize = shortName.length <= 2 ? "text-[10px]" : shortName.length <= 3 ? "text-[9px]" : "text-[8px]"
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onClick()
-          }}
-          className={cn(
-            "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
-            "bg-secondary hover:bg-accent",
-            isOpen && "ring-2 ring-primary bg-accent",
-            isPinned && "ring-2 ring-primary"
-          )}
-        >
-          <div className="flex flex-col items-center justify-center leading-none">
-            <span className="text-[10px] font-bold text-foreground">{letter}</span>
-            <span className={cn("text-[8px] font-medium", extColor)}>{ext}</span>
-          </div>
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
-              <Loader2 className="h-3 w-3 animate-spin" />
-            </div>
-          )}
-          {/* Pin indicator */}
-          {isPinned && (
-            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
-          )}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-xs">
-        <p className="font-mono text-xs truncate">{filename}</p>
-        <p className="text-[10px] text-muted-foreground">
-          {formatRelativeTime(file.modifiedAt)}
-          {isPinned && " • Pinned"}
-        </p>
-      </TooltipContent>
-    </Tooltip>
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className={cn(
+        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
+        "bg-secondary hover:bg-accent",
+        isOpen && "ring-2 ring-primary bg-accent",
+        isPinned && "ring-2 ring-primary"
+      )}
+    >
+      <div className="flex flex-col items-center justify-center leading-none gap-0.5">
+        <span className={cn(nameSize, "font-semibold text-foreground font-mono")}>{shortName}</span>
+        <span className={cn("text-[7px] font-medium", extColor)}>{ext}</span>
+      </div>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
+          <Loader2 className="h-3 w-3 animate-spin" />
+        </div>
+      )}
+      {/* Pin indicator */}
+      {isPinned && (
+        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+      )}
+    </button>
   )
 }
 
@@ -418,8 +421,7 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <aside className="flex h-full w-[52px] shrink-0 flex-col items-center gap-1.5 border-l border-border bg-sidebar py-3 overflow-y-auto">
+    <aside className="flex h-full w-[52px] shrink-0 flex-col items-center gap-1.5 border-l border-border bg-sidebar py-3 overflow-y-auto">
         {files.map((file, index) => {
           const isPinned = pinnedFileIndex === index
           const isHovered = hoveredFileIndex === index
@@ -454,7 +456,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey }: RecentFile
             </FilePreviewPopover>
           )
         })}
-      </aside>
-    </TooltipProvider>
+    </aside>
   )
 }

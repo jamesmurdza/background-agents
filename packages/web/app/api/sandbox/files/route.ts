@@ -19,7 +19,7 @@ function escapeShell(str: string): string {
 }
 
 /** Default file extensions to watch */
-const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".json", ".py", ".go", ".rs", ".md", ".css", ".html"]
+const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".json", ".py", ".go", ".rs", ".md", ".css", ".html", ".txt", ".log"]
 
 /** Default patterns to ignore */
 const DEFAULT_IGNORE = ["node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "vendor"]
