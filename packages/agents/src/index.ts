@@ -7,21 +7,37 @@
  * @example
  * ```typescript
  * import { Daytona } from "@daytonaio/sdk"
- * import { createSession } from "agents"
+ * import { createSession } from "@upstream/agents"
  *
  * const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
- * const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
- * const session = await createSession("claude", { sandbox })
+ * const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: '...' } })
  *
- * for await (const event of session.run("Hello")) {
- *   if (event.type === "token") process.stdout.write(event.text)
+ * const session = await createSession("claude", {
+ *   sandbox,
+ *   systemPrompt: 'You are a helpful assistant.',
+ * })
+ *
+ * // Start a turn
+ * await session.start("Hello!")
+ *
+ * // Poll for events
+ * while (true) {
+ *   const result = await session.getEvents()
+ *   for (const event of result.events) {
+ *     if (event.type === "token") process.stdout.write(event.text)
+ *   }
+ *   if (!result.running) break
+ *   await new Promise(r => setTimeout(r, 500))
  * }
  *
  * await sandbox.delete()
  * ```
  */
 
-// Types
+// ─────────────────────────────────────────────────────────────────────────────
+// Event Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type {
   Event,
   SessionEvent,
@@ -30,6 +46,7 @@ export type {
   ToolDeltaEvent,
   ToolEndEvent,
   EndEvent,
+  AgentCrashedEvent,
   EventType,
   ToolName,
   WriteToolInput,
@@ -39,49 +56,93 @@ export type {
   GrepToolInput,
   ShellToolInput,
   ToolInputMap,
-  ProviderName,
-  ProviderCommand,
+} from "./types/events.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type {
+  AgentDefinition,
+  AgentCapabilities,
+  CommandSpec,
+  ParseContext,
   RunOptions,
-  RunDefaults,
-  ProviderOptions,
-  EventHandler,
-  IProvider,
+} from "./core/agent.js"
+
+export type { CanonicalToolName } from "./core/tools.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Background Session Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type {
+  BackgroundSession,
+  BackgroundRunPhase,
+  PollResult,
+  TurnHandle,
+} from "./background/index.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sandbox Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type {
   CodeAgentSandbox,
   ExecuteBackgroundOptions,
   AdaptSandboxOptions,
-  BackgroundRunPhase,
-} from "./types/index.js"
+} from "./types/provider.js"
 
-// Sandbox adapter (wrap a Daytona sandbox from @daytonaio/sdk; uses SSH for background start when createSshAccess exists)
-export { adaptDaytonaSandbox } from "./sandbox/index.js"
+// ─────────────────────────────────────────────────────────────────────────────
+// Session API (Main Entry Point)
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Providers
-export {
-  Provider,
-  ClaudeProvider,
-  CodexProvider,
-  OpenCodeProvider,
-  GeminiProvider,
-} from "./providers/index.js"
-
-// Factory
-export {
-  createProvider,
-  getProviderNames,
-  isValidProvider,
-} from "./factory.js"
-
-// Session (provider with run defaults; recommended entry points)
 export {
   createSession,
+  getSession,
+  getAgentNames,
   type SessionOptions,
-  createBackgroundSession,
-  getBackgroundSession,
-  type BackgroundSessionOptions,
-  type BackgroundSession,
+  type CreateSessionOptions,
 } from "./session.js"
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Registry
+// ─────────────────────────────────────────────────────────────────────────────
+
+export { registry, getAgent } from "./core/registry.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tool Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+export {
+  normalizeToolName,
+  createToolStartEvent,
+  getToolDisplayName,
+  CANONICAL_DISPLAY_NAMES,
+} from "./core/tools.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Definitions (for direct import)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export {
+  claudeAgent,
+  codexAgent,
+  geminiAgent,
+  opencodeAgent,
+} from "./agents/index.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sandbox Adapter
+// ─────────────────────────────────────────────────────────────────────────────
+
+export { adaptDaytonaSandbox, adaptSandbox } from "./sandbox/index.js"
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
 export {
   safeJsonParse,
   isCliInstalled,

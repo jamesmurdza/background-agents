@@ -1,10 +1,10 @@
 /**
- * Integration tests for all providers - background and streaming modes.
+ * Integration tests for all agents - background mode only.
  *
- * These tests create real Daytona sandboxes and run actual provider CLIs.
+ * These tests create real Daytona sandboxes and run actual agent CLIs.
  * Skip when required API keys are not set.
  *
- * Required env vars per provider (TEST_ prefixed versions take precedence):
+ * Required env vars per agent (TEST_ prefixed versions take precedence):
  *   - claude: DAYTONA_API_KEY, ANTHROPIC_API_KEY
  *   - codex: DAYTONA_API_KEY, OPENAI_API_KEY
  *   - gemini: DAYTONA_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY)
@@ -19,20 +19,27 @@
 import "dotenv/config"
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { Daytona, type Sandbox } from "@daytonaio/sdk"
-import { createSession, createBackgroundSession, type Event } from "../../src/index.js"
+import { createSession, type Event, type BackgroundSession } from "../../src/index.js"
 
 // Check for TEST_ prefixed keys first, then fall back to regular keys
 // This allows running tests with separate keys that don't conflict with running agents
-const DAYTONA_API_KEY = process.env.TEST_DAYTONA_API_KEY || process.env.DAYTONA_API_KEY
-const ANTHROPIC_API_KEY = process.env.TEST_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY
-const OPENAI_API_KEY = process.env.TEST_OPENAI_API_KEY || process.env.OPENAI_API_KEY
-const GEMINI_API_KEY = process.env.TEST_GEMINI_API_KEY || process.env.TEST_GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+const DAYTONA_API_KEY =
+  process.env.TEST_DAYTONA_API_KEY || process.env.DAYTONA_API_KEY
+const ANTHROPIC_API_KEY =
+  process.env.TEST_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY
+const OPENAI_API_KEY =
+  process.env.TEST_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+const GEMINI_API_KEY =
+  process.env.TEST_GEMINI_API_KEY ||
+  process.env.TEST_GOOGLE_API_KEY ||
+  process.env.GEMINI_API_KEY ||
+  process.env.GOOGLE_API_KEY
 
 // Simple prompt that should complete quickly
 const SIMPLE_PROMPT = "What is 2 + 2? Reply with just the number."
 
-// Provider configurations
-const providers = [
+// Agent configurations
+const agents = [
   {
     name: "claude" as const,
     apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -62,7 +69,7 @@ const providers = [
 
 // Helper to poll for completion
 async function pollUntilEnd(
-  bg: Awaited<ReturnType<typeof createBackgroundSession>>,
+  session: BackgroundSession,
   timeoutMs = 120_000,
   pollIntervalMs = 2000
 ): Promise<Event[]> {
@@ -70,39 +77,27 @@ async function pollUntilEnd(
   let allEvents: Event[] = []
 
   while (Date.now() < deadline) {
-    const { events } = await bg.getEvents()
+    const { events, running } = await session.getEvents()
     allEvents = events
-    if (events.some((e) => e.type === "end")) break
+    if (!running || events.some((e) => e.type === "end")) break
     await new Promise((r) => setTimeout(r, pollIntervalMs))
   }
   return allEvents
 }
 
-// Helper to collect streaming events
-async function collectStreamEvents(
-  session: Awaited<ReturnType<typeof createSession>>,
-  prompt: string
-): Promise<Event[]> {
-  const events: Event[] = []
-  for await (const event of session.run(prompt)) {
-    events.push(event)
-  }
-  return events
-}
+describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
+  // Test each agent
+  for (const agent of agents) {
+    const hasRequiredKeys = DAYTONA_API_KEY && agent.hasKey
 
-describe.skipIf(!DAYTONA_API_KEY)("provider integration tests", () => {
-  // Test each provider
-  for (const provider of providers) {
-    const hasRequiredKeys = DAYTONA_API_KEY && provider.hasKey
-
-    describe.skipIf(!hasRequiredKeys)(`${provider.name}`, () => {
+    describe.skipIf(!hasRequiredKeys)(`${agent.name}`, () => {
       let daytona: Daytona
       let sandbox: Sandbox
 
       beforeAll(async () => {
         daytona = new Daytona({ apiKey: DAYTONA_API_KEY! })
         sandbox = await daytona.create({
-          envVars: { [provider.apiKeyEnvVar]: provider.apiKey! },
+          envVars: { [agent.apiKeyEnvVar]: agent.apiKey! },
         })
       }, 60_000)
 
@@ -112,100 +107,82 @@ describe.skipIf(!DAYTONA_API_KEY)("provider integration tests", () => {
         }
       }, 30_000)
 
-      describe("background mode", () => {
-        it("completes a simple prompt and returns events", async () => {
-          const bg = await createBackgroundSession(provider.name, {
-            sandbox: sandbox as any,
-            timeout: 120,
-            model: provider.model,
-            env: { [provider.apiKeyEnvVar]: provider.apiKey! },
-          })
+      it("completes a simple prompt and returns events", async () => {
+        const session = await createSession(agent.name, {
+          sandbox: sandbox as any,
+          timeout: 120,
+          model: agent.model,
+          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+        })
 
-          const startResult = await bg.start(SIMPLE_PROMPT)
+        const startResult = await session.start(SIMPLE_PROMPT)
 
-          expect(startResult.pid).toBeGreaterThan(0)
-          expect(startResult.outputFile).toBeDefined()
+        expect(startResult.pid).toBeGreaterThan(0)
+        expect(startResult.outputFile).toBeDefined()
 
-          const events = await pollUntilEnd(bg)
+        const events = await pollUntilEnd(session)
 
-          expect(events.length).toBeGreaterThan(0)
-          expect(events.some((e) => e.type === "end")).toBe(true)
-          // Should have some token events with the answer
-          expect(events.some((e) => e.type === "token")).toBe(true)
-        }, 180_000)
+        expect(events.length).toBeGreaterThan(0)
+        expect(events.some((e) => e.type === "end")).toBe(true)
+        // Should have some token events with the answer
+        expect(events.some((e) => e.type === "token")).toBe(true)
+      }, 180_000)
 
-        it("isRunning transitions from true to false", async () => {
-          const bg = await createBackgroundSession(provider.name, {
-            sandbox: sandbox as any,
-            timeout: 120,
-            model: provider.model,
-            env: { [provider.apiKeyEnvVar]: provider.apiKey! },
-          })
+      it("isRunning transitions from true to false", async () => {
+        const session = await createSession(agent.name, {
+          sandbox: sandbox as any,
+          timeout: 120,
+          model: agent.model,
+          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+        })
 
-          await bg.start(SIMPLE_PROMPT)
+        await session.start(SIMPLE_PROMPT)
 
-          // Should be running right after start
-          const runningAfterStart = await bg.isRunning()
-          expect(runningAfterStart).toBe(true)
+        // Should be running right after start
+        const runningAfterStart = await session.isRunning()
+        expect(runningAfterStart).toBe(true)
 
-          // Wait for completion
-          await pollUntilEnd(bg)
+        // Wait for completion
+        await pollUntilEnd(session)
 
-          // Should not be running after completion
-          const runningAfterEnd = await bg.isRunning()
-          expect(runningAfterEnd).toBe(false)
-        }, 180_000)
+        // Should not be running after completion
+        const runningAfterEnd = await session.isRunning()
+        expect(runningAfterEnd).toBe(false)
+      }, 180_000)
 
-        it("getPid returns pid while running, null after", async () => {
-          const bg = await createBackgroundSession(provider.name, {
-            sandbox: sandbox as any,
-            timeout: 120,
-            model: provider.model,
-            env: { [provider.apiKeyEnvVar]: provider.apiKey! },
-          })
+      it("getPid returns pid while running, null after", async () => {
+        const session = await createSession(agent.name, {
+          sandbox: sandbox as any,
+          timeout: 120,
+          model: agent.model,
+          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+        })
 
-          const { pid: startPid } = await bg.start(SIMPLE_PROMPT)
-          const getPidResult = await bg.getPid()
-          expect(getPidResult).toBe(startPid)
+        const { pid: startPid } = await session.start(SIMPLE_PROMPT)
+        const getPidResult = await session.getPid()
+        expect(getPidResult).toBe(startPid)
 
-          await pollUntilEnd(bg)
+        await pollUntilEnd(session)
 
-          const pidAfterEnd = await bg.getPid()
-          expect(pidAfterEnd).toBeNull()
-        }, 180_000)
-      })
+        const pidAfterEnd = await session.getPid()
+        expect(pidAfterEnd).toBeNull()
+      }, 180_000)
 
-      describe("streaming mode", () => {
-        it("streams events for a simple prompt", async () => {
-          const session = await createSession(provider.name, {
-            sandbox: sandbox as any,
-            timeout: 120,
-            model: provider.model,
-            env: { [provider.apiKeyEnvVar]: provider.apiKey! },
-          })
+      it("yields session event with id", async () => {
+        const session = await createSession(agent.name, {
+          sandbox: sandbox as any,
+          timeout: 120,
+          model: agent.model,
+          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+        })
 
-          const events = await collectStreamEvents(session, SIMPLE_PROMPT)
+        await session.start(SIMPLE_PROMPT)
+        const events = await pollUntilEnd(session)
 
-          expect(events.length).toBeGreaterThan(0)
-          expect(events.some((e) => e.type === "end")).toBe(true)
-          expect(events.some((e) => e.type === "token")).toBe(true)
-        }, 180_000)
-
-        it("yields session event with id", async () => {
-          const session = await createSession(provider.name, {
-            sandbox: sandbox as any,
-            timeout: 120,
-            model: provider.model,
-            env: { [provider.apiKeyEnvVar]: provider.apiKey! },
-          })
-
-          const events = await collectStreamEvents(session, SIMPLE_PROMPT)
-
-          const sessionEvent = events.find((e) => e.type === "session")
-          expect(sessionEvent).toBeDefined()
-          expect((sessionEvent as any).id).toBeDefined()
-        }, 180_000)
-      })
+        const sessionEvent = events.find((e) => e.type === "session")
+        expect(sessionEvent).toBeDefined()
+        expect((sessionEvent as any).id).toBeDefined()
+      }, 180_000)
     })
   }
 })

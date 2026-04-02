@@ -1,216 +1,197 @@
+/**
+ * Session API (Background-Only)
+ *
+ * This is the main public API for the agents SDK.
+ * All sessions are background sessions - no synchronous mode.
+ */
+
 import { randomUUID } from "node:crypto"
-import type {
-  ProviderName,
-  ProviderOptions,
-  RunDefaults,
-  RunOptions,
-  Event,
-  BackgroundRunPhase,
-} from "./types/index.js"
 import { debugLog } from "./debug.js"
-import { createProvider } from "./factory.js"
-import type { Provider } from "./providers/base.js"
+
+// Import and register all agents
+import "./agents/index.js"
+
+import { getAgent, getAgentNames } from "./core/registry.js"
+import {
+  createBackgroundSession as createBgSession,
+  writeInitialSessionMeta,
+  readProviderFromMeta,
+  type BackgroundSession,
+} from "./background/index.js"
 import { adaptSandbox } from "./sandbox/index.js"
+import type { CodeAgentSandbox, ProviderName } from "./types/provider.js"
 
 const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
 
-/** Cache reattached background sessions by id so status/getEvents polls don't recreate the provider every time. */
-const backgroundSessionCache = new Map<string, BackgroundSession>()
+/** Cache reattached sessions by id so repeated polls don't recreate the session. */
+const sessionCache = new Map<string, BackgroundSession>()
 
-async function readProviderFromMeta(
-  sandbox: Parameters<typeof adaptSandbox>[0],
-  sessionDir: string
-): Promise<{ provider: ProviderName | null; sessionId: string | null } | null> {
-  const adapted = adaptSandbox(sandbox)
-  if (!adapted.executeCommand) return null
-  const result = await adapted.executeCommand(
-    `cat "${sessionDir}/meta.json" 2>/dev/null || true`,
-    10
-  )
-  const raw = (result.output ?? "").trim()
-  if (!raw) return null
-  try {
-    const o = JSON.parse(raw) as { provider?: ProviderName; sessionId?: string | null }
-    return {
-      provider: o.provider ?? null,
-      sessionId: o.sessionId ?? null,
-    }
-  } catch {
-    return { provider: null, sessionId: null }
-  }
-}
-
-/** Options for createSession (provider options + run defaults like model, timeout). */
-export interface SessionOptions extends ProviderOptions {
+/**
+ * Session options for creating or getting a session.
+ */
+export interface SessionOptions {
+  /** Sandbox instance (Daytona or compatible) */
+  sandbox: CodeAgentSandbox | import("@daytonaio/sdk").Sandbox
+  /** Model to use (agent-specific) */
   model?: string
+  /** Session ID for resumption */
   sessionId?: string
+  /** Timeout in minutes */
   timeout?: number
-  /** Optional system prompt applied once per session. */
+  /** System prompt to prepend */
   systemPrompt?: string
-  skipInstall?: boolean
+  /** Environment variables */
   env?: Record<string, string>
 }
 
-/** Options for createBackgroundSession (session options; paths derived from session id). */
-export interface BackgroundSessionOptions extends SessionOptions {
-  /** When provided, reattach to an existing background session (e.g. after restart). */
+/**
+ * Options for createSession (includes optional background session ID for reattachment)
+ */
+export interface CreateSessionOptions extends SessionOptions {
+  /** Existing background session ID to reattach to */
   backgroundSessionId?: string
 }
 
-/** Background session handle: start turns and get events; state lives in sandbox under session id. */
-export interface BackgroundSession {
-  /** Unique session id; paths and cursor in sandbox are derived from this. */
-  readonly id: string
-  /** Underlying provider instance (advanced use only). */
-  readonly provider: Provider
-
-  /**
-   * Start a new turn with the given prompt. One log file per turn in the sandbox.
-   */
-  start(prompt: string, options?: Omit<RunOptions, "prompt">): Promise<{
-    executionId: string
-    pid: number
-    outputFile: string
-  }>
-
-  /**
-   * Get new events for the current turn. Cursor is read/updated in sandbox meta; no arguments.
-   * Prefer `runPhase` over inferring completion from `running` alone (see {@link BackgroundRunPhase}).
-   */
-  getEvents(): Promise<{
-    sessionId: string | null
-    events: Event[]
-    cursor: string
-    /** True when {@link BackgroundRunPhase} is `starting` or `running`. */
-    running: boolean
-    runPhase: BackgroundRunPhase
-  }>
-
-  /**
-   * True if the sandbox done-file indicates the provider process is still up.
-   * Prefer {@link BackgroundSession.getEvents} `running` / `runPhase` for polling — they include a
-   * startup grace window where this method may still report false.
-   */
-  isRunning(): Promise<boolean>
-
-  /** Current turn's process id from sandbox meta, or null if no run in progress. */
-  getPid(): Promise<number | null>
-
-  /** Cancel the current turn's process in the sandbox (no-op if not running). */
-  cancel(): Promise<void>
-}
-
 /**
- * Create a session: a provider with run defaults (model, timeout, env) set at creation.
- * Returns the provider; call session.run(prompt) with just the prompt string.
+ * Create a new session with an agent.
+ *
+ * This is the main entry point for the SDK.
+ * All sessions are background sessions that use start() and getEvents().
+ *
+ * @example
+ * ```typescript
+ * const session = await createSession('claude', {
+ *   sandbox,
+ *   env: { ANTHROPIC_API_KEY: '...' },
+ *   systemPrompt: 'You are a helpful assistant.',
+ * })
+ *
+ * await session.start('Hello!')
+ * const result = await session.getEvents()
+ * console.log(result.events)
+ * ```
  */
-export async function createSession(name: ProviderName, options: SessionOptions): Promise<Provider> {
-  debugLog("createSession", options.sessionId, name)
-  const { model, sessionId, timeout, systemPrompt, skipInstall, env, ...providerOptions } = options
-
-  // Store session-level env in runDefaults (medium precedence)
-  // Don't pass env directly to provider (that was causing double-passing bug)
-  const runDefaults: RunDefaults = { model, sessionId, timeout, systemPrompt, skipInstall, env }
-  const provider = createProvider(name, { ...providerOptions, skipInstall, runDefaults })
-
-  await provider.ready
-  debugLog("createSession ready", options.sessionId, name)
-  return provider
-}
-
-/**
- * Create a background session: a provider configured for sandboxed background
- * execution with one log file per turn and meta/cursor in the sandbox.
- * Use start() to begin a turn and getEvents() to consume events (no cursor argument).
- */
-export async function createBackgroundSession(
-  name: ProviderName,
-  options: BackgroundSessionOptions
+export async function createSession(
+  agentName: string,
+  options: CreateSessionOptions
 ): Promise<BackgroundSession> {
   const { backgroundSessionId, ...sessionOptions } = options
   const id = backgroundSessionId ?? randomUUID()
-  debugLog("createBackgroundSession", options.sessionId, name, "id=" + id)
-  return createBackgroundSessionWithId(name, { ...sessionOptions, backgroundSessionId: id }, id)
+
+  debugLog("createSession", options.sessionId, agentName, "id=" + id)
+
+  return createSessionWithId(agentName, sessionOptions, id)
 }
 
-/** Reattach to an existing background session by id (e.g. after restart). Provider is read from sandbox meta (written at session creation). Cached per id so repeated polls don't recreate the provider. */
-export async function getBackgroundSession(
-  options: BackgroundSessionOptions & {
-    backgroundSessionId: string
-    sandbox: NonNullable<BackgroundSessionOptions["sandbox"]>
-  }
+/**
+ * Reattach to an existing session by background session ID.
+ *
+ * The agent type is read from the session metadata stored in the sandbox.
+ *
+ * @example
+ * ```typescript
+ * const session = await getSession('abc-123', { sandbox })
+ * const result = await session.getEvents()
+ * ```
+ */
+export async function getSession(
+  backgroundSessionId: string,
+  options: Omit<SessionOptions, "sessionId">
 ): Promise<BackgroundSession> {
-  const { backgroundSessionId, sandbox } = options
-  const cached = backgroundSessionCache.get(backgroundSessionId)
+  // Check cache first
+  const cached = sessionCache.get(backgroundSessionId)
   if (cached) {
-    debugLog("getBackgroundSession", cached.provider.sessionId, "id=" + backgroundSessionId, "cached")
+    debugLog("getSession", null, "id=" + backgroundSessionId, "cached")
     return cached
   }
+
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${backgroundSessionId}`
-  debugLog("getBackgroundSession", undefined, "id=" + backgroundSessionId, "sessionDir=" + sessionDir)
+  const sandbox = adaptSandbox(options.sandbox)
+
+  debugLog("getSession", undefined, "id=" + backgroundSessionId, "sessionDir=" + sessionDir)
+
   const meta = await readProviderFromMeta(sandbox, sessionDir)
   if (!meta?.provider) {
-    debugLog("getBackgroundSession meta missing or no provider", meta?.sessionId ?? undefined, backgroundSessionId)
+    debugLog("getSession meta missing or no provider", meta?.sessionId ?? undefined, backgroundSessionId)
     throw new Error(
-      "Cannot get background session: meta not found (start a turn first) or meta has no provider"
+      "Cannot get session: meta not found (start a turn first) or meta has no provider"
     )
   }
-  debugLog("getBackgroundSession reattach provider=" + meta.provider, meta.sessionId)
-  return createBackgroundSessionWithId(
+
+  debugLog("getSession reattach provider=" + meta.provider, meta.sessionId)
+
+  return createSessionWithId(
     meta.provider,
     {
       ...options,
-      // Seed sessionId so providers that support resume (e.g. Claude) can continue the same session.
-      sessionId: meta.sessionId ?? options.sessionId,
+      sessionId: meta.sessionId ?? undefined,
     },
     backgroundSessionId,
     { skipWriteInitialMeta: true }
   )
 }
 
-async function createBackgroundSessionWithId(
-  name: ProviderName,
-  options: Omit<BackgroundSessionOptions, "backgroundSessionId"> & { backgroundSessionId?: string },
+/**
+ * Get all available agent names.
+ */
+export { getAgentNames }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal implementation
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function createSessionWithId(
+  agentName: string,
+  options: SessionOptions,
   id: string,
   opts?: { skipWriteInitialMeta?: boolean }
 ): Promise<BackgroundSession> {
-  const provider = await createSession(name, options)
+  const agent = getAgent(agentName)
+  const sandbox = adaptSandbox(options.sandbox)
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${id}`
-  if (!opts?.skipWriteInitialMeta) {
-    await provider.writeInitialSessionMeta(sessionDir)
+
+  // Run agent installation (cast to ProviderName for backwards compat with sandbox interface)
+  await sandbox.ensureProvider(agentName as ProviderName)
+
+  // Apply session-level env vars
+  if (options.env) {
+    if (sandbox.setSessionEnvVars) {
+      sandbox.setSessionEnvVars(options.env)
+    } else {
+      sandbox.setEnvVars(options.env)
+    }
   }
 
-  const session: BackgroundSession = {
-    id,
-    provider,
-    async start(prompt: string, extraOptions?: Omit<RunOptions, "prompt">) {
-      debugLog("BackgroundSession.start", provider.sessionId, "id=" + id, "sessionDir=" + sessionDir, "promptLength=" + prompt.length)
-      const result = await provider.startSandboxBackgroundTurn(sessionDir, {
-        // Re-apply core run defaults (model, timeout, env, systemPrompt) for each turn.
-        model: options.model,
-        timeout: options.timeout,
-        env: options.env,
-        systemPrompt: options.systemPrompt,
-        sessionId: options.sessionId,
-        ...(extraOptions ?? {}),
-        prompt,
-      })
-      debugLog("BackgroundSession.start returned", provider.sessionId, "id=" + id, "pid=" + result.pid, "outputFile=" + result.outputFile)
-      return result
-    },
-    async getEvents() {
-      return provider.getEventsSandboxBackgroundFromMeta(sessionDir)
-    },
-    async isRunning() {
-      return provider.isSandboxBackgroundProcessRunning(sessionDir)
-    },
-    async getPid() {
-      return provider.getSandboxBackgroundPid(sessionDir)
-    },
-    async cancel() {
-      return provider.cancelSandboxBackground(sessionDir)
-    },
+  // Run agent-specific setup (e.g., Codex login)
+  if (agent.capabilities?.setup) {
+    await agent.capabilities.setup(sandbox, options.env ?? {})
   }
-  backgroundSessionCache.set(id, session)
+
+  // Create the background session
+  const session = createBgSession(agent, sandbox, sessionDir, {
+    model: options.model,
+    sessionId: options.sessionId,
+    timeout: options.timeout,
+    systemPrompt: options.systemPrompt,
+    env: options.env,
+  })
+
+  // Write initial meta for reattachment
+  if (!opts?.skipWriteInitialMeta) {
+    await writeInitialSessionMeta(
+      sandbox,
+      sessionDir,
+      agent.name,
+      options.sessionId ?? null
+    )
+  }
+
+  // Cache the session
+  sessionCache.set(id, session)
+
   return session
 }
+
+// Re-export types
+export type { BackgroundSession } from "./background/index.js"
+export type { BackgroundRunPhase, PollResult, TurnHandle } from "./background/types.js"

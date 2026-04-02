@@ -145,10 +145,5 @@ export function adaptDaytonaSandbox(
         await sandbox.process.executeCommand("mkdir -p ~/.gemini", undefined, undefined, 30)
       }
     },
-
-    // Stub for interface compatibility - throws if called
-    async *executeCommandStream(): AsyncGenerator<string, void, unknown> {
-      throw new Error("Foreground streaming not supported. Use background mode instead.")
-    },
   }
 }

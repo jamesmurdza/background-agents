@@ -10,7 +10,7 @@
 
 import { Daytona } from "@daytonaio/sdk"
 import {
-  createBackgroundSession,
+  createSession,
   type BackgroundSession,
   type Event,
 } from "@upstream/agents"
@@ -59,14 +59,11 @@ async function main() {
     const systemPrompt =
       "You are a helpful coding assistant. Answer succinctly."
 
-    const bg = await createBackgroundSession(
-      "claude",
-      {
-        sandbox: sandbox as any,
-        systemPrompt,
-        timeout: 120,
-      } as any
-    )
+    const bg = await createSession("claude", {
+      sandbox: sandbox as any,
+      systemPrompt,
+      timeout: 120,
+    })
 
     console.log("Background session ID:", bg.id)
 

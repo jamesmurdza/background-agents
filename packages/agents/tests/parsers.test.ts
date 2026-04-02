@@ -1,270 +1,361 @@
 /**
- * Parser tests - these test pure data transformations from provider-specific
+ * Parser tests - these test pure data transformations from agent-specific
  * event formats to our standard Event format. No mocks, no I/O - just input/output.
  */
 import { describe, it, expect } from "vitest"
-import { ClaudeProvider } from "../src/providers/claude.js"
-import { CodexProvider } from "../src/providers/codex.js"
-import { GeminiProvider } from "../src/providers/gemini.js"
-import { OpenCodeProvider } from "../src/providers/opencode.js"
-import type { CodeAgentSandbox, ProviderName } from "../src/types/index.js"
+import {
+  parseClaudeLine,
+  parseCodexLine,
+  parseGeminiLine,
+  parseOpencodeLine,
+  CLAUDE_TOOL_MAPPINGS,
+  CODEX_TOOL_MAPPINGS,
+  GEMINI_TOOL_MAPPINGS,
+  OPENCODE_TOOL_MAPPINGS,
+} from "../src/agents/index.js"
+import type { ParseContext } from "../src/core/agent.js"
 
-// Minimal mock sandbox for parser testing (parse() doesn't use sandbox)
-function createMockSandbox(): CodeAgentSandbox {
-  return {
-    ensureProvider: async (_name: ProviderName) => {},
-    setEnvVars: (_vars: Record<string, string>) => {},
-    async *executeCommandStream(_command: string, _timeout?: number): AsyncGenerator<string, void, unknown> {
-      // No output for parser tests
-    },
-  }
+// Helper to create a fresh parse context
+function createContext(): ParseContext {
+  return { state: {}, sessionId: null }
 }
 
-// All providers created with a mock sandbox for parser testing only
-const mockSandbox = createMockSandbox()
-const claude = new ClaudeProvider({ sandbox: mockSandbox, skipInstall: true })
-const codex = new CodexProvider({ sandbox: mockSandbox, skipInstall: true })
-const gemini = new GeminiProvider({ sandbox: mockSandbox, skipInstall: true })
-const opencode = new OpenCodeProvider({ sandbox: mockSandbox, skipInstall: true })
+describe("parseClaudeLine", () => {
+  const mappings = CLAUDE_TOOL_MAPPINGS
 
-describe("ClaudeProvider.parse", () => {
   it("returns null for invalid JSON", () => {
-    expect(claude.parse("not json")).toBeNull()
-    expect(claude.parse("")).toBeNull()
-    expect(claude.parse("{not valid json}")).toBeNull()
+    expect(parseClaudeLine("not json", mappings)).toBeNull()
+    expect(parseClaudeLine("", mappings)).toBeNull()
+    expect(parseClaudeLine("{not valid json}", mappings)).toBeNull()
   })
 
   it("parses system init event", () => {
-    const event = claude.parse(
-      '{"type": "system", "subtype": "init", "session_id": "abc-123"}'
+    const event = parseClaudeLine(
+      '{"type": "system", "subtype": "init", "session_id": "abc-123"}',
+      mappings
     )
     expect(event).toEqual({ type: "session", id: "abc-123" })
   })
 
   it("parses assistant message with text", () => {
-    const event = claude.parse(JSON.stringify({
-      type: "assistant",
-      message: {
-        id: "msg_123",
-        content: [{ type: "text", text: "Hello from Claude!" }]
-      },
-      session_id: "abc-123"
-    }))
+    const event = parseClaudeLine(
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_123",
+          content: [{ type: "text", text: "Hello from Claude!" }],
+        },
+        session_id: "abc-123",
+      }),
+      mappings
+    )
     expect(event).toEqual({ type: "token", text: "Hello from Claude!" })
   })
 
   it("parses assistant message with tool_use", () => {
-    const event = claude.parse(JSON.stringify({
-      type: "assistant",
-      message: {
-        id: "msg_123",
-        content: [{ type: "tool_use", name: "read_file" }]
-      },
-      session_id: "abc-123"
-    }))
-    expect(event).toEqual({ type: "tool_start", name: "read_file" })
+    const event = parseClaudeLine(
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_123",
+          content: [{ type: "tool_use", name: "read_file" }],
+        },
+        session_id: "abc-123",
+      }),
+      mappings
+    )
+    expect(event).toEqual({ type: "tool_start", name: "read_file", input: {} })
   })
 
   it("returns null for assistant message with empty content", () => {
-    const event = claude.parse(JSON.stringify({
-      type: "assistant",
-      message: { id: "msg_123", content: [] },
-      session_id: "abc-123"
-    }))
+    const event = parseClaudeLine(
+      JSON.stringify({
+        type: "assistant",
+        message: { id: "msg_123", content: [] },
+        session_id: "abc-123",
+      }),
+      mappings
+    )
     expect(event).toBeNull()
   })
 
   it("parses tool_use event", () => {
-    const event = claude.parse('{"type": "tool_use", "name": "bash"}')
-    expect(event).toEqual({ type: "tool_start", name: "bash" })
+    const event = parseClaudeLine('{"type": "tool_use", "name": "bash"}', mappings)
+    expect(event).toEqual({ type: "tool_start", name: "bash", input: {} })
   })
 
   it("parses tool_result event", () => {
-    const event = claude.parse('{"type": "tool_result", "tool_use_id": "tool_123"}')
+    const event = parseClaudeLine(
+      '{"type": "tool_result", "tool_use_id": "tool_123"}',
+      mappings
+    )
     expect(event).toEqual({ type: "tool_end" })
   })
 
   it("parses result event", () => {
-    const event = claude.parse(
-      '{"type": "result", "subtype": "success", "result": "Done", "session_id": "abc-123"}'
+    const event = parseClaudeLine(
+      '{"type": "result", "subtype": "success", "result": "Done", "session_id": "abc-123"}',
+      mappings
     )
     expect(event).toEqual({ type: "end" })
   })
 
   it("returns null for unknown event types", () => {
-    expect(claude.parse('{"type": "unknown_event"}')).toBeNull()
+    expect(parseClaudeLine('{"type": "unknown_event"}', mappings)).toBeNull()
   })
 })
 
-describe("CodexProvider.parse", () => {
+describe("parseCodexLine", () => {
+  const mappings = CODEX_TOOL_MAPPINGS
+
   it("returns null for invalid JSON", () => {
-    expect(codex.parse("not json")).toBeNull()
-    expect(codex.parse("")).toBeNull()
+    expect(parseCodexLine("not json", mappings)).toBeNull()
+    expect(parseCodexLine("", mappings)).toBeNull()
   })
 
   it("parses thread.started event", () => {
-    const event = codex.parse('{"type": "thread.started", "thread_id": "thread_abc"}')
+    const event = parseCodexLine(
+      '{"type": "thread.started", "thread_id": "thread_abc"}',
+      mappings
+    )
     expect(event).toEqual({ type: "session", id: "thread_abc" })
   })
 
   it("parses item.message.delta event", () => {
-    const event = codex.parse('{"type": "item.message.delta", "text": "Hello"}')
+    const event = parseCodexLine(
+      '{"type": "item.message.delta", "text": "Hello"}',
+      mappings
+    )
     expect(event).toEqual({ type: "token", text: "Hello" })
   })
 
   it("parses item.tool.start event", () => {
-    const event = codex.parse('{"type": "item.tool.start", "name": "shell"}')
-    expect(event).toEqual({ type: "tool_start", name: "shell" })
+    const event = parseCodexLine(
+      '{"type": "item.tool.start", "name": "shell"}',
+      mappings
+    )
+    expect(event).toEqual({ type: "tool_start", name: "shell", input: {} })
   })
 
   it("parses item.tool.input.delta event", () => {
-    const event = codex.parse('{"type": "item.tool.input.delta", "text": "ls -la"}')
+    const event = parseCodexLine(
+      '{"type": "item.tool.input.delta", "text": "ls -la"}',
+      mappings
+    )
     expect(event).toEqual({ type: "tool_delta", text: "ls -la" })
   })
 
   it("parses item.tool.end event", () => {
-    const event = codex.parse('{"type": "item.tool.end"}')
+    const event = parseCodexLine('{"type": "item.tool.end"}', mappings)
     expect(event).toEqual({ type: "tool_end" })
   })
 
   it("parses turn.completed event", () => {
-    const event = codex.parse('{"type": "turn.completed"}')
+    const event = parseCodexLine('{"type": "turn.completed"}', mappings)
     expect(event).toEqual({ type: "end" })
   })
 
   it("parses turn.failed event with error", () => {
-    const event = codex.parse('{"type": "turn.failed", "error": {"message": "API rate limit exceeded"}}')
+    const event = parseCodexLine(
+      '{"type": "turn.failed", "error": {"message": "API rate limit exceeded"}}',
+      mappings
+    )
     expect(event).toEqual({ type: "end", error: "API rate limit exceeded" })
   })
 
   it("parses error event with message", () => {
-    const event = codex.parse('{"type": "error", "message": "unexpected status 401 Unauthorized"}')
+    const event = parseCodexLine(
+      '{"type": "error", "message": "unexpected status 401 Unauthorized"}',
+      mappings
+    )
     expect(event).toEqual({ type: "end", error: "unexpected status 401 Unauthorized" })
   })
 
   it("returns null for unknown event types", () => {
-    expect(codex.parse('{"type": "unknown.event"}')).toBeNull()
+    expect(parseCodexLine('{"type": "unknown.event"}', mappings)).toBeNull()
   })
 })
 
-describe("GeminiProvider.parse", () => {
+describe("parseGeminiLine", () => {
+  const mappings = GEMINI_TOOL_MAPPINGS
+
   it("returns null for invalid JSON", () => {
-    expect(gemini.parse("not json")).toBeNull()
-    expect(gemini.parse("")).toBeNull()
+    const ctx = createContext()
+    expect(parseGeminiLine("not json", mappings, ctx)).toBeNull()
+    expect(parseGeminiLine("", mappings, ctx)).toBeNull()
   })
 
   it("parses init event", () => {
-    const event = gemini.parse('{"type": "init", "session_id": "gemini_session"}')
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      '{"type": "init", "session_id": "gemini_session"}',
+      mappings,
+      ctx
+    )
     expect(event).toEqual({ type: "session", id: "gemini_session" })
   })
 
   it("parses assistant.delta event", () => {
-    const event = gemini.parse('{"type": "assistant.delta", "text": "Sure, I can help"}')
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      '{"type": "assistant.delta", "text": "Sure, I can help"}',
+      mappings,
+      ctx
+    )
     expect(event).toEqual({ type: "token", text: "Sure, I can help" })
   })
 
   it("parses tool.start event and normalizes name", () => {
-    const event = gemini.parse('{"type": "tool.start", "name": "execute_code"}')
-    expect(event).toEqual({ type: "tool_start", name: "shell", input: undefined })
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      '{"type": "tool.start", "name": "execute_code"}',
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_start", name: "shell", input: {} })
   })
 
   it("parses tool.delta event", () => {
-    const event = gemini.parse('{"type": "tool.delta", "text": "running..."}')
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      '{"type": "tool.delta", "text": "running..."}',
+      mappings,
+      ctx
+    )
     expect(event).toEqual({ type: "tool_delta", text: "running..." })
   })
 
   it("parses tool.end event with accumulated output", () => {
-    // Create a fresh provider instance for stateful test
-    const g = new GeminiProvider({ sandbox: createMockSandbox(), skipInstall: true })
-    g.parse('{"type": "tool.start", "name": "write_file"}')
-    g.parse('{"type": "tool.delta", "text": "done"}')
-    const event = g.parse('{"type": "tool.end"}')
+    const ctx = createContext()
+    parseGeminiLine('{"type": "tool.start", "name": "write_file"}', mappings, ctx)
+    parseGeminiLine('{"type": "tool.delta", "text": "done"}', mappings, ctx)
+    const event = parseGeminiLine('{"type": "tool.end"}', mappings, ctx)
     expect(event).toEqual({ type: "tool_end", output: "done" })
   })
 
   it("parses assistant.complete event", () => {
-    const event = gemini.parse('{"type": "assistant.complete"}')
+    const ctx = createContext()
+    const event = parseGeminiLine('{"type": "assistant.complete"}', mappings, ctx)
     expect(event).toEqual({ type: "end" })
   })
 
   it("returns null for unknown event types", () => {
-    expect(gemini.parse('{"type": "unknown"}')).toBeNull()
+    const ctx = createContext()
+    expect(parseGeminiLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
   })
 })
 
-describe("OpenCodeProvider.parse", () => {
+describe("parseOpencodeLine", () => {
+  const mappings = OPENCODE_TOOL_MAPPINGS
+
   it("returns null for invalid JSON", () => {
-    expect(opencode.parse("not json")).toBeNull()
-    expect(opencode.parse("")).toBeNull()
+    const ctx = createContext()
+    expect(parseOpencodeLine("not json", mappings, ctx)).toBeNull()
+    expect(parseOpencodeLine("", mappings, ctx)).toBeNull()
   })
 
   it("parses step_start event", () => {
-    const event = opencode.parse('{"type": "step_start", "sessionID": "ses_xyz123"}')
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "step_start", "sessionID": "ses_xyz123"}',
+      mappings,
+      ctx
+    )
     expect(event).toEqual({ type: "session", id: "ses_xyz123" })
   })
 
   it("parses text event with content", () => {
-    const event = opencode.parse(
-      '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "text", "text": "Processing..."}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "text", "text": "Processing..."}}',
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "token", text: "Processing..." })
   })
 
   it("returns null for text event without text type", () => {
-    const event = opencode.parse(
-      '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "image"}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "image"}}',
+      mappings,
+      ctx
     )
     expect(event).toBeNull()
   })
 
   it("returns null for text event without text content", () => {
-    const event = opencode.parse(
-      '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "text"}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "text", "sessionID": "ses_xyz123", "part": {"type": "text"}}',
+      mappings,
+      ctx
     )
     expect(event).toBeNull()
   })
 
   it("parses tool_call event", () => {
-    const event = opencode.parse(
-      '{"type": "tool_call", "sessionID": "ses_xyz123", "part": {"type": "tool-call", "tool": "write_file"}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "tool_call", "sessionID": "ses_xyz123", "part": {"type": "tool-call", "tool": "write_file"}}',
+      mappings,
+      ctx
     )
-    expect(event).toEqual({ type: "tool_start", name: "write_file" })
+    expect(event).toEqual({ type: "tool_start", name: "write_file", input: {} })
   })
 
   it("handles tool_call with missing tool name", () => {
-    const event = opencode.parse(
-      '{"type": "tool_call", "sessionID": "ses_xyz123", "part": {"type": "tool-call"}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "tool_call", "sessionID": "ses_xyz123", "part": {"type": "tool-call"}}',
+      mappings,
+      ctx
     )
-    expect(event).toEqual({ type: "tool_start", name: "unknown" })
+    expect(event).toEqual({ type: "tool_start", name: "unknown", input: {} })
   })
 
   it("parses tool_result event", () => {
-    const event = opencode.parse('{"type": "tool_result", "sessionID": "ses_xyz123"}')
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "tool_result", "sessionID": "ses_xyz123"}',
+      mappings,
+      ctx
+    )
     expect(event).toEqual({ type: "tool_end" })
   })
 
   it("parses step_finish event", () => {
-    const event = opencode.parse(
-      '{"type": "step_finish", "sessionID": "ses_xyz123", "part": {"reason": "stop"}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "step_finish", "sessionID": "ses_xyz123", "part": {"reason": "stop"}}',
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "end" })
   })
 
   it("parses error event with error message", () => {
-    const event = opencode.parse(
-      '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError", "data": {"message": "Rate limit exceeded"}}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError", "data": {"message": "Rate limit exceeded"}}}',
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "end", error: "Rate limit exceeded" })
   })
 
   it("parses error event falling back to error name", () => {
-    const event = opencode.parse(
-      '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError"}}'
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError"}}',
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "end", error: "APIError" })
   })
 
   it("returns null for unknown event types", () => {
-    expect(opencode.parse('{"type": "unknown"}')).toBeNull()
+    const ctx = createContext()
+    expect(parseOpencodeLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
   })
 })

@@ -11,15 +11,14 @@
  */
 
 import {
-  createBackgroundSession as sdkCreateBackgroundSession,
-  getBackgroundSession as sdkGetBackgroundSession,
+  createSession,
+  getSession,
   type Event,
   type SessionEvent,
   type TokenEvent,
   type ToolStartEvent,
   type ToolEndEvent,
   type EndEvent,
-  type BackgroundSessionOptions,
   type BackgroundRunPhase,
 } from "@upstream/agents"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
@@ -299,9 +298,6 @@ export async function createBackgroundAgentSession(
     options.previewUrlPattern
   )
 
-  // Cast sandbox for SDK version compatibility
-  const sandboxForSdk = sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>
-
   // Map agent type to SDK provider name (handles legacy "claude" values)
   const agent = options.agent || "claude-code"
   const provider = getProviderForAgent(agent)
@@ -309,24 +305,23 @@ export async function createBackgroundAgentSession(
   // Pass undefined for model if "default" to let SDK choose
   const modelToUse = options.model === "default" ? undefined : options.model
 
-  // If we have an existing background session ID, reuse it via getBackgroundSession.
-  // Otherwise, create a new background session.
+  // If we have an existing background session ID, reuse it via getSession.
+  // Otherwise, create a new session.
+  // Note: sandbox cast needed due to different @daytonaio/sdk versions in monorepo
   const t0 = Date.now()
   const bgSession = options.backgroundSessionId
-    ? await sdkGetBackgroundSession({
-        sandbox: sandboxForSdk,
-        backgroundSessionId: options.backgroundSessionId,
+    ? await getSession(options.backgroundSessionId, {
+        sandbox: sandbox as any,
         systemPrompt,
         model: modelToUse,
         env: options.env,
       })
-    : await sdkCreateBackgroundSession(provider, {
-        sandbox: sandboxForSdk,
+    : await createSession(provider, {
+        sandbox: sandbox as any,
         systemPrompt,
         model: modelToUse,
         sessionId: options.sessionId,
         env: options.env,
-        // Note: skipInstall removed to allow CLI installation (Codex, etc.)
       })
   console.log(`[createBackgroundAgentSession] ${options.backgroundSessionId ? "get" : "create"} took ${Date.now() - t0}ms`)
 
@@ -368,12 +363,10 @@ export async function pollBackgroundAgent(
     // Pass undefined for model if "default" to let SDK choose
     const modelToUse = options.model === "default" ? undefined : options.model
 
-    // Cast sandbox for SDK version compatibility
-    // getBackgroundSession only needs sandbox + backgroundSessionId for polling (no env needed)
-
-    const bgSession = await sdkGetBackgroundSession({
-      sandbox: sandbox as unknown as NonNullable<BackgroundSessionOptions['sandbox']>,
-      backgroundSessionId,
+    // getSession only needs sandbox for polling (no env needed)
+    // Note: sandbox cast needed due to different @daytonaio/sdk versions in monorepo
+    const bgSession = await getSession(backgroundSessionId, {
+      sandbox: sandbox as any,
       systemPrompt,
       model: modelToUse,
     })
