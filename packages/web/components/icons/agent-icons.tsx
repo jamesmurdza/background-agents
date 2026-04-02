@@ -74,6 +74,24 @@ export function OpenCodeIcon({ className }: AgentIconProps) {
   )
 }
 
+// Gemini icon - Google Gemini logo (stylized star)
+// Source: https://github.com/simple-icons/simple-icons
+export function GeminiIcon({ className }: AgentIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-4 w-4", className)}
+    >
+      <path
+        d="M12 0C12 6.627 17.373 12 24 12c-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
 // Helper function to get the icon component for an agent
 export function AgentIcon({ agent, className }: { agent: Agent; className?: string }) {
   switch (agent) {
@@ -83,6 +101,8 @@ export function AgentIcon({ agent, className }: { agent: Agent; className?: stri
       return <CodexIcon className={className} />
     case "opencode":
       return <OpenCodeIcon className={className} />
+    case "gemini":
+      return <GeminiIcon className={className} />
     default:
       return <ClaudeCodeIcon className={className} />
   }

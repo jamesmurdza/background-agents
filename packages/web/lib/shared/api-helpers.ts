@@ -30,6 +30,7 @@ export interface DecryptedCredentials {
   openaiApiKey?: string
   opencodeApiKey?: string
   daytonaApiKey?: string
+  geminiApiKey?: string
 }
 
 export type SandboxStatus = BranchStatus
@@ -52,6 +53,7 @@ export interface SandboxWithCredentials {
       anthropicAuthType: string | null
       openaiApiKey: string | null
       opencodeApiKey: string | null
+      geminiApiKey: string | null
       daytonaApiKey: string | null
     } | null
   }
@@ -311,6 +313,7 @@ interface RawCredentials {
   openaiApiKey: string | null
   opencodeApiKey: string | null
   daytonaApiKey: string | null
+  geminiApiKey: string | null
 }
 
 /**
@@ -330,6 +333,7 @@ export function decryptUserCredentials(
   let openaiApiKey: string | undefined
   let opencodeApiKey: string | undefined
   let daytonaApiKey: string | undefined
+  let geminiApiKey: string | undefined
 
   if (credentials?.anthropicApiKey) {
     anthropicApiKey = decrypt(credentials.anthropicApiKey)
@@ -346,6 +350,9 @@ export function decryptUserCredentials(
   if (credentials?.daytonaApiKey) {
     daytonaApiKey = decrypt(credentials.daytonaApiKey)
   }
+  if (credentials?.geminiApiKey) {
+    geminiApiKey = decrypt(credentials.geminiApiKey)
+  }
 
   return {
     anthropicApiKey,
@@ -354,6 +361,7 @@ export function decryptUserCredentials(
     openaiApiKey,
     opencodeApiKey,
     daytonaApiKey,
+    geminiApiKey,
   }
 }
 

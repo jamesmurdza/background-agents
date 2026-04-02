@@ -87,6 +87,7 @@ model UserCredentials {
   openaiApiKey              String?
   daytonaApiKey             String?
   opencodeApiKey            String?
+  geminiApiKey              String?
   user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

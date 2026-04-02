@@ -210,6 +210,7 @@ export const PATHS = {
     "claude-code": "/home/daytona/.claude.json",
     "opencode": "/home/daytona/.config/opencode/opencode.jsonc",
     "codex": "/home/daytona/.codex/config.toml",
+    "gemini": "/home/daytona/.gemini/settings.json",
   },
 } as const
 

@@ -16,6 +16,7 @@ interface SettingsModalProps {
     hasAnthropicAuthToken: boolean
     hasOpenaiApiKey: boolean
     hasOpencodeApiKey: boolean
+    hasGeminiApiKey: boolean
     hasDaytonaApiKey: boolean
     sandboxAutoStopInterval?: number
   } | null
@@ -27,7 +28,7 @@ interface SettingsModalProps {
 }
 
 // Track which keys should be cleared on save
-type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "opencodeApiKey" | "daytonaApiKey"
+type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "opencodeApiKey" | "geminiApiKey" | "daytonaApiKey"
 
 export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
@@ -39,6 +40,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   // Other API keys
   const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [opencodeApiKey, setOpencodeApiKey] = useState("")
+  const [geminiApiKey, setGeminiApiKey] = useState("")
 
   // Sandbox settings
   const [sandboxAutoStopInterval, setSandboxAutoStopInterval] = useState(5)
@@ -63,6 +65,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       setAnthropicAuthToken("")
       setOpenaiApiKey("")
       setOpencodeApiKey("")
+      setGeminiApiKey("")
       setDaytonaApiKey("")
       setKeysToClear(new Set())
       const interval = credentials?.sandboxAutoStopInterval ?? 5
@@ -78,7 +81,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   useEffect(() => {
     if (highlightField && open) {
       // Switch to agents tab if highlighting an agent-related field
-      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "opencodeApiKey"].includes(highlightField)) {
+      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "opencodeApiKey", "geminiApiKey"].includes(highlightField)) {
         setActiveTab("agents")
       }
       // Scroll field into view after a short delay to allow tab switch
@@ -109,6 +112,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     const newAuthToken = anthropicAuthToken.trim()
     const newOpenaiKey = openaiApiKey.trim()
     const newOpencodeKey = opencodeApiKey.trim()
+    const newGeminiKey = geminiApiKey.trim()
     const newDaytonaKey = daytonaApiKey.trim()
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
@@ -124,6 +128,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       newAuthToken ||
       newOpenaiKey ||
       newOpencodeKey ||
+      newGeminiKey ||
       newDaytonaKey ||
       autoStopChanged ||
       keysToClear.size > 0
@@ -152,6 +157,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       }
       if (newOpencodeKey) {
         payload.opencodeApiKey = newOpencodeKey
+      }
+      if (newGeminiKey) {
+        payload.geminiApiKey = newGeminiKey
       }
       if (newDaytonaKey) {
         payload.daytonaApiKey = newDaytonaKey
@@ -510,6 +518,49 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Used by OpenCode agent for paid models
+                </p>
+              </div>
+
+              {/* Gemini API Key */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                    <label className="text-xs font-medium text-foreground">Gemini API Key</label>
+                    {renderStatus(credentials?.hasGeminiApiKey ?? false, "geminiApiKey")}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasGeminiApiKey ?? false, "geminiApiKey")}
+                    {renderUndoClearButton("geminiApiKey")}
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Get key <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
+                </div>
+                <Input
+                  id="field-geminiApiKey"
+                  type="password"
+                  placeholder="AIza..."
+                  value={geminiApiKey}
+                  onChange={(e) => {
+                    setGeminiApiKey(e.target.value)
+                    if (highlightField === "geminiApiKey") onClearHighlight?.()
+                  }}
+                  disabled={keysToClear.has("geminiApiKey")}
+                  aria-invalid={highlightField === "geminiApiKey"}
+                  className={cn(
+                    "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
+                    keysToClear.has("geminiApiKey") && "opacity-50",
+                    highlightField === "geminiApiKey" && "border-destructive ring-1 ring-destructive"
+                  )}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Used by Gemini agent for Google AI models
                 </p>
               </div>
 

@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     anthropicAuthToken,
     openaiApiKey,
     opencodeApiKey,
+    geminiApiKey,
     daytonaApiKey,
     sandboxAutoStopInterval,
   } = body
@@ -60,6 +61,12 @@ export async function POST(req: Request) {
     updateData.opencodeApiKey = null
   } else if (opencodeApiKey) {
     updateData.opencodeApiKey = encrypt(opencodeApiKey)
+  }
+
+  if (geminiApiKey === null) {
+    updateData.geminiApiKey = null
+  } else if (geminiApiKey) {
+    updateData.geminiApiKey = encrypt(geminiApiKey)
   }
 
   if (sandboxAutoStopInterval !== undefined) {

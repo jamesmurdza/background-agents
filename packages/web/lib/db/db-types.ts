@@ -81,6 +81,7 @@ export interface UserCredentials {
   hasAnthropicAuthToken: boolean
   hasOpenaiApiKey: boolean
   hasOpencodeApiKey: boolean
+  hasGeminiApiKey: boolean
   hasDaytonaApiKey: boolean
   sandboxAutoStopInterval?: number
 }

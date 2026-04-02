@@ -28,7 +28,8 @@ import { writeFileSync, mkdirSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 import { Daytona, type Sandbox } from "@daytonaio/sdk"
-import { createBackgroundSession, type Event, type ProviderName } from "../src/index.js"
+import { createSession, type Event } from "../src/index.js"
+import type { ProviderName } from "../src/types/provider.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const FIXTURES_DIR = join(__dirname, "..", "tests", "fixtures", "jsonl-reference")
@@ -149,7 +150,7 @@ async function generateReferenceForProvider(
 
     // Create background session
     console.log(`  Creating background session...`)
-    const bg = await createBackgroundSession(config.name, {
+    const bg = await createSession(config.name, {
       sandbox: sandbox as any,
       timeout: 180,
       model: config.model,

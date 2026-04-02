@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
   // Resolve user's credentials (uses team owner's Claude subscription if member)
-  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey } =
+  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey, geminiApiKey } =
     await resolveUserCredentials(sandboxRecord.user.credentials, auth.userId)
 
   // Determine repo name from database or request
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const repoPath = `${PATHS.SANDBOX_HOME}/${actualRepoName}`
 
   // Use agent/model from request body (current UI selection) when valid; else DB; ensures run matches what user selected
-  const validAgents: Agent[] = ["claude-code", "opencode", "codex"]
+  const validAgents: Agent[] = ["claude-code", "opencode", "codex", "gemini"]
   const agent = validAgents.includes(bodyAgent) ? bodyAgent : (sandboxRecord.branch?.agent as Agent) || "claude-code"
   const model = bodyModel ?? sandboxRecord.branch?.model ?? undefined
 
@@ -94,7 +94,8 @@ export async function POST(req: Request) {
       agent,
       model,
       opencodeApiKey,
-      sandboxRecord.branch?.repo?.id // Pass repoId for MCP config
+      sandboxRecord.branch?.repo?.id, // Pass repoId for MCP config
+      geminiApiKey
     )
     console.log(`[agent/execute] ensureSandboxReady took ${Date.now() - t0}ms`)
 

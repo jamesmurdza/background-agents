@@ -66,6 +66,7 @@ function getEnvForModel(
     anthropicAuthToken?: string
     openaiApiKey?: string
     opencodeApiKey?: string
+    geminiApiKey?: string
   }
 ): Record<string, string> {
   const env: Record<string, string> = {}
@@ -82,6 +83,14 @@ function getEnvForModel(
   if (agent === "codex") {
     if (credentials.openaiApiKey) {
       env.OPENAI_API_KEY = credentials.openaiApiKey
+    }
+    return env
+  }
+
+  // For Gemini agent: use Gemini API key
+  if (agent === "gemini") {
+    if (credentials.geminiApiKey) {
+      env.GEMINI_API_KEY = credentials.geminiApiKey
     }
     return env
   }
@@ -138,7 +147,9 @@ export async function ensureSandboxReady(
   // OpenCode API key for OpenCode paid models
   opencodeApiKey?: string,
   // Repository ID for fetching MCP server configs
-  repoId?: string
+  repoId?: string,
+  // Gemini API key for Gemini agent
+  geminiApiKey?: string
 ): Promise<{
   sandbox: Awaited<ReturnType<InstanceType<typeof Daytona>["get"]>>
   wasResumed: boolean
@@ -242,6 +253,7 @@ export async function ensureSandboxReady(
     anthropicAuthToken,
     openaiApiKey,
     opencodeApiKey,
+    geminiApiKey,
   })
 
   // Get user-provided repo-level env vars (decrypted)
