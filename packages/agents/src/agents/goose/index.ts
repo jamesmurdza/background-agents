@@ -63,7 +63,7 @@ export const gooseAgent: AgentDefinition = {
     }
   },
 
-  parse(line: string, _context: ParseContext): Event | Event[] | null {
-    return parseGooseLine(line, this.toolMappings)
+  parse(line: string, context: ParseContext): Event | Event[] | null {
+    return parseGooseLine(line, this.toolMappings, context)
   },
 }

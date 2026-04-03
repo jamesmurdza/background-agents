@@ -366,64 +366,110 @@ describe("parseGooseLine", () => {
   const mappings = GOOSE_TOOL_MAPPINGS
 
   it("returns null for invalid JSON", () => {
-    expect(parseGooseLine("not json", mappings)).toBeNull()
-    expect(parseGooseLine("", mappings)).toBeNull()
-    expect(parseGooseLine("{not valid json}", mappings)).toBeNull()
+    const ctx = createContext()
+    expect(parseGooseLine("not json", mappings, ctx)).toBeNull()
+    expect(parseGooseLine("", mappings, ctx)).toBeNull()
+    expect(parseGooseLine("{not valid json}", mappings, ctx)).toBeNull()
   })
 
-  it("parses Message event with assistant text content", () => {
-    const event = parseGooseLine(
+  it("parses message event with assistant text content and emits session", () => {
+    const ctx = createContext()
+    const events = parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
+        type: "message",
+        message: {
+          id: "chatcmpl-123",
           role: "assistant",
           created: 1738803195,
-          content: [{ Text: { text: "Hello from Goose!" } }],
+          content: [{ type: "text", text: "Hello from Goose!" }],
+          metadata: { userVisible: true, agentVisible: true },
         },
       }),
-      mappings
+      mappings,
+      ctx
     )
-    expect(event).toEqual({ type: "token", text: "Hello from Goose!" })
+    // First message emits both session and token events
+    expect(events).toEqual([
+      { type: "session", id: "chatcmpl-123" },
+      { type: "token", text: "Hello from Goose!" },
+    ])
+    expect(ctx.sessionId).toBe("chatcmpl-123")
   })
 
-  it("returns null for user Message events", () => {
-    const event = parseGooseLine(
+  it("does not emit session event on subsequent messages", () => {
+    const ctx = createContext()
+    // First message
+    parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
-          role: "user",
+        type: "message",
+        message: {
+          id: "chatcmpl-123",
+          role: "assistant",
           created: 1738803195,
-          content: [{ Text: { text: "Hello" } }],
+          content: [{ type: "text", text: "First" }],
         },
       }),
-      mappings
+      mappings,
+      ctx
+    )
+    // Second message
+    const event = parseGooseLine(
+      JSON.stringify({
+        type: "message",
+        message: {
+          id: "chatcmpl-456",
+          role: "assistant",
+          created: 1738803196,
+          content: [{ type: "text", text: "Second" }],
+        },
+      }),
+      mappings,
+      ctx
+    )
+    // Should only emit token, not session
+    expect(event).toEqual({ type: "token", text: "Second" })
+  })
+
+  it("returns null for user message events", () => {
+    const ctx = createContext()
+    const event = parseGooseLine(
+      JSON.stringify({
+        type: "message",
+        message: {
+          id: null,
+          role: "user",
+          created: 1738803195,
+          content: [{ type: "text", text: "Hello" }],
+        },
+      }),
+      mappings,
+      ctx
     )
     expect(event).toBeNull()
   })
 
-  it("parses Message event with ToolRequest", () => {
+  it("parses message event with tool_use", () => {
+    const ctx = createContext()
+    ctx.state.sessionEmitted = true // Skip session emission
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
+        type: "message",
+        message: {
+          id: "chatcmpl-123",
           role: "assistant",
           created: 1738803195,
           content: [
             {
-              ToolRequest: {
-                id: "toolu_123",
-                tool_call: {
-                  Ok: {
-                    name: "developer__shell",
-                    arguments: { command: "ls -la" },
-                  },
-                },
-              },
+              type: "tool_use",
+              id: "toolu_123",
+              name: "developer__shell",
+              input: { command: "ls -la" },
             },
           ],
         },
       }),
-      mappings
+      mappings,
+      ctx
     )
     expect(event).toEqual({
       type: "tool_start",
@@ -432,50 +478,75 @@ describe("parseGooseLine", () => {
     })
   })
 
-  it("parses Message event with ToolResponse success", () => {
+  it("parses message event with tool_result success", () => {
+    const ctx = createContext()
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
+        type: "message",
+        message: {
+          id: null,
           role: "user",
           created: 1738803195,
           content: [
             {
-              ToolResponse: {
-                id: "toolu_123",
-                tool_result: {
-                  Ok: [{ type: "text", text: "file1.txt\nfile2.txt" }],
-                },
-              },
+              type: "tool_result",
+              tool_use_id: "toolu_123",
+              content: [{ type: "text", text: "file1.txt\nfile2.txt" }],
             },
           ],
         },
       }),
-      mappings
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "tool_end", output: "file1.txt\nfile2.txt" })
   })
 
-  it("parses Message event with ToolResponse error", () => {
+  it("parses message event with tool_result string content", () => {
+    const ctx = createContext()
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
+        type: "message",
+        message: {
+          id: null,
           role: "user",
           created: 1738803195,
           content: [
             {
-              ToolResponse: {
-                id: "toolu_123",
-                tool_result: {
-                  Err: "Command failed with exit code 1",
-                },
-              },
+              type: "tool_result",
+              tool_use_id: "toolu_123",
+              content: "simple string output",
             },
           ],
         },
       }),
-      mappings
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_end", output: "simple string output" })
+  })
+
+  it("parses message event with tool_result error", () => {
+    const ctx = createContext()
+    const event = parseGooseLine(
+      JSON.stringify({
+        type: "message",
+        message: {
+          id: null,
+          role: "user",
+          created: 1738803195,
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_123",
+              content: "Command failed with exit code 1",
+              is_error: true,
+            },
+          ],
+        },
+      }),
+      mappings,
+      ctx
     )
     expect(event).toEqual({
       type: "tool_end",
@@ -483,30 +554,29 @@ describe("parseGooseLine", () => {
     })
   })
 
-  it("parses multiple content blocks in one Message", () => {
+  it("parses multiple content blocks in one message", () => {
+    const ctx = createContext()
+    ctx.state.sessionEmitted = true // Skip session emission
     const events = parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
+        type: "message",
+        message: {
+          id: "chatcmpl-123",
           role: "assistant",
           created: 1738803195,
           content: [
-            { Text: { text: "Let me check that for you." } },
+            { type: "text", text: "Let me check that for you." },
             {
-              ToolRequest: {
-                id: "toolu_456",
-                tool_call: {
-                  Ok: {
-                    name: "developer__text_editor",
-                    arguments: { file: "test.txt" },
-                  },
-                },
-              },
+              type: "tool_use",
+              id: "toolu_456",
+              name: "developer__text_editor",
+              input: { file: "test.txt" },
             },
           ],
         },
       }),
-      mappings
+      mappings,
+      ctx
     )
     expect(events).toEqual([
       { type: "token", text: "Let me check that for you." },
@@ -514,83 +584,99 @@ describe("parseGooseLine", () => {
     ])
   })
 
-  it("parses Finish event", () => {
+  it("parses complete event", () => {
+    const ctx = createContext()
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Finish",
-        Finish: { reason: "stop" },
+        type: "complete",
+        total_tokens: 1250,
       }),
-      mappings
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "end" })
   })
 
-  it("parses Error event", () => {
+  it("parses complete event with null tokens", () => {
+    const ctx = createContext()
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Error",
-        Error: "API rate limit exceeded",
+        type: "complete",
+        total_tokens: null,
       }),
-      mappings
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "end" })
+  })
+
+  it("parses error event with string error", () => {
+    const ctx = createContext()
+    const event = parseGooseLine(
+      JSON.stringify({
+        type: "error",
+        error: "API rate limit exceeded",
+      }),
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "end", error: "API rate limit exceeded" })
   })
 
-  it("returns null for Ping events", () => {
-    const event = parseGooseLine(
-      JSON.stringify({ type: "Ping" }),
-      mappings
-    )
-    expect(event).toBeNull()
-  })
-
-  it("returns null for Notification events", () => {
+  it("parses error event with object error", () => {
+    const ctx = createContext()
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Notification",
-        Notification: { request_id: "req_123" },
+        type: "error",
+        error: { message: "Authentication failed", code: "auth_error" },
       }),
-      mappings
+      mappings,
+      ctx
     )
-    expect(event).toBeNull()
+    expect(event).toEqual({ type: "end", error: "Authentication failed" })
   })
 
   it("returns null for unknown event types", () => {
-    expect(parseGooseLine('{"type": "unknown"}', mappings)).toBeNull()
+    const ctx = createContext()
+    expect(parseGooseLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
   })
 
   it("strips SSE data prefix", () => {
+    const ctx = createContext()
     const event = parseGooseLine(
-      'data: {"type": "Finish", "Finish": {"reason": "stop"}}',
-      mappings
+      'data: {"type": "complete", "total_tokens": 100}',
+      mappings,
+      ctx
     )
     expect(event).toEqual({ type: "end" })
   })
 
-  it("handles ToolRequest error", () => {
+  it("handles real goose output format", () => {
+    const ctx = createContext()
+    ctx.state.sessionEmitted = true // Skip session emission for this test
+    // Actual output from goose run --output-format stream-json
+    const event = parseGooseLine(
+      '{"type":"message","message":{"id":"chatcmpl-abc123","role":"assistant","created":1775249366,"content":[{"type":"text","text":"4"}],"metadata":{"userVisible":true,"agentVisible":true}}}',
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "token", text: "4" })
+  })
+
+  it("works without context for backward compatibility", () => {
+    // Without context, session event is not emitted
     const event = parseGooseLine(
       JSON.stringify({
-        type: "Message",
-        Message: {
+        type: "message",
+        message: {
+          id: "chatcmpl-123",
           role: "assistant",
           created: 1738803195,
-          content: [
-            {
-              ToolRequest: {
-                id: "toolu_err",
-                tool_call: {
-                  Err: { message: "Invalid parameters" },
-                },
-              },
-            },
-          ],
+          content: [{ type: "text", text: "Hello" }],
         },
       }),
       mappings
     )
-    expect(event).toEqual({
-      type: "token",
-      text: "[Tool error: Invalid parameters]",
-    })
+    expect(event).toEqual({ type: "token", text: "Hello" })
   })
 })

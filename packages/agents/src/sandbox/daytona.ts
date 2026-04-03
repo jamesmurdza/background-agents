@@ -155,10 +155,25 @@ export function adaptDaytonaSandbox(
         await sandbox.process.executeCommand("mkdir -p ~/.gemini", undefined, undefined, 30)
       }
 
-      // For goose, add ~/.local/bin to PATH in .bashrc if not already there
+      // For goose, add ~/.local/bin to PATH and create default config
       if (name === "goose") {
         await sandbox.process.executeCommand(
           `grep -q 'HOME/.local/bin' ~/.bashrc || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc`,
+          undefined, undefined, 10
+        )
+        // Create default goose config if it doesn't exist
+        // Uses OpenAI provider by default with gpt-4o model
+        await sandbox.process.executeCommand(
+          `mkdir -p ~/.config/goose && test -f ~/.config/goose/config.yaml || cat > ~/.config/goose/config.yaml << 'GOOSECONFIG'
+GOOSE_PROVIDER: openai
+GOOSE_MODEL: gpt-4o
+GOOSE_MODE: auto
+extensions:
+  developer:
+    enabled: true
+    name: developer
+    type: builtin
+GOOSECONFIG`,
           undefined, undefined, 10
         )
       }

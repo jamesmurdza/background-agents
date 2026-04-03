@@ -59,16 +59,12 @@ const agents = [
     apiKey: GEMINI_API_KEY,
     hasKey: !!GEMINI_API_KEY,
   },
-  // Goose is currently skipped in integration tests because it requires
-  // additional provider configuration beyond just an API key.
-  // The goose agent code and parser are tested via unit tests in parsers.test.ts.
-  // Uncomment and configure when Goose provider setup is automated.
-  // {
-  //   name: "goose" as const,
-  //   apiKeyEnvVar: "OPENAI_API_KEY", // goose can use multiple providers
-  //   apiKey: OPENAI_API_KEY,
-  //   hasKey: !!OPENAI_API_KEY,
-  // },
+  {
+    name: "goose" as const,
+    apiKeyEnvVar: "OPENAI_API_KEY", // goose uses OpenAI provider by default
+    apiKey: OPENAI_API_KEY,
+    hasKey: !!OPENAI_API_KEY,
+  },
   {
     name: "opencode" as const,
     apiKeyEnvVar: "ANTHROPIC_API_KEY", // opencode can use multiple, we use anthropic
