@@ -59,7 +59,7 @@ export type ContentBlock = {
   text: string
 } | {
   type: "tool_calls"
-  toolCalls: Array<{ tool: string; summary: string; fullSummary?: string }>
+  toolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string }>
 }
 
 export interface AgentCrashedPayload {
@@ -152,6 +152,7 @@ Replace {port} with the actual port number. For example, if you start a server o
 interface ToolDetailResult {
   summary: string
   fullDetail?: string // Only set if different from summary (i.e., was truncated)
+  filePath?: string // Full file path for file-related tools (Read, Edit, Write)
 }
 
 function getToolDetail(toolName: string, input: unknown): ToolDetailResult {
@@ -172,9 +173,9 @@ function getToolDetail(toolName: string, input: unknown): ToolDetailResult {
     const filename = path.split("/").pop() || path
     // Only set fullDetail if filename is different from full path
     if (filename !== path) {
-      return { summary: filename, fullDetail: path }
+      return { summary: filename, fullDetail: path, filePath: path }
     }
-    return { summary: filename }
+    return { summary: filename, filePath: path }
   }
   if (mappedName === "Glob" && inp.pattern) {
     return { summary: String(inp.pattern) }
@@ -192,11 +193,11 @@ function getToolDetail(toolName: string, input: unknown): ToolDetailResult {
 
 export function buildContentBlocks(
   events: Event[]
-): { content: string; toolCalls: Array<{ tool: string; summary: string; fullSummary?: string }>; contentBlocks: ContentBlock[] } {
+): { content: string; toolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string }>; contentBlocks: ContentBlock[] } {
   const blocks: ContentBlock[] = []
   let pendingText = ""
-  let pendingToolCalls: Array<{ tool: string; summary: string; fullSummary?: string }> = []
-  const allToolCalls: Array<{ tool: string; summary: string; fullSummary?: string }> = []
+  let pendingToolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string }> = []
+  const allToolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string }> = []
   let allContent = ""
 
   for (const event of events) {
@@ -217,10 +218,10 @@ export function buildContentBlocks(
         pendingText = ""
       }
       const tool = mapToolName(toolEvent.name)
-      const { summary: detail, fullDetail } = getToolDetail(toolEvent.name, toolEvent.input)
+      const { summary: detail, fullDetail, filePath } = getToolDetail(toolEvent.name, toolEvent.input)
       const summary = detail ? `${tool}: ${detail}` : tool
       const fullSummary = fullDetail ? `${tool}: ${fullDetail}` : undefined
-      const toolCall = { tool, summary, fullSummary }
+      const toolCall = { tool, summary, fullSummary, filePath }
       pendingToolCalls.push(toolCall)
       allToolCalls.push(toolCall)
     }

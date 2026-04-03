@@ -15,6 +15,7 @@ import { MessageBubble } from "./message-bubble"
 
 interface MessageListProps {
   branch: Branch
+  repoPath?: string // Repository path for file previews in tool calls
   messagesLoading?: boolean
   isMobile?: boolean
   onScroll?: () => void
@@ -28,7 +29,7 @@ interface MessageListProps {
 
 export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
   function MessageList(
-    { branch, messagesLoading, isMobile, onScroll, onCommitClick, onBranchFromCommit, onRetryPush, onClearPushError, onRetryExecute, onClearExecuteError },
+    { branch, repoPath, messagesLoading, isMobile, onScroll, onCommitClick, onBranchFromCommit, onRetryPush, onClearPushError, onRetryExecute, onClearExecuteError },
     ref
   ) {
     // Creating state
@@ -109,6 +110,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
               key={msg.id}
               message={msg}
               agent={normalizedAgent as Agent}
+              sandboxId={branch.sandboxId}
+              repoPath={repoPath}
               onCommitClick={onCommitClick}
               onBranchFromCommit={onBranchFromCommit}
               onRetryPush={onRetryPush}

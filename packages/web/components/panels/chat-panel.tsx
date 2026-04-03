@@ -642,6 +642,7 @@ export function ChatPanel({
         <MessageList
           ref={scrollRef}
           branch={branch}
+          repoPath={`${PATHS.SANDBOX_HOME}/${repoName}`}
           messagesLoading={messagesLoading}
           isMobile={isMobile}
           onScroll={handleScroll}

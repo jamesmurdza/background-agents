@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { cn } from "@/lib/shared/utils"
 import type { Agent, AssistantSource, ExecuteErrorInfo, Message, PushErrorInfo, ToolCall } from "@/lib/shared/types"
 import { ASSISTANT_SOURCE } from "@/lib/shared/constants"
@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
+  FileCode,
 } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
 import { NoticeIcon, type NoticeIconType } from "@/components/icons/notice-icons"
@@ -29,6 +30,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { highlight } from "sugar-high"
 
 // ============================================================================
 // Tool Call Components
@@ -56,34 +63,302 @@ function ToolCallIcon({ tool }: { tool: string }) {
   }
 }
 
-function ToolCallTimeline({ toolCalls }: { toolCalls: ToolCall[] }) {
+// ============================================================================
+// File Preview Components for Tool Calls
+// ============================================================================
+
+interface FilePreviewContent {
+  path: string
+  content: string
+  modifiedAt: number
+  size: number
+  truncated?: boolean
+}
+
+const PREVIEW_LINES = 50
+
+/**
+ * Format file size for display
+ */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
+ * Syntax highlighted code component
+ */
+function HighlightedCode({ code }: { code: string }) {
+  const lines = highlight(code).split("\n")
+  return (
+    <table className="w-full text-xs font-mono border-collapse">
+      <tbody>
+        {lines.map((lineHtml, i) => (
+          <tr key={i} className="leading-5">
+            <td className="select-none text-right text-muted-foreground/50 pr-3 pl-3 align-top w-1 whitespace-nowrap">{i + 1}</td>
+            <td
+              className="pr-3 whitespace-pre-wrap break-all"
+              dangerouslySetInnerHTML={{ __html: lineHtml }}
+            />
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+/**
+ * File preview popover for tool calls with file paths
+ */
+function ToolFilePreviewPopover({
+  filePath,
+  sandboxId,
+  repoPath,
+  children,
+}: {
+  filePath: string
+  sandboxId: string | null | undefined
+  repoPath: string | null | undefined
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const [content, setContent] = useState<FilePreviewContent | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const loadFullTriggered = useRef(false)
+
+  const filename = filePath.split("/").pop() || filePath
+
+  // Reset state when popover closes
+  useEffect(() => {
+    if (!open) {
+      loadFullTriggered.current = false
+    }
+  }, [open])
+
+  // Fetch file content when popover opens
+  const fetchContent = useCallback(async (preview = true) => {
+    if (!sandboxId || !repoPath) {
+      setError("Sandbox not available")
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const res = await fetch("/api/sandbox/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId,
+          repoPath,
+          action: "read-file",
+          filePath,
+          ...(preview ? { maxLines: PREVIEW_LINES } : {}),
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setContent(data)
+      } else if (res.status === 413) {
+        setError("File too large to preview")
+      } else if (res.status === 404) {
+        setError("File not found")
+      } else {
+        setError("Failed to load file")
+      }
+    } catch (err) {
+      console.error("Failed to fetch file content:", err)
+      setError("Failed to load file")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [sandboxId, repoPath, filePath])
+
+  // Load content when popover opens
+  useEffect(() => {
+    if (open && !content && !error && !isLoading) {
+      fetchContent(true)
+    }
+  }, [open, content, error, isLoading, fetchContent])
+
+  // Load full content when user scrolls near the bottom of a truncated preview
+  const handleScroll = useCallback(() => {
+    if (!content?.truncated || !scrollRef.current || loadFullTriggered.current) return
+    const el = scrollRef.current
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
+      loadFullTriggered.current = true
+      fetchContent(false)
+    }
+  }, [content?.truncated, fetchContent])
+
+  // Reset content when file path changes
+  useEffect(() => {
+    setContent(null)
+    setError(null)
+  }, [filePath])
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="start"
+        sideOffset={8}
+        className="w-[500px] max-w-[90vw] max-h-[60vh] p-0 flex flex-col overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileCode className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="font-mono text-xs font-medium truncate">{filename}</span>
+          </div>
+          {content && (
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
+              <span>{formatSize(content.size)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div ref={scrollRef} className="overflow-auto min-h-0 flex-1" onScroll={handleScroll}>
+          {error ? (
+            <div className="flex items-center justify-center h-32 text-sm text-destructive">
+              {error}
+            </div>
+          ) : content ? (
+            <>
+              <HighlightedCode code={content.content} />
+              {content.truncated && (
+                <div className="flex items-center justify-center py-2 text-[10px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                  Loading full file…
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </div>
+
+        {/* Footer with full path */}
+        <div className="border-t border-border px-3 py-1.5 bg-muted/30 shrink-0">
+          <p className="font-mono text-[10px] text-foreground/70 truncate">{filePath}</p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * Clickable file path link that opens a file preview popover
+ */
+function FilePathLink({
+  filePath,
+  displayText,
+  fullSummary,
+  sandboxId,
+  repoPath,
+}: {
+  filePath: string
+  displayText: string
+  fullSummary?: string
+  sandboxId: string | null | undefined
+  repoPath: string | null | undefined
+}) {
+  // If sandbox is not available, render as tooltip only (no clickable link)
+  if (!sandboxId || !repoPath) {
+    if (fullSummary) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-xs text-muted-foreground break-words min-w-0 cursor-help">
+              {displayText}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-md font-mono text-[10px] whitespace-pre-wrap [overflow-wrap:anywhere]">
+            {fullSummary}
+          </TooltipContent>
+        </Tooltip>
+      )
+    }
+    return (
+      <span className="text-xs text-muted-foreground break-words min-w-0">
+        {displayText}
+      </span>
+    )
+  }
+
+  return (
+    <ToolFilePreviewPopover filePath={filePath} sandboxId={sandboxId} repoPath={repoPath}>
+      {fullSummary ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button className="text-xs text-primary/80 hover:text-primary hover:underline break-words min-w-0 cursor-pointer text-left">
+              {displayText}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-md font-mono text-[10px] whitespace-pre-wrap [overflow-wrap:anywhere]">
+            {fullSummary}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <button className="text-xs text-primary/80 hover:text-primary hover:underline break-words min-w-0 cursor-pointer text-left">
+          {displayText}
+        </button>
+      )}
+    </ToolFilePreviewPopover>
+  )
+}
+
+function ToolCallTimeline({ toolCalls, sandboxId, repoPath }: { toolCalls: ToolCall[]; sandboxId?: string | null; repoPath?: string | null }) {
   return (
     <div className="relative my-1.5 ml-[10px]">
       <div className="absolute left-[5.5px] top-2 bottom-2 w-px bg-border" />
       <div className="flex flex-col">
-        {toolCalls.map((tc) => (
-          <div key={tc.id} className="relative flex items-start gap-2.5 py-[5px] min-w-0">
-            <div className="relative z-10 flex h-[12px] w-[12px] shrink-0 items-center justify-center text-muted-foreground mt-0.5">
-              <ToolCallIcon tool={tc.tool} />
+        {toolCalls.map((tc) => {
+          // Check if this is a file-related tool with a file path
+          const isFileRelatedTool = ["Read", "Edit", "Write"].includes(tc.tool)
+          const hasFilePath = isFileRelatedTool && tc.filePath
+
+          return (
+            <div key={tc.id} className="relative flex items-start gap-2.5 py-[5px] min-w-0">
+              <div className="relative z-10 flex h-[12px] w-[12px] shrink-0 items-center justify-center text-muted-foreground mt-0.5">
+                <ToolCallIcon tool={tc.tool} />
+              </div>
+              {hasFilePath ? (
+                <FilePathLink
+                  filePath={tc.filePath!}
+                  displayText={tc.summary}
+                  fullSummary={tc.fullSummary}
+                  sandboxId={sandboxId}
+                  repoPath={repoPath}
+                />
+              ) : tc.fullSummary ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground break-words min-w-0 cursor-help">
+                      {tc.summary}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-md font-mono text-[10px] whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    {tc.fullSummary}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="text-xs text-muted-foreground break-words min-w-0">
+                  {tc.summary}
+                </span>
+              )}
             </div>
-            {tc.fullSummary ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-xs text-muted-foreground break-words min-w-0 cursor-help">
-                    {tc.summary}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-md font-mono text-[10px] whitespace-pre-wrap [overflow-wrap:anywhere]">
-                  {tc.fullSummary}
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <span className="text-xs text-muted-foreground break-words min-w-0">
-                {tc.summary}
-              </span>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -365,6 +640,8 @@ interface MessageBubbleProps {
   message: Message
   agent?: Agent
   agentLabel?: string // Deprecated: use agent prop instead
+  sandboxId?: string | null // Sandbox ID for file preview
+  repoPath?: string | null // Repository path for file preview
   onCommitClick?: (hash: string, msg: string) => void
   onBranchFromCommit?: (hash: string) => void
   onRetryPush?: (pushError: PushErrorInfo) => Promise<{ success: boolean; error?: string }>
@@ -379,7 +656,7 @@ function effectiveAssistantSource(message: Message): AssistantSource {
   return message.assistantSource ?? ASSISTANT_SOURCE.MODEL
 }
 
-export function MessageBubble({ message, agent = "claude-code", agentLabel, onCommitClick, onBranchFromCommit, onRetryPush, onClearPushError, onRetryExecute, onClearExecuteError }: MessageBubbleProps) {
+export function MessageBubble({ message, agent = "claude-code", agentLabel, sandboxId, repoPath, onCommitClick, onBranchFromCommit, onRetryPush, onClearPushError, onRetryExecute, onClearExecuteError }: MessageBubbleProps) {
   // Use agent prop primarily, fall back to agentLabel for backwards compatibility
   const displayLabel = agentLabel || agentLabels[agent] || "Claude Code"
   const isUser = message.role === "user"
@@ -486,7 +763,7 @@ export function MessageBubble({ message, agent = "claude-code", agentLabel, onCo
                 id: tc.id || `tc-${idx}-${tcIdx}`,
                 timestamp: tc.timestamp || "",
               }))
-              return <ToolCallTimeline key={idx} toolCalls={toolCallsWithIds} />
+              return <ToolCallTimeline key={idx} toolCalls={toolCallsWithIds} sandboxId={sandboxId} repoPath={repoPath} />
             }
             return null
           })}
@@ -519,7 +796,7 @@ export function MessageBubble({ message, agent = "claude-code", agentLabel, onCo
           </div>
 
           {message.toolCalls && message.toolCalls.length > 0 && (
-            <ToolCallTimeline toolCalls={message.toolCalls} />
+            <ToolCallTimeline toolCalls={message.toolCalls} sandboxId={sandboxId} repoPath={repoPath} />
           )}
         </>
       )}
