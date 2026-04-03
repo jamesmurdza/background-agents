@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/db/prisma"
+import { checkDuplicateBranchName } from "@/lib/db/branch-helpers"
 import { checkQuota } from "@/lib/sandbox/quota"
 import { generateSandboxName } from "@/lib/sandbox/sandbox-utils"
 import {
@@ -360,17 +361,9 @@ export async function POST(req: Request) {
           }
 
           // Check if branch with this name already exists in this repo
-          const existingBranch = await prisma.branch.findUnique({
-            where: {
-              repoId_name: {
-                repoId: dbRepo.id,
-                name: effectiveBranchName,
-              },
-            },
-          })
-
-          if (existingBranch) {
-            throw new Error(`A branch named "${effectiveBranchName}" already exists in this repository`)
+          const duplicateCheck = await checkDuplicateBranchName(dbRepo.id, effectiveBranchName)
+          if (duplicateCheck) {
+            throw new Error(duplicateCheck.error)
           }
 
           // Create branch record with appropriate default agent based on credentials

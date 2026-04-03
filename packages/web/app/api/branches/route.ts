@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
+import { checkDuplicateBranchName } from "@/lib/db/branch-helpers"
 import {
   requireAuth,
   isAuthError,
@@ -39,17 +40,9 @@ export async function POST(req: Request) {
   }
 
   // Check if branch already exists
-  const existingBranch = await prisma.branch.findUnique({
-    where: {
-      repoId_name: {
-        repoId,
-        name,
-      },
-    },
-  })
-
-  if (existingBranch) {
-    return Response.json({ error: "Branch already exists" }, { status: 409 })
+  const duplicateCheck = await checkDuplicateBranchName(repoId, name)
+  if (duplicateCheck) {
+    return Response.json(duplicateCheck, { status: 409 })
   }
 
   // Determine default agent based on user credentials
@@ -145,20 +138,9 @@ export async function PATCH(req: Request) {
 
   // If renaming the branch, check for duplicate names within the same repo
   if (name && name !== branchWithSandbox.name) {
-    const existingBranch = await prisma.branch.findUnique({
-      where: {
-        repoId_name: {
-          repoId: branchWithSandbox.repoId,
-          name,
-        },
-      },
-    })
-
-    if (existingBranch) {
-      return Response.json(
-        { error: `A branch named "${name}" already exists in this repository` },
-        { status: 409 }
-      )
+    const duplicateCheck = await checkDuplicateBranchName(branchWithSandbox.repoId, name)
+    if (duplicateCheck) {
+      return Response.json(duplicateCheck, { status: 409 })
     }
   }
 
