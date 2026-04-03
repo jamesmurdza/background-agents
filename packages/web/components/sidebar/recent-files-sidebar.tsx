@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Loader2, Terminal, Globe, ExternalLink, FileCode } from "lucide-react"
+import { highlight } from "sugar-high"
 
 interface ModifiedFile {
   path: string
@@ -227,9 +228,10 @@ function FilePreviewPopover({
               {error}
             </div>
           ) : content ? (
-            <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto">
-              {content.content}
-            </pre>
+            <pre
+              className="p-3 text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto"
+              dangerouslySetInnerHTML={{ __html: highlight(content.content) }}
+            />
           ) : null}
         </div>
 
