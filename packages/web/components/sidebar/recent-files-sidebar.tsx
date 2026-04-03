@@ -203,15 +203,13 @@ function isOldFile(modifiedAt: number): boolean {
   return Date.now() - modifiedAt > 5 * 60 * 1000
 }
 
-function FileIcon({ file, isLoading, onClick, isPinned }: {
+function FileIcon({ file, onClick, isPinned }: {
   file: ModifiedFile
-  isLoading: boolean
   onClick: () => void
   isPinned: boolean
 }) {
   const { shortName, ext } = getFileDisplayInfo(file.path)
   const extColor = getExtColor(ext)
-  const isOld = isOldFile(file.modifiedAt)
 
   // Adjust font size based on name length
   const nameSize = shortName.length <= 2 ? "text-[10px]" : shortName.length <= 3 ? "text-[9px]" : "text-[8px]"
@@ -223,21 +221,15 @@ function FileIcon({ file, isLoading, onClick, isPinned }: {
         onClick()
       }}
       className={cn(
-        "relative flex h-10 w-10 items-center justify-center rounded-lg transition-all cursor-pointer",
+        "relative flex h-10 w-10 items-center justify-center rounded-lg cursor-pointer",
         "bg-secondary",
-        isPinned && "ring-2 ring-primary",
-        isOld && "opacity-40 hover:opacity-100"
+        isPinned && "ring-2 ring-primary"
       )}
     >
       <div className="flex flex-col items-center justify-center leading-none gap-0.5">
         <span className={cn(nameSize, "font-semibold text-foreground font-mono")}>{shortName}</span>
         <span className={cn("text-[7px] font-medium", extColor)}>{ext}</span>
       </div>
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
-          <Loader2 className="h-3 w-3 animate-spin" />
-        </div>
-      )}
     </button>
   )
 }
@@ -695,7 +687,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
   const [files, setFiles] = useState<ModifiedFile[]>([])
   const [pinnedFileIndex, setPinnedFileIndex] = useState<number | null>(null)
   const [hoveredFileIndex, setHoveredFileIndex] = useState<number | null>(null)
-  const [loadingContent, setLoadingContent] = useState<string | null>(null)
   const [fileContents, setFileContents] = useState<Map<string, FileContent>>(new Map())
   const [contentError, setContentError] = useState<string | null>(null)
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
@@ -821,7 +812,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
 
     // For preview requests, don't show loading spinner — it should feel instant
     if (!preview) {
-      setLoadingContent(filePath)
     }
     setContentError(null)
 
@@ -854,7 +844,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
       console.error("Failed to fetch file content:", err)
       setContentError("Failed to load file")
     } finally {
-      setLoadingContent(null)
     }
   }, [sandboxId, repoPath])
 
@@ -1079,8 +1068,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
         const content = fullContent && !isPinned && !expandedFiles.has(file.path) && !fullContent.truncated
           ? { ...fullContent, content: fullContent.content.split("\n").slice(0, PREVIEW_LINES).join("\n"), truncated: true }
           : fullContent
-        const isLoadingThis = loadingContent === file.path
-
         return (
           <FilePreviewPopover
             key={file.path}
@@ -1102,7 +1089,6 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
             >
               <FileIcon
                 file={file}
-                isLoading={isLoadingThis}
                 onClick={() => handleFileClick(index)}
                 isPinned={isPinned}
               />
