@@ -9,6 +9,7 @@ import {
   isDaytonaKeyError,
   internalError,
 } from "@/lib/shared/api-helpers"
+import { PATHS } from "@/lib/shared/constants"
 
 // Timeout for file operations - 30 seconds
 export const maxDuration = 30
@@ -53,6 +54,27 @@ function buildFindCommandSinceClone(
   // Use -newermt with a timestamp to find files modified after clone completed
   // Output: path|mtime|size (using stat for metadata)
   const command = `find '${safePath}' \\( ${ignoreArgs} \\) -o -type f \\( ${extPatterns} \\) -newermt "@${afterTimestamp}" -print0 2>/dev/null | xargs -0 -r stat --format='%n|%Y|%s' 2>/dev/null | head -20 || true`
+
+  return command
+}
+
+/**
+ * Build find command for the logs directory (no clone timestamp baseline)
+ * Returns all matching files in the logs directory
+ */
+function buildFindCommandForLogs(
+  logsPath: string,
+  extensions: string[]
+): string {
+  const safePath = escapeShell(logsPath)
+
+  // Build extension match patterns
+  const extPatterns = extensions
+    .map((ext) => `-name '*${escapeShell(ext)}'`)
+    .join(" -o ")
+
+  // Find all files with matching extensions in the logs directory
+  const command = `find '${safePath}' -type f \\( ${extPatterns} \\) -print0 2>/dev/null | xargs -0 -r stat --format='%n|%Y|%s' 2>/dev/null | head -20 || true`
 
   return command
 }
@@ -132,18 +154,25 @@ export async function POST(req: Request) {
           cloneTimestamp = parseInt(fallbackResult.result?.trim() || "0", 10)
         }
 
-        if (cloneTimestamp === 0) {
-          // No .git directory found, return empty
-          return Response.json({ files: [] })
+        let repoFiles: Array<{ path: string; modifiedAt: number; size: number }> = []
+        if (cloneTimestamp !== 0) {
+          // Get files modified AFTER the clone completed (with buffer)
+          const command = buildFindCommandSinceClone(repoPath, DEFAULT_EXTENSIONS, DEFAULT_IGNORE, cloneTimestamp)
+          const result = await sandbox.process.executeCommand(command, undefined, undefined, 30)
+          repoFiles = parseStatOutput(result.result || "")
         }
 
-        // Get files modified AFTER the clone completed (with buffer)
-        const command = buildFindCommandSinceClone(repoPath, DEFAULT_EXTENSIONS, DEFAULT_IGNORE, cloneTimestamp)
+        // Also check the logs directory for any log files
+        const logsCommand = buildFindCommandForLogs(PATHS.LOGS_DIR, DEFAULT_EXTENSIONS)
+        const logsResult = await sandbox.process.executeCommand(logsCommand, undefined, undefined, 30)
+        const logsFiles = parseStatOutput(logsResult.result || "")
 
-        const result = await sandbox.process.executeCommand(command, undefined, undefined, 30)
-        const files = parseStatOutput(result.result || "")
+        // Merge and sort all files by modification time (most recent first)
+        const allFiles = [...repoFiles, ...logsFiles]
+          .sort((a, b) => b.modifiedAt - a.modifiedAt)
+          .slice(0, 10)
 
-        return Response.json({ files })
+        return Response.json({ files: allFiles })
       }
 
       case "read-file": {

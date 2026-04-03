@@ -188,6 +188,9 @@ export async function POST(req: Request) {
           )
         }
 
+        // Create the logs directory for agent output
+        await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)
+
         // Note: Agent-specific rules (Claude hooks, OpenCode permissions, Codex rules)
         // are set up in ensureSandboxReady() right before each agent execution
 

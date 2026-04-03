@@ -121,6 +121,10 @@ The repository is cloned at ${repoPath}.
 - Use ${repoPath} for all file operations.
 - Always check the current state of files before editing them.
 
+## Logs Directory
+- Write any log files to ${PATHS.LOGS_DIR}.
+- Examples: ${PATHS.LOGS_DIR}/build.log, ${PATHS.LOGS_DIR}/test-results.log
+
 ## Running Web Servers
 - Always start web servers using nohup to ensure they run in the background and persist.
 - Example: nohup npm start > server.log 2>&1 &

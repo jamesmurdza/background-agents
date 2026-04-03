@@ -195,6 +195,8 @@ export const QUOTA = {
 export const PATHS = {
   /** Base directory for repo clones in sandbox */
   SANDBOX_HOME: "/home/daytona",
+  /** Directory for agent log files */
+  LOGS_DIR: "/tmp/logs",
   /** Claude credentials directory */
   CLAUDE_CREDENTIALS_DIR: "/home/daytona/.claude",
   /** Claude credentials file */
