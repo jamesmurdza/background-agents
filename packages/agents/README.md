@@ -47,7 +47,7 @@ await sandbox.delete()
 | [Claude](https://docs.anthropic.com/en/docs/claude-code) | ✅ | `ANTHROPIC_API_KEY` |
 | [Codex](https://developers.openai.com/codex/cli) | ✅ | `OPENAI_API_KEY` |
 | [OpenCode](https://opencode.ai/docs/) | ✅ | Provider-specific (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
-| [Gemini](https://geminicli.com/docs/) | 🚧 | `GEMINI_API_KEY` |
+| [Gemini](https://geminicli.com/docs/) | ✅ | `GEMINI_API_KEY` |
 
 ---
 
