@@ -84,6 +84,11 @@ export function useGitActions({
           head: branch.name,
         }),
       })
+      // Handle non-200 responses gracefully (e.g., branch not found, no commits)
+      if (!res.ok) {
+        setHasChanges(false)
+        return
+      }
       const data = await res.json()
       // Check if there's any actual diff content
       const hasDiff = data.diff && data.diff.trim() !== "" && data.diff !== "No differences found."

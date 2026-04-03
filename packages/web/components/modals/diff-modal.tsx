@@ -158,7 +158,12 @@ export function DiffModal({ open, onClose, repoOwner, repoName, branchName, base
         }),
       })
       const data = await res.json()
-      setDiff(data.diff || "No differences found.")
+      if (!res.ok) {
+        // Handle expected errors gracefully (branch not found, etc.)
+        setDiff(data.error || "No differences found.")
+      } else {
+        setDiff(data.diff || "No differences found.")
+      }
     } catch {
       setDiff("Failed to load diff.")
     } finally {
@@ -180,7 +185,12 @@ export function DiffModal({ open, onClose, repoOwner, repoName, branchName, base
         }),
       })
       const data = await res.json()
-      setDiff(data.diff || "No differences found.")
+      if (!res.ok) {
+        // Handle expected errors gracefully (commit not found, etc.)
+        setDiff(data.error || "No differences found.")
+      } else {
+        setDiff(data.diff || "No differences found.")
+      }
     } catch {
       setDiff("Failed to load diff.")
     } finally {
