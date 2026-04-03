@@ -22,6 +22,8 @@ export async function POST(req: Request) {
     geminiApiKey,
     daytonaApiKey,
     sandboxAutoStopInterval,
+    squashOnMerge,
+    prDescriptionMode,
   } = body
 
   // Validate sandboxAutoStopInterval if provided
@@ -71,6 +73,14 @@ export async function POST(req: Request) {
 
   if (sandboxAutoStopInterval !== undefined) {
     updateData.sandboxAutoStopInterval = sandboxAutoStopInterval
+  }
+
+  if (typeof squashOnMerge === "boolean") {
+    updateData.squashOnMerge = squashOnMerge
+  }
+
+  if (prDescriptionMode === "ai" || prDescriptionMode === "commits") {
+    updateData.prDescriptionMode = prDescriptionMode
   }
 
   // Handle Daytona API key change or clear - this deletes all sandboxes

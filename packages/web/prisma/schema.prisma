@@ -88,6 +88,8 @@ model UserCredentials {
   daytonaApiKey             String?
   opencodeApiKey            String?
   geminiApiKey              String?
+  squashOnMerge             Boolean  @default(true)
+  prDescriptionMode         String   @default("ai") // "ai" or "commits"
   user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

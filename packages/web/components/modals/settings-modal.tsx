@@ -20,6 +20,8 @@ interface SettingsModalProps {
     hasGeminiApiKey: boolean
     hasDaytonaApiKey: boolean
     sandboxAutoStopInterval?: number
+    squashOnMerge?: boolean
+    prDescriptionMode?: string
   } | null
   onCredentialsUpdate: () => void
   /** Field to highlight with error styling (e.g., "anthropicApiKey", "openaiApiKey") */
@@ -48,6 +50,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [opencodeApiKey, setOpencodeApiKey] = useState("")
   const [geminiApiKey, setGeminiApiKey] = useState("")
+
+  // Git preferences
+  const [squashOnMerge, setSquashOnMerge] = useState(true)
+  const [prDescriptionMode, setPrDescriptionMode] = useState<"ai" | "commits">("ai")
 
   // Sandbox settings
   const [sandboxAutoStopInterval, setSandboxAutoStopInterval] = useState(5)
@@ -78,6 +84,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       const interval = credentials?.sandboxAutoStopInterval ?? 5
       setSandboxAutoStopInterval(interval)
       setInitialAutoStopInterval(interval)
+      setSquashOnMerge(credentials?.squashOnMerge ?? true)
+      setPrDescriptionMode((credentials?.prDescriptionMode as "ai" | "commits") ?? "ai")
       setSaveStatus(null)
       setShowDaytonaWarning(false)
       setDaytonaWarningConfirmed(false)
@@ -174,6 +182,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       if (autoStopChanged) {
         payload.sandboxAutoStopInterval = sandboxAutoStopInterval
       }
+
+      // Git preferences - always include
+      payload.squashOnMerge = squashOnMerge
+      payload.prDescriptionMode = prDescriptionMode
 
       // Add keys to clear (send null to clear them)
       for (const key of keysToClear) {
@@ -695,6 +707,54 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                     {label}
                   </button>
                 ))}
+              </div>
+
+              {/* Git Preferences */}
+              <div className="flex flex-col gap-1.5 pt-3 border-t border-border">
+                <label className="text-xs font-medium text-foreground">Git</label>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-medium text-foreground">Squash on merge</span>
+                  <span className="text-[11px] text-muted-foreground">Squash commits when merging PRs</span>
+                </div>
+                <button
+                  onClick={() => setSquashOnMerge(!squashOnMerge)}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors",
+                    squashOnMerge ? "bg-primary" : "bg-secondary"
+                  )}
+                >
+                  <span className={cn(
+                    "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform mt-0.5",
+                    squashOnMerge ? "translate-x-4" : "translate-x-0.5"
+                  )} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-foreground">PR descriptions</span>
+                <span className="text-[11px] text-muted-foreground">How to generate pull request descriptions</span>
+                <div className="flex gap-2">
+                  {([
+                    { value: "ai" as const, label: "AI generated" },
+                    { value: "commits" as const, label: "Commit messages" },
+                  ]).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setPrDescriptionMode(value)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                        prDescriptionMode === value
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </>
           )}

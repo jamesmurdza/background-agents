@@ -100,6 +100,8 @@ export async function GET() {
           hasGeminiApiKey: !!user.credentials.geminiApiKey,
           hasDaytonaApiKey: !!user.credentials.daytonaApiKey,
           sandboxAutoStopInterval: user.credentials.sandboxAutoStopInterval,
+          squashOnMerge: user.credentials.squashOnMerge,
+          prDescriptionMode: user.credentials.prDescriptionMode,
           ...(serverLlmFallback ? { hasServerLlmFallback: true } : {}),
         }
       : serverLlmFallback
