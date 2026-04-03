@@ -151,7 +151,7 @@ function FileIcon({ file, isLoading, onClick, isPinned }: {
         onClick()
       }}
       className={cn(
-        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
+        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all cursor-pointer",
         "bg-secondary hover:bg-accent",
         isPinned && "ring-2 ring-primary",
         isOld && "opacity-40 hover:opacity-100"
@@ -254,7 +254,7 @@ function ServerIcon({ onClick, isPinned, port }: {
         onClick()
       }}
       className={cn(
-        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
+        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all cursor-pointer",
         "bg-secondary hover:bg-accent",
         isPinned && "ring-2 ring-primary"
       )}
@@ -380,7 +380,7 @@ function TerminalIcon({ onClick, isPinned }: {
         onClick()
       }}
       className={cn(
-        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all",
+        "relative flex h-9 w-9 items-center justify-center rounded-md transition-all cursor-pointer",
         "bg-secondary hover:bg-accent",
         isPinned && "ring-2 ring-primary"
       )}
