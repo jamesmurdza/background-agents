@@ -259,6 +259,7 @@ export interface ToolCall {
   tool: string // "Read", "Edit", "Write", "Glob", "Grep", "Bash", etc.
   summary: string
   fullSummary?: string // Full summary when truncated (for hover tooltip)
+  filePath?: string // Full file path for file-related tools (Read, Edit, Write)
   timestamp: string
 }
 
