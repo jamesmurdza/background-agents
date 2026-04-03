@@ -90,7 +90,7 @@ export async function POST(req: Request) {
   if (isAuthError(auth)) return auth
 
   const body = await req.json()
-  const { sandboxId, repoPath, action, targetBranch, currentBranch, repoOwner, repoApiName, tagName, branchName, squash } = body
+  const { sandboxId, repoPath, action, targetBranch, currentBranch, repoOwner, repoApiName, tagName, branchName, squash, branchId } = body
 
   if (!sandboxId || !repoPath || !action) {
     return badRequest("Missing required fields")
@@ -544,6 +544,22 @@ export async function POST(req: Request) {
           const refData = await refRes.json().catch(() => ({}))
           return Response.json({ error: "Force push failed: " + ((refData as { message?: string }).message || refRes.status) }, { status: 500 })
         }
+
+        // Update startCommit to the new base after rebase.
+        // After rebase, the old startCommit no longer exists in history.
+        if (branchId) {
+          const mergeBaseResult = await sandbox.process.executeCommand(
+            `cd ${repoPath} && git merge-base HEAD ${targetBranch} 2>/dev/null`
+          )
+          const newStartCommit = mergeBaseResult.result?.trim()
+          if (newStartCommit && !mergeBaseResult.exitCode) {
+            await prisma.branch.update({
+              where: { id: branchId },
+              data: { startCommit: newStartCommit },
+            })
+          }
+        }
+
         return Response.json({ success: true })
       }
 

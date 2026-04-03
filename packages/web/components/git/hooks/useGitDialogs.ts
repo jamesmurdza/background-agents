@@ -245,6 +245,7 @@ export function useGitDialogs({
           currentBranch: branchName,
           repoOwner: apiOwner,
           repoApiName: apiRepo,
+          branchId,
         }),
       })
       const data = await res.json()
