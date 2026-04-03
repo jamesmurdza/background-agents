@@ -26,6 +26,12 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useBranchDiffStats } from "./hooks/useBranchDiffStats"
 
 interface BranchListProps {
   repo: Repo
@@ -73,6 +79,13 @@ export function BranchList({
   const [githubBranches, setGithubBranches] = useState<string[]>([])
   const [githubBranchesLoading, setGithubBranchesLoading] = useState(false)
   const isResizing = useRef(false)
+
+  // Fetch diff stats for branches with sandboxes
+  const { diffStatsMap } = useBranchDiffStats({
+    branches: repo.branches,
+    repoOwner: repo.owner,
+    repoName: repo.name,
+  })
 
   const filtered = repo.branches
     .filter((b) => b.name.toLowerCase().includes(search.toLowerCase()))
@@ -289,6 +302,18 @@ export function BranchList({
               const isBold = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING || (branch.unread && !isActive)
               const isDeleting = deleteDialog.deletingBranchId === branch.id
               const isCreating = branch.status === BRANCH_STATUS.CREATING
+              const branchDiffStats = diffStatsMap.get(branch.id)
+
+              // Branch name element - wrapped with tooltip if has diff stats
+              const branchNameElement = (
+                <span className={cn(
+                  "truncate text-sm",
+                  isBold ? "font-semibold text-foreground" : "font-medium"
+                )}>
+                  {branch.name}
+                </span>
+              )
+
               return (
                 <div key={branch.id} className="group relative">
                   <button
@@ -317,12 +342,21 @@ export function BranchList({
                       isDeleting && "opacity-40"
                     )}>
                       <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "truncate text-sm",
-                          isBold ? "font-semibold text-foreground" : "font-medium"
-                        )}>
-                          {branch.name}
-                        </span>
+                        {branchDiffStats ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {branchNameElement}
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="text-xs">
+                              <span className="flex items-center gap-1.5">
+                                <span className="text-green-400">+{branchDiffStats.additions}</span>
+                                <span className="text-red-400">−{branchDiffStats.deletions}</span>
+                              </span>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          branchNameElement
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
