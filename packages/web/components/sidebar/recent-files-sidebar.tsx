@@ -267,10 +267,10 @@ function FilePreviewPopover({
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadFullTriggered = useRef(false)
 
-  // Reset the guard when file changes
+  // Reset the guard when file changes or popover reopens
   useEffect(() => {
     loadFullTriggered.current = false
-  }, [file.path])
+  }, [file.path, open])
 
   // Load full content when user scrolls near the bottom of a truncated preview
   const handleScroll = useCallback(() => {
@@ -698,6 +698,7 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
   const [loadingContent, setLoadingContent] = useState<string | null>(null)
   const [fileContents, setFileContents] = useState<Map<string, FileContent>>(new Map())
   const [contentError, setContentError] = useState<string | null>(null)
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [servers, setServers] = useState<DevServer[]>([])
   const [previewUrlPattern, setPreviewUrlPattern] = useState<string | null>(propPreviewUrlPattern || null)
 
@@ -947,6 +948,7 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
     if (pinnedFileIndex !== null) return
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredFileIndex(null)
+      setExpandedFiles(new Set())
     }, 200)
   }, [pinnedFileIndex])
 
@@ -1073,8 +1075,8 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
         const isHovered = hoveredFileIndex === index
         const isOpen = isPinned || isHovered
         const fullContent = fileContents.get(file.path) || null
-        // On hover (not pinned), only render a preview to keep it snappy
-        const content = fullContent && !isPinned && !fullContent.truncated
+        // On hover (not pinned/expanded), only render a preview to keep it snappy
+        const content = fullContent && !isPinned && !expandedFiles.has(file.path) && !fullContent.truncated
           ? { ...fullContent, content: fullContent.content.split("\n").slice(0, PREVIEW_LINES).join("\n"), truncated: true }
           : fullContent
         const isLoadingThis = loadingContent === file.path
@@ -1089,7 +1091,10 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
             onOpenChange={(open) => handleFileOpenChange(index, open)}
             onMouseEnter={handleFilePopoverMouseEnter}
             onMouseLeave={handleFileMouseLeave}
-            onLoadFull={() => fetchFileContent(file.path, false)}
+            onLoadFull={() => {
+              setExpandedFiles((prev) => new Set(prev).add(file.path))
+              fetchFileContent(file.path, false)
+            }}
           >
             <div
               onMouseEnter={() => handleFileMouseEnter(index, file)}
