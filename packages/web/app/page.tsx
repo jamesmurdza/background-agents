@@ -43,7 +43,7 @@ export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const isMobile = useIsMobile()
-  const { repoFromUrl, updateUrlToRepo } = useRepoNavigation()
+  const { repoFromUrl, branchFromUrl, updateUrlToRepo, updateUrlToRepoBranch } = useRepoNavigation()
 
   // Zustand UI state
   const {
@@ -90,6 +90,13 @@ export default function Home() {
     loadBranchMessages,
   } = useRepoData({ isAuthenticated: status === "authenticated" })
 
+  // Callback when branch from URL is not found - update URL to remove branch
+  const handleBranchNotFound = useCallback(() => {
+    if (repoFromUrl) {
+      updateUrlToRepo(repoFromUrl.owner, repoFromUrl.name)
+    }
+  }, [repoFromUrl, updateUrlToRepo])
+
   // Selection state
   const {
     activeRepoId,
@@ -98,20 +105,38 @@ export default function Home() {
     activeRepo,
     activeBranch,
     selectRepo: selectRepoInternal,
-    selectBranch,
+    selectBranch: selectBranchInternal,
     setActiveBranchId,
-  } = useBranchSelection({ repos, loaded, repoFromUrl })
+  } = useBranchSelection({ repos, loaded, repoFromUrl, branchFromUrl, onBranchNotFound: handleBranchNotFound })
 
   // Wrap selectRepo to also update URL (without triggering page reload)
   const selectRepo = useCallback(
     (repoId: string) => {
       const repo = repos.find((r) => r.id === repoId)
       if (repo) {
-        updateUrlToRepo(repo.owner, repo.name)
+        // When selecting a repo, update URL with first branch if available
+        const firstBranch = repo.branches[0]
+        if (firstBranch) {
+          updateUrlToRepoBranch(repo.owner, repo.name, firstBranch.name)
+        } else {
+          updateUrlToRepo(repo.owner, repo.name)
+        }
       }
       selectRepoInternal(repoId)
     },
-    [repos, updateUrlToRepo, selectRepoInternal]
+    [repos, updateUrlToRepo, updateUrlToRepoBranch, selectRepoInternal]
+  )
+
+  // Wrap selectBranch to also update URL with branch name
+  const selectBranch = useCallback(
+    (branchId: string) => {
+      const branch = activeRepo?.branches.find((b) => b.id === branchId)
+      if (activeRepo && branch) {
+        updateUrlToRepoBranch(activeRepo.owner, activeRepo.name, branch.name)
+      }
+      selectBranchInternal(branchId)
+    },
+    [activeRepo, updateUrlToRepoBranch, selectBranchInternal]
   )
 
   // Repo operations
@@ -275,14 +300,18 @@ export default function Home() {
     }
   }, [status, router])
 
-  // Update URL when repo is auto-selected on root page
+  // Update URL when repo/branch is auto-selected on root page
   useEffect(() => {
     if (!loaded || !activeRepo) return
     // Only update if we're at root (no repo in URL)
     if (!repoFromUrl) {
-      updateUrlToRepo(activeRepo.owner, activeRepo.name)
+      if (activeBranch) {
+        updateUrlToRepoBranch(activeRepo.owner, activeRepo.name, activeBranch.name)
+      } else {
+        updateUrlToRepo(activeRepo.owner, activeRepo.name)
+      }
     }
-  }, [loaded, activeRepo, repoFromUrl, updateUrlToRepo])
+  }, [loaded, activeRepo, activeBranch, repoFromUrl, updateUrlToRepo, updateUrlToRepoBranch])
 
   // Handle URL repo that is not found in user's repos - open AddRepoModal with pre-filled URL
   useEffect(() => {
