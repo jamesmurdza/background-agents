@@ -789,6 +789,22 @@ export async function POST(req: Request) {
           },
         })
         if (branchRecord) {
+          // Check if a branch with the new name already exists in this repo
+          const existingBranch = await prisma.branch.findUnique({
+            where: {
+              repoId_name: {
+                repoId: branchRecord.repoId,
+                name: newName,
+              },
+            },
+          })
+          if (existingBranch) {
+            return Response.json(
+              { error: `A branch named "${newName}" already exists in this repository` },
+              { status: 409 }
+            )
+          }
+
           await prisma.branch.update({
             where: { id: branchRecord.id },
             data: { name: newName },
