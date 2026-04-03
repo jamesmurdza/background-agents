@@ -328,6 +328,7 @@ export function addToolCallIds(toolCalls: ToolCall[]): ToolCallWithId[] {
     tool: tc.tool,
     summary: tc.summary,
     fullSummary: tc.fullSummary,
+    filePath: tc.filePath,
     timestamp,
   }))
 }
@@ -349,6 +350,7 @@ export function addContentBlockIds(contentBlocks: ContentBlock[]): ContentBlockW
           tool: tc.tool,
           summary: tc.summary,
           fullSummary: tc.fullSummary,
+          filePath: tc.filePath,
           timestamp,
         })),
       }
