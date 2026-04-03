@@ -125,9 +125,9 @@ export function MobileSidebarDrawer({
   // Reset create branch UI when repo changes
   useEffect(() => {
     setCreateError(null)
-    setNewBranchBase(activeRepo?.defaultBranch || "main")
+    setNewBranchBase(activeRepo?.preferredBaseBranch || activeRepo?.defaultBranch || "main")
     setGithubBranches([])
-  }, [activeRepo?.id, activeRepo?.defaultBranch])
+  }, [activeRepo?.id, activeRepo?.preferredBaseBranch, activeRepo?.defaultBranch])
 
   const fetchGithubBranches = useCallback(async () => {
     if (!activeRepo) return
