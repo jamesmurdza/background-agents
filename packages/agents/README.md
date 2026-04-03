@@ -49,6 +49,15 @@ await sandbox.delete()
 | [OpenCode](https://opencode.ai/docs/) | ✅ | Provider-specific (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) |
 | [Gemini](https://geminicli.com/docs/) | ✅ | `GEMINI_API_KEY` |
 
+### CLI reference commands
+
+| Provider | CLI Command |
+|----------|-------------|
+| Claude | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions "prompt"` |
+| Codex | `codex exec --json --skip-git-repo-check --yolo "prompt"` |
+| OpenCode | `opencode run --format json --variant medium "prompt"` |
+| Gemini | `gemini --output-format stream-json --yolo -p "prompt"` |
+
 ---
 
 ## Prerequisites
