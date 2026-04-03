@@ -1,54 +1,15 @@
-{"type":"init","timestamp":"2026-04-02T19:15:36.647Z","session_id":"0aab8f60-6350-4902-8d25-54cdc82e56f7","model":"auto-gemini-3"}
-{"type":"message","timestamp":"2026-04-02T19:15:36.648Z","role":"user","content":"Please do the following:\n1. Tell me what 2 + 2 equals\n2. List the files in the current directory using ls\n3. Create a file called hello.txt with the content \"Hello, World!\"\n4. Read the file you just created\nKeep your responses brief."}
-{"type":"message","timestamp":"2026-04-02T19:15:40.368Z","role":"assistant","content":"2 + 2 equals 4.\n\nI will now list the files in the current directory, create a new file","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:15:40.509Z","role":"assistant","content":", and then read its contents.\n\n","delta":true}
-{"type":"tool_use","timestamp":"2026-04-02T19:15:40.633Z","tool_name":"run_shell_command","tool_id":"zm0rhwcx","parameters":{"command":"ls"}}
-{"type":"tool_use","timestamp":"2026-04-02T19:15:40.671Z","tool_name":"write_file","tool_id":"jve1ilyg","parameters":{"file_path":"hello.txt","content":"Hello, World!\n"}}
-{"type":"tool_result","timestamp":"2026-04-02T19:15:41.107Z","tool_id":"zm0rhwcx","status":"error","output":"Tool \"run_shell_command\" not found. Did you mean one of: \"grep_search\", \"cli_help\", \"read_file\"?","error":{"type":"tool_not_registered","message":"Tool \"run_shell_command\" not found. Did you mean one of: \"grep_search\", \"cli_help\", \"read_file\"?"}}
-Error executing tool run_shell_command: Tool "run_shell_command" not found. Did you mean one of: "grep_search", "cli_help", "read_file"?
-{"type":"tool_result","timestamp":"2026-04-02T19:15:41.107Z","tool_id":"jve1ilyg","status":"error","output":"Tool \"write_file\" not found. Did you mean one of: \"read_file\", \"cli_help\", \"generalist\"?","error":{"type":"tool_not_registered","message":"Tool \"write_file\" not found. Did you mean one of: \"read_file\", \"cli_help\", \"generalist\"?"}}
-Error executing tool write_file: Tool "write_file" not found. Did you mean one of: "read_file", "cli_help", "generalist"?
-{"type":"message","timestamp":"2026-04-02T19:15:47.843Z","role":"assistant","content":"I will list the files in the current directory and then use the generalist agent to create","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:15:47.980Z","role":"assistant","content":" and read the new file.\n\n","delta":true}
-{"type":"tool_use","timestamp":"2026-04-02T19:15:47.992Z","tool_name":"list_directory","tool_id":"jkoonwup","parameters":{"dir_path":"."}}
-{"type":"tool_use","timestamp":"2026-04-02T19:15:48.118Z","tool_name":"generalist","tool_id":"ttp7s8n1","parameters":{"request":"Create a file called hello.txt with the content \"Hello, World!\" and then read it."}}
-[LocalAgentExecutor] Skipping subagent tool 'codebase_investigator' for agent 'generalist' to prevent recursion.
-[LocalAgentExecutor] Skipping subagent tool 'cli_help' for agent 'generalist' to prevent recursion.
-[LocalAgentExecutor] Skipping subagent tool 'generalist' for agent 'generalist' to prevent recursion.
-[LocalAgentExecutor] Blocked call: Unauthorized tool call: 'run_shell_command' is not available to this agent.
-[LocalAgentExecutor] Blocked call: Unauthorized tool call: 'generalist' is not available to this agent.
-[LocalAgentExecutor] Blocked call: Unauthorized tool call: 'write_file' is not available to this agent.
-[LocalAgentExecutor] Blocked call: Unauthorized tool call: 'cli_help' is not available to this agent.
-Error generating content via API. Full report available at: /tmp/gemini-client-error-generateJson-api-2026-04-02T19-16-18-559Z.json _ApiError: {"error":{"code":400,"message":"Please ensure that function response turn comes immediately after a function call turn.","status":"INVALID_ARGUMENT"}}
-    at throwErrorIfNotOK (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-S2IQOR7T.js:35831:24)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-S2IQOR7T.js:35582:7
-    at async Models.generateContent (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-S2IQOR7T.js:36641:16)
-    at async file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:276581:26
-    at async file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:253666:23
-    at async retryWithBackoff (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:273586:23)
-    at async BaseLlmClient._generateWithRetry (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:273841:14)
-    at async BaseLlmClient.generateJson (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:273748:21)
-    at async NumericalClassifierStrategy.route (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:319030:28) {
-  status: 400
-}
-[Routing] NumericalClassifierStrategy failed: Error: Failed to generate content: {"error":{"code":400,"message":"Please ensure that function response turn comes immediately after a function call turn.","status":"INVALID_ARGUMENT"}}
-    at BaseLlmClient._generateWithRetry (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:273871:13)
-    at async BaseLlmClient.generateJson (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:273748:21)
-    at async NumericalClassifierStrategy.route (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:319030:28)
-    at async CompositeStrategy.route (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:319095:26)
-    at async ModelRouterService.route (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:319256:18)
-    at async _LocalAgentExecutor.callModel (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:330312:26)
-    at async _LocalAgentExecutor.executeTurn (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:329948:31)
-    at async _LocalAgentExecutor.run (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:330143:30)
-    at async LocalSubagentInvocation.execute (file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:330993:22)
-    at async file:///usr/local/share/nvm/versions/node/v25.6.0/lib/node_modules/@google/gemini-cli/bundle/chunk-QVTX2M5J.js:332995:23
-{"type":"tool_result","timestamp":"2026-04-02T19:16:25.943Z","tool_id":"jkoonwup","status":"success","output":"Listed 10 item(s)."}
-{"type":"tool_result","timestamp":"2026-04-02T19:16:25.943Z","tool_id":"ttp7s8n1","status":"success"}
-{"type":"message","timestamp":"2026-04-02T19:16:33.991Z","role":"assistant","content":"2 + 2 equals 4.\n\nI have listed the files in","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:16:34.176Z","role":"assistant","content":" the current directory. However, I am unable to create or read a new file because the necessary tools (like `write_file","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:16:34.317Z","role":"assistant","content":"` or `run_shell_command`) are not available in this environment.\n\nCurrent directory listing:\n- .cache (DIR","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:16:34.393Z","role":"assistant","content":")\n- .daytona (DIR)\n- .gemini (DIR)\n- .npm (DIR)","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:16:34.492Z","role":"assistant","content":"\n- .bash_logout\n- .bashrc\n- .face\n- .face.icon\n- .","delta":true}
-{"type":"message","timestamp":"2026-04-02T19:16:34.534Z","role":"assistant","content":"profile\n- .zshrc","delta":true}
-{"type":"result","timestamp":"2026-04-02T19:16:34.550Z","status":"success","stats":{"total_tokens":106583,"input_tokens":98351,"output_tokens":1078,"cached":48738,"input":49613,"duration_ms":57903,"tool_calls":5,"models":{"gemini-2.5-flash-lite":{"total_tokens":9210,"input_tokens":7082,"output_tokens":302,"cached":0,"input":7082},"gemini-3-flash-preview":{"total_tokens":84802,"input_tokens":79284,"output_tokens":627,"cached":48738,"input":30546},"gemini-3.1-pro-preview":{"total_tokens":12571,"input_tokens":11985,"output_tokens":149,"cached":0,"input":11985}}}}
+YOLO mode is enabled. All tool calls will be automatically approved.
+YOLO mode is enabled. All tool calls will be automatically approved.
+{"type":"init","timestamp":"2026-04-03T14:30:24.616Z","session_id":"9ea39555-d63b-4283-b9da-0ec0cda51203","model":"auto-gemini-3"}
+{"type":"message","timestamp":"2026-04-03T14:30:24.617Z","role":"user","content":"Please do the following:\n1. Tell me what 2 + 2 equals\n2. List the files in the current directory using ls\n3. Create a file called hello.txt with the content \"Hello, World!\"\n4. Read the file you just created\nKeep your responses brief."}
+{"type":"message","timestamp":"2026-04-03T14:30:30.830Z","role":"assistant","content":"2 + 2 equals","delta":true}
+{"type":"message","timestamp":"2026-04-03T14:30:30.946Z","role":"assistant","content":" 4.\n\nI will list the current directory, create 'hello.txt', and then read its contents.\n","delta":true}
+{"type":"tool_use","timestamp":"2026-04-03T14:30:31.151Z","tool_name":"run_shell_command","tool_id":"50dz35to","parameters":{"command":"ls","description":"List files in the current directory."}}
+{"type":"tool_use","timestamp":"2026-04-03T14:30:31.301Z","tool_name":"write_file","tool_id":"mynybr7u","parameters":{"file_path":"hello.txt","content":"Hello, World!\n"}}
+{"type":"tool_use","timestamp":"2026-04-03T14:30:31.361Z","tool_name":"read_file","tool_id":"fnjxafwy","parameters":{"wait_for_previous":true,"file_path":"hello.txt"}}
+{"type":"tool_result","timestamp":"2026-04-03T14:30:31.421Z","tool_id":"50dz35to","status":"success","output":"hello.txt"}
+{"type":"tool_result","timestamp":"2026-04-03T14:30:31.421Z","tool_id":"mynybr7u","status":"success"}
+{"type":"tool_result","timestamp":"2026-04-03T14:30:31.421Z","tool_id":"fnjxafwy","status":"success","output":""}
+{"type":"message","timestamp":"2026-04-03T14:30:34.450Z","role":"assistant","content":"I have calculated the sum, listed the directory,","delta":true}
+{"type":"message","timestamp":"2026-04-03T14:30:34.531Z","role":"assistant","content":" created 'hello.txt', and read its content as requested.","delta":true}
+{"type":"result","timestamp":"2026-04-03T14:30:35.020Z","status":"success","stats":{"total_tokens":26880,"input_tokens":25439,"output_tokens":217,"cached":8111,"input":17328,"duration_ms":10404,"tool_calls":3,"models":{"gemini-2.5-flash-lite":{"total_tokens":3442,"input_tokens":2992,"output_tokens":77,"cached":0,"input":2992},"gemini-3-flash-preview":{"total_tokens":23438,"input_tokens":22447,"output_tokens":140,"cached":8111,"input":14336}}}}
