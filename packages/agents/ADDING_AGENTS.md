@@ -10,9 +10,9 @@ Understand installation method, auth env vars, JSON output flags, non-interactiv
 
 Create `src/agents/<provider>/`:
 
-- `index.ts` — Implement `buildCommand()` returning CLI command and flags. Set `parse()` to just `return null`
-- `parser.ts` — Empty or stub, not used yet
-- `tools.ts` — Export empty object `{}`
+- `index.ts` — Implement `buildCommand()` returning CLI command and flags. Set `parse()` to `return null`
+- `parser.ts` — Export a `parse<Provider>Line()` function that returns `null`
+- `tools.ts` — Export `<PROVIDER>_TOOL_MAPPINGS = {}`
 
 Export from `src/agents/index.ts`.
 
