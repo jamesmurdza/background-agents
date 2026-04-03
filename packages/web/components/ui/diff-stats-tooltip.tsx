@@ -59,6 +59,7 @@ export function DiffStatsTooltip({ additions, deletions, className }: DiffStatsT
 }
 
 /**
- * Tooltip class for diff stats - white background with shadow, no arrow
+ * Tooltip class for diff stats - white background with shadow
+ * Use with hideArrow prop on TooltipContent
  */
-export const diffStatsTooltipClass = "text-xs bg-white text-gray-900 shadow-lg border border-gray-200 [&>svg]:hidden"
+export const diffStatsTooltipClass = "text-xs bg-white text-gray-900 shadow-lg border border-gray-200"

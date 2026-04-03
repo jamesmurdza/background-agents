@@ -356,7 +356,7 @@ export function BranchList({
                       <TooltipTrigger asChild>
                         {branchButton}
                       </TooltipTrigger>
-                      <TooltipContent side="right" className={diffStatsTooltipClass}>
+                      <TooltipContent side="right" className={diffStatsTooltipClass} hideArrow>
                         <DiffStatsTooltip additions={branchDiffStats.additions} deletions={branchDiffStats.deletions} />
                       </TooltipContent>
                     </Tooltip>

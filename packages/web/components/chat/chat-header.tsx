@@ -263,10 +263,12 @@ export function ChatHeader({
           // Build tooltip content for diff action
           let tooltipContent: ReactNode = hasPR ? "Open PR" : action.label
           let tooltipClassName = "text-xs"
+          let hideArrow = false
           if (isDiff && gitActions.diffStats) {
             const { additions, deletions } = gitActions.diffStats
             tooltipClassName = diffStatsTooltipClass
             tooltipContent = <DiffStatsTooltip additions={additions} deletions={deletions} />
+            hideArrow = true
           }
 
           return (
@@ -292,7 +294,7 @@ export function ChatHeader({
                     )}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className={tooltipClassName}>
+                <TooltipContent side="bottom" className={tooltipClassName} hideArrow={hideArrow}>
                   {tooltipContent}
                 </TooltipContent>
               </Tooltip>
