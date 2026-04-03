@@ -13,14 +13,17 @@ interface UseBranchSelectionOptions {
   repos: Repo[]
   loaded: boolean
   repoFromUrl?: RepoFromUrl | null
+  branchFromUrl?: string | null
+  /** Called when branch from URL is not found - should update URL to remove branch */
+  onBranchNotFound?: () => void
 }
 
 /**
  * Manages active repo/branch selection state with auto-selection on load
- * Supports URL-based repo selection via repoFromUrl parameter
+ * Supports URL-based repo and branch selection
  * Now uses Zustand for state management.
  */
-export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSelectionOptions) {
+export function useBranchSelection({ repos, loaded, repoFromUrl, branchFromUrl, onBranchNotFound }: UseBranchSelectionOptions) {
   const {
     activeRepoId,
     activeBranchId,
@@ -37,7 +40,10 @@ export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSele
   const activeBranchIdRef = useRef(activeBranchId)
   activeBranchIdRef.current = activeBranchId
 
-  // Handle URL-based repo selection on initial load
+  // Track if we've handled the branch from URL to avoid repeated callbacks
+  const handledBranchFromUrlRef = useRef<string | null>(null)
+
+  // Handle URL-based repo/branch selection on initial load
   useEffect(() => {
     if (!loaded || repos.length === 0) return
 
@@ -50,8 +56,27 @@ export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSele
       )
 
       if (matchingRepo) {
-        storeSelectRepo(matchingRepo.id, matchingRepo.branches[0]?.id ?? null)
+        // If URL also specifies a branch, try to find it
+        let branchToSelect = matchingRepo.branches[0]?.id ?? null
+        if (branchFromUrl) {
+          const matchingBranch = matchingRepo.branches.find(
+            (b) => b.name.toLowerCase() === branchFromUrl.toLowerCase()
+          )
+          if (matchingBranch) {
+            branchToSelect = matchingBranch.id
+            handledBranchFromUrlRef.current = branchFromUrl
+          } else {
+            // Branch not found - will call onBranchNotFound after selection
+            handledBranchFromUrlRef.current = null
+          }
+        }
+        storeSelectRepo(matchingRepo.id, branchToSelect)
         markInitialSelectionDone()
+
+        // If branch was specified but not found, notify caller
+        if (branchFromUrl && !handledBranchFromUrlRef.current) {
+          onBranchNotFound?.()
+        }
         return
       }
       // If URL repo not found, we'll fall through to default selection
@@ -79,7 +104,7 @@ export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSele
     // No valid selection, select first repo
     storeSelectRepo(repos[0].id, repos[0].branches[0]?.id ?? null)
     markInitialSelectionDone()
-  }, [loaded, repos, activeRepoId, activeBranchId, repoFromUrl, initialSelectionDone, storeSelectRepo, setActiveBranchId, markInitialSelectionDone])
+  }, [loaded, repos, activeRepoId, activeBranchId, repoFromUrl, branchFromUrl, initialSelectionDone, storeSelectRepo, setActiveBranchId, markInitialSelectionDone, onBranchNotFound])
 
   // Sync selection when URL changes (for browser back/forward)
   useEffect(() => {
@@ -93,9 +118,34 @@ export function useBranchSelection({ repos, loaded, repoFromUrl }: UseBranchSele
     )
 
     if (matchingRepo && matchingRepo.id !== activeRepoId) {
-      storeSelectRepo(matchingRepo.id, matchingRepo.branches[0]?.id ?? null)
+      // If URL also specifies a branch, try to find it
+      let branchToSelect = matchingRepo.branches[0]?.id ?? null
+      if (branchFromUrl) {
+        const matchingBranch = matchingRepo.branches.find(
+          (b) => b.name.toLowerCase() === branchFromUrl.toLowerCase()
+        )
+        if (matchingBranch) {
+          branchToSelect = matchingBranch.id
+        } else {
+          // Branch not found, notify caller
+          onBranchNotFound?.()
+        }
+      }
+      storeSelectRepo(matchingRepo.id, branchToSelect)
+    } else if (matchingRepo && branchFromUrl && handledBranchFromUrlRef.current !== branchFromUrl) {
+      // Same repo but different branch in URL - try to select the branch
+      const matchingBranch = matchingRepo.branches.find(
+        (b) => b.name.toLowerCase() === branchFromUrl.toLowerCase()
+      )
+      if (matchingBranch && matchingBranch.id !== activeBranchId) {
+        storeSelectBranch(matchingBranch.id)
+        handledBranchFromUrlRef.current = branchFromUrl
+      } else if (!matchingBranch) {
+        // Branch not found
+        onBranchNotFound?.()
+      }
     }
-  }, [repoFromUrl, repos, loaded, activeRepoId, initialSelectionDone, storeSelectRepo])
+  }, [repoFromUrl, branchFromUrl, repos, loaded, activeRepoId, activeBranchId, initialSelectionDone, storeSelectRepo, storeSelectBranch, onBranchNotFound])
 
   // Computed values
   const activeRepo = useMemo(
