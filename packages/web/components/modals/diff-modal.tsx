@@ -117,7 +117,7 @@ interface DiffModalProps {
   commitMessage?: string | null
 }
 
-type DiffMode = "since-created" | "vs-base" | "vs-branch"
+type DiffMode = "since-created" | "vs-branch"
 
 export function DiffModal({ open, onClose, repoOwner, repoName, branchName, baseBranch, startCommit, commitHash, commitMessage }: DiffModalProps) {
   const [branches, setBranches] = useState<string[]>([])
@@ -125,7 +125,7 @@ export function DiffModal({ open, onClose, repoOwner, repoName, branchName, base
   const [diff, setDiff] = useState("")
   const [loading, setLoading] = useState(false)
   const [branchesLoading, setBranchesLoading] = useState(false)
-  const [diffMode, setDiffMode] = useState<DiffMode>(startCommit ? "since-created" : "vs-base")
+  const [diffMode, setDiffMode] = useState<DiffMode>(startCommit ? "since-created" : "vs-branch")
 
   const isCommitMode = !!commitHash
 
@@ -151,9 +151,7 @@ export function DiffModal({ open, onClose, repoOwner, repoName, branchName, base
   const fetchDiff = useCallback(async () => {
     const base = diffMode === "since-created" && startCommit
       ? startCommit
-      : diffMode === "vs-branch"
-        ? compareBranch
-        : baseBranch
+      : compareBranch
     if (!base) return
     setLoading(true)
     try {
@@ -256,17 +254,6 @@ export function DiffModal({ open, onClose, repoOwner, repoName, branchName, base
                     </button>
                   )}
                   <button
-                    onClick={() => setDiffMode("vs-base")}
-                    className={cn(
-                      "rounded-md border px-2 py-0.5 text-xs cursor-pointer transition-colors",
-                      diffMode === "vs-base"
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    vs {baseBranch}
-                  </button>
-                  <button
                     onClick={() => setDiffMode("vs-branch")}
                     className={cn(
                       "rounded-md border px-2 py-0.5 text-xs cursor-pointer transition-colors",
@@ -275,7 +262,7 @@ export function DiffModal({ open, onClose, repoOwner, repoName, branchName, base
                         : "border-border text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    vs branch
+                    Compare
                   </button>
                 </div>
                 {diffMode === "vs-branch" && (
