@@ -318,6 +318,21 @@ function FilePathLink({
 }
 
 function ToolCallTimeline({ toolCalls, sandboxId, repoPath }: { toolCalls: ToolCall[]; sandboxId?: string | null; repoPath?: string | null }) {
+  // Debug: log tool calls to verify filePath is present
+  // Remove this after confirming the feature works
+  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+    const fileTools = toolCalls.filter(tc => ['Read', 'Edit', 'Write'].includes(tc.tool))
+    if (fileTools.length > 0) {
+      console.log('[FilePathLink Debug] File tools:', fileTools.map(tc => ({
+        tool: tc.tool,
+        summary: tc.summary,
+        filePath: tc.filePath,
+        hasFilePath: !!tc.filePath,
+      })))
+      console.log('[FilePathLink Debug] Context:', { sandboxId: !!sandboxId, repoPath: !!repoPath })
+    }
+  }
+
   return (
     <div className="relative my-1.5 ml-[10px]">
       <div className="absolute left-[5.5px] top-2 bottom-2 w-px bg-border" />
