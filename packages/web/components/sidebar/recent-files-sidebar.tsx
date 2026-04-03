@@ -401,7 +401,6 @@ function ServerPreviewPopover({
         >
           <Globe className="h-3.5 w-3.5 text-foreground shrink-0" />
           <span className="font-mono text-xs truncate flex-1 text-left">{server.url}</span>
-          <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
         </button>
 
         {/* Iframe Container */}
