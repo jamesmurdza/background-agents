@@ -162,38 +162,39 @@ function HighlightedCode({ code }: { code: string }) {
 }
 
 function DeferredHighlightedCode({ code }: { code: string }) {
-  const [lines, setLines] = useState<string[] | null>(null)
+  const [lines, setLines] = useState<string[]>(() => highlightLines(code))
+  const [pending, setPending] = useState(false)
 
   useEffect(() => {
-    setLines(null)
+    setPending(true)
     const id = requestAnimationFrame(() => {
       setLines(highlightLines(code))
+      setPending(false)
     })
     return () => cancelAnimationFrame(id)
   }, [code])
 
-  if (!lines) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
   return (
-    <table className="w-full text-xs font-mono border-collapse">
-      <tbody>
-        {lines.map((lineHtml, i) => (
-          <tr key={i} className="leading-5">
-            <td className="select-none text-right text-muted-foreground/50 pr-3 pl-3 align-top w-1 whitespace-nowrap">{i + 1}</td>
-            <td
-              className="pr-3 whitespace-pre-wrap break-all"
-              dangerouslySetInnerHTML={{ __html: lineHtml }}
-            />
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <table className="w-full text-xs font-mono border-collapse">
+        <tbody>
+          {lines.map((lineHtml, i) => (
+            <tr key={i} className="leading-5">
+              <td className="select-none text-right text-muted-foreground/50 pr-3 pl-3 align-top w-1 whitespace-nowrap">{i + 1}</td>
+              <td
+                className="pr-3 whitespace-pre-wrap break-all"
+                dangerouslySetInnerHTML={{ __html: lineHtml }}
+              />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {pending && (
+        <div className="flex items-center justify-center py-2">
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -244,7 +245,6 @@ function FileIcon({ file, isLoading, onClick, isPinned }: {
 function FilePreviewPopover({
   file,
   content,
-  isLoading,
   error,
   open,
   onOpenChange,
@@ -255,7 +255,6 @@ function FilePreviewPopover({
 }: {
   file: ModifiedFile
   content: FileContent | null
-  isLoading: boolean
   error: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -266,12 +265,19 @@ function FilePreviewPopover({
 }) {
   const { filename } = getFileDisplayInfo(file.path)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const loadFullTriggered = useRef(false)
+
+  // Reset the guard when file changes
+  useEffect(() => {
+    loadFullTriggered.current = false
+  }, [file.path])
 
   // Load full content when user scrolls near the bottom of a truncated preview
   const handleScroll = useCallback(() => {
-    if (!content?.truncated || !scrollRef.current || !onLoadFull) return
+    if (!content?.truncated || !scrollRef.current || !onLoadFull || loadFullTriggered.current) return
     const el = scrollRef.current
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
+      loadFullTriggered.current = true
       onLoadFull()
     }
   }, [content?.truncated, onLoadFull])
@@ -301,11 +307,7 @@ function FilePreviewPopover({
 
         {/* Content */}
         <div ref={scrollRef} className="overflow-auto min-h-0 flex-1" onScroll={handleScroll}>
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : error ? (
+          {error ? (
             <div className="flex items-center justify-center h-32 text-sm text-destructive">
               {error}
             </div>
@@ -319,7 +321,11 @@ function FilePreviewPopover({
                 </div>
               )}
             </>
-          ) : null}
+          ) : (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
         </div>
 
         {/* Footer with full path */}
@@ -1078,8 +1084,7 @@ export function RecentFilesSidebar({ sandboxId, repoPath, cacheKey, previewUrlPa
             key={file.path}
             file={file}
             content={content}
-            isLoading={isLoadingThis}
-            error={isOpen && !isLoadingThis && !content ? contentError : null}
+            error={isOpen && !content ? contentError : null}
             open={isOpen}
             onOpenChange={(open) => handleFileOpenChange(index, open)}
             onMouseEnter={handleFilePopoverMouseEnter}
