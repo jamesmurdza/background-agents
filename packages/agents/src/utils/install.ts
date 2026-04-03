@@ -3,12 +3,15 @@ import type { ProviderName } from "../types/index.js"
 
 /**
  * CLI package information for each provider
+ * Value is either an npm package name or a special install command prefixed with "!"
  */
 const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
   opencode: "opencode",
   gemini: "@google/gemini-cli",
+  // Picocode is installed via shell script, not npm
+  picocode: "!curl -sSfL https://raw.githubusercontent.com/jondot/picocode/main/install.sh | sh",
 }
 
 /**
@@ -27,24 +30,40 @@ export function isCliInstalled(name: ProviderName): boolean {
 }
 
 /**
- * Get the npm package name for a provider
+ * Get the installation instructions for a provider
+ * Returns npm package name for npm-installed providers,
+ * or the shell command for custom-installed providers.
  */
 export function getPackageName(name: ProviderName): string {
-  return PROVIDER_PACKAGES[name]
+  const packageInfo = PROVIDER_PACKAGES[name]
+  // For custom install commands, return the command without the "!" prefix
+  return packageInfo.startsWith("!") ? packageInfo.slice(1) : packageInfo
 }
 
 /**
- * Install a provider CLI globally via npm
+ * Install a provider CLI globally
+ * Supports npm packages and custom install commands (prefixed with "!")
  * @returns true if installation succeeded
  */
 export function installProvider(name: ProviderName): boolean {
-  const packageName = PROVIDER_PACKAGES[name]
+  const packageInfo = PROVIDER_PACKAGES[name]
 
   try {
-    execSync(`npm install -g ${packageName}`, {
-      stdio: "inherit",
-      encoding: "utf8",
-    })
+    // Check if this is a custom install command (starts with "!")
+    if (packageInfo.startsWith("!")) {
+      const installCommand = packageInfo.slice(1) // Remove the "!" prefix
+      execSync(installCommand, {
+        stdio: "inherit",
+        encoding: "utf8",
+        shell: "/bin/bash",
+      })
+    } else {
+      // Standard npm install
+      execSync(`npm install -g ${packageInfo}`, {
+        stdio: "inherit",
+        encoding: "utf8",
+      })
+    }
     return true
   } catch {
     return false
@@ -67,10 +86,13 @@ export function ensureCliInstalled(
   }
 
   if (!autoInstall) {
-    const packageName = PROVIDER_PACKAGES[name]
+    const packageInfo = PROVIDER_PACKAGES[name]
+    const installInstructions = packageInfo.startsWith("!")
+      ? packageInfo.slice(1) // Show the shell command
+      : `npm install -g ${packageInfo}`
     throw new Error(
       `CLI '${name}' is not installed. ` +
-        `Install it with: npm install -g ${packageName}`
+        `Install it with: ${installInstructions}`
     )
   }
 
@@ -78,10 +100,13 @@ export function ensureCliInstalled(
   const success = installProvider(name)
 
   if (!success) {
-    const packageName = PROVIDER_PACKAGES[name]
+    const packageInfo = PROVIDER_PACKAGES[name]
+    const installInstructions = packageInfo.startsWith("!")
+      ? packageInfo.slice(1)
+      : `npm install -g ${packageInfo}`
     throw new Error(
       `Failed to install '${name}' CLI. ` +
-        `Try manually: npm install -g ${packageName}`
+        `Try manually: ${installInstructions}`
     )
   }
 
@@ -93,7 +118,7 @@ export function ensureCliInstalled(
  * Check installation status of all providers
  */
 export function getInstallationStatus(): Record<ProviderName, boolean> {
-  const providers: ProviderName[] = ["claude", "codex", "opencode", "gemini"]
+  const providers: ProviderName[] = ["claude", "codex", "opencode", "gemini", "picocode"]
   const status: Record<string, boolean> = {}
 
   for (const provider of providers) {
