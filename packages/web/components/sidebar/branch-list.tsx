@@ -31,6 +31,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { DiffStatsTooltip, diffStatsTooltipClass } from "@/components/ui/diff-stats-tooltip"
 import { useBranchDiffStats } from "./hooks/useBranchDiffStats"
 
 interface BranchListProps {
@@ -355,11 +356,8 @@ export function BranchList({
                       <TooltipTrigger asChild>
                         {branchButton}
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="text-xs bg-white text-gray-900 dark:bg-white dark:text-gray-900">
-                        <span className="flex items-center gap-1.5">
-                          <span className="text-green-600">+{branchDiffStats.additions}</span>
-                          <span className="text-red-600">−{branchDiffStats.deletions}</span>
-                        </span>
+                      <TooltipContent side="right" className={diffStatsTooltipClass}>
+                        <DiffStatsTooltip additions={branchDiffStats.additions} deletions={branchDiffStats.deletions} />
                       </TooltipContent>
                     </Tooltip>
                   ) : (

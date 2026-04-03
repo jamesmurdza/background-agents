@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tooltip"
 import type { UseGitActionsReturn } from "./hooks/useGitActions"
 import type { UseBranchRenamingReturn } from "./hooks/useBranchRenaming"
+import { DiffStatsTooltip, diffStatsTooltipClass } from "@/components/ui/diff-stats-tooltip"
 
 // ============================================================================
 // Header Actions Config
@@ -264,17 +265,8 @@ export function ChatHeader({
           let tooltipClassName = "text-xs"
           if (isDiff && gitActions.diffStats) {
             const { additions, deletions } = gitActions.diffStats
-            // Use white background for better contrast with colored text
-            tooltipClassName = "text-xs bg-white text-gray-900 dark:bg-white dark:text-gray-900"
-            tooltipContent = (
-              <span className="flex items-center gap-2">
-                <span>Diff</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-green-600">+{additions}</span>
-                  <span className="text-red-600">−{deletions}</span>
-                </span>
-              </span>
-            )
+            tooltipClassName = diffStatsTooltipClass
+            tooltipContent = <DiffStatsTooltip additions={additions} deletions={deletions} />
           }
 
           return (
