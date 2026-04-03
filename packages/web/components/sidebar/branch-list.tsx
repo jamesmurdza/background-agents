@@ -119,9 +119,9 @@ export function BranchList({
   useEffect(() => {
     setCreateError(null)
     setStartCommit(null)
-    setNewBranchBase(repo.defaultBranch || "main")
+    setNewBranchBase(repo.preferredBaseBranch || repo.defaultBranch || "main")
     setGithubBranches([])
-  }, [repo.id, repo.defaultBranch])
+  }, [repo.id, repo.preferredBaseBranch, repo.defaultBranch])
 
   const fetchGithubBranches = useCallback(async () => {
     setGithubBranchesLoading(true)
