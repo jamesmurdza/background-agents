@@ -157,6 +157,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     }
 
     // Check if there's anything to save
+    const gitPrefsChanged = squashOnMerge !== initialSquashOnMerge || prDescriptionMode !== initialPrDescriptionMode
     const hasAnyChanges =
       newAnthropicKey ||
       newAuthToken ||
@@ -165,7 +166,8 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       newGeminiKey ||
       newDaytonaKey ||
       autoStopChanged ||
-      keysToClear.size > 0
+      keysToClear.size > 0 ||
+      gitPrefsChanged
 
     if (!hasAnyChanges) {
       onClose()
