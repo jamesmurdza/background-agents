@@ -138,8 +138,17 @@ export function parseOpencodeLine(
   if (json.type === "tool_use") {
     const toolName = (json.part?.tool || "unknown").toLowerCase()
     const normalized = normalizeToolName(toolName, toolMappings)
-    const raw = json.part as { state?: { input?: unknown } } | undefined
-    return createToolStartEvent(normalized, raw?.state?.input, toolMappings)
+    const part = json.part as { state?: { input?: unknown; output?: string; status?: string } } | undefined
+    const input = part?.state?.input
+    const output = part?.state?.output
+    const status = part?.state?.status
+
+    // Emit tool_end with output when tool has completed (opencode includes output in tool_use)
+    if (status === "completed" && output !== undefined) {
+      return { type: "tool_end", output }
+    }
+
+    return createToolStartEvent(normalized, input, toolMappings)
   }
 
   // Tool result - tool completed

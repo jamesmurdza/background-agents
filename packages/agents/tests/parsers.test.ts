@@ -314,6 +314,26 @@ describe("parseOpencodeLine", () => {
     expect(event).toEqual({ type: "tool_start", name: "unknown", input: {} })
   })
 
+  it("parses tool_use event with completed status and output", () => {
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "tool_use", "sessionID": "ses_xyz123", "part": {"type": "tool", "tool": "bash", "state": {"status": "completed", "input": {"command": "ls"}, "output": "file1.txt\\nfile2.txt"}}}',
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_end", output: "file1.txt\nfile2.txt" })
+  })
+
+  it("parses tool_use event without completed status", () => {
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "tool_use", "sessionID": "ses_xyz123", "part": {"type": "tool", "tool": "bash", "state": {"input": {"command": "ls"}}}}',
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_start", name: "shell", input: { command: "ls" } })
+  })
+
   it("parses tool_result event", () => {
     const ctx = createContext()
     const event = parseOpencodeLine(
