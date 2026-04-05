@@ -65,7 +65,7 @@ export const opencodeAgent: AgentDefinition = {
     }
   },
 
-  parse(line: string, context: ParseContext): Event | null {
+  parse(line: string, context: ParseContext): Event | Event[] | null {
     return parseOpencodeLine(line, this.toolMappings, context)
   },
 }

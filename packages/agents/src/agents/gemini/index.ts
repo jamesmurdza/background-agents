@@ -58,7 +58,7 @@ export const geminiAgent: AgentDefinition = {
     }
   },
 
-  parse(line: string, context: ParseContext): Event | null {
+  parse(line: string, context: ParseContext): Event | Event[] | null {
     return parseGeminiLine(line, this.toolMappings, context)
   },
 }

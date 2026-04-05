@@ -37,6 +37,8 @@ export interface ToolCall {
   tool: string
   summary: string
   fullSummary?: string
+  filePath?: string
+  output?: string
 }
 
 export interface ContentBlock {
@@ -328,6 +330,8 @@ export function addToolCallIds(toolCalls: ToolCall[]): ToolCallWithId[] {
     tool: tc.tool,
     summary: tc.summary,
     fullSummary: tc.fullSummary,
+    filePath: tc.filePath,
+    output: tc.output,
     timestamp,
   }))
 }
@@ -349,6 +353,8 @@ export function addContentBlockIds(contentBlocks: ContentBlock[]): ContentBlockW
           tool: tc.tool,
           summary: tc.summary,
           fullSummary: tc.fullSummary,
+          filePath: tc.filePath,
+          output: tc.output,
           timestamp,
         })),
       }

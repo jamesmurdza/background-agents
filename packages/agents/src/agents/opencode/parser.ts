@@ -105,7 +105,7 @@ export function parseOpencodeLine(
   line: string,
   toolMappings: Record<string, string>,
   context: ParseContext
-): Event | null {
+): Event | Event[] | null {
   const json = safeJsonParse<OpenCodeEvent>(line)
   if (!json) {
     return null
@@ -134,15 +134,23 @@ export function parseOpencodeLine(
     return createToolStartEvent(normalized, json.part?.args, toolMappings)
   }
 
-  // Tool use (stream-json: emitted when tool completes)
+  // Tool use (stream-json: emitted when tool completes with full state)
   if (json.type === "tool_use") {
     const toolName = (json.part?.tool || "unknown").toLowerCase()
     const normalized = normalizeToolName(toolName, toolMappings)
-    const raw = json.part as { state?: { input?: unknown } } | undefined
-    return createToolStartEvent(normalized, raw?.state?.input, toolMappings)
+    const raw = json.part as { state?: { status?: string; input?: unknown; output?: string } } | undefined
+    const startEvent = createToolStartEvent(normalized, raw?.state?.input, toolMappings)
+
+    // If the tool already completed (state.output is present), emit tool_end inline.
+    // This is the common case for OpenCode: tool_use carries the full result.
+    const rawOutput = raw?.state?.output
+    if (typeof rawOutput === "string" && rawOutput.trim()) {
+      return [startEvent, { type: "tool_end", output: rawOutput.trim() }]
+    }
+    return startEvent
   }
 
-  // Tool result - tool completed
+  // Tool result - tool completed (streaming / in-progress path, no output here)
   if (json.type === "tool_result") {
     return { type: "tool_end" }
   }
