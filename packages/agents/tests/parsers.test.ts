@@ -241,6 +241,93 @@ describe("parseGeminiLine", () => {
     expect(event).toEqual({ type: "end" })
   })
 
+  it("parses message event (current format) for assistant text", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({ type: "message", role: "assistant", content: "2 + 2 equals 4.", delta: true }),
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "token", text: "2 + 2 equals 4." })
+  })
+
+  it("ignores message event for user role", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({ type: "message", role: "user", content: "Please do X." }),
+      mappings,
+      ctx
+    )
+    expect(event).toBeNull()
+  })
+
+  it("parses result event (current format) as end", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({ type: "result", status: "success", stats: {} }),
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "end" })
+  })
+
+  it("parses tool_use event (current format) as tool_start", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({
+        type: "tool_use",
+        tool_name: "run_shell_command",
+        tool_id: "abc123",
+        parameters: { command: "ls", description: "List files" },
+      }),
+      mappings,
+      ctx
+    )
+    // run_shell_command is not in GEMINI_TOOL_MAPPINGS, so it passes through normalized
+    expect(event).toMatchObject({ type: "tool_start", name: "run_shell_command" })
+  })
+
+  it("parses tool_use for known tool and normalizes name", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({
+        type: "tool_use",
+        tool_name: "execute_code",
+        tool_id: "xyz789",
+        parameters: { command: "echo hi" },
+      }),
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_start", name: "shell", input: { command: "echo hi" } })
+  })
+
+  it("parses tool_result event (current format) with output", () => {
+    const ctx = createContext()
+    // First emit a tool_use to track the tool_id
+    parseGeminiLine(
+      JSON.stringify({ type: "tool_use", tool_name: "run_shell_command", tool_id: "abc123", parameters: {} }),
+      mappings,
+      ctx
+    )
+    const event = parseGeminiLine(
+      JSON.stringify({ type: "tool_result", tool_id: "abc123", status: "success", output: "hello.txt" }),
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_end", output: "hello.txt" })
+  })
+
+  it("parses tool_result with no output (empty string) as undefined output", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({ type: "tool_result", tool_id: "noop", status: "success", output: "" }),
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "tool_end", output: undefined })
+  })
+
   it("returns null for unknown event types", () => {
     const ctx = createContext()
     expect(parseGeminiLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
