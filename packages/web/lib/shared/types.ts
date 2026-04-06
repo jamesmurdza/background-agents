@@ -1,9 +1,9 @@
 import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType } from "./constants"
 
-export type Agent = "claude-code" | "opencode" | "codex" | "gemini"
+export type Agent = "claude-code" | "opencode" | "codex" | "gemini" | "goose"
 
 // SDK provider names (must match ProviderName from SDK)
-export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
+export type ProviderName = "claude" | "codex" | "opencode" | "gemini" | "goose"
 
 // SDK provider mapping
 export const agentToProvider: Record<Agent, ProviderName> = {
@@ -11,6 +11,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "opencode": "opencode",
   "codex": "codex",
   "gemini": "gemini",
+  "goose": "goose",
 }
 
 // Helper to get provider from agent string (handles legacy "claude" value)
@@ -28,6 +29,9 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
   }
   if (agent === "gemini") {
     return "gemini"
+  }
+  if (agent === "goose") {
+    return "goose"
   }
   // Fallback for any other value
   return "claude"
@@ -129,6 +133,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "gemini" },
   ],
+  "goose": [
+    { value: "gpt-4o", label: "GPT-4o (Recommended)", requiresKey: "openai" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
+    { value: "claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
+  ],
 }
 
 // Default model per agent
@@ -138,6 +148,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "opencode": "opencode/big-pickle",
   "codex": "gpt-5.4",
   "gemini": "gemini-2.5-flash",
+  "goose": "gpt-4o",
 }
 
 // User credentials for filtering
@@ -184,6 +195,13 @@ export function hasCodexCredentials(credentials: UserCredentialFlags | null | un
  */
 export function hasGeminiCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
   return !!credentials?.hasGeminiApiKey
+}
+
+/**
+ * Check if user has credentials for Goose agent (requires OpenAI or Anthropic API key).
+ */
+export function hasGooseCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
+  return !!(credentials?.hasOpenaiApiKey || credentials?.hasAnthropicApiKey)
 }
 
 /**
@@ -352,6 +370,7 @@ export const agentLabels: Record<Agent, string> = {
   "opencode": "OpenCode",
   "codex": "Codex",
   "gemini": "Gemini",
+  "goose": "Goose",
 }
 
 // Get model label from model value

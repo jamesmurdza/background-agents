@@ -215,6 +215,7 @@ export const PATHS = {
     "opencode": "/home/daytona/.config/opencode/opencode.jsonc",
     "codex": "/home/daytona/.codex/config.toml",
     "gemini": "/home/daytona/.gemini/settings.json",
+    "goose": "/home/daytona/.config/goose/config.yaml",
   },
 } as const
 

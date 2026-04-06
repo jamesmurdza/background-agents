@@ -4,7 +4,7 @@
  */
 import type { Sandbox } from "@daytonaio/sdk"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, ProviderName } from "../types/index.js"
-import { getPackageName } from "../utils/install.js"
+import { getPackageName, getShellInstaller } from "../utils/install.js"
 
 /** Escape a string for use in single-quoted shell strings */
 function escapeShell(str: string): string {
@@ -129,20 +129,53 @@ export function adaptDaytonaSandbox(
     },
 
     async ensureProvider(name: ProviderName): Promise<void> {
-      const checkResult = await sandbox.process.executeCommand(`which ${name}`)
+      // For goose, also check in ~/.local/bin which is the default install location
+      const checkCommand = name === "goose"
+        ? `which ${name} || test -x "$HOME/.local/bin/${name}"`
+        : `which ${name}`
+      const checkResult = await sandbox.process.executeCommand(checkCommand)
       if (checkResult.exitCode === 0) return
 
       console.log(`Installing ${name} CLI in sandbox...`)
+
+      // Check if provider uses shell installer or npm
+      const shellInstaller = getShellInstaller(name)
+      const installCommand = shellInstaller ?? `npm install -g ${getPackageName(name)}`
+
       const installResult = await sandbox.process.executeCommand(
-        `npm install -g ${getPackageName(name)}`, undefined, undefined, 120
+        installCommand, undefined, undefined, 120
       )
       if (installResult.exitCode !== 0) {
-        throw new Error(`Failed to install ${name} CLI in sandbox`)
+        const output = installResult.result ?? ""
+        throw new Error(`Failed to install ${name} CLI in sandbox: ${output.slice(0, 500)}`)
       }
       console.log(`Installed ${name} CLI`)
 
       if (name === "gemini") {
         await sandbox.process.executeCommand("mkdir -p ~/.gemini", undefined, undefined, 30)
+      }
+
+      // For goose, add ~/.local/bin to PATH and create default config
+      if (name === "goose") {
+        await sandbox.process.executeCommand(
+          `grep -q 'HOME/.local/bin' ~/.bashrc || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc`,
+          undefined, undefined, 10
+        )
+        // Create default goose config if it doesn't exist
+        // Uses OpenAI provider by default with gpt-4o model
+        await sandbox.process.executeCommand(
+          `mkdir -p ~/.config/goose && test -f ~/.config/goose/config.yaml || cat > ~/.config/goose/config.yaml << 'GOOSECONFIG'
+GOOSE_PROVIDER: openai
+GOOSE_MODEL: gpt-4o
+GOOSE_MODE: auto
+extensions:
+  developer:
+    enabled: true
+    name: developer
+    type: builtin
+GOOSECONFIG`,
+          undefined, undefined, 10
+        )
       }
     },
   }

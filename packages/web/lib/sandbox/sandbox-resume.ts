@@ -95,6 +95,22 @@ function getEnvForModel(
     return env
   }
 
+  // For Goose agent: determine API key based on model
+  // Goose uses either OpenAI or Anthropic depending on the model
+  if (agent === "goose") {
+    if (model?.includes("claude")) {
+      if (credentials.anthropicApiKey) {
+        env.ANTHROPIC_API_KEY = credentials.anthropicApiKey
+      }
+    } else {
+      // Default to OpenAI for GPT models and others
+      if (credentials.openaiApiKey) {
+        env.OPENAI_API_KEY = credentials.openaiApiKey
+      }
+    }
+    return env
+  }
+
   // For OpenCode agent, determine API key based on model prefix
   if (agent === "opencode") {
     const modelPrefix = model?.split("/")[0]

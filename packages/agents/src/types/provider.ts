@@ -6,7 +6,7 @@
  * Supported agent names.
  * Used by ensureProvider() to install the correct CLI.
  */
-export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
+export type ProviderName = "claude" | "codex" | "goose" | "opencode" | "gemini"
 
 /**
  * Options for starting a background command that writes to a log file.

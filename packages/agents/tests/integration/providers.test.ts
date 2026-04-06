@@ -8,6 +8,7 @@
  *   - claude: DAYTONA_API_KEY, ANTHROPIC_API_KEY
  *   - codex: DAYTONA_API_KEY, OPENAI_API_KEY
  *   - gemini: DAYTONA_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY)
+ *   - goose: DAYTONA_API_KEY, OPENAI_API_KEY (or ANTHROPIC_API_KEY)
  *   - opencode: DAYTONA_API_KEY, ANTHROPIC_API_KEY (or OPENAI_API_KEY)
  *
  * You can use TEST_ prefixed keys (e.g., TEST_OPENAI_API_KEY) to avoid conflicts
@@ -57,6 +58,12 @@ const agents = [
     apiKeyEnvVar: "GEMINI_API_KEY",
     apiKey: GEMINI_API_KEY,
     hasKey: !!GEMINI_API_KEY,
+  },
+  {
+    name: "goose" as const,
+    apiKeyEnvVar: "OPENAI_API_KEY", // goose uses OpenAI provider by default
+    apiKey: OPENAI_API_KEY,
+    hasKey: !!OPENAI_API_KEY,
   },
   {
     name: "opencode" as const,

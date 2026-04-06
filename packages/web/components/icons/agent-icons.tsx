@@ -92,6 +92,57 @@ export function GeminiIcon({ className }: AgentIconProps) {
   )
 }
 
+// Goose icon - Block's Goose AI agent logo (stylized goose)
+// Simplified goose silhouette
+export function GooseIcon({ className }: AgentIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-4 w-4", className)}
+    >
+      {/* Goose head and neck */}
+      <path
+        d="M6 4c0-1.1.9-2 2-2h1c1.1 0 2 .9 2 2v2c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1V4z"
+        fill="currentColor"
+      />
+      {/* Beak */}
+      <path
+        d="M5 5h1v1H5z"
+        fill="currentColor"
+      />
+      {/* Body */}
+      <ellipse
+        cx="12"
+        cy="14"
+        rx="6"
+        ry="5"
+        fill="currentColor"
+      />
+      {/* Neck connecting head to body */}
+      <path
+        d="M9 7v3c0 1 1 2 2 2h2c1 0 2-1 2-2V9"
+        fill="currentColor"
+      />
+      {/* Legs */}
+      <path
+        d="M10 19v3M14 19v3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* Feet */}
+      <path
+        d="M8 22h4M12 22h4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 // Helper function to get the icon component for an agent
 export function AgentIcon({ agent, className }: { agent: Agent; className?: string }) {
   switch (agent) {
@@ -103,6 +154,8 @@ export function AgentIcon({ agent, className }: { agent: Agent; className?: stri
       return <OpenCodeIcon className={className} />
     case "gemini":
       return <GeminiIcon className={className} />
+    case "goose":
+      return <GooseIcon className={className} />
     default:
       return <ClaudeCodeIcon className={className} />
   }

@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const repoPath = `${PATHS.SANDBOX_HOME}/${actualRepoName}`
 
   // Use agent/model from request body (current UI selection) when valid; else DB; ensures run matches what user selected
-  const validAgents: Agent[] = ["claude-code", "opencode", "codex", "gemini"]
+  const validAgents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose"]
   const agent = validAgents.includes(bodyAgent) ? bodyAgent : (sandboxRecord.branch?.agent as Agent) || "claude-code"
   const model = bodyModel ?? sandboxRecord.branch?.model ?? undefined
 
