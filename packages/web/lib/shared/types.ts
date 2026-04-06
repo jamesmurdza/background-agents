@@ -1,9 +1,9 @@
 import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType } from "./constants"
 
-export type Agent = "claude-code" | "opencode" | "codex" | "gemini"
+export type Agent = "claude-code" | "opencode" | "codex" | "gemini" | "picocode"
 
 // SDK provider names (must match ProviderName from SDK)
-export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
+export type ProviderName = "claude" | "codex" | "opencode" | "gemini" | "picocode"
 
 // SDK provider mapping
 export const agentToProvider: Record<Agent, ProviderName> = {
@@ -11,6 +11,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "opencode": "opencode",
   "codex": "codex",
   "gemini": "gemini",
+  "picocode": "picocode",
 }
 
 // Helper to get provider from agent string (handles legacy "claude" value)
@@ -29,6 +30,9 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
   if (agent === "gemini") {
     return "gemini"
   }
+  if (agent === "picocode") {
+    return "picocode"
+  }
   // Fallback for any other value
   return "claude"
 }
@@ -37,7 +41,7 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
 export interface ModelOption {
   value: string
   label: string
-  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "none" // Which API key is required
+  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "picocode" | "none" // Which API key is required
 }
 
 export const agentModels: Record<Agent, ModelOption[]> = {
@@ -129,6 +133,17 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "gemini" },
   ],
+  "picocode": [
+    // Picocode supports multiple providers - Anthropic models are shown here
+    // Model format is "provider/model-name" (e.g., "anthropic/claude-3-5-sonnet-20241022")
+    { value: "anthropic/claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (Recommended)", requiresKey: "anthropic" },
+    { value: "anthropic/claude-3-opus-20240229", label: "Claude 3 Opus", requiresKey: "anthropic" },
+    { value: "anthropic/claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku", requiresKey: "anthropic" },
+    // OpenAI models
+    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
+    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
+    { value: "openai/gpt-4", label: "GPT-4", requiresKey: "openai" },
+  ],
 }
 
 // Default model per agent
@@ -138,6 +153,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "opencode": "opencode/big-pickle",
   "codex": "gpt-5.4",
   "gemini": "gemini-2.5-flash",
+  "picocode": "anthropic/claude-3-5-sonnet-20241022",
 }
 
 // User credentials for filtering
@@ -187,6 +203,14 @@ export function hasGeminiCredentials(credentials: UserCredentialFlags | null | u
 }
 
 /**
+ * Check if user has credentials for Picocode agent.
+ * Picocode supports multiple providers, so returns true if user has ANY supported provider key.
+ */
+export function hasPicocodeCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
+  return !!(credentials?.hasAnthropicApiKey || credentials?.hasOpenaiApiKey)
+}
+
+/**
  * Get all models for an agent (no filtering by credentials).
  * All models are shown in the UI regardless of API key availability.
  */
@@ -213,8 +237,8 @@ export function hasCredentialsForModel(
     case "none":
       return true
     case "anthropic":
-      // OpenCode agent requires API key only - Claude subscription doesn't work with it
-      if (agent === "opencode") {
+      // OpenCode and Picocode agents require API key only - Claude subscription doesn't work with them
+      if (agent === "opencode" || agent === "picocode") {
         return !!credentials?.hasAnthropicApiKey
       }
       // Claude Code agent can use either API key or subscription
@@ -352,6 +376,7 @@ export const agentLabels: Record<Agent, string> = {
   "opencode": "OpenCode",
   "codex": "Codex",
   "gemini": "Gemini",
+  "picocode": "Picocode",
 }
 
 // Get model label from model value

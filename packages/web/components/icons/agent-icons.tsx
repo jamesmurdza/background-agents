@@ -92,6 +92,38 @@ export function GeminiIcon({ className }: AgentIconProps) {
   )
 }
 
+// Picocode icon - Simple code brackets representing minimal/pico
+// Custom icon representing picocode's minimalist approach
+export function PicocodeIcon({ className }: AgentIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-4 w-4", className)}
+    >
+      {/* Left angle bracket */}
+      <path
+        d="M9 6L3 12L9 18"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      {/* Right angle bracket */}
+      <path
+        d="M15 6L21 12L15 18"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
 // Helper function to get the icon component for an agent
 export function AgentIcon({ agent, className }: { agent: Agent; className?: string }) {
   switch (agent) {
@@ -103,6 +135,8 @@ export function AgentIcon({ agent, className }: { agent: Agent; className?: stri
       return <OpenCodeIcon className={className} />
     case "gemini":
       return <GeminiIcon className={className} />
+    case "picocode":
+      return <PicocodeIcon className={className} />
     default:
       return <ClaudeCodeIcon className={className} />
   }

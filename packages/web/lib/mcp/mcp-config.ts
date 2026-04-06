@@ -54,6 +54,10 @@ export function buildMcpConfig(
     case "codex":
       configContent = buildCodexConfig(connectedServers)
       break
+    case "picocode":
+      // Picocode doesn't have native MCP support yet, use Claude-like format as placeholder
+      configContent = buildClaudeCodeConfig(connectedServers)
+      break
     default:
       configContent = buildClaudeCodeConfig(connectedServers)
   }
