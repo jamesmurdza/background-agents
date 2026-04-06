@@ -106,26 +106,44 @@ export function adaptDaytonaSandbox(
       if (!metaRaw || metaRaw === "{}") return null
 
       let outputFile: string | undefined
+      let pid: number | undefined
       try {
-        outputFile = JSON.parse(metaRaw).outputFile
+        const parsed = JSON.parse(metaRaw)
+        outputFile = parsed.outputFile
+        pid = parsed.pid
       } catch {
         return null
       }
       if (!outputFile) return { meta: metaRaw, output: "", done: false }
 
-      // Read output file and check done status in one command
+      // Read output file, check done status, and check process state in one command.
+      // We check if the process is alive AND not a zombie (state != 'Z').
+      // If the process was killed externally, it becomes a zombie, and we should
+      // treat it as done to trigger crash detection.
       const safeOutput = escapeShell(outputFile)
       const safeDone = escapeShell(outputFile + ".done")
+      // Check done file and process state
+      const checkPidCmd = pid
+        ? `STATE=$(ps -p ${pid} -o state= 2>/dev/null); if [ -n "$STATE" ] && [ "$STATE" != "Z" ]; then echo "ALIVE:yes"; else echo "ALIVE:no"; fi`
+        : 'echo "ALIVE:no"'
       const result = await sandbox.process.executeCommand(
-        `test -f '${safeDone}' && echo "DONE:yes" || echo "DONE:no"; cat '${safeOutput}' 2>/dev/null || true`,
+        `test -f '${safeDone}' && echo "DONE:yes" || echo "DONE:no"; ${checkPidCmd}; cat '${safeOutput}' 2>/dev/null || true`,
         undefined, undefined, 30
       )
       const raw = result.result ?? ""
-      const firstNewline = raw.indexOf("\n")
-      const doneLine = firstNewline > 0 ? raw.slice(0, firstNewline) : raw
-      const output = firstNewline > 0 ? raw.slice(firstNewline + 1) : ""
+      const lines = raw.split("\n")
+      const doneLine = lines[0]?.trim() ?? ""
+      const aliveLine = lines[1]?.trim() ?? ""
+      const output = lines.slice(2).join("\n")
 
-      return { meta: metaRaw, output, done: doneLine.trim() === "DONE:yes" }
+      // Process is done if:
+      // 1. The .done file exists (normal completion), OR
+      // 2. The process is no longer alive or is a zombie (crashed/killed)
+      const doneFileExists = doneLine === "DONE:yes"
+      const processAlive = aliveLine === "ALIVE:yes"
+      const isDone = doneFileExists || (pid !== undefined && !processAlive)
+
+      return { meta: metaRaw, output, done: isDone }
     },
 
     async ensureProvider(name: ProviderName): Promise<void> {

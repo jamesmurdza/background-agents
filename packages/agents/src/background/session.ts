@@ -274,7 +274,7 @@ class BackgroundSessionImpl implements BackgroundSession {
     if (!meta?.runId || !meta.outputFile || !this.sandbox.executeCommand) {
       return false
     }
-    return this.isOutputRunning(meta.outputFile)
+    return this.isOutputRunning(meta.outputFile, meta.pid)
   }
 
   async getPid(): Promise<number | null> {
@@ -373,16 +373,41 @@ class BackgroundSessionImpl implements BackgroundSession {
     await this.writeMeta(next)
   }
 
-  private async isOutputRunning(outputFile: string): Promise<boolean> {
+  private async isOutputRunning(outputFile: string, pid?: number): Promise<boolean> {
     if (!this.sandbox.executeCommand) return false
     const donePath = outputFile + ".done"
     const escaped = donePath.replace(/'/g, "'\\''")
+
+    // Check both the .done file AND whether the process is still alive.
+    // The .done file indicates normal completion, but if the process was killed
+    // externally (e.g., kill -9), we need to check if the PID is still running.
+    // Note: We check process state instead of using kill -0 because kill -0 succeeds
+    // on zombie processes (state Z). A running process has state R, S, or D.
+    const checkDone = `test -f '${escaped}' 2>/dev/null; echo "DONE:$?"`
+    // Check if process is alive and not a zombie - get process state
+    // State: R=running, S=sleeping, D=disk sleep, Z=zombie, T=stopped
+    const checkPid = pid
+      ? `STATE=$(ps -p ${pid} -o state= 2>/dev/null); if [ -n "$STATE" ] && [ "$STATE" != "Z" ]; then echo "PID:0"; else echo "PID:1"; fi`
+      : 'echo "PID:1"'
+
     const r = await this.sandbox.executeCommand(
-      `test -f '${escaped}' 2>/dev/null; echo $?`,
+      `${checkDone}; ${checkPid}`,
       10
     )
-    const doneExists =
-      Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
+    const output = (r.output ?? "").trim()
+
+    // Parse results: DONE:0 means .done file exists, PID:0 means process is alive (not zombie)
+    const doneMatch = output.match(/DONE:(\d+)/)
+    const pidMatch = output.match(/PID:(\d+)/)
+
+    const doneExists = doneMatch ? doneMatch[1] === "0" : false
+    const processAlive = pidMatch ? pidMatch[1] === "0" : false
+
+    // Running if: .done doesn't exist AND process is still alive (if we have a PID to check)
+    // If we have a PID and the process is dead/zombie, consider it not running even without .done
+    if (pid && !processAlive) {
+      return false
+    }
     return !doneExists
   }
 
