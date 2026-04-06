@@ -346,22 +346,12 @@ function FilePathLink({
 
   return (
     <ToolFilePreviewPopover filePath={filePath} sandboxId={sandboxId} repoPath={repoPath}>
-      {fullSummary ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button className="text-xs text-foreground hover:underline break-words min-w-0 cursor-pointer text-left">
-              {displayText}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-md font-mono text-[10px] whitespace-pre-wrap [overflow-wrap:anywhere]">
-            {fullSummary}
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        <button className="text-xs text-foreground hover:underline break-words min-w-0 cursor-pointer text-left">
-          {displayText}
-        </button>
-      )}
+      <button
+        type="button"
+        className="text-xs text-foreground hover:underline break-words min-w-0 cursor-pointer text-left"
+      >
+        {displayText}
+      </button>
     </ToolFilePreviewPopover>
   )
 }
@@ -386,13 +376,16 @@ function ToolCallTimeline({ toolCalls, sandboxId, repoPath }: { toolCalls: ToolC
                   <ToolCallIcon tool={tc.tool} />
                 </div>
                 {hasFilePath ? (
-                  <FilePathLink
-                    filePath={tc.filePath!}
-                    displayText={tc.summary}
-                    fullSummary={tc.fullSummary}
-                    sandboxId={sandboxId}
-                    repoPath={repoPath}
-                  />
+                  <div className="text-xs text-muted-foreground break-words min-w-0 flex items-baseline gap-1">
+                    <span>{tc.tool}:</span>
+                    <FilePathLink
+                      filePath={tc.filePath!}
+                      displayText={tc.filePath!.split("/").pop() || tc.filePath!}
+                      fullSummary={tc.filePath}
+                      sandboxId={sandboxId}
+                      repoPath={repoPath}
+                    />
+                  </div>
                 ) : tc.fullSummary ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
