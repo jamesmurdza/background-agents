@@ -131,6 +131,7 @@ export {
   codexAgent,
   geminiAgent,
   opencodeAgent,
+  picocodeAgent,
 } from "./agents/index.js"
 
 // ─────────────────────────────────────────────────────────────────────────────
