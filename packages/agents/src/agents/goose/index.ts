@@ -8,6 +8,28 @@ import { parseGooseLine } from "./parser.js"
 import { GOOSE_TOOL_MAPPINGS } from "./tools.js"
 
 /**
+ * Determine the goose provider and model based on the model name and environment.
+ * Goose supports multiple providers: openai, anthropic, ollama, etc.
+ */
+function getGooseProviderAndModel(
+  model: string | undefined,
+  env: Record<string, string> | undefined
+): { provider: string; model: string } {
+  // If model contains "claude", use anthropic provider
+  if (model?.toLowerCase().includes("claude")) {
+    return { provider: "anthropic", model: model }
+  }
+
+  // If ANTHROPIC_API_KEY is set but not OPENAI_API_KEY, use anthropic
+  if (env?.ANTHROPIC_API_KEY && !env?.OPENAI_API_KEY) {
+    return { provider: "anthropic", model: model || "claude-sonnet-4-5" }
+  }
+
+  // Default to OpenAI provider
+  return { provider: "openai", model: model || "gpt-4o" }
+}
+
+/**
  * Goose CLI agent definition.
  *
  * Interacts with the Goose CLI tool (Block's open source AI coding agent).
@@ -30,6 +52,11 @@ export const gooseAgent: AgentDefinition = {
 
     // Enable JSON streaming output for machine-readable events
     gooseArgs.push("--output-format", "stream-json")
+
+    // Determine provider and model based on model name and environment
+    const { provider, model } = getGooseProviderAndModel(options.model, options.env)
+    gooseArgs.push("--provider", provider)
+    gooseArgs.push("--model", model)
 
     // Add prompt as text input
     if (options.prompt) {
