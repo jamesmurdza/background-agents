@@ -11,13 +11,6 @@ function escapeShell(str: string): string {
   return str.replace(/'/g, "'\\''")
 }
 
-/** Build environment variable prefix for shell commands */
-function buildEnvPrefix(env: Record<string, string>): string {
-  return Object.entries(env)
-    .map(([k, v]) => `${k}='${escapeShell(v)}'`)
-    .join(" ")
-}
-
 export function adaptDaytonaSandbox(
   sandbox: Sandbox,
   options: AdaptSandboxOptions = {}
@@ -29,8 +22,11 @@ export function adaptDaytonaSandbox(
 
   /** Execute a command synchronously */
   async function executeCommand(command: string, timeout: number = 60): Promise<{ exitCode: number; output: string }> {
-    const envPrefix = buildEnvPrefix(getEnv())
-    const fullCommand = envPrefix ? `${envPrefix} ${command}` : command
+    const env = getEnv()
+    const envExports = Object.entries(env)
+      .map(([k, v]) => `export ${k}='${escapeShell(v)}'`)
+      .join("; ")
+    const fullCommand = envExports ? `${envExports}; ${command}` : command
     const result = await sandbox.process.executeCommand(fullCommand, undefined, undefined, timeout)
     return { exitCode: result.exitCode ?? 0, output: result.result ?? "" }
   }
@@ -41,8 +37,15 @@ export function adaptDaytonaSandbox(
    * Creates outputFile.done when command completes.
    */
   async function executeBackground(opts: ExecuteBackgroundOptions): Promise<{ pid: number }> {
-    const envPrefix = buildEnvPrefix(getEnv())
-    const cmd = envPrefix ? `${envPrefix} ${opts.command}` : opts.command
+    const mergedEnv = getEnv()
+    const envKeys = Object.keys(mergedEnv)
+    console.log(`[daytona] executeBackground envKeys=[${envKeys.join(", ")}] sessionEnvKeys=[${Object.keys(sessionEnv).join(", ")}] runEnvKeys=[${Object.keys(runEnv).join(", ")}]`)
+    // Use export so env vars persist across && chains (e.g. "cd /path && gemini ...")
+    const envExports = Object.entries(mergedEnv)
+      .map(([k, v]) => `export ${k}='${escapeShell(v)}'`)
+      .join("; ")
+    const cmd = envExports ? `${envExports}; ${opts.command}` : opts.command
+    console.log(`[daytona] executeBackground cmd=${cmd.slice(0, 300)}`)
     const safeCmd = escapeShell(cmd)
     const safeOutput = escapeShell(opts.outputFile)
     const safeDone = escapeShell(opts.outputFile + ".done")
@@ -74,12 +77,15 @@ export function adaptDaytonaSandbox(
   return {
     // Environment management
     setEnvVars(vars: Record<string, string>): void {
+      console.log(`[daytona] setEnvVars keys=[${Object.keys(vars).join(", ")}]`)
       Object.assign(sessionEnv, vars)
     },
     setSessionEnvVars(vars: Record<string, string>): void {
+      console.log(`[daytona] setSessionEnvVars keys=[${Object.keys(vars).join(", ")}]`)
       Object.assign(sessionEnv, vars)
     },
     setRunEnvVars(vars: Record<string, string>): void {
+      console.log(`[daytona] setRunEnvVars keys=[${Object.keys(vars).join(", ")}]`)
       Object.assign(runEnv, vars)
     },
     clearRunEnvVars(): void {
