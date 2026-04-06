@@ -207,6 +207,10 @@ export const PATHS = {
   CLAUDE_HOOKS_DIR: "/home/daytona/.claude/hooks",
   /** Claude settings file */
   CLAUDE_SETTINGS_FILE: "/home/daytona/.claude/settings.json",
+  /** ClauRST credentials directory */
+  CLAURST_CREDENTIALS_DIR: "/home/daytona/.claurst",
+  /** ClauRST auth credentials file (API keys) */
+  CLAURST_AUTH_FILE: "/home/daytona/.claurst/auth.json",
   /** Agent session ID persistence file */
   AGENT_SESSION_FILE: "/home/daytona/.agent_session_id",
   /** MCP config paths per agent */

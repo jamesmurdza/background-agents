@@ -187,6 +187,8 @@ export function hasClaudeCodeCredentials(credentials: UserCredentialFlags | null
 /**
  * Check if user has credentials for ClauRST agent (requires Anthropic API key).
  * ClauRST is a Rust reimplementation of Claude Code.
+ * Note: Unlike Claude Code, ClauRST does not support subscription tokens (auth token).
+ * ClauRST's OAuth flow uses Claude Code's client ID which won't work, so API key only.
  */
 export function hasClaurstCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
   return !!credentials?.hasAnthropicApiKey

@@ -79,7 +79,9 @@ function getEnvForModel(
     return env
   }
 
-  // For ClauRST agent: always use Anthropic API key (doesn't support auth token)
+  // For ClauRST agent: always use Anthropic API key
+  // Note: ClauRST's OAuth flow uses Claude Code's client ID which won't work,
+  // so API key is the only supported authentication method for ClauRST.
   if (agent === "claurst") {
     if (credentials.anthropicApiKey) {
       env.ANTHROPIC_API_KEY = credentials.anthropicApiKey
