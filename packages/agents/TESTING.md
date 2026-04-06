@@ -44,7 +44,9 @@ TEST_DAYTONA_API_KEY=... TEST_ANTHROPIC_API_KEY=... \
   npm test -w @upstream/agents -- tests/integration
 ```
 
-### JSONL reference files
+---
+
+## JSONL reference files
 
 Raw JSONL output from each provider CLI is captured in `packages/agents/tests/fixtures/jsonl-reference/`. To regenerate:
 
