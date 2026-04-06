@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   if (isDaytonaKeyError(daytonaApiKey)) return daytonaApiKey
 
   // Resolve user's credentials (uses team owner's Claude subscription if member)
-  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey, geminiApiKey, openhandsApiKey } =
+  const { anthropicApiKey, anthropicAuthToken, anthropicAuthType, openaiApiKey, opencodeApiKey, geminiApiKey } =
     await resolveUserCredentials(sandboxRecord.user.credentials, auth.userId)
 
   // Determine repo name from database or request
@@ -95,8 +95,7 @@ export async function POST(req: Request) {
       model,
       opencodeApiKey,
       sandboxRecord.branch?.repo?.id, // Pass repoId for MCP config
-      geminiApiKey,
-      openhandsApiKey
+      geminiApiKey
     )
     console.log(`[agent/execute] ensureSandboxReady took ${Date.now() - t0}ms`)
 

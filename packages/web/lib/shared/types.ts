@@ -41,7 +41,7 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
 export interface ModelOption {
   value: string
   label: string
-  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "openhands" | "none" // Which API key is required
+  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "none" // Which API key is required
 }
 
 export const agentModels: Record<Agent, ModelOption[]> = {
@@ -134,17 +134,16 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "gemini" },
   ],
   "openhands": [
-    // OpenHands can use multiple LLM providers via LLM_API_KEY
-    // Models require the openhands key to be configured (which sets up LLM provider)
-    { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4 (Recommended)", requiresKey: "openhands" },
-    { value: "anthropic/claude-opus-4-20250514", label: "Claude Opus 4", requiresKey: "openhands" },
-    { value: "anthropic/claude-haiku-3-5-20241022", label: "Claude Haiku 3.5", requiresKey: "openhands" },
-    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openhands" },
-    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openhands" },
-    { value: "openai/o1", label: "o1", requiresKey: "openhands" },
-    { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openhands" },
-    { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "openhands" },
-    { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "openhands" },
+    // OpenHands uses existing API keys based on model prefix (anthropic/, openai/, google/)
+    { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4 (Recommended)", requiresKey: "anthropic" },
+    { value: "anthropic/claude-opus-4-20250514", label: "Claude Opus 4", requiresKey: "anthropic" },
+    { value: "anthropic/claude-haiku-3-5-20241022", label: "Claude Haiku 3.5", requiresKey: "anthropic" },
+    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
+    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
+    { value: "openai/o1", label: "o1", requiresKey: "openai" },
+    { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
+    { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "gemini" },
+    { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
   ],
 }
 
@@ -165,7 +164,6 @@ export interface UserCredentialFlags {
   hasOpenaiApiKey?: boolean
   hasOpencodeApiKey?: boolean
   hasGeminiApiKey?: boolean
-  hasOpenhandsApiKey?: boolean
   /** Server has OpenRouter (or similar) so AI branch naming works without user API keys */
   hasServerLlmFallback?: boolean
   squashOnMerge?: boolean
@@ -206,10 +204,11 @@ export function hasGeminiCredentials(credentials: UserCredentialFlags | null | u
 }
 
 /**
- * Check if user has credentials for OpenHands agent (requires LLM API key configured).
+ * Check if user has credentials for OpenHands agent.
+ * OpenHands uses existing API keys (Anthropic, OpenAI, or Gemini) based on model selection.
  */
 export function hasOpenhandsCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
-  return !!credentials?.hasOpenhandsApiKey
+  return !!(credentials?.hasAnthropicApiKey || credentials?.hasOpenaiApiKey || credentials?.hasGeminiApiKey)
 }
 
 /**
@@ -251,8 +250,6 @@ export function hasCredentialsForModel(
       return !!credentials?.hasOpencodeApiKey
     case "gemini":
       return !!credentials?.hasGeminiApiKey
-    case "openhands":
-      return !!credentials?.hasOpenhandsApiKey
     default:
       return true
   }
