@@ -67,6 +67,7 @@ function getEnvForModel(
     openaiApiKey?: string
     opencodeApiKey?: string
     geminiApiKey?: string
+    openhandsApiKey?: string
   }
 ): Record<string, string> {
   const env: Record<string, string> = {}
@@ -91,6 +92,18 @@ function getEnvForModel(
   if (agent === "gemini") {
     if (credentials.geminiApiKey) {
       env.GEMINI_API_KEY = credentials.geminiApiKey
+    }
+    return env
+  }
+
+  // For OpenHands agent: use LLM_API_KEY (can be Anthropic, OpenAI, or Gemini key)
+  if (agent === "openhands") {
+    if (credentials.openhandsApiKey) {
+      env.LLM_API_KEY = credentials.openhandsApiKey
+    }
+    // Also set LLM_MODEL if provided
+    if (model) {
+      env.LLM_MODEL = model
     }
     return env
   }
@@ -149,7 +162,9 @@ export async function ensureSandboxReady(
   // Repository ID for fetching MCP server configs
   repoId?: string,
   // Gemini API key for Gemini agent
-  geminiApiKey?: string
+  geminiApiKey?: string,
+  // OpenHands LLM API key
+  openhandsApiKey?: string
 ): Promise<{
   sandbox: Awaited<ReturnType<InstanceType<typeof Daytona>["get"]>>
   wasResumed: boolean
@@ -254,6 +269,7 @@ export async function ensureSandboxReady(
     openaiApiKey,
     opencodeApiKey,
     geminiApiKey,
+    openhandsApiKey,
   })
 
   // Get user-provided repo-level env vars (decrypted)

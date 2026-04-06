@@ -18,6 +18,7 @@ interface SettingsModalProps {
     hasOpenaiApiKey: boolean
     hasOpencodeApiKey: boolean
     hasGeminiApiKey: boolean
+    hasOpenhandsApiKey: boolean
     hasDaytonaApiKey: boolean
     sandboxAutoStopInterval?: number
     squashOnMerge?: boolean
@@ -31,7 +32,7 @@ interface SettingsModalProps {
 }
 
 // Track which keys should be cleared on save
-type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "opencodeApiKey" | "geminiApiKey" | "daytonaApiKey"
+type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | "opencodeApiKey" | "geminiApiKey" | "openhandsApiKey" | "daytonaApiKey"
 
 export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
@@ -50,6 +51,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [opencodeApiKey, setOpencodeApiKey] = useState("")
   const [geminiApiKey, setGeminiApiKey] = useState("")
+  const [openhandsApiKey, setOpenhandsApiKey] = useState("")
 
   // Git preferences
   const [squashOnMerge, setSquashOnMerge] = useState(false)
@@ -76,6 +78,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     openaiApiKey.trim() ||
     opencodeApiKey.trim() ||
     geminiApiKey.trim() ||
+    openhandsApiKey.trim() ||
     daytonaApiKey.trim() ||
     keysToClear.size > 0 ||
     sandboxAutoStopInterval !== initialAutoStopInterval ||
@@ -94,6 +97,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       setOpenaiApiKey("")
       setOpencodeApiKey("")
       setGeminiApiKey("")
+      setOpenhandsApiKey("")
       setDaytonaApiKey("")
       setKeysToClear(new Set())
       const interval = credentials?.sandboxAutoStopInterval ?? 5
@@ -115,7 +119,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
   useEffect(() => {
     if (highlightField && open) {
       // Switch to agents tab if highlighting an agent-related field
-      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "opencodeApiKey", "geminiApiKey"].includes(highlightField)) {
+      if (["anthropicApiKey", "anthropicAuthToken", "openaiApiKey", "opencodeApiKey", "geminiApiKey", "openhandsApiKey"].includes(highlightField)) {
         setActiveTab("agents")
       }
       // Scroll field into view after a short delay to allow tab switch
@@ -147,6 +151,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     const newOpenaiKey = openaiApiKey.trim()
     const newOpencodeKey = opencodeApiKey.trim()
     const newGeminiKey = geminiApiKey.trim()
+    const newOpenhandsKey = openhandsApiKey.trim()
     const newDaytonaKey = daytonaApiKey.trim()
     const autoStopChanged = sandboxAutoStopInterval !== initialAutoStopInterval
 
@@ -164,6 +169,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       newOpenaiKey ||
       newOpencodeKey ||
       newGeminiKey ||
+      newOpenhandsKey ||
       newDaytonaKey ||
       autoStopChanged ||
       keysToClear.size > 0 ||
@@ -196,6 +202,9 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       }
       if (newGeminiKey) {
         payload.geminiApiKey = newGeminiKey
+      }
+      if (newOpenhandsKey) {
+        payload.openhandsApiKey = newOpenhandsKey
       }
       if (newDaytonaKey) {
         payload.daytonaApiKey = newDaytonaKey
@@ -619,6 +628,49 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Used by Gemini agent for Google AI models
+                </p>
+              </div>
+
+              {/* OpenHands API Key */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                    <label className="text-xs font-medium text-foreground">OpenHands LLM API Key</label>
+                    {renderStatus(credentials?.hasOpenhandsApiKey ?? false, "openhandsApiKey")}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {renderClearButton(credentials?.hasOpenhandsApiKey ?? false, "openhandsApiKey")}
+                    {renderUndoClearButton("openhandsApiKey")}
+                    <a
+                      href="https://docs.openhands.dev/openhands/usage/cli/headless"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Docs <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
+                </div>
+                <Input
+                  id="field-openhandsApiKey"
+                  type="password"
+                  placeholder="sk-... or AIza..."
+                  value={openhandsApiKey}
+                  onChange={(e) => {
+                    setOpenhandsApiKey(e.target.value)
+                    if (highlightField === "openhandsApiKey") onClearHighlight?.()
+                  }}
+                  disabled={keysToClear.has("openhandsApiKey")}
+                  aria-invalid={highlightField === "openhandsApiKey"}
+                  className={cn(
+                    "h-9 bg-secondary border-border text-xs font-mono placeholder:text-muted-foreground/40",
+                    keysToClear.has("openhandsApiKey") && "opacity-50",
+                    highlightField === "openhandsApiKey" && "border-destructive ring-1 ring-destructive"
+                  )}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Used by OpenHands agent. Enter your LLM provider&apos;s API key (Anthropic, OpenAI, or Google).
                 </p>
               </div>
 

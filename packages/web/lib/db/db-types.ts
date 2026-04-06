@@ -83,6 +83,7 @@ export interface UserCredentials {
   hasOpenaiApiKey: boolean
   hasOpencodeApiKey: boolean
   hasGeminiApiKey: boolean
+  hasOpenhandsApiKey: boolean
   hasDaytonaApiKey: boolean
   sandboxAutoStopInterval?: number
   squashOnMerge?: boolean

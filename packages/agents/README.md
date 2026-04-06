@@ -58,6 +58,7 @@ await sandbox.delete()
 | Codex | `codex exec --json --skip-git-repo-check --yolo "prompt"` |
 | OpenCode | `opencode run --format json --variant medium "prompt"` |
 | Gemini | `gemini --output-format stream-json --yolo -p "prompt"` |
+| OpenHands | `openhands --headless --json -t "prompt"` |
 
 ---
 
@@ -245,6 +246,7 @@ type Event =
 | **Codex** | `model: "gpt-4o"` | [Codex CLI models](https://developers.openai.com/codex/models) |
 | **OpenCode** | `model: "openai/gpt-4o"` | [OpenCode models](https://opencode.ai/docs/models/) |
 | **Gemini** | `model: "gemini-2.0-flash"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
+| **OpenHands** | `model: "anthropic/claude-sonnet-4-20250514"` | [OpenHands CLI](https://docs.openhands.dev/openhands/usage/cli/headless) |
 
 ---
 
@@ -301,7 +303,7 @@ DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/repl-polling.ts
 
 **Sandbox** — [Daytona Docs](https://www.daytona.io/docs/) · [Daytona GitHub](https://github.com/daytonaio/daytona)
 
-**Agents** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code) · [Codex CLI](https://developers.openai.com/codex/cli) · [Gemini CLI](https://geminicli.com/docs/) · [OpenCode](https://opencode.ai/docs/)
+**Agents** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code) · [Codex CLI](https://developers.openai.com/codex/cli) · [Gemini CLI](https://geminicli.com/docs/) · [OpenCode](https://opencode.ai/docs/) · [OpenHands](https://docs.openhands.dev/openhands/usage/cli/headless)
 
 ---
 

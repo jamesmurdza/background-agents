@@ -92,6 +92,44 @@ export function GeminiIcon({ className }: AgentIconProps) {
   )
 }
 
+// OpenHands icon - Two raised hands emoji-style icon
+// Represents the collaborative/helping nature of OpenHands
+export function OpenHandsIcon({ className }: AgentIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-4 w-4", className)}
+    >
+      {/* Left hand */}
+      <path
+        d="M5 16V8.5C5 7.672 5.672 7 6.5 7S8 7.672 8 8.5V12M8 12V6.5C8 5.672 8.672 5 9.5 5S11 5.672 11 6.5V12M11 10.5V5.5C11 4.672 11.672 4 12.5 4S14 4.672 14 5.5V12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Right hand raised */}
+      <path
+        d="M14 12V8.5C14 7.672 14.672 7 15.5 7S17 7.672 17 8.5V16C17 18.761 14.761 21 12 21H10C7.239 21 5 18.761 5 16"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Wrist line */}
+      <path
+        d="M5 16H17"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeOpacity="0.5"
+      />
+    </svg>
+  )
+}
+
 // Helper function to get the icon component for an agent
 export function AgentIcon({ agent, className }: { agent: Agent; className?: string }) {
   switch (agent) {
@@ -103,6 +141,8 @@ export function AgentIcon({ agent, className }: { agent: Agent; className?: stri
       return <OpenCodeIcon className={className} />
     case "gemini":
       return <GeminiIcon className={className} />
+    case "openhands":
+      return <OpenHandsIcon className={className} />
     default:
       return <ClaudeCodeIcon className={className} />
   }

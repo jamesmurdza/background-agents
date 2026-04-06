@@ -1,9 +1,9 @@
 import { type BranchStatus, type AnthropicAuthType as ConstantsAnthropicAuthType } from "./constants"
 
-export type Agent = "claude-code" | "opencode" | "codex" | "gemini"
+export type Agent = "claude-code" | "opencode" | "codex" | "gemini" | "openhands"
 
 // SDK provider names (must match ProviderName from SDK)
-export type ProviderName = "claude" | "codex" | "opencode" | "gemini"
+export type ProviderName = "claude" | "codex" | "opencode" | "gemini" | "openhands"
 
 // SDK provider mapping
 export const agentToProvider: Record<Agent, ProviderName> = {
@@ -11,6 +11,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "opencode": "opencode",
   "codex": "codex",
   "gemini": "gemini",
+  "openhands": "openhands",
 }
 
 // Helper to get provider from agent string (handles legacy "claude" value)
@@ -29,6 +30,9 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
   if (agent === "gemini") {
     return "gemini"
   }
+  if (agent === "openhands") {
+    return "openhands"
+  }
   // Fallback for any other value
   return "claude"
 }
@@ -37,7 +41,7 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
 export interface ModelOption {
   value: string
   label: string
-  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "none" // Which API key is required
+  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "openhands" | "none" // Which API key is required
 }
 
 export const agentModels: Record<Agent, ModelOption[]> = {
@@ -129,6 +133,19 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "gemini" },
   ],
+  "openhands": [
+    // OpenHands can use multiple LLM providers via LLM_API_KEY
+    // Models require the openhands key to be configured (which sets up LLM provider)
+    { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4 (Recommended)", requiresKey: "openhands" },
+    { value: "anthropic/claude-opus-4-20250514", label: "Claude Opus 4", requiresKey: "openhands" },
+    { value: "anthropic/claude-haiku-3-5-20241022", label: "Claude Haiku 3.5", requiresKey: "openhands" },
+    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openhands" },
+    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openhands" },
+    { value: "openai/o1", label: "o1", requiresKey: "openhands" },
+    { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openhands" },
+    { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "openhands" },
+    { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "openhands" },
+  ],
 }
 
 // Default model per agent
@@ -138,6 +155,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "opencode": "opencode/big-pickle",
   "codex": "gpt-5.4",
   "gemini": "gemini-2.5-flash",
+  "openhands": "anthropic/claude-sonnet-4-20250514",
 }
 
 // User credentials for filtering
@@ -147,6 +165,7 @@ export interface UserCredentialFlags {
   hasOpenaiApiKey?: boolean
   hasOpencodeApiKey?: boolean
   hasGeminiApiKey?: boolean
+  hasOpenhandsApiKey?: boolean
   /** Server has OpenRouter (or similar) so AI branch naming works without user API keys */
   hasServerLlmFallback?: boolean
   squashOnMerge?: boolean
@@ -184,6 +203,13 @@ export function hasCodexCredentials(credentials: UserCredentialFlags | null | un
  */
 export function hasGeminiCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
   return !!credentials?.hasGeminiApiKey
+}
+
+/**
+ * Check if user has credentials for OpenHands agent (requires LLM API key configured).
+ */
+export function hasOpenhandsCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
+  return !!credentials?.hasOpenhandsApiKey
 }
 
 /**
@@ -225,6 +251,8 @@ export function hasCredentialsForModel(
       return !!credentials?.hasOpencodeApiKey
     case "gemini":
       return !!credentials?.hasGeminiApiKey
+    case "openhands":
+      return !!credentials?.hasOpenhandsApiKey
     default:
       return true
   }
@@ -352,6 +380,7 @@ export const agentLabels: Record<Agent, string> = {
   "opencode": "OpenCode",
   "codex": "Codex",
   "gemini": "Gemini",
+  "openhands": "OpenHands",
 }
 
 // Get model label from model value
