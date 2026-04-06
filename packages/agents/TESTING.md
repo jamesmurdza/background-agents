@@ -4,6 +4,18 @@ This document describes how to run unit tests and integration tests for the Agen
 
 ---
 
+## JSONL reference files
+
+Raw JSONL output from each provider CLI is captured in `packages/agents/tests/fixtures/jsonl-reference/`. To regenerate:
+
+```bash
+npm run generate:jsonl-refs -w @upstream/agents
+```
+
+These fixtures are used by unit tests to verify JSONL parsing without requiring live API calls.
+
+---
+
 ## Unit tests
 
 Unit tests need no database and no env files.
@@ -12,16 +24,6 @@ Run the command below from the repo root.
 
 ```bash
 npm run test -w @upstream/agents
-```
-
----
-
-## JSONL reference files
-
-Raw JSONL output from each provider CLI is captured in `packages/agents/tests/fixtures/jsonl-reference/`. To regenerate:
-
-```bash
-npm run generate:jsonl-refs -w @upstream/agents
 ```
 
 ---
