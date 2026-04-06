@@ -156,7 +156,6 @@ class BackgroundSessionImpl implements BackgroundSession {
 
     // Build and execute command
     const commandSpec = this.agent.buildCommand(opts)
-    console.log(`[background-session] start() opts.env keys=[${Object.keys(opts.env ?? {}).join(", ")}] commandSpec.env keys=[${Object.keys(commandSpec.env ?? {}).join(", ")}]`)
 
     // Set cwd from options if not already set by agent
     if (opts.cwd && !commandSpec.cwd) {
@@ -166,8 +165,6 @@ class BackgroundSessionImpl implements BackgroundSession {
     // Set env vars
     if (commandSpec.env) {
       this.sandbox.setEnvVars(commandSpec.env)
-    } else {
-      console.log(`[background-session] WARNING: commandSpec.env is falsy, no env vars set for this run`)
     }
 
     // Build full command string

@@ -38,14 +38,11 @@ export function adaptDaytonaSandbox(
    */
   async function executeBackground(opts: ExecuteBackgroundOptions): Promise<{ pid: number }> {
     const mergedEnv = getEnv()
-    const envKeys = Object.keys(mergedEnv)
-    console.log(`[daytona] executeBackground envKeys=[${envKeys.join(", ")}] sessionEnvKeys=[${Object.keys(sessionEnv).join(", ")}] runEnvKeys=[${Object.keys(runEnv).join(", ")}]`)
     // Use export so env vars persist across && chains (e.g. "cd /path && gemini ...")
     const envExports = Object.entries(mergedEnv)
       .map(([k, v]) => `export ${k}='${escapeShell(v)}'`)
       .join("; ")
     const cmd = envExports ? `${envExports}; ${opts.command}` : opts.command
-    console.log(`[daytona] executeBackground cmd=${cmd.slice(0, 300)}`)
     const safeCmd = escapeShell(cmd)
     const safeOutput = escapeShell(opts.outputFile)
     const safeDone = escapeShell(opts.outputFile + ".done")
@@ -77,15 +74,12 @@ export function adaptDaytonaSandbox(
   return {
     // Environment management
     setEnvVars(vars: Record<string, string>): void {
-      console.log(`[daytona] setEnvVars keys=[${Object.keys(vars).join(", ")}]`)
       Object.assign(sessionEnv, vars)
     },
     setSessionEnvVars(vars: Record<string, string>): void {
-      console.log(`[daytona] setSessionEnvVars keys=[${Object.keys(vars).join(", ")}]`)
       Object.assign(sessionEnv, vars)
     },
     setRunEnvVars(vars: Record<string, string>): void {
-      console.log(`[daytona] setRunEnvVars keys=[${Object.keys(vars).join(", ")}]`)
       Object.assign(runEnv, vars)
     },
     clearRunEnvVars(): void {
