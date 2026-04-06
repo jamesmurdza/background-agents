@@ -60,7 +60,7 @@ await sandbox.delete()
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | OpenCode | `opencode run --format json --variant medium "prompt"` |
 | Gemini | `gemini --output-format stream-json --yolo -p "prompt"` |
-| Pi | `pi -p --mode json "prompt"` |
+| Pi | `pi --mode json -p "prompt"` |
 
 ---
 
