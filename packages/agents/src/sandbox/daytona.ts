@@ -129,8 +129,8 @@ export function adaptDaytonaSandbox(
     },
 
     async ensureProvider(name: ProviderName): Promise<void> {
-      // For goose, also check in ~/.local/bin which is the default install location
-      const checkCommand = name === "goose"
+      // For goose and kimi, also check in ~/.local/bin which is the default install location
+      const checkCommand = name === "goose" || name === "kimi"
         ? `which ${name} || test -x "$HOME/.local/bin/${name}"`
         : `which ${name}`
       const checkResult = await sandbox.process.executeCommand(checkCommand)
@@ -174,6 +174,14 @@ extensions:
     name: developer
     type: builtin
 GOOSECONFIG`,
+          undefined, undefined, 10
+        )
+      }
+
+      // For kimi, add ~/.local/bin to PATH (where uv installs tools)
+      if (name === "kimi") {
+        await sandbox.process.executeCommand(
+          `grep -q 'HOME/.local/bin' ~/.bashrc || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc`,
           undefined, undefined, 10
         )
       }

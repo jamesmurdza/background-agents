@@ -9,6 +9,7 @@ const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
   goose: "", // goose uses shell script installer, not npm
+  kimi: "", // kimi uses uv tool installer, not npm
   opencode: "opencode",
   gemini: "@google/gemini-cli",
   pi: "@mariozechner/pi-coding-agent",
@@ -25,6 +26,10 @@ const PROVIDER_SHELL_INSTALLERS: Partial<Record<ProviderName, string>> = {
   // 3. Extract to temp dir and move binary to ~/.local/bin
   // Use --no-same-owner and --no-same-permissions to avoid permission issues
   goose: `mkdir -p ~/.local/bin ~/.goose_tmp && curl -fsSL "https://github.com/block/goose/releases/download/stable/goose-x86_64-unknown-linux-gnu.tar.bz2" | tar -xjf - --no-same-owner --no-same-permissions -C ~/.goose_tmp && mv ~/.goose_tmp/goose ~/.local/bin/goose && chmod +x ~/.local/bin/goose && rm -rf ~/.goose_tmp`,
+  // Kimi: Install using uv (Python package manager) via the official install script
+  // 1. Install uv if not present
+  // 2. Use uv to install kimi-cli with Python 3.13
+  kimi: `command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && uv tool install --python 3.13 kimi-cli`,
 }
 
 /**
@@ -118,7 +123,7 @@ export function ensureCliInstalled(
  * Check installation status of all providers
  */
 export function getInstallationStatus(): Record<ProviderName, boolean> {
-  const providers: ProviderName[] = ["claude", "codex", "goose", "opencode", "gemini", "pi"]
+  const providers: ProviderName[] = ["claude", "codex", "goose", "kimi", "opencode", "gemini", "pi"]
   const status: Record<string, boolean> = {}
 
   for (const provider of providers) {

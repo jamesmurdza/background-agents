@@ -9,6 +9,7 @@
  *   - codex: DAYTONA_API_KEY, OPENAI_API_KEY
  *   - gemini: DAYTONA_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY)
  *   - goose: DAYTONA_API_KEY, OPENAI_API_KEY (or ANTHROPIC_API_KEY)
+ *   - kimi: DAYTONA_API_KEY, KIMI_API_KEY
  *   - opencode: DAYTONA_API_KEY, ANTHROPIC_API_KEY (or OPENAI_API_KEY)
  *   - pi: DAYTONA_API_KEY, ANTHROPIC_API_KEY (Pi uses Anthropic by default)
  *
@@ -36,6 +37,8 @@ const GEMINI_API_KEY =
   process.env.TEST_GOOGLE_API_KEY ||
   process.env.GEMINI_API_KEY ||
   process.env.GOOGLE_API_KEY
+const KIMI_API_KEY =
+  process.env.TEST_KIMI_API_KEY || process.env.KIMI_API_KEY
 
 // Simple prompt that should complete quickly
 const SIMPLE_PROMPT = "What is 2 + 2? Reply with just the number."
@@ -65,6 +68,12 @@ const agents = [
     apiKeyEnvVar: "OPENAI_API_KEY", // goose uses OpenAI provider by default
     apiKey: OPENAI_API_KEY,
     hasKey: !!OPENAI_API_KEY,
+  },
+  {
+    name: "kimi" as const,
+    apiKeyEnvVar: "KIMI_API_KEY",
+    apiKey: KIMI_API_KEY,
+    hasKey: !!KIMI_API_KEY,
   },
   {
     name: "opencode" as const,
