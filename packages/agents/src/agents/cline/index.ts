@@ -19,12 +19,13 @@ import { parseClineLine } from "./parser.js"
 import { CLINE_TOOL_MAPPINGS } from "./tools.js"
 
 /**
- * Cline agent-specific setup: authenticate with API key
+ * Cline agent-specific setup: authenticate with API key using cline auth command.
  *
- * Cline supports multiple authentication methods:
- * - ANTHROPIC_API_KEY for Claude models
- * - OPENAI_API_KEY for OpenAI models
- * - Other provider keys via cline auth command
+ * Cline CLI stores credentials after running `cline auth`. We run this before
+ * the main command to configure authentication non-interactively.
+ *
+ * IMPORTANT: The cline auth command requires all three flags (-p, -k, -m) to
+ * avoid interactive prompts. Without -m, it shows an interactive menu.
  */
 async function clineSetup(
   sandbox: CodeAgentSandbox,
@@ -32,27 +33,30 @@ async function clineSetup(
 ): Promise<void> {
   if (!sandbox.executeCommand) return
 
-  // Cline can use environment variables for authentication
-  // The auth command can be used for manual setup, but we'll rely on env vars
-  // for automated headless operation
+  // Determine provider, API key, and default model from environment
+  let provider: string | undefined
+  let apiKey: string | undefined
+  let defaultModel: string
 
-  // If ANTHROPIC_API_KEY is provided, configure for Anthropic
   if (env.ANTHROPIC_API_KEY) {
-    const safeKey = env.ANTHROPIC_API_KEY.replace(/'/g, "'\\''")
-    await sandbox.executeCommand(
-      `cline auth -p anthropic -k '${safeKey}' 2>&1 || true`,
-      30
-    )
+    provider = "anthropic"
+    apiKey = env.ANTHROPIC_API_KEY
+    defaultModel = "claude-sonnet-4-5-20250929"
+  } else if (env.OPENAI_API_KEY) {
+    provider = "openai-native"
+    apiKey = env.OPENAI_API_KEY
+    defaultModel = "gpt-4o"
+  } else {
+    return // No recognized API key
   }
 
-  // If OPENAI_API_KEY is provided, configure for OpenAI
-  if (env.OPENAI_API_KEY) {
-    const safeKey = env.OPENAI_API_KEY.replace(/'/g, "'\\''")
-    await sandbox.executeCommand(
-      `cline auth -p openai-native -k '${safeKey}' 2>&1 || true`,
-      30
-    )
-  }
+  // Run cline auth with all three flags (-p, -k, -m) to configure credentials
+  // non-interactively. All three are required to avoid interactive prompts.
+  const safeKey = apiKey.replace(/'/g, "'\\''")
+  await sandbox.executeCommand(
+    `cline auth -p '${provider}' -k '${safeKey}' -m '${defaultModel}' 2>&1 || true`,
+    30
+  )
 }
 
 /**
@@ -83,15 +87,9 @@ export const clineAgent: AgentDefinition = {
     args.push("--json")
 
     // Add model if specified
-    // Cline supports -m / --modelid for model selection
+    // Cline supports -m / --model for model selection
     if (options.model) {
       args.push("-m", options.model)
-    }
-
-    // Add provider if specified in env
-    // Provider can be specified via -p flag
-    if (options.env?.CLINE_PROVIDER) {
-      args.push("-p", options.env.CLINE_PROVIDER)
     }
 
     // Add timeout if specified

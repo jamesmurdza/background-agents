@@ -3,6 +3,12 @@
  *
  * Pure function for parsing Cline CLI JSON output.
  * Cline outputs JSON lines when run with --json flag.
+ *
+ * Actual Cline CLI v2.x event types:
+ * - task_started: Session initialization with taskId
+ * - say: Various message types (task, text, api_req_started, tool, etc.)
+ * - task_completed: Task completion
+ * - error: Error events
  */
 
 import type { Event } from "../../types/events.js"
@@ -13,16 +19,39 @@ import { normalizeClineToolName } from "./tools.js"
 import type { ParseContext } from "../../core/agent.js"
 
 /**
- * Raw event types from Cline's JSON stream
- *
- * Based on Cline CLI documentation, the output format includes:
- * - Session/init events
- * - Message/text events
- * - Tool use events
- * - Tool result events
- * - Completion events
+ * Cline CLI v2.x event types (actual output format)
  */
+interface ClineTaskStarted {
+  type: "task_started"
+  taskId: string
+}
 
+interface ClineSay {
+  type: "say"
+  say: string // "task", "text", "api_req_started", "api_req_finished", "tool", "command", etc.
+  ts?: number
+  text?: string
+  modelInfo?: {
+    providerId: string
+    modelId: string
+    mode: string
+  }
+  conversationHistoryIndex?: number
+}
+
+interface ClineTaskCompleted {
+  type: "task_completed"
+  taskId?: string
+  ts?: number
+}
+
+interface ClineError {
+  type: "error"
+  message?: string
+  error?: string | { message?: string }
+}
+
+// Legacy/alternative event types (for compatibility)
 interface ClineInitEvent {
   type: "init" | "session"
   session_id?: string
@@ -68,19 +97,16 @@ interface ClineComplete {
   subtype?: string
 }
 
-interface ClineError {
-  type: "error"
-  message?: string
-  error?: string | { message?: string }
-}
-
 type ClineEvent =
+  | ClineTaskStarted
+  | ClineSay
+  | ClineTaskCompleted
+  | ClineError
   | ClineInitEvent
   | ClineMessageDelta
   | ClineToolUse
   | ClineToolResult
   | ClineComplete
-  | ClineError
 
 /**
  * Parse a line of Cline CLI output into event(s).
@@ -98,7 +124,74 @@ export function parseClineLine(
     return null
   }
 
-  // Session/init events
+  // Cline v2.x: task_started event (session initialization)
+  if (json.type === "task_started") {
+    const event = json as ClineTaskStarted
+    return { type: "session", id: event.taskId }
+  }
+
+  // Cline v2.x: say event (various message types)
+  if (json.type === "say") {
+    const event = json as ClineSay
+
+    // Handle different "say" types
+    switch (event.say) {
+      case "text":
+      case "task":
+        // Text output from assistant
+        if (event.text) {
+          return { type: "token", text: event.text }
+        }
+        break
+
+      case "tool":
+      case "command":
+        // Tool invocation - extract tool name and input from text if available
+        if (event.text) {
+          // Try to parse as JSON for structured tool call
+          const toolData = safeJsonParse<{
+            tool?: string
+            command?: string
+            input?: Record<string, unknown>
+          }>(event.text)
+          if (toolData) {
+            const toolName = toolData.tool || toolData.command || "shell"
+            const normalizedName = normalizeClineToolName(toolName)
+            return createToolStartEvent(normalizedName, toolData.input || {}, toolMappings)
+          }
+          // Otherwise treat as shell command
+          return createToolStartEvent("shell", { command: event.text }, toolMappings)
+        }
+        break
+
+      case "api_req_started":
+      case "api_req_finished":
+        // API request events - ignore for now
+        break
+
+      case "completion_result":
+        // Completion result - could extract final answer
+        if (event.text) {
+          return { type: "token", text: event.text }
+        }
+        break
+
+      default:
+        // Unknown say type - if it has text, emit as token
+        if (event.text && event.say !== "user_feedback" && event.say !== "user_feedback_diff") {
+          return { type: "token", text: event.text }
+        }
+        break
+    }
+    return null
+  }
+
+  // Cline v2.x: task_completed event
+  if (json.type === "task_completed") {
+    return { type: "end" }
+  }
+
+  // Legacy: Session/init events
   if (json.type === "init" || json.type === "session") {
     const sessionId =
       (json as ClineInitEvent).session_id ||
@@ -110,7 +203,7 @@ export function parseClineLine(
     return null
   }
 
-  // Message/text delta events
+  // Legacy: Message/text delta events
   if (
     json.type === "message" ||
     json.type === "text" ||
@@ -140,7 +233,7 @@ export function parseClineLine(
     return null
   }
 
-  // Tool use/start events
+  // Legacy: Tool use/start events
   if (
     json.type === "tool_use" ||
     json.type === "tool_call" ||
@@ -166,7 +259,7 @@ export function parseClineLine(
     return createToolStartEvent(normalizedName, input, toolMappings)
   }
 
-  // Tool result/end events
+  // Legacy: Tool result/end events
   if (
     json.type === "tool_result" ||
     json.type === "tool_end" ||
@@ -206,7 +299,7 @@ export function parseClineLine(
     return { type: "tool_end", output }
   }
 
-  // Completion events
+  // Legacy: Completion events
   if (
     json.type === "result" ||
     json.type === "complete" ||

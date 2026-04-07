@@ -6,6 +6,7 @@
  *
  * Required env vars per agent (TEST_ prefixed versions take precedence):
  *   - claude: DAYTONA_API_KEY, ANTHROPIC_API_KEY
+ *   - cline: DAYTONA_API_KEY, ANTHROPIC_API_KEY (or OPENAI_API_KEY)
  *   - codex: DAYTONA_API_KEY, OPENAI_API_KEY
  *   - gemini: DAYTONA_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY)
  *   - goose: DAYTONA_API_KEY, OPENAI_API_KEY (or ANTHROPIC_API_KEY)
@@ -45,6 +46,12 @@ const agents = [
   {
     name: "claude" as const,
     apiKeyEnvVar: "ANTHROPIC_API_KEY",
+    apiKey: ANTHROPIC_API_KEY,
+    hasKey: !!ANTHROPIC_API_KEY,
+  },
+  {
+    name: "cline" as const,
+    apiKeyEnvVar: "ANTHROPIC_API_KEY", // cline can use multiple providers, we use anthropic
     apiKey: ANTHROPIC_API_KEY,
     hasKey: !!ANTHROPIC_API_KEY,
   },
