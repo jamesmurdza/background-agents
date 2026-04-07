@@ -1,13 +1,6 @@
-{"type":"init","session_id":"cline_session_abc123"}
-{"type":"message","role":"assistant","text":"I'll help you with that. Let me start by answering your math question and then work through the file operations."}
-{"type":"message","role":"assistant","text":"\n\n1. **2 + 2 = 4**\n\nNow let me list the files in the current directory."}
-{"type":"tool_use","name":"execute_command","id":"tool_1","input":{"command":"ls -la"}}
-{"type":"tool_result","tool_use_id":"tool_1","output":"total 0\ndrwxr-xr-x  2 user user  40 Jan  1 00:00 .\ndrwxr-xr-x 10 user user 200 Jan  1 00:00 .."}
-{"type":"message","role":"assistant","text":"The directory is empty. Now I'll create the hello.txt file."}
-{"type":"tool_use","name":"write_to_file","id":"tool_2","input":{"file_path":"hello.txt","content":"Hello, World!"}}
-{"type":"tool_result","tool_use_id":"tool_2","output":"File created successfully"}
-{"type":"message","role":"assistant","text":"I've created the file. Let me read it back to verify."}
-{"type":"tool_use","name":"read_file","id":"tool_3","input":{"file_path":"hello.txt"}}
-{"type":"tool_result","tool_use_id":"tool_3","output":"Hello, World!"}
-{"type":"message","role":"assistant","text":"Here's a summary of what I did:\n\n1. **2 + 2 = 4**\n2. Listed files in the current directory (was empty)\n3. Created `hello.txt` with content \"Hello, World!\"\n4. Read back the file and confirmed the content: \"Hello, World!\""}
-{"type":"result","status":"success"}
+{"type":"task_started","taskId":"1775528254721"}
+{"ts":1775528254731,"type":"say","say":"task","text":"What is 2+2? Reply with just the number.","modelInfo":{"providerId":"anthropic","modelId":"claude-sonnet-4-5-20250929","mode":"act"},"conversationHistoryIndex":-1}
+{"ts":1775528257417,"type":"say","say":"api_req_started","text":"{\"request\":\"<task>\\nWhat is 2+2?\\n</task>\"}","modelInfo":{"providerId":"anthropic","modelId":"claude-sonnet-4-5-20250929","mode":"act"},"conversationHistoryIndex":-1}
+{"ts":1775528258000,"type":"say","say":"text","text":"4","modelInfo":{"providerId":"anthropic","modelId":"claude-sonnet-4-5-20250929","mode":"act"},"conversationHistoryIndex":1}
+{"ts":1775528258500,"type":"say","say":"api_req_finished","text":"{\"tokensIn\":100,\"tokensOut\":1,\"cacheWrites\":0,\"cacheReads\":0}","modelInfo":{"providerId":"anthropic","modelId":"claude-sonnet-4-5-20250929","mode":"act"},"conversationHistoryIndex":1}
+{"type":"task_completed","taskId":"1775528254721"}
