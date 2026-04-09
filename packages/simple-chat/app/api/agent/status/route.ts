@@ -1,18 +1,10 @@
 import { Daytona } from "@daytonaio/sdk"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { pollBackgroundAgent } from "@/lib/agent-session"
 import { getBackgroundSessionId } from "@/lib/session-store"
 
 export async function GET(req: Request) {
-  // 1. Get session and verify auth
-  const session = await getServerSession(authOptions)
-  if (!session?.accessToken) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  // 2. Parse query params
+  // 1. Parse query params
   const url = new URL(req.url)
   const sandboxId = url.searchParams.get("sandboxId")
   const repoName = url.searchParams.get("repoName")

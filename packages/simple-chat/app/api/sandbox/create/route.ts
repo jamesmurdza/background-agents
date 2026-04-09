@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Missing required field: newBranch" }, { status: 400 })
   }
 
-  const isNewRepo = repo === NEW_REPOSITORY
+  const isNewRepo = repo === NEW_REPOSITORY || repo === "__new__"
 
   // 2. For GitHub repos, we need auth
   let githubToken: string | undefined

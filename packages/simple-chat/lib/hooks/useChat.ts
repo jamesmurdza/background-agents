@@ -204,7 +204,7 @@ export function useChat() {
     newState = addMessage(chat.id, assistantMessage)
     setState(newState)
 
-    const repoName = chat.repo.split("/")[1]
+    const repoName = isNewRepo ? "project" : chat.repo.split("/")[1]
 
     try {
       const response = await fetch("/api/agent/execute", {

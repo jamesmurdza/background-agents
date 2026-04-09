@@ -1,6 +1,4 @@
 import { Daytona } from "@daytonaio/sdk"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { createBackgroundAgentSession } from "@/lib/agent-session"
 import { setBackgroundSessionId } from "@/lib/session-store"
@@ -8,13 +6,7 @@ import { setBackgroundSessionId } from "@/lib/session-store"
 export const maxDuration = 60
 
 export async function POST(req: Request) {
-  // 1. Get session and verify auth
-  const session = await getServerSession(authOptions)
-  if (!session?.accessToken) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  // 2. Parse request body
+  // 1. Parse request body
   const body = await req.json()
   const { sandboxId, prompt, repoName, previewUrlPattern } = body
 
