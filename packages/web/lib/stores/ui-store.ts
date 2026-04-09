@@ -67,6 +67,9 @@ interface UIActions {
   toggleMobileSidebar: () => void
   setMobileSidebarOpen: (open: boolean) => void
 
+  // Derived state helpers
+  hasActiveServer: () => boolean
+
   // Loading actions
   setMobileSandboxToggleLoading: (loading: boolean) => void
   setMobilePrLoading: (loading: boolean) => void
@@ -147,6 +150,9 @@ const initialState: UIState = {
 
 const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get: () => UIState & UIActions) => ({
   ...initialState,
+
+  // Derived state helpers
+  hasActiveServer: () => get().contentPanelTabs.some(t => t.type === "server"),
 
   // Sidebar actions
   openMobileSidebar: () => set({ mobileSidebarOpen: true }),

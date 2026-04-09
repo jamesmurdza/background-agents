@@ -6,7 +6,6 @@ import { useUIStore, ContentPanelTab } from "@/lib/stores/ui-store"
 import {
   X,
   Terminal,
-  Plus,
   Globe,
   ExternalLink,
   FileCode,
@@ -129,6 +128,14 @@ function isLogFile(filePath: string): boolean {
   return filePath.startsWith("/tmp/logs/") || filePath.startsWith("/tmp/claude/")
 }
 
+/** Check if a tab can be closed by the user */
+function isTabClosable(tab: ContentPanelTab): boolean {
+  // Server tabs and log files cannot be closed
+  if (tab.type === "server") return false
+  if (tab.type === "file" && tab.filePath && isLogFile(tab.filePath)) return false
+  return true
+}
+
 function highlightLines(code: string): string[] {
   return highlight(code).split("\n")
 }
@@ -226,15 +233,11 @@ function TabBar({
   activeTabId,
   onSelectTab,
   onCloseTab,
-  onAddTerminal,
-  onClose,
 }: {
   tabs: ContentPanelTab[]
   activeTabId: string | null
   onSelectTab: (id: string) => void
   onCloseTab: (id: string) => void
-  onAddTerminal: () => void
-  onClose: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const activeTabRef = useRef<HTMLButtonElement>(null)
@@ -256,7 +259,7 @@ function TabBar({
   }, [activeTabId])
 
   return (
-    <div className="flex items-stretch border-b border-border bg-muted/30 h-9 shrink-0">
+    <div className="flex items-stretch border-b border-border bg-muted/30 h-8 shrink-0">
       {/* Scrollable tabs area */}
       <div
         ref={scrollRef}
@@ -265,6 +268,7 @@ function TabBar({
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
+          const canClose = isTabClosable(tab)
           return (
             <button
               key={tab.id}
@@ -286,41 +290,25 @@ function TabBar({
               <TabIcon tab={tab} />
               <span className="truncate max-w-[100px]">{tab.filename}</span>
 
-              {/* Close button */}
-              <span
-                role="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onCloseTab(tab.id)
-                }}
-                className={cn(
-                  "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity",
-                  isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
-                )}
-              >
-                <X className="h-3 w-3" />
-              </span>
+              {/* Close button - only for closable tabs */}
+              {canClose && (
+                <span
+                  role="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCloseTab(tab.id)
+                  }}
+                  className={cn(
+                    "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity",
+                    isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+                  )}
+                >
+                  <X className="h-3 w-3" />
+                </span>
+              )}
             </button>
           )
         })}
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex items-stretch border-l border-border/50">
-        <button
-          onClick={onAddTerminal}
-          className="flex items-center justify-center w-8 hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
-          title="New Terminal"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={onClose}
-          className="flex items-center justify-center w-8 hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground border-l border-border/50"
-          title="Close Panel"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
       </div>
     </div>
   )
@@ -919,6 +907,13 @@ export function ContentPanel({
     }
   }, [sandboxId, repoPath, fetchServers])
 
+  // ===== Auto-close when all tabs are closed =====
+  useEffect(() => {
+    if (contentPanelOpen && contentPanelTabs.length === 0) {
+      closeContentPanel()
+    }
+  }, [contentPanelOpen, contentPanelTabs.length, closeContentPanel])
+
   // ===== Render =====
   if (!contentPanelOpen) {
     return null
@@ -943,8 +938,6 @@ export function ContentPanel({
         activeTabId={contentPanelActiveTabId}
         onSelectTab={setActiveTab}
         onCloseTab={closeTab}
-        onAddTerminal={() => addTerminalTab(true)}
-        onClose={closeContentPanel}
       />
 
       {/* Content Area */}

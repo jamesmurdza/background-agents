@@ -19,6 +19,7 @@ import {
   XCircle,
   X,
   Terminal,
+  Globe,
 } from "lucide-react"
 import { useUIStore } from "@/lib/stores/ui-store"
 import type { RebaseConflictState } from "@/components/git/hooks/useGitDialogs"
@@ -66,7 +67,11 @@ export function ChatHeader({
   rebaseConflict,
   onAbortConflict,
 }: ChatHeaderProps) {
-  const { openContentPanel, addTerminalTab } = useUIStore()
+  const { openContentPanel, addTerminalTab, contentPanelTabs, contentPanelOpen, setActiveTab } = useUIStore()
+
+  // Check if there's an active server
+  const serverTab = contentPanelTabs.find(t => t.type === "server")
+  const hasActiveServer = !!serverTab
 
   const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
   const isBusy = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING
@@ -312,10 +317,29 @@ export function ChatHeader({
           )
         })}
 
-        {/* Terminal button - opens content panel with new terminal tab */}
+        {/* Browser + Terminal buttons - opens content panel */}
         {branch.sandboxId && (
           <>
             <div className="mx-1.5 h-4 w-px bg-border shrink-0" />
+            {/* Browser icon - shows when there's an active server */}
+            {hasActiveServer && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => {
+                      openContentPanel()
+                      if (serverTab) {
+                        setActiveTab(serverTab.id)
+                      }
+                    }}
+                    className="flex cursor-pointer h-7 w-7 shrink-0 items-center justify-center rounded-md text-green-400"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">Preview</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
