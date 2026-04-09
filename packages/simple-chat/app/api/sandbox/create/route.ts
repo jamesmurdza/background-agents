@@ -11,8 +11,11 @@ export async function POST(req: Request) {
   const body = await req.json()
   const { repo, baseBranch, newBranch } = body
 
-  if (!repo || !newBranch) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 })
+  if (!repo) {
+    return Response.json({ error: "Missing required field: repo" }, { status: 400 })
+  }
+  if (!newBranch) {
+    return Response.json({ error: "Missing required field: newBranch" }, { status: 400 })
   }
 
   const isNewRepo = repo === NEW_REPOSITORY

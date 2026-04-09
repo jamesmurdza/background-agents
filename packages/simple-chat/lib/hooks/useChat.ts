@@ -150,7 +150,7 @@ export function useChat() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             repo: chat.repo,
-            baseBranch: chat.baseBranch,
+            baseBranch: chat.baseBranch || "main",
             newBranch: branch,
             // Pass API key if configured (optional for OpenCode)
             ...(anthropicApiKey && { anthropicApiKey }),
