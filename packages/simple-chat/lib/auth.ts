@@ -11,8 +11,6 @@ export const authOptions: NextAuthOptions = {
           scope: "repo read:user user:email",
         },
       },
-      // Disable PKCE check - GitHub sends an 'iss' parameter that causes issues
-      checks: ["state"],
     }),
   ],
   callbacks: {
