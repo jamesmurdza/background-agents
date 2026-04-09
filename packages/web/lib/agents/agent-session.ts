@@ -2,10 +2,10 @@
  * Agent Session Module
  *
  * Wrapper module for agents SDK providing:
- * - System prompt building
- * - Tool name mapping (SDK names to UI names)
- * - Event transformation
- * - Content blocks reconstruction
+ * - System prompt building (via @upstream/common)
+ * - Tool name mapping (via @upstream/common)
+ * - Event transformation (via @upstream/common)
+ * - Content blocks reconstruction (via @upstream/common)
  * - Session persistence
  * - Streaming and background session management
  */
@@ -21,10 +21,22 @@ import {
   type EndEvent,
   type BackgroundRunPhase,
 } from "@upstream/agents"
+import {
+  buildSystemPrompt,
+  buildContentBlocks as commonBuildContentBlocks,
+  mapToolName,
+  getProviderForAgent,
+  PATHS,
+  type Agent,
+  type ContentBlock,
+  type ToolCall,
+} from "@upstream/common"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
-import { type Agent, getProviderForAgent } from "@/lib/shared/types"
-import { PATHS, SANDBOX_CONFIG } from "@/lib/shared/constants"
 import { updateSnapshot, getAccumulatedEvents } from "@/lib/agents/agent-events"
+
+// Re-export shared utilities for backward compatibility
+export { buildSystemPrompt, mapToolName }
+export type { ContentBlock, ToolCall }
 
 // =============================================================================
 // Types
@@ -53,15 +65,6 @@ export interface AgentEvent {
   message?: string
 }
 
-// JSON-serializable content block type for Prisma
-export type ContentBlock = {
-  type: "text"
-  text: string
-} | {
-  type: "tool_calls"
-  toolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string; output?: string }>
-}
-
 export interface AgentCrashedPayload {
   message?: string
   output?: string
@@ -70,7 +73,7 @@ export interface AgentCrashedPayload {
 export interface BackgroundPollResult {
   status: "running" | "completed" | "error"
   content: string
-  toolCalls: Array<{ tool: string; summary: string; fullSummary?: string; output?: string }>
+  toolCalls: ToolCall[]
   contentBlocks: ContentBlock[]
   error?: string
   agentCrashed?: AgentCrashedPayload
@@ -78,186 +81,18 @@ export interface BackgroundPollResult {
 }
 
 // =============================================================================
-// Tool Name Mapping (SDK uses lowercase, UI expects PascalCase)
+// Content Blocks Builder (wrapper for web-specific needs)
 // =============================================================================
 
-const TOOL_NAME_MAP: Record<string, string> = {
-  shell: "Bash",
-  bash: "Bash",
-  write: "Write",
-  read: "Read",
-  edit: "Edit",
-  glob: "Glob",
-  grep: "Grep",
-}
-
-export function mapToolName(sdkTool: string): string {
-  return TOOL_NAME_MAP[sdkTool.toLowerCase()] || sdkTool
-}
-
-// =============================================================================
-// System Prompt Builder
-// =============================================================================
-
-export function buildSystemPrompt(
-  repoPath: string,
-  previewUrlPattern?: string
-): string {
-  // NOTE: The lines about --amend are specifically for Claude Code, which has a tendency to
-  // use git commit --amend. We don't want this because we only fast-forward push, so amending
-  // would cause the push to fail (non-fast-forward error).
-  let prompt = `You are an AI coding agent running in a Daytona sandbox.
-The repository is cloned at ${repoPath}.
-
-## Git Rules
-- You are working on the git branch that is currently checked out. Do not create, switch, or delete branches.
-- You must commit all file changes before finishing your task.
-- Commit frequently: create a commit after completing each logical unit of work.
-- Always create NEW commits. Never rewrite git history (no git commit --amend, git rebase, or git reset --hard).
-- Do not push — pushing is handled automatically.
-- Use "git restore" to discard file changes (not "git checkout").
-
-## File Operations
-- Use ${repoPath} for all file operations.
-- Always check the current state of files before editing them.
-
-## Logs Directory
-- Write any log files to ${PATHS.LOGS_DIR}.
-- Examples: ${PATHS.LOGS_DIR}/build.log, ${PATHS.LOGS_DIR}/test-results.log
-
-## Running Web Servers
-- Always start web servers using nohup to ensure they run in the background and persist.
-- Example: nohup npm start > server.log 2>&1 &
-
-## When Finished
-- Provide a clear summary of what you did.`
-
-  if (previewUrlPattern) {
-    const defaultPort = String(SANDBOX_CONFIG.DEFAULT_PREVIEW_PORT)
-    const exampleUrl = previewUrlPattern.replace("{port}", defaultPort)
-    prompt += `
-
-If you start a server or service on any port, provide the user with the preview URL.
-The preview URL pattern is: ${previewUrlPattern}
-Replace {port} with the actual port number. For example, if you start a server on port ${defaultPort}, the URL is: ${exampleUrl}`
-  }
-
-  return prompt
-}
-
-// =============================================================================
-// Tool Detail Extraction (for summary strings)
-// =============================================================================
-
-interface ToolDetailResult {
-  summary: string
-  fullDetail?: string // Only set if different from summary (i.e., was truncated)
-  filePath?: string // Full file path for file-related tools (Read, Edit, Write)
-}
-
-function getToolDetail(toolName: string, input: unknown): ToolDetailResult {
-  if (!input || typeof input !== "object") return { summary: "" }
-  const inp = input as Record<string, unknown>
-
-  const mappedName = mapToolName(toolName)
-
-  if (mappedName === "Bash" && inp.command) {
-    const cmd = String(inp.command)
-    if (cmd.length > 80) {
-      return { summary: cmd.slice(0, 80) + "...", fullDetail: cmd }
-    }
-    return { summary: cmd }
-  }
-  if (["Read", "Edit", "Write"].includes(mappedName) && inp.file_path) {
-    const path = String(inp.file_path)
-    const filename = path.split("/").pop() || path
-    // Only set fullDetail if filename is different from full path
-    if (filename !== path) {
-      return { summary: filename, fullDetail: path, filePath: path }
-    }
-    return { summary: filename, filePath: path }
-  }
-  if (mappedName === "Glob" && inp.pattern) {
-    return { summary: String(inp.pattern) }
-  }
-  if (mappedName === "Grep" && inp.pattern) {
-    return { summary: String(inp.pattern) }
-  }
-
-  return { summary: "" }
-}
-
-// =============================================================================
-// ContentBlocks Builder (for background execution results)
-// =============================================================================
-
-/** Maximum characters to store/display for a single multi-line tool output. */
-const TOOL_OUTPUT_MAX_CHARS = 4000
-
+/**
+ * Build content blocks from events.
+ * This is a thin wrapper around @upstream/common's buildContentBlocks
+ * that maintains backward compatibility with web's API.
+ */
 export function buildContentBlocks(
   events: Event[]
-): { content: string; toolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string; output?: string }>; contentBlocks: ContentBlock[] } {
-  const blocks: ContentBlock[] = []
-  let pendingText = ""
-  let pendingToolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string; output?: string }> = []
-  const allToolCalls: Array<{ tool: string; summary: string; fullSummary?: string; filePath?: string; output?: string }> = []
-  let allContent = ""
-
-  for (const event of events) {
-    if (event.type === "token") {
-      const tokenEvent = event as TokenEvent
-      // Flush pending tool calls before adding text
-      if (pendingToolCalls.length > 0) {
-        blocks.push({ type: "tool_calls", toolCalls: [...pendingToolCalls] })
-        pendingToolCalls = []
-      }
-      pendingText += tokenEvent.text
-      allContent += tokenEvent.text
-    } else if (event.type === "tool_start") {
-      const toolEvent = event as ToolStartEvent
-      // Flush pending text before adding tool call
-      if (pendingText) {
-        blocks.push({ type: "text", text: pendingText })
-        pendingText = ""
-      }
-      const tool = mapToolName(toolEvent.name)
-      const { summary: detail, fullDetail, filePath } = getToolDetail(toolEvent.name, toolEvent.input)
-      const summary = detail ? `${tool}: ${detail}` : tool
-      const fullSummary = fullDetail ? `${tool}: ${fullDetail}` : undefined
-      const toolCall = { tool, summary, fullSummary, filePath }
-      pendingToolCalls.push(toolCall)
-      allToolCalls.push(toolCall)
-    } else if (event.type === "tool_end") {
-      const toolEndEvent = event as ToolEndEvent
-      const rawOutput = toolEndEvent.output
-      // Attach output to the last tool call if one exists and output is non-empty.
-      // Both pendingToolCalls and allToolCalls hold references to the same objects, so
-      // mutating via allToolCalls propagates to pendingToolCalls and any already-flushed
-      // blocks (which hold shallow-copied arrays of the same object references).
-      if (rawOutput && rawOutput.trim() && allToolCalls.length > 0) {
-        let output = rawOutput.trim()
-        if (output.length > TOOL_OUTPUT_MAX_CHARS) {
-          output = output.slice(0, TOOL_OUTPUT_MAX_CHARS) + "\n… (output truncated)"
-        }
-        allToolCalls[allToolCalls.length - 1].output = output
-      }
-    }
-  }
-
-  // Flush remaining
-  if (pendingToolCalls.length > 0) {
-    blocks.push({ type: "tool_calls", toolCalls: [...pendingToolCalls] })
-  }
-  if (pendingText) {
-    blocks.push({ type: "text", text: pendingText })
-  }
-
-  // Ensure content ends with newline (matching Python behavior)
-  if (allContent && !allContent.endsWith("\n")) {
-    allContent += "\n"
-  }
-
-  return { content: allContent, toolCalls: allToolCalls, contentBlocks: blocks }
+): { content: string; toolCalls: ToolCall[]; contentBlocks: ContentBlock[] } {
+  return commonBuildContentBlocks(events)
 }
 
 // =============================================================================
@@ -515,7 +350,7 @@ export async function pollBackgroundAgent(
     // Sandbox/SDK error (e.g. disconnect, process gone) – return error with whatever we have from DB.
     const msg = err instanceof Error ? err.message : "Unknown error polling background session"
     let content = ""
-    let toolCalls: Array<{ tool: string; summary: string }> = []
+    let toolCalls: ToolCall[] = []
     let contentBlocks: ContentBlock[] = []
     try {
       const cached = await getAccumulatedEvents(options.agentExecutionId)
@@ -542,3 +377,4 @@ export async function pollBackgroundAgent(
 // =============================================================================
 
 export type { Event, SessionEvent, TokenEvent, ToolStartEvent, ToolEndEvent, EndEvent }
+export type { Agent }

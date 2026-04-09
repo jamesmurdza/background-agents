@@ -103,12 +103,28 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6", requiresKey: "anthropic" },
     // OpenAI direct models (requires OpenAI API key)
     { value: "openai/codex-mini-latest", label: "Codex Mini Latest", requiresKey: "openai" },
-    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
-    { value: "openai/gpt-4o-mini", label: "GPT-4o Mini", requiresKey: "openai" },
+    { value: "openai/gpt-3.5-turbo", label: "GPT-3.5 Turbo", requiresKey: "openai" },
+    { value: "openai/gpt-4", label: "GPT-4", requiresKey: "openai" },
+    { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
     { value: "openai/gpt-4.1", label: "GPT-4.1", requiresKey: "openai" },
     { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini", requiresKey: "openai" },
+    { value: "openai/gpt-4.1-nano", label: "GPT-4.1 Nano", requiresKey: "openai" },
+    { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
+    { value: "openai/gpt-4o-mini", label: "GPT-4o Mini", requiresKey: "openai" },
+    { value: "openai/gpt-5", label: "GPT-5", requiresKey: "openai" },
+    { value: "openai/gpt-5-codex", label: "GPT-5 Codex", requiresKey: "openai" },
+    { value: "openai/gpt-5-mini", label: "GPT-5 Mini", requiresKey: "openai" },
+    { value: "openai/gpt-5-nano", label: "GPT-5 Nano", requiresKey: "openai" },
+    { value: "openai/gpt-5-pro", label: "GPT-5 Pro", requiresKey: "openai" },
+    { value: "openai/gpt-5.1", label: "GPT-5.1", requiresKey: "openai" },
+    { value: "openai/gpt-5.2", label: "GPT-5.2", requiresKey: "openai" },
+    { value: "openai/o1", label: "o1", requiresKey: "openai" },
+    { value: "openai/o1-mini", label: "o1 Mini", requiresKey: "openai" },
+    { value: "openai/o1-pro", label: "o1 Pro", requiresKey: "openai" },
     { value: "openai/o3", label: "o3", requiresKey: "openai" },
     { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
+    { value: "openai/o3-pro", label: "o3 Pro", requiresKey: "openai" },
+    { value: "openai/o4-mini", label: "o4 Mini", requiresKey: "openai" },
   ],
   "codex": [
     { value: "gpt-5.4", label: "GPT-5.4 (Recommended)", requiresKey: "openai" },
@@ -166,7 +182,11 @@ export interface UserCredentialFlags {
   hasOpenaiApiKey?: boolean
   hasOpencodeApiKey?: boolean
   hasGeminiApiKey?: boolean
+  /** Server has OpenRouter (or similar) so AI branch naming works without user API keys */
   hasServerLlmFallback?: boolean
+  // Web-specific settings (not used by simple-chat)
+  squashOnMerge?: boolean
+  prDescriptionMode?: string
 }
 
 /**

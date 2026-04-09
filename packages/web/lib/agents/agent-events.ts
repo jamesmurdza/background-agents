@@ -34,7 +34,7 @@ export async function persistExecutionCompletion(
       data: {
         content,
         toolCalls:
-          result.toolCalls?.length ? result.toolCalls : undefined,
+          result.toolCalls?.length ? JSON.parse(JSON.stringify(result.toolCalls)) : undefined,
         contentBlocks:
           result.contentBlocks?.length ? JSON.parse(JSON.stringify(result.contentBlocks)) : undefined,
       },
