@@ -71,13 +71,13 @@ export function Sidebar({
   return (
     <div
       ref={sidebarRef}
-      className="relative flex h-full flex-col bg-sidebar border-r border-sidebar-border"
+      className="relative flex h-full flex-col bg-background border-r border-sidebar-border"
       style={{ width: collapsed ? COLLAPSED_WIDTH : width }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-sidebar-border">
+      <div className="flex items-center justify-between p-3">
         {!collapsed && (
-          <h1 className="text-sm font-semibold text-sidebar-foreground">
+          <h1 className="text-sm font-semibold text-foreground">
             Background Agents
           </h1>
         )}
@@ -94,17 +94,15 @@ export function Sidebar({
       </div>
 
       {/* New Chat Button */}
-      <div className="p-2">
+      <div className="px-2 pb-2">
         <button
           onClick={onNewChat}
           className={cn(
             "flex items-center gap-2 w-full rounded-md hover:bg-accent/50 transition-colors cursor-pointer",
-            collapsed ? "justify-center p-2" : "px-3 py-2"
+            collapsed ? "justify-center p-2" : "px-2 py-2"
           )}
         >
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Plus className="h-3 w-3" />
-          </div>
+          <Plus className="h-4 w-4 text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
         </button>
       </div>
@@ -112,19 +110,21 @@ export function Sidebar({
       {/* Chat List */}
       <div className="flex-1 overflow-y-auto p-2">
         <div className="space-y-1">
-          {chats.map((chat) => (
-            <ChatItem
-              key={chat.id}
-              chat={chat}
-              isActive={chat.id === currentChatId}
-              collapsed={collapsed}
-              onSelect={() => onSelectChat(chat.id)}
-              onDelete={() => onDeleteChat(chat.id)}
-            />
-          ))}
+          {chats
+            .filter((chat) => chat.messages.length > 0)
+            .map((chat) => (
+              <ChatItem
+                key={chat.id}
+                chat={chat}
+                isActive={chat.id === currentChatId}
+                collapsed={collapsed}
+                onSelect={() => onSelectChat(chat.id)}
+                onDelete={() => onDeleteChat(chat.id)}
+              />
+            ))}
         </div>
 
-        {chats.length === 0 && !collapsed && (
+        {chats.filter((chat) => chat.messages.length > 0).length === 0 && !collapsed && (
           <div className="px-2 py-8 text-center text-sm text-muted-foreground">
             No chats yet. Click "New Chat" to start.
           </div>
@@ -196,7 +196,7 @@ export function Sidebar({
       {!collapsed && (
         <div
           onMouseDown={startResizing}
-          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors"
+          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-muted-foreground/30 active:bg-muted-foreground/50 transition-colors"
         />
       )}
     </div>

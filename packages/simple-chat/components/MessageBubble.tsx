@@ -19,7 +19,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       {/* Content */}
       <div className={cn("max-w-[90%]", isUser && "text-right")}>
         {isUser ? (
-          <div className="inline-block rounded-lg px-4 py-2 text-sm bg-green-100 dark:bg-green-900/30 text-foreground">
+          <div className="inline-block rounded-lg px-4 py-2 text-sm bg-muted text-foreground">
             <p className="whitespace-pre-wrap">{message.content}</p>
           </div>
         ) : (
@@ -84,13 +84,13 @@ interface ToolCallItemProps {
 }
 
 function ToolCallItem({ tool }: ToolCallItemProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   const Icon = getToolIcon(tool.tool)
   const hasOutput = !!tool.output
 
   return (
-    <div className="rounded border border-border/50 bg-background/50 overflow-hidden">
+    <div className="rounded border border-border/50 bg-muted/50 overflow-hidden">
       <button
         onClick={() => hasOutput && setExpanded(!expanded)}
         className={cn(
