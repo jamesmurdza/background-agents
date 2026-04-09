@@ -181,6 +181,9 @@ export function useChat() {
     if (!isNewRepo && !session?.accessToken) return
 
     const chat = currentChat
+    // Check if this is the first message (for auto-naming)
+    const isFirstMessage = chat.messages.length === 0
+
     // Get API keys from settings
     const { anthropicApiKey, openaiApiKey, opencodeApiKey, geminiApiKey } = state.settings
 
@@ -309,6 +312,25 @@ export function useChat() {
 
       // 4. Start polling for status
       startPolling(chat.id, sandboxId!, repoName, previewUrlPattern)
+
+      // 5. Generate chat name from first message (fire-and-forget)
+      if (isFirstMessage) {
+        fetch("/api/chat/suggest-name", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: content }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.name) {
+              const updated = updateChat(chat.id, { displayName: data.name })
+              setState(updated)
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to generate chat name:", err)
+          })
+      }
     } catch (error) {
       console.error("Failed to execute agent:", error)
 
