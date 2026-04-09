@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Send, Square, GitBranch, Loader2, ChevronDown } from "lucide-react"
+import { Send, Square, Loader2, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -70,8 +70,7 @@ export function ChatPanel({ chat, onSendMessage, onStopAgent, onChangeRepo }: Ch
   return (
     <div className="flex-1 flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <GitBranch className="h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center gap-2 px-4 py-3">
         {canChangeRepo && onChangeRepo ? (
           <button
             onClick={onChangeRepo}
