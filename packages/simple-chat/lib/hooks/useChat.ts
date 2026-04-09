@@ -281,7 +281,7 @@ export function useChat() {
 
         const data: AgentStatusResponse = await response.json()
 
-        // Update message
+        // Update message - the API now returns accumulated content
         let newState = updateLastMessage(chatId, {
           content: data.content,
           toolCalls: data.toolCalls,

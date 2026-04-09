@@ -24,6 +24,7 @@ export interface AgentSessionOptions {
   repoPath: string
   previewUrlPattern?: string
   sessionId?: string
+  cachedEvents?: Event[]
 }
 
 // =============================================================================
@@ -240,6 +241,7 @@ export interface PollResult {
   contentBlocks: ContentBlock[]
   error?: string
   sessionId?: string
+  rawEvents?: Event[]
 }
 
 export async function pollBackgroundAgent(
@@ -265,7 +267,7 @@ export async function pollBackgroundAgent(
       running?: boolean
     }
 
-    const { events, sessionId } = eventsResult
+    const { events: newEvents, sessionId } = eventsResult
     let running: boolean
     if (typeof eventsResult.running === "boolean") {
       running = eventsResult.running
@@ -273,10 +275,14 @@ export async function pollBackgroundAgent(
       running = await bgSession.isRunning()
     }
 
-    const { content, toolCalls, contentBlocks } = buildContentBlocks(events)
+    // Combine cached events with new events
+    const cachedEvents = options.cachedEvents ?? []
+    const allEvents = [...cachedEvents, ...newEvents]
+
+    const { content, toolCalls, contentBlocks } = buildContentBlocks(allEvents)
 
     // Check for crash
-    const crashEvent = events.find(
+    const crashEvent = allEvents.find(
       (e) => (e as { type: string }).type === "agent_crashed"
     ) as { type: "agent_crashed"; message?: string } | undefined
     if (crashEvent) {
@@ -287,11 +293,12 @@ export async function pollBackgroundAgent(
         contentBlocks,
         error: crashEvent.message ?? "Process exited without completing",
         sessionId: sessionId || undefined,
+        rawEvents: newEvents,
       }
     }
 
     // Check for end event
-    const endEvent = events.find((e): e is EndEvent => e.type === "end") as
+    const endEvent = allEvents.find((e): e is EndEvent => e.type === "end") as
       | (EndEvent & { error?: string })
       | undefined
 
@@ -303,6 +310,7 @@ export async function pollBackgroundAgent(
         contentBlocks,
         error: endEvent.error,
         sessionId: sessionId || undefined,
+        rawEvents: newEvents,
       }
     }
 
@@ -317,6 +325,7 @@ export async function pollBackgroundAgent(
         contentBlocks,
         error: hasOutput ? undefined : "Agent stopped without completing",
         sessionId: sessionId || undefined,
+        rawEvents: newEvents,
       }
     }
 
@@ -326,6 +335,7 @@ export async function pollBackgroundAgent(
       toolCalls,
       contentBlocks,
       sessionId: sessionId || undefined,
+      rawEvents: newEvents,
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error"

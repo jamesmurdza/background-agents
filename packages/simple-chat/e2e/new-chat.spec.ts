@@ -50,8 +50,8 @@ test.describe("New Chat Flow", () => {
     }
 
     // Verify the assistant gave a response (the response should mention creating the file)
-    // The assistant response should be visible in the chat
-    await expect(page.locator("p").filter({ hasText: /hello|created|file/i })).toBeVisible()
+    // The assistant response should be visible in the chat (use first() to handle multiple matches)
+    await expect(page.locator("p").filter({ hasText: /created/i }).first()).toBeVisible()
   })
 
   test("should show the welcome screen on initial load", async ({ page }) => {

@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
 import { pollBackgroundAgent } from "@/lib/agent-session"
-import { getBackgroundSessionId } from "@/lib/session-store"
+import { getBackgroundSessionId, getAccumulatedEvents, addAccumulatedEvents } from "@/lib/session-store"
 
 export async function GET(req: Request) {
   // 1. Parse query params
@@ -37,13 +37,22 @@ export async function GET(req: Request) {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
 
-    // 6. Poll for events
+    // 6. Poll for events with accumulation
     const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
+
+    // Get previously accumulated events
+    const cachedEvents = getAccumulatedEvents(sandboxId)
 
     const result = await pollBackgroundAgent(sandbox, backgroundSessionId, {
       repoPath,
       previewUrlPattern: previewUrlPattern || undefined,
+      cachedEvents,
     })
+
+    // Store accumulated events for next poll
+    if (result.rawEvents) {
+      addAccumulatedEvents(sandboxId, result.rawEvents)
+    }
 
     return Response.json(result)
   } catch (error) {
