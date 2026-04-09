@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo } from "react"
-import { ArrowUp, Square, ChevronDown, Github, Key } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, Key, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
 import { getCredentialFlags } from "@/lib/storage"
 import { MessageBubble } from "./MessageBubble"
+import { AgentIcon } from "./icons/agent-icons"
 
 import type { HighlightKey } from "./modals/SettingsModal"
 
@@ -210,17 +211,30 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
         {/* Bottom row with selectors */}
         <div className="flex items-center gap-4 px-4 py-2">
           {/* Repo selector */}
-          {canChangeRepo && onChangeRepo ? (
-            <button
-              onClick={onChangeRepo}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
-              {isNewRepo ? "New Repository" : chat.repo}
-              <ChevronDown className="h-3 w-3" />
-            </button>
+          {canChangeRepo ? (
+            <div className="flex items-center gap-1">
+              {onChangeRepo && (
+                <button
+                  onClick={onChangeRepo}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {isNewRepo ? "Repository" : chat.repo}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              )}
+              {!isNewRepo && onUpdateChat && (
+                <button
+                  onClick={() => onUpdateChat({ repo: NEW_REPOSITORY, baseBranch: "main" })}
+                  className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Remove repository"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           ) : (
             <span className="text-xs text-muted-foreground">
-              {isNewRepo ? "New Repository" : chat.repo}
+              {isNewRepo ? "Repository" : chat.repo}
             </span>
           )}
 
@@ -237,6 +251,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
               }}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
+              <AgentIcon agent={currentAgent} className="h-3.5 w-3.5" />
               {agentLabels[currentAgent]}
               <ChevronDown className="h-3 w-3" />
             </button>
@@ -247,10 +262,11 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                     key={agent}
                     onClick={() => handleAgentChange(agent)}
                     className={cn(
-                      "w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors",
+                      "w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors flex items-center gap-2",
                       agent === currentAgent && "bg-accent"
                     )}
                   >
+                    <AgentIcon agent={agent} className="h-3.5 w-3.5" />
                     {agentLabels[agent]}
                   </button>
                 ))}
