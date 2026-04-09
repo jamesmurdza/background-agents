@@ -19,11 +19,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Transpile workspace packages (source imports for dev mode)
+  transpilePackages: ["@upstream/agents", "@upstream/common"],
   // Mark native addon packages as external so they're not bundled by webpack
   serverExternalPackages: [
     "ssh2",
     "cpu-features",
-    "@upstream/agents",
   ],
   // Empty turbopack config to acknowledge we're using webpack
   turbopack: {},
@@ -38,7 +39,6 @@ const nextConfig = {
         ...externals,
         "cpu-features",
         "ssh2",
-        "@upstream/agents",
       ]
     }
 
