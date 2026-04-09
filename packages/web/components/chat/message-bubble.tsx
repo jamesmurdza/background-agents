@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
-  FileCode,
   ChevronRight,
 } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
@@ -31,12 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { highlight } from "sugar-high"
+import { useUIStore } from "@/lib/stores/ui-store"
 
 // ============================================================================
 // Tool Call Components
@@ -110,203 +104,14 @@ function ShellOutput({ output }: { output: string }) {
 }
 
 // ============================================================================
-// File Preview Components for Tool Calls
+// File Path Link Component
 // ============================================================================
-
-interface FilePreviewContent {
-  path: string
-  content: string
-  modifiedAt: number
-  size: number
-  truncated?: boolean
-}
-
-const PREVIEW_LINES = 50
 
 /** Tool names whose output (stdout/stderr) should be shown in the timeline. */
 const TOOL_OUTPUT_TOOLS = ["Bash", "Shell", "Exec", "Run"] as const
 
 /**
- * Format file size for display
- */
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-/**
- * Syntax highlighted code component
- */
-function HighlightedCode({ code }: { code: string }) {
-  const lines = highlight(code).split("\n")
-  return (
-    <table className="w-full text-xs font-mono border-collapse">
-      <tbody>
-        {lines.map((lineHtml, i) => (
-          <tr key={i} className="leading-5">
-            <td className="select-none text-right text-muted-foreground/50 pr-3 pl-3 align-top w-1 whitespace-nowrap">{i + 1}</td>
-            <td
-              className="pr-3 whitespace-pre-wrap break-all"
-              dangerouslySetInnerHTML={{ __html: lineHtml }}
-            />
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-/**
- * File preview popover for tool calls with file paths
- */
-function ToolFilePreviewPopover({
-  filePath,
-  sandboxId,
-  repoPath,
-  children,
-}: {
-  filePath: string
-  sandboxId: string | null | undefined
-  repoPath: string | null | undefined
-  children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  const [content, setContent] = useState<FilePreviewContent | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const loadFullTriggered = useRef(false)
-
-  const filename = filePath.split("/").pop() || filePath
-
-  // Reset state when popover closes
-  useEffect(() => {
-    if (!open) {
-      loadFullTriggered.current = false
-    }
-  }, [open])
-
-  // Fetch file content when popover opens
-  const fetchContent = useCallback(async (preview = true) => {
-    if (!sandboxId || !repoPath) {
-      setError("Sandbox not available")
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const res = await fetch("/api/sandbox/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath,
-          action: "read-file",
-          filePath,
-          ...(preview ? { maxLines: PREVIEW_LINES } : {}),
-        }),
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setContent(data)
-      } else if (res.status === 413) {
-        setError("File too large to preview")
-      } else if (res.status === 404) {
-        setError("File not found")
-      } else {
-        setError("Failed to load file")
-      }
-    } catch (err) {
-      console.error("Failed to fetch file content:", err)
-      setError("Failed to load file")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [sandboxId, repoPath, filePath])
-
-  // Load content when popover opens
-  useEffect(() => {
-    if (open && !content && !error && !isLoading) {
-      fetchContent(true)
-    }
-  }, [open, content, error, isLoading, fetchContent])
-
-  // Load full content when user scrolls near the bottom of a truncated preview
-  const handleScroll = useCallback(() => {
-    if (!content?.truncated || !scrollRef.current || loadFullTriggered.current) return
-    const el = scrollRef.current
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
-      loadFullTriggered.current = true
-      fetchContent(false)
-    }
-  }, [content?.truncated, fetchContent])
-
-  // Reset content when file path changes
-  useEffect(() => {
-    setContent(null)
-    setError(null)
-  }, [filePath])
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={8}
-        className="w-[500px] max-w-[90vw] max-h-[60vh] p-0 flex flex-col overflow-hidden"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-muted/30 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileCode className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span className="font-mono text-xs font-medium truncate">{filename}</span>
-          </div>
-          {content && (
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
-              <span>{formatSize(content.size)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div ref={scrollRef} className="overflow-auto min-h-0 flex-1" onScroll={handleScroll}>
-          {error ? (
-            <div className="flex items-center justify-center h-32 text-sm text-destructive">
-              {error}
-            </div>
-          ) : content ? (
-            <>
-              <HighlightedCode code={content.content} />
-              {content.truncated && (
-                <div className="flex items-center justify-center py-2 text-[10px] text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
-                  Loading full file…
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-        </div>
-
-        {/* Footer with full path */}
-        <div className="border-t border-border px-3 py-1.5 bg-muted/30 shrink-0">
-          <p className="font-mono text-[10px] text-foreground/70 truncate">{filePath}</p>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/**
- * Clickable file path link that opens a file preview popover
+ * Clickable file path link that opens the file in the ContentPanel
  */
 function FilePathLink({
   filePath,
@@ -321,6 +126,14 @@ function FilePathLink({
   sandboxId: string | null | undefined
   repoPath: string | null | undefined
 }) {
+  const { openContentPanel, addFileTab } = useUIStore()
+
+  const handleClick = useCallback(() => {
+    const filename = filePath.split("/").pop() || filePath
+    openContentPanel()
+    addFileTab(filePath, filename, true)
+  }, [filePath, openContentPanel, addFileTab])
+
   // If sandbox is not available, fall back to the original tooltip-only behavior
   if (!sandboxId || !repoPath) {
     if (fullSummary) {
@@ -345,14 +158,13 @@ function FilePathLink({
   }
 
   return (
-    <ToolFilePreviewPopover filePath={filePath} sandboxId={sandboxId} repoPath={repoPath}>
-      <button
-        type="button"
-        className="text-xs text-foreground hover:underline break-words min-w-0 cursor-pointer text-left"
-      >
-        {displayText}
-      </button>
-    </ToolFilePreviewPopover>
+    <button
+      type="button"
+      onClick={handleClick}
+      className="text-xs text-foreground hover:underline break-words min-w-0 cursor-pointer text-left"
+    >
+      {displayText}
+    </button>
   )
 }
 
