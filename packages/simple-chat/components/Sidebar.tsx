@@ -25,6 +25,7 @@ interface SidebarProps {
   onToggleCollapse: () => void
   width: number
   onWidthChange: (width: number) => void
+  currentPage?: "chat" | "sdk"
 }
 
 export function Sidebar({
@@ -40,6 +41,7 @@ export function Sidebar({
   onToggleCollapse,
   width,
   onWidthChange,
+  currentPage = "chat",
 }: SidebarProps) {
   const { data: session } = useSession()
   const isResizing = useRef(false)
@@ -112,7 +114,7 @@ export function Sidebar({
       </div>
 
       {/* New Chat Button */}
-      <div className={cn("pb-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
+      <div className={cn("pb-1", collapsed ? "px-0 flex justify-center" : "px-2")}>
         <button
           onClick={onNewChat}
           disabled={!canCreateChat}
@@ -128,6 +130,23 @@ export function Sidebar({
           <Plus className="h-4 w-4 text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
         </button>
+      </div>
+
+      {/* API Reference Link */}
+      <div className={cn("pb-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
+        <Link
+          href="/sdk"
+          className={cn(
+            "flex items-center gap-2 rounded-md transition-colors",
+            collapsed ? "p-1.5" : "w-full px-2 py-2",
+            currentPage === "sdk"
+              ? "bg-accent text-accent-foreground"
+              : "hover:bg-accent/50"
+          )}
+        >
+          <Code2 className="h-4 w-4 text-muted-foreground" />
+          {!collapsed && <span className="text-sm text-foreground">API Reference</span>}
+        </Link>
       </div>
 
       {/* Chat List - only show when expanded */}
@@ -153,20 +172,6 @@ export function Sidebar({
 
       {/* Spacer when collapsed */}
       {collapsed && <div className="flex-1" />}
-
-      {/* SDK Link */}
-      <div className={cn("border-t border-sidebar-border", collapsed ? "px-0 flex justify-center py-2" : "px-2 py-2")}>
-        <Link
-          href="/sdk"
-          className={cn(
-            "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50",
-            collapsed ? "p-1.5" : "w-full px-2 py-2"
-          )}
-        >
-          <Code2 className="h-4 w-4 text-muted-foreground" />
-          {!collapsed && <span className="text-sm text-foreground">API Reference</span>}
-        </Link>
-      </div>
 
       {/* Footer - User & Settings */}
       <div className="mt-auto border-t border-sidebar-border p-2">
