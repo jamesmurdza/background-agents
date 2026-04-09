@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
-import { Plus, Trash2, Settings, LogOut, PanelLeft } from "lucide-react"
+import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 
@@ -96,7 +96,7 @@ export function Sidebar({
         collapsed ? "justify-center" : "justify-between"
       )}>
         {!collapsed && (
-          <h1 className="text-sm font-semibold text-foreground">
+          <h1 className="text-sm font-semibold text-foreground truncate">
             Background Agents
           </h1>
         )}
@@ -306,8 +306,23 @@ interface ChatItemProps {
 }
 
 function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete }: ChatItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const displayName = chat.displayName || "Untitled"
   const repoName = chat.repo.split("/")[1]
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [menuOpen])
 
   return (
     <div
@@ -330,16 +345,57 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete }:
             </div>
           </div>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
-            }}
-            disabled={isDeleting}
-            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all cursor-pointer disabled:cursor-not-allowed"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen(!menuOpen)
+              }}
+              disabled={isDeleting}
+              className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:cursor-not-allowed"
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-md py-1 z-50">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // TODO: Implement pin functionality
+                    setMenuOpen(false)
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                >
+                  <Pin className="h-3.5 w-3.5" />
+                  Pin
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // TODO: Implement rename functionality
+                    setMenuOpen(false)
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Rename
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete()
+                    setMenuOpen(false)
+                  }}
+                  disabled={isDeleting}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-destructive cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

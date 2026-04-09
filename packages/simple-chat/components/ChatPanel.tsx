@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { ArrowUp, Square, ChevronDown } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -163,13 +163,27 @@ export function ChatPanel({ chat, onSendMessage, onStopAgent, onChangeRepo }: Ch
   }
 
   const chatTitle = chat.displayName || "Untitled"
+  const githubBranchUrl = !isNewRepo && chat.branch
+    ? `https://github.com/${chat.repo}/tree/${chat.branch}`
+    : null
 
   // Chat with messages
   return (
     <div className="flex-1 flex flex-col bg-background">
       {/* Header with title */}
-      <div className="px-4 py-3 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-3">
         <h1 className="text-sm font-medium text-foreground">{chatTitle}</h1>
+        {githubBranchUrl && (
+          <a
+            href={githubBranchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            title="View branch on GitHub"
+          >
+            <Github className="h-4 w-4" />
+          </a>
+        )}
       </div>
 
       {/* Messages */}
