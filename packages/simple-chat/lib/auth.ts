@@ -1,17 +1,30 @@
 import { NextAuthOptions } from "next-auth"
-import GitHubProvider from "next-auth/providers/github"
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    GitHubProvider({
+    {
+      id: "github",
+      name: "GitHub",
+      type: "oauth",
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       authorization: {
+        url: "https://github.com/login/oauth/authorize",
         params: {
           scope: "repo read:user user:email",
         },
       },
-    }),
+      token: "https://github.com/login/oauth/access_token",
+      userinfo: "https://api.github.com/user",
+      profile(profile) {
+        return {
+          id: profile.id.toString(),
+          name: profile.name || profile.login,
+          email: profile.email,
+          image: profile.avatar_url,
+        }
+      },
+    },
   ],
   callbacks: {
     async jwt({ token, account }) {
