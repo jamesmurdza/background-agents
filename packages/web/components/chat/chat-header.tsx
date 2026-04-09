@@ -67,11 +67,24 @@ export function ChatHeader({
   rebaseConflict,
   onAbortConflict,
 }: ChatHeaderProps) {
-  const { openContentPanel, addTerminalTab, contentPanelTabs, contentPanelOpen, setActiveTab } = useUIStore()
+  const {
+    openContentPanel,
+    addTerminalTab,
+    contentPanelTabs,
+    contentPanelOpen,
+    contentPanelCollapsed,
+    contentPanelActiveTabId,
+    setActiveTab,
+  } = useUIStore()
 
   // Check if there's an active server
   const serverTab = contentPanelTabs.find(t => t.type === "server")
   const hasActiveServer = !!serverTab
+
+  // Check if there's an existing terminal tab
+  const terminalTab = contentPanelTabs.find(t => t.type === "terminal")
+  const activeTab = contentPanelTabs.find(t => t.id === contentPanelActiveTabId)
+  const isTerminalActive = activeTab?.type === "terminal"
 
   const isReady = branch.sandboxId && (branch.status !== BRANCH_STATUS.CREATING)
   const isBusy = branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING
@@ -79,8 +92,28 @@ export function ChatHeader({
   const mergeConflict = rebaseConflict?.inMerge ?? false
 
   const handleOpenTerminal = () => {
-    openContentPanel()
-    addTerminalTab(true)
+    // If panel is collapsed or closed, just open/uncollapse and show existing terminal (or create one)
+    if (!contentPanelOpen || contentPanelCollapsed) {
+      openContentPanel()
+      if (terminalTab) {
+        setActiveTab(terminalTab.id)
+      } else {
+        addTerminalTab(true)
+      }
+      return
+    }
+
+    // Panel is open and not collapsed
+    // If terminal is already showing, create a new one
+    if (isTerminalActive) {
+      addTerminalTab(true)
+    } else if (terminalTab) {
+      // Switch to existing terminal
+      setActiveTab(terminalTab.id)
+    } else {
+      // No terminal exists, create one
+      addTerminalTab(true)
+    }
   }
 
   return (

@@ -42,6 +42,7 @@ interface UIState {
 
   // Content Panel (right side)
   contentPanelOpen: boolean
+  contentPanelCollapsed: boolean  // Panel is open but view is hidden (dragged to edge)
   contentPanelWidth: number
   contentPanelTabs: ContentPanelTab[]
   contentPanelActiveTabId: string | null
@@ -102,6 +103,7 @@ interface UIActions {
   openContentPanel: () => void
   closeContentPanel: () => void
   toggleContentPanel: () => void
+  setContentPanelCollapsed: (collapsed: boolean) => void
   setContentPanelWidth: (width: number) => void
   addFileTab: (filePath: string, filename: string, makeActive?: boolean) => void
   addTerminalTab: (makeActive?: boolean) => void
@@ -138,6 +140,7 @@ const initialState: UIState = {
   gitHistoryOpen: false,
   gitHistoryRefreshTrigger: 0,
   contentPanelOpen: false,
+  contentPanelCollapsed: false,
   contentPanelWidth: 400,
   contentPanelTabs: [],
   contentPanelActiveTabId: null,
@@ -190,9 +193,10 @@ const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get:
   triggerGitHistoryRefresh: () => set({ gitHistoryRefreshTrigger: get().gitHistoryRefreshTrigger + 1 }),
 
   // Content panel actions
-  openContentPanel: () => set({ contentPanelOpen: true }),
-  closeContentPanel: () => set({ contentPanelOpen: false }),
+  openContentPanel: () => set({ contentPanelOpen: true, contentPanelCollapsed: false }),
+  closeContentPanel: () => set({ contentPanelOpen: false, contentPanelCollapsed: false }),
   toggleContentPanel: () => set({ contentPanelOpen: !get().contentPanelOpen }),
+  setContentPanelCollapsed: (collapsed: boolean) => set({ contentPanelCollapsed: collapsed }),
   setContentPanelWidth: (width: number) => set({ contentPanelWidth: width }),
 
   addFileTab: (filePath: string, filename: string, makeActive = true) => {

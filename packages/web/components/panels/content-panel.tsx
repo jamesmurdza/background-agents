@@ -682,10 +682,12 @@ export function ContentPanel({
 }: ContentPanelProps) {
   const {
     contentPanelOpen,
+    contentPanelCollapsed,
     contentPanelWidth,
     contentPanelTabs,
     contentPanelActiveTabId,
     setContentPanelWidth,
+    setContentPanelCollapsed,
     closeContentPanel,
     addFileTab,
     addTerminalTab,
@@ -712,14 +714,31 @@ export function ContentPanel({
     document.body.style.userSelect = "none"
   }, [])
 
+  // Threshold for collapsing - if dragged narrower than this, collapse
+  const COLLAPSE_THRESHOLD = 100
+
   useEffect(() => {
     if (!isResizing) return
 
     function onMouseMove(e: MouseEvent) {
-      const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, MIN_WIDTH), MAX_WIDTH)
+      const rawWidth = window.innerWidth - e.clientX
+      // If dragged past the collapse threshold, just track it but don't update width
+      if (rawWidth < COLLAPSE_THRESHOLD) {
+        return
+      }
+      // Uncollapse if we were collapsed and now dragging wider
+      if (contentPanelCollapsed && rawWidth >= MIN_WIDTH) {
+        setContentPanelCollapsed(false)
+      }
+      const newWidth = Math.min(Math.max(rawWidth, MIN_WIDTH), MAX_WIDTH)
       setContentPanelWidth(newWidth)
     }
-    function onMouseUp() {
+    function onMouseUp(e: MouseEvent) {
+      const rawWidth = window.innerWidth - e.clientX
+      // If released past collapse threshold, collapse the panel
+      if (rawWidth < COLLAPSE_THRESHOLD) {
+        setContentPanelCollapsed(true)
+      }
       setIsResizing(false)
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
@@ -730,7 +749,7 @@ export function ContentPanel({
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", onMouseUp)
     }
-  }, [isResizing, setContentPanelWidth])
+  }, [isResizing, setContentPanelWidth, setContentPanelCollapsed, contentPanelCollapsed])
 
   // ===== File Polling =====
   const fetchModifiedFiles = useCallback(async () => {
@@ -908,6 +927,16 @@ export function ContentPanel({
   }
 
   const activeTab = contentPanelTabs.find(t => t.id === contentPanelActiveTabId)
+
+  // Collapsed state - show thin strip that can be dragged to expand
+  if (contentPanelCollapsed) {
+    return (
+      <div
+        className="flex h-full shrink-0 flex-col border-l border-border bg-card relative w-1 cursor-col-resize hover:bg-primary/30 transition-colors"
+        onMouseDown={startResize}
+      />
+    )
+  }
 
   return (
     <div
