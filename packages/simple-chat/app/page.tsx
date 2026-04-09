@@ -103,6 +103,7 @@ export default function HomePage() {
         onStopAgent={stopAgent}
         onChangeRepo={handleChangeRepo}
         onUpdateChat={updateCurrentChat}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <RepoPickerModal
