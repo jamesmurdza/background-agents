@@ -9,9 +9,10 @@ import remarkGfm from "remark-gfm"
 
 interface MessageBubbleProps {
   message: Message
+  isStreaming?: boolean
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
   const isUser = message.role === "user"
 
   return (
@@ -23,7 +24,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <p className="whitespace-pre-wrap">{message.content}</p>
           </div>
         ) : (
-          <AssistantContent message={message} />
+          <AssistantContent message={message} isStreaming={isStreaming} />
         )}
       </div>
     </div>
@@ -34,7 +35,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 // Assistant Content (with tool calls)
 // =============================================================================
 
-function AssistantContent({ message }: { message: Message }) {
+function AssistantContent({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
   const hasContent = message.content && message.content.trim().length > 0
   const hasToolCalls = message.toolCalls && message.toolCalls.length > 0
   const isEmpty = !hasContent && !hasToolCalls
@@ -69,10 +70,30 @@ function AssistantContent({ message }: { message: Message }) {
                   {children}
                 </a>
               ),
+              table: ({ children }) => (
+                <div className="overflow-x-auto my-2">
+                  <table className="w-full border-collapse text-sm">{children}</table>
+                </div>
+              ),
+              th: ({ children }) => (
+                <th className="border border-border bg-muted/50 px-3 py-1.5 text-left font-medium">
+                  {children}
+                </th>
+              ),
+              td: ({ children }) => (
+                <td className="border border-border px-3 py-1.5">{children}</td>
+              ),
             }}
           >
             {message.content}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {/* Streaming indicator */}
+      {isStreaming && (
+        <div className="text-2xl text-muted-foreground animate-pulse">
+          ...
         </div>
       )}
     </div>

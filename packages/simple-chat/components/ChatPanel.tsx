@@ -351,9 +351,19 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
         className="flex-1 overflow-y-auto p-4"
       >
         <div className="space-y-6 max-w-3xl mx-auto">
-          {chat.messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+          {chat.messages.map((message, index) => {
+            const isLastAssistant =
+              isRunning &&
+              message.role === "assistant" &&
+              index === chat.messages.length - 1
+            return (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                isStreaming={isLastAssistant}
+              />
+            )
+          })}
           <div ref={messagesEndRef} />
         </div>
       </div>
