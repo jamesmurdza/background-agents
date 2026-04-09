@@ -123,7 +123,7 @@ export default function HomePage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar
         chats={displayChats}
-        currentChatId={displayCurrentChatId}
+        currentChatId={currentPage === "chat" ? displayCurrentChatId : null}
         deletingChatIds={deletingChatIds}
         canCreateChat={canCreateChat}
         onSelectChat={handleSelectChat}
