@@ -384,6 +384,7 @@ export function useChat() {
         let newState = updateLastMessage(chatId, {
           content: data.content,
           toolCalls: data.toolCalls,
+          contentBlocks: data.contentBlocks,
         })
         setState(newState)
 

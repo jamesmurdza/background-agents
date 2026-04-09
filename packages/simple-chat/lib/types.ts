@@ -11,6 +11,8 @@ export type {
   AgentStatusResponse,
 } from "@upstream/common"
 
+import type { ContentBlock } from "@upstream/common"
+
 // Re-export agent types
 export type { Agent, ModelOption, UserCredentialFlags } from "@upstream/common"
 export {
@@ -35,6 +37,8 @@ export interface Message {
     fullSummary?: string
     output?: string
   }>
+  /** Ordered content blocks (text and tool calls interleaved) */
+  contentBlocks?: ContentBlock[]
 }
 
 // Special value for new repository (local git repo, no GitHub)

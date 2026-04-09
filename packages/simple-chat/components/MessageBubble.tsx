@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { ChevronDown, ChevronRight, Terminal, FileText, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Message } from "@/lib/types"
+import type { Message, ContentBlock } from "@/lib/types"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -35,10 +35,43 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
 // Assistant Content (with tool calls)
 // =============================================================================
 
+function MarkdownContent({ text }: { text: string }) {
+  return (
+    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-li:leading-relaxed">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ children, ...props }) => (
+            <a {...props} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-2">
+              <table className="w-full border-collapse text-sm">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border border-border bg-muted/50 px-3 py-1.5 text-left font-medium">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border border-border px-3 py-1.5">{children}</td>
+          ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
 function AssistantContent({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
   const hasContent = message.content && message.content.trim().length > 0
   const hasToolCalls = message.toolCalls && message.toolCalls.length > 0
-  const isEmpty = !hasContent && !hasToolCalls
+  const hasBlocks = message.contentBlocks && message.contentBlocks.length > 0
+  const isEmpty = !hasContent && !hasToolCalls && !hasBlocks
 
   if (isEmpty) {
     return (
@@ -50,44 +83,35 @@ function AssistantContent({ message, isStreaming }: { message: Message; isStream
 
   return (
     <div className="space-y-3 text-sm leading-relaxed">
-      {/* Tool Calls */}
-      {hasToolCalls && (
-        <div className="space-y-2">
-          {message.toolCalls!.map((tool, index) => (
-            <ToolCallItem key={index} tool={tool} />
-          ))}
-        </div>
-      )}
-
-      {/* Text Content */}
-      {hasContent && (
-        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-li:leading-relaxed">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              a: ({ children, ...props }) => (
-                <a {...props} target="_blank" rel="noopener noreferrer">
-                  {children}
-                </a>
-              ),
-              table: ({ children }) => (
-                <div className="overflow-x-auto my-2">
-                  <table className="w-full border-collapse text-sm">{children}</table>
-                </div>
-              ),
-              th: ({ children }) => (
-                <th className="border border-border bg-muted/50 px-3 py-1.5 text-left font-medium">
-                  {children}
-                </th>
-              ),
-              td: ({ children }) => (
-                <td className="border border-border px-3 py-1.5">{children}</td>
-              ),
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
-        </div>
+      {hasBlocks ? (
+        // Render content blocks in order (text and tool calls interleaved)
+        message.contentBlocks!.map((block, index) => {
+          if (block.type === "text" && block.text.trim()) {
+            return <MarkdownContent key={index} text={block.text} />
+          }
+          if (block.type === "tool_calls") {
+            return (
+              <div key={index} className="space-y-2">
+                {block.toolCalls.map((tool, toolIndex) => (
+                  <ToolCallItem key={toolIndex} tool={tool} />
+                ))}
+              </div>
+            )
+          }
+          return null
+        })
+      ) : (
+        // Fallback: render content then tool calls (for messages without contentBlocks)
+        <>
+          {hasContent && <MarkdownContent text={message.content} />}
+          {hasToolCalls && (
+            <div className="space-y-2">
+              {message.toolCalls!.map((tool, index) => (
+                <ToolCallItem key={index} tool={tool} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Streaming indicator */}
