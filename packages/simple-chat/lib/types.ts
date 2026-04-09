@@ -50,6 +50,7 @@ export interface Chat {
   // Created on first message
   branch: string | null         // "swift-lunar-abc1" - the NEW branch we created
   sandboxId: string | null      // Daytona sandbox ID
+  previewUrlPattern?: string    // URL pattern for dev server previews
 
   // Agent config (per-chat, can be changed)
   agent?: string        // "claude-code" | "opencode" | "codex" | etc.

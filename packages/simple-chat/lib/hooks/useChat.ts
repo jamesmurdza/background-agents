@@ -237,6 +237,7 @@ export function useChat() {
         newState = updateChat(chat.id, {
           sandboxId,
           branch,
+          previewUrlPattern,
           status: "ready",
         })
         setState(newState)
@@ -282,7 +283,7 @@ export function useChat() {
           sandboxId,
           prompt: content,
           repoName,
-          previewUrlPattern,
+          previewUrlPattern: previewUrlPattern || chat.previewUrlPattern,
           agent: selectedAgent,
           model: selectedModel,
           // Pass API keys
@@ -308,7 +309,7 @@ export function useChat() {
       }
 
       // 4. Start polling for status
-      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern)
+      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern || chat.previewUrlPattern)
     } catch (error) {
       console.error("Failed to execute agent:", error)
 
