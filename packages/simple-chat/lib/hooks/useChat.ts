@@ -1,0 +1,358 @@
+"use client"
+
+import { useState, useEffect, useCallback, useRef } from "react"
+import { nanoid } from "nanoid"
+import { useSession } from "next-auth/react"
+import type { AppState, Chat, Message, Settings, AgentStatusResponse } from "@/lib/types"
+import {
+  loadState,
+  saveState,
+  createChat,
+  updateChat,
+  deleteChat as deleteStoredChat,
+  setCurrentChat,
+  addMessage,
+  updateLastMessage,
+  updateSettings as updateStoredSettings,
+} from "@/lib/storage"
+import { generateBranchName } from "@/lib/utils"
+
+const POLL_INTERVAL = 1000 // 1 second
+
+export function useChat() {
+  const { data: session } = useSession()
+
+  // Load initial state from localStorage
+  const [state, setState] = useState<AppState>(() => {
+    if (typeof window === "undefined") {
+      return { currentChatId: null, chats: [], settings: { anthropicApiKey: "" } }
+    }
+    return loadState()
+  })
+
+  // Polling ref
+  const pollingRef = useRef<NodeJS.Timeout | null>(null)
+  const isPollingRef = useRef(false)
+
+  // Sync state to localStorage
+  useEffect(() => {
+    saveState(state)
+  }, [state])
+
+  // Get current chat
+  const currentChat = state.chats.find((c) => c.id === state.currentChatId) ?? null
+
+  // =============================================================================
+  // Chat Operations
+  // =============================================================================
+
+  const startNewChat = useCallback((repo: string, baseBranch: string) => {
+    const chat: Chat = {
+      id: nanoid(),
+      repo,
+      baseBranch,
+      branch: null,
+      sandboxId: null,
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      displayName: null,
+      status: "pending",
+    }
+
+    const newState = createChat(chat)
+    setState(newState)
+
+    return chat.id
+  }, [])
+
+  const selectChat = useCallback((chatId: string) => {
+    const newState = setCurrentChat(chatId)
+    setState(newState)
+  }, [])
+
+  const removeChat = useCallback((chatId: string) => {
+    // Stop polling if this is the current chat
+    if (pollingRef.current && state.currentChatId === chatId) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+      isPollingRef.current = false
+    }
+
+    const newState = deleteStoredChat(chatId)
+    setState(newState)
+  }, [state.currentChatId])
+
+  // =============================================================================
+  // Settings
+  // =============================================================================
+
+  const updateSettings = useCallback((settings: Partial<Settings>) => {
+    const newState = updateStoredSettings(settings)
+    setState(newState)
+  }, [])
+
+  // =============================================================================
+  // Messaging
+  // =============================================================================
+
+  const sendMessage = useCallback(async (content: string) => {
+    if (!currentChat || !session?.accessToken) return
+
+    const chat = currentChat
+    const anthropicApiKey = state.settings.anthropicApiKey
+
+    if (!anthropicApiKey) {
+      console.error("No Anthropic API key configured")
+      return
+    }
+
+    // 1. Add user message
+    const userMessage: Message = {
+      id: nanoid(),
+      role: "user",
+      content,
+      timestamp: Date.now(),
+    }
+
+    let newState = addMessage(chat.id, userMessage)
+    setState(newState)
+
+    // 2. If no sandbox, create one (first message)
+    let sandboxId = chat.sandboxId
+    let branch = chat.branch
+    let previewUrlPattern: string | undefined
+
+    if (!sandboxId) {
+      // Generate branch name
+      branch = generateBranchName()
+
+      // Update chat status
+      newState = updateChat(chat.id, { status: "creating", branch })
+      setState(newState)
+
+      try {
+        const response = await fetch("/api/sandbox/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            repo: chat.repo,
+            baseBranch: chat.baseBranch,
+            newBranch: branch,
+            anthropicApiKey,
+          }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || "Failed to create sandbox")
+        }
+
+        const data = await response.json()
+        sandboxId = data.sandboxId
+        previewUrlPattern = data.previewUrlPattern
+
+        newState = updateChat(chat.id, {
+          sandboxId,
+          branch,
+          status: "ready",
+        })
+        setState(newState)
+      } catch (error) {
+        console.error("Failed to create sandbox:", error)
+
+        // Add error message
+        const errorMessage: Message = {
+          id: nanoid(),
+          role: "assistant",
+          content: `Failed to create sandbox: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: Date.now(),
+        }
+        newState = addMessage(chat.id, errorMessage)
+        newState = updateChat(chat.id, { status: "error" })
+        setState(newState)
+        return
+      }
+    }
+
+    // 3. Execute agent
+    newState = updateChat(chat.id, { status: "running" })
+    setState(newState)
+
+    // Add placeholder assistant message
+    const assistantMessage: Message = {
+      id: nanoid(),
+      role: "assistant",
+      content: "",
+      timestamp: Date.now(),
+      toolCalls: [],
+    }
+    newState = addMessage(chat.id, assistantMessage)
+    setState(newState)
+
+    const repoName = chat.repo.split("/")[1]
+
+    try {
+      const response = await fetch("/api/agent/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId,
+          prompt: content,
+          repoName,
+          previewUrlPattern,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+
+        // Handle sandbox not found - need to recreate
+        if (error.error === "SANDBOX_NOT_FOUND") {
+          newState = updateChat(chat.id, { sandboxId: null, status: "pending" })
+          setState(newState)
+          // Retry by calling sendMessage again
+          return sendMessage(content)
+        }
+
+        throw new Error(error.error || "Failed to execute agent")
+      }
+
+      // 4. Start polling for status
+      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern)
+    } catch (error) {
+      console.error("Failed to execute agent:", error)
+
+      newState = updateLastMessage(chat.id, {
+        content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      })
+      newState = updateChat(chat.id, { status: "error" })
+      setState(newState)
+    }
+  }, [currentChat, session?.accessToken, state.settings.anthropicApiKey])
+
+  // =============================================================================
+  // Polling
+  // =============================================================================
+
+  const startPolling = useCallback((
+    chatId: string,
+    sandboxId: string,
+    repoName: string,
+    previewUrlPattern?: string
+  ) => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+    }
+
+    isPollingRef.current = true
+
+    const poll = async () => {
+      if (!isPollingRef.current) return
+
+      try {
+        const params = new URLSearchParams({
+          sandboxId,
+          repoName,
+        })
+        if (previewUrlPattern) {
+          params.set("previewUrlPattern", previewUrlPattern)
+        }
+
+        const response = await fetch(`/api/agent/status?${params}`)
+
+        if (!response.ok) {
+          throw new Error("Failed to poll status")
+        }
+
+        const data: AgentStatusResponse = await response.json()
+
+        // Update message
+        let newState = updateLastMessage(chatId, {
+          content: data.content,
+          toolCalls: data.toolCalls,
+        })
+        setState(newState)
+
+        // Handle completion
+        if (data.status === "completed" || data.status === "error") {
+          isPollingRef.current = false
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
+
+          newState = updateChat(chatId, { status: data.status === "error" ? "error" : "ready" })
+          setState(newState)
+
+          // Auto-push on completion
+          if (data.status === "completed") {
+            const chat = loadState().chats.find((c) => c.id === chatId)
+            if (chat?.branch) {
+              try {
+                await fetch("/api/git/push", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    sandboxId,
+                    repoName,
+                    branch: chat.branch,
+                  }),
+                })
+              } catch (error) {
+                console.error("Failed to auto-push:", error)
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Polling error:", error)
+      }
+    }
+
+    // Initial poll
+    poll()
+
+    // Set up interval
+    pollingRef.current = setInterval(poll, POLL_INTERVAL)
+  }, [])
+
+  const stopAgent = useCallback(() => {
+    // Just stop polling - the agent will continue in background but we won't show updates
+    isPollingRef.current = false
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+
+    if (currentChat) {
+      const newState = updateChat(currentChat.id, { status: "ready" })
+      setState(newState)
+    }
+  }, [currentChat])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+      }
+    }
+  }, [])
+
+  return {
+    // State
+    chats: state.chats,
+    currentChat,
+    currentChatId: state.currentChatId,
+    settings: state.settings,
+
+    // Actions
+    startNewChat,
+    selectChat,
+    removeChat,
+    sendMessage,
+    stopAgent,
+    updateSettings,
+  }
+}
