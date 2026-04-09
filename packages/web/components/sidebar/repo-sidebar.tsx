@@ -70,7 +70,9 @@ export function RepoSidebar({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <aside className="flex h-full w-[60px] sm:w-[60px] shrink-0 flex-col items-center gap-2 border-r border-border bg-sidebar py-3">
+      <aside className="flex h-full w-[60px] sm:w-[60px] shrink-0 flex-col items-center border-r border-border bg-sidebar py-3 overflow-hidden">
+        {/* Scrollable container for repository icons */}
+        <div className="flex flex-col items-center gap-2 overflow-y-auto flex-1 min-h-0 w-full scrollbar-hide">
         {repos.map((repo, index) => {
           const isActive = repo.id === activeRepoId
           const hasRunning = repo.branches.some((b) => b.status === BRANCH_STATUS.RUNNING || b.status === BRANCH_STATUS.CREATING)
@@ -178,8 +180,10 @@ export function RepoSidebar({
           </TooltipTrigger>
           <TooltipContent side="right">Add repository</TooltipContent>
         </Tooltip>
+        </div>
 
-        <div className="mt-auto flex flex-col items-center">
+        {/* User profile - always visible at bottom */}
+        <div className="mt-2 flex flex-col items-center shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
