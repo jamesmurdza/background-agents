@@ -188,7 +188,7 @@ export function Sidebar({
       {collapsed && <div className="flex-1" />}
 
       {/* Footer - User & Settings */}
-      <div className="mt-auto border-t border-sidebar-border p-3">
+      <div className={cn("mt-auto p-3", !collapsed && "border-t border-sidebar-border")}>
         {session?.user ? (
           collapsed ? (
             <CollapsedUserMenu
