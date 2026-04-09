@@ -324,7 +324,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
         </div>
         {chatInput}
         <p className="text-sm text-muted-foreground mt-4">
-          Agents work in an isolated sandbox and work on separate git branches.
+          Agents are isolated in Daytona sandboxes and tied to Git branches.
         </p>
       </div>
     )
