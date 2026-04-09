@@ -47,3 +47,7 @@ Supported prefixed keys:
 - `TEST_ANTHROPIC_API_KEY`
 - `TEST_OPENAI_API_KEY`
 - `TEST_GEMINI_API_KEY` / `TEST_GOOGLE_API_KEY`
+
+### Debugging
+
+Set `CODING_AGENTS_DEBUG=1` to enable verbose debug output during test runs. This will print additional logging information useful for troubleshooting agent behavior.
