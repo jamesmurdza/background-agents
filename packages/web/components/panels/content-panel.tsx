@@ -124,6 +124,11 @@ function isOldFile(modifiedAt: number): boolean {
   return Date.now() - modifiedAt > 5 * 60 * 1000
 }
 
+/** Check if file is a log file (in /tmp/logs or /tmp/claude) */
+function isLogFile(filePath: string): boolean {
+  return filePath.startsWith("/tmp/logs/") || filePath.startsWith("/tmp/claude/")
+}
+
 function highlightLines(code: string): string[] {
   return highlight(code).split("\n")
 }
@@ -802,7 +807,7 @@ export function ContentPanel({
     }
   }, [sandboxId, repoPath, propPreviewUrlPattern, addServerTab, removeServerTab, contentPanelTabs])
 
-  // ===== Auto-Open for New Files =====
+  // ===== Auto-Open for Log Files Only =====
   const isInitialLoadRef = useRef(true)
 
   useEffect(() => {
@@ -811,19 +816,20 @@ export function ContentPanel({
     const previousPaths = new Set(previousFilesRef.current.map(f => f.path))
     const isInitialLoad = isInitialLoadRef.current
 
-    // On initial load, add all recent files (not old). On subsequent polls, only add truly new files.
-    const filesToAdd = isInitialLoad
-      ? files.filter(f => !isOldFile(f.modifiedAt))
-      : files.filter(f => !previousPaths.has(f.path) && !isOldFile(f.modifiedAt))
+    // Only auto-open LOG files (in /tmp/logs or /tmp/claude), not regular code files
+    // On initial load, add recent log files. On subsequent polls, only add truly new log files.
+    const logFilesToAdd = isInitialLoad
+      ? files.filter(f => isLogFile(f.path) && !isOldFile(f.modifiedAt))
+      : files.filter(f => isLogFile(f.path) && !previousPaths.has(f.path) && !isOldFile(f.modifiedAt))
 
-    if (filesToAdd.length > 0) {
+    if (logFilesToAdd.length > 0) {
       // Open panel if closed
       if (!contentPanelOpen) {
         openContentPanel()
       }
 
       // Add file tabs in background (makeActive = false, unless panel just opened)
-      filesToAdd.forEach((file, index) => {
+      logFilesToAdd.forEach((file, index) => {
         const { filename } = getFileDisplayInfo(file.path)
         // Only make the first file active if panel was just opened (no existing tabs)
         const makeActive = !contentPanelOpen && index === 0 && contentPanelTabs.length === 0
