@@ -820,32 +820,43 @@ export function ContentPanel({
   }, [sandboxId, repoPath, propPreviewUrlPattern, addServerTab, removeServerTab, contentPanelTabs])
 
   // ===== Auto-Open for New Files =====
-  useEffect(() => {
-    const previousPaths = new Set(previousFilesRef.current.map(f => f.path))
-    const newFiles = files.filter(f => !previousPaths.has(f.path) && !isOldFile(f.modifiedAt))
+  const isInitialLoadRef = useRef(true)
 
-    if (newFiles.length > 0) {
+  useEffect(() => {
+    if (files.length === 0) return
+
+    const previousPaths = new Set(previousFilesRef.current.map(f => f.path))
+    const isInitialLoad = isInitialLoadRef.current
+
+    // On initial load, add all recent files (not old). On subsequent polls, only add truly new files.
+    const filesToAdd = isInitialLoad
+      ? files.filter(f => !isOldFile(f.modifiedAt))
+      : files.filter(f => !previousPaths.has(f.path) && !isOldFile(f.modifiedAt))
+
+    if (filesToAdd.length > 0) {
       // Open panel if closed
       if (!contentPanelOpen) {
         openContentPanel()
       }
 
       // Add file tabs in background (makeActive = false, unless panel just opened)
-      newFiles.forEach((file, index) => {
+      filesToAdd.forEach((file, index) => {
         const { filename } = getFileDisplayInfo(file.path)
-        // Only make the first new file active if panel was just opened (no existing tabs)
+        // Only make the first file active if panel was just opened (no existing tabs)
         const makeActive = !contentPanelOpen && index === 0 && contentPanelTabs.length === 0
         addFileTab(file.path, filename, makeActive)
       })
     }
 
     previousFilesRef.current = files
+    isInitialLoadRef.current = false
   }, [files, contentPanelOpen, contentPanelTabs.length, openContentPanel, addFileTab])
 
   // ===== Clear tabs on branch switch =====
   useEffect(() => {
     clearContentPanelTabs()
     previousFilesRef.current = []
+    isInitialLoadRef.current = true
   }, [cacheKey, clearContentPanelTabs])
 
   // ===== Start Polling =====
