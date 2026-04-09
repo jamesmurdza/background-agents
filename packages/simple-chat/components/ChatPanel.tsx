@@ -341,7 +341,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   return (
     <div className="flex-1 flex flex-col bg-background">
       {/* Header with title */}
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between pt-3" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
         <h1 className="text-sm font-medium text-foreground">{chatTitle}</h1>
         {githubBranchUrl && (
           <a
