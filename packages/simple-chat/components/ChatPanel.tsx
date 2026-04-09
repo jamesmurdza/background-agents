@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { ArrowUp, Square, ChevronDown, Github } from "lucide-react"
+import { useState, useRef, useEffect, useMemo } from "react"
+import { ArrowUp, Square, ChevronDown, Github, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption } from "@/lib/types"
-import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel } from "@/lib/types"
+import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
+import { getCredentialFlags } from "@/lib/storage"
 import { MessageBubble } from "./MessageBubble"
 
 interface ChatPanelProps {
@@ -14,9 +15,10 @@ interface ChatPanelProps {
   onStopAgent: () => void
   onChangeRepo?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
+  onOpenSettings?: () => void
 }
 
-export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChangeRepo, onUpdateChat }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -28,6 +30,16 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // Get current agent/model (from chat or settings)
   const currentAgent = (chat?.agent || settings.defaultAgent) as Agent
   const currentModel = chat?.model || settings.defaultModel
+
+  // Get credential flags based on current settings
+  const credentialFlags = useMemo(() => getCredentialFlags(settings), [settings])
+
+  // Check if the selected model has required credentials
+  const availableModels = agentModels[currentAgent] ?? []
+  const selectedModelConfig = availableModels.find(m => m.value === currentModel)
+  const hasRequiredCredentials = selectedModelConfig
+    ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
+    : true
 
   const isRunning = chat?.status === "running"
   const isCreating = chat?.status === "creating"
@@ -72,6 +84,8 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
 
   const handleSend = () => {
     if (!canSend) return
+    // Don't send if credentials are missing - the UI shows a warning instead
+    if (!hasRequiredCredentials) return
     onSendMessage(input.trim(), currentAgent, currentModel)
     setInput("")
   }
@@ -115,8 +129,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const canChangeRepo = chat.messages.length === 0 && !chat.sandboxId
   const isNewChat = chat.messages.length === 0
 
-  // Get available models for current agent
-  const availableModels = agentModels[currentAgent] ?? []
   const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi"]
 
   // Chat input component (used in two places)
@@ -227,28 +239,57 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                 setShowModelDropdown(!showModelDropdown)
                 setShowAgentDropdown(false)
               }}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              className={cn(
+                "flex items-center gap-1 text-xs transition-colors cursor-pointer",
+                !hasRequiredCredentials ? "text-orange-500 hover:text-orange-600" : "text-muted-foreground hover:text-foreground"
+              )}
             >
+              {!hasRequiredCredentials && <AlertCircle className="h-3 w-3" />}
               {getModelLabel(currentAgent, currentModel)}
               <ChevronDown className="h-3 w-3" />
             </button>
             {showModelDropdown && (
               <div className="absolute bottom-full right-0 mb-1 w-52 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50">
-                {availableModels.map((model: ModelOption) => (
-                  <button
-                    key={model.value}
-                    onClick={() => handleModelChange(model.value)}
-                    className={cn(
-                      "w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors",
-                      model.value === currentModel && "bg-accent"
-                    )}
-                  >
-                    {model.label}
-                  </button>
-                ))}
+                {availableModels.map((model: ModelOption) => {
+                  const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
+                  const needsKey = model.requiresKey !== "none" && !modelHasCredentials
+                  return (
+                    <button
+                      key={model.value}
+                      onClick={() => handleModelChange(model.value)}
+                      className={cn(
+                        "w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors flex items-center justify-between",
+                        model.value === currentModel && "bg-accent"
+                      )}
+                    >
+                      <span>{model.label}</span>
+                      {needsKey && <AlertCircle className="h-3 w-3 text-orange-500 shrink-0" />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
+
+          {/* Missing API key warning */}
+          {!hasRequiredCredentials && selectedModelConfig && (
+            <div className="flex items-center gap-2 px-4 py-2 text-xs text-orange-500 border-t border-border">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {selectedModelConfig.label} requires an API key.{" "}
+                {onOpenSettings ? (
+                  <button
+                    onClick={onOpenSettings}
+                    className="underline hover:text-orange-600 transition-colors"
+                  >
+                    Add in Settings
+                  </button>
+                ) : (
+                  "Add it in Settings."
+                )}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
