@@ -13,7 +13,7 @@ import {
   resolveUserCredentials,
   getGitHubTokenForUser,
 } from "@/lib/shared/api-helpers"
-import { createSSEStream, sendProgress, sendError, sendDone } from "@/lib/llm/streaming-helpers"
+import { createSSEStream, sendProgress, sendError, sendDone } from "@upstream/common"
 import { SANDBOX_CONFIG, PATHS } from "@/lib/shared/constants"
 import { getDefaultAgent } from "@/lib/shared/types"
 import { cleanupDaytonaSandbox } from "@/lib/sandbox/daytona-cleanup"

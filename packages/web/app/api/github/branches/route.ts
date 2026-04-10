@@ -1,5 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/shared/api-helpers"
-import { getRepoBranches } from "@/lib/git/github-client"
+import { getRepoBranches } from "@upstream/common"
 
 export async function GET(req: Request) {
   const auth = await requireGitHubAuth()

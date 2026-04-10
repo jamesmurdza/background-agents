@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma"
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/shared/api-helpers"
-import { compareBranches, createPullRequest, isGitHubApiError } from "@/lib/git/github-client"
+import { compareBranches, createPullRequest, isGitHubApiError } from "@upstream/common"
 import { createPRSchema, validateBody, isValidationError } from "@/lib/shared/schemas"
 import { generateWithUserLLM } from "@/lib/llm/llm"
 

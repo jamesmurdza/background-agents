@@ -1,48 +1,36 @@
 /**
  * GitHub API client for Simple Chat
+ * Re-exports shared utilities from @upstream/common
  */
 
-import type { GitHubRepo, GitHubBranch, GitHubUser } from "./types"
+import {
+  getUser,
+  getUserRepos,
+  getRepoBranches,
+  type GitHubUser,
+  type GitHubRepo,
+  type GitHubBranch,
+} from "@upstream/common"
 
-const GITHUB_API = "https://api.github.com"
+// Re-export types for convenience
+export type { GitHubUser, GitHubRepo, GitHubBranch }
 
 /**
  * Fetch the authenticated user
  */
 export async function fetchUser(token: string): Promise<GitHubUser> {
-  const response = await fetch(`${GITHUB_API}/user`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github.v3+json",
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch user: ${response.statusText}`)
-  }
-
-  return response.json()
+  return getUser(token)
 }
 
 /**
  * Fetch repositories for the authenticated user
  */
 export async function fetchRepos(token: string): Promise<GitHubRepo[]> {
-  const response = await fetch(
-    `${GITHUB_API}/user/repos?sort=updated&per_page=50&affiliation=owner,collaborator,organization_member`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch repos: ${response.statusText}`)
-  }
-
-  return response.json()
+  return getUserRepos(token, {
+    sort: "updated",
+    perPage: 50,
+    affiliation: "owner,collaborator,organization_member",
+  })
 }
 
 /**
@@ -53,25 +41,11 @@ export async function fetchBranches(
   owner: string,
   repo: string
 ): Promise<GitHubBranch[]> {
-  const response = await fetch(
-    `${GITHUB_API}/repos/${owner}/${repo}/branches?per_page=100`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch branches: ${response.statusText}`)
-  }
-
-  return response.json()
+  return getRepoBranches(token, owner, repo, { perPage: 100, paginate: false })
 }
 
 /**
- * Push commits to remote
+ * Push commits to remote (simple-chat specific - calls local API)
  */
 export async function pushToRemote(
   sandboxId: string,

@@ -1,7 +1,11 @@
 /**
- * GitHub API client helper
+ * GitHub API client utilities
  * Provides a consistent interface for making GitHub API requests
  */
+
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface GitHubApiError {
   message: string
@@ -12,6 +16,46 @@ export interface GitHubFetchOptions extends Omit<RequestInit, "headers"> {
   /** Custom Accept header (defaults to application/vnd.github.v3+json) */
   accept?: string
 }
+
+export interface GitHubUser {
+  login: string
+  avatar_url: string
+  name: string | null
+  email?: string | null
+}
+
+export interface GitHubRepo {
+  id?: number
+  name: string
+  full_name: string
+  owner: { login: string; avatar_url?: string }
+  default_branch: string
+  private: boolean
+  description?: string | null
+  permissions?: { push: boolean; pull: boolean; admin: boolean }
+}
+
+export interface GitHubBranch {
+  name: string
+  protected?: boolean
+}
+
+export interface GitHubCompareResult {
+  ahead_by: number
+  behind_by: number
+  status: "ahead" | "behind" | "diverged" | "identical"
+  commits?: Array<{ commit: { message: string } }>
+}
+
+export interface GitHubPullRequest {
+  html_url: string
+  number: number
+  title: string
+}
+
+// =============================================================================
+// Core Fetch Helpers
+// =============================================================================
 
 /**
  * Makes a request to the GitHub API with standard headers
@@ -70,7 +114,10 @@ export async function githubFetchText(
 
   if (!response.ok) {
     const text = await response.text()
-    throw { message: `GitHub API error: ${response.status} ${text}`, status: response.status } as GitHubApiError
+    throw {
+      message: `GitHub API error: ${response.status} ${text}`,
+      status: response.status,
+    } as GitHubApiError
   }
 
   return response.text()
@@ -91,44 +138,7 @@ export function isGitHubApiError(error: unknown): error is GitHubApiError {
 }
 
 // =============================================================================
-// Common GitHub API Types
-// =============================================================================
-
-export interface GitHubUser {
-  login: string
-  avatar_url: string
-  name: string | null
-}
-
-export interface GitHubRepo {
-  name: string
-  full_name: string
-  owner: { login: string; avatar_url: string }
-  default_branch: string
-  private: boolean
-  description: string | null
-  permissions?: { push: boolean; pull: boolean; admin: boolean }
-}
-
-export interface GitHubBranch {
-  name: string
-}
-
-export interface GitHubCompareResult {
-  ahead_by: number
-  behind_by: number
-  status: "ahead" | "behind" | "diverged" | "identical"
-  commits?: Array<{ commit: { message: string } }>
-}
-
-export interface GitHubPullRequest {
-  html_url: string
-  number: number
-  title: string
-}
-
-// =============================================================================
-// High-level API methods
+// High-level API Methods
 // =============================================================================
 
 /**
@@ -145,7 +155,11 @@ export async function getUserRepos(
   token: string,
   options: { sort?: string; perPage?: number; affiliation?: string } = {}
 ): Promise<GitHubRepo[]> {
-  const { sort = "updated", perPage = 50, affiliation = "owner,collaborator" } = options
+  const {
+    sort = "updated",
+    perPage = 50,
+    affiliation = "owner,collaborator,organization_member",
+  } = options
   return githubFetch<GitHubRepo[]>(
     `/user/repos?sort=${sort}&per_page=${perPage}&affiliation=${affiliation}`,
     token
@@ -160,25 +174,38 @@ export async function getRepo(token: string, owner: string, repo: string): Promi
 }
 
 /**
- * Get all branches for a repository (handles pagination)
+ * Get branches for a repository
  */
-export async function getRepoBranches(token: string, owner: string, repo: string): Promise<string[]> {
-  const branches: string[] = []
+export async function getRepoBranches(
+  token: string,
+  owner: string,
+  repo: string,
+  options: { perPage?: number; paginate?: boolean } = {}
+): Promise<GitHubBranch[]> {
+  const { perPage = 100, paginate = true } = options
+
+  if (!paginate) {
+    return githubFetch<GitHubBranch[]>(
+      `/repos/${owner}/${repo}/branches?per_page=${perPage}`,
+      token
+    )
+  }
+
+  // Handle pagination
+  const branches: GitHubBranch[] = []
   let page = 1
 
   while (true) {
     const data = await githubFetch<GitHubBranch[]>(
-      `/repos/${owner}/${repo}/branches?per_page=100&page=${page}`,
+      `/repos/${owner}/${repo}/branches?per_page=${perPage}&page=${page}`,
       token
     )
 
     if (!Array.isArray(data) || data.length === 0) break
 
-    for (const branch of data) {
-      branches.push(branch.name)
-    }
+    branches.push(...data)
 
-    if (data.length < 100) break
+    if (data.length < perPage) break
     page++
   }
 

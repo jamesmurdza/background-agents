@@ -1,11 +1,16 @@
 /**
- * Server-Sent Events (SSE) streaming helpers
- * Provides reusable utilities for creating streaming responses
+ * Server-Sent Events (SSE) utilities
+ * Provides reusable utilities for creating and parsing SSE streams
  */
 
 // =============================================================================
 // Types
 // =============================================================================
+
+export interface SSEEvent {
+  type: string
+  [key: string]: unknown
+}
 
 export interface StreamController {
   /** Send a data event to the client */
@@ -30,6 +35,24 @@ export interface StreamOptions {
   onCancel?: () => void | Promise<void>
 }
 
+export interface ProgressEvent {
+  type: "progress"
+  message: string
+  percent?: number
+}
+
+export interface ErrorEvent {
+  type: "error"
+  message: string
+}
+
+export interface DoneEvent {
+  type: "done"
+  [key: string]: unknown
+}
+
+export type StreamEvent = ProgressEvent | ErrorEvent | DoneEvent | Record<string, unknown>
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -42,7 +65,7 @@ export const SSE_HEADERS = {
 } as const
 
 // =============================================================================
-// Main Helper
+// Server-Side: Creating SSE Streams
 // =============================================================================
 
 /**
@@ -80,7 +103,9 @@ export function createSSEStream(options: StreamOptions): Response {
           }
         },
         isCancelled: () => cancelled,
-        markCancelled: () => { cancelled = true },
+        markCancelled: () => {
+          cancelled = true
+        },
       }
 
       try {
@@ -104,28 +129,6 @@ export function createSSEStream(options: StreamOptions): Response {
   return new Response(stream, { headers: SSE_HEADERS })
 }
 
-// =============================================================================
-// Progress Streaming
-// =============================================================================
-
-export interface ProgressEvent {
-  type: "progress"
-  message: string
-  percent?: number
-}
-
-export interface ErrorEvent {
-  type: "error"
-  message: string
-}
-
-export interface DoneEvent {
-  type: "done"
-  [key: string]: unknown
-}
-
-export type StreamEvent = ProgressEvent | ErrorEvent | DoneEvent | Record<string, unknown>
-
 /**
  * Helper to send a progress event
  */
@@ -147,3 +150,73 @@ export function sendDone(controller: StreamController, data?: Record<string, unk
   controller.send({ type: "done", ...data })
 }
 
+// =============================================================================
+// Client-Side: Parsing SSE Streams
+// =============================================================================
+
+/**
+ * Parse an SSE stream and call the handler for each event.
+ * Returns when the stream is done.
+ */
+export async function parseSSEStream(
+  response: Response,
+  onEvent: (event: SSEEvent) => void
+): Promise<void> {
+  if (!response.body) {
+    throw new Error("Empty server response")
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split("\n\n")
+    buffer = parts.pop()!
+
+    for (const part of parts) {
+      for (const line of part.split("\n")) {
+        if (!line.startsWith("data: ")) continue
+        try {
+          const data = JSON.parse(line.slice(6)) as SSEEvent
+          onEvent(data)
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Simpler SSE parser that collects events of specific types.
+ * Useful when you just need to wait for a "done" or "error" event.
+ */
+export async function waitForSSEResult<T extends SSEEvent>(
+  response: Response,
+  doneType = "done",
+  errorType = "error"
+): Promise<{ success: true; data: T } | { success: false; error: string }> {
+  let result: T | null = null
+  let error: string | null = null
+
+  await parseSSEStream(response, (event) => {
+    if (event.type === doneType) {
+      result = event as T
+    } else if (event.type === errorType) {
+      error = (event.message as string) || (event.error as string) || "Unknown error"
+    }
+  })
+
+  if (error) {
+    return { success: false, error }
+  }
+  if (result) {
+    return { success: true, data: result }
+  }
+  return { success: false, error: "Stream ended without result" }
+}

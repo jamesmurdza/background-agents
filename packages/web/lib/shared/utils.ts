@@ -1,6 +1,6 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+/**
+ * Shared utilities
+ * Re-exports from @upstream/common
+ */
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
+export { cn } from "@upstream/common"

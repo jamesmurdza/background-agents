@@ -1,4 +1,4 @@
-import { parseSSEStream } from "@/lib/shared/sse-utils"
+import { parseSSEStream } from "@upstream/common"
 import type { Agent } from "@/lib/shared/types"
 
 /**

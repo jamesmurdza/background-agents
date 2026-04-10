@@ -1,5 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, internalError } from "@/lib/shared/api-helpers"
-import { forkRepo } from "@/lib/git/github-client"
+import { forkRepo } from "@upstream/common"
 import { forkRepoSchema, validateBody, isValidationError } from "@/lib/shared/schemas"
 
 export async function POST(req: Request) {

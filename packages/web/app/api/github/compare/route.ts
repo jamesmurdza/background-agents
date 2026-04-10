@@ -1,5 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError, badRequest, notFound, internalError } from "@/lib/shared/api-helpers"
-import { getDiff, isGitHubApiError } from "@/lib/git/github-client"
+import { getDiff, isGitHubApiError } from "@upstream/common"
 
 export async function POST(req: Request) {
   const auth = await requireGitHubAuth()

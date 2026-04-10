@@ -97,29 +97,8 @@ export interface AppState {
   settings: Settings
 }
 
-// GitHub types
-export interface GitHubRepo {
-  id: number
-  name: string
-  full_name: string
-  owner: {
-    login: string
-  }
-  default_branch: string
-  private: boolean
-}
-
-export interface GitHubBranch {
-  name: string
-  protected: boolean
-}
-
-export interface GitHubUser {
-  login: string
-  name: string | null
-  avatar_url: string
-  email: string | null
-}
+// Re-export GitHub types from common
+export type { GitHubRepo, GitHubBranch, GitHubUser } from "@upstream/common"
 
 // API types
 export interface CreateSandboxRequest {

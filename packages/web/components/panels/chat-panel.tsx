@@ -5,7 +5,7 @@ import type { Agent, Branch, Message, PushErrorInfo, UserCredentialFlags } from 
 import { defaultAgentModel, getDefaultModelForAgent } from "@/lib/shared/types"
 import { generateId } from "@/lib/shared/store"
 import { ASSISTANT_SOURCE, BRANCH_STATUS, PATHS } from "@/lib/shared/constants"
-import { waitForSSEResult } from "@/lib/shared/sse-utils"
+import { waitForSSEResult } from "@upstream/common"
 import { Terminal } from "lucide-react"
 import { useRef, useEffect, useCallback, useState } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"

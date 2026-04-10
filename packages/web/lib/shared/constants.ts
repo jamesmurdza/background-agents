@@ -79,44 +79,8 @@ export type ContentBlockType = (typeof CONTENT_BLOCK_TYPE)[keyof typeof CONTENT_
 // Random Branch Name Generation
 // =============================================================================
 
-/**
- * Word list for generating random branch names
- * Used to create memorable, human-readable branch names like "swift-lunar-amber"
- */
-export const BRANCH_NAME_WORDS = [
-  "swift",
-  "lunar",
-  "amber",
-  "coral",
-  "ember",
-  "frost",
-  "bloom",
-  "spark",
-  "drift",
-  "pulse",
-  "cedar",
-  "maple",
-  "river",
-  "stone",
-  "cloud",
-  "flame",
-  "steel",
-  "light",
-  "storm",
-  "wave",
-  "tiger",
-  "eagle",
-  "brave",
-  "vivid",
-  "noble",
-  "rapid",
-  "quiet",
-  "sharp",
-  "fresh",
-  "grand",
-] as const
-
-export type BranchNameWord = (typeof BRANCH_NAME_WORDS)[number]
+// Branch name words and types are now in @upstream/common
+export { BRANCH_NAME_WORDS, type BranchNameWord } from "@upstream/common"
 
 // =============================================================================
 // Anthropic Auth Types
