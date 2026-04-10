@@ -18,7 +18,8 @@ export async function POST(req: Request) {
 
   try {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    await daytona.delete(sandboxId)
+    const sandbox = await daytona.get(sandboxId)
+    await sandbox.delete()
 
     return Response.json({ success: true })
   } catch (error) {
