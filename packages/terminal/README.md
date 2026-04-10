@@ -1,6 +1,6 @@
 # @upstream/terminal
 
-WebSocket-based PTY terminal for Daytona sandboxes. Provides a full interactive terminal experience using xterm.js and node-pty.
+WebSocket-based PTY terminal for Daytona sandboxes. Provides a full interactive terminal experience using xterm.js.
 
 ## Features
 
@@ -9,53 +9,13 @@ WebSocket-based PTY terminal for Daytona sandboxes. Provides a full interactive 
 - **Terminal emulation**: Full ANSI color support, cursor positioning, scrollback
 - **Resize handling**: Terminal automatically resizes to fit container
 - **Web links**: Clickable URLs in terminal output
+- **Theme support**: Light and dark mode
 
 ## Architecture
 
-This package has two parts:
-
-1. **WebSocket PTY Server** (`src/server/websocket-server.js`)
-   - Runs inside the Daytona sandbox
-   - Uses `node-pty` to spawn a real PTY process
-   - Streams I/O over WebSocket
-
-2. **React Component** (`src/components/WebSocketTerminal.tsx`)
-   - Uses `xterm.js` for terminal emulation
-   - Connects to the WebSocket server
-   - Handles resize, input, and output
+This package provides the **client-side** xterm.js React component. The PTY server code is inlined in the API route (`/api/sandbox/terminal`) to avoid bundling native modules in Next.js.
 
 ## Usage
-
-### 1. Deploy the PTY server to your sandbox
-
-```typescript
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-// Read server files
-const serverCode = readFileSync(
-  join(process.cwd(), 'node_modules/@upstream/terminal/src/server/websocket-server.js'),
-  'utf-8'
-);
-const packageJson = readFileSync(
-  join(process.cwd(), 'node_modules/@upstream/terminal/src/server/package.json'),
-  'utf-8'
-);
-
-// Upload to sandbox
-await sandbox.fs.uploadFile(Buffer.from(serverCode), 'websocket-pty-server.js');
-await sandbox.fs.uploadFile(Buffer.from(packageJson), 'package.json');
-
-// Install dependencies and start server
-await sandbox.process.executeCommand('npm install ws node-pty');
-await sandbox.process.executeCommand('nohup node websocket-pty-server.js > /tmp/pty-server.log 2>&1 &');
-
-// Get WebSocket URL
-const signedUrl = await sandbox.getSignedPreviewUrl(3001, 3600);
-const wsUrl = signedUrl.url.replace('https://', 'wss://');
-```
-
-### 2. Use the React component
 
 ```tsx
 import { WebSocketTerminal } from '@upstream/terminal';
@@ -126,6 +86,5 @@ Messages are JSON-encoded:
 
 ## Requirements
 
-- Node.js >= 18
 - React >= 18
-- Sandbox with `node-pty` support (Linux with working PTY)
+- A WebSocket PTY server running in the sandbox (set up via `/api/sandbox/terminal`)
