@@ -701,15 +701,19 @@ function TerminalTabContent({
       className="flex-1 h-full w-full relative"
       style={{ backgroundColor: terminalTheme.background }}
     >
-      {/* Terminal container - always rendered. Stay visible when disconnected
-          so the fade overlay washes the last frame of output instead of a blank pane. */}
+      {/* Terminal container - always rendered. Only set visibility:hidden during
+          connecting/error so the loader/error overlay sits over an empty pane.
+          Don't set visibility:visible explicitly: that would override the parent
+          wrapper's visibility:hidden when this tab is inactive, causing two
+          terminals to paint on top of each other. */}
       <div
         ref={terminalRef}
         className="h-full w-full"
         style={{
           padding: "4px",
-          visibility:
-            status === "connected" || status === "disconnected" ? "visible" : "hidden",
+          ...(status === "connecting" || status === "error"
+            ? { visibility: "hidden" as const }
+            : {}),
         }}
       />
 
@@ -1128,19 +1132,32 @@ export function ContentPanel({
         onCloseTab={closeTab}
       />
 
-      {/* Content Area */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab ? (
-          <>
-            {activeTab.type === "file" && (
-              <FileTabContent
-                tab={activeTab}
+      {/* Content Area. Terminal tabs are kept mounted across switches so each
+          one keeps its own xterm, WebSocket and bash session — only their
+          visibility toggles based on which tab is active. File and server
+          tabs render on top via z-index and an opaque background, covering
+          any hidden terminals beneath. */}
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        {contentPanelTabs
+          .filter((t) => t.type === "terminal")
+          .map((t) => (
+            <div
+              key={t.id}
+              className="absolute inset-0"
+              style={{ visibility: activeTab?.id === t.id ? "visible" : "hidden" }}
+            >
+              <TerminalTabContent
+                tab={t}
                 sandboxId={sandboxId}
                 repoPath={repoPath}
               />
-            )}
-            {activeTab.type === "terminal" && (
-              <TerminalTabContent
+            </div>
+          ))}
+
+        {activeTab && activeTab.type !== "terminal" ? (
+          <div className="relative z-10 h-full w-full bg-card">
+            {activeTab.type === "file" && (
+              <FileTabContent
                 tab={activeTab}
                 sandboxId={sandboxId}
                 repoPath={repoPath}
@@ -1149,12 +1166,12 @@ export function ContentPanel({
             {activeTab.type === "server" && (
               <ServerTabContent tab={activeTab} isResizing={isResizing} />
             )}
-          </>
-        ) : (
+          </div>
+        ) : !activeTab ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             No tab selected
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
