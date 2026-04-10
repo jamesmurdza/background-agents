@@ -674,42 +674,50 @@ function TerminalTabContent({
     }
   }, [tab.id, tab.websocketUrl, sandboxId, setTerminalWebsocketUrl, setupTerminal])
 
-  // Loading state
-  if (status === "connecting") {
-    return (
-      <div
-        className="flex-1 flex items-center justify-center h-full"
-        style={{ backgroundColor: terminalTheme.background }}
-      >
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Starting terminal...</span>
-        </div>
-      </div>
-    )
-  }
-
-  // Error state
-  if (status === "error") {
-    return (
-      <div
-        className="flex-1 flex items-center justify-center h-full"
-        style={{ backgroundColor: terminalTheme.background }}
-      >
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-sm text-red-500">Terminal Error</span>
-          <span className="text-xs text-muted-foreground">{errorMessage}</span>
-        </div>
-      </div>
-    )
-  }
-
+  // Always render the terminal div so xterm can mount to it
+  // Show overlays for loading/error states
   return (
     <div
-      ref={terminalRef}
-      className="flex-1 h-full w-full"
-      style={{ backgroundColor: terminalTheme.background, padding: "4px" }}
-    />
+      className="flex-1 h-full w-full relative"
+      style={{ backgroundColor: terminalTheme.background }}
+    >
+      {/* Terminal container - always rendered */}
+      <div
+        ref={terminalRef}
+        className="h-full w-full"
+        style={{ padding: "4px", visibility: status === "connected" ? "visible" : "hidden" }}
+      />
+
+      {/* Loading overlay */}
+      {status === "connecting" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Starting terminal...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error overlay */}
+      {status === "error" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-sm text-red-500">Terminal Error</span>
+            <span className="text-xs text-muted-foreground">{errorMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnected overlay */}
+      {status === "disconnected" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-sm text-yellow-500">Disconnected</span>
+            <span className="text-xs text-muted-foreground">Terminal session ended</span>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
