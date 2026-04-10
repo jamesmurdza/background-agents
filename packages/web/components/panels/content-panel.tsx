@@ -501,7 +501,15 @@ function TerminalTabContent({
 
   // Setup terminal when we have a websocketUrl
   const setupTerminal = useCallback(async (websocketUrl: string) => {
-    if (!terminalRef.current || terminalInstanceRef.current) return
+    // Already initialized
+    if (terminalInstanceRef.current) return
+
+    // Wait for the ref to be available (may take a render cycle)
+    if (!terminalRef.current) {
+      // Retry after a short delay
+      setTimeout(() => setupTerminal(websocketUrl), 50)
+      return
+    }
 
     try {
       // Dynamically import xterm to avoid SSR issues
