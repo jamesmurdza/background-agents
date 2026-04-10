@@ -115,3 +115,11 @@ export { generateSandboxName } from "./sandbox"
 
 // Common utilities
 export { cn, formatRelativeTime } from "./utils"
+
+// Slash commands
+export {
+  type SlashCommand,
+  SLASH_COMMANDS,
+  fuzzyMatch,
+  filterSlashCommands,
+} from "./slash-commands"

@@ -63,6 +63,7 @@ export function useGitDialogs({
   const [mergeOpen, setMergeOpen] = useState(false)
   const [rebaseOpen, setRebaseOpen] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
+  const [prOpen, setPROpen] = useState(false)
 
   // Shared state for branch picker dialogs
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
@@ -143,18 +144,18 @@ export function useGitDialogs({
 
   // Reset merge UI only when a dialog opens — not when fetchBranches identity changes
   useEffect(() => {
-    if (mergeOpen || rebaseOpen) {
+    if (mergeOpen || rebaseOpen || prOpen) {
       setSelectedBranch("")
       setMergeDirection("from-current")
       setSquashMerge(false)
     }
-  }, [mergeOpen, rebaseOpen])
+  }, [mergeOpen, rebaseOpen, prOpen])
 
   useEffect(() => {
-    if (mergeOpen || rebaseOpen) {
+    if (mergeOpen || rebaseOpen || prOpen) {
       fetchBranches()
     }
-  }, [mergeOpen, rebaseOpen, fetchBranches])
+  }, [mergeOpen, rebaseOpen, prOpen, fetchBranches])
 
   // Reset tag input when dialog opens
   useEffect(() => {
@@ -350,6 +351,36 @@ export function useGitDialogs({
     }
   }, [tagNameInput, branch, sandboxId, repoFullName, repoName, addSystemMessage])
 
+  const handleCreatePR = useCallback(async () => {
+    if (!selectedBranch || !branch) return
+    setActionLoading(true)
+
+    try {
+      const res = await fetch("/api/github/pr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: repoOwner,
+          repo: repoName,
+          head: branchName,
+          base: selectedBranch,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to create PR")
+
+      addSystemMessage(
+        `::icon-success:: **Pull request created:** [#${data.number} - ${data.title}](${data.url})`
+      )
+      setPROpen(false)
+    } catch (err: unknown) {
+      addSystemMessage(`::icon-error:: **PR creation failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      setPROpen(false)
+    } finally {
+      setActionLoading(false)
+    }
+  }, [selectedBranch, branch, repoOwner, repoName, branchName, addSystemMessage])
+
   const handleAbortConflict = useCallback(async () => {
     if (!sandboxId) return
     const isMerge = rebaseConflictState.inMerge
@@ -458,6 +489,8 @@ export function useGitDialogs({
     setRebaseOpen,
     tagOpen,
     setTagOpen,
+    prOpen,
+    setPROpen,
 
     // Loading states
     branchesLoading,
@@ -485,6 +518,7 @@ export function useGitDialogs({
     handleMerge,
     handleRebase,
     handleTag,
+    handleCreatePR,
     handleAbortConflict,
     checkRebaseStatus,
 

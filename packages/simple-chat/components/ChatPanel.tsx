@@ -1,14 +1,16 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { ArrowUp, Square, ChevronDown, Github, Key, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
 import { getCredentialFlags } from "@/lib/storage"
+import { filterSlashCommands } from "@upstream/common"
 import { MessageBubble } from "./MessageBubble"
 import { AgentIcon } from "./icons/agent-icons"
 import { MobileSelect } from "./ui/MobileBottomSheet"
+import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
 
 import type { HighlightKey } from "./modals/SettingsModal"
 
@@ -20,10 +22,11 @@ interface ChatPanelProps {
   onChangeRepo?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
   onOpenSettings?: (highlightKey?: HighlightKey) => void
+  onSlashCommand?: (command: SlashCommandType) => void
   isMobile?: boolean
 }
 
-export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings, isMobile = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings, onSlashCommand, isMobile = false }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -31,6 +34,9 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // Mobile bottom sheet states
   const [showAgentSheet, setShowAgentSheet] = useState(false)
   const [showModelSheet, setShowModelSheet] = useState(false)
+  // Slash command menu state
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false)
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -99,6 +105,27 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     return () => document.removeEventListener('click', handleClickOutside)
   }, [isMobile])
 
+  // Update slash menu visibility based on input
+  useEffect(() => {
+    if (input.startsWith("/")) {
+      setSlashMenuOpen(true)
+    } else {
+      setSlashMenuOpen(false)
+      setSlashSelectedIndex(0)
+    }
+  }, [input])
+
+  // Get filtered commands for keyboard navigation
+  const filteredCommands = useMemo(() => filterSlashCommands(input), [input])
+
+  // Handle slash command selection
+  const handleSlashCommandSelect = useCallback((command: SlashCommandType) => {
+    setSlashMenuOpen(false)
+    setSlashSelectedIndex(0)
+    setInput("")
+    onSlashCommand?.(command)
+  }, [onSlashCommand])
+
   const handleSend = () => {
     if (!canSend) return
     // Don't send if credentials are missing - the UI shows a warning instead
@@ -108,6 +135,43 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle slash command menu navigation
+    if (slashMenuOpen && filteredCommands.length > 0 && onSlashCommand) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault()
+          setSlashSelectedIndex((prev) =>
+            prev < filteredCommands.length - 1 ? prev + 1 : 0
+          )
+          return
+        case "ArrowUp":
+          e.preventDefault()
+          setSlashSelectedIndex((prev) =>
+            prev > 0 ? prev - 1 : filteredCommands.length - 1
+          )
+          return
+        case "Enter":
+          e.preventDefault()
+          if (filteredCommands[slashSelectedIndex]) {
+            handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
+          }
+          return
+        case "Tab":
+          e.preventDefault()
+          if (filteredCommands[slashSelectedIndex]) {
+            handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
+          }
+          return
+        case "Escape":
+          e.preventDefault()
+          setSlashMenuOpen(false)
+          setSlashSelectedIndex(0)
+          setInput("")
+          return
+      }
+    }
+
+    // Normal enter to send
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -192,9 +256,25 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // Chat input component - responsive design
   const chatInput = (
     <div className={cn(
-      "w-full mx-auto",
+      "w-full mx-auto relative",
       isMobile ? "max-w-full" : "max-w-[52rem]"
     )}>
+      {/* Slash Command Menu */}
+      {onSlashCommand && (
+        <SlashCommandMenu
+          input={input}
+          open={slashMenuOpen}
+          onSelect={handleSlashCommandSelect}
+          onClose={() => {
+            setSlashMenuOpen(false)
+            setSlashSelectedIndex(0)
+          }}
+          selectedIndex={slashSelectedIndex}
+          onSelectedIndexChange={setSlashSelectedIndex}
+          isMobile={isMobile}
+        />
+      )}
+
       <div
         className={cn(
           "flex flex-col border shadow-sm bg-card",

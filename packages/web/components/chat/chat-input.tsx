@@ -33,6 +33,8 @@ import {
   CommandItem,
   CommandSeparator,
 } from "@/components/ui/command"
+import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
+import { filterSlashCommands } from "@upstream/common"
 
 // ============================================================================
 // Chat Input Component
@@ -52,11 +54,13 @@ interface ChatInputProps {
   isMobile?: boolean
   /** Rebase conflict: tint the prompt strip red (message list unchanged) */
   inRebaseConflict?: boolean
+  /** Slash command handlers */
+  onSlashCommand?: (command: SlashCommandType) => void
 }
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput(
-    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, onOpenSettingsWithHighlight, credentials, isMobile, inRebaseConflict = false },
+    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, onOpenSettingsWithHighlight, credentials, isMobile, inRebaseConflict = false, onSlashCommand },
     ref
   ) {
     // Normalize agent value (handle legacy "claude" value from database)
@@ -71,6 +75,18 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
     // Voice input state
     const [isListening, setIsListening] = useState(false)
     const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+    // Slash command menu state
+    const [slashMenuOpen, setSlashMenuOpen] = useState(false)
+    const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
+
+    // Handle slash command selection
+    const handleSlashCommandSelect = useCallback((command: SlashCommandType) => {
+      setSlashMenuOpen(false)
+      setSlashSelectedIndex(0)
+      onInputChange("")
+      onSlashCommand?.(command)
+    }, [onInputChange, onSlashCommand])
 
     // Filter models based on available credentials
     const availableModels = getAvailableModels(currentAgent, credentials)
@@ -111,12 +127,62 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       }
     }, [input, ref])
 
+    // Update slash menu visibility based on input
+    useEffect(() => {
+      if (input.startsWith("/")) {
+        setSlashMenuOpen(true)
+      } else {
+        setSlashMenuOpen(false)
+        setSlashSelectedIndex(0)
+      }
+    }, [input])
+
+    // Get filtered commands for keyboard navigation
+    const filteredCommands = useMemo(() => filterSlashCommands(input), [input])
+
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Handle slash command menu navigation
+      if (slashMenuOpen && filteredCommands.length > 0) {
+        switch (e.key) {
+          case "ArrowDown":
+            e.preventDefault()
+            setSlashSelectedIndex((prev) =>
+              prev < filteredCommands.length - 1 ? prev + 1 : 0
+            )
+            return
+          case "ArrowUp":
+            e.preventDefault()
+            setSlashSelectedIndex((prev) =>
+              prev > 0 ? prev - 1 : filteredCommands.length - 1
+            )
+            return
+          case "Enter":
+            e.preventDefault()
+            if (filteredCommands[slashSelectedIndex]) {
+              handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
+            }
+            return
+          case "Tab":
+            e.preventDefault()
+            if (filteredCommands[slashSelectedIndex]) {
+              handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
+            }
+            return
+          case "Escape":
+            e.preventDefault()
+            setSlashMenuOpen(false)
+            setSlashSelectedIndex(0)
+            onInputChange("")
+            return
+        }
+      }
+
+      // Normal enter to send
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
         onSend()
       }
-    }, [onSend])
+    }, [slashMenuOpen, filteredCommands, slashSelectedIndex, handleSlashCommandSelect, onInputChange, onSend])
 
     // Handle agent change - allow selection but open settings with highlight if missing credentials
     const handleAgentChange = useCallback((newAgent: Agent) => {
@@ -223,7 +289,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
     return (
       <div
         className={cn(
-          "shrink-0 border-t",
+          "shrink-0 border-t relative",
           isMobile ? "px-3 pt-3" : "px-3 py-3 sm:px-6",
           inRebaseConflict
             ? "border-t-red-700 bg-red-700/12 dark:border-t-red-600 dark:bg-red-950/45"
@@ -231,6 +297,19 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
         )}
         style={isMobile ? { paddingBottom: 'calc(var(--safe-area-inset-bottom) + 0.75rem)' } : undefined}
       >
+        {/* Slash Command Menu */}
+        <SlashCommandMenu
+          input={input}
+          open={slashMenuOpen && !!onSlashCommand}
+          onSelect={handleSlashCommandSelect}
+          onClose={() => {
+            setSlashMenuOpen(false)
+            setSlashSelectedIndex(0)
+          }}
+          selectedIndex={slashSelectedIndex}
+          onSelectedIndexChange={setSlashSelectedIndex}
+        />
+
         <div
           className={cn(
             "flex items-end gap-2 rounded-lg border px-3 py-2",
