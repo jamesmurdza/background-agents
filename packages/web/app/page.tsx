@@ -45,6 +45,11 @@ export default function Home() {
   const isMobile = useIsMobile()
   const { repoFromUrl, branchFromUrl, updateUrlToRepo, updateUrlToRepoBranch } = useRepoNavigation()
 
+  // Rehydrate persisted UI state after mount to avoid SSR hydration mismatches
+  useEffect(() => {
+    useUIStore.persist.rehydrate()
+  }, [])
+
   // Zustand UI state
   const {
     settingsOpen,

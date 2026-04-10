@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand"
-import { devtools } from "zustand/middleware"
+import { devtools, persist, createJSONStorage } from "zustand/middleware"
 
 // Content Panel tab types
 export interface ContentPanelTab {
@@ -340,8 +340,18 @@ const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get:
   resetUI: () => set(initialState),
 })
 
-// Only use devtools in development
+const persistOptions = {
+  name: "ui-store",
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state: UIState & UIActions) => ({
+    contentPanelOpen: state.contentPanelOpen,
+    contentPanelCollapsed: state.contentPanelCollapsed,
+    contentPanelWidth: state.contentPanelWidth,
+  }),
+  skipHydration: true,
+}
+
 export const useUIStore =
   process.env.NODE_ENV === "development"
-    ? create<UIState & UIActions>()(devtools(storeCreator, { name: "ui-store" }))
-    : create<UIState & UIActions>()(storeCreator)
+    ? create<UIState & UIActions>()(devtools(persist(storeCreator, persistOptions), { name: "ui-store" }))
+    : create<UIState & UIActions>()(persist(storeCreator, persistOptions))
