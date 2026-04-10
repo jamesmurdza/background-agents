@@ -23,7 +23,6 @@ export default function HomePage() {
     settings,
     isHydrated,
     deletingChatIds,
-    canCreateChat,
     startNewChat,
     selectChat,
     removeChat,
@@ -142,7 +141,6 @@ export default function HomePage() {
           chats={displayChats}
           currentChatId={currentPage === "chat" ? displayCurrentChatId : null}
           deletingChatIds={deletingChatIds}
-          canCreateChat={canCreateChat}
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onDeleteChat={removeChat}
@@ -163,7 +161,6 @@ export default function HomePage() {
           chats={displayChats}
           currentChatId={currentPage === "chat" ? displayCurrentChatId : null}
           deletingChatIds={deletingChatIds}
-          canCreateChat={canCreateChat}
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onDeleteChat={removeChat}

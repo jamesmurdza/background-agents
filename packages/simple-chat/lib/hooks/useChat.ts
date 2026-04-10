@@ -19,7 +19,6 @@ import {
 import { generateBranchName } from "@/lib/utils"
 
 const POLL_INTERVAL = 1000 // 1 second
-const MAX_CHATS_ANONYMOUS = 2 // Max chats for non-signed-in users
 
 // Default empty state for SSR
 const DEFAULT_STATE: AppState = {
@@ -63,19 +62,11 @@ export function useChat() {
   // Get current chat
   const currentChat = state.chats.find((c) => c.id === state.currentChatId) ?? null
 
-  // Check if user can create new chats (anonymous users limited to 2)
-  const canCreateChat = !!session || state.chats.length < MAX_CHATS_ANONYMOUS
-
   // =============================================================================
   // Chat Operations
   // =============================================================================
 
   const startNewChat = useCallback((repo: string = NEW_REPOSITORY, baseBranch: string = "main") => {
-    // Enforce chat limit for anonymous users
-    if (!session && state.chats.length >= MAX_CHATS_ANONYMOUS) {
-      return null
-    }
-
     const chat: Chat = {
       id: nanoid(),
       repo,
@@ -93,7 +84,7 @@ export function useChat() {
     setState(newState)
 
     return chat.id
-  }, [session, state.chats.length])
+  }, [])
 
   const selectChat = useCallback((chatId: string) => {
     const newState = setCurrentChat(chatId)
@@ -462,7 +453,6 @@ export function useChat() {
     settings: state.settings,
     isHydrated,
     deletingChatIds,
-    canCreateChat,
 
     // Actions
     startNewChat,
