@@ -701,11 +701,16 @@ function TerminalTabContent({
       className="flex-1 h-full w-full relative"
       style={{ backgroundColor: terminalTheme.background }}
     >
-      {/* Terminal container - always rendered */}
+      {/* Terminal container - always rendered. Stay visible when disconnected
+          so the fade overlay washes the last frame of output instead of a blank pane. */}
       <div
         ref={terminalRef}
         className="h-full w-full"
-        style={{ padding: "4px", visibility: status === "connected" ? "visible" : "hidden" }}
+        style={{
+          padding: "4px",
+          visibility:
+            status === "connected" || status === "disconnected" ? "visible" : "hidden",
+        }}
       />
 
       {/* Loading overlay */}
@@ -728,11 +733,12 @@ function TerminalTabContent({
         </div>
       )}
 
-      {/* Disconnected overlay */}
+      {/* Disconnected overlay — wash the last terminal frame toward white and
+          show the message centered on top. No border, no boxed container. */}
       {status === "disconnected" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
           <div className="flex flex-col items-center gap-2">
-            <span className="text-sm text-yellow-500">Disconnected</span>
+            <span className="text-sm text-yellow-600">Disconnected</span>
             <span className="text-xs text-muted-foreground">
               {errorMessage || "Terminal session ended"}
             </span>
