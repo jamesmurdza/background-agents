@@ -6,9 +6,14 @@ packages/*/dist/
 packages/web/.next/
 packages/web/.next-e2e/
 packages/web/test-results/
+packages/simple-chat/.next/
 test-results/
 # Stray Next output if dev is run without an explicit app directory
 .next/
+
+# Vercel CLI link state (per-project, don't commit)
+.vercel/
+packages/*/.vercel/
 
 # Environment
 .env
