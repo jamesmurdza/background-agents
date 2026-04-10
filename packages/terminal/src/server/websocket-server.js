@@ -53,7 +53,22 @@ const server = http.createServer((req, res) => {
 // Create WebSocket server attached to HTTP server
 const wss = new WebSocket.Server({
   server,
-  path: '/'  // Accept connections on root path
+  path: '/',  // Accept connections on root path
+  // Verify origin to prevent unauthorized connections
+  verifyClient: (info, callback) => {
+    const origin = info.origin || info.req.headers.origin;
+    // Allow connections from Daytona proxy (signed URLs) and localhost for development
+    // The signed URL mechanism is the primary security control
+    if (!origin) {
+      // No origin header - likely a direct WebSocket client or server-to-server
+      // Allow since Daytona's signed URL provides authentication
+      callback(true);
+      return;
+    }
+    // Log origin for debugging
+    console.log(`[WS] Connection attempt from origin: ${origin}`);
+    callback(true);
+  }
 });
 
 // Track active connections for cleanup

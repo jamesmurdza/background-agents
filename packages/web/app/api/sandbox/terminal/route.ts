@@ -278,7 +278,7 @@ const server = http.createServer((req, res) => {
   res.end('Not found');
 });
 
-const wss = new WebSocket.Server({ server, path: '/' });
+const wss = new WebSocket.Server({ server, path: '/', verifyClient: (info, cb) => cb(true) });
 
 wss.on('connection', (ws, req) => {
   console.log('[WS] Connection from:', req.socket.remoteAddress);
