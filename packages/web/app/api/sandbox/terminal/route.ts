@@ -161,10 +161,12 @@ export async function POST(req: Request) {
 
         // Install dependencies. node-gyp 12.1.0 crashes in a post-build cleanup step
         // (lstat node_gyp_bins ENOENT) after a successful native build, so npm reports
-        // failure even though pty.node was produced. Ignore the exit code and verify
-        // the build artifact directly.
+        // failure even though pty.node was produced. Wipe any prior node-pty state
+        // first so we always start clean (a half-built tree from a previous failed
+        // attempt makes subsequent installs fail in new ways), then verify the build
+        // artifact on disk instead of trusting npm's exit code.
         const installResult = await sandbox.process.executeCommand(
-          `cd /tmp && npm install --prefix /tmp ws node-pty 2>&1`,
+          `rm -rf /tmp/node_modules/node-pty && cd /tmp && npm install --prefix /tmp ws node-pty 2>&1`,
           undefined,
           undefined,
           60
@@ -178,7 +180,18 @@ export async function POST(req: Request) {
         )
 
         if (ptyArtifactCheck.result?.trim() !== "ok") {
-          console.error("[terminal] Failed to install dependencies:", installResult.result)
+          const dirListing = await sandbox.process.executeCommand(
+            `ls -la /tmp/node_modules/node-pty/build/Release/ 2>&1; echo ---; ls -la /tmp/node_modules/node-pty/ 2>&1; echo ---; ls /tmp/node_modules/ 2>&1`,
+            undefined,
+            undefined,
+            10
+          )
+          console.error(
+            "[terminal] Failed to install dependencies:",
+            installResult.result,
+            "\n[terminal] node-pty tree after install:\n",
+            dirListing.result
+          )
           return Response.json(
             {
               status: "error",
