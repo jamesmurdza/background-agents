@@ -159,17 +159,27 @@ export async function POST(req: Request) {
           "/tmp/pty-package.json"
         )
 
-        // Install dependencies. node-gyp 12.1.0 crashes in a post-build cleanup step
-        // (lstat node_gyp_bins ENOENT) after a successful native build, so npm reports
-        // failure even though pty.node was produced. Wipe any prior node-pty state
-        // first so we always start clean (a half-built tree from a previous failed
-        // attempt makes subsequent installs fail in new ways), then verify the build
-        // artifact on disk instead of trusting npm's exit code.
+        // Install dependencies. Two things to coordinate:
+        //   1. Concurrent setup calls (e.g. two terminal tabs opening at once)
+        //      must not run npm install in parallel, or one will rm -rf the other's
+        //      half-extracted tarball and corrupt the npm cache.
+        //   2. node-gyp 12.1.0 crashes in a post-build cleanup step on older
+        //      node-pty versions even after successfully producing pty.node, so we
+        //      verify the artifact on disk rather than trusting npm's exit code.
+        // flock serialises installs across processes inside the sandbox, and the
+        // inner check makes the locked section a no-op if pty.node is already there.
         const installResult = await sandbox.process.executeCommand(
-          `rm -rf /tmp/node_modules/node-pty && cd /tmp && npm install --prefix /tmp ws node-pty 2>&1`,
+          `flock -w 120 /tmp/.node-pty-install.lock bash -c '
+            if [ -f /tmp/node_modules/node-pty/build/Release/pty.node ] && [ -d /tmp/node_modules/ws ]; then
+              echo "[install] already present, skipping"
+              exit 0
+            fi
+            rm -rf /tmp/node_modules/node-pty
+            cd /tmp && npm install --prefix /tmp ws node-pty 2>&1
+          '`,
           undefined,
           undefined,
-          60
+          120
         )
 
         const ptyArtifactCheck = await sandbox.process.executeCommand(

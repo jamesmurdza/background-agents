@@ -676,7 +676,11 @@ function TerminalTabContent({
 
     setupPtyServer()
 
-    // Cleanup
+    // Cleanup. Don't reset hasInitialized — under React StrictMode the cleanup
+    // runs between the dev double-mount, and resetting the guard causes the
+    // second effect run to fire setup a second time. A real unmount produces a
+    // fresh component instance with a fresh ref next time, so leaving this set
+    // is harmless.
     return () => {
       if (socketRef.current) {
         socketRef.current.close()
@@ -687,7 +691,6 @@ function TerminalTabContent({
         terminalInstanceRef.current = null
       }
       fitAddonRef.current = null
-      hasInitialized.current = false
     }
   }, [tab.id, tab.websocketUrl, sandboxId, setTerminalWebsocketUrl, setupTerminal])
 
