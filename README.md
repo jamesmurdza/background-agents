@@ -166,23 +166,53 @@ npx prisma generate
 # Run migrations (uses DATABASE_URL_UNPOOLED)
 npx prisma migrate deploy
 
-# Build
+# Build (SDK + both apps)
 npm run build
 ```
 
-Or push to Vercel - the build script handles migrations automatically.
+Or push to Vercel — the per-app build commands handle Prisma generation
+and migrations automatically. See [Deployment](#deployment) for the
+two-project setup.
+
+---
+
+## Deployment
+
+`packages/web` and `packages/simple-chat` deploy as **two independent Vercel
+projects** from the same repo. Each has its own `vercel.json` pinning
+`buildCommand`, `outputDirectory`, and an `ignoreCommand` that delegates to
+[scripts/vercel-ignore.sh](scripts/vercel-ignore.sh); there is no root
+`vercel.json`.
+
+For each app, create the project via **Add New… → Project → Import Git
+Repository** in the Vercel dashboard (not `vercel deploy` — that creates a
+project with no Git connection). Set **Root Directory** to `packages/web` or
+`packages/simple-chat`, leave all Build & Output overrides off so
+`vercel.json` wins, and add env vars before the first deploy. `web` needs the
+full set from [Environment Variables](#4-environment-variables); `simple-chat`
+only needs `DAYTONA_API_KEY`, `DAYTONA_API_URL`, `NEXTAUTH_URL`,
+`NEXTAUTH_SECRET` (generate a fresh one), and optionally a separate GitHub
+OAuth app.
+
+`vercel-ignore.sh` skips a deploy when nothing under the app's package, its
+workspace dependencies (`agents`, `common`), or root config changed since the
+previous deploy. The first deploy of a project always runs.
 
 ---
 
 ## Development
 
-This is a monorepo with two packages:
+This is an npm-workspaces monorepo with four packages:
 
 ```
 packages/
-├── agents/   # @sandboxed-agents/sdk - TypeScript SDK for AI coding agents
-└── web/      # @sandboxed-agents/web - Next.js web application
+├── agents/        # @upstream/agents      — TypeScript SDK for AI coding agents
+├── common/        # @upstream/common      — Shared utilities and types
+├── web/           # @upstream/web         — Main Next.js application
+└── simple-chat/   # @upstream/simple-chat — Standalone chat Next.js application
 ```
+
+The two Next.js apps (`web` and `simple-chat`) are deployed as **two independent Vercel projects** from the same repo. See [Deployment](#deployment) below.
 
 For full local development setup (database, environment variables, running the dev server), see [DEVELOPMENT.md](./DEVELOPMENT.md).
 
@@ -190,11 +220,14 @@ For full local development setup (database, environment variables, running the d
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start web development server |
-| `npm run build` | Build SDK + web app |
+| `npm run dev` | Start the `web` development server |
+| `npm run dev:simple-chat` | Start the `simple-chat` development server (port 4000) |
+| `npm run build` | Build SDK + both apps (CI / local sanity check) |
 | `npm run build:sdk` | Build only the SDK package |
-| `npm run build:web` | Build only the web app |
-| `npm run start` | Start production server |
+| `npm run build:web` | Build SDK + `web` app |
+| `npm run build:simple-chat` | Build SDK + `simple-chat` app |
+| `npm run start` | Start `web` production server |
+| `npm run start:simple-chat` | Start `simple-chat` production server |
 | `npm run lint` | ESLint check across all packages |
 | `npm run clean` | Clean build artifacts |
 
