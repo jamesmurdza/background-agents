@@ -166,23 +166,97 @@ npx prisma generate
 # Run migrations (uses DATABASE_URL_UNPOOLED)
 npx prisma migrate deploy
 
-# Build
+# Build (SDK + both apps)
 npm run build
 ```
 
-Or push to Vercel - the build script handles migrations automatically.
+Or push to Vercel — the per-app build commands handle Prisma generation
+and migrations automatically. See [Deployment](#deployment) for the
+two-project setup.
+
+---
+
+## Deployment
+
+Both Next.js apps (`packages/web` and `packages/simple-chat`) are deployed as
+**two independent Vercel projects** that point at the same Git repository.
+Each project has its own URL, env vars, build cache, and rollback timeline.
+
+### Layout
+
+```
+sandboxed-agents/                       # repo root
+├── packages/
+│   ├── web/
+│   │   └── vercel.json                 # config for the "web" Vercel project
+│   └── simple-chat/
+│       └── vercel.json                 # config for the "simple-chat" Vercel project
+└── scripts/
+    └── vercel-ignore.sh                # shared "Ignored Build Step" script
+```
+
+There is **no** root `vercel.json`. Each Vercel project has its **Root
+Directory** set to its package, and Vercel auto-detects the npm workspace at
+the repo root for `npm install`.
+
+### Initial Vercel setup
+
+Do this once per app:
+
+1. Create a new Vercel project pointed at this Git repository.
+2. Settings → General → **Root Directory**: `packages/web` (or
+   `packages/simple-chat`).
+3. Settings → General → **Framework Preset**: Next.js (auto-detected).
+4. Settings → General → **Install Command**, **Build Command**, **Output
+   Directory**: leave on defaults — the workspace + `package.json` scripts
+   handle everything.
+5. Settings → Environment Variables: copy the variables this app needs
+   (see [Environment Variables](#4-environment-variables) for `web`;
+   `simple-chat` only needs `DAYTONA_API_KEY`, `NEXTAUTH_SECRET`,
+   `NEXTAUTH_URL`, and optionally GitHub OAuth).
+6. Trigger a redeploy.
+
+### How "deploy only what changed" works
+
+Each per-app `vercel.json` runs `scripts/vercel-ignore.sh` as its
+[Ignored Build Step](https://vercel.com/docs/projects/overview#ignored-build-step).
+The script asks: *did this commit touch anything that affects this app?*
+
+An app rebuilds when any of these changed since the previous deploy:
+
+- its own package directory (`packages/<app>/`)
+- shared workspace dependencies (`packages/agents/`, `packages/common/`)
+- root config (`package.json`, `package-lock.json`, `tsconfig.json`,
+  `scripts/`)
+
+A push that only touches the *other* app's code is skipped automatically,
+so the two projects don't redeploy each other unnecessarily.
+
+### Linking locally
+
+To use `vercel` CLI commands against a specific app, run `vercel link` from
+inside that package directory:
+
+```bash
+cd packages/web && vercel link            # links packages/web/.vercel
+cd packages/simple-chat && vercel link    # links packages/simple-chat/.vercel
+```
 
 ---
 
 ## Development
 
-This is a monorepo with two packages:
+This is an npm-workspaces monorepo with four packages:
 
 ```
 packages/
-├── agents/   # @sandboxed-agents/sdk - TypeScript SDK for AI coding agents
-└── web/      # @sandboxed-agents/web - Next.js web application
+├── agents/        # @upstream/agents      — TypeScript SDK for AI coding agents
+├── common/        # @upstream/common      — Shared utilities and types
+├── web/           # @upstream/web         — Main Next.js application
+└── simple-chat/   # @upstream/simple-chat — Standalone chat Next.js application
 ```
+
+The two Next.js apps (`web` and `simple-chat`) are deployed as **two independent Vercel projects** from the same repo. See [Deployment](#deployment) below.
 
 For full local development setup (database, environment variables, running the dev server), see [DEVELOPMENT.md](./DEVELOPMENT.md).
 
@@ -190,11 +264,14 @@ For full local development setup (database, environment variables, running the d
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start web development server |
-| `npm run build` | Build SDK + web app |
+| `npm run dev` | Start the `web` development server |
+| `npm run dev:simple-chat` | Start the `simple-chat` development server (port 4000) |
+| `npm run build` | Build SDK + both apps (CI / local sanity check) |
 | `npm run build:sdk` | Build only the SDK package |
-| `npm run build:web` | Build only the web app |
-| `npm run start` | Start production server |
+| `npm run build:web` | Build SDK + `web` app |
+| `npm run build:simple-chat` | Build SDK + `simple-chat` app |
+| `npm run start` | Start `web` production server |
+| `npm run start:simple-chat` | Start `simple-chat` production server |
 | `npm run lint` | ESLint check across all packages |
 | `npm run clean` | Clean build artifacts |
 
