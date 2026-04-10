@@ -415,7 +415,7 @@ function FileTabContent({
 }
 
 // ============================================================================
-// Terminal Tab Content Component (SSE-based PTY using Daytona SDK)
+// Terminal Tab Content Component (WebSocket PTY)
 // ============================================================================
 
 // Terminal theme configurations
@@ -478,16 +478,15 @@ function TerminalTabContent({
   sandboxId: string
   repoPath: string
 }) {
-  const { setTerminalSessionId } = useUIStore()
+  const { setTerminalWebsocketUrl } = useUIStore()
   const { resolvedTheme } = useTheme()
   const [status, setStatus] = useState<"connecting" | "connected" | "error" | "disconnected">("connecting")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const terminalRef = useRef<HTMLDivElement>(null)
   const hasInitialized = useRef(false)
-  const eventSourceRef = useRef<EventSource | null>(null)
+  const socketRef = useRef<WebSocket | null>(null)
   const terminalInstanceRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
-  const sessionIdRef = useRef<string | null>(null)
 
   // Get current theme colors
   const isDark = resolvedTheme === "dark"
@@ -500,60 +499,17 @@ function TerminalTabContent({
     }
   }, [terminalTheme])
 
-  // Send input to terminal via POST
-  const sendInput = useCallback(async (input: string) => {
-    if (!sessionIdRef.current) return
-
-    try {
-      await fetch("/api/sandbox/terminal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          action: "input",
-          sessionId: sessionIdRef.current,
-          input,
-        }),
-      })
-    } catch (err) {
-      console.error("[Terminal] Send input error:", err)
-    }
-  }, [sandboxId])
-
-  // Send resize to terminal via POST
-  const sendResize = useCallback(async (cols: number, rows: number) => {
-    if (!sessionIdRef.current) return
-
-    try {
-      await fetch("/api/sandbox/terminal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          action: "resize",
-          sessionId: sessionIdRef.current,
-          cols,
-          rows,
-        }),
-      })
-    } catch (err) {
-      console.error("[Terminal] Send resize error:", err)
-    }
-  }, [sandboxId])
-
-  // Setup terminal with SSE connection
-  const setupTerminal = useCallback(async (sessionId: string, cols: number, rows: number) => {
+  // Setup terminal when we have a websocketUrl
+  const setupTerminal = useCallback(async (websocketUrl: string) => {
     // Already initialized
     if (terminalInstanceRef.current) return
 
     // Wait for the ref to be available (may take a render cycle)
     if (!terminalRef.current) {
       // Retry after a short delay
-      setTimeout(() => setupTerminal(sessionId, cols, rows), 50)
+      setTimeout(() => setupTerminal(websocketUrl), 50)
       return
     }
-
-    sessionIdRef.current = sessionId
 
     try {
       // Dynamically import xterm to avoid SSR issues
@@ -590,86 +546,70 @@ function TerminalTabContent({
       // Mount terminal
       terminal.open(terminalRef.current)
 
-      // Initial fit and get dimensions
+      // Initial fit
       setTimeout(() => {
         try {
           fitAddon.fit()
-          // Send initial resize after fit
-          const { cols: fitCols, rows: fitRows } = terminal
-          sendResize(fitCols, fitRows)
         } catch {
           // Ignore fit errors
         }
       }, 0)
 
-      // Connect via SSE
-      const sseUrl = `/api/sandbox/terminal?sandboxId=${encodeURIComponent(sandboxId)}&sessionId=${encodeURIComponent(sessionId)}&cols=${cols}&rows=${rows}`
-      const eventSource = new EventSource(sseUrl)
-      eventSourceRef.current = eventSource
+      // Connect WebSocket
+      const socket = new WebSocket(websocketUrl)
+      socketRef.current = socket
 
-      eventSource.onopen = () => {
-        console.log("[Terminal] SSE connected")
+      socket.onopen = () => {
+        setStatus("connected")
+        // Send initial resize
+        const { cols, rows } = terminal
+        socket.send(JSON.stringify({ type: "resize", cols, rows }))
       }
 
-      eventSource.onmessage = (event) => {
+      socket.onerror = () => {
+        setStatus("error")
+        setErrorMessage("Connection error")
+      }
+
+      socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          switch (message.type) {
-            case "data":
-              if (message.payload) {
-                terminal.write(message.payload)
-              }
-              break
-            case "ready":
-              console.log("[Terminal] PTY ready, sessionId:", message.sessionId)
-              setStatus("connected")
-              break
-            case "exit":
-              console.log("[Terminal] PTY exited:", message.exitCode)
-              terminal.writeln(`\r\n\x1b[33mProcess exited with code ${message.exitCode}\x1b[0m`)
-              setStatus("disconnected")
-              break
-            case "error":
-              console.error("[Terminal] PTY error:", message.message)
-              setStatus("error")
-              setErrorMessage(message.message || "Terminal error")
-              break
+          if (message.type === "data" && message.payload) {
+            terminal.write(message.payload)
           }
         } catch {
           // Ignore parse errors
         }
       }
 
-      eventSource.onerror = (err) => {
-        console.error("[Terminal] SSE error:", err)
-        if (status !== "disconnected") {
-          setStatus("error")
-          setErrorMessage("Connection error")
-        }
+      socket.onclose = () => {
+        setStatus("disconnected")
       }
 
       // Handle terminal input
       terminal.onData((data: string) => {
-        sendInput(data)
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "input", payload: data }))
+        }
       })
 
       // Handle resize
       const resizeObserver = new ResizeObserver(() => {
         try {
           fitAddon.fit()
-          const { cols: newCols, rows: newRows } = terminal
-          sendResize(newCols, newRows)
+          if (socket.readyState === WebSocket.OPEN) {
+            const { cols, rows } = terminal
+            socket.send(JSON.stringify({ type: "resize", cols, rows }))
+          }
         } catch {
           // Ignore resize errors
         }
       })
-      if (terminalRef.current) {
-        resizeObserver.observe(terminalRef.current)
-      }
+      resizeObserver.observe(terminalRef.current)
 
       return () => {
         resizeObserver.disconnect()
-        eventSource.close()
+        socket.close()
         terminal.dispose()
       }
     } catch (err) {
@@ -677,86 +617,70 @@ function TerminalTabContent({
       setErrorMessage("Failed to load terminal")
       console.error("[Terminal] Error:", err)
     }
-  }, [sandboxId, sendInput, sendResize, status])
+  }, [])
 
   // Initialize terminal connection
   useEffect(() => {
     if (hasInitialized.current) return
     hasInitialized.current = true
 
-    // If we already have a sessionId, reconnect to it
-    if (tab.sessionId) {
-      setupTerminal(tab.sessionId, 80, 30)
+    // If we already have a websocketUrl, use it
+    if (tab.websocketUrl) {
+      setupTerminal(tab.websocketUrl)
       return
     }
 
-    // Otherwise, create a new PTY session
-    const createPtySession = async () => {
+    // Otherwise, set up the PTY server
+    const setupPtyServer = async () => {
       try {
         const res = await fetch("/api/sandbox/terminal", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sandboxId,
-            action: "create",
-            cols: 80,
-            rows: 30,
+            action: "setup",
           }),
         })
 
         if (res.ok) {
           const data = await res.json()
-          if (data.status === "created" && data.sessionId) {
-            // Store the sessionId in the tab
-            setTerminalSessionId(tab.id, data.sessionId)
-            // Setup terminal with SSE connection
-            setupTerminal(data.sessionId, data.cols || 80, data.rows || 30)
+          if (data.status === "running" && data.websocketUrl) {
+            // Store the websocketUrl in the tab
+            setTerminalWebsocketUrl(tab.id, data.websocketUrl)
+            // Setup terminal with the URL
+            setupTerminal(data.websocketUrl)
           } else {
             setStatus("error")
-            setErrorMessage(data.error || "Failed to create terminal session")
+            setErrorMessage(data.error || "Failed to start terminal server")
           }
         } else {
           const data = await res.json().catch(() => ({}))
           setStatus("error")
-          setErrorMessage(data.error || "Failed to create terminal")
+          setErrorMessage(data.error || "Failed to set up terminal")
         }
       } catch (err) {
         setStatus("error")
         setErrorMessage("Connection error")
-        console.error("[Terminal] Create session error:", err)
+        console.error("[Terminal] Setup error:", err)
       }
     }
 
-    createPtySession()
+    setupPtyServer()
 
     // Cleanup
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
+      if (socketRef.current) {
+        socketRef.current.close()
+        socketRef.current = null
       }
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.dispose()
         terminalInstanceRef.current = null
       }
       fitAddonRef.current = null
-      sessionIdRef.current = null
       hasInitialized.current = false
-
-      // Close the PTY session on the server
-      if (tab.sessionId) {
-        fetch("/api/sandbox/terminal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sandboxId,
-            action: "close",
-            sessionId: tab.sessionId,
-          }),
-        }).catch(() => {})
-      }
     }
-  }, [tab.id, tab.sessionId, sandboxId, setTerminalSessionId, setupTerminal])
+  }, [tab.id, tab.websocketUrl, sandboxId, setTerminalWebsocketUrl, setupTerminal])
 
   // Always render the terminal div so xterm can mount to it
   // Show overlays for loading/error states
