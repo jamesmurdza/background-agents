@@ -849,7 +849,7 @@ export function ContentPanel({
     removeServerTab,
     closeTab,
     setActiveTab,
-    clearContentPanelTabs,
+    switchContentPanelContext,
     openContentPanel,
   } = useUIStore()
 
@@ -1037,12 +1037,15 @@ export function ContentPanel({
     isInitialLoadRef.current = false
   }, [files, contentPanelOpen, contentPanelTabs.length, openContentPanel, addFileTab])
 
-  // ===== Clear tabs on branch switch =====
+  // ===== Swap tab context on branch/repo switch =====
+  // Snapshots the current tabs under the previous cacheKey and restores
+  // whatever was last open under the new cacheKey, so coming back to a
+  // branch shows the same tabs you left there.
   useEffect(() => {
-    clearContentPanelTabs()
+    switchContentPanelContext(cacheKey)
     previousFilesRef.current = []
     isInitialLoadRef.current = true
-  }, [cacheKey, clearContentPanelTabs])
+  }, [cacheKey, switchContentPanelContext])
 
   // ===== Start Polling =====
   useEffect(() => {

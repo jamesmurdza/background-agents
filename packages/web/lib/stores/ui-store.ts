@@ -19,7 +19,17 @@ export interface ContentPanelTab {
   filename?: string               // Display name
   port?: number                   // For server tabs
   url?: string                    // For server tabs
-  websocketUrl?: string           // For terminal tabs (WebSocket PTY URL)
+  websocketUrl?: string           // For terminal tabs (WebSocket PTY URL).
+                                  // Sandbox-specific signed URL — may be stale
+                                  // if restored from a snapshot of a defunct
+                                  // or paused sandbox; the tab will reconnect
+                                  // and show Disconnected if so.
+}
+
+export interface ContentPanelTabSnapshot {
+  tabs: ContentPanelTab[]
+  activeId: string | null
+  terminalCounter: number
 }
 
 interface UIState {
@@ -48,6 +58,11 @@ interface UIState {
   contentPanelTabs: ContentPanelTab[]
   contentPanelActiveTabId: string | null
   contentPanelTerminalCounter: number
+  // Per-context (repo+branch) snapshot of tabs, so switching branches/repos
+  // restores the tabs you had open last time you were in that context.
+  contentPanelTabSnapshots: Record<string, ContentPanelTabSnapshot>
+  // The cacheKey the live contentPanelTabs/active/counter fields belong to.
+  currentTabsCacheKey: string | null
 
   // Desktop rebase conflict indicator
   desktopRebaseConflict: boolean
@@ -114,6 +129,10 @@ interface UIActions {
   setActiveTab: (tabId: string) => void
   setTerminalWebsocketUrl: (tabId: string, websocketUrl: string) => void
   clearContentPanelTabs: () => void
+  // Snapshot the current tabs under the previous cacheKey and load whatever's
+  // stored under the new cacheKey. Called by ContentPanel when its cacheKey
+  // (repo+branch identity) changes.
+  switchContentPanelContext: (cacheKey: string) => void
 
   // Desktop rebase conflict
   setDesktopRebaseConflict: (conflict: boolean) => void
@@ -147,6 +166,8 @@ const initialState: UIState = {
   contentPanelTabs: [],
   contentPanelActiveTabId: null,
   contentPanelTerminalCounter: 0,
+  contentPanelTabSnapshots: {},
+  currentTabsCacheKey: null,
   desktopRebaseConflict: false,
   repoEnvVars: null,
   pendingStartCommit: null,
@@ -325,6 +346,33 @@ const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get:
     contentPanelTerminalCounter: 0,
   }),
 
+  switchContentPanelContext: (cacheKey: string) => {
+    const state = get()
+    const previousKey = state.currentTabsCacheKey
+
+    // Snapshot the live tabs under the previous key (if any). We do this even
+    // when the key hasn't actually changed so that the snapshot stays in sync
+    // with whatever the user has done since the last switch (important for
+    // localStorage persistence across reloads).
+    const nextSnapshots = { ...state.contentPanelTabSnapshots }
+    if (previousKey !== null) {
+      nextSnapshots[previousKey] = {
+        tabs: state.contentPanelTabs,
+        activeId: state.contentPanelActiveTabId,
+        terminalCounter: state.contentPanelTerminalCounter,
+      }
+    }
+
+    const restored = nextSnapshots[cacheKey]
+    set({
+      contentPanelTabSnapshots: nextSnapshots,
+      currentTabsCacheKey: cacheKey,
+      contentPanelTabs: restored?.tabs ?? [],
+      contentPanelActiveTabId: restored?.activeId ?? null,
+      contentPanelTerminalCounter: restored?.terminalCounter ?? 0,
+    })
+  },
+
   // Desktop rebase conflict
   setDesktopRebaseConflict: (conflict: boolean) => set({ desktopRebaseConflict: conflict }),
 
@@ -347,6 +395,15 @@ const persistOptions = {
     contentPanelOpen: state.contentPanelOpen,
     contentPanelCollapsed: state.contentPanelCollapsed,
     contentPanelWidth: state.contentPanelWidth,
+    // Persist tabs across reloads. We save both the live fields (for the
+    // currently visible context) and the snapshot map (for every other
+    // context the user has visited), so a reload restores exactly what was
+    // on screen and switching branches still pulls from history.
+    contentPanelTabs: state.contentPanelTabs,
+    contentPanelActiveTabId: state.contentPanelActiveTabId,
+    contentPanelTerminalCounter: state.contentPanelTerminalCounter,
+    contentPanelTabSnapshots: state.contentPanelTabSnapshots,
+    currentTabsCacheKey: state.currentTabsCacheKey,
   }),
   skipHydration: true,
 }
