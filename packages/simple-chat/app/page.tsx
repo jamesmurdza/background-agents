@@ -28,6 +28,7 @@ export default function HomePage() {
     startNewChat,
     selectChat,
     removeChat,
+    renameChat,
     updateChatRepo,
     updateCurrentChat,
     sendMessage,
@@ -201,6 +202,7 @@ export default function HomePage() {
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onDeleteChat={removeChat}
+          onRenameChat={renameChat}
           onOpenSettings={() => handleOpenSettings()}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -221,6 +223,7 @@ export default function HomePage() {
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onDeleteChat={removeChat}
+          onRenameChat={renameChat}
           onOpenSettings={() => handleOpenSettings()}
           collapsed={false}
           onToggleCollapse={() => {}}

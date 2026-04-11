@@ -40,6 +40,10 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   // Help modal state
   const [showHelpModal, setShowHelpModal] = useState(false)
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState("")
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -544,13 +548,57 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     ? `https://github.com/${chat.repo}/tree/${chat.branch}`
     : null
 
+  // Title editing handlers
+  const startEditingTitle = () => {
+    setEditTitleValue(chatTitle)
+    setIsEditingTitle(true)
+    setTimeout(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    }, 0)
+  }
+
+  const saveTitle = () => {
+    const trimmed = editTitleValue.trim()
+    if (trimmed && trimmed !== chatTitle && onUpdateChat) {
+      onUpdateChat({ displayName: trimmed })
+    }
+    setIsEditingTitle(false)
+  }
+
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setEditTitleValue("")
+  }
+
   // Chat with messages
   return (
     <div className="flex-1 flex flex-col bg-background min-h-0">
       {/* Header with title - hide on mobile since we have mobile header in page.tsx */}
       {!isMobile && (
         <div className="flex items-center justify-between pt-3" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
-          <h1 className="text-sm font-medium text-foreground">{chatTitle}</h1>
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={editTitleValue}
+              onChange={(e) => setEditTitleValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveTitle()
+                if (e.key === "Escape") cancelEditingTitle()
+              }}
+              onBlur={saveTitle}
+              className="text-sm font-medium text-foreground bg-transparent outline-none border-b border-primary"
+            />
+          ) : (
+            <h1
+              onClick={startEditingTitle}
+              className="text-sm font-medium text-foreground cursor-pointer hover:text-primary transition-colors"
+              title="Click to rename"
+            >
+              {chatTitle}
+            </h1>
+          )}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setShowHelpModal(true)}
@@ -620,7 +668,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
 
       {/* Input - fixed at bottom on mobile */}
       <div className={cn(
-        "border-t border-border bg-background",
+        "bg-background",
         isMobile ? "px-3 py-3 pb-safe" : "px-4 pb-4 pt-2"
       )}>
         {chatInput}

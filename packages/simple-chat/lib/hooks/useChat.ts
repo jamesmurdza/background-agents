@@ -173,6 +173,12 @@ export function useChat() {
     setState(newState)
   }, [state.currentChatId])
 
+  // Rename a chat
+  const renameChat = useCallback((chatId: string, newName: string) => {
+    const newState = updateChat(chatId, { displayName: newName })
+    setState(newState)
+  }, [])
+
   // =============================================================================
   // Messaging
   // =============================================================================
@@ -507,6 +513,7 @@ export function useChat() {
     startNewChat,
     selectChat,
     removeChat,
+    renameChat,
     updateChatRepo,
     updateCurrentChat,
     sendMessage,

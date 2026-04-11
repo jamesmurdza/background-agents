@@ -19,6 +19,7 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void
   onNewChat: () => void
   onDeleteChat: (chatId: string) => void
+  onRenameChat: (chatId: string, newName: string) => void
   onOpenSettings: () => void
   collapsed: boolean
   onToggleCollapse: () => void
@@ -39,6 +40,7 @@ export function Sidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onRenameChat,
   onOpenSettings,
   collapsed,
   onToggleCollapse,
@@ -278,6 +280,7 @@ export function Sidebar({
                     isDeleting={deletingChatIds.has(chat.id)}
                     onSelect={() => handleSelectChat(chat.id)}
                     onDelete={() => onDeleteChat(chat.id)}
+                    onRename={(newName) => onRenameChat(chat.id, newName)}
                   />
                 ))}
             </div>
@@ -412,6 +415,7 @@ export function Sidebar({
                   isDeleting={deletingChatIds.has(chat.id)}
                   onSelect={() => onSelectChat(chat.id)}
                   onDelete={() => onDeleteChat(chat.id)}
+                  onRename={(newName) => onRenameChat(chat.id, newName)}
                 />
               ))}
           </div>
@@ -503,11 +507,59 @@ interface MobileChatItemProps {
   isDeleting: boolean
   onSelect: () => void
   onDelete: () => void
+  onRename: (newName: string) => void
 }
 
-function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete }: MobileChatItemProps) {
-  const [showActions, setShowActions] = useState(false)
+function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRename }: MobileChatItemProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
   const displayName = chat.displayName || "Untitled"
+
+  const startEditing = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditName(displayName)
+    setIsEditing(true)
+  }
+
+  const saveEdit = () => {
+    const trimmed = editName.trim()
+    if (trimmed && trimmed !== displayName) {
+      onRename(trimmed)
+    }
+    setIsEditing(false)
+  }
+
+  const cancelEdit = () => {
+    setIsEditing(false)
+    setEditName("")
+  }
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-accent">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") saveEdit()
+            if (e.key === "Escape") cancelEdit()
+          }}
+          onBlur={saveEdit}
+          className="flex-1 min-w-0 bg-transparent text-base outline-none"
+        />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -525,6 +577,16 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete }: Mobi
       <div className="flex-1 min-w-0">
         <div className="text-base truncate">{displayName}</div>
       </div>
+
+      {/* Rename button */}
+      <button
+        onClick={startEditing}
+        disabled={isDeleting}
+        className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors touch-target disabled:cursor-not-allowed"
+        aria-label="Rename chat"
+      >
+        <Pencil className="h-4 w-4" />
+      </button>
 
       {/* Delete button */}
       <button
@@ -627,12 +689,42 @@ interface ChatItemProps {
   isDeleting: boolean
   onSelect: () => void
   onDelete: () => void
+  onRename: (newName: string) => void
 }
 
-function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete }: ChatItemProps) {
+function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete, onRename }: ChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const displayName = chat.displayName || "Untitled"
+
+  const startEditing = () => {
+    setEditName(displayName)
+    setIsEditing(true)
+    setMenuOpen(false)
+  }
+
+  const saveEdit = () => {
+    const trimmed = editName.trim()
+    if (trimmed && trimmed !== displayName) {
+      onRename(trimmed)
+    }
+    setIsEditing(false)
+  }
+
+  const cancelEdit = () => {
+    setIsEditing(false)
+    setEditName("")
+  }
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -646,6 +738,25 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete }:
     }
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [menuOpen])
+
+  if (isEditing && !collapsed) {
+    return (
+      <div className="flex items-center gap-2 rounded-md px-2 py-1.5 bg-accent">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") saveEdit()
+            if (e.key === "Escape") cancelEdit()
+          }}
+          onBlur={saveEdit}
+          className="flex-1 min-w-0 bg-transparent text-sm outline-none"
+        />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -695,8 +806,7 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete }:
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    // TODO: Implement rename functionality
-                    setMenuOpen(false)
+                    startEditing()
                   }}
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
                 >
