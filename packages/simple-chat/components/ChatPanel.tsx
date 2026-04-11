@@ -329,20 +329,20 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                 onClick={onStopAgent}
                 className={cn(
                   "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors",
-                  isMobile ? "h-8 w-8" : "h-6 w-6"
+                  isMobile ? "h-9 w-9" : "h-7 w-7"
                 )}
               >
-                <Square className={cn(isMobile ? "h-3 w-3" : "h-2.5 w-2.5", "fill-current")} />
+                <Square className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "fill-current")} />
               </button>
             ) : canSend ? (
               <button
                 onClick={handleSend}
                 className={cn(
                   "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
-                  isMobile ? "h-8 w-8" : "h-6 w-6"
+                  isMobile ? "h-9 w-9" : "h-7 w-7"
                 )}
               >
-                <ArrowUp className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3")} />
+                <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
               </button>
             ) : null}
           </div>
