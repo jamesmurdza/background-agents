@@ -22,8 +22,8 @@ interface UseGitActionsOptions {
 }
 
 /**
- * Handles git operations: PR creation, merge, rebase, reset, tag
- * Uses useGitDialogs for merge/rebase/tag operations
+ * Handles git operations: PR creation, merge, rebase, reset
+ * Uses useGitDialogs for merge/rebase operations
  */
 export function useGitActions({
   branch,
@@ -36,7 +36,7 @@ export function useGitActions({
   onToggleGitHistory,
   defaultSquashOnMerge,
 }: UseGitActionsOptions) {
-  // Use shared git dialogs hook for merge/rebase/tag
+  // Use shared git dialogs hook for merge/rebase
   const gitDialogs = useGitDialogs({
     branch,
     repoName,
@@ -175,10 +175,6 @@ export function useGitActions({
     }
     if (action === "rebase") {
       gitDialogs.setRebaseOpen(true)
-      return
-    }
-    if (action === "tag") {
-      gitDialogs.setTagOpen(true)
       return
     }
     if (action === "diff") {

@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, KeyboardEvent } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import "xterm/css/xterm.css"
 import { cn } from "@/lib/shared/utils"
 import { useUIStore, ContentPanelTab } from "@/lib/stores/ui-store"
+import { useTheme } from "next-themes"
 import {
   X,
   Globe,
@@ -29,11 +31,6 @@ interface FileContent {
   modifiedAt: number
   size: number
   truncated?: boolean
-}
-
-interface TerminalLine {
-  type: "input" | "output" | "error"
-  content: string
 }
 
 interface ContentPanelProps {
@@ -418,184 +415,341 @@ function FileTabContent({
 }
 
 // ============================================================================
-// Terminal Tab Content Component
+// Terminal Tab Content Component (WebSocket PTY)
 // ============================================================================
+
+// Terminal theme configurations
+const TERMINAL_THEMES = {
+  dark: {
+    background: "#1a1a1a",
+    foreground: "#e0e0e0",
+    cursor: "#ffffff",
+    cursorAccent: "#1a1a1a",
+    selectionBackground: "rgba(255, 255, 255, 0.3)",
+    selectionForeground: "#ffffff",
+    black: "#000000",
+    red: "#ff6b6b",
+    green: "#69db7c",
+    yellow: "#ffd43b",
+    blue: "#74c0fc",
+    magenta: "#da77f2",
+    cyan: "#66d9e8",
+    white: "#e0e0e0",
+    brightBlack: "#666666",
+    brightRed: "#ff8787",
+    brightGreen: "#8ce99a",
+    brightYellow: "#ffe066",
+    brightBlue: "#91d0ff",
+    brightMagenta: "#e599f7",
+    brightCyan: "#99e9f2",
+    brightWhite: "#ffffff",
+  },
+  light: {
+    background: "#ffffff",
+    foreground: "#1a1a1a",
+    cursor: "#000000",
+    cursorAccent: "#ffffff",
+    selectionBackground: "rgba(0, 0, 0, 0.2)",
+    selectionForeground: "#000000",
+    black: "#000000",
+    red: "#c92a2a",
+    green: "#2f9e44",
+    yellow: "#e67700",
+    blue: "#1971c2",
+    magenta: "#9c36b5",
+    cyan: "#0c8599",
+    white: "#868e96",
+    brightBlack: "#495057",
+    brightRed: "#e03131",
+    brightGreen: "#37b24d",
+    brightYellow: "#f59f00",
+    brightBlue: "#1c7ed6",
+    brightMagenta: "#ae3ec9",
+    brightCyan: "#1098ad",
+    brightWhite: "#f8f9fa",
+  },
+}
 
 function TerminalTabContent({
   tab,
   sandboxId,
-  repoPath,
 }: {
   tab: ContentPanelTab
   sandboxId: string
   repoPath: string
 }) {
-  const [lines, setLines] = useState<TerminalLine[]>([])
-  const [currentInput, setCurrentInput] = useState("")
-  const [isExecuting, setIsExecuting] = useState(false)
-  const [commandHistory, setCommandHistory] = useState<string[]>([])
-  const [historyIndex, setHistoryIndex] = useState(-1)
-  const [currentDir, setCurrentDir] = useState(repoPath)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const outputRef = useRef<HTMLDivElement>(null)
+  const { setTerminalWebsocketUrl } = useUIStore()
+  const { resolvedTheme } = useTheme()
+  const [status, setStatus] = useState<"connecting" | "connected" | "error" | "disconnected">("connecting")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const hasInitialized = useRef(false)
+  const socketRef = useRef<WebSocket | null>(null)
+  const terminalInstanceRef = useRef<any>(null)
+  const fitAddonRef = useRef<any>(null)
 
-  // Scroll to bottom when new lines are added
+  // Get current theme colors
+  const isDark = resolvedTheme === "dark"
+  const terminalTheme = isDark ? TERMINAL_THEMES.dark : TERMINAL_THEMES.light
+
+  // Update terminal theme when app theme changes
   useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    if (terminalInstanceRef.current) {
+      terminalInstanceRef.current.options.theme = terminalTheme
     }
-  }, [lines])
+  }, [terminalTheme])
 
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus()
+  // Setup terminal when we have a websocketUrl
+  const setupTerminal = useCallback(async (websocketUrl: string) => {
+    // Already initialized
+    if (terminalInstanceRef.current) return
+
+    // Wait for the ref to be available (may take a render cycle)
+    if (!terminalRef.current) {
+      // Retry after a short delay
+      setTimeout(() => setupTerminal(websocketUrl), 50)
+      return
+    }
+
+    try {
+      // Dynamically import xterm to avoid SSR issues
+      const [{ Terminal }, { FitAddon }, { WebLinksAddon }] = await Promise.all([
+        import("xterm"),
+        import("xterm-addon-fit"),
+        import("xterm-addon-web-links"),
+      ])
+
+      // Create terminal instance with current theme
+      const currentTheme = document.documentElement.classList.contains("dark")
+        ? TERMINAL_THEMES.dark
+        : TERMINAL_THEMES.light
+
+      const terminal = new Terminal({
+        cursorBlink: true,
+        fontSize: 13,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        theme: currentTheme,
+        allowProposedApi: true,
+        scrollback: 10000,
+      })
+
+      terminalInstanceRef.current = terminal
+
+      // Load addons
+      const fitAddon = new FitAddon()
+      fitAddonRef.current = fitAddon
+      terminal.loadAddon(fitAddon)
+
+      const webLinksAddon = new WebLinksAddon()
+      terminal.loadAddon(webLinksAddon)
+
+      // Mount terminal
+      terminal.open(terminalRef.current)
+
+      // Initial fit
+      setTimeout(() => {
+        try {
+          fitAddon.fit()
+        } catch {
+          // Ignore fit errors
+        }
+      }, 0)
+
+      // Connect WebSocket
+      console.log("[Terminal] Connecting to", websocketUrl)
+      const socket = new WebSocket(websocketUrl)
+      socketRef.current = socket
+
+      socket.onopen = () => {
+        console.log("[Terminal] WebSocket open")
+        setStatus("connected")
+        // Send initial resize
+        const { cols, rows } = terminal
+        socket.send(JSON.stringify({ type: "resize", cols, rows }))
+      }
+
+      socket.onerror = (event) => {
+        console.error("[Terminal] WebSocket error", event)
+        setStatus("error")
+        setErrorMessage("Connection error")
+      }
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          if (message.type === "data" && message.payload) {
+            terminal.write(message.payload)
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      socket.onclose = (event) => {
+        console.warn(
+          `[Terminal] WebSocket closed code=${event.code} reason=${event.reason || "(none)"} wasClean=${event.wasClean}`
+        )
+        setStatus("disconnected")
+        setErrorMessage(
+          `closed code=${event.code}${event.reason ? ` reason=${event.reason}` : ""}`
+        )
+      }
+
+      // Handle terminal input
+      terminal.onData((data: string) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "input", payload: data }))
+        }
+      })
+
+      // Handle resize
+      const resizeObserver = new ResizeObserver(() => {
+        try {
+          fitAddon.fit()
+          if (socket.readyState === WebSocket.OPEN) {
+            const { cols, rows } = terminal
+            socket.send(JSON.stringify({ type: "resize", cols, rows }))
+          }
+        } catch {
+          // Ignore resize errors
+        }
+      })
+      resizeObserver.observe(terminalRef.current)
+
+      return () => {
+        resizeObserver.disconnect()
+        socket.close()
+        terminal.dispose()
+      }
+    } catch (err) {
+      setStatus("error")
+      setErrorMessage("Failed to load terminal")
+      console.error("[Terminal] Error:", err)
+    }
   }, [])
 
-  const fetchPwd = useCallback(async () => {
-    try {
-      const res = await fetch("/api/sandbox/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: currentDir,
-          action: "execute-command",
-          command: "pwd",
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.exitCode === 0 && data.output) {
-          setCurrentDir(data.output.trim())
-        }
-      }
-    } catch {
-      // Ignore pwd fetch errors
+  // Initialize terminal connection
+  useEffect(() => {
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+
+    // If we already have a websocketUrl, use it
+    if (tab.websocketUrl) {
+      setupTerminal(tab.websocketUrl)
+      return
     }
-  }, [sandboxId, currentDir])
 
-  const executeCommand = useCallback(async (command: string) => {
-    if (!command.trim()) return
+    // Otherwise, set up the PTY server
+    const setupPtyServer = async () => {
+      try {
+        const res = await fetch("/api/sandbox/terminal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sandboxId,
+            action: "setup",
+          }),
+        })
 
-    setLines(prev => [...prev, { type: "input", content: `$ ${command}` }])
-    setCommandHistory(prev => [...prev, command])
-    setHistoryIndex(-1)
-    setCurrentInput("")
-    setIsExecuting(true)
-
-    try {
-      const res = await fetch("/api/sandbox/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: currentDir,
-          action: "execute-command",
-          command,
-        }),
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        const output = data.output || ""
-        const exitCode = data.exitCode
-
-        if (output.trim()) {
-          const outputLines = output.split("\n")
-          setLines(prev => [
-            ...prev,
-            ...outputLines.map((line: string) => ({
-              type: exitCode === 0 ? "output" : "error" as const,
-              content: line
-            }))
-          ])
+        if (res.ok) {
+          const data = await res.json()
+          if (data.status === "running" && data.websocketUrl) {
+            // Store the websocketUrl in the tab
+            setTerminalWebsocketUrl(tab.id, data.websocketUrl)
+            // Setup terminal with the URL
+            setupTerminal(data.websocketUrl)
+          } else {
+            setStatus("error")
+            setErrorMessage(data.error || "Failed to start terminal server")
+          }
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setStatus("error")
+          setErrorMessage(data.error || "Failed to set up terminal")
         }
-
-        if (exitCode !== 0) {
-          setLines(prev => [...prev, { type: "error", content: `Exit code: ${exitCode}` }])
-        }
-
-        await fetchPwd()
-      } else {
-        setLines(prev => [...prev, { type: "error", content: "Failed to execute command" }])
+      } catch (err) {
+        setStatus("error")
+        setErrorMessage("Connection error")
+        console.error("[Terminal] Setup error:", err)
       }
-    } catch {
-      setLines(prev => [...prev, { type: "error", content: "Connection error" }])
-    } finally {
-      setIsExecuting(false)
-      inputRef.current?.focus()
     }
-  }, [sandboxId, currentDir, fetchPwd])
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !isExecuting) {
-      executeCommand(currentInput)
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault()
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex
-        setHistoryIndex(newIndex)
-        setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex] || "")
+    setupPtyServer()
+
+    // Cleanup. Don't reset hasInitialized — under React StrictMode the cleanup
+    // runs between the dev double-mount, and resetting the guard causes the
+    // second effect run to fire setup a second time. A real unmount produces a
+    // fresh component instance with a fresh ref next time, so leaving this set
+    // is harmless.
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.close()
+        socketRef.current = null
       }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault()
-      if (historyIndex > 0) {
-        const newIndex = historyIndex - 1
-        setHistoryIndex(newIndex)
-        setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex] || "")
-      } else if (historyIndex === 0) {
-        setHistoryIndex(-1)
-        setCurrentInput("")
+      if (terminalInstanceRef.current) {
+        terminalInstanceRef.current.dispose()
+        terminalInstanceRef.current = null
       }
-    } else if (e.key === "c" && e.ctrlKey) {
-      setCurrentInput("")
-      setLines(prev => [...prev, { type: "input", content: `$ ${currentInput}^C` }])
+      fitAddonRef.current = null
     }
-  }
+  }, [tab.id, tab.websocketUrl, sandboxId, setTerminalWebsocketUrl, setupTerminal])
 
-  const handleContainerClick = () => {
-    inputRef.current?.focus()
-  }
-
+  // Always render the terminal div so xterm can mount to it
+  // Show overlays for loading/error states
   return (
     <div
-      ref={outputRef}
-      onClick={handleContainerClick}
-      className="flex-1 bg-muted/50 dark:bg-[#1a1a1a] text-foreground dark:text-[#e0e0e0] font-mono text-xs p-2 overflow-auto cursor-text h-full"
+      className="flex-1 h-full w-full relative"
+      style={{ backgroundColor: terminalTheme.background }}
     >
-        {lines.map((line, index) => (
-          <div
-            key={index}
-            className={cn(
-              "whitespace-pre-wrap break-all leading-relaxed",
-              line.type === "input" && "text-blue-600 dark:text-[#7cb7ff]",
-              line.type === "error" && "text-red-600 dark:text-[#ff6b6b]",
-              line.type === "output" && "text-foreground dark:text-[#e0e0e0]"
-            )}
-          >
-            {line.content || "\u00A0"}
-          </div>
-        ))}
+      {/* Terminal container - always rendered. Only set visibility:hidden during
+          connecting/error so the loader/error overlay sits over an empty pane.
+          Don't set visibility:visible explicitly: that would override the parent
+          wrapper's visibility:hidden when this tab is inactive, causing two
+          terminals to paint on top of each other. */}
+      <div
+        ref={terminalRef}
+        className="h-full w-full"
+        style={{
+          padding: "4px",
+          ...(status === "connecting" || status === "error"
+            ? { visibility: "hidden" as const }
+            : {}),
+        }}
+      />
 
-        {/* Input Line */}
-        <div className="flex items-center text-blue-600 dark:text-[#7cb7ff]">
-          <span className="mr-1">$</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={currentInput}
-            onChange={(e) => setCurrentInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isExecuting}
-            className="flex-1 bg-transparent outline-none text-foreground dark:text-[#e0e0e0] caret-blue-600 dark:caret-[#7cb7ff]"
-            spellCheck={false}
-            autoComplete="off"
-          />
-          {isExecuting && (
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-2" />
-          )}
+      {/* Loading overlay */}
+      {status === "connecting" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Starting terminal...</span>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Error overlay */}
+      {status === "error" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-sm text-red-500">Terminal Error</span>
+            <span className="text-xs text-muted-foreground">{errorMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnected overlay — wash the last terminal frame toward white and
+          show the message centered on top. No border, no boxed container. */}
+      {status === "disconnected" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-sm text-yellow-600">Disconnected</span>
+            <span className="text-xs text-muted-foreground">
+              {errorMessage || "Terminal session ended"}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -695,7 +849,7 @@ export function ContentPanel({
     removeServerTab,
     closeTab,
     setActiveTab,
-    clearContentPanelTabs,
+    switchContentPanelContext,
     openContentPanel,
   } = useUIStore()
 
@@ -883,12 +1037,15 @@ export function ContentPanel({
     isInitialLoadRef.current = false
   }, [files, contentPanelOpen, contentPanelTabs.length, openContentPanel, addFileTab])
 
-  // ===== Clear tabs on branch switch =====
+  // ===== Swap tab context on branch/repo switch =====
+  // Snapshots the current tabs under the previous cacheKey and restores
+  // whatever was last open under the new cacheKey, so coming back to a
+  // branch shows the same tabs you left there.
   useEffect(() => {
-    clearContentPanelTabs()
+    switchContentPanelContext(cacheKey)
     previousFilesRef.current = []
     isInitialLoadRef.current = true
-  }, [cacheKey, clearContentPanelTabs])
+  }, [cacheKey, switchContentPanelContext])
 
   // ===== Start Polling =====
   useEffect(() => {
@@ -978,19 +1135,32 @@ export function ContentPanel({
         onCloseTab={closeTab}
       />
 
-      {/* Content Area */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab ? (
-          <>
-            {activeTab.type === "file" && (
-              <FileTabContent
-                tab={activeTab}
+      {/* Content Area. Terminal tabs are kept mounted across switches so each
+          one keeps its own xterm, WebSocket and bash session — only their
+          visibility toggles based on which tab is active. File and server
+          tabs render on top via z-index and an opaque background, covering
+          any hidden terminals beneath. */}
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        {contentPanelTabs
+          .filter((t) => t.type === "terminal")
+          .map((t) => (
+            <div
+              key={t.id}
+              className="absolute inset-0"
+              style={{ visibility: activeTab?.id === t.id ? "visible" : "hidden" }}
+            >
+              <TerminalTabContent
+                tab={t}
                 sandboxId={sandboxId}
                 repoPath={repoPath}
               />
-            )}
-            {activeTab.type === "terminal" && (
-              <TerminalTabContent
+            </div>
+          ))}
+
+        {activeTab && activeTab.type !== "terminal" ? (
+          <div className="relative z-10 h-full w-full bg-card">
+            {activeTab.type === "file" && (
+              <FileTabContent
                 tab={activeTab}
                 sandboxId={sandboxId}
                 repoPath={repoPath}
@@ -999,12 +1169,12 @@ export function ContentPanel({
             {activeTab.type === "server" && (
               <ServerTabContent tab={activeTab} isResizing={isResizing} />
             )}
-          </>
-        ) : (
+          </div>
+        ) : !activeTab ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             No tab selected
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

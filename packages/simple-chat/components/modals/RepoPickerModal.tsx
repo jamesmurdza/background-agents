@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft } from "lucide-react"
+import { X, Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { fetchRepos, fetchBranches } from "@/lib/github"
+import { fetchRepos, fetchBranches, createRepository } from "@/lib/github"
 import type { GitHubRepo, GitHubBranch } from "@/lib/types"
 
 interface RepoPickerModalProps {
@@ -13,16 +13,24 @@ interface RepoPickerModalProps {
   onClose: () => void
   onSelect: (repo: string, branch: string) => void
   isMobile?: boolean
+  /** Whether to allow selecting an existing repo (before chat starts) */
+  allowSelect?: boolean
+  /** Whether to allow creating a new repo */
+  allowCreate?: boolean
 }
 
-type Step = "repo" | "branch"
+type Step = "repo" | "branch" | "create"
+type Tab = "select" | "create"
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
-export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: RepoPickerModalProps) {
+export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, allowSelect = true, allowCreate = false }: RepoPickerModalProps) {
   const { data: session } = useSession()
 
+  // Determine initial tab based on what's allowed
+  const initialTab: Tab = allowSelect ? "select" : "create"
   const [step, setStep] = useState<Step>("repo")
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [branches, setBranches] = useState<GitHubBranch[]>([])
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null)
@@ -32,6 +40,12 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [branchSearch, setBranchSearch] = useState("")
+
+  // Create repo form state
+  const [newRepoName, setNewRepoName] = useState("")
+  const [newRepoDescription, setNewRepoDescription] = useState("")
+  const [newRepoIsPrivate, setNewRepoIsPrivate] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   // Swipe gesture state
   const contentRef = useRef<HTMLDivElement>(null)
@@ -52,10 +66,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
     }
   }, [open, session?.accessToken])
 
-  // Reset state on close
+  // Reset state on close/open - set correct initial tab
   useEffect(() => {
     if (!open) {
       setStep("repo")
+      setActiveTab(allowSelect ? "select" : "create")
       setSelectedRepo(null)
       setSelectedBranch("")
       setBranches([])
@@ -64,6 +79,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
       setShowBranchDropdown(false)
       setError(null)
       setDragY(0)
+      // Reset create form
+      setNewRepoName("")
+      setNewRepoDescription("")
+      setNewRepoIsPrivate(false)
+      setCreating(false)
     }
   }, [open])
 
@@ -148,6 +168,40 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
     onClose()
   }
 
+  // Handle create repository
+  const handleCreateRepo = async () => {
+    if (!newRepoName.trim()) {
+      setError("Repository name is required")
+      return
+    }
+
+    // Validate repo name format
+    const nameRegex = /^[a-zA-Z0-9._-]+$/
+    if (!nameRegex.test(newRepoName.trim())) {
+      setError("Repository name can only contain alphanumeric characters, hyphens, underscores, and periods")
+      return
+    }
+
+    setCreating(true)
+    setError(null)
+
+    try {
+      const repo = await createRepository({
+        name: newRepoName.trim(),
+        description: newRepoDescription.trim() || undefined,
+        isPrivate: newRepoIsPrivate,
+      })
+
+      // Select the newly created repo and complete
+      onSelect(repo.full_name, repo.default_branch)
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create repository")
+    } finally {
+      setCreating(false)
+    }
+  }
+
   // Filter items by search
   const filteredRepos = repos.filter((repo) =>
     repo.full_name.toLowerCase().includes(search.toLowerCase())
@@ -195,7 +249,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
               "font-semibold",
               isMobile ? "text-lg" : "text-sm"
             )}>
-              {step === "repo" ? "Select Repository" : "Select Branch"}
+              {step === "branch" ? "Select Branch" : activeTab === "create" ? "Create Repository" : "Select Repository"}
             </Dialog.Title>
             <Dialog.Close className={cn(
               "rounded-lg hover:bg-accent active:bg-accent transition-colors touch-target",
@@ -204,6 +258,48 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
               <X className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
             </Dialog.Close>
           </div>
+
+          {/* Tabs - only show on repo step when both select and create are allowed */}
+          {step === "repo" && allowSelect && allowCreate && (
+            <div className={cn(
+              "flex border-b border-border",
+              isMobile ? "px-4" : "px-4"
+            )}>
+              <button
+                onClick={() => { setActiveTab("select"); setError(null) }}
+                className={cn(
+                  "flex-1 py-2 text-center transition-colors relative",
+                  isMobile ? "text-base" : "text-sm",
+                  activeTab === "select"
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Select Existing
+                {activeTab === "select" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                )}
+              </button>
+              <button
+                onClick={() => { setActiveTab("create"); setError(null) }}
+                className={cn(
+                  "flex-1 py-2 text-center transition-colors relative",
+                  isMobile ? "text-base" : "text-sm",
+                  activeTab === "create"
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span className="flex items-center justify-center gap-1">
+                  <Plus className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+                  Create New
+                </span>
+                {activeTab === "create" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Breadcrumb for branch step */}
           {step === "branch" && selectedRepo && (
@@ -230,8 +326,8 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
             </div>
           )}
 
-          {/* Search - only for repo step */}
-          {step === "repo" && (
+          {/* Search - only for repo step and select tab */}
+          {step === "repo" && activeTab === "select" && (
             <div className={cn(
               "border-b border-border",
               isMobile ? "p-4" : "p-4"
@@ -263,7 +359,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
               isMobile ? "max-h-none" : "max-h-80"
             )}
           >
-            {error && (
+            {error && activeTab !== "create" && (
               <div className={cn(
                 "text-destructive text-center",
                 isMobile ? "p-6 text-base" : "p-4 text-sm"
@@ -284,7 +380,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
               </div>
             )}
 
-            {!loading && !error && step === "repo" && (
+            {!loading && !error && step === "repo" && activeTab === "select" && (
               <div className={cn(isMobile ? "p-3" : "p-2")}>
                 {filteredRepos.length === 0 ? (
                   <div className={cn(
@@ -331,6 +427,124 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false }: R
                     </button>
                   ))
                 )}
+              </div>
+            )}
+
+            {/* Create Repository Form */}
+            {step === "repo" && activeTab === "create" && (
+              <div className={cn(isMobile ? "p-4" : "p-4")}>
+                {error && (
+                  <div className={cn(
+                    "text-destructive mb-4 p-3 bg-destructive/10 rounded-md",
+                    isMobile ? "text-base" : "text-sm"
+                  )}>
+                    {error}
+                  </div>
+                )}
+
+                <div className={cn(isMobile ? "space-y-5" : "space-y-4")}>
+                  {/* Repository Name */}
+                  <div>
+                    <label className={cn(
+                      "block font-medium mb-2",
+                      isMobile ? "text-base" : "text-sm"
+                    )}>
+                      Repository Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newRepoName}
+                      onChange={(e) => setNewRepoName(e.target.value)}
+                      placeholder="my-new-repo"
+                      disabled={creating}
+                      className={cn(
+                        "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+                        isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
+                      )}
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className={cn(
+                      "block font-medium mb-2",
+                      isMobile ? "text-base" : "text-sm"
+                    )}>
+                      Description <span className="text-muted-foreground font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newRepoDescription}
+                      onChange={(e) => setNewRepoDescription(e.target.value)}
+                      placeholder="A short description of the repository"
+                      disabled={creating}
+                      className={cn(
+                        "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+                        isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
+                      )}
+                    />
+                  </div>
+
+                  {/* Visibility */}
+                  <div>
+                    <label className={cn(
+                      "block font-medium mb-2",
+                      isMobile ? "text-base" : "text-sm"
+                    )}>
+                      Visibility
+                    </label>
+                    <div className={cn(
+                      "flex gap-2",
+                      isMobile ? "flex-col" : "flex-row"
+                    )}>
+                      <button
+                        type="button"
+                        onClick={() => setNewRepoIsPrivate(false)}
+                        disabled={creating}
+                        className={cn(
+                          "flex items-center gap-2 border rounded-md transition-colors disabled:opacity-50",
+                          isMobile ? "px-4 py-3 text-base flex-1" : "px-3 py-2 text-sm",
+                          !newRepoIsPrivate
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border hover:bg-accent"
+                        )}
+                      >
+                        <Globe className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+                        Public
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewRepoIsPrivate(true)}
+                        disabled={creating}
+                        className={cn(
+                          "flex items-center gap-2 border rounded-md transition-colors disabled:opacity-50",
+                          isMobile ? "px-4 py-3 text-base flex-1" : "px-3 py-2 text-sm",
+                          newRepoIsPrivate
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border hover:bg-accent"
+                        )}
+                      >
+                        <Lock className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+                        Private
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Create Button */}
+                  <div className="flex justify-end pt-2">
+                    <button
+                      onClick={handleCreateRepo}
+                      disabled={creating || !newRepoName.trim()}
+                      className={cn(
+                        "bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-50 flex items-center gap-2 touch-target",
+                        isMobile ? "px-6 py-3 text-base" : "px-4 py-2 text-sm"
+                      )}
+                    >
+                      {creating && <Loader2 className={cn("animate-spin", isMobile ? "h-5 w-5" : "h-4 w-4")} />}
+                      {creating ? "Creating..." : "Create Repository"}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

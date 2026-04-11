@@ -27,7 +27,7 @@ A sophisticated multi-tenant web application that enables users to run AI coding
 - **Pull Request Integration** - Create PRs directly from branches
 - **Git Diff Viewer** - Compare branches and view changes
 - **Git History** - Browse commit history per branch
-- **Advanced Git Operations** - Merge, rebase, reset, tag, rename, and delete remote branches
+- **Advanced Git Operations** - Merge, rebase, reset, rename, and delete remote branches
 - **MCP Server Registry** - Browse and connect 3,000+ MCP servers via [Smithery](https://smithery.ai)
 - **Environment Variables** - Per-repository encrypted env vars for sandboxes
 - **Auto-Stop** - Configurable sandbox auto-stop intervals (5-20 minutes)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSession, signIn } from "next-auth/react"
 import { Menu } from "lucide-react"
 import { Sidebar } from "@/components/Sidebar"
@@ -8,6 +8,8 @@ import { ChatPanel } from "@/components/ChatPanel"
 import { SDKContent } from "@/components/SDKContent"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
 import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
+import { MergeDialog, RebaseDialog, PRDialog, useGitDialogs } from "@/components/modals/GitDialogs"
+import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useChat } from "@/lib/hooks/useChat"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -43,6 +45,9 @@ export default function HomePage() {
     if (typeof window === "undefined") return "chat"
     return window.location.pathname === "/sdk" ? "sdk" : "chat"
   })
+
+  // Git dialogs state
+  const gitDialogs = useGitDialogs()
 
   // Close mobile sidebar when switching to desktop
   useEffect(() => {
@@ -112,10 +117,36 @@ export default function HomePage() {
   }
 
   // Handler for repo selection - updates the current chat's repo
-  const handleRepoSelect = (repo: string, branch: string) => {
-    if (currentChatId) {
-      updateChatRepo(currentChatId, repo, branch)
+  // If sandbox already exists (chat started without repo), also set up remote and push
+  const handleRepoSelect = async (repo: string, branch: string) => {
+    if (!currentChatId || !currentChat) return
+
+    // If sandbox exists, we need to set up the remote and push
+    if (currentChat.sandboxId && currentChat.repo === NEW_REPOSITORY) {
+      try {
+        const response = await fetch("/api/git/setup-remote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sandboxId: currentChat.sandboxId,
+            repoFullName: repo,
+            branch: currentChat.branch,
+          }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          console.error("Failed to set up remote:", error)
+          // TODO: Show error to user
+          return
+        }
+      } catch (error) {
+        console.error("Failed to set up remote:", error)
+        return
+      }
     }
+
+    updateChatRepo(currentChatId, repo, branch)
   }
 
   // Handler for sending message
@@ -127,6 +158,31 @@ export default function HomePage() {
     }
     sendMessage(message, agent, model)
   }
+
+  // Handler for slash commands - open the corresponding git dialog
+  const handleSlashCommand = useCallback((command: SlashCommandType) => {
+    switch (command) {
+      case "merge":
+        gitDialogs.setMergeOpen(true)
+        break
+      case "rebase":
+        gitDialogs.setRebaseOpen(true)
+        break
+      case "pr":
+        gitDialogs.setPROpen(true)
+        break
+    }
+  }, [gitDialogs])
+
+  // Handler for executing git commands via the sandbox
+  const handleExecuteGitCommand = useCallback((command: string) => {
+    // Send the git command as a message to the agent
+    if (currentChat) {
+      const agent = currentChat.agent || settings.defaultAgent
+      const model = currentChat.model || settings.defaultModel
+      sendMessage(command, agent, model)
+    }
+  }, [currentChat, settings.defaultAgent, settings.defaultModel, sendMessage])
 
   // Don't render chats until hydrated to avoid SSR mismatch
   const displayChats = isHydrated ? chats : []
@@ -207,6 +263,7 @@ export default function HomePage() {
             onChangeRepo={handleChangeRepo}
             onUpdateChat={updateCurrentChat}
             onOpenSettings={handleOpenSettings}
+            onSlashCommand={handleSlashCommand}
             isMobile={isMobile}
           />
         ) : (
@@ -219,6 +276,8 @@ export default function HomePage() {
         onClose={() => setRepoPickerOpen(false)}
         onSelect={handleRepoSelect}
         isMobile={isMobile}
+        allowSelect={currentChat?.messages.length === 0 && !currentChat?.sandboxId}
+        allowCreate={currentChat?.repo === NEW_REPOSITORY}
       />
 
       <SettingsModal
@@ -227,6 +286,29 @@ export default function HomePage() {
         settings={settings}
         onSave={updateSettings}
         highlightKey={settingsHighlightKey}
+        isMobile={isMobile}
+      />
+
+      {/* Git Dialogs */}
+      <MergeDialog
+        open={gitDialogs.mergeOpen}
+        onClose={() => gitDialogs.setMergeOpen(false)}
+        chat={displayCurrentChat}
+        onExecuteGitCommand={handleExecuteGitCommand}
+        isMobile={isMobile}
+      />
+      <RebaseDialog
+        open={gitDialogs.rebaseOpen}
+        onClose={() => gitDialogs.setRebaseOpen(false)}
+        chat={displayCurrentChat}
+        onExecuteGitCommand={handleExecuteGitCommand}
+        isMobile={isMobile}
+      />
+      <PRDialog
+        open={gitDialogs.prOpen}
+        onClose={() => gitDialogs.setPROpen(false)}
+        chat={displayCurrentChat}
+        onExecuteGitCommand={handleExecuteGitCommand}
         isMobile={isMobile}
       />
     </div>

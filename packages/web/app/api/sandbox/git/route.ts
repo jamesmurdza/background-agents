@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   if (isAuthError(auth)) return auth
 
   const body = await req.json()
-  const { sandboxId, repoPath, action, targetBranch, currentBranch, repoOwner, repoApiName, tagName, branchName, squash, branchId } = body
+  const { sandboxId, repoPath, action, targetBranch, currentBranch, repoOwner, repoApiName, branchName, squash, branchId } = body
 
   if (!sandboxId || !repoPath || !action) {
     return badRequest("Missing required fields")
@@ -616,41 +616,6 @@ export async function POST(req: Request) {
         )
         if (resetResult.exitCode) {
           return Response.json({ error: "Reset failed: " + resetResult.result }, { status: 500 })
-        }
-        return Response.json({ success: true })
-      }
-
-      case "tag": {
-        if (!githubToken || !tagName || !repoOwner || !repoApiName) {
-          return badRequest("Missing required fields for tag")
-        }
-        // Create local tag
-        const tagResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git tag ${tagName} 2>&1`
-        )
-        if (tagResult.exitCode) {
-          return Response.json({ error: "Tag creation failed: " + tagResult.result }, { status: 500 })
-        }
-        // Get SHA
-        const tagShaResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git rev-parse HEAD 2>&1`
-        )
-        const tagSha = tagShaResult.result.trim()
-        // Push tag via GitHub API
-        const tagRefRes = await fetch(
-          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${githubToken}`,
-              Accept: "application/vnd.github.v3+json",
-            },
-            body: JSON.stringify({ ref: `refs/tags/${tagName}`, sha: tagSha }),
-          }
-        )
-        if (!tagRefRes.ok) {
-          const tagRefData = await tagRefRes.json().catch(() => ({}))
-          return Response.json({ error: "Tag push failed: " + ((tagRefData as { message?: string }).message || tagRefRes.status) }, { status: 500 })
         }
         return Response.json({ success: true })
       }

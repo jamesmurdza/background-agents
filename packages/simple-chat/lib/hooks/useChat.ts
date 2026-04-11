@@ -135,8 +135,15 @@ export function useChat() {
   // Update repo for a chat (only allowed before first message)
   const updateChatRepo = useCallback((chatId: string, repo: string, baseBranch: string) => {
     const chat = state.chats.find((c) => c.id === chatId)
-    if (!chat || chat.messages.length > 0 || chat.sandboxId) {
-      // Can't change repo after first message or sandbox created
+    if (!chat) return
+
+    // Can select/change existing repo only before first message and sandbox creation
+    const canSelectRepo = chat.messages.length === 0 && !chat.sandboxId
+    // Can assign a new repo (after creating it) if chat was started without a repo
+    const canAssignNewRepo = chat.repo === NEW_REPOSITORY && repo !== NEW_REPOSITORY
+
+    if (!canSelectRepo && !canAssignNewRepo) {
+      // Can't change repo in other cases
       return
     }
 

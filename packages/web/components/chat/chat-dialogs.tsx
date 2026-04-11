@@ -26,7 +26,7 @@ interface ChatDialogsProps {
 export function ChatDialogs({ branch, repoOwner, repoName, gitActions }: ChatDialogsProps) {
   return (
     <>
-      {/* Git dialogs (merge, rebase, tag) - shared between mobile and desktop */}
+      {/* Git dialogs (merge, rebase) - shared between mobile and desktop */}
       <GitDialogs gitDialogs={gitActions.gitDialogs} />
 
       {/* Rsync command modal (desktop only) */}

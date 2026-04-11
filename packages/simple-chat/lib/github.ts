@@ -65,3 +65,27 @@ export async function pushToRemote(
     throw new Error(error.message || "Failed to push to remote")
   }
 }
+
+/**
+ * Create a new GitHub repository (simple-chat specific - calls local API)
+ */
+export async function createRepository(options: {
+  name: string
+  description?: string
+  isPrivate?: boolean
+}): Promise<GitHubRepo> {
+  const response = await fetch("/api/github/create-repo", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(options),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || "Failed to create repository")
+  }
+
+  return response.json()
+}

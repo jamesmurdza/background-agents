@@ -38,7 +38,7 @@ function rebaseConflictCacheKey(sandboxId: string, branchId: string): string {
 }
 
 /**
- * Shared hook for git dialog operations: merge, rebase, tag
+ * Shared hook for git dialog operations: merge, rebase
  * Used by both mobile and desktop interfaces
  */
 export function useGitDialogs({
@@ -62,7 +62,7 @@ export function useGitDialogs({
   // Dialog open states
   const [mergeOpen, setMergeOpen] = useState(false)
   const [rebaseOpen, setRebaseOpen] = useState(false)
-  const [tagOpen, setTagOpen] = useState(false)
+  const [prOpen, setPROpen] = useState(false)
 
   // Shared state for branch picker dialogs
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
@@ -78,9 +78,6 @@ export function useGitDialogs({
   useEffect(() => {
     if (mergeOpen) setSquashMerge(defaultSquashOnMerge)
   }, [mergeOpen, defaultSquashOnMerge])
-
-  // Tag-specific state
-  const [tagNameInput, setTagNameInput] = useState("")
 
   // Internal state; display uses module cache synchronously (see rebaseConflict below) so first paint after branch switch is never blocked on useEffect.
   const [rebaseConflictState, setRebaseConflictState] = useState<RebaseConflictState>({
@@ -143,25 +140,18 @@ export function useGitDialogs({
 
   // Reset merge UI only when a dialog opens — not when fetchBranches identity changes
   useEffect(() => {
-    if (mergeOpen || rebaseOpen) {
+    if (mergeOpen || rebaseOpen || prOpen) {
       setSelectedBranch("")
       setMergeDirection("from-current")
       setSquashMerge(false)
     }
-  }, [mergeOpen, rebaseOpen])
+  }, [mergeOpen, rebaseOpen, prOpen])
 
   useEffect(() => {
-    if (mergeOpen || rebaseOpen) {
+    if (mergeOpen || rebaseOpen || prOpen) {
       fetchBranches()
     }
-  }, [mergeOpen, rebaseOpen, fetchBranches])
-
-  // Reset tag input when dialog opens
-  useEffect(() => {
-    if (tagOpen) {
-      setTagNameInput("")
-    }
-  }, [tagOpen])
+  }, [mergeOpen, rebaseOpen, prOpen, fetchBranches])
 
   const toggleMergeDirection = useCallback(() => {
     setMergeDirection(prev => prev === "into-current" ? "from-current" : "into-current")
@@ -318,37 +308,35 @@ export function useGitDialogs({
     }
   }, [selectedBranch, branch, sandboxId, branchName, branchId, repoOwner, repoName, repoFullName, addSystemMessage, onAddMessage, onUpdateMessage, putRebaseConflictInCache])
 
-  const handleTag = useCallback(async () => {
-    const name = tagNameInput.trim()
-    if (!name || !branch || !sandboxId) return
+  const handleCreatePR = useCallback(async () => {
+    if (!selectedBranch || !branch) return
     setActionLoading(true)
 
-    const [owner, repo] = repoFullName.split("/")
-
     try {
-      const res = await fetch("/api/sandbox/git", {
+      const res = await fetch("/api/github/pr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "tag",
-          tagName: name,
-          repoOwner: owner,
-          repoApiName: repo,
+          owner: repoOwner,
+          repo: repoName,
+          head: branchName,
+          base: selectedBranch,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      addSystemMessage(`::icon-success:: **Tag** **${name}** created and pushed.`)
-      setTagOpen(false)
-      setTagNameInput("")
+      if (!res.ok) throw new Error(data.error || "Failed to create PR")
+
+      addSystemMessage(
+        `::icon-success:: **Pull request created:** [#${data.number} - ${data.title}](${data.url})`
+      )
+      setPROpen(false)
     } catch (err: unknown) {
-      addSystemMessage(`::icon-error:: **Tag failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`::icon-error:: **PR creation failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      setPROpen(false)
     } finally {
       setActionLoading(false)
     }
-  }, [tagNameInput, branch, sandboxId, repoFullName, repoName, addSystemMessage])
+  }, [selectedBranch, branch, repoOwner, repoName, branchName, addSystemMessage])
 
   const handleAbortConflict = useCallback(async () => {
     if (!sandboxId) return
@@ -456,8 +444,8 @@ export function useGitDialogs({
     setMergeOpen,
     rebaseOpen,
     setRebaseOpen,
-    tagOpen,
-    setTagOpen,
+    prOpen,
+    setPROpen,
 
     // Loading states
     branchesLoading,
@@ -474,17 +462,13 @@ export function useGitDialogs({
     squashMerge,
     setSquashMerge,
 
-    // Tag state
-    tagNameInput,
-    setTagNameInput,
-
     // Current branch info (for display)
     branchName,
 
     // Actions
     handleMerge,
     handleRebase,
-    handleTag,
+    handleCreatePR,
     handleAbortConflict,
     checkRebaseStatus,
 

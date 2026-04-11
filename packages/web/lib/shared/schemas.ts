@@ -88,7 +88,6 @@ export const gitActionSchema = z.object({
   currentBranch: optionalString,
   repoOwner: optionalString,
   repoApiName: optionalString,
-  tagName: optionalString,
   branchName: optionalString,
   sinceCommit: optionalString,
   commitHash: optionalString,

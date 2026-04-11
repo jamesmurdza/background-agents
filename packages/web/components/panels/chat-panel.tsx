@@ -10,6 +10,7 @@ import { Terminal } from "lucide-react"
 import { useRef, useEffect, useCallback, useState } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SwitchAgentDialog } from "@/components/modals/switch-agent-dialog"
+import type { SlashCommandType } from "@/components/chat/SlashCommandMenu"
 
 // Import hooks
 import {
@@ -573,6 +574,21 @@ export function ChatPanel({
     onUpdateBranch(branch.id, { model })
   }, [branch.id, onUpdateBranch])
 
+  // Handle slash commands - open the corresponding dialog
+  const handleSlashCommand = useCallback((command: SlashCommandType) => {
+    switch (command) {
+      case "merge":
+        gitActions.gitDialogs.setMergeOpen(true)
+        break
+      case "rebase":
+        gitActions.gitDialogs.setRebaseOpen(true)
+        break
+      case "pr":
+        gitActions.gitDialogs.setPROpen(true)
+        break
+    }
+  }, [gitActions.gitDialogs])
+
   // Handle push retry - force-push to sync diverged history (preserves PRs)
   const handleRetryPush = useCallback(async (pushError: PushErrorInfo): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -671,6 +687,7 @@ export function ChatPanel({
           inRebaseConflict={
             !!(gitActions.gitDialogs.rebaseConflict?.inRebase || gitActions.gitDialogs.rebaseConflict?.inMerge)
           }
+          onSlashCommand={handleSlashCommand}
         />
       </div>
 

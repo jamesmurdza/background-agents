@@ -33,6 +33,8 @@ import {
   CommandItem,
   CommandSeparator,
 } from "@/components/ui/command"
+import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
+import { filterSlashCommands } from "@upstream/common"
 
 // ============================================================================
 // Chat Input Component
@@ -52,11 +54,13 @@ interface ChatInputProps {
   isMobile?: boolean
   /** Rebase conflict: tint the prompt strip red (message list unchanged) */
   inRebaseConflict?: boolean
+  /** Slash command handlers */
+  onSlashCommand?: (command: SlashCommandType) => void
 }
 
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput(
-    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, onOpenSettingsWithHighlight, credentials, isMobile, inRebaseConflict = false },
+    { branch, input, onInputChange, onSend, onStop, onAgentChange, onModelChange, onOpenSettings, onOpenSettingsWithHighlight, credentials, isMobile, inRebaseConflict = false, onSlashCommand },
     ref
   ) {
     // Normalize agent value (handle legacy "claude" value from database)
@@ -71,6 +75,18 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
     // Voice input state
     const [isListening, setIsListening] = useState(false)
     const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+    // Slash command menu state
+    const [slashMenuOpen, setSlashMenuOpen] = useState(false)
+    const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
+
+    // Handle slash command selection
+    const handleSlashCommandSelect = useCallback((command: SlashCommandType) => {
+      setSlashMenuOpen(false)
+      setSlashSelectedIndex(0)
+      onInputChange("")
+      onSlashCommand?.(command)
+    }, [onInputChange, onSlashCommand])
 
     // Filter models based on available credentials
     const availableModels = getAvailableModels(currentAgent, credentials)
@@ -111,12 +127,62 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
       }
     }, [input, ref])
 
+    // Update slash menu visibility based on input
+    useEffect(() => {
+      if (input.startsWith("/")) {
+        setSlashMenuOpen(true)
+      } else {
+        setSlashMenuOpen(false)
+        setSlashSelectedIndex(0)
+      }
+    }, [input])
+
+    // Get filtered commands for keyboard navigation
+    const filteredCommands = useMemo(() => filterSlashCommands(input), [input])
+
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Handle slash command menu navigation
+      if (slashMenuOpen && filteredCommands.length > 0) {
+        switch (e.key) {
+          case "ArrowDown":
+            e.preventDefault()
+            setSlashSelectedIndex((prev) =>
+              prev < filteredCommands.length - 1 ? prev + 1 : 0
+            )
+            return
+          case "ArrowUp":
+            e.preventDefault()
+            setSlashSelectedIndex((prev) =>
+              prev > 0 ? prev - 1 : filteredCommands.length - 1
+            )
+            return
+          case "Enter":
+            e.preventDefault()
+            if (filteredCommands[slashSelectedIndex]) {
+              handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
+            }
+            return
+          case "Tab":
+            e.preventDefault()
+            if (filteredCommands[slashSelectedIndex]) {
+              handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
+            }
+            return
+          case "Escape":
+            e.preventDefault()
+            setSlashMenuOpen(false)
+            setSlashSelectedIndex(0)
+            onInputChange("")
+            return
+        }
+      }
+
+      // Normal enter to send
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
         onSend()
       }
-    }, [onSend])
+    }, [slashMenuOpen, filteredCommands, slashSelectedIndex, handleSlashCommandSelect, onInputChange, onSend])
 
     // Handle agent change - allow selection but open settings with highlight if missing credentials
     const handleAgentChange = useCallback((newAgent: Agent) => {
@@ -239,24 +305,40 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
               : "border-border bg-card focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20"
           )}
         >
-          <textarea
-            ref={ref}
-            value={input}
-            onChange={(e) => onInputChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              branch.status === BRANCH_STATUS.CREATING
-                ? "Type your first message while the sandbox is being set up..."
-                : !branch.sandboxId
-                ? "Sandbox not available"
-                : branch.status === BRANCH_STATUS.STOPPED
-                ? "Sandbox paused \u2014 will resume on send..."
-                : "Describe what you want the agent to do..."
-            }
-            rows={1}
-            disabled={!isReady && branch.status !== BRANCH_STATUS.CREATING}
-            className="flex-1 resize-none bg-transparent text-base sm:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
-          />
+          {/* Textarea wrapper with slash command menu */}
+          <div className="relative flex-1">
+            {/* Slash Command Menu - positioned above the textarea */}
+            <SlashCommandMenu
+              input={input}
+              open={slashMenuOpen && !!onSlashCommand}
+              onSelect={handleSlashCommandSelect}
+              onClose={() => {
+                setSlashMenuOpen(false)
+                setSlashSelectedIndex(0)
+              }}
+              selectedIndex={slashSelectedIndex}
+              onSelectedIndexChange={setSlashSelectedIndex}
+            />
+
+            <textarea
+              ref={ref}
+              value={input}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                branch.status === BRANCH_STATUS.CREATING
+                  ? "Type your first message while the sandbox is being set up..."
+                  : !branch.sandboxId
+                  ? "Sandbox not available"
+                  : branch.status === BRANCH_STATUS.STOPPED
+                  ? "Sandbox paused \u2014 will resume on send..."
+                  : "Describe what you want the agent to do..."
+              }
+              rows={1}
+              disabled={!isReady && branch.status !== BRANCH_STATUS.CREATING}
+              className="w-full resize-none bg-transparent text-base sm:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+            />
+          </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
