@@ -39,9 +39,24 @@ export async function POST(req: Request) {
   try {
     // 3. Get sandbox
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    const sandbox = await daytona.get(sandboxId)
+    let sandbox
 
-    // 4. Upload each file with conflict resolution
+    try {
+      sandbox = await daytona.get(sandboxId)
+    } catch {
+      // Sandbox not found - return specific error so frontend can handle it
+      return Response.json(
+        { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found" },
+        { status: 410 }
+      )
+    }
+
+    // 4. Start sandbox if not running (it may have auto-stopped)
+    if (sandbox.state !== "started") {
+      await sandbox.start(120) // 2 minute timeout
+    }
+
+    // 5. Upload each file with conflict resolution
     const uploadedFiles: { originalName: string; path: string; size: number }[] = []
 
     for (const file of files) {

@@ -166,6 +166,17 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
         if (!response.ok) {
           const error = await response.json().catch(() => ({ error: "Upload failed" }))
           console.error("Upload failed:", error)
+
+          // If sandbox is gone, clear it and files - sandbox will be recreated on next message
+          if (error.error === "SANDBOX_NOT_FOUND" && onUpdateChat) {
+            onUpdateChat({ sandboxId: null, status: "pending" })
+            setPendingFiles([])
+            // Send the message anyway (without files) to trigger sandbox recreation
+            if (input.trim()) {
+              onSendMessage(input.trim(), currentAgent, currentModel)
+              setInput("")
+            }
+          }
           return
         }
 
