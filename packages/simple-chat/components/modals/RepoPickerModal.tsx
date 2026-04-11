@@ -67,8 +67,14 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
   }, [open, session?.accessToken])
 
   // Reset state on close/open - set correct initial tab
+  // Also reset when modal opens to ensure correct tab based on current allowSelect/allowCreate values
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      // When opening, set the correct initial tab based on what's allowed
+      // Default to "select" if allowed, otherwise "create"
+      setActiveTab(allowSelect ? "select" : "create")
+    } else {
+      // When closing, reset all state
       setStep("repo")
       setActiveTab(allowSelect ? "select" : "create")
       setSelectedRepo(null)
@@ -85,7 +91,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
       setNewRepoIsPrivate(false)
       setCreating(false)
     }
-  }, [open])
+  }, [open, allowSelect])
 
   // Swipe gesture handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
