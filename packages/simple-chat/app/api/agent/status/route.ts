@@ -1,7 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
 import { pollBackgroundAgent } from "@/lib/agent-session"
-import { getBackgroundSessionId, getAccumulatedEvents, addAccumulatedEvents } from "@/lib/session-store"
 
 export async function GET(req: Request) {
   // 1. Parse query params
@@ -9,15 +8,13 @@ export async function GET(req: Request) {
   const sandboxId = url.searchParams.get("sandboxId")
   const repoName = url.searchParams.get("repoName")
   const previewUrlPattern = url.searchParams.get("previewUrlPattern")
-  // Accept backgroundSessionId directly from client (serverless-compatible)
-  // Fall back to in-memory store for backwards compatibility
-  const backgroundSessionIdParam = url.searchParams.get("backgroundSessionId")
+  const backgroundSessionId = url.searchParams.get("backgroundSessionId")
 
-  if (!sandboxId || !repoName) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 })
+  if (!sandboxId || !repoName || !backgroundSessionId) {
+    return Response.json({ error: "Missing required fields: sandboxId, repoName, backgroundSessionId" }, { status: 400 })
   }
 
-  // 3. Get Daytona API key
+  // 2. Get Daytona API key
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
     return Response.json(
@@ -26,36 +23,18 @@ export async function GET(req: Request) {
     )
   }
 
-  // 4. Get background session ID (prefer param, fall back to in-memory store)
-  const backgroundSessionId = backgroundSessionIdParam || getBackgroundSessionId(sandboxId)
-  if (!backgroundSessionId) {
-    return Response.json(
-      { error: "No active session for this sandbox" },
-      { status: 404 }
-    )
-  }
-
   try {
-    // 5. Get sandbox from Daytona
+    // 3. Get sandbox from Daytona
     const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
 
-    // 6. Poll for events with accumulation
+    // 4. Poll for events
     const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
-
-    // Get previously accumulated events
-    const cachedEvents = getAccumulatedEvents(sandboxId)
 
     const result = await pollBackgroundAgent(sandbox, backgroundSessionId, {
       repoPath,
       previewUrlPattern: previewUrlPattern || undefined,
-      cachedEvents,
     })
-
-    // Store accumulated events for next poll
-    if (result.rawEvents) {
-      addAccumulatedEvents(sandboxId, result.rawEvents)
-    }
 
     return Response.json(result)
   } catch (error) {

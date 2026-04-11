@@ -1,7 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
 import { createBackgroundAgentSession } from "@/lib/agent-session"
-import { setBackgroundSessionId } from "@/lib/session-store"
 
 export const maxDuration = 60
 
@@ -69,9 +68,6 @@ export async function POST(req: Request) {
       model,
       env: Object.keys(env).length > 0 ? env : undefined,
     })
-
-    // Store the session ID for status polling
-    setBackgroundSessionId(sandboxId, bgSession.backgroundSessionId)
 
     // 7. Start the agent
     await bgSession.start(prompt)
