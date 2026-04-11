@@ -51,6 +51,12 @@ export function useChat() {
   // Polling ref
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const isPollingRef = useRef(false)
+  // Accumulated content for current polling session (resets when new agent run starts)
+  const accumulatedContentRef = useRef<{
+    content: string
+    toolCalls: Message["toolCalls"]
+    contentBlocks: Message["contentBlocks"]
+  }>({ content: "", toolCalls: [], contentBlocks: [] })
 
   // Sync state to localStorage (only after hydration)
   useEffect(() => {
@@ -361,6 +367,8 @@ export function useChat() {
     }
 
     isPollingRef.current = true
+    // Reset accumulated content for new polling session
+    accumulatedContentRef.current = { content: "", toolCalls: [], contentBlocks: [] }
 
     const poll = async () => {
       if (!isPollingRef.current) return
@@ -400,11 +408,17 @@ export function useChat() {
 
         const data: AgentStatusResponse = await response.json()
 
-        // Update message - the API now returns accumulated content
+        // Accumulate content from each poll (server returns incremental updates)
+        const acc = accumulatedContentRef.current
+        acc.content += data.content
+        acc.toolCalls = [...(acc.toolCalls || []), ...(data.toolCalls || [])]
+        acc.contentBlocks = [...(acc.contentBlocks || []), ...(data.contentBlocks || [])]
+
+        // Update message with accumulated content
         let newState = updateLastMessage(chatId, {
-          content: data.content,
-          toolCalls: data.toolCalls,
-          contentBlocks: data.contentBlocks,
+          content: acc.content,
+          toolCalls: acc.toolCalls,
+          contentBlocks: acc.contentBlocks,
         })
         setState(newState)
 
