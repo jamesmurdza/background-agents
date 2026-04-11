@@ -253,6 +253,7 @@ export default function HomePage() {
         onClose={() => setRepoPickerOpen(false)}
         onSelect={handleRepoSelect}
         isMobile={isMobile}
+        allowSelect={currentChat?.messages.length === 0 && !currentChat?.sandboxId}
         allowCreate={currentChat?.repo === NEW_REPOSITORY}
       />
 

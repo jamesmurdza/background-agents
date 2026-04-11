@@ -13,7 +13,9 @@ interface RepoPickerModalProps {
   onClose: () => void
   onSelect: (repo: string, branch: string) => void
   isMobile?: boolean
-  /** Whether to show the "Create New" tab option */
+  /** Whether to allow selecting an existing repo (before chat starts) */
+  allowSelect?: boolean
+  /** Whether to allow creating a new repo */
   allowCreate?: boolean
 }
 
@@ -22,11 +24,13 @@ type Tab = "select" | "create"
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
-export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, allowCreate = false }: RepoPickerModalProps) {
+export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, allowSelect = true, allowCreate = false }: RepoPickerModalProps) {
   const { data: session } = useSession()
 
+  // Determine initial tab based on what's allowed
+  const initialTab: Tab = allowSelect ? "select" : "create"
   const [step, setStep] = useState<Step>("repo")
-  const [activeTab, setActiveTab] = useState<Tab>("select")
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [branches, setBranches] = useState<GitHubBranch[]>([])
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null)
@@ -62,11 +66,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
     }
   }, [open, session?.accessToken])
 
-  // Reset state on close
+  // Reset state on close/open - set correct initial tab
   useEffect(() => {
     if (!open) {
       setStep("repo")
-      setActiveTab("select")
+      setActiveTab(allowSelect ? "select" : "create")
       setSelectedRepo(null)
       setSelectedBranch("")
       setBranches([])
@@ -255,8 +259,8 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
             </Dialog.Close>
           </div>
 
-          {/* Tabs - only show on repo step when allowCreate is true */}
-          {step === "repo" && allowCreate && (
+          {/* Tabs - only show on repo step when both select and create are allowed */}
+          {step === "repo" && allowSelect && allowCreate && (
             <div className={cn(
               "flex border-b border-border",
               isMobile ? "px-4" : "px-4"
