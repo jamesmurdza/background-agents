@@ -116,7 +116,7 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
 
   // Git operation messages get special styling (like tool calls but different color)
   if (isGitOperation) {
-    return <GitOperationBubble content={message.content} isMobile={isMobile} />
+    return <GitOperationBubble content={message.content} isError={message.isError} isMobile={isMobile} />
   }
 
   return (
@@ -169,11 +169,8 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
 // Git Operation Bubble (styled like tool calls but with different background)
 // =============================================================================
 
-function GitOperationBubble({ content, isMobile = false }: { content: string; isMobile?: boolean }) {
+function GitOperationBubble({ content, isError = false, isMobile = false }: { content: string; isError?: boolean; isMobile?: boolean }) {
   const [expanded, setExpanded] = useState(false)
-
-  // Check if this is an error message (contains "failed:" pattern)
-  const isError = /\*\*.*failed.*:\*\*/i.test(content) || /failed:/i.test(content)
 
   // For errors, extract the summary (before the colon) and details (after the colon)
   let summary = content

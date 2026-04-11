@@ -534,13 +534,14 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
   const repoName = repoApiName || ""
 
   // Add system message helper for git operations
-  const addSystemMessage = useCallback((content: string) => {
+  const addSystemMessage = useCallback((content: string, isError = false) => {
     if (!onAddMessage) return
     onAddMessage({
       id: generateId(),
       role: "assistant",
       content,
       messageType: "git-operation",
+      isError,
       timestamp: Date.now(),
     })
   }, [onAddMessage])
@@ -631,7 +632,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
       )
       setMergeOpen(false)
     } catch (err: unknown) {
-      addSystemMessage(`**Merge failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`**Merge failed:** ${err instanceof Error ? err.message : "Unknown error"}`, true)
       setMergeOpen(false)
     } finally {
       setActionLoading(false)
@@ -688,7 +689,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
       )
       setRebaseOpen(false)
     } catch (err: unknown) {
-      addSystemMessage(`**Rebase failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`**Rebase failed:** ${err instanceof Error ? err.message : "Unknown error"}`, true)
       setRebaseOpen(false)
     } finally {
       setActionLoading(false)
@@ -723,7 +724,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
       )
       setPROpen(false)
     } catch (err: unknown) {
-      addSystemMessage(`**PR creation failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`**PR creation failed:** ${err instanceof Error ? err.message : "Unknown error"}`, true)
       setPROpen(false)
     } finally {
       setActionLoading(false)
@@ -757,7 +758,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
           : `**Rebase aborted.** Your branch is back to its previous state.`
       )
     } catch (err: unknown) {
-      addSystemMessage(`**Abort failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      addSystemMessage(`**Abort failed:** ${err instanceof Error ? err.message : "Unknown error"}`, true)
     } finally {
       setActionLoading(false)
     }

@@ -35,6 +35,8 @@ export interface Message {
   timestamp: number
   /** Type of message - defaults to "chat" for regular messages */
   messageType?: MessageType
+  /** For git-operation messages, whether this is an error */
+  isError?: boolean
   /** Tool calls made by the assistant */
   toolCalls?: Array<{
     tool: string
