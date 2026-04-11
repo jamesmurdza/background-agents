@@ -215,32 +215,32 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
     isMobile ? "h-4 w-4" : "h-3.5 w-3.5"
   )
 
-  // Parse bold text (text between **) and make them clickable links to GitHub branches
-  const parseBoldText = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g)
-    return parts.map((part, index) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        const branchName = part.slice(2, -2)
-        // If repo is available, make it a link to GitHub
-        if (repo) {
-          const branchUrl = `https://github.com/${repo}/tree/${branchName}`
-          return (
-            <a
-              key={index}
-              href={branchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {branchName}
-            </a>
-          )
-        }
-        // Fallback to bold text if no repo
-        return <strong key={index}>{branchName}</strong>
-      }
-      return part
-    })
+  // Parse git merge messages to make the target branch a clickable link
+  // Format: "Merged X into Y" or "Squash merged X into Y"
+  const parseContent = (text: string) => {
+    if (!repo) return text
+
+    const mergeMatch = text.match(/^((?:Squash )?[Mm]erged .+ into )(\S+)(.*)$/)
+    if (mergeMatch) {
+      const [, prefix, targetBranch, suffix] = mergeMatch
+      const branchUrl = `https://github.com/${repo}/tree/${targetBranch}`
+      return (
+        <>
+          {prefix}
+          <a
+            href={branchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            {targetBranch}
+          </a>
+          {suffix}
+        </>
+      )
+    }
+
+    return text
   }
 
   return (
@@ -249,7 +249,7 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
       isMobile ? "text-base" : "text-sm"
     )}>
       <Icon className={cn(iconClasses, "mt-0.5")} />
-      <span className="text-muted-foreground">{parseBoldText(content)}</span>
+      <span className="text-muted-foreground">{parseContent(content)}</span>
     </div>
   )
 }
