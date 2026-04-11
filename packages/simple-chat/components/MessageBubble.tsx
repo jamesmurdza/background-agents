@@ -218,10 +218,10 @@ function InfoBubble({ icon: Icon, summary, output, variant = "default", isMobile
   const hasOutput = !!output
 
   const containerClasses = cn(
-    "rounded overflow-hidden inline-flex flex-col",
+    "rounded overflow-hidden",
     variant === "error" && "bg-red-500/10 dark:bg-red-500/5",
     variant === "success" && "bg-green-500/10 dark:bg-green-500/5",
-    variant === "default" && "bg-transparent"
+    variant === "default" && "bg-muted/30"
   )
 
   const iconClasses = cn(
@@ -241,7 +241,7 @@ function InfoBubble({ icon: Icon, summary, output, variant = "default", isMobile
           // Padding is the same regardless of hasOutput, and touch-target is
           // only for mobile tap accessibility — applying it conditionally on
           // hasOutput made rows with output visibly taller than rows without.
-          isMobile ? "px-3 py-2.5 text-sm touch-target" : "px-2 py-1 text-xs",
+          isMobile ? "px-3 py-2.5 text-sm touch-target" : "px-2.5 py-1.5 text-xs",
           hasOutput && "hover:text-foreground cursor-pointer"
         )}
       >
@@ -329,7 +329,7 @@ function ToolCallAccordion({ toolCalls, isMobile = false }: ToolCallAccordionPro
   const remainingCount = toolCalls.length - 1
 
   return (
-    <div className="inline-flex flex-col">
+    <div className="flex flex-col gap-1">
       {/* First tool call always visible */}
       <InfoBubble
         icon={getToolIcon(firstTool.tool)}
@@ -342,8 +342,8 @@ function ToolCallAccordion({ toolCalls, isMobile = false }: ToolCallAccordionPro
       <button
         onClick={() => setExpanded(!expanded)}
         className={cn(
-          "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors self-start",
-          isMobile ? "px-3 py-1.5 text-sm" : "px-2 py-1 text-xs"
+          "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
+          isMobile ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs"
         )}
       >
         {expanded ? (
@@ -356,7 +356,7 @@ function ToolCallAccordion({ toolCalls, isMobile = false }: ToolCallAccordionPro
 
       {/* Expanded tool calls */}
       {expanded && (
-        <div className="flex flex-col gap-1 mt-1">
+        <div className="flex flex-col gap-1">
           {toolCalls.slice(1).map((tool, index) => (
             <InfoBubble
               key={index}

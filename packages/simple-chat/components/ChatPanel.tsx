@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, Key, X } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, Key, X, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
@@ -13,6 +13,7 @@ import { MobileSelect } from "./ui/MobileBottomSheet"
 import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
 
 import type { HighlightKey } from "./modals/SettingsModal"
+import { HelpModal } from "./modals/HelpModal"
 
 interface ChatPanelProps {
   chat: Chat | null
@@ -37,6 +38,8 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // Slash command menu state
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
+  // Help modal state
+  const [showHelpModal, setShowHelpModal] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -318,27 +321,27 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
           {/* Button container - larger on mobile */}
           <div className={cn(
             "shrink-0",
-            isMobile ? "w-11 h-11" : "w-8 h-8"
+            isMobile ? "w-10 h-10" : "w-7 h-7"
           )}>
             {isRunning ? (
               <button
                 onClick={onStopAgent}
                 className={cn(
                   "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors touch-target",
-                  isMobile ? "h-11 w-11" : "h-8 w-8"
+                  isMobile ? "h-10 w-10" : "h-7 w-7"
                 )}
               >
-                <Square className={cn(isMobile ? "h-4 w-4" : "h-3 w-3", "fill-current")} />
+                <Square className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "fill-current")} />
               </button>
             ) : canSend ? (
               <button
                 onClick={handleSend}
                 className={cn(
                   "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors touch-target",
-                  isMobile ? "h-11 w-11" : "h-8 w-8"
+                  isMobile ? "h-10 w-10" : "h-7 w-7"
                 )}
               >
-                <ArrowUp className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+                <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
               </button>
             ) : null}
           </div>
@@ -548,17 +551,26 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
       {!isMobile && (
         <div className="flex items-center justify-between pt-3" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
           <h1 className="text-sm font-medium text-foreground">{chatTitle}</h1>
-          {githubBranchUrl && (
-            <a
-              href={githubBranchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowHelpModal(true)}
               className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="View branch on GitHub"
+              title="Help"
             >
-              <Github className="h-4 w-4" />
-            </a>
-          )}
+              <HelpCircle className="h-4 w-4" />
+            </button>
+            {githubBranchUrl && (
+              <a
+                href={githubBranchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                title="View branch on GitHub"
+              >
+                <Github className="h-4 w-4" />
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -613,6 +625,13 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
       )}>
         {chatInput}
       </div>
+
+      {/* Help Modal */}
+      <HelpModal
+        open={showHelpModal}
+        onClose={() => setShowHelpModal(false)}
+        isMobile={isMobile}
+      />
     </div>
   )
 }
