@@ -6,16 +6,14 @@ import { X, Loader2, GitMerge, GitBranch, GitPullRequest, ChevronDown } from "lu
 import { cn } from "@/lib/utils"
 import type { Chat, Message } from "@/lib/types"
 import { PATHS } from "@/lib/constants"
+import { type RebaseConflictState, EMPTY_CONFLICT_STATE } from "@upstream/common"
+
+// Re-export for convenience
+export type { RebaseConflictState }
 
 // ============================================================================
 // Types
 // ============================================================================
-
-export interface RebaseConflictState {
-  inRebase: boolean
-  inMerge: boolean
-  conflictedFiles: string[]
-}
 
 export interface UseGitDialogsOptions {
   chat: Chat | null
@@ -530,11 +528,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
   const [squashMerge, setSquashMerge] = useState(false)
 
   // Conflict state
-  const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>({
-    inRebase: false,
-    inMerge: false,
-    conflictedFiles: [],
-  })
+  const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>(EMPTY_CONFLICT_STATE)
 
   // Get repo name from repo path (owner/name -> name)
   const repoName = repoApiName || ""
@@ -755,7 +749,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      setRebaseConflict({ inRebase: false, inMerge: false, conflictedFiles: [] })
+      setRebaseConflict(EMPTY_CONFLICT_STATE)
       addSystemMessage(
         isMerge
           ? `**Merge aborted.** Your branch is back to its previous state.`

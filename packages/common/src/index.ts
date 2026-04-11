@@ -123,3 +123,20 @@ export {
   fuzzyMatch,
   filterSlashCommands,
 } from "./slash-commands"
+
+// Git operations
+export {
+  // Types
+  type RebaseConflictState,
+  type GitStatusResult,
+  type MergeResult,
+  type RebaseResult,
+  type GitOperationContext,
+  // Functions
+  formatPRTitleFromBranch,
+  formatPRBodyFromCommits,
+  isGitNothingToCommitMessage,
+  parseConflictedFiles,
+  // Constants
+  EMPTY_CONFLICT_STATE,
+} from "./git-operations"

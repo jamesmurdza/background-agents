@@ -1,6 +1,12 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { compareBranches, createPullRequest, isGitHubApiError } from "@upstream/common"
+import {
+  compareBranches,
+  createPullRequest,
+  isGitHubApiError,
+  formatPRTitleFromBranch,
+  formatPRBodyFromCommits,
+} from "@upstream/common"
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -28,16 +34,9 @@ export async function POST(req: Request) {
       // Ignore compare errors, just use empty commits
     }
 
-    // Generate simple PR title from branch name
-    const title = head
-      .replace(/^(feat|fix|refactor|docs|test|chore)\//, "")
-      .replace(/[-_]/g, " ")
-      .replace(/\b\w/g, (c: string) => c.toUpperCase())
-
-    // Generate simple PR body from commit messages
-    const prBody = commitMessages.length > 0
-      ? commitMessages.map((c) => `- ${c}`).join("\n")
-      : "Automated PR"
+    // Generate PR title and body using shared utilities
+    const title = formatPRTitleFromBranch(head)
+    const prBody = formatPRBodyFromCommits(commitMessages)
 
     // Create the PR
     const prData = await createPullRequest(session.accessToken, owner, repo, {
