@@ -18,7 +18,7 @@ import type { HighlightKey } from "./modals/SettingsModal"
 interface ChatPanelProps {
   chat: Chat | null
   settings: Settings
-  onSendMessage: (message: string, agent: string, model: string, uploadedFilePaths?: string[]) => void
+  onSendMessage: (message: string, agent: string, model: string, files?: File[]) => void
   onStopAgent: () => void
   onChangeRepo?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
@@ -44,7 +44,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // File upload state
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -68,7 +67,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const isRunning = chat?.status === "running"
   const isCreating = chat?.status === "creating"
   const hasContent = input.trim() || pendingFiles.length > 0
-  const canSend = hasContent && !isRunning && !isCreating && !isUploading
+  const canSend = hasContent && !isRunning && !isCreating
 
   // Track if user has scrolled up from bottom
   const handleScroll = () => {
@@ -137,72 +136,20 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     onSlashCommand?.(command)
   }, [onSlashCommand])
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!canSend) return
     // Don't send if credentials are missing - the UI shows a warning instead
     if (!hasRequiredCredentials) return
 
-    let uploadedFilePaths: string[] | undefined
-
-    // Upload pending files if we have any (sandbox must exist at this point)
-    if (pendingFiles.length > 0 && chat?.sandboxId) {
-      setIsUploading(true)
-      try {
-        const formData = new FormData()
-        formData.append("sandboxId", chat.sandboxId)
-        // Get repo name from repo path or use "project" for new repos
-        const repoName = chat.repo === "__new__" ? "project" : chat.repo.split("/")[1]
-        formData.append("repoPath", `/home/daytona/${repoName}`)
-
-        pendingFiles.forEach((pf, index) => {
-          formData.append(`file-${index}`, pf.file)
-        })
-
-        const response = await fetch("/api/sandbox/upload", {
-          method: "POST",
-          body: formData,
-        })
-
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({ error: "Upload failed" }))
-          console.error("Upload failed:", error)
-
-          // If sandbox is gone, clear it and files - sandbox will be recreated on next message
-          if (error.error === "SANDBOX_NOT_FOUND" && onUpdateChat) {
-            onUpdateChat({ sandboxId: null, status: "pending" })
-            setPendingFiles([])
-            // Send the message anyway (without files) to trigger sandbox recreation
-            if (input.trim()) {
-              onSendMessage(input.trim(), currentAgent, currentModel)
-              setInput("")
-            }
-          }
-          return
-        }
-
-        const result = await response.json()
-        uploadedFilePaths = result.uploadedFiles.map((f: { path: string }) => f.path)
-      } catch (error) {
-        console.error("Upload error:", error)
-        return
-      } finally {
-        setIsUploading(false)
-      }
-    }
-
-    onSendMessage(input.trim(), currentAgent, currentModel, uploadedFilePaths)
+    // Pass files to sendMessage - upload will happen after sandbox is ready
+    const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
+    onSendMessage(input.trim(), currentAgent, currentModel, files)
     setInput("")
     setPendingFiles([])
   }
 
-  // File handling - only allow adding files if sandbox exists
-  const canAddFiles = !!chat?.sandboxId
-
+  // File handling - files can be added anytime, upload happens after sandbox is ready
   const addFiles = (files: FileList | File[]) => {
-    if (!canAddFiles) {
-      console.warn("Cannot add files: sandbox not created yet. Send a message first.")
-      return
-    }
     const newFiles: PendingFile[] = Array.from(files).map(file => ({
       id: nanoid(),
       file,
@@ -219,9 +166,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (canAddFiles) {
-      setIsDraggingOver(true)
-    }
+    setIsDraggingOver(true)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -234,7 +179,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     e.preventDefault()
     e.stopPropagation()
     setIsDraggingOver(false)
-    if (canAddFiles && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files.length > 0) {
       addFiles(e.dataTransfer.files)
     }
   }
@@ -435,16 +380,14 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                isUploading
-                  ? "Uploading files..."
-                  : isCreating
+                isCreating
                   ? "Creating sandbox..."
                   : isRunning
                   ? "Agent is working..."
                   : "Message..."
               }
               rows={1}
-              disabled={isCreating || isUploading}
+              disabled={isCreating}
               className={cn(
                 "w-full resize-none bg-transparent text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50",
                 isMobile ? "text-base" : "text-sm"
@@ -506,14 +449,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                 </button>
               </div>
             ))}
-            {isUploading && (
-              <span className={cn(
-                "text-muted-foreground animate-pulse",
-                isMobile ? "text-sm" : "text-xs"
-              )}>
-                Uploading...
-              </span>
-            )}
           </div>
         )}
 
