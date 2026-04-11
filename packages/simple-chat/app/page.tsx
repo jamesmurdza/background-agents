@@ -162,13 +162,13 @@ export default function HomePage() {
   }
 
   // Handler for sending message
-  const handleSendMessage = (message: string, agent: string, model: string, uploadedFilePaths?: string[]) => {
+  const handleSendMessage = (message: string, agent: string, model: string, files?: File[]) => {
     // For GitHub repos, we need auth
     if (currentChat && currentChat.repo !== NEW_REPOSITORY && !session) {
       signIn("github")
       return
     }
-    sendMessage(message, agent, model, uploadedFilePaths)
+    sendMessage(message, agent, model, files)
   }
 
   // Handler for slash commands - open the corresponding git dialog

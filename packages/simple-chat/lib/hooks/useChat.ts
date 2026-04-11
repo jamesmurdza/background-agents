@@ -183,7 +183,7 @@ export function useChat() {
   // Messaging
   // =============================================================================
 
-  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, uploadedFilePaths?: string[]) => {
+  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[]) => {
     if (!currentChat) return
 
     // For GitHub repos, we need auth. For NEW_REPOSITORY, we don't.
@@ -271,7 +271,47 @@ export function useChat() {
       }
     }
 
-    // 3. Execute agent
+    const repoName = isNewRepo ? "project" : chat.repo.split("/")[1]
+
+    // 3. Upload files if any (now that sandbox exists)
+    let uploadedFilePaths: string[] | undefined
+    if (files && files.length > 0) {
+      try {
+        const formData = new FormData()
+        formData.append("sandboxId", sandboxId!)
+        formData.append("repoPath", `/home/daytona/${repoName}`)
+
+        files.forEach((file, index) => {
+          formData.append(`file-${index}`, file)
+        })
+
+        const uploadResponse = await fetch("/api/sandbox/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          const error = await uploadResponse.json().catch(() => ({ error: "Upload failed" }))
+          throw new Error(error.message || error.error || "Failed to upload files")
+        }
+
+        const uploadResult = await uploadResponse.json()
+        uploadedFilePaths = uploadResult.uploadedFiles.map((f: { path: string }) => f.path)
+      } catch (error) {
+        console.error("Failed to upload files:", error)
+        // Continue without files - add warning to message
+        const errorMessage: Message = {
+          id: nanoid(),
+          role: "assistant",
+          content: `Warning: Failed to upload files: ${error instanceof Error ? error.message : "Unknown error"}. Continuing without files.`,
+          timestamp: Date.now(),
+        }
+        newState = addMessage(chat.id, errorMessage)
+        setState(newState)
+      }
+    }
+
+    // 4. Execute agent
     newState = updateChat(chat.id, { status: "running" })
     setState(newState)
 
@@ -285,8 +325,6 @@ export function useChat() {
     }
     newState = addMessage(chat.id, assistantMessage)
     setState(newState)
-
-    const repoName = isNewRepo ? "project" : chat.repo.split("/")[1]
 
     // Build prompt with uploaded files info if any
     let agentPrompt = content
