@@ -230,7 +230,7 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
               href={branchUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-foreground hover:text-primary transition-colors"
+              className="font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
               {branchName}
             </a>
@@ -249,7 +249,7 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
       isMobile ? "text-base" : "text-sm"
     )}>
       <Icon className={cn(iconClasses, "mt-0.5")} />
-      <span className="text-foreground">{parseBoldText(content)}</span>
+      <span className="text-muted-foreground">{parseBoldText(content)}</span>
     </div>
   )
 }
