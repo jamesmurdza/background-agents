@@ -310,7 +310,7 @@ export function useChat() {
       }
 
       // 4. Start polling for status
-      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern)
+      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern || chat.previewUrlPattern)
 
       // 5. Generate chat name from first message (fire-and-forget)
       if (isFirstMessage) {
@@ -330,7 +330,6 @@ export function useChat() {
             console.error("Failed to generate chat name:", err)
           })
       }
-      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern || chat.previewUrlPattern)
     } catch (error) {
       console.error("Failed to execute agent:", error)
 
