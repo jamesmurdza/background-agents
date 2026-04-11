@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, Key, X } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, Key, X, Paperclip } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Chat, Settings, Agent, ModelOption } from "@/lib/types"
+import type { Chat, Settings, Agent, ModelOption, PendingFile } from "@/lib/types"
+import { nanoid } from "nanoid"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
 import { getCredentialFlags } from "@/lib/storage"
 import { filterSlashCommands } from "@upstream/common"
@@ -17,7 +18,7 @@ import type { HighlightKey } from "./modals/SettingsModal"
 interface ChatPanelProps {
   chat: Chat | null
   settings: Settings
-  onSendMessage: (message: string, agent: string, model: string) => void
+  onSendMessage: (message: string, agent: string, model: string, uploadedFilePaths?: string[]) => void
   onStopAgent: () => void
   onChangeRepo?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
@@ -40,6 +41,11 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState("")
+  // File upload state
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -61,7 +67,8 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
 
   const isRunning = chat?.status === "running"
   const isCreating = chat?.status === "creating"
-  const canSend = input.trim() && !isRunning && !isCreating
+  const hasContent = input.trim() || pendingFiles.length > 0
+  const canSend = hasContent && !isRunning && !isCreating && !isUploading
 
   // Track if user has scrolled up from bottom
   const handleScroll = () => {
@@ -130,12 +137,94 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     onSlashCommand?.(command)
   }, [onSlashCommand])
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!canSend) return
     // Don't send if credentials are missing - the UI shows a warning instead
     if (!hasRequiredCredentials) return
-    onSendMessage(input.trim(), currentAgent, currentModel)
+
+    let uploadedFilePaths: string[] | undefined
+
+    // Upload pending files first if we have a sandbox
+    if (pendingFiles.length > 0 && chat?.sandboxId) {
+      setIsUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append("sandboxId", chat.sandboxId)
+        // Get repo name from repo path or use "project" for new repos
+        const repoName = chat.repo === "__new__" ? "project" : chat.repo.split("/")[1]
+        formData.append("repoPath", `/home/daytona/${repoName}`)
+
+        pendingFiles.forEach((pf, index) => {
+          formData.append(`file-${index}`, pf.file)
+        })
+
+        const response = await fetch("/api/sandbox/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          console.error("Upload failed:", error)
+          setIsUploading(false)
+          return
+        }
+
+        const result = await response.json()
+        uploadedFilePaths = result.uploadedFiles.map((f: { path: string }) => f.path)
+      } catch (error) {
+        console.error("Upload error:", error)
+        setIsUploading(false)
+        return
+      }
+      setIsUploading(false)
+    }
+
+    onSendMessage(input.trim(), currentAgent, currentModel, uploadedFilePaths)
     setInput("")
+    setPendingFiles([])
+  }
+
+  // File handling
+  const addFiles = (files: FileList | File[]) => {
+    const newFiles: PendingFile[] = Array.from(files).map(file => ({
+      id: nanoid(),
+      file,
+      name: file.name,
+      size: file.size,
+    }))
+    setPendingFiles(prev => [...prev, ...newFiles])
+  }
+
+  const removeFile = (id: string) => {
+    setPendingFiles(prev => prev.filter(f => f.id !== id))
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+    if (e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files)
+    }
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -269,12 +358,36 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
       isMobile ? "max-w-full" : "max-w-[52rem]"
     )}>
       <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={cn(
-          "flex flex-col border shadow-sm bg-card",
+          "relative flex flex-col border shadow-sm bg-card",
           isMobile ? "rounded-xl border-border" : "rounded-2xl border-border",
-          "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20"
+          "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+          isDraggingOver && "border-primary ring-2 ring-primary/30"
         )}
       >
+        {/* Drop zone overlay */}
+        {isDraggingOver && (
+          <div className="absolute inset-0 bg-primary/5 rounded-2xl flex items-center justify-center z-10 pointer-events-none">
+            <div className="text-primary text-sm font-medium">Drop files here</div>
+          </div>
+        )}
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) {
+              addFiles(e.target.files)
+              e.target.value = ""
+            }
+          }}
+        />
         {/* Text input area */}
         <div className={cn(
           "flex items-end gap-2",
@@ -347,6 +460,42 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
             ) : null}
           </div>
         </div>
+
+        {/* Pending files display */}
+        {pendingFiles.length > 0 && (
+          <div className={cn(
+            "flex flex-wrap gap-1.5",
+            isMobile ? "px-3 pb-2" : "px-4 pb-2"
+          )}>
+            {pendingFiles.map((file) => (
+              <div
+                key={file.id}
+                className={cn(
+                  "flex items-center gap-1 bg-muted/50 rounded-md",
+                  isMobile ? "px-2 py-1 text-sm" : "px-1.5 py-0.5 text-xs"
+                )}
+              >
+                <Paperclip className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "text-muted-foreground")} />
+                <span className="text-foreground truncate max-w-[120px]">{file.name}</span>
+                <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                <button
+                  onClick={() => removeFile(file.id)}
+                  className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+                >
+                  <X className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3")} />
+                </button>
+              </div>
+            ))}
+            {isUploading && (
+              <span className={cn(
+                "text-muted-foreground animate-pulse",
+                isMobile ? "text-sm" : "text-xs"
+              )}>
+                Uploading...
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Bottom row with selectors */}
         <div className={cn(

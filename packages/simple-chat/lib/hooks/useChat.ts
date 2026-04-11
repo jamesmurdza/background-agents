@@ -183,7 +183,7 @@ export function useChat() {
   // Messaging
   // =============================================================================
 
-  const sendMessage = useCallback(async (content: string, agent?: string, model?: string) => {
+  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, uploadedFilePaths?: string[]) => {
     if (!currentChat) return
 
     // For GitHub repos, we need auth. For NEW_REPOSITORY, we don't.
@@ -288,13 +288,19 @@ export function useChat() {
 
     const repoName = isNewRepo ? "project" : chat.repo.split("/")[1]
 
+    // Build prompt with uploaded files info if any
+    let agentPrompt = content
+    if (uploadedFilePaths && uploadedFilePaths.length > 0) {
+      agentPrompt += "\n\n---\nUploaded files:\n" + uploadedFilePaths.map(p => `- ${p}`).join("\n")
+    }
+
     try {
       const response = await fetch("/api/agent/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sandboxId,
-          prompt: content,
+          prompt: agentPrompt,
           repoName,
           previewUrlPattern: previewUrlPattern || chat.previewUrlPattern,
           agent: selectedAgent,

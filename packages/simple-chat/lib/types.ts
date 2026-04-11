@@ -107,6 +107,14 @@ export interface AppState {
 // Re-export GitHub types from common
 export type { GitHubRepo, GitHubBranch, GitHubUser } from "@upstream/common"
 
+// File upload types
+export interface PendingFile {
+  id: string
+  file: File
+  name: string
+  size: number
+}
+
 // API types
 export interface CreateSandboxRequest {
   repo: string
