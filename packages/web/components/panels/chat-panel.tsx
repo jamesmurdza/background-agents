@@ -135,9 +135,11 @@ export function ChatPanel({
   const branchRef = useRef(branch)
   branchRef.current = branch
 
-  // Keep global branch ID ref updated
+  // Keep global branch ID ref updated and reset interaction tracking on branch switch
   useEffect(() => {
     globalActiveBranchIdRef.current = branch.id
+    // Reset interaction tracking when branch changes so we don't auto-scroll on load
+    hasUserInteractedRef.current = false
   }, [branch.id])
 
   // Track previous status to detect when sandbox creation completes
@@ -203,6 +205,10 @@ export function ChatPanel({
     branch,
     onSaveDraftForBranch,
   })
+
+  // Track whether user has interacted (sent a message) in this session
+  // On mobile, don't auto-scroll on initial load so user can access the header
+  const hasUserInteractedRef = useRef(false)
 
   const runAgentExecute = useCallback(
     async (args: {
@@ -413,13 +419,19 @@ export function ChatPanel({
   const handleScroll = useCallback(() => {
     if (scrollRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 150
+      const nearBottom = scrollHeight - scrollTop - clientHeight < 150
+      isNearBottomRef.current = nearBottom
+      // If user scrolls to bottom, enable auto-scroll for new messages
+      if (nearBottom) {
+        hasUserInteractedRef.current = true
+      }
     }
   }, [isNearBottomRef])
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom - but only after user has interacted (sent a message)
+  // This prevents scrolling away from header on mobile initial load
   useEffect(() => {
-    if (scrollRef.current && isNearBottomRef.current) {
+    if (scrollRef.current && isNearBottomRef.current && hasUserInteractedRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [branch.messages, isNearBottomRef])
@@ -429,6 +441,9 @@ export function ChatPanel({
     const prompt = input.trim()
     if (!prompt || branch.status === BRANCH_STATUS.RUNNING || branch.status === BRANCH_STATUS.CREATING) return
     if (!branch.sandboxId) return
+
+    // Mark that user has interacted - enable auto-scroll for new messages
+    hasUserInteractedRef.current = true
 
     setInput("")
 
