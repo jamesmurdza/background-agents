@@ -185,8 +185,11 @@ function ToolCallItem({ tool, isMobile = false }: ToolCallItemProps) {
         onClick={() => hasOutput && setExpanded(!expanded)}
         className={cn(
           "flex items-center gap-2 w-full text-left",
-          isMobile ? "px-3 py-2.5 text-sm" : "px-2 py-1 text-xs",
-          hasOutput && "hover:bg-accent/50 active:bg-accent cursor-pointer touch-target"
+          // Padding is the same regardless of hasOutput, and touch-target is
+          // only for mobile tap accessibility — applying it conditionally on
+          // hasOutput made rows with output visibly taller than rows without.
+          isMobile ? "px-3 py-2.5 text-sm touch-target" : "px-2 py-1 text-xs",
+          hasOutput && "hover:bg-accent/50 active:bg-accent cursor-pointer"
         )}
       >
         <Icon className={cn(
