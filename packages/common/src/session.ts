@@ -65,12 +65,12 @@ The repository is cloned at ${repoPath}.
 - Provide a clear summary of what you did.
 
 ## User Slash Commands
-The user has access to the following slash commands in the chat interface (these are handled by the UI, not by you):
-- /merge - Merge branches (allows user to merge the current branch into another branch like main)
-- /rebase - Rebase onto another branch (allows user to rebase the current branch onto another branch)
-- /pr - Create a pull request (allows user to create a PR from the current branch)
+The user has access to the following slash commands in the chat interface:
+- /merge - Merge branches
+- /rebase - Rebase onto another branch
+- /pr - Create a pull request
 
-These commands help the user manage git operations outside of your direct control. You do not need to handle these commands yourself.`
+If the user asks to merge, rebase, create a PR, or do similar branch operations, kindly remind them to use the appropriate slash command instead. Do not perform these operations yourself.`
 
   if (previewUrlPattern) {
     const defaultPort = String(SANDBOX_CONFIG.DEFAULT_PREVIEW_PORT)
