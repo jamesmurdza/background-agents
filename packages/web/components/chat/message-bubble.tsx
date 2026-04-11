@@ -231,12 +231,27 @@ function ToolCallTimeline({ toolCalls, sandboxId, repoPath }: { toolCalls: ToolC
 /** Pattern to match notice icon markers like ::icon-warning:: */
 const NOTICE_ICON_PATTERN = /::icon-(warning|success|info|error)::/g
 
+/** Get the notice type from message content, if any */
+function getNoticeTypeFromContent(content: string | undefined): NoticeIconType | null {
+  if (!content) return null
+  const match = content.match(/::icon-(warning|success|info|error)::/)
+  return match ? (match[1] as NoticeIconType) : null
+}
+
+/** Color classes for inline notice icons */
+const NOTICE_ICON_COLORS: Record<NoticeIconType, string> = {
+  error: "text-red-600 dark:text-red-400",
+  warning: "text-yellow-600 dark:text-yellow-400",
+  success: "text-green-600 dark:text-green-400",
+  info: "text-blue-600 dark:text-blue-400",
+}
+
 /**
  * Inline notice icon component rendered within text
  */
 function InlineNoticeIcon({ type }: { type: NoticeIconType }) {
   return (
-    <span className="inline-flex items-center mr-1 translate-y-[2.5px]">
+    <span className={cn("inline-flex items-center mr-1 translate-y-[2.5px]", NOTICE_ICON_COLORS[type])}>
       <NoticeIcon type={type} className="h-4 w-4" />
     </span>
   )
@@ -328,9 +343,40 @@ const noticeMarkdownComponents = {
   },
 }
 
+/** Base styles shared by all notice panels */
+const NOTICE_PANEL_BASE =
+  "rounded-lg px-4 py-2.5 text-sm leading-relaxed [&_p]:text-sm [&_p]:my-1 [&_p]:leading-relaxed [&_strong]:font-medium [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5"
+
 /** Shared rounded yellow notice bubble (workspace markdown + push-retry UI). Lemon-leaning yellow-400/500 — less orange than yellow-600. */
 const WORKSPACE_NOTICE_PANEL_CLASS =
-  "rounded-lg bg-yellow-400/[0.11] dark:bg-yellow-500/[0.12] px-4 py-2.5 text-sm leading-relaxed text-yellow-950 dark:text-yellow-50 [&_p]:text-sm [&_p]:my-1 [&_p]:leading-relaxed [&_strong]:font-medium [&_a]:text-yellow-700 dark:[&_a]:text-yellow-300 [&_code]:rounded [&_code]:bg-yellow-500/14 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-yellow-900 dark:[&_code]:bg-yellow-500/18 dark:[&_code]:text-yellow-100"
+  `${NOTICE_PANEL_BASE} bg-yellow-400/[0.11] dark:bg-yellow-500/[0.12] text-yellow-950 dark:text-yellow-50 [&_a]:text-yellow-700 dark:[&_a]:text-yellow-300 [&_code]:bg-yellow-500/14 [&_code]:text-yellow-900 dark:[&_code]:bg-yellow-500/18 dark:[&_code]:text-yellow-100`
+
+/** Error notice panel - red themed */
+const ERROR_NOTICE_PANEL_CLASS =
+  `${NOTICE_PANEL_BASE} bg-red-400/[0.11] dark:bg-red-500/[0.12] text-red-950 dark:text-red-50 [&_a]:text-red-700 dark:[&_a]:text-red-300 [&_code]:bg-red-500/14 [&_code]:text-red-900 dark:[&_code]:bg-red-500/18 dark:[&_code]:text-red-100`
+
+/** Success notice panel - green themed */
+const SUCCESS_NOTICE_PANEL_CLASS =
+  `${NOTICE_PANEL_BASE} bg-green-400/[0.11] dark:bg-green-500/[0.12] text-green-950 dark:text-green-50 [&_a]:text-green-700 dark:[&_a]:text-green-300 [&_code]:bg-green-500/14 [&_code]:text-green-900 dark:[&_code]:bg-green-500/18 dark:[&_code]:text-green-100`
+
+/** Info notice panel - blue themed */
+const INFO_NOTICE_PANEL_CLASS =
+  `${NOTICE_PANEL_BASE} bg-blue-400/[0.11] dark:bg-blue-500/[0.12] text-blue-950 dark:text-blue-50 [&_a]:text-blue-700 dark:[&_a]:text-blue-300 [&_code]:bg-blue-500/14 [&_code]:text-blue-900 dark:[&_code]:bg-blue-500/18 dark:[&_code]:text-blue-100`
+
+/** Get the appropriate panel class based on notice type */
+function getNoticePanelClass(noticeType: NoticeIconType | null): string {
+  switch (noticeType) {
+    case "error":
+      return ERROR_NOTICE_PANEL_CLASS
+    case "success":
+      return SUCCESS_NOTICE_PANEL_CLASS
+    case "info":
+      return INFO_NOTICE_PANEL_CLASS
+    case "warning":
+    default:
+      return WORKSPACE_NOTICE_PANEL_CLASS
+  }
+}
 
 function TextBlockContent({ text }: { text: string }) {
   return (
@@ -568,13 +614,16 @@ export function MessageBubble({ message, agent = "claude-code", agentLabel, sand
   const hasContentBlocks = message.contentBlocks && message.contentBlocks.length > 0
 
   if (isSystemAssistant) {
+    const noticeType = getNoticeTypeFromContent(message.content)
+    const panelClass = getNoticePanelClass(noticeType)
+
     return (
       <div
         className="flex flex-col min-w-0 max-w-full"
         aria-label="Workspace message"
       >
         <span className="text-[10px] text-muted-foreground/40 mb-1">{message.timestamp}</span>
-        <div className={WORKSPACE_NOTICE_PANEL_CLASS}>
+        <div className={panelClass}>
           {message.content ? (
             <Markdown remarkPlugins={[remarkGfm]} components={noticeMarkdownComponents}>
               {message.content}
