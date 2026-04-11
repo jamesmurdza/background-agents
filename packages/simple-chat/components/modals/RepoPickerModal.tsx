@@ -49,10 +49,21 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
 
   // Swipe gesture state
   const contentRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragY, setDragY] = useState(0)
   const [startY, setStartY] = useState(0)
   const [startTime, setStartTime] = useState(0)
+
+  // Focus search field when modal opens on select tab
+  useEffect(() => {
+    if (open && step === "repo" && activeTab === "select" && searchInputRef.current) {
+      // Small delay to ensure the modal is rendered
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 100)
+    }
+  }, [open, step, activeTab])
 
   // Fetch repos on open
   useEffect(() => {
@@ -344,6 +355,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
                   isMobile ? "h-5 w-5" : "h-4 w-4"
                 )} />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}

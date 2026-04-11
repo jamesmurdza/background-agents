@@ -662,6 +662,12 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
               />
             )
           })}
+          {/* Show loading indicator when sandbox is being created */}
+          {isCreating && (
+            <div className="text-2xl text-muted-foreground animate-pulse">
+              ...
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
       </div>
