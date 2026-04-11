@@ -212,13 +212,24 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
     isMobile ? "h-4 w-4" : "h-3.5 w-3.5"
   )
 
+  // Parse bold text (text between **)
+  const parseBoldText = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g)
+    return parts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>
+      }
+      return part
+    })
+  }
+
   return (
     <div className={cn(
-      "flex items-start gap-2",
-      isMobile ? "text-base" : "text-sm"
+      "flex items-start gap-2 rounded-md bg-muted/20 dark:bg-muted/10",
+      isMobile ? "text-base px-3 py-2" : "text-sm px-2.5 py-1.5"
     )}>
       <Icon className={cn(iconClasses, "mt-0.5")} />
-      <span className="text-foreground">{content}</span>
+      <span className="text-foreground">{parseBoldText(content)}</span>
     </div>
   )
 }
@@ -313,7 +324,7 @@ function ToolCallRow({ tool, isMobile = false }: ToolCallRowProps) {
     <div
       onClick={toggleExpanded}
       className={cn(
-        isMobile ? "py-0.5" : "py-px",
+        isMobile ? "py-1" : "py-0.5",
         hasOutput && "cursor-pointer"
       )}
     >
@@ -334,11 +345,11 @@ function ToolCallRow({ tool, isMobile = false }: ToolCallRowProps) {
         )}
       </div>
 
-      {/* Tool output - inline, smaller font */}
+      {/* Tool output - block quote style with left border */}
       {expanded && tool.output && (
         <pre className={cn(
-          "font-mono whitespace-pre-wrap overflow-x-auto mobile-scroll text-muted-foreground mt-1",
-          isMobile ? "text-xs max-h-64" : "text-[10px] max-h-48"
+          "font-mono whitespace-pre-wrap overflow-x-auto mobile-scroll text-muted-foreground mt-1.5 pl-3 border-l-2 border-border",
+          isMobile ? "text-xs max-h-64 ml-5" : "text-[10px] max-h-48 ml-4"
         )}>
           {tool.output}
         </pre>
