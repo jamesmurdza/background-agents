@@ -144,7 +144,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
 
     let uploadedFilePaths: string[] | undefined
 
-    // Upload pending files first if we have a sandbox
+    // Upload pending files if we have any (sandbox must exist at this point)
     if (pendingFiles.length > 0 && chat?.sandboxId) {
       setIsUploading(true)
       try {
@@ -185,8 +185,14 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     setPendingFiles([])
   }
 
-  // File handling
+  // File handling - only allow adding files if sandbox exists
+  const canAddFiles = !!chat?.sandboxId
+
   const addFiles = (files: FileList | File[]) => {
+    if (!canAddFiles) {
+      console.warn("Cannot add files: sandbox not created yet. Send a message first.")
+      return
+    }
     const newFiles: PendingFile[] = Array.from(files).map(file => ({
       id: nanoid(),
       file,
@@ -203,7 +209,9 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDraggingOver(true)
+    if (canAddFiles) {
+      setIsDraggingOver(true)
+    }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -216,7 +224,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
     e.preventDefault()
     e.stopPropagation()
     setIsDraggingOver(false)
-    if (e.dataTransfer.files.length > 0) {
+    if (canAddFiles && e.dataTransfer.files.length > 0) {
       addFiles(e.dataTransfer.files)
     }
   }
@@ -417,14 +425,16 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                isCreating
+                isUploading
+                  ? "Uploading files..."
+                  : isCreating
                   ? "Creating sandbox..."
                   : isRunning
                   ? "Agent is working..."
                   : "Message..."
               }
               rows={1}
-              disabled={isCreating}
+              disabled={isCreating || isUploading}
               className={cn(
                 "w-full resize-none bg-transparent text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50",
                 isMobile ? "text-base" : "text-sm"
