@@ -117,10 +117,36 @@ export default function HomePage() {
   }
 
   // Handler for repo selection - updates the current chat's repo
-  const handleRepoSelect = (repo: string, branch: string) => {
-    if (currentChatId) {
-      updateChatRepo(currentChatId, repo, branch)
+  // If sandbox already exists (chat started without repo), also set up remote and push
+  const handleRepoSelect = async (repo: string, branch: string) => {
+    if (!currentChatId || !currentChat) return
+
+    // If sandbox exists, we need to set up the remote and push
+    if (currentChat.sandboxId && currentChat.repo === NEW_REPOSITORY) {
+      try {
+        const response = await fetch("/api/git/setup-remote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sandboxId: currentChat.sandboxId,
+            repoFullName: repo,
+            branch: currentChat.branch,
+          }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          console.error("Failed to set up remote:", error)
+          // TODO: Show error to user
+          return
+        }
+      } catch (error) {
+        console.error("Failed to set up remote:", error)
+        return
+      }
     }
+
+    updateChatRepo(currentChatId, repo, branch)
   }
 
   // Handler for sending message
