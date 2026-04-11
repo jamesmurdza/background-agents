@@ -165,10 +165,10 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   }
 
   const isNewRepo = chat.repo === NEW_REPOSITORY
-  // Can select an existing repo only before first message
+  // Can select an existing repo only before first message and sandbox creation
   const canSelectRepo = chat.messages.length === 0 && !chat.sandboxId
-  // Can create a new repo anytime before sandbox is created, if still on NEW_REPOSITORY
-  const canCreateRepo = isNewRepo && !chat.sandboxId
+  // Can create a new repo anytime if still on NEW_REPOSITORY (even after sandbox is created)
+  const canCreateRepo = isNewRepo
   // Show the repo button if either action is available
   const showRepoButton = canSelectRepo || canCreateRepo
   const isNewChat = chat.messages.length === 0
