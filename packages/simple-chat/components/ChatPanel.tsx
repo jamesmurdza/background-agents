@@ -658,6 +658,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                 message={message}
                 isStreaming={isLastAssistant}
                 isMobile={isMobile}
+                repo={isNewRepo ? undefined : chat.repo}
               />
             )
           })}
