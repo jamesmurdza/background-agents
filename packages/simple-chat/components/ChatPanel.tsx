@@ -346,7 +346,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
 
         {/* Bottom row with selectors */}
         <div className={cn(
-          "flex items-center gap-2 border-t border-border/50",
+          "flex items-center gap-2",
           isMobile ? "px-3 py-2 flex-wrap" : "px-4 py-2 gap-4"
         )}>
           {/* Repo selector - show if can select or create repo */}
