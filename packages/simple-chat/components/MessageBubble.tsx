@@ -143,20 +143,23 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
     )
   }
 
+  // Merge consecutive tool_calls blocks into single groups
+  const mergedBlocks = hasBlocks ? mergeConsecutiveToolCalls(message.contentBlocks!) : null
+
   return (
     <div className={cn(
       "leading-relaxed",
       isMobile ? "space-y-4 text-base" : "space-y-3 text-sm"
     )}>
-      {hasBlocks ? (
-        // Render content blocks in order (text and tool calls interleaved)
-        message.contentBlocks!.map((block, index) => {
+      {mergedBlocks ? (
+        // Render merged content blocks
+        mergedBlocks.map((block, index) => {
           if (block.type === "text" && block.text.trim()) {
             return <MarkdownContent key={index} text={block.text} isMobile={isMobile} />
           }
           if (block.type === "tool_calls") {
             return (
-              <ToolCallAccordion
+              <ToolCallGroup
                 key={index}
                 toolCalls={block.toolCalls}
                 isMobile={isMobile}
@@ -170,7 +173,7 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
         <>
           {hasContent && <MarkdownContent text={message.content} isMobile={isMobile} />}
           {hasToolCalls && (
-            <ToolCallAccordion
+            <ToolCallGroup
               toolCalls={message.toolCalls!}
               isMobile={isMobile}
             />
@@ -235,53 +238,57 @@ function getToolIcon(toolName: string): LucideIcon {
 }
 
 // =============================================================================
-// Tool Call Accordion (groups consecutive tool calls into unified block)
+// Helper: Merge consecutive tool_calls blocks
 // =============================================================================
 
-interface ToolCallAccordionProps {
+function mergeConsecutiveToolCalls(blocks: ContentBlock[]): ContentBlock[] {
+  const result: ContentBlock[] = []
+  let currentToolCalls: ToolCall[] = []
+
+  for (const block of blocks) {
+    if (block.type === "tool_calls") {
+      // Accumulate tool calls
+      currentToolCalls.push(...block.toolCalls)
+    } else {
+      // Flush accumulated tool calls before adding text
+      if (currentToolCalls.length > 0) {
+        result.push({ type: "tool_calls", toolCalls: currentToolCalls })
+        currentToolCalls = []
+      }
+      result.push(block)
+    }
+  }
+
+  // Flush any remaining tool calls
+  if (currentToolCalls.length > 0) {
+    result.push({ type: "tool_calls", toolCalls: currentToolCalls })
+  }
+
+  return result
+}
+
+// =============================================================================
+// Tool Call Group (shows all tool calls together in unified block)
+// =============================================================================
+
+interface ToolCallGroupProps {
   toolCalls: ToolCall[]
   isMobile?: boolean
 }
 
-function ToolCallAccordion({ toolCalls, isMobile = false }: ToolCallAccordionProps) {
-  const [expanded, setExpanded] = useState(false)
-
+function ToolCallGroup({ toolCalls, isMobile = false }: ToolCallGroupProps) {
   if (toolCalls.length === 0) return null
-
-  const count = toolCalls.length
-  const visibleTools = expanded ? toolCalls : toolCalls.slice(0, 1)
 
   return (
     <div className="rounded overflow-hidden bg-muted/30">
-      {/* Tool call rows */}
-      {visibleTools.map((tool, index) => (
+      {toolCalls.map((tool, index) => (
         <ToolCallRow
           key={index}
           tool={tool}
           isMobile={isMobile}
-          isLast={index === visibleTools.length - 1 && (expanded || count === 1)}
+          isLast={index === toolCalls.length - 1}
         />
       ))}
-
-      {/* Expand/collapse row (only show if more than 1 tool call) */}
-      {count > 1 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className={cn(
-            "flex items-center justify-between w-full text-left text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors",
-            isMobile ? "px-3 py-2 text-sm" : "px-2.5 py-1.5 text-xs"
-          )}
-        >
-          <span>
-            {expanded ? "Show less" : `${count - 1} more tool ${count - 1 === 1 ? "call" : "calls"}`}
-          </span>
-          {expanded ? (
-            <ChevronDown className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3 w-3")} />
-          ) : (
-            <ChevronRight className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3 w-3")} />
-          )}
-        </button>
-      )}
     </div>
   )
 }
