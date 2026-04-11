@@ -11,9 +11,10 @@ interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
   isMobile?: boolean
+  repo?: string
 }
 
-export function MessageBubble({ message, isStreaming, isMobile = false }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming, isMobile = false, repo }: MessageBubbleProps) {
   const isUser = message.role === "user"
 
   return (
@@ -31,7 +32,7 @@ export function MessageBubble({ message, isStreaming, isMobile = false }: Messag
             <p className="whitespace-pre-wrap">{message.content}</p>
           </div>
         ) : (
-          <AssistantContent message={message} isStreaming={isStreaming} isMobile={isMobile} />
+          <AssistantContent message={message} isStreaming={isStreaming} isMobile={isMobile} repo={repo} />
         )}
       </div>
     </div>
@@ -116,7 +117,7 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
   )
 }
 
-function AssistantContent({ message, isStreaming, isMobile = false }: { message: Message; isStreaming?: boolean; isMobile?: boolean }) {
+function AssistantContent({ message, isStreaming, isMobile = false, repo }: { message: Message; isStreaming?: boolean; isMobile?: boolean; repo?: string }) {
   const hasContent = message.content && message.content.trim().length > 0
   const hasToolCalls = message.toolCalls && message.toolCalls.length > 0
   const hasBlocks = message.contentBlocks && message.contentBlocks.length > 0
@@ -139,6 +140,7 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
         content={message.content}
         variant={message.isError ? "error" : "success"}
         isMobile={isMobile}
+        repo={repo}
       />
     )
   }
@@ -202,9 +204,10 @@ interface SystemMessageProps {
   content: string
   variant?: "success" | "error"
   isMobile?: boolean
+  repo?: string
 }
 
-function SystemMessage({ icon: Icon, content, variant = "success", isMobile = false }: SystemMessageProps) {
+function SystemMessage({ icon: Icon, content, variant = "success", isMobile = false, repo }: SystemMessageProps) {
   const iconClasses = cn(
     "shrink-0",
     variant === "error" && "text-red-500 dark:text-red-400",
@@ -212,12 +215,29 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
     isMobile ? "h-4 w-4" : "h-3.5 w-3.5"
   )
 
-  // Parse bold text (text between **)
+  // Parse bold text (text between **) and make them clickable links to GitHub branches
   const parseBoldText = (text: string) => {
     const parts = text.split(/(\*\*[^*]+\*\*)/g)
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={index}>{part.slice(2, -2)}</strong>
+        const branchName = part.slice(2, -2)
+        // If repo is available, make it a link to GitHub
+        if (repo) {
+          const branchUrl = `https://github.com/${repo}/tree/${branchName}`
+          return (
+            <a
+              key={index}
+              href={branchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-foreground hover:text-primary transition-colors"
+            >
+              {branchName}
+            </a>
+          )
+        }
+        // Fallback to bold text if no repo
+        return <strong key={index}>{branchName}</strong>
       }
       return part
     })
@@ -225,8 +245,8 @@ function SystemMessage({ icon: Icon, content, variant = "success", isMobile = fa
 
   return (
     <div className={cn(
-      "flex items-start gap-2 rounded-md bg-muted/20 dark:bg-muted/10",
-      isMobile ? "text-base px-3 py-2" : "text-sm px-2.5 py-1.5"
+      "flex items-start gap-2",
+      isMobile ? "text-base" : "text-sm"
     )}>
       <Icon className={cn(iconClasses, "mt-0.5")} />
       <span className="text-foreground">{parseBoldText(content)}</span>

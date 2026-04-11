@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, Key, X, HelpCircle } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, Key, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
@@ -13,7 +13,6 @@ import { MobileSelect } from "./ui/MobileBottomSheet"
 import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
 
 import type { HighlightKey } from "./modals/SettingsModal"
-import { HelpModal } from "./modals/HelpModal"
 
 interface ChatPanelProps {
   chat: Chat | null
@@ -38,8 +37,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   // Slash command menu state
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
-  // Help modal state
-  const [showHelpModal, setShowHelpModal] = useState(false)
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState("")
@@ -609,13 +606,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
             </h1>
           )}
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowHelpModal(true)}
-              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Help"
-            >
-              <HelpCircle className="h-4 w-4" />
-            </button>
             {githubBranchUrl && (
               <a
                 href={githubBranchUrl}
@@ -668,6 +658,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                 message={message}
                 isStreaming={isLastAssistant}
                 isMobile={isMobile}
+                repo={isNewRepo ? undefined : chat.repo}
               />
             )
           })}
@@ -689,12 +680,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
         {chatInput}
       </div>
 
-      {/* Help Modal */}
-      <HelpModal
-        open={showHelpModal}
-        onClose={() => setShowHelpModal(false)}
-        isMobile={isMobile}
-      />
     </div>
   )
 }
