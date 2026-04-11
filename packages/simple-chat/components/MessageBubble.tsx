@@ -375,7 +375,7 @@ function ToolCallRow({ tool, isMobile = false }: ToolCallRowProps) {
     <div
       onClick={toggleExpanded}
       className={cn(
-        isMobile ? "py-1" : "py-[3px]",
+        isMobile ? "py-1" : "py-px",
         hasOutput && "cursor-pointer"
       )}
     >
