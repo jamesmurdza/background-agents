@@ -9,6 +9,9 @@ export async function GET(req: Request) {
   const sandboxId = url.searchParams.get("sandboxId")
   const repoName = url.searchParams.get("repoName")
   const previewUrlPattern = url.searchParams.get("previewUrlPattern")
+  // Accept backgroundSessionId directly from client (serverless-compatible)
+  // Fall back to in-memory store for backwards compatibility
+  const backgroundSessionIdParam = url.searchParams.get("backgroundSessionId")
 
   if (!sandboxId || !repoName) {
     return Response.json({ error: "Missing required fields" }, { status: 400 })
@@ -23,8 +26,8 @@ export async function GET(req: Request) {
     )
   }
 
-  // 4. Get background session ID
-  const backgroundSessionId = getBackgroundSessionId(sandboxId)
+  // 4. Get background session ID (prefer param, fall back to in-memory store)
+  const backgroundSessionId = backgroundSessionIdParam || getBackgroundSessionId(sandboxId)
   if (!backgroundSessionId) {
     return Response.json(
       { error: "No active session for this sandbox" },

@@ -309,8 +309,12 @@ export function useChat() {
         throw new Error(error.error || "Failed to execute agent")
       }
 
+      // Get the backgroundSessionId from the response
+      const executeData = await response.json()
+      const { backgroundSessionId } = executeData
+
       // 4. Start polling for status
-      startPolling(chat.id, sandboxId!, repoName, previewUrlPattern || chat.previewUrlPattern)
+      startPolling(chat.id, sandboxId!, repoName, backgroundSessionId, previewUrlPattern || chat.previewUrlPattern)
 
       // 5. Generate chat name from first message (fire-and-forget)
       if (isFirstMessage) {
@@ -349,6 +353,7 @@ export function useChat() {
     chatId: string,
     sandboxId: string,
     repoName: string,
+    backgroundSessionId: string,
     previewUrlPattern?: string
   ) => {
     if (pollingRef.current) {
@@ -364,6 +369,7 @@ export function useChat() {
         const params = new URLSearchParams({
           sandboxId,
           repoName,
+          backgroundSessionId,
         })
         if (previewUrlPattern) {
           params.set("previewUrlPattern", previewUrlPattern)
