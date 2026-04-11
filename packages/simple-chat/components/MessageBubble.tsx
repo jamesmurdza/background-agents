@@ -282,7 +282,7 @@ function ToolCallGroup({ toolCalls, isMobile = false }: ToolCallGroupProps) {
   if (toolCalls.length === 0) return null
 
   return (
-    <div className="rounded overflow-hidden bg-muted/30">
+    <div>
       {toolCalls.map((tool, index) => (
         <ToolCallRow
           key={`${tool.tool}-${tool.summary}-${index}`}
@@ -313,19 +313,18 @@ function ToolCallRow({ tool, isMobile = false }: ToolCallRowProps) {
     <div
       onClick={toggleExpanded}
       className={cn(
-        "transition-colors",
-        isMobile ? "px-3 py-1.5" : "px-2.5 py-1",
+        isMobile ? "py-0.5" : "py-px",
         hasOutput && "cursor-pointer"
       )}
     >
       {/* Tool call header */}
       <div className={cn(
-        "flex items-center gap-2 text-muted-foreground transition-colors",
+        "flex items-center gap-1.5 text-muted-foreground transition-colors",
         isMobile ? "text-sm" : "text-xs",
         hasOutput && "hover:text-foreground"
       )}>
         <Icon className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3 w-3")} />
-        <span className="flex-1 truncate">{tool.summary}</span>
+        <span className="truncate">{tool.summary}</span>
         {hasOutput && (
           expanded ? (
             <ChevronDown className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3 w-3")} />
