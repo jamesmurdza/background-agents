@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronRight, Terminal, FileText, Search, GitMerge } from "lucide-react"
+import { ChevronDown, ChevronRight, Terminal, FileText, Search, GitMerge, LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message, ContentBlock } from "@/lib/types"
 import ReactMarkdown from "react-markdown"
@@ -114,9 +114,29 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
     )
   }
 
-  // Git operation messages get special styling (like tool calls but different color)
+  // Git operation messages use InfoBubble with colored variant
   if (isGitOperation) {
-    return <GitOperationBubble content={message.content} isError={message.isError} isMobile={isMobile} />
+    // For errors, extract summary and details
+    let summary = message.content
+    let details: string | undefined
+
+    if (message.isError) {
+      const colonIndex = message.content.indexOf(": ")
+      if (colonIndex !== -1) {
+        summary = message.content.slice(0, colonIndex)
+        details = message.content.slice(colonIndex + 2).trim()
+      }
+    }
+
+    return (
+      <InfoBubble
+        icon={GitMerge}
+        summary={summary}
+        output={details}
+        variant={message.isError ? "error" : "success"}
+        isMobile={isMobile}
+      />
+    )
   }
 
   return (
@@ -134,7 +154,13 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
             return (
               <div key={index} className="space-y-2">
                 {block.toolCalls.map((tool, toolIndex) => (
-                  <ToolCallItem key={toolIndex} tool={tool} isMobile={isMobile} />
+                  <InfoBubble
+                    key={toolIndex}
+                    icon={getToolIcon(tool.tool)}
+                    summary={tool.summary}
+                    output={tool.output}
+                    isMobile={isMobile}
+                  />
                 ))}
               </div>
             )
@@ -148,7 +174,13 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
           {hasToolCalls && (
             <div className="space-y-2">
               {message.toolCalls!.map((tool, index) => (
-                <ToolCallItem key={index} tool={tool} isMobile={isMobile} />
+                <InfoBubble
+                  key={index}
+                  icon={getToolIcon(tool.tool)}
+                  summary={tool.summary}
+                  output={tool.output}
+                  isMobile={isMobile}
+                />
               ))}
             </div>
           )}
@@ -166,109 +198,38 @@ function AssistantContent({ message, isStreaming, isMobile = false }: { message:
 }
 
 // =============================================================================
-// Git Operation Bubble (same as tool calls, just different background color)
+// Shared Info Bubble (used for tool calls and git operations)
 // =============================================================================
 
-function GitOperationBubble({ content, isError = false, isMobile = false }: { content: string; isError?: boolean; isMobile?: boolean }) {
+interface InfoBubbleProps {
+  icon: LucideIcon
+  summary: string
+  output?: string
+  variant?: "default" | "success" | "error"
+  isMobile?: boolean
+}
+
+function InfoBubble({ icon: Icon, summary, output, variant = "default", isMobile = false }: InfoBubbleProps) {
   const [expanded, setExpanded] = useState(false)
-
-  // For errors, extract the summary (before colon) and details (after colon)
-  let summary = content
-  let details = ""
-
-  if (isError) {
-    // Match pattern like "Merge failed: error details"
-    const colonIndex = content.indexOf(": ")
-    if (colonIndex !== -1) {
-      summary = content.slice(0, colonIndex)
-      details = content.slice(colonIndex + 2).trim()
-    }
-  }
-
-  const hasDetails = isError && details.length > 0
+  const hasOutput = !!output
 
   const containerClasses = cn(
     "rounded border overflow-hidden",
-    isError
-      ? "border-red-500/30 bg-red-500/10 dark:bg-red-500/5"
-      : "border-green-500/30 bg-green-500/10 dark:bg-green-500/5"
-  )
-
-  const rowClasses = cn(
-    "flex items-center gap-2 w-full text-left",
-    isMobile ? "px-3 py-2.5 text-sm" : "px-2 py-1 text-xs",
-    hasDetails && "hover:bg-accent/50 active:bg-accent cursor-pointer touch-target"
+    variant === "error" && "border-red-500/30 bg-red-500/10 dark:bg-red-500/5",
+    variant === "success" && "border-green-500/30 bg-green-500/10 dark:bg-green-500/5",
+    variant === "default" && "border-border/50 bg-muted/50"
   )
 
   const iconClasses = cn(
     "shrink-0",
-    isError ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400",
-    isMobile ? "h-4 w-4" : "h-3 w-3"
-  )
-
-  const chevronClasses = cn(
-    "text-muted-foreground shrink-0",
+    variant === "error" && "text-red-500 dark:text-red-400",
+    variant === "success" && "text-green-600 dark:text-green-400",
+    variant === "default" && "text-muted-foreground",
     isMobile ? "h-4 w-4" : "h-3 w-3"
   )
 
   return (
     <div className={containerClasses}>
-      {hasDetails ? (
-        <button onClick={() => setExpanded(!expanded)} className={rowClasses}>
-          <GitMerge className={iconClasses} />
-          <span className="flex-1 truncate font-mono">{summary}</span>
-          {expanded ? (
-            <ChevronDown className={chevronClasses} />
-          ) : (
-            <ChevronRight className={chevronClasses} />
-          )}
-        </button>
-      ) : (
-        <div className={rowClasses}>
-          <GitMerge className={iconClasses} />
-          <span className="flex-1 truncate font-mono">{summary}</span>
-        </div>
-      )}
-
-      {expanded && hasDetails && (
-        <div className={cn(
-          "border-t border-border/50 bg-muted/30",
-          isMobile ? "px-3 py-2" : "px-2 py-1"
-        )}>
-          <pre className={cn(
-            "font-mono whitespace-pre-wrap overflow-x-auto mobile-scroll",
-            isMobile ? "text-sm max-h-64" : "text-xs max-h-48"
-          )}>
-            {details}
-          </pre>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// =============================================================================
-// Tool Call Item
-// =============================================================================
-
-interface ToolCallItemProps {
-  tool: {
-    tool: string
-    summary: string
-    fullSummary?: string
-    output?: string
-  }
-  isMobile?: boolean
-}
-
-function ToolCallItem({ tool, isMobile = false }: ToolCallItemProps) {
-  const [expanded, setExpanded] = useState(false)
-
-  const Icon = getToolIcon(tool.tool)
-  const hasOutput = !!tool.output
-
-  return (
-    <div className="rounded border border-border/50 bg-muted/50 overflow-hidden">
       <button
         onClick={() => hasOutput && setExpanded(!expanded)}
         className={cn(
@@ -280,12 +241,9 @@ function ToolCallItem({ tool, isMobile = false }: ToolCallItemProps) {
           hasOutput && "hover:bg-accent/50 active:bg-accent cursor-pointer"
         )}
       >
-        <Icon className={cn(
-          "text-muted-foreground shrink-0",
-          isMobile ? "h-4 w-4" : "h-3 w-3"
-        )} />
+        <Icon className={iconClasses} />
         <span className="flex-1 truncate font-mono">
-          {tool.summary}
+          {summary}
         </span>
         {hasOutput && (
           expanded ? (
@@ -302,7 +260,7 @@ function ToolCallItem({ tool, isMobile = false }: ToolCallItemProps) {
         )}
       </button>
 
-      {expanded && tool.output && (
+      {expanded && output && (
         <div className={cn(
           "border-t border-border/50 bg-muted/30",
           isMobile ? "px-3 py-2" : "px-2 py-1"
@@ -311,7 +269,7 @@ function ToolCallItem({ tool, isMobile = false }: ToolCallItemProps) {
             "font-mono whitespace-pre-wrap overflow-x-auto mobile-scroll",
             isMobile ? "text-sm max-h-64" : "text-xs max-h-48"
           )}>
-            {tool.output}
+            {output}
           </pre>
         </div>
       )}
@@ -319,7 +277,7 @@ function ToolCallItem({ tool, isMobile = false }: ToolCallItemProps) {
   )
 }
 
-function getToolIcon(toolName: string) {
+function getToolIcon(toolName: string): LucideIcon {
   switch (toolName) {
     case "Bash":
       return Terminal
