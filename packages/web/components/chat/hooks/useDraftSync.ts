@@ -174,9 +174,6 @@ export function useDraftSync({ branch, onSaveDraftForBranch }: UseDraftSyncOptio
       prevBranchIdRef.current = branch.id
       branchIdRef.current = branch.id
       prevBranchNameRef.current = branch.name
-
-      // Reset scroll behavior on branch switch so we scroll to bottom
-      isNearBottomRef.current = true
     }
   }, [branch.id, branch.name, branch.draftPrompt, setInput, onSaveDraftForBranch])
 
