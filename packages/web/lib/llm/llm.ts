@@ -194,6 +194,18 @@ export async function generateWithUserLLM(
     return { text, error: null }
   } catch (error) {
     console.error(`[generateWithUserLLM] error after ${elapsed()}:`, error)
+
+    // Fall back to OpenRouter if user's LLM call fails
+    console.log(`[generateWithUserLLM] user LLM failed, trying OpenRouter fallback (+${elapsed()})`)
+    const openRouterResult = await generateWithOpenRouter(prompt)
+
+    if (openRouterResult.text) {
+      console.log(`[generateWithUserLLM] OpenRouter fallback succeeded (+${elapsed()})`)
+      return { text: openRouterResult.text, error: null }
+    }
+
+    // If OpenRouter also fails, return the original error
+    console.log(`[generateWithUserLLM] OpenRouter fallback also failed (+${elapsed()})`)
     return { text: null, error: "llm_error" }
   }
 }
