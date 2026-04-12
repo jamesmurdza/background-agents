@@ -26,6 +26,19 @@ export const PATHS = {
 } as const
 
 // =============================================================================
+// Environment Variables
+// =============================================================================
+
+export const ENV_VARS = {
+  /**
+   * Environment variable for Claude Code credentials.
+   * When set, the Agent SDK will automatically write this to ~/.claude/.credentials.json
+   * Value should be the JSON content of the credentials file (e.g., {"claudeAiOauth":{"accessToken":"..."}})
+   */
+  CLAUDE_CODE_CREDENTIALS: "CLAUDE_CODE_CREDENTIALS",
+} as const
+
+// =============================================================================
 // Sandbox Configuration
 // =============================================================================
 

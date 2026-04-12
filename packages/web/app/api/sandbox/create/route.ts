@@ -181,12 +181,10 @@ export async function POST(req: Request) {
         // Track sandbox ID for cleanup if subsequent steps fail
         daytonaSandboxId = sandbox.id
 
-        // Write Claude credentials so the Agent SDK picks them up
+        // Set Claude credentials as environment variable so the Agent SDK writes them automatically
+        // The SDK's claude agent setup() function detects CLAUDE_CODE_CREDENTIALS and writes to ~/.claude/.credentials.json
         if (anthropicAuthToken) {
-          const credentialsB64 = Buffer.from(anthropicAuthToken).toString("base64")
-          await sandbox.process.executeCommand(
-            `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
-          )
+          await sandbox.setEnvVar("CLAUDE_CODE_CREDENTIALS", anthropicAuthToken)
         }
 
         // Create the logs directory for agent output

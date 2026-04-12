@@ -3,9 +3,44 @@
  */
 
 import type { AgentDefinition, CommandSpec, ParseContext, RunOptions } from "../../core/agent"
+import type { CodeAgentSandbox } from "../../types/provider"
 import type { Event } from "../../types/events"
 import { parseClaudeLine } from "./parser"
 import { CLAUDE_TOOL_MAPPINGS } from "./tools"
+
+/** Claude credentials directory */
+const CLAUDE_CREDENTIALS_DIR = "/home/daytona/.claude"
+/** Claude credentials file */
+const CLAUDE_CREDENTIALS_FILE = "/home/daytona/.claude/.credentials.json"
+/** Environment variable name for Claude Code credentials */
+const CLAUDE_CODE_CREDENTIALS_ENV = "CLAUDE_CODE_CREDENTIALS"
+
+/**
+ * Claude agent-specific setup: write credentials from environment variable.
+ *
+ * When CLAUDE_CODE_CREDENTIALS environment variable is set, this function
+ * writes its contents to ~/.claude/.credentials.json. This allows credentials
+ * to be passed via environment variable instead of writing the file manually.
+ *
+ * The value should be the JSON content of the credentials file, e.g.:
+ * {"claudeAiOauth":{"accessToken":"sk-ant-oa..."}}
+ */
+async function claudeSetup(
+  sandbox: CodeAgentSandbox,
+  env: Record<string, string>
+): Promise<void> {
+  const credentialsJson = env[CLAUDE_CODE_CREDENTIALS_ENV]
+  if (!credentialsJson || !sandbox.executeCommand) return
+
+  // Escape single quotes for shell command
+  const safeCredentials = credentialsJson.replace(/'/g, "'\\''")
+
+  // Create directory and write credentials file with secure permissions
+  await sandbox.executeCommand(
+    `mkdir -p '${CLAUDE_CREDENTIALS_DIR}' && echo '${safeCredentials}' > '${CLAUDE_CREDENTIALS_FILE}' && chmod 600 '${CLAUDE_CREDENTIALS_FILE}'`,
+    30
+  )
+}
 
 /**
  * Claude Code CLI agent definition.
@@ -20,6 +55,7 @@ export const claudeAgent: AgentDefinition = {
   capabilities: {
     supportsSystemPrompt: true,
     supportsResume: true,
+    setup: claudeSetup,
   },
 
   buildCommand(options: RunOptions): CommandSpec {
