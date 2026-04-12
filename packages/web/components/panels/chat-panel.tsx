@@ -142,6 +142,20 @@ export function ChatPanel({
     hasUserInteractedRef.current = false
   }, [branch.id])
 
+  // Scroll to bottom when switching branches (after messages load)
+  const prevBranchIdForScrollRef = useRef(branch.id)
+  useEffect(() => {
+    if (prevBranchIdForScrollRef.current !== branch.id) {
+      prevBranchIdForScrollRef.current = branch.id
+      // Use requestAnimationFrame to ensure DOM has updated with new messages
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        }
+      })
+    }
+  }, [branch.id, branch.messages])
+
   // Track previous status to detect when sandbox creation completes
   const prevStatusRef = useRef(branch.status)
 
