@@ -7,7 +7,7 @@ export const maxDuration = 60
 export async function POST(req: Request) {
   // 1. Parse request body
   const body = await req.json()
-  const { sandboxId, prompt, repoName, previewUrlPattern, agent, model, anthropicApiKey, openaiApiKey, opencodeApiKey, geminiApiKey } = body
+  const { sandboxId, sessionId, prompt, repoName, previewUrlPattern, agent, model, anthropicApiKey, openaiApiKey, opencodeApiKey, geminiApiKey } = body
 
   if (!sandboxId || !prompt || !repoName) {
     return Response.json({ error: "Missing required fields: sandboxId, prompt, repoName" }, { status: 400 })
@@ -64,6 +64,7 @@ export async function POST(req: Request) {
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern,
+      sessionId: sessionId || undefined,  // Pass existing session ID for conversation continuity
       agent: agent || "opencode",
       model,
       env: Object.keys(env).length > 0 ? env : undefined,

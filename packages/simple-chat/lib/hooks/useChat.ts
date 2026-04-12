@@ -80,6 +80,7 @@ export function useChat() {
       baseBranch,
       branch: null,
       sandboxId: null,
+      sessionId: null,
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -343,6 +344,7 @@ export function useChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sandboxId,
+          sessionId: chat.sessionId,  // Pass existing session ID for conversation continuity
           prompt: agentPrompt,
           repoName,
           previewUrlPattern: previewUrlPattern || chat.previewUrlPattern,
@@ -485,7 +487,12 @@ export function useChat() {
             pollingRef.current = null
           }
 
-          newState = updateChat(chatId, { status: data.status === "error" ? "error" : "ready" })
+          // Store sessionId for conversation continuity
+          const updates: Partial<Chat> = { status: data.status === "error" ? "error" : "ready" }
+          if (data.sessionId) {
+            updates.sessionId = data.sessionId
+          }
+          newState = updateChat(chatId, updates)
           setState(newState)
 
           // Auto-push on completion (only for GitHub repos, not NEW_REPOSITORY)
