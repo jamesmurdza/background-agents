@@ -509,6 +509,8 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
   const baseBranch = chat?.baseBranch ?? ""
   const sandboxId = chat?.sandboxId ?? ""
   const repo = chat?.repo ?? ""
+  // Use sandboxRepoName if available (stores the actual directory name in sandbox)
+  const sandboxRepoName = chat?.sandboxRepoName ?? ""
 
   // Parse owner/repo from repo string
   const [repoOwner, repoApiName] = repo.includes("/") ? repo.split("/") : ["", ""]
@@ -530,8 +532,9 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
   // Conflict state
   const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>(EMPTY_CONFLICT_STATE)
 
-  // Get repo name from repo path (owner/name -> name)
-  const repoName = repoApiName || ""
+  // Get repo name - prefer sandboxRepoName (actual directory in sandbox) over deriving from repo string
+  // This handles the case where a NEW_REPOSITORY chat gets associated with a GitHub repo later
+  const repoName = sandboxRepoName || repoApiName || ""
 
   // Add system message helper for git operations
   const addSystemMessage = useCallback((content: string, isError = false) => {
