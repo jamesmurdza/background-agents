@@ -166,7 +166,13 @@ export function useGitActions({
       return
     }
     if (action === "create-pr") {
-      handleCreatePR()
+      // If there's already a PR, just open it
+      if (branch.prUrl) {
+        window.open(branch.prUrl, "_blank")
+        return
+      }
+      // Otherwise show the PR dialog for branch selection
+      gitDialogs.setPROpen(true)
       return
     }
     if (action === "merge") {
@@ -181,7 +187,7 @@ export function useGitActions({
       setDiffModalOpen(true)
       return
     }
-  }, [onToggleGitHistory, handleCreatePR, gitDialogs])
+  }, [onToggleGitHistory, branch.prUrl, gitDialogs])
 
   const handleVSCodeClick = useCallback(async () => {
     try {
