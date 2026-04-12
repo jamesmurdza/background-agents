@@ -63,7 +63,6 @@ export interface Chat {
   // Created on first message
   branch: string | null         // "swift-lunar-abc1" - the NEW branch we created
   sandboxId: string | null      // Daytona sandbox ID
-  sandboxRepoName: string | null // Directory name in sandbox (e.g., "project" or "repo-name")
   sessionId: string | null      // Agent session ID for conversation continuity
   previewUrlPattern?: string    // URL pattern for dev server previews
 

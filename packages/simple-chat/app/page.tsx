@@ -143,8 +143,6 @@ export default function HomePage() {
             sandboxId: currentChat.sandboxId,
             repoFullName: repo,
             branch: currentChat.branch,
-            // Pass the actual directory name in sandbox (e.g., "project" for NEW_REPOSITORY)
-            sandboxRepoName: currentChat.sandboxRepoName,
           }),
         })
 

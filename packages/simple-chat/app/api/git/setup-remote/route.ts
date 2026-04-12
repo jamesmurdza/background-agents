@@ -10,7 +10,7 @@ import { PATHS } from "@/lib/constants"
 export async function POST(req: Request) {
   // 1. Parse request body
   const body = await req.json()
-  const { sandboxId, repoFullName, branch, sandboxRepoName } = body
+  const { sandboxId, repoFullName, branch } = body
 
   if (!sandboxId || !repoFullName || !branch) {
     return Response.json(
@@ -43,10 +43,8 @@ export async function POST(req: Request) {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
 
-    // 5. The repo name in the sandbox - use sandboxRepoName if provided (for NEW_REPOSITORY chats),
-    // otherwise fall back to extracting from repoFullName (for backward compatibility)
-    const repoName = sandboxRepoName || repoFullName.split("/")[1]
-    const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
+    // 5. Always use "project" as the directory name - sandbox/create always uses this
+    const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
     // 6. Set up the remote URL with auth token
     const remoteUrl = `https://x-access-token:${githubToken}@github.com/${repoFullName}.git`

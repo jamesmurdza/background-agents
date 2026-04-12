@@ -80,7 +80,6 @@ export function useChat() {
       baseBranch,
       branch: null,
       sandboxId: null,
-      sandboxRepoName: null,
       sessionId: null,
       messages: [],
       createdAt: Date.now(),
@@ -249,11 +248,9 @@ export function useChat() {
         const data = await response.json()
         sandboxId = data.sandboxId
         previewUrlPattern = data.previewUrlPattern
-        const sandboxRepoName = data.repoName  // Store the actual repo directory name
 
         newState = updateChat(chat.id, {
           sandboxId,
-          sandboxRepoName,
           branch,
           previewUrlPattern,
           status: "ready",
@@ -276,11 +273,8 @@ export function useChat() {
       }
     }
 
-    // Use sandboxRepoName if available (stored when sandbox was created), otherwise derive it
-    // This ensures we use the correct directory even after a NEW_REPOSITORY chat gets a GitHub repo
-    const freshState = loadState()
-    const freshChat = freshState.chats.find((c) => c.id === chat.id)
-    const repoName = freshChat?.sandboxRepoName || (isNewRepo ? "project" : chat.repo.split("/")[1])
+    // Always use "project" as the directory name - sandbox/create always uses this
+    const repoName = "project"
 
     // 3. Upload files if any (now that sandbox exists)
     let uploadedFilePaths: string[] | undefined

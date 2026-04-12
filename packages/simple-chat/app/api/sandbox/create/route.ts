@@ -23,11 +23,13 @@ export async function POST(req: Request) {
   // 2. For GitHub repos, we need auth - accept token from body OR session
   let githubToken: string | undefined
   let owner: string | undefined
-  let repoName: string
+  let repoApiName: string | undefined
+
+  // Always use "project" as the directory name for simplicity
+  const repoName = "project"
 
   if (isNewRepo) {
-    // For new repos, use a generated name
-    repoName = "project"
+    // No additional setup needed for new repos
   } else {
     // Try to get GitHub token from request body first (for API access)
     // Fall back to session token (for browser access)
@@ -42,8 +44,8 @@ export async function POST(req: Request) {
 
     const parts = repo.split("/")
     owner = parts[0]
-    repoName = parts[1]
-    if (!owner || !repoName) {
+    repoApiName = parts[1]
+    if (!owner || !repoApiName) {
       return Response.json({ error: "Invalid repo format" }, { status: 400 })
     }
   }
@@ -80,7 +82,7 @@ export async function POST(req: Request) {
       public: true,
       labels: {
         [SANDBOX_CONFIG.LABEL_KEY]: "true",
-        repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoName}`,
+        repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
         branch: newBranch,
       },
       ...(Object.keys(envVars).length > 0 && { envVars }),
@@ -105,7 +107,7 @@ export async function POST(req: Request) {
       )
     } else {
       // Clone the GitHub repository
-      const cloneUrl = `https://github.com/${owner}/${repoName}.git`
+      const cloneUrl = `https://github.com/${owner}/${repoApiName}.git`
       await sandbox.git.clone(
         cloneUrl,
         repoPath,
