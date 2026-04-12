@@ -1,6 +1,6 @@
 import { Daytona, DaytonaNotFoundError } from "@daytonaio/sdk"
 import { readPersistedSessionId } from "@/lib/agents/agent-session"
-import { SANDBOX_CONFIG } from "@/lib/shared/constants"
+import { PATHS, SANDBOX_CONFIG } from "@/lib/shared/constants"
 import { prisma } from "@/lib/db/prisma"
 import { buildMcpConfig, getMcpConfigWriteCommand } from "@/lib/mcp/mcp-config"
 import { decrypt } from "@/lib/auth/encryption"
@@ -227,13 +227,15 @@ export async function ensureSandboxReady(
   const resumeSessionId =
     sameAgent ? (fileSessionId || databaseSessionId) : undefined
 
-  // Set Claude credentials as environment variable so the Agent SDK writes them automatically
-  // The SDK's claude agent setup() function detects CLAUDE_CODE_CREDENTIALS and writes to ~/.claude/.credentials.json
-  // We set this on every prompt execution to ensure fresh credentials are always available
+  // Write Claude credentials file on every prompt execution
+  // This ensures fresh credentials are always available to the Claude CLI
   if (anthropicAuthToken) {
     t0 = Date.now()
-    await sandbox.setEnvVar("CLAUDE_CODE_CREDENTIALS", anthropicAuthToken)
-    console.log(`[ensureSandboxReady] CLAUDE_CODE_CREDENTIALS env var set, took ${Date.now() - t0}ms`)
+    const credentialsB64 = Buffer.from(anthropicAuthToken).toString("base64")
+    await sandbox.process.executeCommand(
+      `mkdir -p ${PATHS.CLAUDE_CREDENTIALS_DIR} && echo '${credentialsB64}' | base64 -d > ${PATHS.CLAUDE_CREDENTIALS_FILE} && chmod 600 ${PATHS.CLAUDE_CREDENTIALS_FILE}`
+    )
+    console.log(`[ensureSandboxReady] claude credentials written, took ${Date.now() - t0}ms`)
   }
 
   // Set up Claude Code hooks on every resume to ensure they're always present
