@@ -205,9 +205,13 @@ export function useBranchRenaming({
 
       if (renameRes.ok) {
         onUpdateBranch(targetBranchId, { name: suggestedName })
-        // Update URL to reflect the auto-suggested branch name
-        const url = `/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/${suggestedName.split("/").map(encodeURIComponent).join("/")}`
-        window.history.replaceState(null, "", url)
+        // Only update URL if this branch is still the active branch.
+        // If the user switched branches during the async rename, we shouldn't
+        // change the URL to point to this branch (that would switch them back).
+        if (branch.id === targetBranchId) {
+          const url = `/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/${suggestedName.split("/").map(encodeURIComponent).join("/")}`
+          window.history.replaceState(null, "", url)
+        }
       }
       // Silently fail if rename doesn't work - auto-suggestion is not critical
     } catch (err) {
