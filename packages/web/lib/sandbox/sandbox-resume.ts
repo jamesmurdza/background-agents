@@ -227,14 +227,8 @@ export async function ensureSandboxReady(
   const resumeSessionId =
     sameAgent ? (fileSessionId || databaseSessionId) : undefined
 
-  // Set Claude credentials as environment variable so the Agent SDK writes them automatically
-  // The SDK's claude agent setup() function detects CLAUDE_CODE_CREDENTIALS and writes to ~/.claude/.credentials.json
-  // We set this on every prompt execution to ensure fresh credentials are always available
-  if (anthropicAuthToken) {
-    t0 = Date.now()
-    await sandbox.setEnvVar("CLAUDE_CODE_CREDENTIALS", anthropicAuthToken)
-    console.log(`[ensureSandboxReady] CLAUDE_CODE_CREDENTIALS env var set, took ${Date.now() - t0}ms`)
-  }
+  // Note: Claude credentials are passed via CLAUDE_CODE_CREDENTIALS env var (added to env below)
+  // The Agent SDK's claude setup() function writes them to ~/.claude/.credentials.json
 
   // Set up Claude Code hooks on every resume to ensure they're always present
   // This handles cases where hooks may have been removed or sandbox was rebuilt
@@ -299,6 +293,11 @@ export async function ensureSandboxReady(
 
   // Merge: repo env vars first, then API keys (API keys take precedence if same key)
   const env: Record<string, string> = { ...repoEnv, ...apiKeyEnv }
+
+  // Pass Claude credentials via env var - the SDK's claude setup() writes them to file
+  if (anthropicAuthToken) {
+    env.CLAUDE_CODE_CREDENTIALS = anthropicAuthToken
+  }
 
   // For OpenCode, pass permissions via env var (NOT config file - see opencode-permissions.ts for why)
   // OPENCODE_PERMISSION overrides the SDK's default '{"*":"allow"}' that bypasses all permissions
