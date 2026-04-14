@@ -56,12 +56,6 @@ const agents = [
     hasKey: !!OPENAI_API_KEY,
   },
   {
-    name: "eliza" as const,
-    apiKeyEnvVar: "", // ELIZA doesn't need any API key
-    apiKey: "",
-    hasKey: true, // Always runnable - no API key needed
-  },
-  {
     name: "gemini" as const,
     apiKeyEnvVar: "GEMINI_API_KEY",
     apiKey: GEMINI_API_KEY,
@@ -85,6 +79,12 @@ const agents = [
     apiKeyEnvVar: "ANTHROPIC_API_KEY", // Pi uses Anthropic by default
     apiKey: ANTHROPIC_API_KEY,
     hasKey: !!ANTHROPIC_API_KEY,
+  },
+  {
+    name: "eliza" as const,
+    apiKeyEnvVar: "", // ELIZA doesn't need any API key
+    apiKey: "",
+    hasKey: true, // Always runnable - no API key needed
   },
 ]
 

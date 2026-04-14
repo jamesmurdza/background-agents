@@ -293,7 +293,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const showRepoButton = canSelectRepo || canCreateRepo
   const isNewChat = chat.messages.length === 0
 
-  const agents: Agent[] = ["claude-code", "opencode", "codex", "eliza", "gemini", "goose", "pi"]
+  const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
 
   // Prepare agent options for mobile bottom sheet
   const agentOptions = agents.map(agent => ({
