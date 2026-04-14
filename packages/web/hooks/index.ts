@@ -28,27 +28,22 @@ export { useIsMobile } from "./use-mobile"
 export { isBranchPolling } from "./use-execution-poller"
 export { useExecutionManager } from "./use-execution-manager"
 
-// Accessibility hooks
-export { useKeyboardNavigation } from "./use-keyboard-navigation"
-export type {
-  UseKeyboardNavigationOptions,
-  UseKeyboardNavigationReturn,
-} from "./use-keyboard-navigation"
-
-export { useFocusTrap } from "./use-focus-trap"
-export type { UseFocusTrapOptions } from "./use-focus-trap"
-
-export { useRovingTabIndex } from "./use-roving-tabindex"
-export type {
-  UseRovingTabIndexOptions,
-  UseRovingTabIndexReturn,
-} from "./use-roving-tabindex"
-
+// Re-export accessibility hooks from @upstream/common
 export {
+  useKeyboardNavigation,
+  useFocusTrap,
+  useRovingTabIndex,
   focusRing,
   focusRingInset,
   focusRingSubtle,
   focusRingDark,
   focusStyles,
-} from "./focus-styles"
-export type { FocusStyleType } from "./focus-styles"
+} from "@upstream/common"
+export type {
+  UseKeyboardNavigationOptions,
+  UseKeyboardNavigationReturn,
+  UseFocusTrapOptions,
+  UseRovingTabIndexOptions,
+  UseRovingTabIndexReturn,
+  FocusStyleType,
+} from "@upstream/common"

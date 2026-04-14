@@ -12,7 +12,7 @@ import { MessageBubble } from "./MessageBubble"
 import { AgentIcon } from "./icons/agent-icons"
 import { MobileSelect } from "./ui/MobileBottomSheet"
 import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
-import { focusRing } from "@/lib/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 import type { HighlightKey } from "./modals/SettingsModal"
 

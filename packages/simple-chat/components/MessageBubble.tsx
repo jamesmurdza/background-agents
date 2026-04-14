@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import type { Message, ContentBlock, ToolCall } from "@/lib/types"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { focusRing } from "@/lib/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 interface MessageBubbleProps {
   message: Message

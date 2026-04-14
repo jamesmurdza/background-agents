@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useFocusTrap } from "@/lib/hooks/use-focus-trap"
-import { focusRing } from "@/lib/hooks/focus-styles"
+import { useFocusTrap, focusRing } from "@upstream/common"
 
 interface MobileBottomSheetProps {
   open: boolean

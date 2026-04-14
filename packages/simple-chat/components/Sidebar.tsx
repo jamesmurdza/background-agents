@@ -5,7 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, Code2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
-import { focusRing } from "@/lib/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 const MIN_WIDTH = 140
 const MAX_WIDTH = 400
