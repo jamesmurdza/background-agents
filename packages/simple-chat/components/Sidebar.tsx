@@ -5,6 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, Code2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
+import { focusRing } from "@/lib/hooks/focus-styles"
 
 const MIN_WIDTH = 140
 const MAX_WIDTH = 400
@@ -760,6 +761,9 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete, o
 
   return (
     <div
+      role="option"
+      aria-selected={isActive}
+      tabIndex={0}
       className={cn(
         "group flex items-center gap-2 rounded-md transition-colors",
         collapsed ? "justify-center p-2" : "px-2 py-1.5",
@@ -768,9 +772,25 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete, o
           : "cursor-pointer",
         !isDeleting && (isActive
           ? "bg-accent text-accent-foreground"
-          : "hover:bg-accent/50 text-sidebar-foreground")
+          : "hover:bg-accent/50 text-sidebar-foreground"),
+        focusRing
       )}
       onClick={isDeleting ? undefined : onSelect}
+      onKeyDown={(e) => {
+        if (isDeleting) return
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onSelect()
+        }
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault()
+          onDelete()
+        }
+        if (e.key === "F2") {
+          e.preventDefault()
+          startEditing()
+        }
+      }}
     >
       {!collapsed && (
         <>
@@ -785,42 +805,63 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, onSelect, onDelete, o
                 setMenuOpen(!menuOpen)
               }}
               disabled={isDeleting}
-              className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:cursor-not-allowed"
+              aria-label="Chat options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className={cn(
+                "p-1 rounded opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:cursor-not-allowed",
+                focusRing
+              )}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-md py-1 z-50">
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 w-32 rounded-md border border-border bg-popover shadow-md py-1 z-50"
+              >
                 <button
+                  role="menuitem"
                   onClick={(e) => {
                     e.stopPropagation()
                     // TODO: Implement pin functionality
                     setMenuOpen(false)
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                  className={cn(
+                    "flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer",
+                    focusRing
+                  )}
                 >
                   <Pin className="h-3.5 w-3.5" />
                   Pin
                 </button>
                 <button
+                  role="menuitem"
                   onClick={(e) => {
                     e.stopPropagation()
                     startEditing()
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                  className={cn(
+                    "flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer",
+                    focusRing
+                  )}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Rename
                 </button>
                 <button
+                  role="menuitem"
                   onClick={(e) => {
                     e.stopPropagation()
                     onDelete()
                     setMenuOpen(false)
                   }}
                   disabled={isDeleting}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-destructive cursor-pointer disabled:cursor-not-allowed"
+                  className={cn(
+                    "flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-destructive cursor-pointer disabled:cursor-not-allowed",
+                    focusRing
+                  )}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete
