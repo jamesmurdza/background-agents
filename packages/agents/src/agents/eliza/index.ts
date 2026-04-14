@@ -14,8 +14,8 @@ import type {
   RunOptions,
 } from "../../core/agent.js"
 import type { Event } from "../../types/events.js"
-import { parseElizaLine } from "./parser.js"
-import { ELIZA_TOOL_MAPPINGS } from "./tools.js"
+import { parseElizaLine } from "./parser"
+import { ELIZA_TOOL_MAPPINGS } from "./tools"
 
 // Get the directory of this file for locating the CLI script
 const __filename = fileURLToPath(import.meta.url)

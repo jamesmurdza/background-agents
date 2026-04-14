@@ -5,9 +5,9 @@
  * ELIZA outputs Claude-compatible JSON, so this parser is similar to Claude's.
  */
 
-import type { Event } from "../../types/events.js"
-import { createToolStartEvent } from "../../core/tools.js"
-import { safeJsonParse } from "../../utils/json.js"
+import type { Event } from "../../types/events"
+import { createToolStartEvent } from "../../core/tools"
+import { safeJsonParse } from "../../utils/json"
 
 /**
  * Raw event types from ELIZA CLI's output
