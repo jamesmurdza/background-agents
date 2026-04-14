@@ -14,6 +14,7 @@ import {
   SquareTerminal,
 } from "lucide-react"
 import { highlight } from "sugar-high"
+import { focusRing } from "@/hooks/focus-styles"
 
 // ============================================================================
 // Types
@@ -237,6 +238,7 @@ function TabBar({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const activeTabRef = useRef<HTMLButtonElement>(null)
+  const tabRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map())
 
   // Scroll active tab into view when it changes
   useEffect(() => {
@@ -254,28 +256,87 @@ function TabBar({
     }
   }, [activeTabId])
 
+  // Handle keyboard navigation within tablist
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, currentIndex: number) => {
+      let newIndex = currentIndex
+
+      switch (e.key) {
+        case "ArrowRight":
+          e.preventDefault()
+          newIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0
+          break
+        case "ArrowLeft":
+          e.preventDefault()
+          newIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1
+          break
+        case "Home":
+          e.preventDefault()
+          newIndex = 0
+          break
+        case "End":
+          e.preventDefault()
+          newIndex = tabs.length - 1
+          break
+        case "Delete":
+        case "Backspace":
+          e.preventDefault()
+          if (isTabClosable(tabs[currentIndex])) {
+            onCloseTab(tabs[currentIndex].id)
+          }
+          return
+        default:
+          return
+      }
+
+      const newTab = tabs[newIndex]
+      if (newTab) {
+        onSelectTab(newTab.id)
+        // Focus the new tab
+        const tabElement = tabRefs.current.get(newTab.id)
+        if (tabElement) {
+          tabElement.focus()
+        }
+      }
+    },
+    [tabs, onSelectTab, onCloseTab]
+  )
+
   return (
     <div className="flex items-stretch border-b border-border bg-muted/30 h-8 shrink-0">
       {/* Scrollable tabs area */}
       <div
         ref={scrollRef}
+        role="tablist"
+        aria-label="Content tabs"
         className="flex-1 flex items-stretch overflow-x-auto scrollbar-none min-w-0"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isActive = tab.id === activeTabId
           const canClose = isTabClosable(tab)
           return (
             <button
               key={tab.id}
-              ref={isActive ? activeTabRef : null}
+              ref={(el) => {
+                tabRefs.current.set(tab.id, el)
+                if (isActive) {
+                  ;(activeTabRef as React.MutableRefObject<HTMLButtonElement | null>).current = el
+                }
+              }}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`tabpanel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onSelectTab(tab.id)}
+              onKeyDown={(e) => handleKeyDown(e, index)}
               className={cn(
                 "group relative flex items-center gap-1.5 px-3 shrink-0 text-xs transition-colors",
                 "hover:bg-accent/50",
                 isActive
                   ? "bg-background text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+                focusRing
               )}
             >
               {/* Active indicator */}
@@ -288,19 +349,29 @@ function TabBar({
 
               {/* Close button - only for closable tabs */}
               {canClose && (
-                <span
-                  role="button"
+                <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation()
                     onCloseTab(tab.id)
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onCloseTab(tab.id)
+                    }
+                  }}
+                  aria-label={`Close ${tab.filename}`}
+                  tabIndex={-1}
                   className={cn(
                     "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity",
-                    isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+                    isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 group-focus-within:opacity-60 hover:!opacity-100",
+                    focusRing
                   )}
                 >
                   <X className="h-3 w-3" />
-                </span>
+                </button>
               )}
             </button>
           )

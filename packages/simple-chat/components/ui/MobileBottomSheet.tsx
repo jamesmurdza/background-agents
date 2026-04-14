@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useFocusTrap } from "@/lib/hooks/use-focus-trap"
+import { focusRing } from "@/lib/hooks/focus-styles"
 
 interface MobileBottomSheetProps {
   open: boolean
@@ -26,11 +28,17 @@ export function MobileBottomSheet({
   showDragHandle = true,
   swipeToDismiss = true,
 }: MobileBottomSheetProps) {
-  const sheetRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragY, setDragY] = useState(0)
   const [startY, setStartY] = useState(0)
   const [sheetHeight, setSheetHeight] = useState(0)
+
+  // Use focus trap hook
+  const { containerRef: sheetRef } = useFocusTrap<HTMLDivElement>({
+    enabled: open,
+    onEscape: onClose,
+    autoFocus: true,
+  })
 
   // Calculate height style
   const heightStyle = height === "auto"
@@ -110,6 +118,9 @@ export function MobileBottomSheet({
       {/* Sheet */}
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? "sheet-title" : undefined}
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 bg-popover rounded-t-2xl shadow-xl",
           "transition-transform duration-300 ease-out",
@@ -135,10 +146,14 @@ export function MobileBottomSheet({
         {/* Header */}
         {title && (
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h3 className="text-base font-semibold">{title}</h3>
+            <h3 id="sheet-title" className="text-base font-semibold">{title}</h3>
             <button
               onClick={onClose}
-              className="p-2 -mr-2 rounded-lg hover:bg-accent active:bg-accent transition-colors touch-target"
+              aria-label="Close"
+              className={cn(
+                "p-2 -mr-2 rounded-lg hover:bg-accent active:bg-accent transition-colors touch-target",
+                focusRing
+              )}
             >
               <X className="h-5 w-5" />
             </button>
@@ -195,10 +210,12 @@ export function MobileSelect({
       title={title}
       height="auto"
     >
-      <div className="py-2">
+      <div role="listbox" aria-label={title} className="py-2">
         {options.map((option) => (
           <button
             key={option.value}
+            role="option"
+            aria-selected={option.value === value}
             onClick={() => !option.disabled && handleSelect(option.value)}
             disabled={option.disabled}
             className={cn(
@@ -206,7 +223,8 @@ export function MobileSelect({
               option.disabled
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-accent active:bg-accent",
-              option.value === value && "bg-accent"
+              option.value === value && "bg-accent",
+              focusRing
             )}
           >
             {option.icon && (

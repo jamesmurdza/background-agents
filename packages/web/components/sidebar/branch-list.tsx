@@ -13,6 +13,7 @@ import { GitBranch, Plus, Search, ChevronDown, Loader2, X, Settings, Check } fro
 import { AgentIcon } from "@/components/icons/agent-icons"
 import { Input } from "@/components/ui/input"
 import { useState, useRef, useEffect, useCallback } from "react"
+import { focusRing } from "@/hooks/focus-styles"
 import {
   Popover,
   PopoverContent,
@@ -292,8 +293,11 @@ export function BranchList({
               e.stopPropagation()
               onOpenRepoSettings()
             }}
-            className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Repository settings"
+            aria-label="Repository settings"
+            className={cn(
+              "flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              focusRing
+            )}
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -332,6 +336,7 @@ export function BranchList({
                   type="button"
                   onClick={() => onSelectBranch(branch.id)}
                   disabled={isDeleting}
+                  aria-current={isActive ? "true" : undefined}
                   className={cn(
                     "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 text-left transition-colors",
                     // Larger touch targets on mobile
@@ -339,7 +344,8 @@ export function BranchList({
                     isActive
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                    isDeleting && "cursor-not-allowed"
+                    isDeleting && "cursor-not-allowed",
+                    focusRing
                   )}
                 >
                   {isDeleting ? (
@@ -391,10 +397,19 @@ export function BranchList({
                           deleteDialog.handleDeleteClick(branch.id)
                         }
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Delete" || e.key === "Backspace") {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          deleteDialog.handleDeleteClick(branch.id)
+                        }
+                      }}
                       disabled={isCreating}
+                      aria-label={`Delete branch ${branch.name}`}
                       className={cn(
-                        "absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground/60 transition-all hover:bg-muted-foreground/10 hover:text-foreground opacity-0 group-hover:opacity-100",
-                        isCreating && "cursor-not-allowed"
+                        "absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground/60 transition-all hover:bg-muted-foreground/10 hover:text-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                        isCreating && "cursor-not-allowed",
+                        focusRing
                       )}
                     >
                       <X className="h-4 w-4" />
@@ -413,7 +428,10 @@ export function BranchList({
           <button
             onClick={() => handleCreateBranch()}
             disabled={githubBranchesLoading}
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-secondary px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className={cn(
+              "flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-secondary px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50",
+              focusRing
+            )}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">New branch</span>
