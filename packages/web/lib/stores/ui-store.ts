@@ -66,10 +66,6 @@ interface UIState {
   // The cacheKey the live contentPanelTabs/active/counter fields belong to.
   currentTabsCacheKey: string | null
 
-  // Chat scroll position per branch (keyed by branchId)
-  // Stores scrollTop value to restore when switching back to a branch
-  chatScrollPositions: Record<string, number>
-
   // Desktop rebase conflict indicator
   desktopRebaseConflict: boolean
 
@@ -140,9 +136,6 @@ interface UIActions {
   // (repo+branch identity) changes.
   switchContentPanelContext: (cacheKey: string) => void
 
-  // Chat scroll position actions
-  setChatScrollPosition: (branchId: string, scrollTop: number) => void
-
   // Desktop rebase conflict
   setDesktopRebaseConflict: (conflict: boolean) => void
 
@@ -177,7 +170,6 @@ const initialState: UIState = {
   contentPanelTerminalCounter: 0,
   contentPanelTabSnapshots: {},
   currentTabsCacheKey: null,
-  chatScrollPositions: {},
   desktopRebaseConflict: false,
   repoEnvVars: null,
   pendingStartCommit: null,
@@ -384,17 +376,6 @@ const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get:
       contentPanelTerminalCounter: restored?.terminalCounter ?? 0,
       contentPanelOpen: restored?.panelOpen ?? false,
       contentPanelCollapsed: restored?.panelCollapsed ?? false,
-    })
-  },
-
-  // Chat scroll position
-  setChatScrollPosition: (branchId: string, scrollTop: number) => {
-    const state = get()
-    set({
-      chatScrollPositions: {
-        ...state.chatScrollPositions,
-        [branchId]: scrollTop,
-      },
     })
   },
 

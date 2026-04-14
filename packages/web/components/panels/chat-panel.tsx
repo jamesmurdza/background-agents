@@ -19,7 +19,6 @@ import {
   useBranchRenaming,
 } from "@/components/chat/hooks"
 import { useExecutionStore } from "@/lib/stores/execution-store"
-import { useUIStore } from "@/lib/stores/ui-store"
 
 // Import sub-components
 import { ChatHeader } from "@/components/chat/chat-header"
@@ -136,39 +135,12 @@ export function ChatPanel({
   const branchRef = useRef(branch)
   branchRef.current = branch
 
-  // Chat scroll position persistence
-  const setChatScrollPosition = useUIStore((s) => s.setChatScrollPosition)
-  const chatScrollPositions = useUIStore((s) => s.chatScrollPositions)
-  const prevBranchIdForScrollRef = useRef(branch.id)
-
   // Keep global branch ID ref updated and reset interaction tracking on branch switch
   useEffect(() => {
     globalActiveBranchIdRef.current = branch.id
     // Reset interaction tracking when branch changes so we don't auto-scroll on load
     hasUserInteractedRef.current = false
   }, [branch.id])
-
-  // Save scroll position when leaving a branch, restore when entering a new branch
-  useEffect(() => {
-    const prevBranchId = prevBranchIdForScrollRef.current
-    if (prevBranchId !== branch.id) {
-      // Save scroll position for the branch we're leaving
-      if (scrollRef.current && !prevBranchId.startsWith("temp-")) {
-        setChatScrollPosition(prevBranchId, scrollRef.current.scrollTop)
-      }
-      prevBranchIdForScrollRef.current = branch.id
-
-      // Restore scroll position for the new branch (after messages render)
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          const savedPosition = chatScrollPositions[branch.id]
-          if (savedPosition !== undefined) {
-            scrollRef.current.scrollTop = savedPosition
-          }
-        }
-      })
-    }
-  }, [branch.id, setChatScrollPosition, chatScrollPositions])
 
   // Track previous status to detect when sandbox creation completes
   const prevStatusRef = useRef(branch.status)
