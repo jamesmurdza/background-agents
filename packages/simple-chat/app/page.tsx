@@ -242,6 +242,9 @@ export default function HomePage() {
       onSelectRepo={handlePaletteSelectRepo}
       onSelectBranch={handlePaletteSelectBranch}
       onRunCommand={handleRunCommand}
+      chatIds={displayChats.map((c) => c.id)}
+      currentChatId={displayCurrentChatId}
+      onSelectChat={handleSelectChat}
     >
     <div className="flex h-screen overflow-hidden">
       {/* Desktop Sidebar */}
