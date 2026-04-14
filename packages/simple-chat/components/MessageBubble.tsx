@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils"
 import type { Message, ContentBlock, ToolCall } from "@/lib/types"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { focusRing } from "@upstream/common"
 
 interface MessageBubbleProps {
   message: Message
@@ -367,38 +366,25 @@ function ToolCallRow({ tool, isMobile = false }: ToolCallRowProps) {
   const [expanded, setExpanded] = useState(false)
   const Icon = getToolIcon(tool.tool)
   const hasOutput = !!tool.output
-  const toolId = `tool-output-${tool.tool}-${tool.summary?.slice(0, 20)?.replace(/\s+/g, '-')}`
 
   const toggleExpanded = () => {
     if (hasOutput) setExpanded(!expanded)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!hasOutput) return
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault()
-      toggleExpanded()
-    }
-  }
-
   return (
-    <div className={cn(isMobile ? "py-1" : "py-0.5")}>
+    <div
+      onClick={toggleExpanded}
+      className={cn(
+        isMobile ? "py-1" : "py-0.5",
+        hasOutput && "cursor-pointer"
+      )}
+    >
       {/* Tool call header */}
-      <button
-        type="button"
-        onClick={toggleExpanded}
-        onKeyDown={handleKeyDown}
-        aria-expanded={hasOutput ? expanded : undefined}
-        aria-controls={hasOutput ? toolId : undefined}
-        disabled={!hasOutput}
-        className={cn(
-          "flex items-center gap-1.5 text-muted-foreground transition-colors w-full text-left",
-          isMobile ? "text-sm" : "text-xs",
-          hasOutput && "cursor-pointer hover:text-foreground",
-          !hasOutput && "cursor-default",
-          focusRing
-        )}
-      >
+      <div className={cn(
+        "flex items-center gap-1.5 text-muted-foreground transition-colors",
+        isMobile ? "text-sm" : "text-xs",
+        hasOutput && "hover:text-foreground"
+      )}>
         <Icon className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3 w-3")} />
         <span className="truncate">{tool.summary}</span>
         {hasOutput && (
@@ -408,17 +394,14 @@ function ToolCallRow({ tool, isMobile = false }: ToolCallRowProps) {
             <ChevronRight className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3 w-3")} />
           )
         )}
-      </button>
+      </div>
 
       {/* Tool output - block quote style with left border */}
       {expanded && tool.output && (
-        <pre
-          id={toolId}
-          className={cn(
-            "font-mono whitespace-pre-wrap overflow-x-auto mobile-scroll text-muted-foreground mt-1.5 pl-3 border-l-2 border-border",
-            isMobile ? "text-xs max-h-64 ml-5" : "text-[10px] max-h-48 ml-4"
-          )}
-        >
+        <pre className={cn(
+          "font-mono whitespace-pre-wrap overflow-x-auto mobile-scroll text-muted-foreground mt-1.5 pl-3 border-l-2 border-border",
+          isMobile ? "text-xs max-h-64 ml-5" : "text-[10px] max-h-48 ml-4"
+        )}>
           {tool.output}
         </pre>
       )}

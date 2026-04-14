@@ -12,7 +12,6 @@ import { MessageBubble } from "./MessageBubble"
 import { AgentIcon } from "./icons/agent-icons"
 import { MobileSelect } from "./ui/MobileBottomSheet"
 import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
-import { focusRing } from "@upstream/common"
 
 import type { HighlightKey } from "./modals/SettingsModal"
 
@@ -33,8 +32,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
-  const [agentFocusedIndex, setAgentFocusedIndex] = useState(0)
-  const [modelFocusedIndex, setModelFocusedIndex] = useState(0)
   // Mobile bottom sheet states
   const [showAgentSheet, setShowAgentSheet] = useState(false)
   const [showModelSheet, setShowModelSheet] = useState(false)
@@ -519,94 +516,24 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  const opening = !showAgentDropdown
-                  setShowAgentDropdown(opening)
+                  setShowAgentDropdown(!showAgentDropdown)
                   setShowModelDropdown(false)
-                  if (opening) {
-                    // Set focused index to current agent
-                    const currentIndex = agents.indexOf(currentAgent)
-                    setAgentFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
-                  }
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    const opening = !showAgentDropdown
-                    setShowAgentDropdown(opening)
-                    setShowModelDropdown(false)
-                    if (opening) {
-                      const currentIndex = agents.indexOf(currentAgent)
-                      setAgentFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
-                    }
-                  }
-                  if (e.key === "ArrowDown" && !showAgentDropdown) {
-                    e.preventDefault()
-                    setShowAgentDropdown(true)
-                    const currentIndex = agents.indexOf(currentAgent)
-                    setAgentFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
-                  }
-                }}
-                aria-haspopup="listbox"
-                aria-expanded={showAgentDropdown}
-                aria-label={`Agent: ${agentLabels[currentAgent]}`}
-                className={cn(
-                  "flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors",
-                  focusRing
-                )}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors"
               >
                 <AgentIcon agent={currentAgent} className="h-3.5 w-3.5" />
                 {agentLabels[currentAgent]}
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showAgentDropdown && (
-                <div
-                  role="listbox"
-                  aria-label="Select agent"
-                  aria-activedescendant={`agent-option-${agents[agentFocusedIndex]}`}
-                  onKeyDown={(e) => {
-                    switch (e.key) {
-                      case "ArrowDown":
-                        e.preventDefault()
-                        setAgentFocusedIndex((prev) => (prev < agents.length - 1 ? prev + 1 : 0))
-                        break
-                      case "ArrowUp":
-                        e.preventDefault()
-                        setAgentFocusedIndex((prev) => (prev > 0 ? prev - 1 : agents.length - 1))
-                        break
-                      case "Enter":
-                      case " ":
-                        e.preventDefault()
-                        handleAgentChange(agents[agentFocusedIndex])
-                        break
-                      case "Escape":
-                        e.preventDefault()
-                        setShowAgentDropdown(false)
-                        break
-                      case "Home":
-                        e.preventDefault()
-                        setAgentFocusedIndex(0)
-                        break
-                      case "End":
-                        e.preventDefault()
-                        setAgentFocusedIndex(agents.length - 1)
-                        break
-                    }
-                  }}
-                  tabIndex={0}
-                  className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-40 outline-none"
-                >
-                  {agents.map((agent, index) => (
+                <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-40">
+                  {agents.map((agent) => (
                     <button
                       key={agent}
-                      id={`agent-option-${agent}`}
-                      role="option"
-                      aria-selected={agent === currentAgent}
                       onClick={() => handleAgentChange(agent)}
-                      onMouseEnter={() => setAgentFocusedIndex(index)}
                       className={cn(
                         "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-xs",
-                        agent === currentAgent && "bg-accent",
-                        index === agentFocusedIndex && "ring-1 ring-inset ring-primary"
+                        agent === currentAgent && "bg-accent"
                       )}
                     >
                       <AgentIcon agent={agent} className="h-3.5 w-3.5" />
@@ -638,39 +565,12 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  const opening = !showModelDropdown
-                  setShowModelDropdown(opening)
+                  setShowModelDropdown(!showModelDropdown)
                   setShowAgentDropdown(false)
-                  if (opening) {
-                    const currentIndex = availableModels.findIndex(m => m.value === currentModel)
-                    setModelFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
-                  }
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    const opening = !showModelDropdown
-                    setShowModelDropdown(opening)
-                    setShowAgentDropdown(false)
-                    if (opening) {
-                      const currentIndex = availableModels.findIndex(m => m.value === currentModel)
-                      setModelFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
-                    }
-                  }
-                  if (e.key === "ArrowDown" && !showModelDropdown) {
-                    e.preventDefault()
-                    setShowModelDropdown(true)
-                    const currentIndex = availableModels.findIndex(m => m.value === currentModel)
-                    setModelFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
-                  }
-                }}
-                aria-haspopup="listbox"
-                aria-expanded={showModelDropdown}
-                aria-label={`Model: ${getModelLabel(currentAgent, currentModel)}`}
                 className={cn(
                   "flex items-center gap-1 text-xs transition-colors",
-                  !hasRequiredCredentials ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground",
-                  focusRing
+                  !hasRequiredCredentials ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {!hasRequiredCredentials && <Key className="h-3 w-3" />}
@@ -678,59 +578,17 @@ export function ChatPanel({ chat, settings, onSendMessage, onStopAgent, onChange
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelDropdown && (
-                <div
-                  role="listbox"
-                  aria-label="Select model"
-                  aria-activedescendant={availableModels[modelFocusedIndex] ? `model-option-${availableModels[modelFocusedIndex].value}` : undefined}
-                  onKeyDown={(e) => {
-                    switch (e.key) {
-                      case "ArrowDown":
-                        e.preventDefault()
-                        setModelFocusedIndex((prev) => (prev < availableModels.length - 1 ? prev + 1 : 0))
-                        break
-                      case "ArrowUp":
-                        e.preventDefault()
-                        setModelFocusedIndex((prev) => (prev > 0 ? prev - 1 : availableModels.length - 1))
-                        break
-                      case "Enter":
-                      case " ":
-                        e.preventDefault()
-                        if (availableModels[modelFocusedIndex]) {
-                          handleModelChange(availableModels[modelFocusedIndex].value)
-                        }
-                        break
-                      case "Escape":
-                        e.preventDefault()
-                        setShowModelDropdown(false)
-                        break
-                      case "Home":
-                        e.preventDefault()
-                        setModelFocusedIndex(0)
-                        break
-                      case "End":
-                        e.preventDefault()
-                        setModelFocusedIndex(availableModels.length - 1)
-                        break
-                    }
-                  }}
-                  tabIndex={0}
-                  className="absolute bottom-full right-0 mb-1 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-52 outline-none"
-                >
-                  {availableModels.map((model: ModelOption, index: number) => {
+                <div className="absolute bottom-full right-0 mb-1 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-52">
+                  {availableModels.map((model: ModelOption) => {
                     const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
                     const needsKey = model.requiresKey !== "none" && !modelHasCredentials
                     return (
                       <button
                         key={model.value}
-                        id={`model-option-${model.value}`}
-                        role="option"
-                        aria-selected={model.value === currentModel}
                         onClick={() => handleModelChange(model.value)}
-                        onMouseEnter={() => setModelFocusedIndex(index)}
                         className={cn(
                           "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center justify-between px-3 py-1.5 text-xs",
-                          model.value === currentModel && "bg-accent",
-                          index === modelFocusedIndex && "ring-1 ring-inset ring-primary"
+                          model.value === currentModel && "bg-accent"
                         )}
                       >
                         <span>{model.label}</span>

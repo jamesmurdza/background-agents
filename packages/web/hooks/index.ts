@@ -27,23 +27,3 @@ export { useIsMobile } from "./use-mobile"
 // Execution polling
 export { isBranchPolling } from "./use-execution-poller"
 export { useExecutionManager } from "./use-execution-manager"
-
-// Re-export accessibility hooks from @upstream/common
-export {
-  useKeyboardNavigation,
-  useFocusTrap,
-  useRovingTabIndex,
-  focusRing,
-  focusRingInset,
-  focusRingSubtle,
-  focusRingDark,
-  focusStyles,
-} from "@upstream/common"
-export type {
-  UseKeyboardNavigationOptions,
-  UseKeyboardNavigationReturn,
-  UseFocusTrapOptions,
-  UseRovingTabIndexOptions,
-  UseRovingTabIndexReturn,
-  FocusStyleType,
-} from "@upstream/common"

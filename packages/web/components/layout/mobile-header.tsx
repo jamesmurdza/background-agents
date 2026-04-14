@@ -30,7 +30,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { focusRing } from "@upstream/common"
 
 interface MobileHeaderProps {
   repoOwner: string | null
@@ -227,11 +226,7 @@ export function MobileHeader({
       {/* Hamburger menu button */}
       <button
         onClick={onOpenSidebar}
-        aria-label="Open sidebar"
-        className={cn(
-          "flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors",
-          focusRing
-        )}
+        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -280,11 +275,8 @@ export function MobileHeader({
                               submitRenaming()
                             }}
                           disabled={!renameValue.trim() || suggesting}
-                            aria-label="Save branch name"
-                            className={cn(
-                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none",
-                              focusRing
-                            )}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
+                            title="Save"
                           >
                             <Check className="h-3.5 w-3.5" />
                           </button>
@@ -294,11 +286,8 @@ export function MobileHeader({
                               e.preventDefault()
                               cancelRenaming()
                             }}
-                            aria-label="Cancel renaming"
-                            className={cn(
-                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none",
-                              focusRing
-                            )}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
+                            title="Cancel"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -322,11 +311,8 @@ export function MobileHeader({
                           type="button"
                           onClick={startRenaming}
                           disabled={renameLoading || suggesting}
-                          aria-label="Rename branch"
-                          className={cn(
-                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none",
-                            focusRing
-                          )}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
+                          title="Rename branch"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -335,11 +321,8 @@ export function MobileHeader({
                             type="button"
                             onClick={suggestBranchName}
                             disabled={renameLoading || suggesting}
-                            aria-label="Suggest branch name with AI"
-                            className={cn(
-                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none",
-                              focusRing
-                            )}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
+                            title="Magic rename"
                           >
                             {suggesting ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -377,10 +360,7 @@ export function MobileHeader({
             <button
               onClick={onAbortConflict}
               disabled={abortLoading}
-              className={cn(
-                "flex h-8 px-2 items-center justify-center gap-1 rounded-md bg-red-500/20 text-red-500 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed mr-1",
-                focusRing
-              )}
+              className="flex h-8 px-2 items-center justify-center gap-1 rounded-md bg-red-500/20 text-red-500 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
             >
               {abortLoading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -399,11 +379,7 @@ export function MobileHeader({
             <DropdownMenuTrigger asChild>
               <button
                 disabled={isRunning}
-                aria-label="More options"
-                className={cn(
-                  "flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
-                  focusRing
-                )}
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>

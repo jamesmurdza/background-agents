@@ -2,10 +2,9 @@
 
 import { cn } from "@/lib/shared/utils"
 import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, AlertTriangle, Trash2, Sun, Moon, Monitor, GitBranch } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
 import { Input } from "@/components/ui/input"
-import { focusRing } from "@upstream/common"
 
 type SettingsTab = "agents" | "sandboxes" | "git" | "appearance"
 
@@ -324,118 +323,60 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
       <div className="relative z-10 flex w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 id="settings-modal-title" className="text-sm font-semibold text-foreground">Settings</h2>
+          <h2 className="text-sm font-semibold text-foreground">Settings</h2>
           <button
             onClick={onClose}
-            aria-label="Close settings"
-            className={cn(
-              "flex cursor-pointer h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-              focusRing
-            )}
+            className="flex cursor-pointer h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div
-          role="tablist"
-          aria-label="Settings sections"
-          className="flex border-b border-border px-4"
-          onKeyDown={(e) => {
-            const tabs: SettingsTab[] = ["agents", "sandboxes", "git", "appearance"]
-            const currentIndex = tabs.indexOf(activeTab)
-            let newIndex = currentIndex
-
-            if (e.key === "ArrowRight") {
-              e.preventDefault()
-              newIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0
-            } else if (e.key === "ArrowLeft") {
-              e.preventDefault()
-              newIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1
-            } else if (e.key === "Home") {
-              e.preventDefault()
-              newIndex = 0
-            } else if (e.key === "End") {
-              e.preventDefault()
-              newIndex = tabs.length - 1
-            }
-
-            if (newIndex !== currentIndex) {
-              setActiveTab(tabs[newIndex])
-              // Focus the new tab
-              const tabElement = document.getElementById(`settings-tab-${tabs[newIndex]}`)
-              tabElement?.focus()
-            }
-          }}
-        >
+        <div className="flex border-b border-border px-4">
           <button
-            id="settings-tab-agents"
-            role="tab"
-            aria-selected={activeTab === "agents"}
-            aria-controls="settings-panel-agents"
-            tabIndex={activeTab === "agents" ? 0 : -1}
             onClick={() => setActiveTab("agents")}
             className={cn(
               "flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px",
               activeTab === "agents"
                 ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-              focusRing
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <Bot className="h-3.5 w-3.5" />
             Agents
           </button>
           <button
-            id="settings-tab-sandboxes"
-            role="tab"
-            aria-selected={activeTab === "sandboxes"}
-            aria-controls="settings-panel-sandboxes"
-            tabIndex={activeTab === "sandboxes" ? 0 : -1}
             onClick={() => setActiveTab("sandboxes")}
             className={cn(
               "flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px",
               activeTab === "sandboxes"
                 ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-              focusRing
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <Box className="h-3.5 w-3.5" />
             Sandboxes
           </button>
           <button
-            id="settings-tab-git"
-            role="tab"
-            aria-selected={activeTab === "git"}
-            aria-controls="settings-panel-git"
-            tabIndex={activeTab === "git" ? 0 : -1}
             onClick={() => setActiveTab("git")}
             className={cn(
               "flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px",
               activeTab === "git"
                 ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-              focusRing
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <GitBranch className="h-3.5 w-3.5" />
             Git
           </button>
           <button
-            id="settings-tab-appearance"
-            role="tab"
-            aria-selected={activeTab === "appearance"}
-            aria-controls="settings-panel-appearance"
-            tabIndex={activeTab === "appearance" ? 0 : -1}
             onClick={() => setActiveTab("appearance")}
             className={cn(
               "flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer border-b-2 -mb-px",
               activeTab === "appearance"
                 ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-              focusRing
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <Sun className="h-3.5 w-3.5" />
@@ -444,12 +385,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
         </div>
 
         {/* Tab Content */}
-        <div
-          id={`settings-panel-${activeTab}`}
-          role="tabpanel"
-          aria-labelledby={`settings-tab-${activeTab}`}
-          className="flex flex-col gap-4 px-4 sm:px-5 py-4 overflow-y-auto"
-        >
+        <div className="flex flex-col gap-4 px-4 sm:px-5 py-4 overflow-y-auto">
           {activeTab === "agents" && (
             <>
               {/* Anthropic API Key */}
@@ -787,24 +723,14 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
             <>
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
-                  <span id="squash-label" className="text-xs font-medium text-foreground">Squash on merge</span>
+                  <span className="text-xs font-medium text-foreground">Squash on merge</span>
                   <span className="text-[11px] text-muted-foreground">Squash commits when merging PRs</span>
                 </div>
                 <button
-                  role="switch"
-                  aria-checked={squashOnMerge}
-                  aria-labelledby="squash-label"
                   onClick={() => setSquashOnMerge(!squashOnMerge)}
-                  onKeyDown={(e) => {
-                    if (e.key === " " || e.key === "Enter") {
-                      e.preventDefault()
-                      setSquashOnMerge(!squashOnMerge)
-                    }
-                  }}
                   className={cn(
                     "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors",
-                    squashOnMerge ? "bg-primary" : "bg-secondary",
-                    focusRing
+                    squashOnMerge ? "bg-primary" : "bg-secondary"
                   )}
                 >
                   <span className={cn(
@@ -815,30 +741,21 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span id="pr-desc-label" className="text-xs font-medium text-foreground">PR descriptions</span>
+                <span className="text-xs font-medium text-foreground">PR descriptions</span>
                 <span className="text-[11px] text-muted-foreground">How to generate pull request descriptions</span>
-                <div role="radiogroup" aria-labelledby="pr-desc-label" className="flex gap-2">
+                <div className="flex gap-2">
                   {([
                     { value: "ai" as const, label: "AI generated" },
                     { value: "commits" as const, label: "Commit messages" },
                   ]).map(({ value, label }) => (
                     <button
                       key={value}
-                      role="radio"
-                      aria-checked={prDescriptionMode === value}
                       onClick={() => setPrDescriptionMode(value)}
-                      onKeyDown={(e) => {
-                        if (e.key === " " || e.key === "Enter") {
-                          e.preventDefault()
-                          setPrDescriptionMode(value)
-                        }
-                      }}
                       className={cn(
                         "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                         prDescriptionMode === value
                           ? "border-primary bg-primary/10 text-foreground"
-                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
-                        focusRing
+                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
                       )}
                     >
                       {label}
@@ -852,12 +769,12 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
           {activeTab === "appearance" && (
             <>
               <div className="flex flex-col gap-1.5">
-                <label id="theme-label" className="text-xs font-medium text-foreground">Theme</label>
+                <label className="text-xs font-medium text-foreground">Theme</label>
                 <p className="text-[11px] text-muted-foreground">
                   Choose how the app looks. System will match your OS preference.
                 </p>
               </div>
-              <div role="radiogroup" aria-labelledby="theme-label" className="flex gap-2">
+              <div className="flex gap-2">
                 {([
                   { value: "system", label: "System", icon: Monitor },
                   { value: "light", label: "Light", icon: Sun },
@@ -865,21 +782,12 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                 ] as const).map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
-                    role="radio"
-                    aria-checked={theme === value}
                     onClick={() => setTheme(value)}
-                    onKeyDown={(e) => {
-                      if (e.key === " " || e.key === "Enter") {
-                        e.preventDefault()
-                        setTheme(value)
-                      }
-                    }}
                     className={cn(
                       "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                       theme === value
                         ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
-                      focusRing
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />
@@ -911,20 +819,14 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
             <button
               onClick={onClose}
               disabled={isSaving}
-              className={cn(
-                "cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
-                focusRing
-              )}
+              className="cursor-pointer rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={() => handleSave()}
               disabled={isSaving || !hasChanges}
-              className={cn(
-                "cursor-pointer rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed",
-                focusRing
-              )}
+              className="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? "Saving..." : "Save"}
             </button>

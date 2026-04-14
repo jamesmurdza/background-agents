@@ -153,23 +153,3 @@ export {
   PiIcon,
   AgentIcon,
 } from "./agent-icons"
-
-// Accessibility hooks
-export {
-  useKeyboardNavigation,
-  useFocusTrap,
-  useRovingTabIndex,
-  focusRing,
-  focusRingInset,
-  focusRingSubtle,
-  focusRingDark,
-  focusStyles,
-} from "./hooks"
-export type {
-  UseKeyboardNavigationOptions,
-  UseKeyboardNavigationReturn,
-  UseFocusTrapOptions,
-  UseRovingTabIndexOptions,
-  UseRovingTabIndexReturn,
-  FocusStyleType,
-} from "./hooks"

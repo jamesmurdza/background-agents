@@ -4,7 +4,6 @@ import { useEffect, useRef, useCallback, useMemo, useState } from "react"
 import { GitMerge, GitBranch, GitPullRequest } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { filterSlashCommands, type SlashCommand } from "@upstream/common"
-import { focusRing } from "@upstream/common"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,
@@ -78,13 +77,6 @@ export function SlashCommandMenu({
   return (
     <div
       ref={menuRef}
-      role="menu"
-      aria-label="Git Commands"
-      aria-activedescendant={
-        filteredCommands[selectedIndex]
-          ? `slash-cmd-${filteredCommands[selectedIndex].name}`
-          : undefined
-      }
       className={cn(
         "absolute bottom-full left-0 mb-1 rounded-lg border border-border bg-popover p-1 shadow-lg z-50",
         isMobile ? "right-0" : "w-64"
@@ -101,10 +93,6 @@ export function SlashCommandMenu({
         return (
           <button
             key={cmd.name}
-            id={`slash-cmd-${cmd.name}`}
-            role="menuitem"
-            aria-selected={index === selectedIndex}
-            tabIndex={index === selectedIndex ? 0 : -1}
             onClick={() => handleSelect(cmd)}
             onMouseEnter={() => onSelectedIndexChange(index)}
             className={cn(
@@ -112,8 +100,7 @@ export function SlashCommandMenu({
               isMobile ? "py-3 text-base" : "py-2 text-sm",
               index === selectedIndex
                 ? "bg-accent text-accent-foreground"
-                : "text-foreground hover:bg-accent/50",
-              focusRing
+                : "text-foreground hover:bg-accent/50"
             )}
           >
             {Icon && <Icon className={cn(
