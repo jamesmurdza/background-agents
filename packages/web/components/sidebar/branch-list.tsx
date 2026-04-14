@@ -13,7 +13,7 @@ import { GitBranch, Plus, Search, ChevronDown, Loader2, X, Settings, Check } fro
 import { AgentIcon } from "@/components/icons/agent-icons"
 import { Input } from "@/components/ui/input"
 import { useState, useRef, useEffect, useCallback } from "react"
-import { focusRing } from "@/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 import {
   Popover,
   PopoverContent,

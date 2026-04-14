@@ -14,7 +14,7 @@ import {
   SquareTerminal,
 } from "lucide-react"
 import { highlight } from "sugar-high"
-import { focusRing } from "@/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 // ============================================================================
 // Types

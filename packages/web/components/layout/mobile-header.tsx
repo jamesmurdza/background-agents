@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { focusRing } from "@/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 interface MobileHeaderProps {
   repoOwner: string | null
