@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { GitMerge, GitBranch, GitPullRequest } from "lucide-react"
 import { cn } from "@/lib/shared/utils"
 import { filterSlashCommands, type SlashCommand } from "@upstream/common"
-import { focusRing } from "@/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,

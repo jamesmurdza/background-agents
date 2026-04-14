@@ -5,7 +5,7 @@ import { X, Terminal, Copy, Check, Loader2, Clock, Bot, Box, Key, ExternalLink, 
 import { useState, useEffect, useCallback } from "react"
 import { useTheme } from "next-themes"
 import { Input } from "@/components/ui/input"
-import { focusRing } from "@/hooks/focus-styles"
+import { focusRing } from "@upstream/common"
 
 type SettingsTab = "agents" | "sandboxes" | "git" | "appearance"
 
