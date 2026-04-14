@@ -23,6 +23,7 @@ interface UseGitDialogsOptions {
   repoFullName: string
   onAddMessage: (branchId: string, message: Message) => Promise<string>
   onUpdateMessage: (branchId: string, messageId: string, updates: Partial<Message>) => void | Promise<void>
+  onUpdateBranch?: (branchId: string, updates: Partial<Branch>) => void
   defaultSquashOnMerge?: boolean
 }
 
@@ -48,6 +49,7 @@ export function useGitDialogs({
   repoFullName,
   onAddMessage,
   onUpdateMessage,
+  onUpdateBranch,
   defaultSquashOnMerge = false,
 }: UseGitDialogsOptions) {
   const branchId = branch?.id ?? ""
@@ -205,6 +207,13 @@ export function useGitDialogs({
         return
       }
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Merge failed")
+
+      // If the target branch needs sync (merged into a non-active branch),
+      // update the local state so it can trigger a pull when the user switches to it
+      if (data.needsSync && data.targetBranchId && onUpdateBranch) {
+        onUpdateBranch(data.targetBranchId, { needsSync: true })
+      }
+
       addSystemMessage(
         `::icon-success:: ${squashMerge ? "**Squash merged**" : "**Merged**"} **${sourceBranch}** into **${targetBranch}** and pushed.`
       )
@@ -215,7 +224,7 @@ export function useGitDialogs({
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branch, sandboxId, branchName, branchId, repoName, repoOwner, repoFullName, addSystemMessage, mergeDirection, squashMerge, putRebaseConflictInCache])
+  }, [selectedBranch, branch, sandboxId, branchName, branchId, repoName, repoOwner, repoFullName, addSystemMessage, mergeDirection, squashMerge, putRebaseConflictInCache, onUpdateBranch])
 
   const handleRebase = useCallback(async () => {
     if (!selectedBranch || !branch || !sandboxId) return

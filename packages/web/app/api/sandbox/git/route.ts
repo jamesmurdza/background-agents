@@ -461,6 +461,7 @@ export async function POST(req: Request) {
           } catch {
             // Pull may fail but GitHub merge succeeded
           }
+          return Response.json({ success: true })
         } else {
           // Mark target branch as needing sync when user switches to it
           const targetBranchRecord = await prisma.branch.findFirst({
@@ -476,15 +477,41 @@ export async function POST(req: Request) {
               data: { needsSync: true },
             })
           }
+          // Return targetBranchId so frontend can trigger a pull if the branch is open
+          return Response.json({
+            success: true,
+            needsSync: true,
+            targetBranchId: targetBranchRecord?.id,
+          })
         }
-
-        return Response.json({ success: true })
       }
 
       case "rebase": {
         if (!githubToken || !targetBranch || !currentBranch || !repoOwner || !repoApiName) {
           return badRequest("Missing required fields for rebase")
         }
+        // Fetch target branch from remote first to ensure we have the latest
+        // This is important for single-branch clones where the target branch
+        // might not exist locally or might be outdated
+        const origUrlResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git remote get-url origin 2>&1`
+        )
+        const origUrl = origUrlResult.result.trim()
+        const authedUrl = origUrl.replace(
+          /^https:\/\//,
+          `https://x-access-token:${githubToken}@`
+        )
+        await sandbox.process.executeCommand(
+          `cd ${repoPath} && git remote set-url origin '${authedUrl}' 2>&1`
+        )
+        await sandbox.process.executeCommand(
+          `cd ${repoPath} && git fetch origin ${targetBranch} 2>&1`
+        )
+        // Restore original URL
+        await sandbox.process.executeCommand(
+          `cd ${repoPath} && git remote set-url origin '${origUrl}' 2>&1`
+        )
+
         // Checkout target branch, pull latest, come back, rebase
         const coTarget2 = await sandbox.process.executeCommand(
           `cd ${repoPath} && git checkout ${targetBranch} 2>&1`

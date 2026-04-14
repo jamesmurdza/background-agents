@@ -182,6 +182,28 @@ export async function POST(req: Request) {
           return Response.json({ error: "Missing required fields for rebase" }, { status: 400 })
         }
 
+        // Fetch target branch from remote first to ensure we have the latest
+        // This is important for single-branch clones where the target branch
+        // might not exist locally or might be outdated
+        const origUrlResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git remote get-url origin 2>&1`
+        )
+        const origUrl = origUrlResult.result.trim()
+        const authedUrl = origUrl.replace(
+          /^https:\/\//,
+          `https://x-access-token:${githubToken}@`
+        )
+        await sandbox.process.executeCommand(
+          `cd ${repoPath} && git remote set-url origin '${authedUrl}' 2>&1`
+        )
+        await sandbox.process.executeCommand(
+          `cd ${repoPath} && git fetch origin ${targetBranch} 2>&1`
+        )
+        // Restore original URL
+        await sandbox.process.executeCommand(
+          `cd ${repoPath} && git remote set-url origin '${origUrl}' 2>&1`
+        )
+
         // Checkout target branch, pull latest, come back, rebase
         const coTarget = await sandbox.process.executeCommand(
           `cd ${repoPath} && git checkout ${targetBranch} 2>&1`
