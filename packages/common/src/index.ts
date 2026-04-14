@@ -141,3 +141,15 @@ export {
   // Constants
   EMPTY_CONFLICT_STATE,
 } from "./git-operations"
+
+// Agent icons
+export {
+  ClaudeCodeIcon,
+  CodexIcon,
+  OpenCodeIcon,
+  GeminiIcon,
+  GooseIcon,
+  ElizaIcon,
+  PiIcon,
+  AgentIcon,
+} from "./agent-icons"
