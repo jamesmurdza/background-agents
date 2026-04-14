@@ -150,6 +150,8 @@ export interface Branch {
   lastShownCommitHash?: string
   // Branch naming - tracks if user has manually renamed the branch
   hasCustomName?: boolean
+  // Sync flag - set when remote is updated (e.g., merge into this branch) and sandbox needs to pull
+  needsSync?: boolean
 }
 
 export interface Repo {

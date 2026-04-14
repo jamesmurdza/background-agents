@@ -254,6 +254,7 @@ export default function Home() {
     repoFullName: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : "",
     onAddMessage: handleAddMessage,
     onUpdateMessage: handleUpdateMessage,
+    onUpdateBranch: handleUpdateBranch,
     defaultSquashOnMerge: credentials?.squashOnMerge ?? false,
   })
 
