@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { RepoSidebar } from "@/components/sidebar/repo-sidebar"
+import { PaletteProvider } from "@/components/search-palette"
 import { BranchList } from "@/components/sidebar/branch-list"
 import { ContentPanel } from "@/components/panels/content-panel"
 import { ChatPanel, EmptyChatPanel } from "@/components/panels/chat-panel"
@@ -78,6 +79,7 @@ export default function Home() {
     pendingRepoFromUrl,
     setPendingRepoFromUrl,
     clearPendingRepoFromUrl,
+    setPendingCommand,
   } = useUIStore()
 
   // Get resetRepoState for logout
@@ -406,8 +408,33 @@ export default function Home() {
     )
   }
 
+  // Handle palette repo/branch selection
+  const handlePaletteSelectRepo = useCallback((repoId: string) => {
+    selectRepo(repoId)
+  }, [selectRepo])
+
+  const handlePaletteSelectBranch = useCallback((repoId: string, branchId: string) => {
+    // If different repo, select it first
+    if (repoId !== activeRepoId) {
+      selectRepo(repoId)
+    }
+    selectBranch(branchId)
+  }, [activeRepoId, selectRepo, selectBranch])
+
+  // Handle command palette commands
+  const handleRunCommand = useCallback((command: string) => {
+    // Set pending command - ChatPanel will pick it up
+    setPendingCommand(command)
+  }, [setPendingCommand])
+
   return (
-    <>
+    <PaletteProvider
+      repos={repos}
+      activeRepoId={activeRepoId}
+      onSelectRepo={handlePaletteSelectRepo}
+      onSelectBranch={handlePaletteSelectBranch}
+      onRunCommand={handleRunCommand}
+    >
       <main className="flex h-dvh overflow-hidden">
         {/* Repo Sidebar - desktop only */}
         {!isMobile && (
@@ -699,6 +726,6 @@ export default function Home() {
       {isMobile && activeRepo && activeBranch && activeBranch.sandboxId && (
         <GitDialogs gitDialogs={mobileGitDialogs} />
       )}
-    </>
+    </PaletteProvider>
   )
 }

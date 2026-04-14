@@ -19,6 +19,7 @@ import {
   useBranchRenaming,
 } from "@/components/chat/hooks"
 import { useExecutionStore } from "@/lib/stores/execution-store"
+import { useUIStore } from "@/lib/stores"
 
 // Import sub-components
 import { ChatHeader } from "@/components/chat/chat-header"
@@ -614,6 +615,15 @@ export function ChatPanel({
         break
     }
   }, [gitActions.gitDialogs])
+
+  // Listen for pending commands from command palette
+  const { pendingCommand, clearPendingCommand } = useUIStore()
+  useEffect(() => {
+    if (pendingCommand) {
+      handleSlashCommand(pendingCommand as SlashCommandType)
+      clearPendingCommand()
+    }
+  }, [pendingCommand, clearPendingCommand, handleSlashCommand])
 
   // Handle push retry - force-push to sync diverged history (preserves PRs)
   const handleRetryPush = useCallback(async (pushError: PushErrorInfo): Promise<{ success: boolean; error?: string }> => {

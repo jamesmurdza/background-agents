@@ -77,6 +77,9 @@ interface UIState {
 
   // Pending repo from URL (when user visits /owner/repo that isn't in their list)
   pendingRepoFromUrl: { owner: string; name: string } | null
+
+  // Pending command from command palette (merge, rebase, pr)
+  pendingCommand: string | null
 }
 
 interface UIActions {
@@ -147,6 +150,10 @@ interface UIActions {
   setPendingRepoFromUrl: (repo: { owner: string; name: string } | null) => void
   clearPendingRepoFromUrl: () => void
 
+  // Pending command from command palette
+  setPendingCommand: (command: string | null) => void
+  clearPendingCommand: () => void
+
   // Reset all UI state
   resetUI: () => void
 }
@@ -174,6 +181,7 @@ const initialState: UIState = {
   repoEnvVars: null,
   pendingStartCommit: null,
   pendingRepoFromUrl: null,
+  pendingCommand: null,
 }
 
 const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get: () => UIState & UIActions) => ({
@@ -389,6 +397,10 @@ const storeCreator = (set: (partial: Partial<UIState & UIActions>) => void, get:
   // Pending repo from URL
   setPendingRepoFromUrl: (repo: { owner: string; name: string } | null) => set({ pendingRepoFromUrl: repo }),
   clearPendingRepoFromUrl: () => set({ pendingRepoFromUrl: null }),
+
+  // Pending command from command palette
+  setPendingCommand: (command: string | null) => set({ pendingCommand: command }),
+  clearPendingCommand: () => set({ pendingCommand: null }),
 
   // Reset all UI state
   resetUI: () => set(initialState),

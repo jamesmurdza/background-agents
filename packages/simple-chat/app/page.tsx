@@ -10,9 +10,11 @@ import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
 import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
 import { MergeDialog, RebaseDialog, PRDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
+import { PaletteProvider } from "@/components/search-palette"
 import { useChat } from "@/lib/hooks/useChat"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { NEW_REPOSITORY, type Message } from "@/lib/types"
+import { fetchRepos, fetchBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github"
 
 export default function HomePage() {
   const { data: session } = useSession()
@@ -47,6 +49,29 @@ export default function HomePage() {
     if (typeof window === "undefined") return "chat"
     return window.location.pathname === "/sdk" ? "sdk" : "chat"
   })
+
+  // Repos and branches for search palette
+  const [repos, setRepos] = useState<GitHubRepo[]>([])
+  const [branches, setBranches] = useState<GitHubBranch[]>([])
+
+  // Load repos when authenticated
+  useEffect(() => {
+    if (session?.accessToken) {
+      fetchRepos(session.accessToken).then(setRepos).catch(console.error)
+    }
+  }, [session?.accessToken])
+
+  // Load branches when current chat has a repo
+  useEffect(() => {
+    if (session?.accessToken && currentChat?.repo && currentChat.repo !== NEW_REPOSITORY) {
+      const [owner, name] = currentChat.repo.split("/")
+      if (owner && name) {
+        fetchBranches(session.accessToken, owner, name).then(setBranches).catch(console.error)
+      }
+    } else {
+      setBranches([])
+    }
+  }, [session?.accessToken, currentChat?.repo])
 
   // Handler for adding messages to current chat
   const handleAddMessage = useCallback((message: Message) => {
@@ -186,12 +211,38 @@ export default function HomePage() {
     }
   }, [gitDialogs])
 
+  // Palette handlers
+  const handlePaletteSelectRepo = useCallback((repo: GitHubRepo) => {
+    // Create a new chat with this repo
+    const chatId = startNewChat(`${repo.owner.login}/${repo.name}`, repo.default_branch)
+    if (currentPage !== "chat") handleNavigate("chat")
+  }, [startNewChat, currentPage])
+
+  const handlePaletteSelectBranch = useCallback((repo: GitHubRepo, branch: GitHubBranch) => {
+    // Create a new chat with this repo and branch
+    const chatId = startNewChat(`${repo.owner.login}/${repo.name}`, branch.name)
+    if (currentPage !== "chat") handleNavigate("chat")
+  }, [startNewChat, currentPage])
+
+  // Command palette handler (wraps handleSlashCommand to accept string)
+  const handleRunCommand = useCallback((command: string) => {
+    handleSlashCommand(command as SlashCommandType)
+  }, [handleSlashCommand])
+
   // Don't render chats until hydrated to avoid SSR mismatch
   const displayChats = isHydrated ? chats : []
   const displayCurrentChatId = isHydrated ? currentChatId : null
   const displayCurrentChat = isHydrated ? currentChat : null
 
   return (
+    <PaletteProvider
+      repos={repos}
+      currentRepo={currentChat?.repo !== NEW_REPOSITORY ? currentChat?.repo ?? null : null}
+      branches={branches}
+      onSelectRepo={handlePaletteSelectRepo}
+      onSelectBranch={handlePaletteSelectBranch}
+      onRunCommand={handleRunCommand}
+    >
     <div className="flex h-screen overflow-hidden">
       {/* Desktop Sidebar */}
       {!isMobile && (
@@ -316,5 +367,6 @@ export default function HomePage() {
         isMobile={isMobile}
       />
     </div>
+    </PaletteProvider>
   )
 }

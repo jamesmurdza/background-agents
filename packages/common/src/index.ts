@@ -156,3 +156,15 @@ export {
   PiIcon,
   AgentIcon,
 } from "./agent-icons"
+
+// Search palette
+export {
+  // Types
+  type SearchItem,
+  type RecentItem,
+  type PaletteState,
+  // Functions
+  getRecentItems,
+  addRecentItem,
+  clearRecentItems,
+} from "./search-palette"
