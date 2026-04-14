@@ -6,6 +6,7 @@
  */
 
 import * as path from "node:path"
+import * as fs from "node:fs"
 import { fileURLToPath } from "node:url"
 import type {
   AgentDefinition,
@@ -20,6 +21,34 @@ import { ELIZA_TOOL_MAPPINGS } from "./tools.js"
 // Get the directory of this file for locating the CLI script
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+/**
+ * Find the CLI script path.
+ * When running from dist/, __dirname points to dist/agents/eliza/ and cli.js is there.
+ * When running from src/ (e.g., via ts-node), __dirname points to src/agents/eliza/
+ * but cli.js is in dist/agents/eliza/, so we need to resolve it.
+ */
+function getCliPath(): string {
+  // First, try the path relative to this file (works when running from dist/)
+  const localPath = path.join(__dirname, "cli.js")
+  if (fs.existsSync(localPath)) {
+    return localPath
+  }
+
+  // If we're in src/, look for the compiled version in dist/
+  // __dirname = /path/to/packages/agents/src/agents/eliza
+  // We need:  /path/to/packages/agents/dist/agents/eliza/cli.js
+  const srcMatch = __dirname.match(/^(.*)\/src\/agents\/eliza$/)
+  if (srcMatch) {
+    const distPath = path.join(srcMatch[1], "dist", "agents", "eliza", "cli.js")
+    if (fs.existsSync(distPath)) {
+      return distPath
+    }
+  }
+
+  // Fallback: assume it's relative to this file
+  return localPath
+}
 
 /**
  * ELIZA therapist agent definition.
@@ -45,8 +74,8 @@ export const elizaAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    // Path to the CLI script
-    const cliPath = path.join(__dirname, "cli.js")
+    // Path to the CLI script (handles both dist/ and src/ execution)
+    const cliPath = getCliPath()
 
     const args: string[] = []
 
