@@ -28,7 +28,7 @@ const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "dark", label: "Dark", icon: Moon },
 ]
 
-const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi"]
+const agents: Agent[] = ["claude-code", "opencode", "codex", "eliza", "gemini", "goose", "pi"]
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 

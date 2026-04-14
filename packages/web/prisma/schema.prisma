@@ -162,7 +162,7 @@ model Branch {
   draftPrompt String? @db.Text // Persisted draft input for chat continuity
 
   // Agent configuration
-  agent String @default("claude-code") // "claude-code" | "opencode" | "codex" | "gemini" | "pi"
+  agent String @default("claude-code") // "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "pi"
   model String? // Model selection for the agent (e.g., "sonnet", "gpt-4o")
 
   // Commit tracking - HEAD at start of last execution, used for detecting new commits

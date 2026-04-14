@@ -7,16 +7,17 @@
 // Agent Types
 // =============================================================================
 
-export type Agent = "claude-code" | "opencode" | "codex" | "gemini" | "goose" | "pi"
+export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "pi"
 
 /** SDK provider names (must match ProviderName from SDK) */
-export type ProviderName = "claude" | "codex" | "opencode" | "gemini" | "goose" | "pi"
+export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "pi"
 
 /** Map agent type to SDK provider name */
 export const agentToProvider: Record<Agent, ProviderName> = {
   "claude-code": "claude",
   "opencode": "opencode",
   "codex": "codex",
+  "eliza": "eliza",
   "gemini": "gemini",
   "goose": "goose",
   "pi": "pi",
@@ -27,6 +28,7 @@ export const agentLabels: Record<Agent, string> = {
   "claude-code": "Claude Code",
   "opencode": "OpenCode",
   "codex": "Codex",
+  "eliza": "ELIZA",
   "gemini": "Gemini",
   "goose": "Goose",
   "pi": "Pi",
@@ -44,6 +46,9 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
   }
   if (agent === "codex") {
     return "codex"
+  }
+  if (agent === "eliza") {
+    return "eliza"
   }
   if (agent === "gemini") {
     return "gemini"
@@ -75,6 +80,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "sonnet", label: "Sonnet", requiresKey: "anthropic" },
     { value: "opus", label: "Opus", requiresKey: "anthropic" },
     { value: "haiku", label: "Haiku", requiresKey: "anthropic" },
+  ],
+  "eliza": [
+    { value: "eliza-classic-1.0", label: "ELIZA Classic", requiresKey: "none" },
   ],
   "opencode": [
     // Free models (opencode/) - no API key needed
@@ -168,6 +176,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
   "opencode": "opencode/big-pickle", // Free model, no API key needed
   "codex": "gpt-5.4",
+  "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
   "gemini": "gemini-2.5-flash",
   "goose": "gpt-4o",
   "pi": "claude-sonnet-4-5",
@@ -225,6 +234,11 @@ export function hasGooseCredentials(credentials: UserCredentialFlags | null | un
 /** Check if user has credentials for Pi agent */
 export function hasPiCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
   return !!(credentials?.hasAnthropicApiKey || credentials?.hasOpenaiApiKey || credentials?.hasGeminiApiKey)
+}
+
+/** Check if user has credentials for ELIZA agent (always true - no API key needed) */
+export function hasElizaCredentials(_credentials: UserCredentialFlags | null | undefined): boolean {
+  return true // ELIZA is a fake agent that doesn't need any API keys
 }
 
 /**
