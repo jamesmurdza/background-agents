@@ -7,6 +7,7 @@
  * Required env vars per agent (TEST_ prefixed versions take precedence):
  *   - claude: DAYTONA_API_KEY, ANTHROPIC_API_KEY
  *   - codex: DAYTONA_API_KEY, OPENAI_API_KEY
+ *   - eliza: DAYTONA_API_KEY (no API key needed - fake agent)
  *   - gemini: DAYTONA_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY)
  *   - goose: DAYTONA_API_KEY, OPENAI_API_KEY (or ANTHROPIC_API_KEY)
  *   - opencode: DAYTONA_API_KEY, ANTHROPIC_API_KEY (or OPENAI_API_KEY)
@@ -53,6 +54,12 @@ const agents = [
     apiKeyEnvVar: "OPENAI_API_KEY",
     apiKey: OPENAI_API_KEY,
     hasKey: !!OPENAI_API_KEY,
+  },
+  {
+    name: "eliza" as const,
+    apiKeyEnvVar: "", // ELIZA doesn't need any API key
+    apiKey: "",
+    hasKey: true, // Always runnable - no API key needed
   },
   {
     name: "gemini" as const,
@@ -111,9 +118,11 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
 
       beforeAll(async () => {
         daytona = new Daytona({ apiKey: DAYTONA_API_KEY! })
-        sandbox = await daytona.create({
-          envVars: { [agent.apiKeyEnvVar]: agent.apiKey! },
-        })
+        // Only set env var if the agent needs an API key
+        const envVars = agent.apiKeyEnvVar
+          ? { [agent.apiKeyEnvVar]: agent.apiKey! }
+          : {}
+        sandbox = await daytona.create({ envVars })
       }, 60_000)
 
       afterAll(async () => {
@@ -123,11 +132,15 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
       }, 30_000)
 
       it("completes a simple prompt and returns events", async () => {
+        // Only set env if the agent needs an API key
+        const env = agent.apiKeyEnvVar
+          ? { [agent.apiKeyEnvVar]: agent.apiKey! }
+          : {}
         const session = await createSession(agent.name, {
           sandbox: sandbox as any,
           timeout: 120,
           model: agent.model,
-          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+          env,
         })
 
         const startResult = await session.start(SIMPLE_PROMPT)
@@ -144,11 +157,14 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
       }, 180_000)
 
       it("isRunning transitions from true to false", async () => {
+        const env = agent.apiKeyEnvVar
+          ? { [agent.apiKeyEnvVar]: agent.apiKey! }
+          : {}
         const session = await createSession(agent.name, {
           sandbox: sandbox as any,
           timeout: 120,
           model: agent.model,
-          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+          env,
         })
 
         await session.start(SIMPLE_PROMPT)
@@ -166,11 +182,14 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
       }, 180_000)
 
       it("getPid returns pid while running, null after", async () => {
+        const env = agent.apiKeyEnvVar
+          ? { [agent.apiKeyEnvVar]: agent.apiKey! }
+          : {}
         const session = await createSession(agent.name, {
           sandbox: sandbox as any,
           timeout: 120,
           model: agent.model,
-          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+          env,
         })
 
         const { pid: startPid } = await session.start(SIMPLE_PROMPT)
@@ -184,11 +203,14 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
       }, 180_000)
 
       it("yields session event with id", async () => {
+        const env = agent.apiKeyEnvVar
+          ? { [agent.apiKeyEnvVar]: agent.apiKey! }
+          : {}
         const session = await createSession(agent.name, {
           sandbox: sandbox as any,
           timeout: 120,
           model: agent.model,
-          env: { [agent.apiKeyEnvVar]: agent.apiKey! },
+          env,
         })
 
         await session.start(SIMPLE_PROMPT)

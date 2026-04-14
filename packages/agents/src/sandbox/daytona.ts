@@ -2,9 +2,43 @@
  * Daytona sandbox adapter: wraps a Sandbox from @daytonaio/sdk into CodeAgentSandbox.
  * Background-only execution using executeCommand + nohup.
  */
+import * as fs from "node:fs"
+import * as path from "node:path"
+import { fileURLToPath } from "node:url"
 import type { Sandbox } from "@daytonaio/sdk"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, ProviderName } from "../types/index"
 import { getPackageName, getShellInstaller } from "../utils/install"
+
+// Path to ELIZA bundle (uploaded to sandbox when needed)
+const ELIZA_SANDBOX_PATH = "/tmp/eliza-cli.bundle.js"
+
+/**
+ * Get the path to the ELIZA CLI bundle.
+ * Works from both dist/ (compiled) and src/ (development) contexts.
+ */
+function getElizaBundlePath(): string {
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = path.dirname(__filename)
+
+  // When running from dist/, the bundle is at dist/agents/eliza/cli.bundle.js
+  // __dirname = /path/to/packages/agents/dist/sandbox
+  const distPath = path.join(__dirname, "..", "agents", "eliza", "cli.bundle.js")
+  if (fs.existsSync(distPath)) {
+    return distPath
+  }
+
+  // When running from src/, look in dist/
+  const srcMatch = __dirname.match(/^(.*)\/src\/sandbox$/)
+  if (srcMatch) {
+    const fromSrcPath = path.join(srcMatch[1], "dist", "agents", "eliza", "cli.bundle.js")
+    if (fs.existsSync(fromSrcPath)) {
+      return fromSrcPath
+    }
+  }
+
+  // Fallback
+  return distPath
+}
 
 /** Escape a string for use in single-quoted shell strings */
 function escapeShell(str: string): string {
@@ -129,8 +163,24 @@ export function adaptDaytonaSandbox(
     },
 
     async ensureProvider(name: ProviderName): Promise<void> {
-      // ELIZA is built-in (runs via node within the agents package), no installation needed
+      // ELIZA is built-in - upload the bundle to the sandbox
       if (name === "eliza") {
+        // Check if already uploaded
+        const checkResult = await sandbox.process.executeCommand(`test -f ${ELIZA_SANDBOX_PATH} && echo "exists"`)
+        if (checkResult.result?.trim() === "exists") {
+          return
+        }
+
+        // Read the bundle from local filesystem and upload to sandbox
+        const bundlePath = getElizaBundlePath()
+        if (!fs.existsSync(bundlePath)) {
+          throw new Error(`ELIZA bundle not found at ${bundlePath}. Run 'npm run build' in packages/agents first.`)
+        }
+
+        console.log(`Uploading ELIZA CLI bundle to sandbox...`)
+        const bundleContent = fs.readFileSync(bundlePath)
+        await sandbox.fs.uploadFile(bundleContent, ELIZA_SANDBOX_PATH)
+        console.log(`Uploaded ELIZA CLI bundle to ${ELIZA_SANDBOX_PATH}`)
         return
       }
 
