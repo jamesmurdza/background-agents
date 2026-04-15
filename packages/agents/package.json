@@ -30,6 +30,15 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamesmurdza/upstream-agents.git",
+    "directory": "packages/agents"
+  },
+  "homepage": "https://github.com/jamesmurdza/upstream-agents/tree/main/packages/agents",
+  "bugs": {
+    "url": "https://github.com/jamesmurdza/upstream-agents/issues"
+  },
   "publishConfig": {
     "access": "public"
   },
