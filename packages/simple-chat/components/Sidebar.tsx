@@ -732,7 +732,7 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
   const inputRef = useRef<HTMLInputElement>(null)
   const displayName = chat.displayName || "Untitled"
 
-  const { swipeOffset, isSwiping, isRevealed, reset, swipeProps } = useSwipeActions({
+  const { swipeOffset, isSwiping, isRevealed, reset, swipeRef } = useSwipeActions({
     threshold: 60,
     maxSwipe: 140,
     enabled: !isDeleting && !isEditing,
@@ -823,7 +823,7 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
 
       {/* Swipeable content */}
       <div
-        {...swipeProps}
+        ref={swipeRef}
         className={cn(
           "relative flex items-center gap-3 touch-target px-3 py-3 bg-background",
           !isSwiping && "transition-transform duration-200 ease-out",
