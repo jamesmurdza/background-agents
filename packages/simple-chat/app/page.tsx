@@ -205,11 +205,17 @@ export default function HomePage() {
       return
     }
 
-    // Reset filter to "All repositories" if this is the first message and the repo differs from filter
-    // This ensures the chat remains visible after it's started with a different repo
+    // Update filter to match the chat's repo if this is the first message and repo differs from filter
+    // This ensures the filter follows the user's choice when starting a chat
     if (currentChat && currentChat.messages.length === 0 &&
         repoFilter !== ALL_REPOSITORIES && repoFilter !== currentChat.repo) {
-      setRepoFilter(ALL_REPOSITORIES)
+      // If chat has no repo, switch to "No repository" filter
+      // Otherwise, switch to the chat's repo
+      if (currentChat.repo === NEW_REPOSITORY) {
+        setRepoFilter(NO_REPOSITORY)
+      } else {
+        setRepoFilter(currentChat.repo)
+      }
     }
 
     sendMessage(message, agent, model, files)
