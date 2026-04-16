@@ -40,111 +40,48 @@ To make this work with a different agent, we could have changed `"claude"` to an
 
 ## Why Put CLI Agents in Sandboxes?
 
-AI coding agents are powerful precisely because they can execute real code. They read files, write files, run shell commands, and interact with git. That's also what makes them risky to run on your local machine or a shared server.
+These agents need to execute real code—reading files, writing files, running shell commands, interacting with git. You don't want that happening on your server.
 
-Sandboxes solve this problem. Each agent session runs in an isolated Daytona environment where it can do whatever it needs without affecting your system. If something goes wrong, you just delete the sandbox and start fresh.
+Sandboxes give you isolation. Each agent runs in its own Daytona environment, does whatever it needs to do, and can be deleted when you're done. If something goes wrong, you haven't lost anything.
 
-Beyond security, sandboxes give you:
-
-- **Reproducibility**: Every session starts from a clean state
-- **Persistence**: Sessions survive server restarts—you can disconnect and reconnect later
-- **Easy cleanup**: No leftover files or processes when you're done
-
-The SDK handles all of this for you. It installs the agent CLI in the sandbox, runs it in the background, and polls for events. You just ask for events and render them however you want.
-
-## Using the SDK
-
-Here's the basic workflow:
-
-**1. Create a sandbox and session:**
-
-```typescript
-const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-const sandbox = await daytona.create()
-
-const session = await createSession("claude", {
-  sandbox,
-  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
-  model: "sonnet",
-  systemPrompt: "You are a helpful coding assistant.",
-})
-```
-
-**2. Start a task:**
-
-```typescript
-await session.start("Create a hello world script")
-```
-
-**3. Poll for events:**
-
-```typescript
-while (await session.isRunning()) {
-  const { events } = await session.getEvents()
-  for (const event of events) {
-    switch (event.type) {
-      case "token":
-        process.stdout.write(event.text)
-        break
-      case "tool_start":
-        console.log(`\n[Using tool: ${event.name}]`)
-        break
-      case "tool_end":
-        console.log(`[Done]`)
-        break
-    }
-  }
-  await new Promise(r => setTimeout(r, 1000))
-}
-```
-
-**4. Clean up:**
-
-```typescript
-await sandbox.delete()
-```
-
-The same interface works for any supported agent. Swap `"claude"` for `"gemini"` or `"codex"`, adjust your API keys, and everything else stays the same.
+But for serverless applications, the bigger benefit is persistence. Your function might time out, your server might restart, but the sandbox keeps running. Save the sandbox ID and session ID, and you can reconnect from a new request and pick up where you left off.
 
 ## Adding New Agents
 
-We designed the SDK with a pluggable registry architecture. Adding a new agent means implementing a simple interface: how to build the CLI command, how to parse its JSON output, and how to map its tool names to a common format.
+The SDK uses a pluggable registry. Each agent adapter implements a simple interface: how to build the CLI command, how to parse its JSON output, and how to map tool names to a common format.
 
-To make this even easier, we created an agentic workflow for developing new agent adapters. The process looks like this:
+We built an agentic workflow for adding new adapters:
 
-1. Create a skeleton agent module with just the CLI command builder
-2. Run a script that executes the agent and captures its raw JSON output
-3. Use that output to build and test the parser iteratively
-4. Add integration tests
+1. Create a skeleton module with just the CLI command
+2. Run a script that captures the agent's raw JSON output
+3. Use that output to build the parser iteratively
 
-The agents themselves can help build their own integrations. Point Claude at the captured JSON output and the existing agent implementations, and it can draft most of the parser code for you.
+The agents can help build their own integrations. Point Claude at the captured JSON and the existing adapters, and it drafts most of the parser for you.
 
 ## Building the Chat Interface
 
-Simple Chat is a Next.js application that demonstrates what you can build on top of the SDK. It's intentionally minimal—no database, just local storage—so you can see how the pieces fit together.
+Simple Chat is a Next.js app we built on top of the SDK. It's intentionally minimal—no database, just local storage—so you can see how the pieces connect.
 
-The core is a polling loop. When you send a message, the app creates a session and starts polling for events. As events come in, they're rendered progressively:
+The core is a polling loop. Send a message, the app creates a session and starts polling. Events come back and get rendered as they arrive:
 
-- **Tokens** stream in as the agent "types"
-- **Tool calls** show what the agent is doing (reading files, running commands, editing code)
-- **Completion** signals when the agent is done
+- Tokens stream in as the agent "types"
+- Tool calls show what's happening (file reads, edits, commands)
+- Completion ends the loop
 
-The UI shows tool calls inline with the conversation, so you can see exactly what the agent did and why. File edits show diffs, command outputs are collapsible, and errors are highlighted.
+The UI renders tool calls inline, so you see exactly what the agent did. File edits show diffs, command outputs collapse, errors get highlighted.
 
 ## Git & GitHub Integration
 
-One of Simple Chat's key features is that each conversation is tied to a git branch. When you start a new chat, it creates a branch. As the agent makes changes, they're tracked in git. When you're done, you can commit and create a pull request without leaving the chat.
+Each conversation in Simple Chat is tied to a git branch. Start a new chat, get a new branch. The agent makes changes, they're tracked in git.
 
-This gives you a natural workflow:
+When you're done:
 
-1. Start a new chat: "Fix the login bug"
-2. The agent investigates and makes changes
-3. Type `/commit` to create a commit with an auto-generated message
-4. Type `/pr` to open a pull request on GitHub
-5. Review, merge, done
+1. Type `/commit`—the agent writes a commit message
+2. Type `/pr`—a pull request opens on GitHub
+3. Merge it
 
-The git integration runs through the sandbox, so all file operations are isolated. You can experiment freely—if you don't like the result, just delete the sandbox and the branch.
+The whole workflow happens in the sandbox. If you don't like the result, delete the sandbox and the branch goes with it. Nothing touches your main codebase until you merge.
 
 ---
 
-The Background Agents SDK and Simple Chat are both open source. If you're building tools on top of AI coding agents, we hope they save you some time.
+The Background Agents SDK and Simple Chat are both open source. If you're building on top of AI coding agents, they might save you some time.
