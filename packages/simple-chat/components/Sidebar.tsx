@@ -371,7 +371,7 @@ export function Sidebar({
                 >
                   <Check className={cn("h-4 w-4 flex-shrink-0", repoFilter === ALL_REPOSITORIES ? "opacity-100" : "opacity-0")} />
                   <span className="flex-1">All chats</span>
-                  <span className="text-muted-foreground">({repoCounts.total})</span>
+                  <span className="text-muted-foreground">{repoCounts.total}</span>
                 </button>
 
                 {/* No repository option */}
@@ -385,7 +385,7 @@ export function Sidebar({
                   >
                     <Check className={cn("h-4 w-4 flex-shrink-0", repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
                     <span className="flex-1">No repository</span>
-                    <span className="text-muted-foreground">({repoCounts.noRepoCount})</span>
+                    <span className="text-muted-foreground">{repoCounts.noRepoCount}</span>
                   </button>
                 )}
 
@@ -409,7 +409,7 @@ export function Sidebar({
                       <Check className={cn("h-4 w-4 flex-shrink-0", repoFilter === repo ? "opacity-100" : "opacity-0")} />
                       <FolderGit2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       <span className="truncate flex-1">{repo}</span>
-                      <span className="text-muted-foreground">({repoCounts.counts[repo] || 0})</span>
+                      <span className="text-muted-foreground">{repoCounts.counts[repo] || 0}</span>
                     </button>
                   ))}
               </div>
@@ -572,7 +572,7 @@ export function Sidebar({
                 >
                   <Check className={cn("h-3.5 w-3.5 flex-shrink-0", repoFilter === ALL_REPOSITORIES ? "opacity-100" : "opacity-0")} />
                   <span className="flex-1">All chats</span>
-                  <span className="text-muted-foreground">({repoCounts.total})</span>
+                  <span className="text-muted-foreground">{repoCounts.total}</span>
                 </button>
 
                 {/* No repository option */}
@@ -586,7 +586,7 @@ export function Sidebar({
                   >
                     <Check className={cn("h-3.5 w-3.5 flex-shrink-0", repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
                     <span className="flex-1">No repository</span>
-                    <span className="text-muted-foreground">({repoCounts.noRepoCount})</span>
+                    <span className="text-muted-foreground">{repoCounts.noRepoCount}</span>
                   </button>
                 )}
 
@@ -610,7 +610,7 @@ export function Sidebar({
                       <Check className={cn("h-3.5 w-3.5 flex-shrink-0", repoFilter === repo ? "opacity-100" : "opacity-0")} />
                       <FolderGit2 className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
                       <span className="truncate flex-1">{repo}</span>
-                      <span className="text-muted-foreground">({repoCounts.counts[repo] || 0})</span>
+                      <span className="text-muted-foreground">{repoCounts.counts[repo] || 0}</span>
                     </button>
                   ))}
               </div>
