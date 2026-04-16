@@ -419,11 +419,11 @@ export function Sidebar({
           </div>
 
           {/* API Reference Link */}
-          <div className="px-3 py-2 border-t border-sidebar-border">
+          <div className="px-3 py-2">
             <button
               onClick={() => handleNavigate(currentPage === "sdk" ? "chat" : "sdk")}
               className={cn(
-                "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition-colors",
+                "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs transition-colors",
                 currentPage === "sdk"
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-accent/50 active:bg-accent hover:text-foreground"
@@ -625,7 +625,7 @@ export function Sidebar({
       {collapsed && <div className="flex-1" />}
 
       {/* API Reference Link */}
-      <div className={cn("px-2 py-2", !collapsed && "border-t border-sidebar-border")}>
+      <div className="px-2 py-2">
         <button
           onClick={() => onNavigate?.(currentPage === "sdk" ? "chat" : "sdk")}
           className={cn(
@@ -637,7 +637,7 @@ export function Sidebar({
           )}
         >
           <Code2 className="h-4 w-4" />
-          {!collapsed && <span className="text-sm">API Reference</span>}
+          {!collapsed && <span className="text-xs">API Reference</span>}
         </button>
       </div>
 
