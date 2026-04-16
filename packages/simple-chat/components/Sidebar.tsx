@@ -106,6 +106,24 @@ export function Sidebar({
     })
   }, [chats, repoFilter])
 
+  // Count chats per repository (for dropdown display)
+  const repoCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    let total = 0
+    let noRepoCount = 0
+    chats.forEach((chat) => {
+      if (chat.messages.length > 0) {
+        total++
+        if (chat.repo === NEW_REPOSITORY) {
+          noRepoCount++
+        } else {
+          counts[chat.repo] = (counts[chat.repo] || 0) + 1
+        }
+      }
+    })
+    return { counts, total, noRepoCount }
+  }, [chats])
+
   // Get display name for repository
   const getRepoDisplayName = (repo: string) => {
     if (repo === NEW_REPOSITORY) return "No repository"
@@ -352,7 +370,8 @@ export function Sidebar({
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
                 >
                   <Check className={cn("h-4 w-4 flex-shrink-0", repoFilter === ALL_REPOSITORIES ? "opacity-100" : "opacity-0")} />
-                  <span>All repositories</span>
+                  <span className="flex-1">All repositories</span>
+                  <span className="text-muted-foreground">({repoCounts.total})</span>
                 </button>
 
                 {/* No repository option */}
@@ -365,7 +384,8 @@ export function Sidebar({
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
                   >
                     <Check className={cn("h-4 w-4 flex-shrink-0", repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
-                    <span>No repository</span>
+                    <span className="flex-1">No repository</span>
+                    <span className="text-muted-foreground">({repoCounts.noRepoCount})</span>
                   </button>
                 )}
 
@@ -388,7 +408,8 @@ export function Sidebar({
                     >
                       <Check className={cn("h-4 w-4 flex-shrink-0", repoFilter === repo ? "opacity-100" : "opacity-0")} />
                       <FolderGit2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span className="truncate">{repo}</span>
+                      <span className="truncate flex-1">{repo}</span>
+                      <span className="text-muted-foreground">({repoCounts.counts[repo] || 0})</span>
                     </button>
                   ))}
               </div>
@@ -550,7 +571,8 @@ export function Sidebar({
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
                 >
                   <Check className={cn("h-3.5 w-3.5 flex-shrink-0", repoFilter === ALL_REPOSITORIES ? "opacity-100" : "opacity-0")} />
-                  <span>All repositories</span>
+                  <span className="flex-1">All repositories</span>
+                  <span className="text-muted-foreground">({repoCounts.total})</span>
                 </button>
 
                 {/* No repository option */}
@@ -563,7 +585,8 @@ export function Sidebar({
                     className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
                   >
                     <Check className={cn("h-3.5 w-3.5 flex-shrink-0", repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
-                    <span>No repository</span>
+                    <span className="flex-1">No repository</span>
+                    <span className="text-muted-foreground">({repoCounts.noRepoCount})</span>
                   </button>
                 )}
 
@@ -586,7 +609,8 @@ export function Sidebar({
                     >
                       <Check className={cn("h-3.5 w-3.5 flex-shrink-0", repoFilter === repo ? "opacity-100" : "opacity-0")} />
                       <FolderGit2 className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                      <span className="truncate">{repo}</span>
+                      <span className="truncate flex-1">{repo}</span>
+                      <span className="text-muted-foreground">({repoCounts.counts[repo] || 0})</span>
                     </button>
                   ))}
               </div>
