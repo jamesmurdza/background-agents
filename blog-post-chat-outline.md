@@ -52,10 +52,11 @@ Brief code or explanation of how branches are created per chat.
 
 ## Section: Slash Commands
 
-The chat supports slash commands that trigger actions:
+The chat supports slash commands for git operations:
 
-- `/commit` — agent writes a commit message
-- `/pr` — opens a pull request on GitHub
+- `/merge` — merge branches
+- `/rebase` — rebase onto another branch
+- `/pr` — open a pull request on GitHub
 
 These work because the GitHub token is held by the app, not the sandbox.
 
