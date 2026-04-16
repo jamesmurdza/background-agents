@@ -111,9 +111,7 @@ The SDK uses a pluggable registry. Each agent adapter:
 
 ## Conclusion
 
-Sandboxes make AI coding agents practical for cloud and serverless applications. They give you isolation, persistence, and scale. Agents can securely execute code, run for long periods beyond the span of serverless functions, and store the updated code until it is pushed to version control.
-
-The Background Agents SDK implements this solution across six different agents. If you're building on top of AI coding agents, it might save you some time.
+Sandboxes make AI coding agents practical for cloud and serverless applications. They give you isolation, persistence, and scale. Agents can securely execute code, run for long periods beyond the span of serverless functions, and store the updated code until it is pushed to version control. With the Background Agents SDK, you can run any CLI agent in a cloud sandbox in a few lines of code.
 
 ---
 
