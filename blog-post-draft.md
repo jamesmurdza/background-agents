@@ -1,13 +1,17 @@
 # Building AI Agent Interfaces with the Background Agents SDK
 
-AI coding agents like Claude Code, Codex, and Gemini are powerful tools, but integrating them into your own applications can be tricky. Each has its own CLI, output format, and authentication quirks. We built the Background Agents SDK to solve this problem—and Simple Chat to show what you can build with it.
+Coding agents like Claude Code, Codex, and OpenCode were originally designed for local-first CLI usage, and integrating them into cloud applications comes with a whole set of challenges. The Background Agents SDK is a solution to those challenges—it gives you a unified interface for starting, polling, and managing long-running AI coding agents from serverless applications.
 
 ## Introducing the Background Agents SDK
 
-The Background Agents SDK is a TypeScript library that gives you a unified interface for running AI coding agents. Instead of writing custom integrations for each agent, you write your code once and swap agents with a single parameter.
+The Background Agents SDK is a TypeScript library that lets you install and start long-running AI coding agents from serverless applications. You just create a sandbox, create a session, and start a task:
 
 ```typescript
-import { createSession } from "@upstream/agents"
+import { Daytona } from "@daytonaio/sdk"
+import { createSession } from "background-agents"
+
+const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
+const sandbox = await daytona.create()
 
 const session = await createSession("claude", {
   sandbox,
@@ -16,17 +20,23 @@ const session = await createSession("claude", {
 
 await session.start("Refactor the auth module")
 
-while (await session.isRunning()) {
-  const { events } = await session.getEvents()
-  for (const event of events) {
-    if (event.type === "token") process.stdout.write(event.text)
-  }
+// Remember sandbox.id and session.id
+```
+
+Now, with just a few lines of code, a coding agent is running in an isolated sandbox. In order to check on our coding agent later, we use:
+
+```typescript
+const sandbox = await daytona.get(sandboxId)
+const session = await getSession(sessionId, { sandbox })
+
+const { events, running } = await session.getEvents()
+for (const event of events) {
+  if (event.type === "token") process.stdout.write(event.text)
+  if (event.type === "tool_start") console.log(`\n[Tool: ${event.name}]`)
 }
 ```
 
-Want to use Codex instead? Just change `"claude"` to `"codex"` and pass a different API key. The rest of your code stays the same.
-
-The SDK currently supports Claude Code, Codex, Gemini, Goose, OpenCode, and Pi—with more on the way.
+To make this work with a different agent, we could have changed `"claude"` to any of the supported agents: `"codex"`, `"gemini"`, `"goose"`, `"opencode"`, or `"pi"`.
 
 ## Why Put CLI Agents in Sandboxes?
 
