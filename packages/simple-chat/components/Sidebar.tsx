@@ -6,6 +6,7 @@ import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil,
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { useSwipeActions } from "@/lib/hooks/useSwipeActions"
 
 // Repository filter options - exported for use in parent components
 export const ALL_REPOSITORIES = "__all__"
@@ -713,7 +714,7 @@ export function Sidebar({
 }
 
 // =============================================================================
-// Mobile Chat Item Component
+// Mobile Chat Item Component with Swipe Actions
 // =============================================================================
 
 interface MobileChatItemProps {
@@ -731,10 +732,16 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
   const inputRef = useRef<HTMLInputElement>(null)
   const displayName = chat.displayName || "Untitled"
 
-  const startEditing = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const { swipeOffset, isSwiping, isRevealed, reset, swipeProps } = useSwipeActions({
+    threshold: 60,
+    maxSwipe: 140,
+    enabled: !isDeleting && !isEditing,
+  })
+
+  const startEditing = () => {
     setEditName(displayName)
     setIsEditing(true)
+    reset()
   }
 
   const saveEdit = () => {
@@ -748,6 +755,19 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
   const cancelEdit = () => {
     setIsEditing(false)
     setEditName("")
+  }
+
+  const handleDelete = () => {
+    reset()
+    onDelete()
+  }
+
+  const handleSelect = () => {
+    if (isRevealed) {
+      reset()
+      return
+    }
+    onSelect()
   }
 
   useEffect(() => {
@@ -777,44 +797,52 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
   }
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-lg transition-colors touch-target px-3 py-3",
-        isDeleting
-          ? "opacity-50 cursor-not-allowed"
-          : "active:bg-accent",
-        !isDeleting && (isActive
-          ? "bg-accent text-accent-foreground"
-          : "hover:bg-accent/50 text-sidebar-foreground")
-      )}
-      onClick={isDeleting ? undefined : onSelect}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="text-base truncate">{displayName}</div>
+    <div className="relative overflow-hidden rounded-lg">
+      {/* Background action buttons (revealed on swipe) */}
+      <div className="absolute inset-y-0 right-0 flex items-stretch">
+        {/* Edit button */}
+        <button
+          onClick={startEditing}
+          className="flex items-center justify-center w-[70px] bg-blue-500 text-white transition-opacity touch-target"
+          style={{ opacity: Math.min(1, Math.abs(swipeOffset) / 60) }}
+          aria-label="Rename chat"
+        >
+          <Pencil className="h-5 w-5" />
+        </button>
+        {/* Delete button */}
+        <button
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className="flex items-center justify-center w-[70px] bg-destructive text-destructive-foreground transition-opacity touch-target disabled:opacity-50"
+          style={{ opacity: Math.min(1, Math.abs(swipeOffset) / 60) }}
+          aria-label="Delete chat"
+        >
+          <Trash2 className="h-5 w-5" />
+        </button>
       </div>
 
-      {/* Rename button */}
-      <button
-        onClick={startEditing}
-        disabled={isDeleting}
-        className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors touch-target disabled:cursor-not-allowed"
-        aria-label="Rename chat"
-      >
-        <Pencil className="h-4 w-4" />
-      </button>
-
-      {/* Delete button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onDelete()
+      {/* Swipeable content */}
+      <div
+        {...swipeProps}
+        className={cn(
+          "relative flex items-center gap-3 touch-target px-3 py-3 bg-background",
+          !isSwiping && "transition-transform duration-200 ease-out",
+          isDeleting
+            ? "opacity-50 cursor-not-allowed"
+            : "",
+          !isDeleting && !isRevealed && (isActive
+            ? "bg-accent text-accent-foreground"
+            : "text-sidebar-foreground")
+        )}
+        style={{
+          transform: `translateX(${swipeOffset}px)`,
         }}
-        disabled={isDeleting}
-        className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors touch-target disabled:cursor-not-allowed"
-        aria-label="Delete chat"
+        onClick={isDeleting ? undefined : handleSelect}
       >
-        <Trash2 className="h-4 w-4" />
-      </button>
+        <div className="flex-1 min-w-0">
+          <div className="text-base truncate">{displayName}</div>
+        </div>
+      </div>
     </div>
   )
 }
