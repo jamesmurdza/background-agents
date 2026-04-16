@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
-import { GitBranch, FolderGit2, Clock } from "lucide-react"
+import { useMemo } from "react"
+import { GitBranch, FolderGit2, Clock, MessageSquare } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -14,14 +14,22 @@ import {
 import { addRecentItem, getRecentItems, type RecentItem } from "@upstream/common"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 
+interface Chat {
+  id: string
+  displayName: string | null
+  repo: string
+}
+
 interface SearchPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   repos: GitHubRepo[]
   currentRepo: string | null // "owner/repo"
   branches: GitHubBranch[]
+  chats: Chat[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
+  onSelectChat: (chatId: string) => void
 }
 
 export function SearchPalette({
@@ -30,8 +38,10 @@ export function SearchPalette({
   repos,
   currentRepo,
   branches,
+  chats,
   onSelectRepo,
   onSelectBranch,
+  onSelectChat,
 }: SearchPaletteProps) {
   const recentItems = useMemo(() => getRecentItems(), [open])
 
@@ -64,6 +74,11 @@ export function SearchPalette({
     onOpenChange(false)
   }
 
+  const handleSelectChat = (chat: Chat) => {
+    onSelectChat(chat.id)
+    onOpenChange(false)
+  }
+
   const handleSelectRecent = (item: RecentItem) => {
     if (item.type === "repo") {
       const repo = repos.find(
@@ -91,9 +106,9 @@ export function SearchPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Search"
-      description="Search for repos and branches"
+      description="Search for chats, repos, and branches"
     >
-      <CommandInput placeholder="Search repos and branches..." />
+      <CommandInput placeholder="Search chats, repos, and branches..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
 
@@ -112,6 +127,25 @@ export function SearchPalette({
                   {item.branchName && (
                     <span className="text-muted-foreground"> / {item.branchName}</span>
                   )}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Chats */}
+        {chats.length > 0 && (
+          <CommandGroup heading="Chats">
+            {chats.map((chat) => (
+              <CommandItem
+                key={chat.id}
+                value={`chat:${chat.displayName ?? chat.id}:${chat.repo}`}
+                onSelect={() => handleSelectChat(chat)}
+              >
+                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>
+                  {chat.displayName ?? "Untitled Chat"}
+                  <span className="text-muted-foreground text-xs ml-2">({chat.repo})</span>
                 </span>
               </CommandItem>
             ))}

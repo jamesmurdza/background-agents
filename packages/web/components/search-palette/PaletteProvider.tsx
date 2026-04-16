@@ -53,41 +53,32 @@ export function PaletteProvider({
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       const target = e.target as HTMLElement
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        return
-      }
+      const isInInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
 
-      // Cmd/Ctrl + P for search
+      // Cmd/Ctrl + P for search (works even in inputs)
       if ((e.metaKey || e.ctrlKey) && e.key === "p") {
         e.preventDefault()
         setSearchOpen(true)
         return
       }
 
-      // Cmd/Ctrl + K for commands
+      // Cmd/Ctrl + K for commands (works even in inputs)
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
         setCommandOpen(true)
         return
       }
 
-      // Alt + Up/Down for branch navigation
-      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      // Alt + Up/Down for branch navigation (only when not in input)
+      if (!isInInput && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         if (!activeRepoId || branches.length === 0) return
         e.preventDefault()
 
         let newIndex: number
         if (e.key === "ArrowUp") {
-          // Go to previous branch (or wrap to last)
           newIndex = currentBranchIndex <= 0 ? branches.length - 1 : currentBranchIndex - 1
         } else {
-          // Go to next branch (or wrap to first)
           newIndex = currentBranchIndex >= branches.length - 1 ? 0 : currentBranchIndex + 1
         }
 

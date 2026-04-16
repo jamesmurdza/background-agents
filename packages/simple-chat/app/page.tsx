@@ -239,6 +239,7 @@ export default function HomePage() {
       repos={repos}
       currentRepo={currentChat?.repo !== NEW_REPOSITORY ? currentChat?.repo ?? null : null}
       branches={branches}
+      chats={displayChats.map((c) => ({ id: c.id, displayName: c.displayName, repo: c.repo }))}
       onSelectRepo={handlePaletteSelectRepo}
       onSelectBranch={handlePaletteSelectBranch}
       onRunCommand={handleRunCommand}

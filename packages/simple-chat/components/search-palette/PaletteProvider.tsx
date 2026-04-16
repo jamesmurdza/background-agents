@@ -5,6 +5,12 @@ import { SearchPalette } from "./SearchPalette"
 import { CommandPalette } from "./CommandPalette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 
+interface Chat {
+  id: string
+  displayName: string | null
+  repo: string
+}
+
 interface PaletteContextValue {
   openSearch: () => void
   openCommand: () => void
@@ -25,6 +31,7 @@ interface PaletteProviderProps {
   repos: GitHubRepo[]
   currentRepo: string | null
   branches: GitHubBranch[]
+  chats: Chat[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
   onRunCommand: (command: string) => void
@@ -39,6 +46,7 @@ export function PaletteProvider({
   repos,
   currentRepo,
   branches,
+  chats,
   onSelectRepo,
   onSelectBranch,
   onRunCommand,
@@ -58,41 +66,32 @@ export function PaletteProvider({
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       const target = e.target as HTMLElement
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        return
-      }
+      const isInInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
 
-      // Cmd/Ctrl + P for search
+      // Cmd/Ctrl + P for search (works even in inputs)
       if ((e.metaKey || e.ctrlKey) && e.key === "p") {
         e.preventDefault()
         setSearchOpen(true)
         return
       }
 
-      // Cmd/Ctrl + K for commands
+      // Cmd/Ctrl + K for commands (works even in inputs)
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
         setCommandOpen(true)
         return
       }
 
-      // Alt + Up/Down for chat navigation
-      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      // Alt + Up/Down for chat navigation (only when not in input)
+      if (!isInInput && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         if (chatIds.length === 0) return
         e.preventDefault()
 
         let newIndex: number
         if (e.key === "ArrowUp") {
-          // Go to previous chat (or wrap to last)
           newIndex = currentChatIndex <= 0 ? chatIds.length - 1 : currentChatIndex - 1
         } else {
-          // Go to next chat (or wrap to first)
           newIndex = currentChatIndex >= chatIds.length - 1 ? 0 : currentChatIndex + 1
         }
 
@@ -116,8 +115,10 @@ export function PaletteProvider({
         repos={repos}
         currentRepo={currentRepo}
         branches={branches}
+        chats={chats}
         onSelectRepo={onSelectRepo}
         onSelectBranch={onSelectBranch}
+        onSelectChat={onSelectChat}
       />
       <CommandPalette
         open={commandOpen}
