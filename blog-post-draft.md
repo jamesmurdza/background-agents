@@ -115,11 +115,12 @@ A security benefit of using Daytona to manage the git repo is that the GitHub ac
 
 ## Adding New Agents
 
-The SDK uses a pluggable registry. Each agent adapter:
+The SDK uses a pluggable registry designed for test-driven development. This makes it straightforward for developers or agents to add new agents using the following framework:
 
-1. Installs and runs the agent using its CLI
-2. Parses the agent's JSON output into normalized events
-3. Maps tool names to a standard format (e.g., `Write` → `write`, `Shell` → `bash`)
+1. Create a CLI adapter for installing and running the agent
+2. Generate reference output
+3. Based on the reference output (and agent docs), create a JSON parser for the agent
+4. Map tool names to a standard format (e.g., `Write` → `write`, `Shell` → `bash`)
 
 ## Conclusion
 
