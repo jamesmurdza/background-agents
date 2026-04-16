@@ -26,15 +26,13 @@ const session = await createSession("claude", {
 await session.start("Refactor the auth module")
 ```
 
-The agent is now running in an isolated sandbox with your repo cloned into it. Your serverless function can return—the sandbox keeps running independently.
-
-To use a different agent, change `"claude"` to any of the supported agents: `"codex"`, `"gemini"`, `"goose"`, `"opencode"`, or `"pi"`.
+The agent is now running in an isolated sandbox with your repo cloned into it. To use a different agent, change `"claude"` to any of the supported agents: `"codex"`, `"gemini"`, `"goose"`, `"opencode"`, or `"pi"`.
 
 ## Long-Running Agents
 
-Serverless functions time out. Servers restart. But coding agents can run for minutes—sometimes longer. The SDK is built around this constraint.
+Coding agents can run from a few minutes to much longer. For a serverless application, we need to be able to reconnect to running agent sessions to check their status later.
 
-When you start a session, save the sandbox ID (`sandbox.id`) and session ID (`session.id`). Later—from a new request, a different server, whenever—you reconnect:
+When you start a session, save the sandbox ID (`sandbox.id`) and session ID (`session.id`). Later, you can reconnect:
 
 ```typescript
 const sandbox = await daytona.get(sandboxId)
@@ -47,7 +45,7 @@ for (const event of events) {
 }
 ```
 
-The SDK tracks which events you've already seen. Each call to `getEvents()` returns only the new ones.
+The SDK tracks which events you've already seen. Each call to `getEvents()` returns only the new ones. Since every agent has its own output format, the SDK normalizes them into a common event structure.
 
 When the agent finishes, push the changes:
 
@@ -57,43 +55,31 @@ if (!running) {
 }
 ```
 
-Since the GitHub access token is not stored in the sandbox, this prevents the agent from making any unwanted changes.
+A security benefit of using Daytona to manage the git repo is that the GitHub access token is not stored in the sandbox, which prevents the agent from making any destructive or unwanted changes.
 
 ## Why Sandboxes?
 
-These agents execute real code—reading files, writing files, running shell commands, interacting with git. You don't want that happening on your server.
+Coding agents execute code, read files, write files, and run shell commands. Sandboxes give you isolation. Each agent runs in its own Daytona environment, finishes its task, and can be deleted when you're done.
 
-Sandboxes give you isolation. Each agent runs in its own Daytona environment, does whatever it needs to do, and can be deleted when you're done. If something goes wrong, you haven't lost anything.
-
-But for serverless applications, the bigger benefit is persistence. Your function might time out, your server might restart, but the sandbox keeps running. Save the IDs, reconnect later, pick up where you left off.
+The sandbox also persists the state of the agent. In serverless applications, functions can only run for a limited time, but Daytona sandboxes allow the agent to run indefinitely. Your application only needs to persist the sandbox and session IDs.
 
 ## Adding New Agents
 
-The SDK uses a pluggable registry. Each agent adapter implements a simple interface: how to build the CLI command, how to parse its JSON output, and how to map tool names to a common format.
+The SDK uses a pluggable registry. Each agent adapter implements how to build the CLI command, parse its JSON output, and map tool names to a common format.
 
-We built an agentic workflow for adding new adapters:
-
-1. Create a skeleton module with just the CLI command
-2. Run a script that captures the agent's raw JSON output
-3. Use that output to build the parser iteratively
-
-The agents can help build their own integrations. Point Claude at the captured JSON and the existing adapters, and it drafts most of the parser for you.
+We built an agentic workflow for adding new adapters. You create a skeleton module, run a script that captures the agent's raw output, then iteratively build the parser from that. The agents can help—point Claude at the captured JSON and the existing adapters, and it drafts most of the code for you.
 
 ## Building the Chat Interface
 
-Simple Chat is a Next.js app we built on top of the SDK. It's intentionally minimal—no database, just local storage—so you can see how the pieces connect.
+We built an example chat application on top of the SDK to show how the pieces connect. It's intentionally minimal—no database, just local storage.
 
-The core is a polling loop. Send a message, the app creates a session and starts polling. Events come back and get rendered as they arrive:
-
-- Tokens stream in as the agent "types"
-- Tool calls show what's happening (file reads, edits, commands)
-- Completion ends the loop
+The core is a polling loop. Send a message, the app creates a session and starts polling. Events come back and get rendered as they arrive: tokens stream in as the agent "types," tool calls show what's happening, and completion ends the loop.
 
 The UI renders tool calls inline, so you see exactly what the agent did. File edits show diffs, command outputs collapse, errors get highlighted.
 
 ## Git & GitHub Integration
 
-Each conversation in Simple Chat is tied to a git branch. Start a new chat, get a new branch. The agent makes changes, they're tracked in git.
+Each conversation in the chat app is tied to a git branch. Start a new chat, get a new branch. The agent makes changes, they're tracked in git.
 
 When you're done:
 
@@ -105,4 +91,4 @@ The whole workflow happens in the sandbox. If you don't like the result, delete 
 
 ---
 
-The Background Agents SDK and Simple Chat are both open source. If you're building on top of AI coding agents, they might save you some time.
+The Background Agents SDK is open source. If you're building on top of AI coding agents, it might save you some time.
