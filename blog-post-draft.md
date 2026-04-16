@@ -1,8 +1,8 @@
-# Building AI Agent Interfaces with the Background Agents SDK
+# Building Cloud Coding Agents with the Background Agents SDK
 
-Coding agents like Claude Code, Codex, and OpenCode were originally designed for local-first CLI usage, and integrating them into cloud applications comes with a whole set of challenges. These agents execute code, read and write files, and run shell commands—you don't want that happening on your server. And since agents can run for minutes or longer, serverless functions will time out before they finish.
+Coding agents like Claude Code, Codex, and OpenCode were originally designed for local-first CLI usage, and integrating them into cloud applications comes with a whole set of challenges. The Background Agents SDK is a solution that lets you start and manage long-running AI coding agents using Daytona sandboxes.
 
-The Background Agents SDK solves both problems. It gives you a unified interface for running AI coding agents in isolated Daytona sandboxes, where they can execute safely and persist beyond the lifetime of any single request.
+Since the agents are running in sandboxes, they can safely execute code, run shell commands, and modify files without affecting your infrastructure. The sandbox persists beyond the lifetime of any single request, so agents can run for as long as they need. And changes stay contained until you explicitly push them to your repository.
 
 ## Introducing the Background Agents SDK
 
@@ -73,7 +73,7 @@ Here's what the events look like when an agent edits a file:
 { type: "end" }
 ```
 
-## Saving to Git
+## Pushing to Git
 
 When the agent finishes, push the changes:
 
@@ -111,12 +111,10 @@ The SDK uses a pluggable registry. Each agent adapter:
 
 ## Conclusion
 
-Sandboxes make AI coding agents practical for cloud applications. They give you isolation—agents can execute code without risk to your infrastructure. They give you persistence—agents keep running even when your serverless functions time out. And they give you control—changes stay in the sandbox until you explicitly push them.
+Sandboxes make AI coding agents practical for cloud and serverless applications. They give you isolation, persistence, and scale. Agents can securely execute code, run for long periods beyond the span of serverless functions, and store the updated code until it is pushed to version control.
 
-The Background Agents SDK handles the complexity of managing these sandboxed agents across multiple providers. You get one interface for Claude, Codex, Gemini, and others, with normalized events and simple session management.
-
-If you're building on top of AI coding agents, it might save you some time.
+The Background Agents SDK implements this solution across six different agents. If you're building on top of AI coding agents, it might save you some time.
 
 ---
 
-The Background Agents SDK is open source. Find it on [npm](https://www.npmjs.com/package/background-agents) or [GitHub](https://github.com/jamesmurdza/upstream-agents/tree/main/packages/agents).
+Find the Background Agents SDK on [npm](https://www.npmjs.com/package/background-agents) or [GitHub](https://github.com/jamesmurdza/upstream-agents/tree/main/packages/agents).
