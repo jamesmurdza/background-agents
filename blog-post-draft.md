@@ -14,15 +14,7 @@ const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create()
 
 // Clone a repo and set up a working branch
-await sandbox.git.clone(
-  "https://github.com/user/repo.git",
-  "/home/daytona/repo",
-  "main",
-  undefined,
-  "x-access-token",
-  githubToken
-)
-await sandbox.git.createBranch("/home/daytona/repo", "fix-auth-bug")
+await sandbox.git.clone("https://github.com/user/repo.git", "/home/daytona/repo")
 await sandbox.git.checkoutBranch("/home/daytona/repo", "fix-auth-bug")
 
 // Start the agent
@@ -32,10 +24,6 @@ const session = await createSession("claude", {
 })
 
 await session.start("Refactor the auth module")
-
-// Save these for later
-const sandboxId = sandbox.id
-const sessionId = session.id
 ```
 
 The agent is now running in an isolated sandbox with your repo cloned into it. Your serverless function can return—the sandbox keeps running independently.
@@ -46,7 +34,7 @@ To use a different agent, change `"claude"` to any of the supported agents: `"co
 
 Serverless functions time out. Servers restart. But coding agents can run for minutes—sometimes longer. The SDK is built around this constraint.
 
-When you start a session, save the sandbox ID and session ID. Later—from a new request, a different server, whenever—you reconnect:
+When you start a session, save the sandbox ID (`sandbox.id`) and session ID (`session.id`). Later—from a new request, a different server, whenever—you reconnect:
 
 ```typescript
 const sandbox = await daytona.get(sandboxId)
@@ -65,13 +53,11 @@ When the agent finishes, push the changes:
 
 ```typescript
 if (!running) {
-  await sandbox.git.push(
-    "/home/daytona/repo",
-    "x-access-token",
-    githubToken
-  )
+  await sandbox.git.push("/home/daytona/repo", "x-access-token", githubToken)
 }
 ```
+
+Since the GitHub access token is not stored in the sandbox, this prevents the agent from making any unwanted changes.
 
 ## Why Sandboxes?
 
