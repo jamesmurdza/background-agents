@@ -4,7 +4,7 @@ Coding agents like Claude Code, Codex, and OpenCode were originally designed for
 
 Since the agents are running in sandboxes, they can safely execute code, run shell commands, and modify files without affecting your infrastructure. The sandbox persists beyond the lifetime of any single request, so agents can run for as long as they need. And changes stay contained until you explicitly push them to your repository.
 
-## Introducing the Background Agents SDK
+## Using the Background Agents SDK
 
 The Background Agents SDK is a TypeScript library that lets you run long-running AI coding agents from serverless applications.
 
@@ -36,12 +36,12 @@ await session.start("Refactor the auth module")
 
 The agent is now running in the sandbox with your repo cloned into it. To use a different agent, change `"claude"` to any of the supported agents:
 
-- `"claude"` — [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- `"codex"` — [Codex](https://developers.openai.com/codex/cli)
-- `"gemini"` — [Gemini CLI](https://geminicli.com/docs/)
-- `"goose"` — [Goose](https://block.github.io/goose/docs/)
-- `"opencode"` — [OpenCode](https://opencode.ai/docs/)
-- `"pi"` — [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
+- `"claude"` — [Claude Code](https://docs.anthropic.com/en/docs/claude-code) from Anthropic
+- `"codex"` — [Codex](https://developers.openai.com/codex/cli) from OpenAI
+- `"gemini"` — [Gemini CLI](https://geminicli.com/docs/) from Google
+- `"goose"` — [Goose](https://block.github.io/goose/docs/) from Block
+- `"opencode"` — [OpenCode](https://opencode.ai/docs/), open-source multi-provider agent
+- `"pi"` — [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent), lightweight open-source agent
 
 ## Long-Running Agents
 
