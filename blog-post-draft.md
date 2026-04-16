@@ -52,7 +52,30 @@ for (const event of events) {
 }
 ```
 
-The SDK tracks which events you've already seen. Each call to `getEvents()` returns only the new ones. Since every agent has its own output format, the SDK normalizes them into a common event structure.
+The SDK tracks which events you've already seen. Each call to `getEvents()` returns only the new ones.
+
+## Event Types
+
+Since every agent has its own output format, the SDK normalizes them into a common event structure:
+
+| Event | Description |
+|-------|-------------|
+| `token` | Text output from the agent |
+| `tool_start` | Agent started using a tool (includes tool name and input) |
+| `tool_delta` | Streaming output from a tool |
+| `tool_end` | Tool finished (includes output) |
+| `end` | Agent completed the task |
+| `agent_crashed` | Agent process crashed |
+
+Here's what the events look like when an agent edits a file:
+
+```typescript
+{ type: "token", text: "I'll update the auth module..." }
+{ type: "tool_start", name: "edit", input: { file_path: "src/auth.ts", ... } }
+{ type: "tool_end", output: "File updated successfully" }
+{ type: "token", text: "Done. The auth module now..." }
+{ type: "end" }
+```
 
 ## Saving to Git
 
@@ -88,9 +111,7 @@ The SDK uses a pluggable registry. Each agent adapter:
 
 1. Installs and runs the agent using its CLI
 2. Parses the agent's JSON output into normalized events
-3. Maps tool names to a standard format (e.g., `Write` → `write`, `Bash` → `bash`)
-
-I built an agentic workflow for adding new adapters. You create a skeleton module, run a script that captures the agent's raw output, then iteratively build the parser from that. The agents can help—point Claude at the captured JSON and the existing adapters, and it drafts most of the code for you.
+3. Maps tool names to a standard format (e.g., `Write` → `write`, `Shell` → `bash`)
 
 ---
 
