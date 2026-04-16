@@ -101,8 +101,9 @@ export function useSwipeActions({
           : -(maxSwipe + overflow * resistance)
       }
 
-      // Only allow left swipe (negative direction to reveal right-side actions)
-      if (offset < 0) {
+      // Only allow right swipe (positive direction to reveal left-side actions)
+      // This avoids conflict with drawer swipe-to-close (left swipe)
+      if (offset > 0) {
         setSwipeOffset(offset)
       }
     }
@@ -115,10 +116,10 @@ export function useSwipeActions({
     isHorizontalSwipe.current = null
 
     // If swiped past threshold, lock in the revealed state
-    if (Math.abs(swipeOffset) >= threshold) {
+    if (swipeOffset >= threshold) {
       setIsRevealed(true)
       // Snap to max swipe position
-      setSwipeOffset(swipeOffset < 0 ? -maxSwipe : maxSwipe)
+      setSwipeOffset(maxSwipe)
     } else {
       // Snap back to closed
       reset()

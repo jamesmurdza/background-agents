@@ -798,13 +798,13 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
 
   return (
     <div className="relative overflow-hidden rounded-lg">
-      {/* Background action buttons (revealed on swipe) */}
-      <div className="absolute inset-y-0 right-0 flex items-stretch">
+      {/* Background action buttons (revealed on swipe right) */}
+      <div className="absolute inset-y-0 left-0 flex items-stretch">
         {/* Edit button */}
         <button
           onClick={startEditing}
           className="flex items-center justify-center w-[70px] bg-blue-500 text-white transition-opacity touch-target"
-          style={{ opacity: Math.min(1, Math.abs(swipeOffset) / 60) }}
+          style={{ opacity: Math.min(1, swipeOffset / 60) }}
           aria-label="Rename chat"
         >
           <Pencil className="h-5 w-5" />
@@ -814,7 +814,7 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
           onClick={handleDelete}
           disabled={isDeleting}
           className="flex items-center justify-center w-[70px] bg-destructive text-destructive-foreground transition-opacity touch-target disabled:opacity-50"
-          style={{ opacity: Math.min(1, Math.abs(swipeOffset) / 60) }}
+          style={{ opacity: Math.min(1, swipeOffset / 60) }}
           aria-label="Delete chat"
         >
           <Trash2 className="h-5 w-5" />
