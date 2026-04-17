@@ -18,11 +18,36 @@ import { NEW_REPOSITORY, type Message } from "@/lib/types"
 import { fetchRepos, fetchBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github"
 
 // Type for pending message data stored before sign-in
+// Note: files cannot be persisted across page reloads, so they are excluded from storage
 interface PendingMessage {
   message: string
   agent: string
   model: string
-  files?: File[]
+}
+
+// Storage key for pending message (persists across OAuth redirect)
+const PENDING_MESSAGE_KEY = "simple-chat-pending-message"
+
+// Helper to save pending message to sessionStorage
+function savePendingMessage(data: PendingMessage): void {
+  if (typeof window !== "undefined") {
+    sessionStorage.setItem(PENDING_MESSAGE_KEY, JSON.stringify(data))
+  }
+}
+
+// Helper to load and clear pending message from sessionStorage
+function loadAndClearPendingMessage(): PendingMessage | null {
+  if (typeof window === "undefined") return null
+  const stored = sessionStorage.getItem(PENDING_MESSAGE_KEY)
+  if (stored) {
+    sessionStorage.removeItem(PENDING_MESSAGE_KEY)
+    try {
+      return JSON.parse(stored) as PendingMessage
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 export default function HomePage() {
@@ -60,8 +85,8 @@ export default function HomePage() {
     return window.location.pathname === "/sdk" ? "sdk" : "chat"
   })
 
-  // Store pending message data when user tries to send without being signed in
-  const pendingMessageRef = useRef<PendingMessage | null>(null)
+  // Track if we've already processed a pending message (to avoid double-sending)
+  const pendingMessageProcessed = useRef(false)
 
   // Repos and branches for search palette
   const [repos, setRepos] = useState<GitHubRepo[]>([])
@@ -214,8 +239,9 @@ export default function HomePage() {
   const handleSendMessage = (message: string, agent: string, model: string, files?: File[]) => {
     // Always require sign-in to send messages
     if (!session) {
-      // Store the pending message and show sign-in modal
-      pendingMessageRef.current = { message, agent, model, files }
+      // Store the pending message in sessionStorage (persists across OAuth redirect)
+      // Note: files cannot be persisted, so we warn the user if they have attachments
+      savePendingMessage({ message, agent, model })
       setSignInModalOpen(true)
       return
     }
@@ -236,19 +262,22 @@ export default function HomePage() {
     sendMessage(message, agent, model, files)
   }
 
-  // Effect to send pending message after sign-in
+  // Effect to send pending message after sign-in (handles OAuth redirect case)
   useEffect(() => {
-    if (session && pendingMessageRef.current) {
-      const { message, agent, model, files } = pendingMessageRef.current
-      pendingMessageRef.current = null
-      setSignInModalOpen(false)
+    // Only process once per session, and only when we have a session and hydrated state
+    if (session && isHydrated && !pendingMessageProcessed.current) {
+      const pending = loadAndClearPendingMessage()
+      if (pending) {
+        pendingMessageProcessed.current = true
+        setSignInModalOpen(false)
 
-      // Small delay to ensure state is updated
-      setTimeout(() => {
-        sendMessage(message, agent, model, files)
-      }, 100)
+        // Small delay to ensure state is fully updated after hydration
+        setTimeout(() => {
+          sendMessage(pending.message, pending.agent, pending.model)
+        }, 200)
+      }
     }
-  }, [session, sendMessage])
+  }, [session, isHydrated, sendMessage])
 
   // Handler for slash commands - open the corresponding git dialog
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
