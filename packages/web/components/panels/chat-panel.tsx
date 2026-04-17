@@ -613,6 +613,9 @@ export function ChatPanel({
       case "pr":
         gitActions.gitDialogs.setPROpen(true)
         break
+      case "squash":
+        gitActions.gitDialogs.setSquashOpen(true)
+        break
     }
   }, [gitActions.gitDialogs])
 

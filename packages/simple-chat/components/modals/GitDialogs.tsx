@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Loader2, GitMerge, GitBranch, GitPullRequest, ChevronDown } from "lucide-react"
+import { X, Loader2, GitMerge, GitBranch, GitPullRequest, GitCommitVertical, ChevronDown, Minus, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Message } from "@/lib/types"
 import { PATHS } from "@/lib/constants"
@@ -31,6 +31,8 @@ export interface UseGitDialogsResult {
   setRebaseOpen: (open: boolean) => void
   prOpen: boolean
   setPROpen: (open: boolean) => void
+  squashOpen: boolean
+  setSquashOpen: (open: boolean) => void
 
   // Branch picker state
   remoteBranches: string[]
@@ -43,6 +45,10 @@ export interface UseGitDialogsResult {
   squashMerge: boolean
   setSquashMerge: (squash: boolean) => void
 
+  // Squash-specific state
+  squashCount: number
+  setSquashCount: (count: number) => void
+
   // Current branch info
   branchName: string
 
@@ -50,6 +56,7 @@ export interface UseGitDialogsResult {
   handleMerge: () => Promise<void>
   handleRebase: () => Promise<void>
   handleCreatePR: (descriptionType?: PRDescriptionTypeForHook) => Promise<void>
+  handleSquash: () => Promise<void>
   handleAbortConflict: () => Promise<void>
 
   // Conflict state
@@ -561,6 +568,113 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
 }
 
 // ============================================================================
+// Squash Dialog
+// ============================================================================
+
+interface SquashDialogProps {
+  open: boolean
+  onClose: () => void
+  gitDialogs: UseGitDialogsResult
+  chat: Chat | null
+  isMobile?: boolean
+}
+
+export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false }: SquashDialogProps) {
+  return (
+    <BaseDialog
+      open={open}
+      onClose={onClose}
+      title="Squash Commits"
+      icon={<GitCommitVertical className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
+      isMobile={isMobile}
+    >
+      <div className={cn("space-y-4", isMobile && "space-y-5")}>
+        <div>
+          <label className={cn(
+            "block text-muted-foreground mb-1",
+            isMobile ? "text-sm" : "text-xs"
+          )}>Current branch</label>
+          <div className={cn(
+            "bg-muted/50 rounded-md px-3 font-medium truncate",
+            isMobile ? "py-3 text-base" : "py-2 text-sm"
+          )}>
+            {gitDialogs.branchName || "No branch"}
+          </div>
+        </div>
+
+        <div>
+          <label className={cn(
+            "block text-muted-foreground mb-1",
+            isMobile ? "text-sm" : "text-xs"
+          )}>Number of commits to squash</label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => gitDialogs.setSquashCount(Math.max(2, gitDialogs.squashCount - 1))}
+              disabled={gitDialogs.squashCount <= 2}
+              className={cn(
+                "rounded-md border border-border bg-input hover:bg-accent disabled:opacity-50 transition-colors",
+                isMobile ? "p-3" : "p-2"
+              )}
+            >
+              <Minus className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+            </button>
+            <div className={cn(
+              "flex-1 text-center bg-input border border-border rounded-md font-medium",
+              isMobile ? "py-3 text-lg" : "py-2 text-base"
+            )}>
+              {gitDialogs.squashCount}
+            </div>
+            <button
+              type="button"
+              onClick={() => gitDialogs.setSquashCount(gitDialogs.squashCount + 1)}
+              className={cn(
+                "rounded-md border border-border bg-input hover:bg-accent transition-colors",
+                isMobile ? "p-3" : "p-2"
+              )}
+            >
+              <Plus className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+            </button>
+          </div>
+          <p className={cn(
+            "text-muted-foreground mt-1",
+            isMobile ? "text-sm" : "text-xs"
+          )}>
+            Squash the last {gitDialogs.squashCount} commits into a single commit
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            onClick={onClose}
+            className={cn(
+              "rounded-md hover:bg-accent transition-colors",
+              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
+            )}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              await gitDialogs.handleSquash()
+              onClose()
+            }}
+            disabled={gitDialogs.squashCount < 2 || gitDialogs.actionLoading}
+            className={cn(
+              "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
+              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
+            )}
+          >
+            {gitDialogs.actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Squash
+          </button>
+        </div>
+      </div>
+    </BaseDialog>
+  )
+}
+
+// ============================================================================
 // useGitDialogs Hook
 // ============================================================================
 
@@ -577,6 +691,7 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
   const [mergeOpen, setMergeOpen] = useState(false)
   const [rebaseOpen, setRebaseOpen] = useState(false)
   const [prOpen, setPROpen] = useState(false)
+  const [squashOpen, setSquashOpen] = useState(false)
 
   // Shared state for branch picker
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
@@ -586,6 +701,9 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
 
   // Merge-specific state
   const [squashMerge, setSquashMerge] = useState(false)
+
+  // Squash-specific state
+  const [squashCount, setSquashCount] = useState(2)
 
   // Conflict state
   const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>(EMPTY_CONFLICT_STATE)
@@ -815,6 +933,41 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
     }
   }, [sandboxId, repoName, rebaseConflict.inMerge, addSystemMessage])
 
+  // Handle squash
+  const handleSquash = useCallback(async () => {
+    if (!branchName || !sandboxId || squashCount < 2) return
+    setActionLoading(true)
+
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId,
+          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+          action: "squash",
+          squashCount,
+          currentBranch: branchName,
+          repoOwner,
+          repoApiName,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Squash failed")
+
+      addSystemMessage(
+        `Squashed the last ${squashCount} commits into one.`
+      )
+      setSquashOpen(false)
+    } catch (err: unknown) {
+      addSystemMessage(`Squash failed: ${err instanceof Error ? err.message : "Unknown error"}`, true)
+      setSquashOpen(false)
+    } finally {
+      setActionLoading(false)
+    }
+  }, [branchName, sandboxId, squashCount, repoName, repoOwner, repoApiName, addSystemMessage])
+
   // Check rebase status
   const checkRebaseStatus = useCallback(async () => {
     if (!sandboxId) return
@@ -857,6 +1010,8 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
     setRebaseOpen,
     prOpen,
     setPROpen,
+    squashOpen,
+    setSquashOpen,
     remoteBranches,
     selectedBranch,
     setSelectedBranch,
@@ -864,10 +1019,13 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
     actionLoading,
     squashMerge,
     setSquashMerge,
+    squashCount,
+    setSquashCount,
     branchName,
     handleMerge,
     handleRebase,
     handleCreatePR,
+    handleSquash,
     handleAbortConflict,
     rebaseConflict,
     checkRebaseStatus,

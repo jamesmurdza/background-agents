@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -16,6 +16,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,
   GitBranch,
   GitPullRequest,
+  GitCommitVertical,
 }
 
 interface CommandPaletteProps {

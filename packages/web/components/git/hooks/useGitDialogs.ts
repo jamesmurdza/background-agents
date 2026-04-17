@@ -69,6 +69,7 @@ export function useGitDialogs({
   const [mergeOpen, setMergeOpen] = useState(false)
   const [rebaseOpen, setRebaseOpen] = useState(false)
   const [prOpen, setPROpen] = useState(false)
+  const [squashOpen, setSquashOpen] = useState(false)
 
   // Shared state for branch picker dialogs
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
@@ -456,6 +457,46 @@ export function useGitDialogs({
     void checkRebaseStatus()
   }, [sandboxId, branchId, checkRebaseStatus])
 
+  // Squash-specific state
+  const [squashCount, setSquashCount] = useState(2)
+
+  const handleSquash = useCallback(async () => {
+    if (!branch || !sandboxId || squashCount < 2) return
+    setActionLoading(true)
+
+    const [ownerFromFull, repoFromFull] = repoFullName.split("/")
+    const apiOwner = repoOwner || ownerFromFull || ""
+    const apiRepo = repoName || repoFromFull || ""
+
+    try {
+      const res = await fetch("/api/sandbox/git", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId,
+          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+          action: "squash",
+          squashCount,
+          currentBranch: branchName,
+          repoOwner: apiOwner,
+          repoApiName: apiRepo,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Squash failed")
+
+      addSystemMessage(
+        `::icon-success:: **Squashed** the last ${squashCount} commits into one.`
+      )
+      setSquashOpen(false)
+    } catch (err: unknown) {
+      addSystemMessage(`::icon-error:: **Squash failed:** ${err instanceof Error ? err.message : "Unknown error"}`)
+      setSquashOpen(false)
+    } finally {
+      setActionLoading(false)
+    }
+  }, [branch, sandboxId, squashCount, branchName, repoName, repoOwner, repoFullName, addSystemMessage])
+
   return {
     // Dialog open states
     mergeOpen,
@@ -464,6 +505,8 @@ export function useGitDialogs({
     setRebaseOpen,
     prOpen,
     setPROpen,
+    squashOpen,
+    setSquashOpen,
 
     // Loading states
     branchesLoading,
@@ -484,6 +527,10 @@ export function useGitDialogs({
     prDescriptionType,
     setPRDescriptionType,
 
+    // Squash state
+    squashCount,
+    setSquashCount,
+
     // Current branch info (for display)
     branchName,
 
@@ -491,6 +538,7 @@ export function useGitDialogs({
     handleMerge,
     handleRebase,
     handleCreatePR,
+    handleSquash,
     handleAbortConflict,
     checkRebaseStatus,
 

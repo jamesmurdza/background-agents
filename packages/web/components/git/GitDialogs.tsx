@@ -1,6 +1,6 @@
 "use client"
 
-import { MergeDialog, RebaseDialog, PRDialog } from "./dialogs"
+import { MergeDialog, RebaseDialog, PRDialog, SquashDialog } from "./dialogs"
 import type { UseGitDialogsReturn } from "./hooks/useGitDialogs"
 
 interface GitDialogsProps {
@@ -8,7 +8,7 @@ interface GitDialogsProps {
 }
 
 /**
- * Renders all git dialogs (merge, rebase, pr)
+ * Renders all git dialogs (merge, rebase, pr, squash)
  * Used by both mobile and desktop interfaces
  */
 export function GitDialogs({ gitDialogs }: GitDialogsProps) {
@@ -57,6 +57,17 @@ export function GitDialogs({ gitDialogs }: GitDialogsProps) {
         onCancel={() => gitDialogs.setPROpen(false)}
         descriptionType={gitDialogs.prDescriptionType}
         onDescriptionTypeChange={gitDialogs.setPRDescriptionType}
+      />
+
+      <SquashDialog
+        open={gitDialogs.squashOpen}
+        onOpenChange={(open) => !open && gitDialogs.setSquashOpen(false)}
+        branchName={gitDialogs.branchName}
+        squashCount={gitDialogs.squashCount}
+        onSquashCountChange={gitDialogs.setSquashCount}
+        actionLoading={gitDialogs.actionLoading}
+        onSquash={gitDialogs.handleSquash}
+        onCancel={() => gitDialogs.setSquashOpen(false)}
       />
     </>
   )

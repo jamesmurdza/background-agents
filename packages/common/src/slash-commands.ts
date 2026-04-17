@@ -31,6 +31,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Create a pull request",
     icon: "GitPullRequest",
   },
+  {
+    name: "squash",
+    description: "Squash commits on current branch",
+    icon: "GitCommitVertical",
+  },
 ]
 
 /**

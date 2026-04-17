@@ -9,7 +9,7 @@ import { SDKContent } from "@/components/SDKContent"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
 import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
-import { MergeDialog, RebaseDialog, PRDialog, useGitDialogs } from "@/components/modals/GitDialogs"
+import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
 import { useChat } from "@/lib/hooks/useChat"
@@ -290,6 +290,9 @@ export default function HomePage() {
       case "pr":
         gitDialogs.setPROpen(true)
         break
+      case "squash":
+        gitDialogs.setSquashOpen(true)
+        break
     }
   }, [gitDialogs])
 
@@ -453,6 +456,13 @@ export default function HomePage() {
       <PRDialog
         open={gitDialogs.prOpen}
         onClose={() => gitDialogs.setPROpen(false)}
+        gitDialogs={gitDialogs}
+        chat={displayCurrentChat}
+        isMobile={isMobile}
+      />
+      <SquashDialog
+        open={gitDialogs.squashOpen}
+        onClose={() => gitDialogs.setSquashOpen(false)}
         gitDialogs={gitDialogs}
         chat={displayCurrentChat}
         isMobile={isMobile}
