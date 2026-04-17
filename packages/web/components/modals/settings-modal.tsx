@@ -35,15 +35,36 @@ type ClearableKey = "anthropicApiKey" | "anthropicAuthToken" | "openaiApiKey" | 
 
 export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate, highlightField, onClearHighlight }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("agents")
-  const { theme, setTheme: setThemeRaw } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   // Theme state - track initial and pending values
   const [initialTheme, setInitialTheme] = useState<string | undefined>(theme)
   const [pendingTheme, setPendingTheme] = useState<string | undefined>(theme)
 
-  const applyTheme = (value: string) => {
+  // Preview theme by manipulating DOM directly (doesn't persist to localStorage)
+  const previewTheme = (value: string) => {
     document.documentElement.classList.add("transitioning")
-    setThemeRaw(value)
+    // Remove existing theme classes and add new one
+    document.documentElement.classList.remove("light", "dark")
+    if (value === "dark") {
+      document.documentElement.classList.add("dark")
+      document.documentElement.style.colorScheme = "dark"
+    } else if (value === "light") {
+      document.documentElement.classList.add("light")
+      document.documentElement.style.colorScheme = "light"
+    } else {
+      // System: check prefers-color-scheme
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      document.documentElement.classList.add(prefersDark ? "dark" : "light")
+      document.documentElement.style.colorScheme = prefersDark ? "dark" : "light"
+    }
+    setTimeout(() => document.documentElement.classList.remove("transitioning"), 350)
+  }
+
+  // Actually persist theme via next-themes (saves to localStorage)
+  const commitTheme = (value: string) => {
+    document.documentElement.classList.add("transitioning")
+    setTheme(value)
     setTimeout(() => document.documentElement.classList.remove("transitioning"), 350)
   }
 
@@ -276,7 +297,11 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
         await onCredentialsUpdate()
       }
 
-      // Theme is already applied via live preview, just close
+      // Persist theme change if modified (preview was just visual, this saves to localStorage)
+      if (pendingTheme && pendingTheme !== initialTheme) {
+        commitTheme(pendingTheme)
+      }
+
       onClose()
     } catch {
       setSaveStatus({
@@ -329,10 +354,11 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
     )
   }
 
-  // Handle cancel - revert theme if changed and close
+  // Handle cancel - revert theme preview and close
   function handleCancel() {
     if (pendingTheme !== initialTheme && initialTheme) {
-      applyTheme(initialTheme)
+      // Revert to original theme (commitTheme restores from next-themes state)
+      commitTheme(initialTheme)
     }
     onClose()
   }
@@ -804,7 +830,7 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                     key={value}
                     onClick={() => {
                       setPendingTheme(value)
-                      applyTheme(value) // Live preview
+                      previewTheme(value)
                     }}
                     className={cn(
                       "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
