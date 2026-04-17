@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useSession, signIn } from "next-auth/react"
 import { Menu } from "lucide-react"
 import { Sidebar, ALL_REPOSITORIES, NO_REPOSITORY } from "@/components/Sidebar"
@@ -8,6 +8,7 @@ import { ChatPanel } from "@/components/ChatPanel"
 import { SDKContent } from "@/components/SDKContent"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
 import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
+import { SignInModal } from "@/components/modals/SignInModal"
 import { MergeDialog, RebaseDialog, PRDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
@@ -15,6 +16,14 @@ import { useChat } from "@/lib/hooks/useChat"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { NEW_REPOSITORY, type Message } from "@/lib/types"
 import { fetchRepos, fetchBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github"
+
+// Type for pending message data stored before sign-in
+interface PendingMessage {
+  message: string
+  agent: string
+  model: string
+  files?: File[]
+}
 
 export default function HomePage() {
   const { data: session } = useSession()
@@ -45,10 +54,14 @@ export default function HomePage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(260)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [signInModalOpen, setSignInModalOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState<"chat" | "sdk">(() => {
     if (typeof window === "undefined") return "chat"
     return window.location.pathname === "/sdk" ? "sdk" : "chat"
   })
+
+  // Store pending message data when user tries to send without being signed in
+  const pendingMessageRef = useRef<PendingMessage | null>(null)
 
   // Repos and branches for search palette
   const [repos, setRepos] = useState<GitHubRepo[]>([])
@@ -199,9 +212,11 @@ export default function HomePage() {
 
   // Handler for sending message
   const handleSendMessage = (message: string, agent: string, model: string, files?: File[]) => {
-    // For GitHub repos, we need auth
-    if (currentChat && currentChat.repo !== NEW_REPOSITORY && !session) {
-      signIn("github")
+    // Always require sign-in to send messages
+    if (!session) {
+      // Store the pending message and show sign-in modal
+      pendingMessageRef.current = { message, agent, model, files }
+      setSignInModalOpen(true)
       return
     }
 
@@ -220,6 +235,20 @@ export default function HomePage() {
 
     sendMessage(message, agent, model, files)
   }
+
+  // Effect to send pending message after sign-in
+  useEffect(() => {
+    if (session && pendingMessageRef.current) {
+      const { message, agent, model, files } = pendingMessageRef.current
+      pendingMessageRef.current = null
+      setSignInModalOpen(false)
+
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        sendMessage(message, agent, model, files)
+      }, 100)
+    }
+  }, [session, sendMessage])
 
   // Handler for slash commands - open the corresponding git dialog
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
@@ -397,6 +426,13 @@ export default function HomePage() {
         onClose={() => gitDialogs.setPROpen(false)}
         gitDialogs={gitDialogs}
         chat={displayCurrentChat}
+        isMobile={isMobile}
+      />
+
+      {/* Sign In Modal - shown when user tries to send message without being signed in */}
+      <SignInModal
+        open={signInModalOpen}
+        onClose={() => setSignInModalOpen(false)}
         isMobile={isMobile}
       />
     </div>
