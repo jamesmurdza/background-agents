@@ -204,6 +204,12 @@ export function useBranchRenaming({
       })
 
       if (renameRes.ok) {
+<<<<<<< HEAD
+=======
+        // Update branch name in state only - don't update URL since this is a
+        // background operation. The URL may show the old name temporarily but
+        // navigation still works via branch ID, and refreshing will show the new name.
+>>>>>>> 35784fd (Remove infinite loop effect for URL sync after branch rename)
         onUpdateBranch(targetBranchId, { name: suggestedName })
         // Only update URL if this branch is still the active branch.
         // If the user switched branches during the async rename, we shouldn't

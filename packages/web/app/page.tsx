@@ -224,6 +224,10 @@ export default function Home() {
   // This is used to prevent sync from overwriting streaming content
   const streamingMessageIdRef = useRef<string | null>(null)
 
+  // Track the branch name we last set in URL to avoid infinite loops when syncing
+  // URL after background renames (usePathname doesn't update after replaceState)
+  const lastUrlBranchNameRef = useRef<string | null>(null)
+
   // Mobile UI state from Zustand
   const {
     mobileSidebarOpen,
@@ -332,12 +336,24 @@ export default function Home() {
     if (!loaded || !activeRepo) return
     if (!repoFromUrl) {
       if (activeBranch) {
+        lastUrlBranchNameRef.current = activeBranch.name
         updateUrlToRepoBranch(activeRepo.owner, activeRepo.name, activeBranch.name)
       } else {
         updateUrlToRepo(activeRepo.owner, activeRepo.name)
       }
     }
   }, [loaded, activeRepo, activeBranch, repoFromUrl, updateUrlToRepo, updateUrlToRepoBranch])
+
+  // Sync URL when active branch name changes (e.g., after background auto-suggest rename)
+  // Uses ref tracking to avoid infinite loops since usePathname doesn't update after replaceState
+  useEffect(() => {
+    if (!loaded || !activeRepo || !activeBranch) return
+    // Only update if we have a repo in URL and branch name changed from what we last set
+    if (repoFromUrl && lastUrlBranchNameRef.current !== activeBranch.name) {
+      lastUrlBranchNameRef.current = activeBranch.name
+      updateUrlToRepoBranch(activeRepo.owner, activeRepo.name, activeBranch.name)
+    }
+  }, [loaded, activeRepo, activeBranch, repoFromUrl, updateUrlToRepoBranch])
 
   // Handle URL repo that is not found in user's repos - open AddRepoModal with pre-filled URL
   useEffect(() => {
