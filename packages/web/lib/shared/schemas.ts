@@ -37,6 +37,14 @@ export const forkRepoSchema = z.object({
 export const prDescriptionTypes = ["short", "long", "commits", "none"] as const
 export type PRDescriptionType = typeof prDescriptionTypes[number]
 
+/** Labels for PR description types - shared across settings and PR dialog */
+export const PR_DESCRIPTION_LABELS: Record<PRDescriptionType, { label: string; description: string }> = {
+  short: { label: "Short description", description: "AI-generated summary" },
+  long: { label: "Long description", description: "AI-generated detailed description" },
+  commits: { label: "List of commits", description: "Simple commit list (no AI)" },
+  none: { label: "No description", description: "Empty description" },
+}
+
 export const createPRSchema = z.object({
   owner: nonEmptyString,
   repo: nonEmptyString,
