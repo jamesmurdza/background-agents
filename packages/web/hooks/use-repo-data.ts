@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { signOut } from "next-auth/react"
 import {
   DbMessage,
   DbMessageSummary,
@@ -15,6 +16,7 @@ import {
 import { BRANCH_STATUS } from "@/lib/shared/constants"
 import { queryKeys } from "@/lib/api/query-keys"
 import { apiFetch } from "@/lib/api/fetcher"
+import { ApiError } from "@/lib/api/errors"
 import { isBranchPolling, hasActiveExecutions } from "@/hooks/use-execution-poller"
 import { useRepoStore } from "@/lib/stores"
 
@@ -90,13 +92,30 @@ export function useRepoData({ isAuthenticated }: UseRepoDataOptions) {
   const {
     data: userData,
     isSuccess,
+    error,
   } = useQuery({
     queryKey: queryKeys.user.me(),
     queryFn: fetchUserMe,
     enabled: isAuthenticated,
     staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
+    retry: (failureCount, err) => {
+      // Don't retry on auth failures — the session is stale, retrying won't help.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
+        return false
+      }
+      return failureCount < 3
+    },
   })
+
+  // If the user query fails with 401, the JWT points to a missing/invalid user
+  // (e.g. DB was reset). Sign out to clear the stale cookie and redirect to login,
+  // otherwise the app hangs forever on a loading state.
+  useEffect(() => {
+    if (error instanceof ApiError && error.status === 401) {
+      signOut({ callbackUrl: "/login" })
+    }
+  }, [error])
 
   // Initialize repos from query data on first success
   useEffect(() => {

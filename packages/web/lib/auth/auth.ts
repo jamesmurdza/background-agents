@@ -26,9 +26,6 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (session.user && token.sub) {
-        session.user.id = token.sub
-
-        // Fetch GitHub access token and login from database
         const [accounts, user] = await Promise.all([
           prisma.account.findMany({
             where: { userId: token.sub, provider: "github" },
@@ -40,7 +37,17 @@ export const authOptions: NextAuthOptions = {
             select: { githubLogin: true, githubId: true },
           }),
         ])
-        const preferred = user?.githubId
+
+        // If the JWT points to a user that no longer exists (e.g. DB reset),
+        // leave session.user.id unset so requireAuth() returns 401 and the
+        // client can clear the stale cookie instead of hanging on a 404.
+        if (!user) {
+          return session
+        }
+
+        session.user.id = token.sub
+
+        const preferred = user.githubId
           ? accounts.find((account) => account.providerAccountId === user.githubId)
           : undefined
         const fallback = accounts[accounts.length - 1]
@@ -48,7 +55,7 @@ export const authOptions: NextAuthOptions = {
         if (accessToken) {
           session.accessToken = accessToken
         }
-        if (user?.githubLogin) {
+        if (user.githubLogin) {
           session.user.githubLogin = user.githubLogin
         }
       }
