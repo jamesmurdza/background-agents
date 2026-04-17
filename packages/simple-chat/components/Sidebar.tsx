@@ -6,7 +6,6 @@ import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil,
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
-import { useSwipeActions } from "@/lib/hooks/useSwipeActions"
 
 // Repository filter options - exported for use in parent components
 export const ALL_REPOSITORIES = "__all__"
@@ -714,7 +713,7 @@ export function Sidebar({
 }
 
 // =============================================================================
-// Mobile Chat Item Component with Swipe Actions
+// Mobile Chat Item Component with Menu
 // =============================================================================
 
 interface MobileChatItemProps {
@@ -727,21 +726,17 @@ interface MobileChatItemProps {
 }
 
 function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRename }: MobileChatItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState("")
+  const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const displayName = chat.displayName || "Untitled"
-
-  const { swipeOffset, isSwiping, isRevealed, reset, swipeRef } = useSwipeActions({
-    threshold: 60,
-    maxSwipe: 140,
-    enabled: !isDeleting && !isEditing,
-  })
 
   const startEditing = () => {
     setEditName(displayName)
     setIsEditing(true)
-    reset()
+    setMenuOpen(false)
   }
 
   const saveEdit = () => {
@@ -757,18 +752,18 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
     setEditName("")
   }
 
-  const handleDelete = () => {
-    reset()
-    onDelete()
-  }
-
-  const handleSelect = () => {
-    if (isRevealed) {
-      reset()
-      return
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
     }
-    onSelect()
-  }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [menuOpen])
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -797,51 +792,62 @@ function MobileChatItem({ chat, isActive, isDeleting, onSelect, onDelete, onRena
   }
 
   return (
-    <div className="relative overflow-hidden rounded-lg">
-      {/* Background action buttons (revealed on swipe right) */}
-      <div className="absolute inset-y-0 left-0 flex items-stretch">
-        {/* Edit button */}
-        <button
-          onClick={startEditing}
-          className="flex items-center justify-center w-[70px] bg-blue-500 text-white transition-opacity touch-target"
-          style={{ opacity: Math.min(1, swipeOffset / 60) }}
-          aria-label="Rename chat"
-        >
-          <Pencil className="h-5 w-5" />
-        </button>
-        {/* Delete button */}
-        <button
-          onClick={handleDelete}
-          disabled={isDeleting}
-          className="flex items-center justify-center w-[70px] bg-destructive text-destructive-foreground transition-opacity touch-target disabled:opacity-50"
-          style={{ opacity: Math.min(1, swipeOffset / 60) }}
-          aria-label="Delete chat"
-        >
-          <Trash2 className="h-5 w-5" />
-        </button>
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-lg transition-colors touch-target px-3 py-3",
+        isDeleting
+          ? "opacity-50 cursor-not-allowed"
+          : "active:bg-accent",
+        !isDeleting && (isActive
+          ? "bg-accent text-accent-foreground"
+          : "hover:bg-accent/50 text-sidebar-foreground")
+      )}
+      onClick={isDeleting ? undefined : onSelect}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-base truncate">{displayName}</div>
       </div>
 
-      {/* Swipeable content */}
-      <div
-        ref={swipeRef}
-        className={cn(
-          "relative flex items-center gap-3 touch-target px-3 py-3 bg-background",
-          !isSwiping && "transition-transform duration-200 ease-out",
-          isDeleting
-            ? "opacity-50 cursor-not-allowed"
-            : "",
-          !isDeleting && !isRevealed && (isActive
-            ? "bg-accent text-accent-foreground"
-            : "text-sidebar-foreground")
+      {/* Menu button */}
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenuOpen(!menuOpen)
+          }}
+          disabled={isDeleting}
+          className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors touch-target disabled:cursor-not-allowed"
+          aria-label="Chat options"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
+
+        {menuOpen && (
+          <div className="absolute right-0 top-full mt-1 w-36 rounded-lg border border-border bg-popover shadow-lg py-1 z-50">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                startEditing()
+              }}
+              className="flex items-center gap-3 w-full px-3 py-2.5 text-base hover:bg-accent text-left"
+            >
+              <Pencil className="h-4 w-4" />
+              Rename
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+                setMenuOpen(false)
+              }}
+              disabled={isDeleting}
+              className="flex items-center gap-3 w-full px-3 py-2.5 text-base hover:bg-accent text-left text-destructive disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
+          </div>
         )}
-        style={{
-          transform: `translateX(${swipeOffset}px)`,
-        }}
-        onClick={isDeleting ? undefined : handleSelect}
-      >
-        <div className="flex-1 min-w-0">
-          <div className="text-base truncate">{displayName}</div>
-        </div>
       </div>
     </div>
   )
