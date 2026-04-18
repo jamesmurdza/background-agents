@@ -97,6 +97,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "opencode" },
     { value: "opencode/claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "opencode" },
     { value: "opencode/claude-opus-4-6", label: "Claude Opus 4.6", requiresKey: "opencode" },
+    { value: "opencode/claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "opencode" },
     { value: "opencode/gpt-5", label: "GPT-5", requiresKey: "opencode" },
     { value: "opencode/gpt-5-codex", label: "GPT-5 Codex", requiresKey: "opencode" },
     { value: "opencode/gpt-5-nano", label: "GPT-5 Nano", requiresKey: "opencode" },
@@ -109,6 +110,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "anthropic/claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6", requiresKey: "anthropic" },
+    { value: "anthropic/claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "anthropic" },
     // OpenAI direct models (requires OpenAI API key)
     { value: "openai/codex-mini-latest", label: "Codex Mini Latest", requiresKey: "openai" },
     { value: "openai/gpt-3.5-turbo", label: "GPT-3.5 Turbo", requiresKey: "openai" },
@@ -153,11 +155,13 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
+    { value: "claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "anthropic" },
   ],
   "pi": [
     // Anthropic models (default provider)
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5 (Recommended)", requiresKey: "anthropic" },
     { value: "claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
+    { value: "claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "anthropic" },
     { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     // OpenAI models
     { value: "openai/gpt-4o", label: "GPT-4o", requiresKey: "openai" },
