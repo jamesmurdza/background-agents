@@ -23,8 +23,8 @@ const cwd = process.env.ELIZA_CWD || process.cwd()
 // Delay multiplier for testing (e.g., ELIZA_DELAY_MULTIPLIER=10 for 10x slower)
 const delayMultiplier = Math.max(1, Number(process.env.ELIZA_DELAY_MULTIPLIER) || 1)
 
-// Memory directory for storing responses to recall later
-const memoryDir = path.join(cwd, ".eliza_memory")
+// Memory file prefix for storing responses to recall later
+const MEMORY_PREFIX = "memory_"
 
 /**
  * Sleep for a given number of milliseconds
@@ -42,19 +42,19 @@ function generateId(): string {
 
 /**
  * Push a memory response to the memory stack using Bash tool calls.
- * Creates a timestamped file in .eliza_memory/
+ * Creates a timestamped memory_xxxxx.txt file in the current directory.
  */
 async function pushMemory(
   memoryResponse: string,
   interEventDelay: number
 ): Promise<void> {
   const toolId = `toolu_${generateId()}`
-  const filename = `${Date.now()}_${generateId()}.txt`
-  const memoryFile = path.join(memoryDir, filename)
+  const filename = `${MEMORY_PREFIX}${Date.now()}.txt`
+  const memoryFile = path.join(cwd, filename)
 
   // Escape single quotes for shell
   const escapedResponse = memoryResponse.replace(/'/g, "'\\''")
-  const command = `mkdir -p "${memoryDir}" && echo '${escapedResponse}' > "${memoryFile}"`
+  const command = `echo '${escapedResponse}' > "${filename}"`
 
   // Emit Bash tool_use
   await emit(
@@ -84,7 +84,6 @@ async function pushMemory(
   // Actually write the file
   await sleep(100)
   try {
-    fs.mkdirSync(memoryDir, { recursive: true })
     fs.writeFileSync(memoryFile, memoryResponse)
 
     await emit(
@@ -129,8 +128,7 @@ async function pushMemory(
  */
 function hasMemories(): boolean {
   try {
-    if (!fs.existsSync(memoryDir)) return false
-    const files = fs.readdirSync(memoryDir).filter((f) => f.endsWith(".txt"))
+    const files = fs.readdirSync(cwd).filter((f) => f.startsWith(MEMORY_PREFIX) && f.endsWith(".txt"))
     return files.length > 0
   } catch {
     return false
@@ -138,17 +136,16 @@ function hasMemories(): boolean {
 }
 
 /**
- * Get the newest memory file path (for Bash commands)
+ * Get the newest memory file name (for Bash commands)
  */
 function getNewestMemoryFile(): string | null {
   try {
-    if (!fs.existsSync(memoryDir)) return null
-    const files = fs.readdirSync(memoryDir)
-      .filter((f) => f.endsWith(".txt"))
+    const files = fs.readdirSync(cwd)
+      .filter((f) => f.startsWith(MEMORY_PREFIX) && f.endsWith(".txt"))
       .sort()
       .reverse() // Newest first (timestamps sort naturally)
     if (files.length === 0) return null
-    return path.join(memoryDir, files[0])
+    return files[0] // Just the filename, not full path
   } catch {
     return null
   }
@@ -200,8 +197,9 @@ async function runEliza(prompt: string): Promise<void> {
 
   if (isFromFallback && hasMemories()) {
     // Pop from memory using visible Bash tool calls
-    const memoryFile = getNewestMemoryFile()
-    if (memoryFile) {
+    const memoryFilename = getNewestMemoryFile()
+    if (memoryFilename) {
+      const memoryFilePath = path.join(cwd, memoryFilename)
       const toolId = `toolu_${generateId()}`
 
       // Emit Bash tool_use to read the memory file
@@ -218,7 +216,7 @@ async function runEliza(prompt: string): Promise<void> {
                 id: toolId,
                 name: "Bash",
                 input: {
-                  command: `cat "${memoryFile}"`,
+                  command: `cat "${memoryFilename}"`,
                   description: "Recall from memory",
                 },
               },
@@ -232,7 +230,7 @@ async function runEliza(prompt: string): Promise<void> {
       // Actually read the memory
       await sleep(100)
       try {
-        const memoryContent = fs.readFileSync(memoryFile, "utf-8").trim()
+        const memoryContent = fs.readFileSync(memoryFilePath, "utf-8").trim()
 
         // Emit tool result with the memory content
         await emit(
@@ -267,7 +265,7 @@ async function runEliza(prompt: string): Promise<void> {
                   id: deleteToolId,
                   name: "Bash",
                   input: {
-                    command: `rm "${memoryFile}"`,
+                    command: `rm "${memoryFilename}"`,
                     description: "Clear recalled memory",
                   },
                 },
@@ -279,7 +277,7 @@ async function runEliza(prompt: string): Promise<void> {
         )
 
         // Actually delete it
-        fs.unlinkSync(memoryFile)
+        fs.unlinkSync(memoryFilePath)
 
         await emit(
           {
