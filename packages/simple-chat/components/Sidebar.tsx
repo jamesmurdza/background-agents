@@ -815,9 +815,9 @@ function MobileChatItem({ chat, isActive, isDeleting, isUnseen, onSelect, onDele
         <div className="text-sm truncate">{displayName}</div>
       </div>
       {chat.status === "running" ? (
-        <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-muted-foreground" />
+        <Loader2 className="h-2.5 w-2.5 flex-shrink-0 animate-spin text-foreground/90" />
       ) : isUnseen ? (
-        <div className="h-2 w-2 flex-shrink-0 rounded-full bg-foreground" />
+        <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-muted-foreground/80" />
       ) : null}
 
       {/* Menu button */}
@@ -1043,11 +1043,11 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, onSelect, o
           <div className="relative" ref={menuRef}>
             {chat.status === "running" ? (
               <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="h-2.5 w-2.5 animate-spin text-foreground/90" />
               </div>
             ) : isUnseen ? (
               <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
-                <div className="h-2 w-2 rounded-full bg-foreground" />
+                <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/80" />
               </div>
             ) : null}
             <button
