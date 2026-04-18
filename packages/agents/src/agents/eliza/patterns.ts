@@ -586,6 +586,66 @@ export const ELIZA_PATTERNS: ElizaPattern[] = [
 ]
 
 /**
+ * Pronoun reflection map - swap first/second person pronouns
+ * This is how original ELIZA made responses grammatically correct:
+ * "my mother hates me" → "your mother hates you"
+ *
+ * Uses placeholder tokens to avoid double-swapping (my→your→my)
+ */
+const REFLECTIONS: [RegExp, string][] = [
+  // First person -> placeholder (to avoid conflicts)
+  [/\bI am\b/gi, "%%YOU_ARE%%"],
+  [/\bI was\b/gi, "%%YOU_WERE%%"],
+  [/\bI have\b/gi, "%%YOU_HAVE%%"],
+  [/\bI will\b/gi, "%%YOU_WILL%%"],
+  [/\bI would\b/gi, "%%YOU_WOULD%%"],
+  [/\bI've\b/gi, "%%YOU_VE%%"],
+  [/\bI'd\b/gi, "%%YOU_D%%"],
+  [/\bI'll\b/gi, "%%YOU_LL%%"],
+  [/\bI'm\b/gi, "%%YOU_RE%%"],
+  [/\bmy\b/gi, "%%YOUR%%"],
+  [/\bmine\b/gi, "%%YOURS%%"],
+  [/\bme\b/gi, "%%YOU%%"],
+  [/\bmyself\b/gi, "%%YOURSELF%%"],
+  [/\bI\b/g, "%%YOU_I%%"],
+]
+
+const PLACEHOLDER_TO_FINAL: [RegExp, string][] = [
+  [/%%YOU_ARE%%/g, "you are"],
+  [/%%YOU_WERE%%/g, "you were"],
+  [/%%YOU_HAVE%%/g, "you have"],
+  [/%%YOU_WILL%%/g, "you will"],
+  [/%%YOU_WOULD%%/g, "you would"],
+  [/%%YOU_VE%%/g, "you've"],
+  [/%%YOU_D%%/g, "you'd"],
+  [/%%YOU_LL%%/g, "you'll"],
+  [/%%YOU_RE%%/g, "you're"],
+  [/%%YOUR%%/g, "your"],
+  [/%%YOURS%%/g, "yours"],
+  [/%%YOU%%/g, "you"],
+  [/%%YOURSELF%%/g, "yourself"],
+  [/%%YOU_I%%/g, "you"],
+]
+
+/**
+ * Reflect pronouns in a string (swap first person -> second person)
+ * "hates me" -> "hates you"
+ * "my dog" -> "your dog"
+ */
+export function reflectPronouns(text: string): string {
+  let result = text
+  // First pass: replace with placeholders
+  for (const [pattern, placeholder] of REFLECTIONS) {
+    result = result.replace(pattern, placeholder)
+  }
+  // Second pass: replace placeholders with final values
+  for (const [placeholder, final] of PLACEHOLDER_TO_FINAL) {
+    result = result.replace(placeholder, final)
+  }
+  return result
+}
+
+/**
  * Deterministic hash function for reproducible response selection.
  * Uses a simple djb2-like hash.
  */
@@ -664,11 +724,12 @@ export function matchPattern(input: string): MatchResult {
   const responseIndex = hashString(normalized) % pattern.responses.length
   let response = pattern.responses[responseIndex]
 
-  // Replace capture groups in response
+  // Replace capture groups in response, with pronoun reflection
   for (let i = 1; i < match.length; i++) {
+    const reflected = reflectPronouns(match[i] || "")
     response = response.replace(
       new RegExp(`\\{${i - 1}\\}`, "g"),
-      match[i] || ""
+      reflected
     )
   }
 
@@ -688,14 +749,15 @@ export function matchPattern(input: string): MatchResult {
     }
   }
 
-  // Prepare memory response if pattern has one (substitute placeholders now)
+  // Prepare memory response if pattern has one (substitute placeholders with reflection)
   let memoryResponse: string | undefined
   if (pattern.memoryResponse) {
     memoryResponse = pattern.memoryResponse
     for (let i = 1; i < match.length; i++) {
+      const reflected = reflectPronouns(match[i] || "")
       memoryResponse = memoryResponse.replace(
         new RegExp(`\\{${i - 1}\\}`, "g"),
-        match[i] || ""
+        reflected
       )
     }
   }
