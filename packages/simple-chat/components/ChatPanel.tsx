@@ -146,15 +146,17 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [titleMenuOpen])
 
-  // Update slash menu visibility based on input
+  // Update slash menu visibility based on input. Slash commands are git-only,
+  // so don't open the menu at all when the chat has no linked repo.
+  const hasLinkedRepo = !!(chat?.repo && chat.repo !== NEW_REPOSITORY)
   useEffect(() => {
-    if (input.startsWith("/")) {
+    if (input.startsWith("/") && hasLinkedRepo) {
       setSlashMenuOpen(true)
     } else {
       setSlashMenuOpen(false)
       setSlashSelectedIndex(0)
     }
-  }, [input])
+  }, [input, hasLinkedRepo])
 
   // Get filtered commands for keyboard navigation
   const filteredCommands = useMemo(() => filterSlashCommands(input), [input])
