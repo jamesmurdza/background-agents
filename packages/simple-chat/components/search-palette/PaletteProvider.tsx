@@ -44,6 +44,7 @@ interface PaletteProviderProps {
   onToggleSidebar?: () => void
   onSignIn?: () => void
   onSignOut?: () => void
+  onDeleteChat?: () => void
   // For Alt+Up/Down chat navigation
   chatIds: string[]
   currentChatId: string | null
@@ -72,6 +73,7 @@ export function PaletteProvider({
   onToggleSidebar,
   onSignIn,
   onSignOut,
+  onDeleteChat,
   chatIds,
   currentChatId,
   onSelectChat,
@@ -180,6 +182,7 @@ export function PaletteProvider({
         onToggleSidebar={onToggleSidebar}
         onSignIn={onSignIn}
         onSignOut={onSignOut}
+        onDeleteChat={onDeleteChat}
       />
     </PaletteContext.Provider>
   )

@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2 } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2 } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -36,6 +36,7 @@ interface CommandPaletteProps {
   onToggleSidebar?: () => void
   onSignIn?: () => void
   onSignOut?: () => void
+  onDeleteChat?: () => void
 }
 
 export function CommandPalette({
@@ -51,6 +52,7 @@ export function CommandPalette({
   onToggleSidebar,
   onSignIn,
   onSignOut,
+  onDeleteChat,
 }: CommandPaletteProps) {
   const handleSelect = (command: string) => {
     onRunCommand(command)
@@ -93,6 +95,12 @@ export function CommandPalette({
             <CommandItem value="open in github" onSelect={() => run(onOpenInGitHub)}>
               <Github className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Open in GitHub</span>
+            </CommandItem>
+          )}
+          {onDeleteChat && (
+            <CommandItem value="delete chat" onSelect={() => run(onDeleteChat)}>
+              <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+              <span>Delete Chat</span>
             </CommandItem>
           )}
         </CommandGroup>

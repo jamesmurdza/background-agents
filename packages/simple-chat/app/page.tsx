@@ -10,6 +10,7 @@ import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
 import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
 import { HelpModal } from "@/components/modals/HelpModal"
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
@@ -86,6 +87,7 @@ export default function HomePage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [signInModalOpen, setSignInModalOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [deleteConfirmChatId, setDeleteConfirmChatId] = useState<string | null>(null)
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const toggleChatCollapsed = useCallback((id: string) => {
     setCollapsedChatIds((prev) => {
@@ -487,6 +489,7 @@ export default function HomePage() {
       onToggleSidebar={!isMobile ? () => setSidebarCollapsed((v) => !v) : undefined}
       onSignIn={!session ? () => signIn("github") : undefined}
       onSignOut={session ? () => signOut() : undefined}
+      onDeleteChat={displayCurrentChatId ? () => setDeleteConfirmChatId(displayCurrentChatId) : undefined}
       chatIds={displayChats.map((c) => c.id)}
       onNavigateChat={handleNavigateChat}
       currentChatId={displayCurrentChatId}
@@ -664,6 +667,27 @@ export default function HomePage() {
       <HelpModal
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
+        isMobile={isMobile}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmChatId !== null}
+        onClose={() => setDeleteConfirmChatId(null)}
+        onConfirm={() => {
+          if (deleteConfirmChatId) removeChat(deleteConfirmChatId)
+        }}
+        title="Delete chat"
+        description={
+          <>
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {chats.find((c) => c.id === deleteConfirmChatId)?.displayName || "this chat"}
+            </span>
+            ? This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="destructive"
         isMobile={isMobile}
       />
     </div>
