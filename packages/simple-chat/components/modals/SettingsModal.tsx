@@ -40,168 +40,122 @@ const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
-// API key field component
-function ApiKeyField({
+// A single settings row: label + optional description on the left, control on the right.
+// Pass `stacked` when the control is tall (e.g. textarea) — then the control goes below.
+function SettingsRow({
   label,
   description,
-  value,
-  onChange,
-  placeholder,
-  helpUrl,
-  helpText,
-  highlight,
-  inputRef,
-  isMobile,
+  children,
+  stacked = false,
 }: {
-  label: string
-  description: string
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  helpUrl?: string
-  helpText?: string
-  highlight?: boolean
-  inputRef?: React.RefObject<HTMLInputElement | null>
-  isMobile?: boolean
+  label: React.ReactNode
+  description?: React.ReactNode
+  children?: React.ReactNode
+  stacked?: boolean
 }) {
-  const [showKey, setShowKey] = useState(false)
-
   return (
-    <div>
-      <label className={cn(
-        "flex items-center gap-2 font-medium mb-1",
-        isMobile ? "text-base" : "text-sm",
-        highlight ? "text-red-500" : ""
-      )}>
-        <Key className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-        {label}
-        {highlight && <span className="text-xs font-normal">(required)</span>}
-      </label>
-      <p className={cn(
-        "text-muted-foreground mb-2",
-        isMobile ? "text-sm" : "text-xs"
-      )}>
-        {description}
-        {helpUrl && helpText && (
-          <>
-            {" "}
-            <a
-              href={helpUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              {helpText}
-            </a>
-          </>
+    <div
+      className={cn(
+        "flex gap-4 py-3 border-b border-border last:border-b-0",
+        stacked ? "flex-col" : "items-center justify-between"
+      )}
+    >
+      <div className={cn("flex flex-col min-w-0", !stacked && "flex-1")}>
+        <div className="text-sm font-medium truncate">{label}</div>
+        {description && (
+          <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
         )}
-      </p>
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type={showKey ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={cn(
-            "w-full pr-10 bg-input border rounded-md focus:outline-none focus:ring-2 font-mono",
-            isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm",
-            highlight
-              ? "border-red-500 focus:ring-red-500/50"
-              : "border-border focus:ring-ring"
-          )}
-        />
-        <button
-          type="button"
-          onClick={() => setShowKey(!showKey)}
-          className={cn(
-            "absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors touch-target",
-            isMobile ? "right-3 p-2" : "right-2 p-1"
-          )}
-        >
-          {showKey ? (
-            <EyeOff className={cn(isMobile ? "h-5 w-5" : "h-3.5 w-3.5")} />
-          ) : (
-            <Eye className={cn(isMobile ? "h-5 w-5" : "h-3.5 w-3.5")} />
-          )}
-        </button>
       </div>
+      {children !== undefined && (
+        <div className={cn("flex-shrink-0", stacked ? "w-full" : "")}>
+          {children}
+        </div>
+      )}
     </div>
   )
 }
 
-// Claude subscription (claude-max) token field — paste the JSON blob from
-// `security find-generic-password -s "Claude Code-credentials" -w`
-function ClaudeSubscriptionField({
+// Compact password input with show/hide toggle, sized for a SettingsRow control.
+function PasswordInput({
   value,
   onChange,
-  isMobile,
+  placeholder,
+  highlight,
+  inputRef,
 }: {
   value: string
-  onChange: (value: string) => void
-  isMobile?: boolean
+  onChange: (v: string) => void
+  placeholder?: string
+  highlight?: boolean
+  inputRef?: React.RefObject<HTMLInputElement | null>
 }) {
-  const [copiedLogin, setCopiedLogin] = useState(false)
-  const [copiedDump, setCopiedDump] = useState(false)
-
-  const copy = (text: string, setCopied: (v: boolean) => void) => {
-    navigator.clipboard.writeText(text).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
+  const [show, setShow] = useState(false)
   return (
-    <div>
-      <label className={cn(
-        "flex items-center gap-2 font-medium mb-1",
-        isMobile ? "text-base" : "text-sm"
-      )}>
-        <Terminal className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-        Claude Subscription
-      </label>
-      <p className={cn(
-        "text-muted-foreground mb-2",
-        isMobile ? "text-sm" : "text-xs"
-      )}>
-        Use your Claude Max/Pro subscription with the Claude Code agent instead of an API key.
-      </p>
-      <textarea
+    <div className="relative w-56">
+      <input
+        ref={inputRef}
+        type={show ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
-        rows={3}
+        placeholder={placeholder}
         className={cn(
-          "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring font-mono resize-none",
-          isMobile ? "px-4 py-3 text-sm" : "px-3 py-1.5 text-xs"
+          "w-full pr-8 bg-input border rounded-md font-mono px-3 py-1.5 text-sm focus:outline-none focus:ring-2",
+          highlight ? "border-red-500 focus:ring-red-500/50" : "border-border focus:ring-ring"
         )}
       />
-      <div className={cn(
-        "mt-2 space-y-1 text-muted-foreground",
-        isMobile ? "text-xs" : "text-[11px]"
-      )}>
-        <p>
-          First sign in with{" "}
-          <code
-            onClick={() => copy("claude auth login", setCopiedLogin)}
-            className="cursor-pointer inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] hover:bg-accent"
-          >
-            {copiedLogin ? <Check className="h-2.5 w-2.5 text-green-500" /> : <Copy className="h-2.5 w-2.5" />}
-            claude auth login
-          </code>
-        </p>
-        <p>
-          Then paste the output of{" "}
-          <code
-            onClick={() => copy('security find-generic-password -s "Claude Code-credentials" -w', setCopiedDump)}
-            className="cursor-pointer inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] hover:bg-accent"
-          >
-            {copiedDump ? <Check className="h-2.5 w-2.5 text-green-500" /> : <Copy className="h-2.5 w-2.5" />}
-            security find-generic-password -s &quot;Claude Code-credentials&quot; -w
-          </code>
-        </p>
-        <p className="opacity-70">Claude Code agent only — not used by other agents.</p>
-      </div>
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        aria-label={show ? "Hide value" : "Show value"}
+      >
+        {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
     </div>
+  )
+}
+
+// Compact select for a SettingsRow control.
+function CompactSelect({
+  value,
+  onChange,
+  children,
+  width = "w-44",
+}: {
+  value: string
+  onChange: (v: string) => void
+  children: React.ReactNode
+  width?: string
+}) {
+  return (
+    <div className={cn("relative", width)}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full appearance-none bg-input border border-border rounded-md pl-3 pr-8 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        {children}
+      </select>
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+    </div>
+  )
+}
+
+// Inline clickable <code> that copies to clipboard and shows a brief check.
+function CopyCode({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <code
+      onClick={() => {
+        navigator.clipboard.writeText(text).catch(() => {})
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }}
+      className="cursor-pointer inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] hover:bg-accent"
+    >
+      {copied ? <Check className="h-2.5 w-2.5 text-green-500" /> : <Copy className="h-2.5 w-2.5" />}
+      {text}
+    </code>
   )
 }
 
@@ -376,175 +330,150 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
 
   // Section content blocks (reused across desktop and mobile layouts)
   const generalSection = (
-    <div className={cn(isMobile ? "space-y-4" : "space-y-4")}>
+    <div>
       {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base">
-          <Bot className="h-5 w-5" />
-          Default Agent
+        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
+          <SettingsIcon className="h-5 w-5" />
+          General
         </h3>
       )}
-
-      <div>
-        <label className={cn(
-          "text-muted-foreground mb-1 block",
-          isMobile ? "text-sm" : "text-xs"
-        )}>Agent</label>
-        <div className="relative">
-          <select
-            value={defaultAgent}
-            onChange={(e) => setDefaultAgent(e.target.value as Agent)}
-            className={cn(
-              "w-full bg-input border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring",
-              isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            {agents.map((agent) => (
-              <option key={agent} value={agent}>
-                {agentLabels[agent]}
+      <SettingsRow label="Agent">
+        <CompactSelect value={defaultAgent} onChange={(v) => setDefaultAgent(v as Agent)}>
+          {agents.map((agent) => (
+            <option key={agent} value={agent}>
+              {agentLabels[agent]}
+            </option>
+          ))}
+        </CompactSelect>
+      </SettingsRow>
+      <SettingsRow label="Model">
+        <CompactSelect value={defaultModel} onChange={setDefaultModel} width="w-56">
+          {availableModels.map((model: ModelOption) => {
+            const hasCredentials = hasCredentialsForModel(model, currentCredentials, defaultAgent)
+            return (
+              <option key={model.value} value={model.value}>
+                {model.label}
+                {!hasCredentials && model.requiresKey !== "none" ? " (needs API key)" : ""}
               </option>
-            ))}
-          </select>
-          <ChevronDown className={cn(
-            "absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
-            isMobile ? "right-4 h-5 w-5" : "right-2 h-4 w-4"
-          )} />
-        </div>
-      </div>
-
-      <div>
-        <label className={cn(
-          "text-muted-foreground mb-1 block",
-          isMobile ? "text-sm" : "text-xs"
-        )}>Model</label>
-        <div className="relative">
-          <select
-            value={defaultModel}
-            onChange={(e) => setDefaultModel(e.target.value)}
-            className={cn(
-              "w-full bg-input border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring",
-              isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            {availableModels.map((model: ModelOption) => {
-              const hasCredentials = hasCredentialsForModel(model, currentCredentials, defaultAgent)
-              return (
-                <option key={model.value} value={model.value}>
-                  {model.label}
-                  {!hasCredentials && model.requiresKey !== "none" ? " (needs API key)" : ""}
-                </option>
-              )
-            })}
-          </select>
-          <ChevronDown className={cn(
-            "absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
-            isMobile ? "right-4 h-5 w-5" : "right-2 h-4 w-4"
-          )} />
-        </div>
-      </div>
+            )
+          })}
+        </CompactSelect>
+      </SettingsRow>
     </div>
   )
 
+  const renderHelpLink = (href: string, text = "Get key") => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary hover:underline"
+    >
+      {text}
+    </a>
+  )
+
   const apiKeysSection = (
-    <div className={cn(isMobile ? "space-y-4" : "space-y-4")}>
+    <div>
       {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base">
+        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
           <Key className="h-5 w-5" />
           API Keys
         </h3>
       )}
-      <p className={cn(
-        "text-muted-foreground",
-        isMobile ? "text-sm" : "text-xs"
-      )}>
-        Add API keys to unlock more models. All keys are stored locally in your browser.
+      <p className="text-xs text-muted-foreground pb-1">
+        All keys are stored locally in your browser.
       </p>
-
-      <ApiKeyField
+      <SettingsRow
         label="Anthropic"
-        description="For Claude Code and Claude models."
-        value={anthropicApiKey}
-        onChange={setAnthropicApiKey}
-        placeholder="sk-ant-..."
-        helpUrl="https://console.anthropic.com/"
-        helpText="Get key"
-        highlight={highlightKey === "anthropic"}
-        inputRef={anthropicInputRef}
-        isMobile={isMobile}
-      />
-
-      <ClaudeSubscriptionField
-        value={anthropicAuthToken}
-        onChange={setAnthropicAuthToken}
-        isMobile={isMobile}
-      />
-
-      <ApiKeyField
+        description={<>For Claude Code and Claude models. {renderHelpLink("https://console.anthropic.com/")}</>}
+      >
+        <PasswordInput
+          value={anthropicApiKey}
+          onChange={setAnthropicApiKey}
+          placeholder="sk-ant-..."
+          highlight={highlightKey === "anthropic"}
+          inputRef={anthropicInputRef}
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Claude Subscription"
+        description="Use Claude Max/Pro with the Claude Code agent. Not used by other agents."
+        stacked
+      >
+        <textarea
+          value={anthropicAuthToken}
+          onChange={(e) => setAnthropicAuthToken(e.target.value)}
+          placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
+          rows={3}
+          className="w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring font-mono resize-none px-3 py-1.5 text-xs"
+        />
+        <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+          <p>
+            First sign in with <CopyCode text="claude auth login" />
+          </p>
+          <p>
+            Then paste the output of{" "}
+            <CopyCode text={'security find-generic-password -s "Claude Code-credentials" -w'} />
+          </p>
+        </div>
+      </SettingsRow>
+      <SettingsRow
         label="OpenAI"
-        description="For Codex, GPT models, and Goose."
-        value={openaiApiKey}
-        onChange={setOpenaiApiKey}
-        placeholder="sk-..."
-        helpUrl="https://platform.openai.com/api-keys"
-        helpText="Get key"
-        highlight={highlightKey === "openai"}
-        inputRef={openaiInputRef}
-        isMobile={isMobile}
-      />
-
-      <ApiKeyField
+        description={<>For Codex, GPT models, and Goose. {renderHelpLink("https://platform.openai.com/api-keys")}</>}
+      >
+        <PasswordInput
+          value={openaiApiKey}
+          onChange={setOpenaiApiKey}
+          placeholder="sk-..."
+          highlight={highlightKey === "openai"}
+          inputRef={openaiInputRef}
+        />
+      </SettingsRow>
+      <SettingsRow
         label="OpenCode"
-        description="For paid OpenCode models."
-        value={opencodeApiKey}
-        onChange={setOpencodeApiKey}
-        placeholder="..."
-        highlight={highlightKey === "opencode"}
-        inputRef={opencodeInputRef}
-        helpUrl="https://opencode.ai/auth"
-        helpText="Get key"
-        isMobile={isMobile}
-      />
-
-      <ApiKeyField
+        description={<>For paid OpenCode models. {renderHelpLink("https://opencode.ai/auth")}</>}
+      >
+        <PasswordInput
+          value={opencodeApiKey}
+          onChange={setOpencodeApiKey}
+          placeholder="..."
+          highlight={highlightKey === "opencode"}
+          inputRef={opencodeInputRef}
+        />
+      </SettingsRow>
+      <SettingsRow
         label="Google AI (Gemini)"
-        description="For Gemini models."
-        value={geminiApiKey}
-        onChange={setGeminiApiKey}
-        placeholder="..."
-        helpUrl="https://aistudio.google.com/apikey"
-        helpText="Get key"
-        highlight={highlightKey === "gemini"}
-        inputRef={geminiInputRef}
-        isMobile={isMobile}
-      />
+        description={<>For Gemini models. {renderHelpLink("https://aistudio.google.com/apikey")}</>}
+      >
+        <PasswordInput
+          value={geminiApiKey}
+          onChange={setGeminiApiKey}
+          placeholder="..."
+          highlight={highlightKey === "gemini"}
+          inputRef={geminiInputRef}
+        />
+      </SettingsRow>
     </div>
   )
 
   const appearanceSection = (
-    <div className={cn(isMobile ? "space-y-4" : "space-y-3")}>
+    <div>
       {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base">
+        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
           <Sun className="h-5 w-5" />
-          Theme
+          Appearance
         </h3>
       )}
-      <div className="flex gap-2">
-        {themeOptions.map(({ value, label, icon: Icon }) => (
-          <button
-            key={value}
-            onClick={() => handleThemeChange(value)}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 rounded-md border transition-colors",
-              isMobile ? "px-4 py-3 text-base touch-target" : "px-3 py-2 text-sm cursor-pointer",
-              selectedTheme === value
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border hover:bg-accent active:bg-accent"
-            )}
-          >
-            <Icon className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-            {label}
-          </button>
-        ))}
-      </div>
+      <SettingsRow label="Theme">
+        <CompactSelect value={selectedTheme} onChange={(v) => handleThemeChange(v as Theme)}>
+          {themeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </CompactSelect>
+      </SettingsRow>
     </div>
   )
 
