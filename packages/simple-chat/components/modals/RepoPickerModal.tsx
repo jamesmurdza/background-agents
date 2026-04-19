@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus } from "lucide-react"
 import { ModalHeader } from "@/components/ui/modal-header"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { fetchRepos, fetchBranches, createRepository } from "@/lib/github"
 import type { GitHubRepo, GitHubBranch } from "@/lib/types"
@@ -18,6 +19,19 @@ interface RepoPickerModalProps {
   allowSelect?: boolean
   /** Whether to allow creating a new repo */
   allowCreate?: boolean
+  /** Suggested name for the new repo (typically the chat's display name). */
+  suggestedName?: string | null
+}
+
+// Slugify a chat title into a GitHub-friendly repo name: lowercase, hyphenated,
+// alphanumerics only, trimmed to GitHub's 100-char limit.
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 100)
 }
 
 type Step = "repo" | "branch" | "create"
@@ -25,7 +39,7 @@ type Tab = "select" | "create"
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
-export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, allowSelect = true, allowCreate = false }: RepoPickerModalProps) {
+export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, allowSelect = true, allowCreate = false, suggestedName = null }: RepoPickerModalProps) {
   const { data: session } = useSession()
 
   // Determine initial tab based on what's allowed
@@ -86,6 +100,10 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
       // When opening, set the correct initial tab based on what's allowed
       // Default to "select" if allowed, otherwise "create"
       setActiveTab(allowSelect ? "select" : "create")
+      // Prefill the create form name with a slugified version of the chat title.
+      if (suggestedName) {
+        setNewRepoName((prev) => prev || slugify(suggestedName))
+      }
     } else {
       // When closing, reset all state
       setStep("repo")
@@ -104,7 +122,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
       setNewRepoIsPrivate(false)
       setCreating(false)
     }
-  }, [open, allowSelect])
+  }, [open, allowSelect, suggestedName])
 
   // Swipe gesture handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -295,20 +313,14 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
             )}>
               <div className="relative flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Search className={cn(
-                    "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
-                    isMobile ? "h-5 w-5" : "h-4 w-4"
-                  )} />
-                  <input
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
                     ref={searchInputRef}
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search repositories..."
-                    className={cn(
-                      "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring",
-                      isMobile ? "pl-11 pr-4 py-3 text-base" : "pl-9 pr-4 py-2 text-sm"
-                    )}
+                    className="pl-8"
                   />
                 </div>
                 {allowCreate && (
@@ -433,44 +445,31 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
 
                 <div className={cn(isMobile ? "space-y-5" : "space-y-4")}>
                   {/* Repository Name */}
-                  <div>
-                    <label className={cn(
-                      "block font-medium mb-2",
-                      isMobile ? "text-base" : "text-sm"
-                    )}>
-                      Repository Name <span className="text-destructive">*</span>
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium w-28 flex-shrink-0">
+                      Name <span className="text-destructive">*</span>
                     </label>
-                    <input
+                    <Input
                       type="text"
                       value={newRepoName}
                       onChange={(e) => setNewRepoName(e.target.value)}
                       placeholder="my-new-repo"
                       disabled={creating}
-                      className={cn(
-                        "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
-                        isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
-                      )}
+                      className="flex-1"
                     />
                   </div>
 
-                  {/* Description */}
-                  <div>
-                    <label className={cn(
-                      "block font-medium mb-2",
-                      isMobile ? "text-base" : "text-sm"
-                    )}>
-                      Description <span className="text-muted-foreground font-normal">(optional)</span>
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium w-28 flex-shrink-0">
+                      Description
                     </label>
-                    <input
+                    <Input
                       type="text"
                       value={newRepoDescription}
                       onChange={(e) => setNewRepoDescription(e.target.value)}
-                      placeholder="A short description of the repository"
+                      placeholder="Optional"
                       disabled={creating}
-                      className={cn(
-                        "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
-                        isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
-                      )}
+                      className="flex-1"
                     />
                   </div>
 

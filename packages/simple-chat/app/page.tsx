@@ -469,6 +469,7 @@ export default function HomePage() {
         isMobile={isMobile}
         allowSelect={currentChat?.messages.length === 0 && !currentChat?.sandboxId}
         allowCreate={currentChat?.repo === NEW_REPOSITORY}
+        suggestedName={currentChat?.displayName ?? null}
       />
 
       <SettingsModal
