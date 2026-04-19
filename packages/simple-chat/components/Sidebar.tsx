@@ -875,7 +875,7 @@ function UserMenu({ user, onOpenSettings, collapsed }: UserMenuProps) {
           "flex items-center gap-2 cursor-pointer rounded-md transition-colors",
           collapsed
             ? "p-0"
-            : "w-full min-w-0 px-2 py-1.5 hover:bg-accent text-left"
+            : "w-full min-w-0 px-2 py-1 hover:bg-accent text-left"
         )}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
