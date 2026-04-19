@@ -389,8 +389,10 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col border shadow-sm bg-card",
-          isMobile ? "rounded-xl border-border" : "rounded-2xl border-border",
+          "relative flex flex-col border shadow-sm bg-card border-border",
+          isMobile
+            ? (hasQueued ? "rounded-b-xl rounded-t-md" : "rounded-xl")
+            : (hasQueued ? "rounded-b-2xl rounded-t-lg" : "rounded-2xl"),
           "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
           isDraggingOver && "border-primary ring-2 ring-primary/30"
         )}
