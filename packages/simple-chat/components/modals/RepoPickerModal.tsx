@@ -262,48 +262,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
             title={step === "branch" ? "Select Branch" : activeTab === "create" ? "Create Repository" : "Select Repository"}
           />
 
-          {/* Tabs - only show on repo step when both select and create are allowed */}
-          {step === "repo" && allowSelect && allowCreate && (
-            <div className={cn(
-              "flex border-b border-border",
-              isMobile ? "px-4" : "px-4"
-            )}>
-              <button
-                onClick={() => { setActiveTab("select"); setError(null) }}
-                className={cn(
-                  "flex-1 py-2 text-center transition-colors relative",
-                  isMobile ? "text-base" : "text-sm",
-                  activeTab === "select"
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Select Existing
-                {activeTab === "select" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                )}
-              </button>
-              <button
-                onClick={() => { setActiveTab("create"); setError(null) }}
-                className={cn(
-                  "flex-1 py-2 text-center transition-colors relative",
-                  isMobile ? "text-base" : "text-sm",
-                  activeTab === "create"
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <span className="flex items-center justify-center gap-1">
-                  <Plus className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
-                  Create New
-                </span>
-                {activeTab === "create" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                )}
-              </button>
-            </div>
-          )}
-
           {/* Breadcrumb for branch step */}
           {step === "branch" && selectedRepo && (
             <div className={cn(
@@ -329,28 +287,43 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
             </div>
           )}
 
-          {/* Search - only for repo step and select tab */}
+          {/* Search (with a + button on the right that switches to Create). */}
           {step === "repo" && activeTab === "select" && (
             <div className={cn(
               "border-b border-border",
               isMobile ? "p-4" : "p-4"
             )}>
-              <div className="relative">
-                <Search className={cn(
-                  "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
-                  isMobile ? "h-5 w-5" : "h-4 w-4"
-                )} />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search repositories..."
-                  className={cn(
-                    "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring",
-                    isMobile ? "pl-11 pr-4 py-3 text-base" : "pl-9 pr-4 py-2 text-sm"
-                  )}
-                />
+              <div className="relative flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className={cn(
+                    "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
+                    isMobile ? "h-5 w-5" : "h-4 w-4"
+                  )} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search repositories..."
+                    className={cn(
+                      "w-full bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring",
+                      isMobile ? "pl-11 pr-4 py-3 text-base" : "pl-9 pr-4 py-2 text-sm"
+                    )}
+                  />
+                </div>
+                {allowCreate && (
+                  <button
+                    onClick={() => { setActiveTab("create"); setError(null) }}
+                    className={cn(
+                      "flex-shrink-0 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
+                      isMobile ? "h-11 w-11" : "h-8 w-8"
+                    )}
+                    title="Create a new repository"
+                    aria-label="Create a new repository"
+                  >
+                    <Plus className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -437,6 +410,18 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
             {/* Create Repository Form */}
             {step === "repo" && activeTab === "create" && (
               <div className={cn(isMobile ? "p-4" : "p-4")}>
+                {allowSelect && (
+                  <button
+                    onClick={() => { setActiveTab("select"); setError(null) }}
+                    className={cn(
+                      "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors mb-3",
+                      isMobile ? "text-sm" : "text-xs"
+                    )}
+                  >
+                    <ChevronLeft className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+                    Back to repositories
+                  </button>
+                )}
                 {error && (
                   <div className={cn(
                     "text-destructive mb-4 p-3 bg-destructive/10 rounded-md",

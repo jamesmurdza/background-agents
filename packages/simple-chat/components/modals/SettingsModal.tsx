@@ -65,7 +65,7 @@ function SettingsRow({
   return (
     <div
       className={cn(
-        "flex gap-4 py-3 border-b border-border last:border-b-0",
+        "flex gap-4 py-3 border-b border-border/30 last:border-b-0",
         stacked ? "flex-col" : "items-center justify-between"
       )}
     >
@@ -381,12 +381,9 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
           API Keys
         </h3>
       )}
-      <p className="text-xs text-muted-foreground pb-1">
-        All keys are stored locally in your browser.
-      </p>
       <SettingsRow
         label="Anthropic"
-        description={<>For Claude Code and Claude models. {renderHelpLink("https://console.anthropic.com/")}</>}
+        description={renderHelpLink("https://console.anthropic.com/")}
       >
         <PasswordInput
           value={anthropicApiKey}
@@ -398,7 +395,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
       </SettingsRow>
       <SettingsRow
         label="Claude Subscription"
-        description="Use Claude Max/Pro with the Claude Code agent. Not used by other agents."
+        description="Claude Code only."
         stacked
       >
         <Textarea
@@ -426,7 +423,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
       </SettingsRow>
       <SettingsRow
         label="OpenAI"
-        description={<>For Codex, GPT models, and Goose. {renderHelpLink("https://platform.openai.com/api-keys")}</>}
+        description={renderHelpLink("https://platform.openai.com/api-keys")}
       >
         <PasswordInput
           value={openaiApiKey}
@@ -438,7 +435,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
       </SettingsRow>
       <SettingsRow
         label="OpenCode"
-        description={<>For paid OpenCode models. {renderHelpLink("https://opencode.ai/auth")}</>}
+        description={renderHelpLink("https://opencode.ai/auth")}
       >
         <PasswordInput
           value={opencodeApiKey}
@@ -450,7 +447,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
       </SettingsRow>
       <SettingsRow
         label="Google AI (Gemini)"
-        description={<>For Gemini models. {renderHelpLink("https://aistudio.google.com/apikey")}</>}
+        description={renderHelpLink("https://aistudio.google.com/apikey")}
       >
         <PasswordInput
           value={geminiApiKey}
