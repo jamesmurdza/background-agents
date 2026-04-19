@@ -1090,7 +1090,7 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
     >
       {!collapsed && (
         <>
-          {hasChildren ? (
+          {hasChildren && (
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -1101,8 +1101,6 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
             >
               {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             </button>
-          ) : (
-            <div className="h-4 w-4 flex-shrink-0" />
           )}
           <div className="flex-1 min-w-0">
             <div className="text-sm truncate">{displayName}</div>
