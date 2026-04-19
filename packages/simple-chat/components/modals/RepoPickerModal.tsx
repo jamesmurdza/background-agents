@@ -65,9 +65,10 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
     }
   }, [open, step, activeTab])
 
-  // Fetch repos on open
+  // Fetch repos on open — only when the select tab is available; otherwise we
+  // never show the repo list and the loading spinner would flash for nothing.
   useEffect(() => {
-    if (open && session?.accessToken) {
+    if (open && session?.accessToken && allowSelect) {
       setLoading(true)
       setError(null)
       fetchRepos(session.accessToken)
@@ -75,7 +76,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false))
     }
-  }, [open, session?.accessToken])
+  }, [open, session?.accessToken, allowSelect])
 
   // Reset state on close/open - set correct initial tab
   // Also reset when modal opens to ensure correct tab based on current allowSelect/allowCreate values
@@ -385,7 +386,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
               </div>
             )}
 
-            {loading && (
+            {loading && activeTab === "select" && (
               <div className={cn(
                 "flex items-center justify-center",
                 isMobile ? "p-12" : "p-8"
