@@ -1087,6 +1087,7 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
       )}
       style={indentPx ? { paddingLeft: `calc(0.5rem + ${indentPx}px)` } : undefined}
       onClick={isDeleting ? undefined : onSelect}
+      onDoubleClick={hasChildren && !isDeleting ? (e) => { e.stopPropagation(); onToggleExpanded?.() } : undefined}
     >
       {!collapsed && (
         <>
