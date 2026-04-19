@@ -498,7 +498,7 @@ export function Sidebar({
     <div
       ref={sidebarRef}
       className={cn(
-        "relative flex h-full flex-col bg-background border-r border-sidebar-border overflow-hidden hide-mobile",
+        "relative flex h-full flex-col bg-background border-r border-sidebar-border hide-mobile",
         isAnimating && "transition-[width] duration-200 ease-in-out"
       )}
       style={{ width: collapsed ? COLLAPSED_WIDTH : width }}
