@@ -750,6 +750,14 @@ export function useChat() {
     setState(newState)
   }, [])
 
+  // Clear the queuePaused flag so the auto-dispatch effect drains the queue.
+  const resumeQueue = useCallback(() => {
+    if (!currentChat) return
+    if (!currentChat.queuePaused) return
+    const newState = updateChat(currentChat.id, { queuePaused: false })
+    setState(newState)
+  }, [currentChat])
+
   // Queue a message for the current chat (used when agent is running)
   const enqueueMessage = useCallback((content: string, agent?: string, model?: string) => {
     if (!currentChat) return
@@ -887,5 +895,6 @@ export function useChat() {
     addMessage: addMessageToChat,
     enqueueMessage,
     removeQueuedMessage,
+    resumeQueue,
   }
 }

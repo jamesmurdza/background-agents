@@ -21,6 +21,7 @@ interface ChatPanelProps {
   onSendMessage: (message: string, agent: string, model: string, files?: File[]) => void
   onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
+  onResumeQueue?: () => void
   onStopAgent: () => void
   onChangeRepo?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
@@ -32,7 +33,7 @@ interface ChatPanelProps {
   isMobile?: boolean
 }
 
-export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, isMobile = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, isMobile = false }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -74,12 +75,18 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
   // Treat the chat as running while it has (non-paused) queued messages too,
   // so the UI doesn't flicker between ready and running as the queue drains.
   const hasQueued = (chat?.queuedMessages?.length ?? 0) > 0
+  const isPaused = !!(chat?.queuePaused && hasQueued)
   const isRunning = chat?.status === "running" || (hasQueued && !chat?.queuePaused)
   const isCreating = chat?.status === "creating"
   const hasContent = input.trim() || pendingFiles.length > 0
   // When the agent is running, text-only messages are queued for later dispatch.
   const canQueue = !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
-  const canSend = (hasContent && !isRunning && !isCreating) || (isRunning && canQueue)
+  // Paused queue: always show the send button (either to enqueue a new prompt
+  // at the end or to resume draining with nothing typed).
+  const canSend =
+    (hasContent && !isRunning && !isCreating && !isPaused) ||
+    (isRunning && canQueue) ||
+    isPaused
 
   // Track if user has scrolled up from bottom
   const handleScroll = () => {
@@ -169,6 +176,19 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
     if (isRunning && onEnqueueMessage) {
       onEnqueueMessage(input.trim(), currentAgent, currentModel)
       setInput("")
+      textareaRef.current?.focus()
+      return
+    }
+
+    // Paused queue: typed text goes to the end of the queue and unpauses it;
+    // with nothing typed, just resume draining.
+    if (isPaused) {
+      if (input.trim() && onEnqueueMessage) {
+        onEnqueueMessage(input.trim(), currentAgent, currentModel)
+        setInput("")
+      } else {
+        onResumeQueue?.()
+      }
       textareaRef.current?.focus()
       return
     }

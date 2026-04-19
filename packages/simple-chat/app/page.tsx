@@ -74,6 +74,7 @@ export default function HomePage() {
     addMessage,
     enqueueMessage,
     removeQueuedMessage,
+    resumeQueue,
   } = useChat()
 
   const [repoPickerOpen, setRepoPickerOpen] = useState(false)
@@ -441,6 +442,7 @@ export default function HomePage() {
             onSendMessage={handleSendMessage}
             onEnqueueMessage={enqueueMessage}
             onRemoveQueuedMessage={removeQueuedMessage}
+            onResumeQueue={resumeQueue}
             onStopAgent={stopAgent}
             onChangeRepo={handleChangeRepo}
             onUpdateChat={updateCurrentChat}
