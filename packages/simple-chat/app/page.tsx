@@ -77,7 +77,8 @@ export default function HomePage() {
     resumeQueue,
   } = useChat()
 
-  const [repoPickerOpen, setRepoPickerOpen] = useState(false)
+  const [repoSelectOpen, setRepoSelectOpen] = useState(false)
+  const [repoCreateOpen, setRepoCreateOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsHighlightKey, setSettingsHighlightKey] = useState<HighlightKey>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -197,14 +198,31 @@ export default function HomePage() {
     if (currentPage !== "chat") handleNavigate("chat")
   }
 
-  // Handler for changing repo (called from ChatPanel header)
+  // Handler for the repo button in the ChatPanel header. Routes to the Select
+  // modal when the chat can still choose an existing repo, otherwise to Create
+  // (the only other option for a locked NEW_REPOSITORY chat). The two modals
+  // are independent — neither links to the other.
   const handleChangeRepo = () => {
-    // Must be signed in to access GitHub repos
     if (!session) {
       setSignInModalOpen(true)
       return
     }
-    setRepoPickerOpen(true)
+    const chat = currentChat
+    const canSelect = !!chat && chat.messages.length === 0 && !chat.sandboxId
+    if (canSelect) {
+      setRepoSelectOpen(true)
+    } else {
+      setRepoCreateOpen(true)
+    }
+  }
+
+  // Handler for the Create Repository palette/slash command.
+  const handleCreateRepo = () => {
+    if (!session) {
+      setSignInModalOpen(true)
+      return
+    }
+    setRepoCreateOpen(true)
   }
 
   // Handler for repo selection - updates the current chat's repo
@@ -354,7 +372,7 @@ export default function HomePage() {
       onRunCommand={handleRunCommand}
       onNewChat={handleNewChat}
       onBranchChat={canBranch ? handleBranchChat : undefined}
-      onCreateRepo={currentChat?.repo === NEW_REPOSITORY ? handleChangeRepo : undefined}
+      onCreateRepo={currentChat?.repo === NEW_REPOSITORY ? handleCreateRepo : undefined}
       showGitCommands={!!currentChat && currentChat.repo !== NEW_REPOSITORY}
       onOpenInGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
       onOpenSettings={() => handleOpenSettings()}
@@ -463,12 +481,19 @@ export default function HomePage() {
       </div>
 
       <RepoPickerModal
-        open={repoPickerOpen}
-        onClose={() => setRepoPickerOpen(false)}
+        open={repoSelectOpen}
+        onClose={() => setRepoSelectOpen(false)}
         onSelect={handleRepoSelect}
         isMobile={isMobile}
-        allowSelect={currentChat?.messages.length === 0 && !currentChat?.sandboxId}
-        allowCreate={currentChat?.repo === NEW_REPOSITORY}
+        mode="select"
+      />
+
+      <RepoPickerModal
+        open={repoCreateOpen}
+        onClose={() => setRepoCreateOpen(false)}
+        onSelect={handleRepoSelect}
+        isMobile={isMobile}
+        mode="create"
         suggestedName={currentChat?.displayName ?? null}
       />
 

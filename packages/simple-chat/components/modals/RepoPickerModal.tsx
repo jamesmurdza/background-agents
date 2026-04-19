@@ -15,10 +15,8 @@ interface RepoPickerModalProps {
   onClose: () => void
   onSelect: (repo: string, branch: string) => void
   isMobile?: boolean
-  /** Whether to allow selecting an existing repo (before chat starts) */
-  allowSelect?: boolean
-  /** Whether to allow creating a new repo */
-  allowCreate?: boolean
+  /** Which flow to show. Callers are expected to pick exactly one. */
+  mode: "select" | "create"
   /** Suggested name for the new repo (typically the chat's display name). */
   suggestedName?: string | null
 }
@@ -39,7 +37,9 @@ type Tab = "select" | "create"
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
-export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, allowSelect = true, allowCreate = false, suggestedName = null }: RepoPickerModalProps) {
+export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mode, suggestedName = null }: RepoPickerModalProps) {
+  const allowSelect = mode === "select"
+  const allowCreate = mode === "create"
   const { data: session } = useSession()
 
   // Determine initial tab based on what's allowed
@@ -323,19 +323,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
                     className="pl-8"
                   />
                 </div>
-                {allowCreate && (
-                  <button
-                    onClick={() => { setActiveTab("create"); setError(null) }}
-                    className={cn(
-                      "flex-shrink-0 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
-                      isMobile ? "h-11 w-11" : "h-8 w-8"
-                    )}
-                    title="Create a new repository"
-                    aria-label="Create a new repository"
-                  >
-                    <Plus className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                  </button>
-                )}
               </div>
             </div>
           )}
@@ -422,18 +409,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
             {/* Create Repository Form */}
             {step === "repo" && activeTab === "create" && (
               <div className={cn(isMobile ? "p-4" : "p-4")}>
-                {allowSelect && (
-                  <button
-                    onClick={() => { setActiveTab("select"); setError(null) }}
-                    className={cn(
-                      "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors mb-3",
-                      isMobile ? "text-sm" : "text-xs"
-                    )}
-                  >
-                    <ChevronLeft className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
-                    Back to repositories
-                  </button>
-                )}
                 {error && (
                   <div className={cn(
                     "text-destructive mb-4 p-3 bg-destructive/10 rounded-md",
@@ -474,62 +449,28 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, all
                   </div>
 
                   {/* Visibility */}
-                  <div>
-                    <label className={cn(
-                      "block font-medium mb-2",
-                      isMobile ? "text-base" : "text-sm"
-                    )}>
-                      Visibility
-                    </label>
-                    <div className={cn(
-                      "flex gap-2",
-                      isMobile ? "flex-col" : "flex-row"
-                    )}>
-                      <button
-                        type="button"
-                        onClick={() => setNewRepoIsPrivate(false)}
-                        disabled={creating}
-                        className={cn(
-                          "flex items-center gap-2 border rounded-md transition-colors disabled:opacity-50",
-                          isMobile ? "px-4 py-3 text-base flex-1" : "px-3 py-2 text-sm",
-                          !newRepoIsPrivate
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border hover:bg-accent"
-                        )}
-                      >
-                        <Globe className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                        Public
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewRepoIsPrivate(true)}
-                        disabled={creating}
-                        className={cn(
-                          "flex items-center gap-2 border rounded-md transition-colors disabled:opacity-50",
-                          isMobile ? "px-4 py-3 text-base flex-1" : "px-3 py-2 text-sm",
-                          newRepoIsPrivate
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border hover:bg-accent"
-                        )}
-                      >
-                        <Lock className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                        Private
-                      </button>
-                    </div>
-                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <span className="text-sm font-medium w-28 flex-shrink-0">
+                      Private
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={newRepoIsPrivate}
+                      onChange={(e) => setNewRepoIsPrivate(e.target.checked)}
+                      disabled={creating}
+                      className="h-4 w-4 rounded border-border accent-primary disabled:opacity-50"
+                    />
+                  </label>
 
                   {/* Create Button */}
                   <div className="flex justify-end pt-2">
                     <button
                       onClick={handleCreateRepo}
                       disabled={creating || !newRepoName.trim()}
-                      className={cn(
-                        "bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-50 flex items-center gap-2 touch-target",
-                        isMobile ? "px-6 py-3 text-base" : "px-4 py-2 text-sm"
-                      )}
+                      className="bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-50 flex items-center gap-1.5 px-3 py-1.5 text-sm cursor-pointer"
                     >
-                      {creating && <Loader2 className={cn("animate-spin", isMobile ? "h-5 w-5" : "h-4 w-4")} />}
-                      {creating ? "Creating..." : "Create Repository"}
+                      {creating && <Loader2 className="animate-spin h-3.5 w-3.5" />}
+                      {creating ? "Creating..." : "Create"}
                     </button>
                   </div>
                 </div>
