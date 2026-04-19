@@ -27,6 +27,34 @@
   --sh-comment: #676e95;
 }
 
+/* highlight.js tokens — scoped to `.hljs-scope` so they don't leak into
+   chat markdown code blocks (which keep sugar-high / prose styling). */
+.hljs-scope .hljs-keyword,
+.hljs-scope .hljs-selector-tag,
+.hljs-scope .hljs-meta-keyword { color: var(--sh-keyword); }
+.hljs-scope .hljs-string,
+.hljs-scope .hljs-attr,
+.hljs-scope .hljs-regexp,
+.hljs-scope .hljs-symbol { color: var(--sh-string); }
+.hljs-scope .hljs-number,
+.hljs-scope .hljs-literal,
+.hljs-scope .hljs-built_in { color: var(--sh-property); }
+.hljs-scope .hljs-comment,
+.hljs-scope .hljs-quote { color: var(--sh-comment); font-style: italic; }
+.hljs-scope .hljs-class,
+.hljs-scope .hljs-title,
+.hljs-scope .hljs-title.class_,
+.hljs-scope .hljs-type { color: var(--sh-class); }
+.hljs-scope .hljs-variable,
+.hljs-scope .hljs-template-variable,
+.hljs-scope .hljs-name,
+.hljs-scope .hljs-attribute { color: var(--sh-entity); }
+.hljs-scope .hljs-function .hljs-title { color: var(--sh-class); }
+.hljs-scope .hljs-tag { color: var(--sh-sign); }
+.hljs-scope .hljs-params { color: var(--sh-identifier); }
+.hljs-scope .hljs-deletion { color: #d32f2f; }
+.hljs-scope .hljs-addition { color: #067d17; }
+
 /* ============================================================================
    Mobile-First Foundation
    ============================================================================ */
