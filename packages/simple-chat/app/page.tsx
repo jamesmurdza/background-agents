@@ -131,6 +131,13 @@ export default function HomePage() {
   const gitDialogs = useGitDialogs({
     chat: currentChat ?? null,
     onAddMessage: handleAddMessage,
+    onAddMessageToBranch: (branch, message) => {
+      if (!currentChat) return
+      const target = chats.find(
+        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
+      )
+      if (target) addMessage(target.id, message)
+    },
   })
 
   // Close mobile sidebar when switching to desktop

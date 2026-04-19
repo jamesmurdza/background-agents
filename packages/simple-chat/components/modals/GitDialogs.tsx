@@ -19,6 +19,9 @@ export type { RebaseConflictState }
 export interface UseGitDialogsOptions {
   chat: Chat | null
   onAddMessage?: (message: Message) => void
+  /** When merging into a branch, the parent can route a mirrored system
+   *  message to whichever chat owns that branch in the same repo. */
+  onAddMessageToBranch?: (branch: string, message: Message) => void
 }
 
 /** PR description format options */
@@ -685,7 +688,7 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch }: UseGitDialogsOptions): UseGitDialogsResult {
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
   const sandboxId = chat?.sandboxId ?? ""
@@ -808,9 +811,19 @@ export function useGitDialogs({ chat, onAddMessage }: UseGitDialogsOptions): Use
         throw new Error(typeof data.error === "string" ? data.error : "Merge failed")
       }
 
-      addSystemMessage(
-        `${squashMerge ? "Squash merged" : "Merged"} ${branchName} into ${selectedBranch} and pushed.`
-      )
+      const summary = `${squashMerge ? "Squash merged" : "Merged"} ${branchName} into ${selectedBranch} and pushed.`
+      addSystemMessage(summary)
+      // Mirror the message to whichever chat is tracking the merged-into
+      // branch so both sides see the history.
+      if (onAddMessageToBranch) {
+        onAddMessageToBranch(selectedBranch, {
+          id: generateId(),
+          role: "assistant",
+          content: `${squashMerge ? "Squash merged" : "Merged"} ${branchName} into ${selectedBranch}.`,
+          messageType: "git-operation",
+          timestamp: Date.now(),
+        })
+      }
       setMergeOpen(false)
     } catch (err: unknown) {
       addSystemMessage(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`, true)
