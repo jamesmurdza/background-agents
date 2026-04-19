@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, ChevronDown } from "lucide-react"
+import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, ChevronDown, Settings as SettingsIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Settings, Theme, Agent, ModelOption } from "@/lib/types"
 import { agentModels, agentLabels, hasCredentialsForModel } from "@/lib/types"
@@ -29,6 +29,14 @@ const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
 ]
 
 const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
+
+type SectionKey = "general" | "api-keys" | "appearance"
+
+const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
+  { key: "general", label: "General", icon: SettingsIcon },
+  { key: "api-keys", label: "API Keys", icon: Key },
+  { key: "appearance", label: "Appearance", icon: Sun },
+]
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
@@ -140,6 +148,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
   const [defaultAgent, setDefaultAgent] = useState<Agent>(settings.defaultAgent as Agent)
   const [defaultModel, setDefaultModel] = useState(settings.defaultModel)
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
+  const [activeSection, setActiveSection] = useState<SectionKey>("general")
 
   // Swipe to dismiss state (mobile only)
   const [isDragging, setIsDragging] = useState(false)
@@ -176,6 +185,13 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
       setDragY(0)
     }
   }, [open, settings])
+
+  // Switch to API Keys tab when a key is highlighted
+  useEffect(() => {
+    if (open && highlightKey) {
+      setActiveSection("api-keys")
+    }
+  }, [open, highlightKey])
 
   // Focus the highlighted API key field when modal opens
   useEffect(() => {
@@ -278,12 +294,181 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
     defaultModel !== settings.defaultModel ||
     selectedTheme !== settings.theme
 
+  // Section content blocks (reused across desktop and mobile layouts)
+  const generalSection = (
+    <div className={cn(isMobile ? "space-y-4" : "space-y-4")}>
+      {isMobile && (
+        <h3 className="flex items-center gap-2 font-semibold text-base">
+          <Bot className="h-5 w-5" />
+          Default Agent
+        </h3>
+      )}
+
+      <div>
+        <label className={cn(
+          "text-muted-foreground mb-1 block",
+          isMobile ? "text-sm" : "text-xs"
+        )}>Agent</label>
+        <div className="relative">
+          <select
+            value={defaultAgent}
+            onChange={(e) => setDefaultAgent(e.target.value as Agent)}
+            className={cn(
+              "w-full bg-input border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring",
+              isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm"
+            )}
+          >
+            {agents.map((agent) => (
+              <option key={agent} value={agent}>
+                {agentLabels[agent]}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className={cn(
+            "absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
+            isMobile ? "right-4 h-5 w-5" : "right-2 h-4 w-4"
+          )} />
+        </div>
+      </div>
+
+      <div>
+        <label className={cn(
+          "text-muted-foreground mb-1 block",
+          isMobile ? "text-sm" : "text-xs"
+        )}>Model</label>
+        <div className="relative">
+          <select
+            value={defaultModel}
+            onChange={(e) => setDefaultModel(e.target.value)}
+            className={cn(
+              "w-full bg-input border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring",
+              isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm"
+            )}
+          >
+            {availableModels.map((model: ModelOption) => {
+              const hasCredentials = hasCredentialsForModel(model, currentCredentials, defaultAgent)
+              return (
+                <option key={model.value} value={model.value}>
+                  {model.label}
+                  {!hasCredentials && model.requiresKey !== "none" ? " (needs API key)" : ""}
+                </option>
+              )
+            })}
+          </select>
+          <ChevronDown className={cn(
+            "absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
+            isMobile ? "right-4 h-5 w-5" : "right-2 h-4 w-4"
+          )} />
+        </div>
+      </div>
+    </div>
+  )
+
+  const apiKeysSection = (
+    <div className={cn(isMobile ? "space-y-4" : "space-y-4")}>
+      {isMobile && (
+        <h3 className="flex items-center gap-2 font-semibold text-base">
+          <Key className="h-5 w-5" />
+          API Keys
+        </h3>
+      )}
+      <p className={cn(
+        "text-muted-foreground",
+        isMobile ? "text-sm" : "text-xs"
+      )}>
+        Add API keys to unlock more models. All keys are stored locally in your browser.
+      </p>
+
+      <ApiKeyField
+        label="Anthropic"
+        description="For Claude Code and Claude models."
+        value={anthropicApiKey}
+        onChange={setAnthropicApiKey}
+        placeholder="sk-ant-..."
+        helpUrl="https://console.anthropic.com/"
+        helpText="Get key"
+        highlight={highlightKey === "anthropic"}
+        inputRef={anthropicInputRef}
+        isMobile={isMobile}
+      />
+
+      <ApiKeyField
+        label="OpenAI"
+        description="For Codex, GPT models, and Goose."
+        value={openaiApiKey}
+        onChange={setOpenaiApiKey}
+        placeholder="sk-..."
+        helpUrl="https://platform.openai.com/api-keys"
+        helpText="Get key"
+        highlight={highlightKey === "openai"}
+        inputRef={openaiInputRef}
+        isMobile={isMobile}
+      />
+
+      <ApiKeyField
+        label="OpenCode"
+        description="For paid OpenCode models."
+        value={opencodeApiKey}
+        onChange={setOpencodeApiKey}
+        placeholder="..."
+        highlight={highlightKey === "opencode"}
+        inputRef={opencodeInputRef}
+        helpUrl="https://opencode.ai/auth"
+        helpText="Get key"
+        isMobile={isMobile}
+      />
+
+      <ApiKeyField
+        label="Google AI (Gemini)"
+        description="For Gemini models."
+        value={geminiApiKey}
+        onChange={setGeminiApiKey}
+        placeholder="..."
+        helpUrl="https://aistudio.google.com/apikey"
+        helpText="Get key"
+        highlight={highlightKey === "gemini"}
+        inputRef={geminiInputRef}
+        isMobile={isMobile}
+      />
+    </div>
+  )
+
+  const appearanceSection = (
+    <div className={cn(isMobile ? "space-y-4" : "space-y-3")}>
+      {isMobile && (
+        <h3 className="flex items-center gap-2 font-semibold text-base">
+          <Sun className="h-5 w-5" />
+          Theme
+        </h3>
+      )}
+      <div className="flex gap-2">
+        {themeOptions.map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            onClick={() => handleThemeChange(value)}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 rounded-md border transition-colors",
+              isMobile ? "px-4 py-3 text-base touch-target" : "px-3 py-2 text-sm cursor-pointer",
+              selectedTheme === value
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border hover:bg-accent active:bg-accent"
+            )}
+          >
+            <Icon className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const activeTitle = sections.find((s) => s.key === activeSection)?.label ?? "Settings"
+
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className={cn(
-          "fixed inset-0 z-50 transition-opacity duration-300",
-          isMobile ? "bg-black/50" : "bg-black/50",
+          "fixed inset-0 z-50 bg-black/50 transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
@@ -291,7 +476,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
             "fixed z-50 bg-popover overflow-hidden flex flex-col",
             isMobile
               ? "inset-x-0 bottom-0 top-0 rounded-none"
-              : "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[85vh] border border-border rounded-lg shadow-lg",
+              : "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-[600px] max-h-[85vh] border border-border rounded-xl shadow-lg",
             !isDragging && isMobile && "transition-transform duration-300"
           )}
           style={isMobile ? {
@@ -301,235 +486,114 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Drag handle for mobile */}
-          {isMobile && (
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          {isMobile ? (
+            <>
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+              </div>
+
+              {/* Header */}
+              <div className="sticky top-0 flex items-center justify-between border-b border-border bg-popover z-10 px-4 py-3">
+                <Dialog.Title className="font-semibold text-lg">
+                  Settings
+                </Dialog.Title>
+                <Dialog.Close className="flex items-center justify-center rounded-lg hover:bg-accent active:bg-accent transition-colors p-2 -mr-2 touch-target">
+                  <X className="h-5 w-5" />
+                </Dialog.Close>
+              </div>
+
+              {/* Content */}
+              <div
+                ref={contentRef}
+                className="flex-1 overflow-y-auto mobile-scroll p-4 space-y-8"
+              >
+                {generalSection}
+                {apiKeysSection}
+                {appearanceSection}
+              </div>
+
+              {/* Footer */}
+              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-popover px-4 py-4 pb-safe">
+                <button
+                  onClick={onClose}
+                  className="rounded-md hover:bg-accent active:bg-accent transition-colors touch-target px-6 py-3 text-base"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={!hasChanges}
+                  className="rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target px-6 py-3 text-base"
+                >
+                  Save
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 min-h-0">
+              {/* Left sidebar */}
+              <aside className="w-52 flex-shrink-0 flex flex-col bg-muted/20">
+                <div className="flex items-center px-3 pt-3 pb-2">
+                  <Dialog.Close
+                    className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Dialog.Close>
+                </div>
+                <nav className="flex-1 flex flex-col gap-0.5 px-2 pb-2">
+                  {sections.map((s) => {
+                    const Icon = s.icon
+                    const isActive = activeSection === s.key
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => setActiveSection(s.key)}
+                        className={cn(
+                          "flex items-center gap-2.5 px-2.5 py-2.5 rounded-md text-sm text-left transition-colors cursor-pointer",
+                          isActive
+                            ? "bg-accent text-accent-foreground"
+                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {s.label}
+                      </button>
+                    )
+                  })}
+                </nav>
+              </aside>
+
+              {/* Right pane */}
+              <div className="flex-1 flex flex-col min-h-0">
+                <div ref={contentRef} className="flex-1 overflow-y-auto px-6 pt-5 pb-6">
+                  <Dialog.Title className="text-xl font-medium pb-4 mb-5 border-b border-border">
+                    {activeTitle}
+                  </Dialog.Title>
+                  {activeSection === "general" && generalSection}
+                  {activeSection === "api-keys" && apiKeysSection}
+                  {activeSection === "appearance" && appearanceSection}
+                </div>
+
+                <div className="flex justify-end gap-2 border-t border-border px-6 py-3">
+                  <button
+                    onClick={onClose}
+                    className="rounded-md hover:bg-accent transition-colors px-3 py-1.5 text-sm cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={!hasChanges}
+                    className="rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors px-3 py-1.5 text-sm cursor-pointer"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
             </div>
           )}
-
-          {/* Header */}
-          <div className={cn(
-            "sticky top-0 flex items-center justify-between border-b border-border bg-popover z-10",
-            isMobile ? "px-4 py-3" : "px-4 py-3"
-          )}>
-            <Dialog.Title className={cn(
-              "font-semibold",
-              isMobile ? "text-lg" : "text-sm"
-            )}>
-              Settings
-            </Dialog.Title>
-            <Dialog.Close className={cn(
-              "rounded-lg hover:bg-accent active:bg-accent transition-colors touch-target",
-              isMobile ? "p-2 -mr-2" : "p-1"
-            )}>
-              <X className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-            </Dialog.Close>
-          </div>
-
-          {/* Content */}
-          <div
-            ref={contentRef}
-            className={cn(
-              "flex-1 overflow-y-auto mobile-scroll",
-              isMobile ? "p-4 space-y-8" : "p-4 space-y-6"
-            )}
-          >
-            {/* Default Agent & Model */}
-            <div className={cn(isMobile ? "space-y-4" : "space-y-3")}>
-              <h3 className={cn(
-                "flex items-center gap-2 font-semibold",
-                isMobile ? "text-base" : "text-sm"
-              )}>
-                <Bot className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                Default Agent
-              </h3>
-
-              {/* Agent Selection */}
-              <div>
-                <label className={cn(
-                  "text-muted-foreground mb-1 block",
-                  isMobile ? "text-sm" : "text-xs"
-                )}>Agent</label>
-                <div className="relative">
-                  <select
-                    value={defaultAgent}
-                    onChange={(e) => setDefaultAgent(e.target.value as Agent)}
-                    className={cn(
-                      "w-full bg-input border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring",
-                      isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm"
-                    )}
-                  >
-                    {agents.map((agent) => (
-                      <option key={agent} value={agent}>
-                        {agentLabels[agent]}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className={cn(
-                    "absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
-                    isMobile ? "right-4 h-5 w-5" : "right-2 h-4 w-4"
-                  )} />
-                </div>
-              </div>
-
-              {/* Model Selection */}
-              <div>
-                <label className={cn(
-                  "text-muted-foreground mb-1 block",
-                  isMobile ? "text-sm" : "text-xs"
-                )}>Model</label>
-                <div className="relative">
-                  <select
-                    value={defaultModel}
-                    onChange={(e) => setDefaultModel(e.target.value)}
-                    className={cn(
-                      "w-full bg-input border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring",
-                      isMobile ? "px-4 py-3 text-base" : "px-3 py-1.5 text-sm"
-                    )}
-                  >
-                    {availableModels.map((model: ModelOption) => {
-                      const hasCredentials = hasCredentialsForModel(model, currentCredentials, defaultAgent)
-                      return (
-                        <option key={model.value} value={model.value}>
-                          {model.label}
-                          {!hasCredentials && model.requiresKey !== "none" ? " (needs API key)" : ""}
-                        </option>
-                      )
-                    })}
-                  </select>
-                  <ChevronDown className={cn(
-                    "absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
-                    isMobile ? "right-4 h-5 w-5" : "right-2 h-4 w-4"
-                  )} />
-                </div>
-              </div>
-            </div>
-
-            {/* API Keys */}
-            <div className={cn(isMobile ? "space-y-4" : "space-y-3")}>
-              <h3 className={cn(
-                "flex items-center gap-2 font-semibold",
-                isMobile ? "text-base" : "text-sm"
-              )}>
-                <Key className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                API Keys
-              </h3>
-              <p className={cn(
-                "text-muted-foreground",
-                isMobile ? "text-sm" : "text-xs"
-              )}>
-                Add API keys to unlock more models. All keys are stored locally in your browser.
-              </p>
-
-              <ApiKeyField
-                label="Anthropic"
-                description="For Claude Code and Claude models."
-                value={anthropicApiKey}
-                onChange={setAnthropicApiKey}
-                placeholder="sk-ant-..."
-                helpUrl="https://console.anthropic.com/"
-                helpText="Get key"
-                highlight={highlightKey === "anthropic"}
-                inputRef={anthropicInputRef}
-                isMobile={isMobile}
-              />
-
-              <ApiKeyField
-                label="OpenAI"
-                description="For Codex, GPT models, and Goose."
-                value={openaiApiKey}
-                onChange={setOpenaiApiKey}
-                placeholder="sk-..."
-                helpUrl="https://platform.openai.com/api-keys"
-                helpText="Get key"
-                highlight={highlightKey === "openai"}
-                inputRef={openaiInputRef}
-                isMobile={isMobile}
-              />
-
-              <ApiKeyField
-                label="OpenCode"
-                description="For paid OpenCode models."
-                value={opencodeApiKey}
-                onChange={setOpencodeApiKey}
-                placeholder="..."
-                highlight={highlightKey === "opencode"}
-                inputRef={opencodeInputRef}
-                helpUrl="https://opencode.ai/auth"
-                helpText="Get key"
-                isMobile={isMobile}
-              />
-
-              <ApiKeyField
-                label="Google AI (Gemini)"
-                description="For Gemini models."
-                value={geminiApiKey}
-                onChange={setGeminiApiKey}
-                placeholder="..."
-                helpUrl="https://aistudio.google.com/apikey"
-                helpText="Get key"
-                highlight={highlightKey === "gemini"}
-                inputRef={geminiInputRef}
-                isMobile={isMobile}
-              />
-            </div>
-
-            {/* Theme Selector */}
-            <div className={cn(isMobile ? "space-y-4" : "space-y-3")}>
-              <h3 className={cn(
-                "flex items-center gap-2 font-semibold",
-                isMobile ? "text-base" : "text-sm"
-              )}>
-                <Sun className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                Theme
-              </h3>
-              <div className="flex gap-2">
-                {themeOptions.map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    onClick={() => handleThemeChange(value)}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 rounded-md border transition-colors touch-target",
-                      isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm",
-                      selectedTheme === value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:bg-accent active:bg-accent"
-                    )}
-                  >
-                    <Icon className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className={cn(
-            "sticky bottom-0 flex justify-end gap-2 border-t border-border bg-popover",
-            isMobile ? "px-4 py-4 pb-safe" : "px-4 py-3"
-          )}>
-            <button
-              onClick={onClose}
-              className={cn(
-                "rounded-md hover:bg-accent active:bg-accent transition-colors touch-target",
-                isMobile ? "px-6 py-3 text-base" : "px-3 py-1.5 text-sm"
-              )}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges}
-              className={cn(
-                "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target",
-                isMobile ? "px-6 py-3 text-base" : "px-3 py-1.5 text-sm"
-              )}
-            >
-              Save
-            </button>
-          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
