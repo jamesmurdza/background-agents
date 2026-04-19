@@ -107,6 +107,12 @@ function PasswordInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        data-lpignore="true"
+        data-1p-ignore="true"
+        data-bwignore="true"
+        data-form-type="other"
         className={cn(
           "pr-8 font-mono",
           highlight && "border-red-500 focus:border-red-500 focus:ring-red-500/30"
@@ -400,6 +406,12 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
           onChange={(e) => setAnthropicAuthToken(e.target.value)}
           placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
           rows={3}
+          autoComplete="off"
+          spellCheck={false}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-bwignore="true"
+          data-form-type="other"
           className="font-mono text-xs"
         />
         <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
