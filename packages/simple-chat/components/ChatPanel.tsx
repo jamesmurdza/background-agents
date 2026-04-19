@@ -835,7 +835,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
               className="text-sm font-medium text-foreground bg-transparent outline-none border-b border-primary"
             />
           ) : (
-            <div className="group/title relative flex items-center gap-0.5" ref={titleMenuRef}>
+            <div className="group/title relative flex items-center gap-[2px]" ref={titleMenuRef}>
               <button
                 onClick={startEditingTitle}
                 className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-pointer"
