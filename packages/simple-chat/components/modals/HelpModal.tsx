@@ -43,8 +43,9 @@ export function HelpModal({ open, onClose, isMobile = false }: HelpModalProps) {
             <section>
               <h3 className="font-medium mb-1.5">Getting started</h3>
               <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+                <li>Select the agent you want to use.</li>
                 <li>Send a message to the agent. A sandbox is created on the first prompt.</li>
-                <li>The agent edits code on a new branch and pushes it when done.</li>
+                <li>The agent edits code on a new branch and pushes it to the selected repository.</li>
               </ol>
             </section>
 
