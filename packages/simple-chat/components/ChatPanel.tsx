@@ -384,15 +384,38 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
       "w-full mx-auto",
       isMobile ? "max-w-full" : "max-w-[52rem]"
     )}>
+      {/* Queue shelf sits above the prompt card, narrower so it's visually distinct */}
+      {chat.queuedMessages && chat.queuedMessages.length > 0 && (
+        <div className={cn(
+          "border border-b-0 border-border bg-card rounded-t-md",
+          isMobile ? "mx-4" : "mx-6"
+        )}>
+          {chat.queuedMessages.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center gap-2 px-3 py-1 border-b border-border/40 last:border-b-0"
+            >
+              <span className="flex-1 min-w-0 truncate text-xs text-muted-foreground">{m.content}</span>
+              {onRemoveQueuedMessage && (
+                <button
+                  onClick={() => onRemoveQueuedMessage(m.id)}
+                  className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                  aria-label="Remove queued message"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
           "relative flex flex-col border shadow-sm bg-card border-border",
-          isMobile
-            ? (hasQueued ? "rounded-b-xl rounded-t-md" : "rounded-xl")
-            : (hasQueued ? "rounded-b-2xl rounded-t-lg" : "rounded-2xl"),
+          isMobile ? "rounded-xl" : "rounded-2xl",
           "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
           isDraggingOver && "border-primary ring-2 ring-primary/30"
         )}
@@ -417,32 +440,6 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
             }
           }}
         />
-        {/* Queued messages drawer (shown when agent is running and user has queued prompts) */}
-        {chat.queuedMessages && chat.queuedMessages.length > 0 && (
-          <div className="border-b border-border">
-            {chat.queuedMessages.map((m) => (
-              <div
-                key={m.id}
-                className={cn(
-                  "flex items-center gap-2 border-b border-border/40 last:border-b-0",
-                  isMobile ? "mx-2 px-2 py-1" : "mx-3 px-2 py-1"
-                )}
-              >
-                <span className="flex-1 min-w-0 truncate text-[11px] text-muted-foreground">{m.content}</span>
-                {onRemoveQueuedMessage && (
-                  <button
-                    onClick={() => onRemoveQueuedMessage(m.id)}
-                    className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-                    aria-label="Remove queued message"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Text input area */}
         <div className={cn(
           "flex items-end gap-2",
