@@ -1096,7 +1096,7 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
                 e.stopPropagation()
                 onToggleExpanded?.()
               }}
-              className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-foreground/80 hover:text-primary hover:underline rounded-sm cursor-pointer"
+              className="flex h-4 w-4 flex-shrink-0 items-center justify-center -mr-[5px] text-foreground/80 hover:text-primary hover:underline rounded-sm cursor-pointer"
               aria-label={isExpanded ? "Collapse children" : "Expand children"}
             >
               {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
