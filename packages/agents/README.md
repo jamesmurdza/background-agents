@@ -55,7 +55,7 @@ await sandbox.delete()
 
 | Provider | CLI Command |
 |----------|-------------|
-| Claude | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions "prompt"` |
+| Claude | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions -- "prompt"` |
 | Codex | `codex exec --json --skip-git-repo-check --yolo "prompt"` |
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | OpenCode | `opencode run --format json --variant medium "prompt"` |
