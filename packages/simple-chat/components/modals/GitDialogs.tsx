@@ -22,6 +22,8 @@ export interface UseGitDialogsOptions {
   /** When merging into a branch, the parent can route a mirrored system
    *  message to whichever chat owns that branch in the same repo. */
   onAddMessageToBranch?: (branch: string, message: Message) => void
+  /** Resolve a branch name to a chat display name for friendlier messages. */
+  resolveChatName?: (branch: string) => string | null
 }
 
 /** PR description format options */
@@ -688,7 +690,7 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolveChatName }: UseGitDialogsOptions): UseGitDialogsResult {
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
   const sandboxId = chat?.sandboxId ?? ""
@@ -811,15 +813,17 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch }: UseG
         throw new Error(typeof data.error === "string" ? data.error : "Merge failed")
       }
 
-      const summary = `${squashMerge ? "Squash merged" : "Merged"} ${branchName} into ${selectedBranch} and pushed.`
-      addSystemMessage(summary)
+      const verb = squashMerge ? "Squash merged" : "Merged"
+      const sourceName = chat?.displayName || branchName
+      const targetName = resolveChatName?.(selectedBranch) || selectedBranch
+      addSystemMessage(`${verb} ${sourceName} into ${targetName}.`)
       // Mirror the message to whichever chat is tracking the merged-into
       // branch so both sides see the history.
       if (onAddMessageToBranch) {
         onAddMessageToBranch(selectedBranch, {
           id: generateId(),
           role: "assistant",
-          content: `${squashMerge ? "Squash merged" : "Merged"} ${branchName} into ${selectedBranch}.`,
+          content: `${verb} ${sourceName} into ${targetName}.`,
           messageType: "git-operation",
           timestamp: Date.now(),
         })

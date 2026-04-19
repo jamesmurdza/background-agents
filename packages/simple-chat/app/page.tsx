@@ -138,6 +138,13 @@ export default function HomePage() {
       )
       if (target) addMessage(target.id, message)
     },
+    resolveChatName: (branch) => {
+      if (!currentChat) return null
+      const target = chats.find(
+        (c) => c.repo === currentChat.repo && c.branch === branch
+      )
+      return target?.displayName ?? null
+    },
   })
 
   // Close mobile sidebar when switching to desktop
