@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -806,7 +806,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
                     }}
                     className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
                   >
-                    <SettingsIcon className="h-3.5 w-3.5 opacity-0" />
+                    <Pencil className="h-3.5 w-3.5" />
                     Rename
                   </button>
                   {githubBranchUrl && (
