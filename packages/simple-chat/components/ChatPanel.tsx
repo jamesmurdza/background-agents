@@ -596,13 +596,19 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
               )}
             </div>
           ) : !isNewRepo && (
-            // Repo is locked - show as static text
-            <span className={cn(
-              "text-muted-foreground",
-              isMobile ? "text-sm" : "text-xs"
-            )}>
+            // Repo is locked — link out to the repo on GitHub instead of a
+            // plain label so the user can jump to it.
+            <a
+              href={`https://github.com/${chat.repo}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "text-muted-foreground hover:text-foreground transition-colors",
+                isMobile ? "text-sm" : "text-xs"
+              )}
+            >
               {chat.repo}
-            </span>
+            </a>
           )}
 
           {/* Spacer */}
