@@ -472,8 +472,8 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    // Create new chat in "running" state without switching to it
-    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "running")
+    // Create new chat in "creating" state without switching to it (spinner shows immediately)
+    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "creating")
     // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
   }, [currentChat, branchForNewChat, startNewChat, sendMessage, session])
@@ -488,8 +488,8 @@ export default function HomePage() {
     }
     // Remove from queue first
     removeQueuedMessage(id)
-    // Create new chat in "running" state without switching to it
-    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "running")
+    // Create new chat in "creating" state without switching to it (spinner shows immediately)
+    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "creating")
     // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
   }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session])
