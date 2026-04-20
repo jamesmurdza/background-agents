@@ -454,44 +454,47 @@ export default function HomePage() {
   // Handler for slash commands - open the corresponding git dialog
   // Start a new chat off the current chat's branch. Defined before
   // handleSlashCommand so "/branch" can call it.
-  const canBranch = !!(currentChat?.branch && currentChat.repo !== NEW_REPOSITORY)
+  // Use branch if available (sandbox created), otherwise baseBranch (before first message)
+  const branchForNewChat = currentChat?.branch || currentChat?.baseBranch
+  const canBranch = !!(branchForNewChat && currentChat?.repo !== NEW_REPOSITORY)
   const handleBranchChat = useCallback(() => {
-    if (!currentChat?.branch || currentChat.repo === NEW_REPOSITORY) return
-    startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
+    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
+    startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
     if (currentPage !== "chat") handleNavigate("chat")
-  }, [currentChat, startNewChat, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, currentPage])
 
   // Branch and send a message to the new chat (Option+Enter)
   const handleBranchWithMessage = useCallback((message: string, agent: string, model: string) => {
-    if (!currentChat?.branch || currentChat.repo === NEW_REPOSITORY) return
+    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
     if (!session) {
       savePendingMessage({ message, agent, model })
       setSignInModalOpen(true)
       return
     }
-    const chatId = startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
-    selectChat(chatId)
+    // startNewChat already sets the new chat as current (via createChat in storage)
+    // Don't call selectChat as it uses stale state and may incorrectly delete empty parent chats
+    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
     if (currentPage !== "chat") handleNavigate("chat")
     // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, startNewChat, selectChat, sendMessage, session, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, currentPage])
 
   // Branch a queued message to a new chat (removes from queue)
   const handleBranchQueuedMessage = useCallback((id: string, message: string, agent?: string, model?: string) => {
-    if (!currentChat?.branch || currentChat.repo === NEW_REPOSITORY) return
+    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
     if (!session) {
       setSignInModalOpen(true)
       return
     }
     // Remove from queue first
     removeQueuedMessage(id)
-    // Create new branch chat and send the message
-    const chatId = startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
-    selectChat(chatId)
+    // startNewChat already sets the new chat as current (via createChat in storage)
+    // Don't call selectChat as it uses stale state and may incorrectly delete empty parent chats
+    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
     if (currentPage !== "chat") handleNavigate("chat")
     // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, startNewChat, selectChat, sendMessage, removeQueuedMessage, session, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session, currentPage])
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
