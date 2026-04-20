@@ -66,6 +66,7 @@ const agents = [
     apiKeyEnvVar: "OPENAI_API_KEY", // goose uses OpenAI provider by default
     apiKey: OPENAI_API_KEY,
     hasKey: !!OPENAI_API_KEY,
+    model: "gpt-4o",
   },
   {
     name: "opencode" as const,

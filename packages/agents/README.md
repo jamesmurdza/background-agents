@@ -57,7 +57,7 @@ await sandbox.delete()
 |----------|-------------|
 | Claude | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions -- "prompt"` |
 | Codex | `codex exec --json --skip-git-repo-check --yolo -- "prompt"` |
-| Goose | `goose run --output-format stream-json --provider openai --model gpt-4o --text "prompt"` |
+| Goose | `goose run --output-format stream-json --text "prompt"` |
 | OpenCode | `opencode run --format json --variant medium -- "prompt" 2>&1` |
 | Gemini | `gemini --output-format stream-json --yolo -p "prompt"` |
 | Pi | `pi --mode json -p "prompt"` |

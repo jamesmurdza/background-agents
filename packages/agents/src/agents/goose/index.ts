@@ -8,25 +8,17 @@ import { parseGooseLine } from "./parser"
 import { GOOSE_TOOL_MAPPINGS } from "./tools"
 
 /**
- * Determine the goose provider and model based on the model name and environment.
+ * Determine the goose provider based on the given model name.
  * Goose supports multiple providers: openai, anthropic, ollama, etc.
  */
-function getGooseProviderAndModel(
-  model: string | undefined,
-  env: Record<string, string> | undefined
-): { provider: string; model: string } {
+function getGooseProvider(model: string): string {
   // If model contains "claude", use anthropic provider
-  if (model?.toLowerCase().includes("claude")) {
-    return { provider: "anthropic", model: model }
-  }
-
-  // If ANTHROPIC_API_KEY is set but not OPENAI_API_KEY, use anthropic
-  if (env?.ANTHROPIC_API_KEY && !env?.OPENAI_API_KEY) {
-    return { provider: "anthropic", model: model || "claude-sonnet-4-5" }
+  if (model.toLowerCase().includes("claude")) {
+    return "anthropic"
   }
 
   // Default to OpenAI provider
-  return { provider: "openai", model: model || "gpt-4o" }
+  return "openai"
 }
 
 /**
@@ -53,10 +45,12 @@ export const gooseAgent: AgentDefinition = {
     // Enable JSON streaming output for machine-readable events
     gooseArgs.push("--output-format", "stream-json")
 
-    // Determine provider and model based on model name and environment
-    const { provider, model } = getGooseProviderAndModel(options.model, options.env)
-    gooseArgs.push("--provider", provider)
-    gooseArgs.push("--model", model)
+    // Only set provider and model flags if a model is explicitly requested
+    if (options.model) {
+      const provider = getGooseProvider(options.model)
+      gooseArgs.push("--provider", provider)
+      gooseArgs.push("--model", options.model)
+    }
 
     // Add prompt as text input
     if (options.prompt) {
