@@ -311,6 +311,12 @@ export function useChat() {
     setState(newState)
   }, [state.currentChatId])
 
+  // Update any chat by ID
+  const updateChatById = useCallback((chatId: string, updates: Partial<Chat>) => {
+    const newState = updateChat(chatId, updates)
+    setState(newState)
+  }, [])
+
   // Rename a chat
   const renameChat = useCallback((chatId: string, newName: string) => {
     const newState = updateChat(chatId, { displayName: newName })
@@ -502,6 +508,8 @@ export function useChat() {
           previewUrlPattern: previewUrlPattern || chat.previewUrlPattern,
           agent: selectedAgent,
           model: selectedModel,
+          // Pass needsSync to trigger pull on sandbox wake after merge
+          needsSync: chat.needsSync,
           // Pass API keys
           ...(anthropicApiKey && { anthropicApiKey }),
           ...(anthropicAuthToken && { anthropicAuthToken }),
@@ -527,10 +535,16 @@ export function useChat() {
 
       // Get the backgroundSessionId from the response
       const executeData = await response.json()
-      const { backgroundSessionId } = executeData
+      const { backgroundSessionId, synced } = executeData
+
+      // Clear needsSync if we successfully synced
+      const chatUpdates: { backgroundSessionId: string; needsSync?: boolean } = { backgroundSessionId }
+      if (synced) {
+        chatUpdates.needsSync = false
+      }
 
       // Save backgroundSessionId for recovery after page refresh
-      newState = updateChat(chat.id, { backgroundSessionId })
+      newState = updateChat(chat.id, chatUpdates)
       setState(newState)
 
       // 4. Start SSE streaming for status
@@ -901,6 +915,8 @@ export function useChat() {
           previewUrlPattern: fresh.previewUrlPattern,
           agent: selectedAgent,
           model: selectedModel,
+          // Pass needsSync to trigger pull on sandbox wake after merge
+          needsSync: fresh.needsSync,
           ...(anthropicApiKey && { anthropicApiKey }),
           ...(anthropicAuthToken && { anthropicAuthToken }),
           ...(openaiApiKey && { openaiApiKey }),
@@ -913,8 +929,13 @@ export function useChat() {
         throw new Error(error.error || "Failed to execute queued message")
       }
       const data = await response.json()
-      const { backgroundSessionId } = data
-      newState = updateChat(chatId, { backgroundSessionId })
+      const { backgroundSessionId, synced } = data
+      // Clear needsSync if we successfully synced
+      const chatUpdates: { backgroundSessionId: string; needsSync?: boolean } = { backgroundSessionId }
+      if (synced) {
+        chatUpdates.needsSync = false
+      }
+      newState = updateChat(chatId, chatUpdates)
       setState(newState)
       startStreaming(chatId, fresh.sandboxId, "project", backgroundSessionId, fresh.previewUrlPattern)
     } catch (error) {
@@ -961,6 +982,7 @@ export function useChat() {
     renameChat,
     updateChatRepo,
     updateCurrentChat,
+    updateChatById,
     sendMessage,
     stopAgent,
     updateSettings,

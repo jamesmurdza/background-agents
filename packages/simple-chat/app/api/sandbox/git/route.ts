@@ -155,13 +155,21 @@ export async function POST(req: Request) {
           } catch {
             // Pull may fail but GitHub merge succeeded
           }
+          return Response.json({ success: true })
         } else if (targetSandboxId) {
-          // Pull the merged changes into the target branch's sandbox
+          // Pull the merged changes into the target branch's sandbox if it's running
           try {
             const targetSandbox = await daytona.get(targetSandboxId)
-            await targetSandbox.git.pull(repoPath, "x-access-token", githubToken)
+            if (targetSandbox.state === "started") {
+              await targetSandbox.git.pull(repoPath, "x-access-token", githubToken)
+              return Response.json({ success: true })
+            } else {
+              // Sandbox not running, tell frontend to mark for sync
+              return Response.json({ success: true, needsSync: true })
+            }
           } catch {
-            // Pull may fail but GitHub merge succeeded
+            // Pull failed or couldn't get sandbox, tell frontend to mark for sync
+            return Response.json({ success: true, needsSync: true })
           }
         }
 

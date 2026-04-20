@@ -103,6 +103,9 @@ export interface Chat {
 
   // Status
   status: ChatStatus
+
+  /** Set when a merge targets this branch but sandbox was stopped. Triggers pull on next execute. */
+  needsSync?: boolean
 }
 
 export type ChatStatus = "pending" | "creating" | "ready" | "running" | "error"

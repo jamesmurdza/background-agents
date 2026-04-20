@@ -77,6 +77,7 @@ export default function HomePage() {
     enqueueMessage,
     removeQueuedMessage,
     resumeQueue,
+    updateChatById,
   } = useChat()
 
   const [repoSelectOpen, setRepoSelectOpen] = useState(false)
@@ -288,6 +289,22 @@ export default function HomePage() {
         (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
       )
       return target?.sandboxId ?? null
+    },
+    getTargetChatStatus: (branch) => {
+      if (!currentChat) return null
+      const target = chats.find(
+        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
+      )
+      return target?.status ?? null
+    },
+    onMarkBranchNeedsSync: (branch) => {
+      if (!currentChat) return
+      const target = chats.find(
+        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
+      )
+      if (target) {
+        updateChatById(target.id, { needsSync: true })
+      }
     },
   })
 

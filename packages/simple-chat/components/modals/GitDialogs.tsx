@@ -26,6 +26,10 @@ export interface UseGitDialogsOptions {
   resolveChatName?: (branch: string) => string | null
   /** Get the sandbox ID for a target branch (used to pull changes after merge). */
   getTargetSandboxId?: (branch: string) => string | null
+  /** Get the status of a target branch (used to block merge into running branch). */
+  getTargetChatStatus?: (branch: string) => string | null
+  /** Mark a branch as needing sync (used when merge succeeds but sandbox was stopped). */
+  onMarkBranchNeedsSync?: (branch: string) => void
 }
 
 /** PR description format options */
@@ -723,7 +727,7 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolveChatName, getTargetSandboxId }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolveChatName, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync }: UseGitDialogsOptions): UseGitDialogsResult {
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
   const sandboxId = chat?.sandboxId ?? ""
@@ -809,6 +813,15 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
   // Handle merge
   const handleMerge = useCallback(async () => {
     if (!selectedBranch || !branchName || !sandboxId) return
+
+    // Block merge into a running branch
+    const targetStatus = getTargetChatStatus?.(selectedBranch)
+    if (targetStatus === "running") {
+      addSystemMessage(`Cannot merge into "${selectedBranch}" while an agent is running on it.`, true)
+      setMergeOpen(false)
+      return
+    }
+
     setActionLoading(true)
 
     // Get the target sandbox ID so we can pull the merged changes there
@@ -851,6 +864,11 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
         throw new Error(typeof data.error === "string" ? data.error : "Merge failed")
       }
 
+      // If sandbox was stopped, mark branch for sync on next wake
+      if (data.needsSync && onMarkBranchNeedsSync) {
+        onMarkBranchNeedsSync(selectedBranch)
+      }
+
       const verb = squashMerge ? "Squash merged" : "Merged"
       const sourceName = chat?.displayName || branchName
       const targetName = resolveChatName?.(selectedBranch) || selectedBranch
@@ -875,7 +893,7 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branchName, sandboxId, repoName, repoOwner, repoApiName, squashMerge, addSystemMessage, getTargetSandboxId])
+  }, [selectedBranch, branchName, sandboxId, repoName, repoOwner, repoApiName, squashMerge, addSystemMessage, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync])
 
   // Handle rebase
   const handleRebase = useCallback(async () => {

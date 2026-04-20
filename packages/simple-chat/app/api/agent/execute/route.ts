@@ -1,4 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { createBackgroundAgentSession } from "@/lib/agent-session"
 import { getEnvForModel } from "@upstream/common"
@@ -8,7 +10,7 @@ export const maxDuration = 60
 export async function POST(req: Request) {
   // 1. Parse request body
   const body = await req.json()
-  const { sandboxId, sessionId, prompt, repoName, previewUrlPattern, agent, model, anthropicApiKey, anthropicAuthToken, openaiApiKey, opencodeApiKey, geminiApiKey } = body
+  const { sandboxId, sessionId, prompt, repoName, previewUrlPattern, agent, model, anthropicApiKey, anthropicAuthToken, openaiApiKey, opencodeApiKey, geminiApiKey, needsSync } = body
 
   if (!sandboxId || !prompt || !repoName) {
     return Response.json({ error: "Missing required fields: sandboxId, prompt, repoName" }, { status: 400 })
@@ -22,6 +24,10 @@ export async function POST(req: Request) {
       { status: 500 }
     )
   }
+
+  // Get GitHub token for git pull if needed
+  const session = await getServerSession(authOptions)
+  const githubToken = session?.accessToken
 
   try {
     // 3. Get sandbox from Daytona
@@ -39,11 +45,24 @@ export async function POST(req: Request) {
     }
 
     // 4. Start sandbox if not running
-    if (sandbox.state !== "started") {
+    const wasStarted = sandbox.state === "started"
+    if (!wasStarted) {
       await sandbox.start(120) // 2 minute timeout
     }
 
-    // 5. Build fresh env vars for the agent based on current credentials
+    // 5. Pull if needsSync (branch was target of merge while sandbox was stopped)
+    const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
+    let synced = false
+    if (needsSync && githubToken) {
+      try {
+        await sandbox.git.pull(repoPath, "x-access-token", githubToken)
+        synced = true
+      } catch {
+        // Best effort - continue with execution
+      }
+    }
+
+    // 6. Build fresh env vars for the agent based on current credentials
     // This is a pure function - no accumulation, returns only what's needed now
     const env = getEnvForModel(model, agent || "opencode", {
       anthropicApiKey,
@@ -53,9 +72,7 @@ export async function POST(req: Request) {
       geminiApiKey,
     })
 
-    // 6. Create background agent session
-    const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
-
+    // 7. Create background agent session
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern,
@@ -65,12 +82,13 @@ export async function POST(req: Request) {
       env: Object.keys(env).length > 0 ? env : undefined,
     })
 
-    // 7. Start the agent
+    // 8. Start the agent
     await bgSession.start(prompt)
 
     return Response.json({
       backgroundSessionId: bgSession.backgroundSessionId,
       status: "running",
+      synced,
     })
   } catch (error) {
     console.error("[agent/execute] Error:", error)
