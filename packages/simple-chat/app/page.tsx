@@ -472,10 +472,8 @@ export default function HomePage() {
     const chatId = startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
     selectChat(chatId)
     if (currentPage !== "chat") handleNavigate("chat")
-    // Small delay to ensure the new chat is current before sending
-    setTimeout(() => {
-      sendMessage(message, agent, model)
-    }, 50)
+    // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
+    sendMessage(message, agent, model, undefined, chatId)
   }, [currentChat, startNewChat, selectChat, sendMessage, session, currentPage])
 
   // Branch a queued message to a new chat (removes from queue)
@@ -491,10 +489,8 @@ export default function HomePage() {
     const chatId = startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
     selectChat(chatId)
     if (currentPage !== "chat") handleNavigate("chat")
-    // Small delay to ensure the new chat is current before sending
-    setTimeout(() => {
-      sendMessage(message, agent, model)
-    }, 50)
+    // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
+    sendMessage(message, agent, model, undefined, chatId)
   }, [currentChat, startNewChat, selectChat, sendMessage, removeQueuedMessage, session, currentPage])
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {

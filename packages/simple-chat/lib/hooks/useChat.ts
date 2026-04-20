@@ -264,20 +264,25 @@ export function useChat() {
   // Messaging
   // =============================================================================
 
-  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[]) => {
-    if (!currentChat) return
+  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string) => {
+    // Allow specifying a target chat ID (for branch-and-send scenarios)
+    // Otherwise fall back to currentChat
+    const targetChat = targetChatId
+      ? state.chats.find((c) => c.id === targetChatId)
+      : currentChat
+    if (!targetChat) return
 
     // Guard: prevent concurrent sends to same chat
-    if (useStreamStore.getState().isStreaming(currentChat.id)) {
+    if (useStreamStore.getState().isStreaming(targetChat.id)) {
       console.warn("Already streaming for this chat")
       return
     }
 
     // For GitHub repos, we need auth. For NEW_REPOSITORY, we don't.
-    const isNewRepo = currentChat.repo === NEW_REPOSITORY
+    const isNewRepo = targetChat.repo === NEW_REPOSITORY
     if (!isNewRepo && !session?.accessToken) return
 
-    const chat = currentChat
+    const chat = targetChat
     // Check if this is the first message (for auto-naming)
     const isFirstMessage = chat.messages.length === 0
 
@@ -499,7 +504,7 @@ export function useChat() {
       newState = updateChat(chat.id, { status: "error" })
       setState(newState)
     }
-  }, [currentChat, session?.accessToken, state.settings])
+  }, [currentChat, session?.accessToken, state.settings, state.chats])
 
   // =============================================================================
   // SSE Streaming
