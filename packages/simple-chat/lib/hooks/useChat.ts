@@ -197,6 +197,61 @@ export function useChat() {
     for (const id of allIds) useStreamStore.getState().stopStream(id)
     setDeletingChatIds((prev) => new Set([...prev, ...allIds]))
 
+    // For each chat with a GitHub repo and branch, check if merged and delete remote branch if so.
+    // This happens before sandbox deletion since we need the sandbox to execute the delete.
+    await Promise.all(
+      chatsToDelete
+        .filter((c) => c.sandboxId && c.branch && c.repo !== NEW_REPOSITORY)
+        .map(async (chat) => {
+          try {
+            // Parse owner/repo from the repo string
+            const [owner, repoName] = chat.repo.split("/")
+            if (!owner || !repoName) return
+
+            // Check if branch is merged by comparing with base branch
+            const baseBranch = chat.baseBranch || "main"
+            const compareRes = await fetch("/api/github/compare", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                owner,
+                repo: repoName,
+                base: baseBranch,
+                head: chat.branch,
+              }),
+            })
+
+            if (!compareRes.ok) {
+              // Branch might not exist on GitHub - that's fine, skip deletion
+              return
+            }
+
+            const compareData = await compareRes.json()
+            const isMerged = compareData.ahead_by === 0
+
+            // Only delete remote branch if it's fully merged
+            if (isMerged) {
+              await fetch("/api/sandbox/git", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  sandboxId: chat.sandboxId,
+                  // sandbox/create clones into /home/daytona/project
+                  repoPath: "/home/daytona/project",
+                  action: "delete-remote-branch",
+                  currentBranch: chat.branch,
+                  repoOwner: owner,
+                  repoApiName: repoName,
+                }),
+              })
+            }
+          } catch (error) {
+            // Don't block chat deletion on remote branch deletion failure
+            console.error("Failed to check/delete remote branch:", error)
+          }
+        })
+    )
+
     // Tear down sandboxes in parallel. Failures don't block chat removal.
     await Promise.all(
       chatsToDelete

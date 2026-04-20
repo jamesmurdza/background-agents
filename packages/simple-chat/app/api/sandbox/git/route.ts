@@ -265,6 +265,28 @@ export async function POST(req: Request) {
         return Response.json({ inRebase, inMerge, conflictedFiles })
       }
 
+      case "delete-remote-branch": {
+        if (!currentBranch || !repoOwner || !repoApiName) {
+          return Response.json({ error: "Missing required fields for delete-remote-branch" }, { status: 400 })
+        }
+        // Delete remote branch via GitHub API
+        const deleteRes = await fetch(
+          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${githubToken}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+          }
+        )
+        if (!deleteRes.ok && deleteRes.status !== 404) {
+          const deleteData = await deleteRes.json().catch(() => ({}))
+          return Response.json({ error: "Delete failed: " + ((deleteData as { message?: string }).message || deleteRes.status) }, { status: 500 })
+        }
+        return Response.json({ success: true })
+      }
+
       default:
         return Response.json({ error: `Unknown action: ${action}` }, { status: 400 })
     }
