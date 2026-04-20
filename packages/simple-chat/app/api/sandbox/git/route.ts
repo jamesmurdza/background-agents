@@ -162,7 +162,9 @@ export async function POST(req: Request) {
             const targetSandbox = await daytona.get(targetSandboxId)
             console.log(`[merge] Target sandbox ${targetSandboxId} state: ${targetSandbox.state}`)
             if (targetSandbox.state === "started") {
-              console.log(`[merge] Pulling into target sandbox at ${repoPath}`)
+              console.log(`[merge] Fetching and pulling into target sandbox at ${repoPath}`)
+              // Fetch first to get the merge commit from remote
+              await fetchBranchWithAuth(targetSandbox.process, repoPath, githubToken, targetBranch)
               await targetSandbox.git.pull(repoPath, "x-access-token", githubToken)
               console.log(`[merge] Pull succeeded`)
               return Response.json({ success: true })
