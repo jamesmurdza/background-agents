@@ -163,10 +163,11 @@ export function useChat() {
     })
 
     // Clean up empty chats (no messages) when switching away, except the one we're switching to
+    // Keep branched chats (those with parentChatId) even if empty
     const currentId = state.currentChatId
     if (currentId && currentId !== chatId) {
       const currentChat = state.chats.find((c) => c.id === currentId)
-      if (currentChat && currentChat.messages.length === 0) {
+      if (currentChat && currentChat.messages.length === 0 && !currentChat.parentChatId) {
         // Delete the empty chat first, then select the new one
         const { state: afterDelete } = deleteStoredChat(currentId)
         const newState = {

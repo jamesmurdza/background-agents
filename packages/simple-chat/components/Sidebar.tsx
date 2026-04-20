@@ -117,7 +117,8 @@ export function Sidebar({
   const filteredChats = useMemo(() => {
     return chats
       .filter((chat) => {
-        if (chat.messages.length === 0) return false
+        // Show empty chats only if they have a parentChatId (were branched)
+        if (chat.messages.length === 0 && !chat.parentChatId) return false
         if (repoFilter === ALL_REPOSITORIES) return true
         if (repoFilter === NO_REPOSITORY) return chat.repo === NEW_REPOSITORY
         return chat.repo === repoFilter
