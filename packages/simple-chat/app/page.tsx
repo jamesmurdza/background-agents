@@ -471,12 +471,13 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
+    // startNewChat already sets the new chat as current (via createChat in storage)
+    // Don't call selectChat as it uses stale state and may incorrectly delete empty parent chats
     const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-    selectChat(chatId)
     if (currentPage !== "chat") handleNavigate("chat")
     // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, selectChat, sendMessage, session, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, currentPage])
 
   // Branch a queued message to a new chat (removes from queue)
   const handleBranchQueuedMessage = useCallback((id: string, message: string, agent?: string, model?: string) => {
@@ -487,13 +488,13 @@ export default function HomePage() {
     }
     // Remove from queue first
     removeQueuedMessage(id)
-    // Create new branch chat and send the message
+    // startNewChat already sets the new chat as current (via createChat in storage)
+    // Don't call selectChat as it uses stale state and may incorrectly delete empty parent chats
     const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-    selectChat(chatId)
     if (currentPage !== "chat") handleNavigate("chat")
     // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, selectChat, sendMessage, removeQueuedMessage, session, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session, currentPage])
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
