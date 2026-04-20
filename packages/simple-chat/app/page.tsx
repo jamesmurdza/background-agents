@@ -503,7 +503,8 @@ export default function HomePage() {
   // collapsed state — so Alt+Up/Down can reach every chat, expanding
   // collapsed ancestors along the way).
   const treeOrderedChatIds = useMemo(() => {
-    const visible = chats.filter((c) => c.messages.length > 0)
+    // Show empty chats if they have a parentChatId (were branched)
+    const visible = chats.filter((c) => c.messages.length > 0 || c.parentChatId)
     visible.sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
     const visibleIds = new Set(visible.map((c) => c.id))
     const kids = new Map<string, Chat[]>()
