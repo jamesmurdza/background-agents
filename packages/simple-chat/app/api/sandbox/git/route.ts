@@ -160,15 +160,20 @@ export async function POST(req: Request) {
           // Pull the merged changes into the target branch's sandbox if it's running
           try {
             const targetSandbox = await daytona.get(targetSandboxId)
+            console.log(`[merge] Target sandbox ${targetSandboxId} state: ${targetSandbox.state}`)
             if (targetSandbox.state === "started") {
+              console.log(`[merge] Pulling into target sandbox at ${repoPath}`)
               await targetSandbox.git.pull(repoPath, "x-access-token", githubToken)
+              console.log(`[merge] Pull succeeded`)
               return Response.json({ success: true })
             } else {
               // Sandbox not running, tell frontend to mark for sync
+              console.log(`[merge] Target sandbox not started, marking needsSync`)
               return Response.json({ success: true, needsSync: true })
             }
-          } catch {
+          } catch (pullError) {
             // Pull failed or couldn't get sandbox, tell frontend to mark for sync
+            console.error(`[merge] Pull failed:`, pullError)
             return Response.json({ success: true, needsSync: true })
           }
         }
