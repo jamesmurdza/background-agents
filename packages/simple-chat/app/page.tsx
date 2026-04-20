@@ -461,6 +461,42 @@ export default function HomePage() {
     if (currentPage !== "chat") handleNavigate("chat")
   }, [currentChat, startNewChat, currentPage])
 
+  // Branch and send a message to the new chat (Option+Enter)
+  const handleBranchWithMessage = useCallback((message: string, agent: string, model: string) => {
+    if (!currentChat?.branch || currentChat.repo === NEW_REPOSITORY) return
+    if (!session) {
+      savePendingMessage({ message, agent, model })
+      setSignInModalOpen(true)
+      return
+    }
+    const chatId = startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
+    selectChat(chatId)
+    if (currentPage !== "chat") handleNavigate("chat")
+    // Small delay to ensure the new chat is current before sending
+    setTimeout(() => {
+      sendMessage(message, agent, model)
+    }, 50)
+  }, [currentChat, startNewChat, selectChat, sendMessage, session, currentPage])
+
+  // Branch a queued message to a new chat (removes from queue)
+  const handleBranchQueuedMessage = useCallback((id: string, message: string, agent?: string, model?: string) => {
+    if (!currentChat?.branch || currentChat.repo === NEW_REPOSITORY) return
+    if (!session) {
+      setSignInModalOpen(true)
+      return
+    }
+    // Remove from queue first
+    removeQueuedMessage(id)
+    // Create new branch chat and send the message
+    const chatId = startNewChat(currentChat.repo, currentChat.branch, currentChat.id)
+    selectChat(chatId)
+    if (currentPage !== "chat") handleNavigate("chat")
+    // Small delay to ensure the new chat is current before sending
+    setTimeout(() => {
+      sendMessage(message, agent, model)
+    }, 50)
+  }, [currentChat, startNewChat, selectChat, sendMessage, removeQueuedMessage, session, currentPage])
+
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
       case "merge":
@@ -751,6 +787,9 @@ export default function HomePage() {
                 rebaseConflict={gitDialogs.rebaseConflict}
                 onAbortConflict={gitDialogs.handleAbortConflict}
                 conflictActionLoading={gitDialogs.actionLoading}
+                onBranchWithMessage={handleBranchWithMessage}
+                onBranchQueuedMessage={handleBranchQueuedMessage}
+                canBranch={canBranch}
               />
             </div>
             {!isMobile && previewOpen && (

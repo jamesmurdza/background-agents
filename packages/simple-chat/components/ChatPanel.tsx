@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2 } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -39,9 +39,15 @@ interface ChatPanelProps {
   onAbortConflict?: () => void
   /** Whether an action is loading (e.g., aborting) */
   conflictActionLoading?: boolean
+  /** Callback to branch and send a message to the new branch chat */
+  onBranchWithMessage?: (message: string, agent: string, model: string) => void
+  /** Callback to branch a queued message (removes from queue) */
+  onBranchQueuedMessage?: (id: string, message: string, agent?: string, model?: string) => void
+  /** Whether branching is available (has repo and branch) */
+  canBranch?: boolean
 }
 
-export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -327,6 +333,18 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
           setInput("")
           return
       }
+    }
+
+    // Option/Alt+Enter to branch and send
+    if (e.key === "Enter" && e.altKey && !e.shiftKey) {
+      e.preventDefault()
+      if (canBranch && onBranchWithMessage && input.trim()) {
+        onBranchWithMessage(input.trim(), currentAgent, currentModel)
+        setInput("")
+        setPendingFiles([])
+        textareaRef.current?.focus()
+      }
+      return
     }
 
     // Normal enter to send
@@ -1079,6 +1097,16 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
                   className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 last:border-b-0"
                 >
                   <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">{m.content}</span>
+                  {canBranch && onBranchQueuedMessage && (
+                    <button
+                      onClick={() => onBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
+                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                      aria-label="Branch to new chat"
+                      title="Branch to new chat"
+                    >
+                      <GitBranchPlus className="h-2.5 w-2.5" />
+                    </button>
+                  )}
                   {onRemoveQueuedMessage && (
                     <button
                       onClick={() => onRemoveQueuedMessage(m.id)}
