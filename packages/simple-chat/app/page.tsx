@@ -464,6 +464,7 @@ export default function HomePage() {
   }, [currentChat, branchForNewChat, startNewChat, currentPage])
 
   // Branch and send a message to the new chat (Option+Enter)
+  // The new chat starts in the background - we stay on the current chat
   const handleBranchWithMessage = useCallback((message: string, agent: string, model: string) => {
     if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
     if (!session) {
@@ -471,30 +472,33 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    // startNewChat already sets the new chat as current (via createChat in storage)
-    // Don't call selectChat as it uses stale state and may incorrectly delete empty parent chats
+    const currentId = currentChat.id
+    // startNewChat sets the new chat as current, but we want to stay on the original
     const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-    if (currentPage !== "chat") handleNavigate("chat")
-    // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
+    // Immediately switch back to the original chat so the new one runs in background
+    selectChat(currentId)
+    // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, selectChat, sendMessage, session])
 
   // Branch a queued message to a new chat (removes from queue)
+  // The new chat starts in the background - we stay on the current chat
   const handleBranchQueuedMessage = useCallback((id: string, message: string, agent?: string, model?: string) => {
     if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
     if (!session) {
       setSignInModalOpen(true)
       return
     }
+    const currentId = currentChat.id
     // Remove from queue first
     removeQueuedMessage(id)
-    // startNewChat already sets the new chat as current (via createChat in storage)
-    // Don't call selectChat as it uses stale state and may incorrectly delete empty parent chats
+    // startNewChat sets the new chat as current, but we want to stay on the original
     const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-    if (currentPage !== "chat") handleNavigate("chat")
-    // Send message to the specific new chat (passing chatId directly to avoid state timing issues)
+    // Immediately switch back to the original chat so the new one runs in background
+    selectChat(currentId)
+    // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session, currentPage])
+  }, [currentChat, branchForNewChat, startNewChat, selectChat, sendMessage, removeQueuedMessage, session])
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
