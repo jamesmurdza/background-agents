@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { createBackgroundAgentSession } from "@/lib/agent-session"
-import { getEnvForModel } from "@upstream/common"
+import { getEnvForModel, fetchBranchWithAuth } from "@upstream/common"
 
 export const maxDuration = 60
 
@@ -55,6 +55,8 @@ export async function POST(req: Request) {
     let synced = false
     if (needsSync && githubToken) {
       try {
+        // Fetch first to get latest from remote, then pull
+        await sandbox.process.executeCommand(`cd ${repoPath} && git fetch origin 2>&1`)
         await sandbox.git.pull(repoPath, "x-access-token", githubToken)
         synced = true
       } catch {
