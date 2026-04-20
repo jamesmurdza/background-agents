@@ -162,11 +162,16 @@ export async function POST(req: Request) {
             const targetSandbox = await daytona.get(targetSandboxId)
             console.log(`[merge] Target sandbox ${targetSandboxId} state: ${targetSandbox.state}`)
             if (targetSandbox.state === "started") {
-              console.log(`[merge] Fetching and pulling into target sandbox at ${repoPath}`)
-              // Fetch first to get the merge commit from remote
-              await fetchBranchWithAuth(targetSandbox.process, repoPath, githubToken, targetBranch)
-              await targetSandbox.git.pull(repoPath, "x-access-token", githubToken)
-              console.log(`[merge] Pull succeeded`)
+              console.log(`[merge] Pulling from origin/${targetBranch} into target sandbox at ${repoPath}`)
+              // The local branch may not be tracking the remote, so pull explicitly from origin/<branch>
+              const pullResult = await targetSandbox.process.executeCommand(
+                `cd ${repoPath} && git pull origin ${targetBranch} 2>&1`
+              )
+              if (pullResult.exitCode !== 0) {
+                console.error(`[merge] Pull failed: ${pullResult.result}`)
+                return Response.json({ success: true, needsSync: true })
+              }
+              console.log(`[merge] Pull succeeded: ${pullResult.result}`)
               return Response.json({ success: true })
             } else {
               // Sandbox not running, tell frontend to mark for sync

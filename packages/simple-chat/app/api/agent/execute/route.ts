@@ -55,10 +55,20 @@ export async function POST(req: Request) {
     let synced = false
     if (needsSync && githubToken) {
       try {
-        // Fetch first to get latest from remote, then pull
-        await sandbox.process.executeCommand(`cd ${repoPath} && git fetch origin 2>&1`)
-        await sandbox.git.pull(repoPath, "x-access-token", githubToken)
-        synced = true
+        // Get current branch name, then pull explicitly from origin/<branch>
+        // (local branch may not be tracking the remote)
+        const branchResult = await sandbox.process.executeCommand(
+          `cd ${repoPath} && git rev-parse --abbrev-ref HEAD 2>&1`
+        )
+        const branchName = branchResult.result?.trim()
+        if (branchName && branchResult.exitCode === 0) {
+          const pullResult = await sandbox.process.executeCommand(
+            `cd ${repoPath} && git pull origin ${branchName} 2>&1`
+          )
+          if (pullResult.exitCode === 0) {
+            synced = true
+          }
+        }
       } catch {
         // Best effort - continue with execution
       }
