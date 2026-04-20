@@ -119,13 +119,15 @@ export function updateSettings(settings: Partial<Settings>): AppState {
 
 /**
  * Create a new chat
+ * @param chat - The chat to create
+ * @param switchTo - Whether to switch to the new chat (default: true)
  */
-export function createChat(chat: Chat): AppState {
+export function createChat(chat: Chat, switchTo: boolean = true): AppState {
   const state = loadState()
   const newState = {
     ...state,
     chats: [chat, ...state.chats],
-    currentChatId: chat.id,
+    currentChatId: switchTo ? chat.id : state.currentChatId,
   }
   saveState(newState)
   return newState

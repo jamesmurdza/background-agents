@@ -472,14 +472,11 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    const currentId = currentChat.id
-    // startNewChat sets the new chat as current, but we want to stay on the original
-    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-    // Immediately switch back to the original chat so the new one runs in background
-    selectChat(currentId)
+    // Create new chat without switching to it (switchTo: false)
+    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false)
     // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, selectChat, sendMessage, session])
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session])
 
   // Branch a queued message to a new chat (removes from queue)
   // The new chat starts in the background - we stay on the current chat
@@ -489,16 +486,13 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    const currentId = currentChat.id
     // Remove from queue first
     removeQueuedMessage(id)
-    // startNewChat sets the new chat as current, but we want to stay on the original
-    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-    // Immediately switch back to the original chat so the new one runs in background
-    selectChat(currentId)
+    // Create new chat without switching to it (switchTo: false)
+    const chatId = startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false)
     // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, selectChat, sendMessage, removeQueuedMessage, session])
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session])
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
