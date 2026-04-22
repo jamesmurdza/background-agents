@@ -206,25 +206,6 @@
   background: var(--muted-foreground);
 }
 
-/* Scrollbar that only shows while scrolling (not on hover).
-   Uses a data-scrolling attribute toggled by JS. */
-.scrollbar-on-scroll {
-  scrollbar-color: transparent transparent;
-}
-
-.scrollbar-on-scroll::-webkit-scrollbar-thumb {
-  background: transparent;
-  transition: background-color 150ms ease;
-}
-
-.scrollbar-on-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb {
-  background: var(--border);
-}
-
-.scrollbar-on-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
-}
-
 /* ============================================================================
    Mobile Touch & Gesture Optimizations
    ============================================================================ */

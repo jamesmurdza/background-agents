@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect, useMemo, RefObject } from "react"
+import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, Code2, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,28 +19,30 @@ const SWIPE_THRESHOLD = 80 // Minimum swipe distance to close drawer
 const SCROLL_HIDE_DELAY = 1000 // ms to wait before hiding scrollbar after scroll stops
 
 /**
- * Hook that sets data-scrolling="true" on an element while scrolling,
- * and removes it after scrolling stops (with a delay).
+ * Hook that shows scrollbar only while scrolling.
+ * Toggles a class to control scrollbar visibility via CSS.
  */
-function useScrollingIndicator(ref: RefObject<HTMLElement | null>) {
+function useScrollingIndicator(ref: React.RefObject<HTMLElement | null>) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
+    // Add base class for hidden scrollbar
+    el.classList.add("scrollbar-hidden")
+
     const handleScroll = () => {
-      // Show scrollbar immediately when scrolling starts
-      el.setAttribute("data-scrolling", "true")
+      // Show scrollbar when scrolling
+      el.classList.remove("scrollbar-hidden")
+      el.classList.add("scrollbar-visible")
 
-      // Clear any existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
+      if (timeoutId) clearTimeout(timeoutId)
 
-      // Hide scrollbar after delay when scrolling stops
+      // Hide scrollbar after scroll stops
       timeoutId = setTimeout(() => {
-        el.setAttribute("data-scrolling", "false")
+        el.classList.remove("scrollbar-visible")
+        el.classList.add("scrollbar-hidden")
       }, SCROLL_HIDE_DELAY)
     }
 
@@ -48,8 +50,7 @@ function useScrollingIndicator(ref: RefObject<HTMLElement | null>) {
 
     return () => {
       el.removeEventListener("scroll", handleScroll)
-      if (timeoutId) {
-        clearTimeout(timeoutId)
+      if (timeoutId) clearTimeout(timeoutId)
       }
     }
   }, [ref])
@@ -509,7 +510,7 @@ export function Sidebar({
           </div>
 
           {/* Chat List */}
-          <div ref={mobileChatListRef} className="flex-1 overflow-y-auto mobile-scroll scrollbar-on-scroll px-3 py-2">
+          <div ref={mobileChatListRef} className="flex-1 overflow-y-auto mobile-scroll px-3 py-2">
             <div className="space-y-1">
               {filteredChats.map((chat) => (
                 <MobileChatItem
@@ -694,7 +695,7 @@ export function Sidebar({
           </div>
 
           {/* Chat List */}
-          <div ref={desktopChatListRef} className="flex-1 overflow-y-auto scrollbar-on-scroll p-2 pt-0">
+          <div ref={desktopChatListRef} className="flex-1 overflow-y-auto p-2 pt-0">
             <div className="space-y-1">
               {renderChatTree({
                 roots: rootChats,
