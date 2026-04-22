@@ -206,6 +206,22 @@
   background: var(--muted-foreground);
 }
 
+/* Scrollbar hidden (default state, shown only while scrolling) */
+.scrollbar-hidden {
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-hidden::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+/* Scrollbar visible (while actively scrolling) */
+.scrollbar-visible {
+  scrollbar-color: var(--border) transparent;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
 /* ============================================================================
    Mobile Touch & Gesture Optimizations
    ============================================================================ */
