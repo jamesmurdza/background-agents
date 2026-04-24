@@ -100,10 +100,9 @@ export async function POST(req: Request) {
       env: Object.keys(env).length > 0 ? env : undefined,
     })
 
-    // Start the agent
-    await bgSession.start(prompt)
-
-    // Persist messages to database if we have the IDs
+    // IMPORTANT: Persist messages to database BEFORE starting the agent
+    // This prevents race conditions where the stream route tries to update
+    // messages that don't exist yet
     if (chatId && userId && userMessageId && assistantMessageId) {
       const now = Date.now()
       try {
@@ -138,7 +137,7 @@ export async function POST(req: Request) {
             update: {},
           })
 
-          // Update chat status
+          // Update chat status with backgroundSessionId
           await tx.chat.update({
             where: { id: chatId },
             data: {
@@ -151,9 +150,12 @@ export async function POST(req: Request) {
         })
       } catch (error) {
         console.error("[agent/start] Failed to persist to DB:", error)
-        // Continue anyway - streaming will persist
+        // Continue anyway - streaming will try to persist
       }
     }
+
+    // Start the agent AFTER messages are persisted to DB
+    await bgSession.start(prompt)
 
     return Response.json({
       backgroundSessionId: bgSession.backgroundSessionId,
