@@ -51,16 +51,6 @@ export interface ChatWithMessagesResponse extends ChatResponse {
   messages: MessageResponse[]
 }
 
-export interface SendMessageResult {
-  userMessage: MessageResponse
-  assistantMessage: MessageResponse
-  backgroundSessionId: string
-  sandboxId: string
-  branch: string | null
-  previewUrlPattern: string | null
-  synced: boolean
-}
-
 export interface SettingsResponse {
   settings: {
     defaultAgent: string
@@ -185,24 +175,6 @@ export async function deleteChat(chatId: string): Promise<{
 }> {
   return fetchApi(`/api/chats/${chatId}`, {
     method: "DELETE",
-  })
-}
-
-/**
- * Send a message (creates user message, assistant placeholder, starts agent)
- */
-export async function sendMessage(
-  chatId: string,
-  data: {
-    content: string
-    agent?: string
-    model?: string
-    uploadedFiles?: string[]
-  }
-): Promise<SendMessageResult> {
-  return fetchApi<SendMessageResult>(`/api/chats/${chatId}/send`, {
-    method: "POST",
-    body: JSON.stringify(data),
   })
 }
 
