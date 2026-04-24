@@ -148,40 +148,11 @@ npx prisma migrate dev --name describe_your_change
 # and applies it to DATABASE_URL
 ```
 
-**Applying existing migrations (no schema change):**
+**Workflow:**
 
-```bash
-# Use this after pulling new migration files, or in CI/CD:
-npx prisma migrate deploy
-
-# This applies any unapplied migrations from prisma/migrations/ to DATABASE_URL
-# It will NOT create new migrations - just applies what's already committed
-```
-
-**Why use `deploy` instead of `dev` in CI/CD?**
-- `migrate dev` is interactive and may prompt for confirmation
-- `migrate dev` can create migrations if schema doesn't match
-- `migrate deploy` is non-interactive and only applies existing migrations
-- `migrate deploy` fails fast if something is wrong (safer for automation)
-
-**Typical workflow:**
-
-1. Set `DATABASE_URL` to your local database
-2. Run `npx prisma migrate dev --name my_change` → creates + applies migration
+1. Edit `prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name my_change`
 3. Commit the new files in `prisma/migrations/`
 4. Push to git
-5. In CI/CD, `DATABASE_URL` is set to production (via secrets)
-6. CI runs `npx prisma migrate deploy` → applies the committed migration
 
-**Checking migration status:**
-
-```bash
-npx prisma migrate status   # shows applied vs pending migrations for DATABASE_URL
-npx prisma generate         # regenerate client without running migrations
-```
-
-**Important:**
-- Both commands target `DATABASE_URL` - double-check before running!
-- Never edit migration files after they've been committed
-- Always commit migration files to git (`prisma/migrations/`)
-- Use `migrate dev` to create migrations, `migrate deploy` to apply them in CI
+CI/CD runs `npx prisma migrate deploy` to apply committed migrations to production.
