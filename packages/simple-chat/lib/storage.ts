@@ -433,3 +433,101 @@ export function collectDescendantIds(chats: Chat[], rootId: string): string[] {
   }
   return Array.from(ids)
 }
+
+// =============================================================================
+// ID-Based Merging Utilities
+// =============================================================================
+
+/**
+ * Merge two message arrays by ID, taking the "better" version of each message.
+ * "Better" means: more content (for streaming) or newer timestamp as tiebreaker.
+ *
+ * This eliminates race conditions between streaming completion and server fetches -
+ * the local streaming state always wins if it has more content.
+ */
+export function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
+  const messageMap = new Map<string, Message>()
+
+  // Add existing messages first
+  for (const msg of existing) {
+    messageMap.set(msg.id, msg)
+  }
+
+  // Merge incoming messages
+  for (const incoming_msg of incoming) {
+    const existing_msg = messageMap.get(incoming_msg.id)
+    if (!existing_msg) {
+      // New message, just add it
+      messageMap.set(incoming_msg.id, incoming_msg)
+    } else {
+      // Message exists - take the one with more content
+      // This handles the case where streaming has accumulated content
+      // but server has stale/empty content
+      const existingContentLength = (existing_msg.content?.length ?? 0) +
+        (existing_msg.toolCalls?.length ?? 0) +
+        (existing_msg.contentBlocks?.length ?? 0)
+      const incomingContentLength = (incoming_msg.content?.length ?? 0) +
+        (incoming_msg.toolCalls?.length ?? 0) +
+        (incoming_msg.contentBlocks?.length ?? 0)
+
+      if (incomingContentLength > existingContentLength) {
+        messageMap.set(incoming_msg.id, incoming_msg)
+      } else if (incomingContentLength === existingContentLength && incoming_msg.timestamp > existing_msg.timestamp) {
+        // Same content length, take newer timestamp
+        messageMap.set(incoming_msg.id, incoming_msg)
+      }
+      // Otherwise keep existing (it has more content or is newer)
+    }
+  }
+
+  // Return sorted by timestamp
+  return Array.from(messageMap.values()).sort((a, b) => a.timestamp - b.timestamp)
+}
+
+/**
+ * Merge two chat arrays by ID, taking the "better" version of each chat.
+ * "Better" means: more messages, or newer lastActiveAt/updatedAt as tiebreaker.
+ *
+ * Local state with active streaming content always wins over server state.
+ */
+export function mergeChats(existing: Chat[], incoming: Chat[]): Chat[] {
+  const chatMap = new Map<string, Chat>()
+
+  // Add existing chats first
+  for (const chat of existing) {
+    chatMap.set(chat.id, chat)
+  }
+
+  // Merge incoming chats
+  for (const incoming_chat of incoming) {
+    const existing_chat = chatMap.get(incoming_chat.id)
+    if (!existing_chat) {
+      // New chat, just add it
+      chatMap.set(incoming_chat.id, incoming_chat)
+    } else {
+      // Chat exists - merge messages, keep the "fresher" chat metadata
+      const mergedMessages = mergeMessages(existing_chat.messages, incoming_chat.messages)
+
+      // For chat metadata, use the one with newer lastActiveAt
+      // but preserve local-only fields (previewItem, queuedMessages, etc.)
+      const existingActive = existing_chat.lastActiveAt ?? existing_chat.updatedAt
+      const incomingActive = incoming_chat.lastActiveAt ?? incoming_chat.updatedAt
+
+      const baseChat = incomingActive > existingActive ? incoming_chat : existing_chat
+
+      chatMap.set(incoming_chat.id, {
+        ...baseChat,
+        messages: mergedMessages,
+        // Always preserve local-only fields from existing
+        previewItem: existing_chat.previewItem,
+        queuedMessages: existing_chat.queuedMessages,
+        queuePaused: existing_chat.queuePaused,
+      })
+    }
+  }
+
+  // Return sorted by lastActiveAt (most recent first)
+  return Array.from(chatMap.values()).sort((a, b) =>
+    (b.lastActiveAt ?? b.updatedAt) - (a.lastActiveAt ?? a.updatedAt)
+  )
+}

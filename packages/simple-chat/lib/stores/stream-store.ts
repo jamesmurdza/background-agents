@@ -48,9 +48,6 @@ interface StreamStore {
   /** Map of chatId -> stream state */
   streams: Map<string, StreamState>
 
-  /** Set of chatIds that recently completed streaming (prevents server overwrites) */
-  recentlyCompletedChats: Set<string>
-
   // =============================================================================
   // Actions
   // =============================================================================
@@ -64,12 +61,6 @@ interface StreamStore {
   /** Stop and clean up a stream */
   stopStream: (chatId: string) => void
 
-  /** Mark a chat as recently completed (call this BEFORE stopStream) */
-  markCompleted: (chatId: string) => void
-
-  /** Check if a chat recently completed streaming */
-  isRecentlyCompleted: (chatId: string) => boolean
-
   /** Update stream state */
   updateStream: (chatId: string, updates: Partial<StreamState>) => void
 
@@ -78,9 +69,6 @@ interface StreamStore {
 
   /** Check if a chat is currently streaming */
   isStreaming: (chatId: string) => boolean
-
-  /** Check if a chat is streaming OR recently completed */
-  isStreamingOrRecentlyCompleted: (chatId: string) => boolean
 
   // =============================================================================
   // Accumulator Helpers
@@ -121,12 +109,8 @@ const createEmptyStreamState = (): StreamState => ({
 // Store
 // =============================================================================
 
-// How long to keep a chat marked as "recently completed" (prevents server overwrites)
-const RECENTLY_COMPLETED_TTL = 5000 // 5 seconds
-
 export const useStreamStore = create<StreamStore>((set, get) => ({
   streams: new Map(),
-  recentlyCompletedChats: new Set(),
 
   startStream: (chatId, params) => {
     // Close existing stream if any
@@ -135,16 +119,13 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
       existing.eventSource.close()
     }
 
-    // Remove from recently completed if starting a new stream
     set((state) => {
       const streams = new Map(state.streams)
-      const recentlyCompletedChats = new Set(state.recentlyCompletedChats)
-      recentlyCompletedChats.delete(chatId)
       streams.set(chatId, {
         ...createEmptyStreamState(),
         connectionParams: params,
       })
-      return { streams, recentlyCompletedChats }
+      return { streams }
     })
   },
 
@@ -159,28 +140,6 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
       return { streams }
     })
   },
-
-  markCompleted: (chatId) => {
-    set((state) => {
-      const recentlyCompletedChats = new Set(state.recentlyCompletedChats)
-      recentlyCompletedChats.add(chatId)
-      return { recentlyCompletedChats }
-    })
-
-    // Auto-remove after TTL
-    setTimeout(() => {
-      set((state) => {
-        const recentlyCompletedChats = new Set(state.recentlyCompletedChats)
-        recentlyCompletedChats.delete(chatId)
-        return { recentlyCompletedChats }
-      })
-    }, RECENTLY_COMPLETED_TTL)
-  },
-
-  isRecentlyCompleted: (chatId) => get().recentlyCompletedChats.has(chatId),
-
-  isStreamingOrRecentlyCompleted: (chatId) =>
-    get().streams.has(chatId) || get().recentlyCompletedChats.has(chatId),
 
   updateStream: (chatId, updates) => {
     set((state) => {

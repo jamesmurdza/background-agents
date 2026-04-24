@@ -42,6 +42,9 @@ import {
   updateCacheMessages,
   updateCacheLastMessage,
   updateCacheSettings,
+  // Merge utilities
+  mergeChats,
+  mergeMessages,
   // Legacy
   collectDescendantIds,
 } from "@/lib/storage"
@@ -126,36 +129,22 @@ export function useChatWithSync() {
 
     // Fetch fresh data from server
     const loadFromServer = async () => {
-      const streamStore = useStreamStore.getState()
-
-      // Don't overwrite state if any chat is currently streaming or recently completed
-      if (streamStore.streams.size > 0 || streamStore.recentlyCompletedChats.size > 0) {
-        setIsLoading(false)
-        return
-      }
-
       try {
         const [serverChats, serverSettings] = await Promise.all([
           fetchChats(),
           fetchSettings(),
         ])
 
-        // Check again after fetch - streaming may have started or completed
-        const storeAfterFetch = useStreamStore.getState()
-        if (storeAfterFetch.streams.size > 0 || storeAfterFetch.recentlyCompletedChats.size > 0) {
-          setIsLoading(false)
-          return
-        }
-
         // Convert to client types
-        const chats = serverChats.map(toChatType)
+        const incomingChats = serverChats.map(toChatType)
         const settings = toSettingsType(
           serverSettings.settings,
           serverSettings.credentialFlags
         )
 
-        // Merge with local state
-        const chatsWithLocal = chats.map((chat) => ({
+        // Merge with local state using ID-based merging
+        // This ensures streaming content (with more data) wins over stale server data
+        const incomingWithLocal = incomingChats.map((chat) => ({
           ...chat,
           previewItem: localState.previewItems[chat.id],
           queuedMessages: localState.queuedMessages[chat.id],
@@ -163,35 +152,33 @@ export function useChatWithSync() {
         }))
 
         // Update cache
-        updateCacheChats(chats)
+        updateCacheChats(incomingChats)
         updateCacheSettings(settings)
 
-        // Update state
+        // Update state with ID-based merging
+        // Local state with more content wins over server state
         setState((prev) => ({
           ...prev,
-          chats: chatsWithLocal,
+          chats: mergeChats(prev.chats, incomingWithLocal),
           settings,
         }))
 
-        // Load messages for current chat (skip if streaming)
-        if (localState.currentChatId && !useStreamStore.getState().isStreaming(localState.currentChatId)) {
-          const chatExists = chats.some((c) => c.id === localState.currentChatId)
+        // Load messages for current chat using merge
+        if (localState.currentChatId) {
+          const chatExists = incomingChats.some((c) => c.id === localState.currentChatId)
           if (chatExists) {
             try {
               const chatData = await fetchChat(localState.currentChatId)
-              const messages = chatData.messages.map(toMessageType)
+              const incomingMessages = chatData.messages.map(toMessageType)
 
-              // Final check before updating messages
-              if (!useStreamStore.getState().isStreaming(localState.currentChatId)) {
-                setState((prev) => ({
-                  ...prev,
-                  chats: prev.chats.map((c) =>
-                    c.id === localState.currentChatId
-                      ? { ...c, messages }
-                      : c
-                  ),
-                }))
-              }
+              // Merge messages - local streaming content wins if it has more data
+              setState((prev) => ({
+                ...prev,
+                chats: prev.chats.map((c) => {
+                  if (c.id !== localState.currentChatId) return c
+                  return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
+                }),
+              }))
             } catch (err) {
               console.error("Failed to load current chat messages:", err)
             }
@@ -327,21 +314,19 @@ export function useChatWithSync() {
     if (chat && chat.messages.length === 0) {
       try {
         const chatData = await fetchChat(chatId)
-        const messages = chatData.messages.map(toMessageType)
+        const incomingMessages = chatData.messages.map(toMessageType)
 
-        // Dedupe by ID and update
+        // Use ID-based merging - local content wins if it has more data
         setState((prev) => {
           const existingChat = prev.chats.find((c) => c.id === chatId)
           if (!existingChat) return prev
 
-          const existingIds = new Set(existingChat.messages.map((m) => m.id))
-          const dedupedMessages = messages.filter((m) => !existingIds.has(m.id))
-          const allMessages = [...existingChat.messages, ...dedupedMessages]
-
           return {
             ...prev,
             chats: prev.chats.map((c) =>
-              c.id === chatId ? { ...c, messages: allMessages } : c
+              c.id === chatId
+                ? { ...c, messages: mergeMessages(existingChat.messages, incomingMessages) }
+                : c
             ),
           }
         })
@@ -613,16 +598,14 @@ export function useChatWithSync() {
         try {
           const data: SSECompleteEvent = JSON.parse(event.data)
 
-          // IMPORTANT: Get accumulated content BEFORE stopping the stream
+          // Get accumulated content BEFORE stopping the stream
           // stopStream() deletes the stream state including accumulated content
           const store = useStreamStore.getState()
           const accumulated = store.getAccumulated(chatId)
 
-          // Mark as recently completed BEFORE stopping
-          // This prevents loadFromServer from overwriting state with stale data
-          store.markCompleted(chatId)
-
-          // Now we can safely stop the stream
+          // Stop the stream - we use ID-based merging now, so no need for
+          // timing-sensitive markCompleted() calls. The mergeMessages()
+          // function ensures local content with more data always wins.
           store.stopStream(chatId)
 
           const updates: Partial<Chat> = {
