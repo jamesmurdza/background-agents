@@ -18,10 +18,17 @@ export async function POST() {
   }
 
   // Additional safety: refuse if DATABASE_URL looks like production
+  // Can be bypassed with I_KNOW_THIS_IS_THE_TEST_DB=true
   const dbUrl = process.env.DATABASE_URL || ""
-  if (!dbUrl.includes("test") && !dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1")) {
+  const isTestDb =
+    process.env.I_KNOW_THIS_IS_THE_TEST_DB === "true" ||
+    dbUrl.includes("test") ||
+    dbUrl.includes("localhost") ||
+    dbUrl.includes("127.0.0.1")
+
+  if (!isTestDb) {
     return Response.json(
-      { error: "Refusing to create test user on non-test database. DATABASE_URL must contain 'test' or be localhost." },
+      { error: "Refusing to create test user on non-test database. DATABASE_URL must contain 'test' or be localhost, or set I_KNOW_THIS_IS_THE_TEST_DB=true." },
       { status: 403 }
     )
   }

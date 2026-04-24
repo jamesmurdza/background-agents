@@ -34,6 +34,8 @@ export default defineConfig({
     env: {
       // Test database (MUST be separate from production!)
       DATABASE_URL: process.env.DATABASE_URL!,
+      // Bypass safety check if set
+      I_KNOW_THIS_IS_THE_TEST_DB: process.env.I_KNOW_THIS_IS_THE_TEST_DB || "",
       // Daytona
       DAYTONA_API_KEY: process.env.DAYTONA_API_KEY!,
       // Auth
