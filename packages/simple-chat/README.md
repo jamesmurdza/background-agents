@@ -118,48 +118,76 @@ The app uses PostgreSQL to store user data, chats, and messages. This enables:
 
 ### Migrations
 
-Prisma manages database schema changes through migrations. Follow these guidelines to keep your database in sync:
+Prisma manages database schema changes through migrations. The `DATABASE_URL` environment variable determines which database Prisma connects to - there's no automatic "local vs production" detection.
 
-**Development (local database):**
+**Environment setup:**
 
 ```bash
+# .env.local (for local development)
+DATABASE_URL="postgresql://postgres:password@localhost:5432/simple_chat"
+
+# .env.production (for production - e.g., Neon)
+DATABASE_URL="postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/simple_chat?sslmode=require"
+```
+
+Prisma reads `DATABASE_URL` from your environment. Whichever `.env` file is loaded (or whichever value is set in your shell/CI) determines the target database.
+
+**Development workflow (local database):**
+
+```bash
+# Make sure DATABASE_URL points to your LOCAL database, then:
+
 # After changing prisma/schema.prisma, create and apply a migration:
 npx prisma migrate dev --name describe_your_change
 
 # This will:
 # 1. Generate a new migration file in prisma/migrations/
-# 2. Apply it to your local database
+# 2. Apply it to your LOCAL database (per DATABASE_URL)
 # 3. Regenerate the Prisma client
 ```
 
 **Production deployment:**
 
 ```bash
-# Apply pending migrations (non-interactive, safe for CI/CD):
+# In production (Vercel, Railway, etc.), DATABASE_URL should be set to your
+# production database. Then run:
+
 npx prisma migrate deploy
 
-# This only applies migrations - it won't create new ones or modify schema
+# This applies pending migrations to whatever DATABASE_URL points to.
+# It's non-interactive and safe for CI/CD - won't create new migrations.
 ```
+
+**Typical workflow:**
+
+1. Develop locally with `DATABASE_URL` pointing to local PostgreSQL
+2. Run `npx prisma migrate dev --name my_change` to create + apply migration locally
+3. Commit the migration files in `prisma/migrations/`
+4. Push to git
+5. In CI/CD or production deploy, `DATABASE_URL` points to production DB
+6. Run `npx prisma migrate deploy` to apply the committed migrations
 
 **After pulling changes:**
 
 ```bash
-# Always run after git pull if migrations were added:
+# If teammates added migrations, apply them to your local DB:
 npx prisma migrate dev
 
-# Or if you just need to sync the client without migrating:
+# Or if you just need to sync the Prisma client (no schema changes):
 npx prisma generate
 ```
 
 **Checking migration status:**
 
 ```bash
-# See which migrations have been applied:
+# See which migrations have been applied to the current DATABASE_URL:
 npx prisma migrate status
 ```
 
 **Important:**
+- `DATABASE_URL` is the ONLY thing that determines which database is used
 - Never edit migration files after they've been committed
 - Always commit migration files to git (`prisma/migrations/`)
 - Run `migrate dev` locally before pushing schema changes
 - Use `migrate deploy` in production/CI - never `migrate dev`
+- Double-check your `DATABASE_URL` before running migrations!
