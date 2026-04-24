@@ -110,11 +110,20 @@ export function useChatWithSync() {
 
     // IMPORTANT: Use mergeChats to preserve any in-flight streaming content
     // This prevents cache loads from wiping out active streaming state
-    setState((prev) => ({
-      currentChatId: localState.currentChatId,
-      chats: prev.chats.length > 0 ? mergeChats(prev.chats, chatsWithLocalState) : chatsWithLocalState,
-      settings: cache.settings,
-    }))
+    setState((prev) => {
+      if (prev.chats.length > 0) {
+        return {
+          currentChatId: localState.currentChatId,
+          chats: mergeChats(prev.chats, chatsWithLocalState),
+          settings: cache.settings,
+        }
+      }
+      return {
+        currentChatId: localState.currentChatId,
+        chats: chatsWithLocalState,
+        settings: cache.settings,
+      }
+    })
     setIsHydrated(true)
 
     // If not authenticated, we're done
@@ -560,31 +569,47 @@ export function useChatWithSync() {
 
           const accumulated = store.getAccumulated(chatId)
           if (accumulated) {
-            // Update local state
-            setState((prev) => ({
-              ...prev,
-              chats: prev.chats.map((c) => {
-                if (c.id !== chatId) return c
-                const messages = [...c.messages]
-                const lastIndex = messages.length - 1
-                if (lastIndex >= 0) {
-                  messages[lastIndex] = {
-                    ...messages[lastIndex],
-                    content: accumulated.content,
-                    toolCalls: accumulated.toolCalls,
-                    contentBlocks: accumulated.contentBlocks,
-                  }
-                }
-                return { ...c, messages, lastActiveAt: Date.now() }
-              }),
-            }))
+            const accumulatedContentLength = (accumulated.content?.length ?? 0) +
+              (accumulated.toolCalls?.length ?? 0) +
+              (accumulated.contentBlocks?.length ?? 0)
 
-            // Update cache
-            updateCacheLastMessage(chatId, {
-              content: accumulated.content,
-              toolCalls: accumulated.toolCalls,
-              contentBlocks: accumulated.contentBlocks,
-            })
+            // Only update if we have accumulated content
+            // This prevents spurious re-streams from wiping out content
+            if (accumulatedContentLength > 0) {
+              // Update local state
+              setState((prev) => ({
+                ...prev,
+                chats: prev.chats.map((c) => {
+                  if (c.id !== chatId) return c
+                  const messages = [...c.messages]
+                  const lastIndex = messages.length - 1
+                  if (lastIndex >= 0) {
+                    const existingMsg = messages[lastIndex]
+                    const existingContentLength = (existingMsg.content?.length ?? 0) +
+                      (existingMsg.toolCalls?.length ?? 0) +
+                      (existingMsg.contentBlocks?.length ?? 0)
+
+                    // Only update if accumulated has more content than existing
+                    if (accumulatedContentLength > existingContentLength) {
+                      messages[lastIndex] = {
+                        ...existingMsg,
+                        content: accumulated.content,
+                        toolCalls: accumulated.toolCalls,
+                        contentBlocks: accumulated.contentBlocks,
+                      }
+                    }
+                  }
+                  return { ...c, messages, lastActiveAt: Date.now() }
+                }),
+              }))
+
+              // Update cache
+              updateCacheLastMessage(chatId, {
+                content: accumulated.content,
+                toolCalls: accumulated.toolCalls,
+                contentBlocks: accumulated.contentBlocks,
+              })
+            }
           }
         } catch (err) {
           console.error("Failed to parse SSE update:", err)
@@ -621,13 +646,25 @@ export function useChatWithSync() {
               if (c.id !== chatId) return c
               // Update chat status AND preserve final message content
               const messages = [...c.messages]
-              if (accumulated && messages.length > 0) {
+              if (messages.length > 0) {
                 const lastIndex = messages.length - 1
-                messages[lastIndex] = {
-                  ...messages[lastIndex],
-                  content: accumulated.content,
-                  toolCalls: accumulated.toolCalls,
-                  contentBlocks: accumulated.contentBlocks,
+                const existingMsg = messages[lastIndex]
+                const accumulatedContentLength = (accumulated?.content?.length ?? 0) +
+                  (accumulated?.toolCalls?.length ?? 0) +
+                  (accumulated?.contentBlocks?.length ?? 0)
+                const existingContentLength = (existingMsg.content?.length ?? 0) +
+                  (existingMsg.toolCalls?.length ?? 0) +
+                  (existingMsg.contentBlocks?.length ?? 0)
+
+                // Only update if accumulated has more content than existing
+                // This prevents spurious re-streams from wiping out content
+                if (accumulated && accumulatedContentLength > existingContentLength) {
+                  messages[lastIndex] = {
+                    ...existingMsg,
+                    content: accumulated.content,
+                    toolCalls: accumulated.toolCalls,
+                    contentBlocks: accumulated.contentBlocks,
+                  }
                 }
               }
               return { ...c, ...updates, messages }
@@ -636,7 +673,11 @@ export function useChatWithSync() {
 
           // Update cache with final message content
           updateCacheChat(chatId, updates)
-          if (accumulated) {
+          // Only update cache message if accumulated has content
+          const accumulatedHasContent = (accumulated?.content?.length ?? 0) > 0 ||
+            (accumulated?.toolCalls?.length ?? 0) > 0 ||
+            (accumulated?.contentBlocks?.length ?? 0) > 0
+          if (accumulated && accumulatedHasContent) {
             updateCacheLastMessage(chatId, {
               content: accumulated.content,
               toolCalls: accumulated.toolCalls,

@@ -100,10 +100,13 @@ test.describe.serial("Chat Streaming", () => {
       // KEY TEST: Verify content doesn't disappear after streaming ends
       // This catches the bug where stopStream() was deleting accumulated content
       // before it was saved to the chat state
-      await page.waitForTimeout(1000) // Wait a bit after streaming ends
-      const contentAfterDelay = await assistantMessage.textContent()
-      expect(contentAfterDelay).toBe(content) // Content should be stable
-      expect(contentAfterDelay!.length).toBeGreaterThan(0) // Still has content
+      // Check multiple times over 5 seconds to catch any delayed state overwrites
+      for (let i = 1; i <= 5; i++) {
+        await page.waitForTimeout(1000)
+        const contentAfterDelay = await assistantMessage.textContent()
+        expect(contentAfterDelay).toBe(content) // Content should be stable
+        expect(contentAfterDelay!.length).toBeGreaterThan(0) // Still has content
+      }
     }
 
     // Key assertion: The streaming infrastructure worked - messages were persisted to DB
