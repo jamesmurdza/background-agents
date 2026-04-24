@@ -115,3 +115,51 @@ The app uses PostgreSQL to store user data, chats, and messages. This enables:
 3. Client updates localStorage cache
 4. On page load, client fetches fresh data from server and merges with cache
 5. Device-specific state (current chat, unseen notifications) stays local-only
+
+### Migrations
+
+Prisma manages database schema changes through migrations. Follow these guidelines to keep your database in sync:
+
+**Development (local database):**
+
+```bash
+# After changing prisma/schema.prisma, create and apply a migration:
+npx prisma migrate dev --name describe_your_change
+
+# This will:
+# 1. Generate a new migration file in prisma/migrations/
+# 2. Apply it to your local database
+# 3. Regenerate the Prisma client
+```
+
+**Production deployment:**
+
+```bash
+# Apply pending migrations (non-interactive, safe for CI/CD):
+npx prisma migrate deploy
+
+# This only applies migrations - it won't create new ones or modify schema
+```
+
+**After pulling changes:**
+
+```bash
+# Always run after git pull if migrations were added:
+npx prisma migrate dev
+
+# Or if you just need to sync the client without migrating:
+npx prisma generate
+```
+
+**Checking migration status:**
+
+```bash
+# See which migrations have been applied:
+npx prisma migrate status
+```
+
+**Important:**
+- Never edit migration files after they've been committed
+- Always commit migration files to git (`prisma/migrations/`)
+- Run `migrate dev` locally before pushing schema changes
+- Use `migrate deploy` in production/CI - never `migrate dev`
