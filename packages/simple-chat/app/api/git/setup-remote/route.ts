@@ -58,10 +58,9 @@ export async function POST(req: Request) {
       `cd ${repoPath} && git remote add origin "${remoteUrl}"`
     )
 
-    // 7. Push to the remote (force push since it's a new repo)
-    // The new repo from GitHub has auto_init which creates a README, so we need to force push
+    // 7. Push to the remote
     await sandbox.process.executeCommand(
-      `cd ${repoPath} && git push -u origin ${branch} --force`
+      `cd ${repoPath} && git push -u origin ${branch}`
     )
 
     return Response.json({ success: true })

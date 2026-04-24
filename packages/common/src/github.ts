@@ -264,7 +264,6 @@ export async function createRepo(
       name: options.name,
       description: options.description,
       private: options.isPrivate ?? false,
-      auto_init: true,
     }),
   })
 }
