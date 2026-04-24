@@ -118,39 +118,21 @@ The app uses PostgreSQL to store user data, chats, and messages. This enables:
 
 ### Migrations
 
-Prisma manages database schema changes through migrations.
+Run these from the monorepo root:
 
-| Command | What it does | When to use |
-|---------|--------------|-------------|
-| `npx prisma migrate dev` | Creates new migration files + applies them + regenerates client | When you're **changing** the schema |
-| `npx prisma migrate deploy` | Only applies existing migration files (no creation) | When you're **deploying** committed migrations |
-
-**Environment setup:**
-
-```bash
-# In your shell or .env file, set DATABASE_URL to whichever DB you want to target:
-DATABASE_URL="postgresql://postgres:password@localhost:5432/simple_chat"      # local
-DATABASE_URL="postgresql://user:pass@ep-xxx.neon.tech/simple_chat?sslmode=require"  # Neon
-```
-
-**Creating a new migration (schema change):**
-
-```bash
-# 1. Edit prisma/schema.prisma
-# 2. Run migrate dev (targets DATABASE_URL):
-npx prisma migrate dev --name describe_your_change
-
-# This creates prisma/migrations/<timestamp>_describe_your_change/
-# and applies it to DATABASE_URL
-```
+| Command | What it does |
+|---------|--------------|
+| `npm run prisma:migrate -- --name my_change` | Create + apply a migration |
+| `npm run prisma:status` | Check migration status |
+| `npm run prisma:generate` | Regenerate Prisma client |
 
 **Workflow:**
 
-1. Edit `prisma/schema.prisma`
-2. Run `npx prisma migrate dev --name my_change`
+1. Edit `packages/simple-chat/prisma/schema.prisma`
+2. Run `npm run prisma:migrate -- --name my_change`
 3. Commit the new files in `prisma/migrations/`
 4. Push to git
 
-**After pulling:** Run `npx prisma migrate dev` to apply new migrations and regenerate the client.
+**After pulling:** Run `npm run prisma:migrate` to apply new migrations.
 
-CI/CD runs `npx prisma migrate deploy` to apply committed migrations to production.
+CI/CD runs `npm run prisma:migrate:deploy` to apply migrations to production.
