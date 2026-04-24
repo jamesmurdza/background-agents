@@ -18,7 +18,9 @@ packages/*/.vercel/
 # Environment
 .env
 .env*.local
+.env.test
 packages/web/.env.e2e
+packages/simple-chat/.env.test
 
 # Generated
 packages/web/lib/generated/prisma

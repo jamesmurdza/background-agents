@@ -524,6 +524,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
             <textarea
               ref={textareaRef}
               data-chat-prompt
+              data-testid="chat-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -867,7 +868,12 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
 
   // Chat with messages
   return (
-    <div className="flex-1 flex flex-col bg-background min-h-0">
+    <div
+      className="flex-1 flex flex-col bg-background min-h-0"
+      data-testid="chat-container"
+      data-chat-status={chat?.status}
+      data-chat-id={chat?.id}
+    >
       {/* Header with title - hide on mobile since we have mobile header in page.tsx */}
       {!isMobile && (
         <div className="flex items-center justify-between pt-3" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>

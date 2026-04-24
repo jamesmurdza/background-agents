@@ -21,7 +21,12 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
   const hasUploadedFiles = isUser && message.uploadedFiles && message.uploadedFiles.length > 0
 
   return (
-    <div className={cn("flex", isUser && "justify-end")}>
+    <div
+      className={cn("flex", isUser && "justify-end")}
+      data-testid={isUser ? "user-message" : "assistant-message"}
+      data-message-id={message.id}
+      data-role={message.role}
+    >
       {/* Content */}
       <div className={cn(
         isUser && "text-right",
