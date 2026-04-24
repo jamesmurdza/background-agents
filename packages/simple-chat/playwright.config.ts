@@ -39,7 +39,7 @@ export default defineConfig({
       // Daytona
       DAYTONA_API_KEY: process.env.DAYTONA_API_KEY!,
       // Auth
-      NEXTAUTH_SECRET: "test-secret-for-e2e",
+      NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "test-secret-for-e2e-tests",
       NEXTAUTH_URL: `http://localhost:${port}`,
       GITHUB_CLIENT_ID: "placeholder",
       GITHUB_CLIENT_SECRET: "placeholder",
