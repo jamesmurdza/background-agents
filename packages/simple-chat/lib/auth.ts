@@ -1,7 +1,10 @@
 import { NextAuthOptions } from "next-auth"
 import GitHubProvider from "next-auth/providers/github"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import { prisma } from "@/lib/db/prisma"
 
 export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   providers: [
     {
       ...GitHubProvider({
@@ -21,17 +24,39 @@ export const authOptions: NextAuthOptions = {
     },
   ],
   callbacks: {
-    async jwt({ token, account }) {
-      // Persist the OAuth access_token to the token right after signin
+    async jwt({ token, user, account }) {
+      // On initial sign in, persist user id and access token
+      if (user) {
+        token.sub = user.id
+      }
       if (account) {
         token.accessToken = account.access_token
       }
       return token
     },
     async session({ session, token }) {
-      // Send access token to client
+      // Send user id and access token to client
+      if (session.user && token.sub) {
+        session.user.id = token.sub
+      }
       session.accessToken = token.accessToken as string
       return session
+    },
+  },
+  events: {
+    async createUser({ user }) {
+      // When a new user is created via OAuth, update with GitHub ID
+      // The adapter creates the user, but we need to ensure githubId is set
+      const account = await prisma.account.findFirst({
+        where: { userId: user.id, provider: "github" },
+        select: { providerAccountId: true },
+      })
+      if (account) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { githubId: account.providerAccountId },
+        })
+      }
     },
   },
   pages: {
@@ -41,3 +66,5 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
 }
+
+// Type extensions are in types/next-auth.d.ts

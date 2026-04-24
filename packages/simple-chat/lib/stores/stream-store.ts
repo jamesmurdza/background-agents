@@ -86,9 +86,6 @@ interface StreamStore {
     blocks: Message["contentBlocks"]
   ) => void
 
-  /** Reset accumulated content (for new streaming session) */
-  resetAccumulated: (chatId: string) => void
-
   /** Get accumulated content for a chat */
   getAccumulated: (chatId: string) => StreamState["accumulated"] | null
 }
@@ -204,19 +201,6 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
             ...blocks,
           ],
         },
-      })
-      return { streams }
-    })
-  },
-
-  resetAccumulated: (chatId) => {
-    set((state) => {
-      const existing = state.streams.get(chatId)
-      if (!existing) return state
-      const streams = new Map(state.streams)
-      streams.set(chatId, {
-        ...existing,
-        accumulated: { content: "", toolCalls: [], contentBlocks: [] },
       })
       return { streams }
     })

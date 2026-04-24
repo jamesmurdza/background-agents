@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================================
+// User - linked to GitHub OAuth
+// =============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  emailVerified DateTime?
+  githubId      String?   @unique
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // JSONB for flexible settings storage (no migrations needed for new fields)
+  // { defaultAgent, defaultModel, theme }
+  settings Json?
+
+  // JSONB for encrypted credentials (no migrations needed for new keys)
+  // { anthropicApiKey, anthropicAuthToken, openaiApiKey, opencodeApiKey, geminiApiKey }
+  credentials Json?
+
+  chats    Chat[]
+  accounts Account[]
+  sessions Session[]
+}
+
+// =============================================================================
+// NextAuth.js required tables
+// =============================================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// =============================================================================
+// Chat - server-owned resource with server-generated IDs
+// =============================================================================
+
+model Chat {
+  id     String @id @default(cuid())
+  userId String
+
+  // Repo config (immutable after first message)
+  repo       String // "owner/repo" or "__new__"
+  baseBranch String @default("main")
+
+  // Sandbox-related fields (synced cloud resources)
+  branch              String? // Git branch name created for this chat
+  sandboxId           String? // Daytona sandbox ID
+  sessionId           String? // Agent session ID for conversation continuity
+  previewUrlPattern   String? // URL pattern for dev server previews
+  backgroundSessionId String? // Active execution ID (for recovery)
+
+  // Agent config
+  agent String  @default("opencode")
+  model String?
+
+  // Display
+  displayName String?
+  status      String  @default("pending") // pending, creating, ready, running, error
+
+  // Branching support
+  parentChatId String?
+  parentChat   Chat?   @relation("ChatBranches", fields: [parentChatId], references: [id], onDelete: SetNull)
+  childChats   Chat[]  @relation("ChatBranches")
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
+
+  // Sync flag for git pull on next execution
+  needsSync Boolean @default(false)
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, lastActiveAt])
+}
+
+// =============================================================================
+// Message - server-generated IDs, ordered by timestamp
+// =============================================================================
+
+model Message {
+  id     String @id @default(cuid())
+  chatId String
+
+  role      String // "user" | "assistant"
+  content   String  @db.Text
+  timestamp BigInt // Unix timestamp in milliseconds
+
+  // Optional fields
+  messageType String? // "chat" | "git-operation"
+  isError     Boolean @default(false)
+
+  // JSONB for complex nested data (avoids separate tables)
+  toolCalls     Json? // Array<{ tool, summary, fullSummary?, output? }>
+  contentBlocks Json? // Array<ContentBlock>
+  uploadedFiles Json? // Array<string> - file paths
+
+  // Git operation message fields
+  linkBranch String?
+
+  createdAt DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, timestamp])
+  @@index([chatId, id])
+}

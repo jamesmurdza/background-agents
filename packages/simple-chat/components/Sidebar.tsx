@@ -100,7 +100,8 @@ export function Sidebar({
   const uniqueRepos = useMemo(() => {
     const repos = new Set<string>()
     chats.forEach((chat) => {
-      if (chat.messages.length > 0) {
+      const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
+      if (hasMessages) {
         repos.add(chat.repo)
       }
     })
@@ -116,8 +117,10 @@ export function Sidebar({
   const filteredChats = useMemo(() => {
     return chats
       .filter((chat) => {
+        // Use messageCount if messages haven't been loaded yet, otherwise use messages.length
+        const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
         // Show empty chats only if they have a parentChatId (were branched)
-        if (chat.messages.length === 0 && !chat.parentChatId) return false
+        if (!hasMessages && !chat.parentChatId) return false
         if (repoFilter === ALL_REPOSITORIES) return true
         if (repoFilter === NO_REPOSITORY) return chat.repo === NEW_REPOSITORY
         return chat.repo === repoFilter
@@ -183,7 +186,8 @@ export function Sidebar({
     let total = 0
     let noRepoCount = 0
     chats.forEach((chat) => {
-      if (chat.messages.length > 0) {
+      const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
+      if (hasMessages) {
         total++
         if (chat.repo === NEW_REPOSITORY) {
           noRepoCount++
@@ -804,6 +808,8 @@ function MobileChatItem({ chat, isActive, isDeleting, isUnseen, onSelect, onDele
 
   return (
     <div
+      data-testid="chat-item"
+      data-chat-id={chat.id}
       className={cn(
         "flex items-center gap-2 rounded-md transition-colors px-3 py-2",
         isDeleting
@@ -1167,6 +1173,8 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
   return (
     <div
       draggable={draggable}
+      data-testid="chat-item"
+      data-chat-id={chat.id}
       className={cn(
         "group flex items-center gap-2 rounded-md transition-colors select-none",
         collapsed ? "justify-center p-2" : "px-2 py-1.5",

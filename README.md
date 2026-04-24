@@ -41,7 +41,7 @@ npm run dev:simple-chat
 │  │  @upstream/web       │     │  @upstream/simple-chat               │ │
 │  │  - Full-featured app │     │  - Lightweight chat                  │ │
 │  │  - Multi-tenant      │     │  - Single-tenant                     │ │
-│  │  - Database-backed   │     │  - Local storage                     │ │
+│  │  - Database-backed   │     │  - Database-backed                     │ │
 │  └──────────────────────┘     └──────────────────────────────────────┘ │
 └─────────────────────────────────────┬──────────────────────────────────┘
                                       │
@@ -93,6 +93,8 @@ packages/
 | `npm run start:simple-chat` | Start `simple-chat` production server |
 | `npm run lint` | ESLint check across all packages |
 | `npm run clean` | Clean build artifacts |
+| `npm run prisma:migrate` | Create + apply migrations for `simple-chat` |
+| `npm run prisma:status` | Check migration status for `simple-chat` |
 
 For full local development setup (database, environment variables, running the dev server), see [DEVELOPMENT.md](./DEVELOPMENT.md).
 
@@ -130,10 +132,12 @@ For unit tests and Playwright end-to-end tests, see [TESTING.md](./TESTING.md).
 | `DAYTONA_API_URL` | Daytona API endpoint |
 | `SMITHERY_API_KEY` | Smithery API key for MCP registry |
 
-**@upstream/simple-chat** only needs:
+**@upstream/simple-chat** needs:
+- `DATABASE_URL` - PostgreSQL connection string
+- `ENCRYPTION_KEY` - For encrypting API keys
 - `DAYTONA_API_KEY`, `DAYTONA_API_URL`
 - `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
-- Optionally: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 
 ### Selective Deploys
 

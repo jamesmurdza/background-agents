@@ -77,6 +77,8 @@ export interface Chat {
 
   // Chat data
   messages: Message[]
+  /** Server-side message count (used when messages aren't loaded yet) */
+  messageCount?: number
   createdAt: number
   updatedAt: number
   /** Timestamp of last activity: user message sent, agent content received, or agent completion. Used for sort order. */

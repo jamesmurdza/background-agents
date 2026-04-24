@@ -1,6 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
+import { Prisma } from "@prisma/client"
 import { PATHS } from "@/lib/constants"
 import { pollBackgroundAgent } from "@/lib/agent-session"
+import { prisma } from "@/lib/db/prisma"
 
 // Allow longer streaming connections (5 minutes max)
 export const maxDuration = 300
@@ -11,6 +13,9 @@ const BACKEND_POLL_INTERVAL = 500
 // Heartbeat interval to keep connection alive (ms)
 const HEARTBEAT_INTERVAL = 15000
 
+// How often to persist to database (ms)
+const DB_PERSIST_INTERVAL = 5000
+
 export async function GET(req: Request) {
   // 1. Parse query params
   const url = new URL(req.url)
@@ -19,6 +24,8 @@ export async function GET(req: Request) {
   const previewUrlPattern = url.searchParams.get("previewUrlPattern")
   const backgroundSessionId = url.searchParams.get("backgroundSessionId")
   const cursorParam = url.searchParams.get("cursor")
+  const chatId = url.searchParams.get("chatId")
+  const assistantMessageId = url.searchParams.get("assistantMessageId")
 
   if (!sandboxId || !repoName || !backgroundSessionId) {
     return new Response(
@@ -45,6 +52,13 @@ export async function GET(req: Request) {
       // Track cursor for reconnection support
       let cursor = cursorParam ? parseInt(cursorParam, 10) : 0
       let heartbeatTimer: NodeJS.Timeout | null = null
+      let lastDbPersist = Date.now()
+
+      // Accumulated content for database persistence
+      let accumulatedContent = ""
+      let accumulatedToolCalls: unknown[] = []
+      let accumulatedContentBlocks: unknown[] = []
+      let lastSessionId: string | undefined
 
       const sendEvent = (event: string, data: object) => {
         if (isStreamClosed) return
@@ -61,11 +75,58 @@ export async function GET(req: Request) {
         sendEvent("heartbeat", { cursor, timestamp: Date.now() })
       }
 
-      const cleanup = () => {
+      // Persist accumulated content to database
+      const persistToDb = async (isFinal: boolean = false) => {
+        if (!chatId || !assistantMessageId) return
+
+        try {
+          // Update the assistant message
+          await prisma.message.update({
+            where: { id: assistantMessageId },
+            data: {
+              content: accumulatedContent,
+              toolCalls: accumulatedToolCalls.length > 0 ? (accumulatedToolCalls as Prisma.InputJsonValue) : undefined,
+              contentBlocks: accumulatedContentBlocks.length > 0 ? (accumulatedContentBlocks as Prisma.InputJsonValue) : undefined,
+            },
+          })
+
+          // Update chat
+          const chatUpdate: Record<string, unknown> = {
+            lastActiveAt: new Date(),
+          }
+
+          if (isFinal) {
+            chatUpdate.status = "ready"
+            chatUpdate.backgroundSessionId = null
+            if (lastSessionId) {
+              chatUpdate.sessionId = lastSessionId
+            }
+          }
+
+          await prisma.chat.update({
+            where: { id: chatId },
+            data: chatUpdate,
+          })
+
+          lastDbPersist = Date.now()
+        } catch (error) {
+          console.error("[agent/stream] DB persist error:", error)
+        }
+      }
+
+      const cleanup = (closeController: boolean = false) => {
+        if (isStreamClosed) return // Already cleaned up
         isStreamClosed = true
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer)
           heartbeatTimer = null
+        }
+        if (closeController) {
+          try {
+            controller.close()
+          } catch {
+            // Controller may already be closed
+          }
         }
       }
 
@@ -91,6 +152,14 @@ export async function GET(req: Request) {
           const eventCount = newEvents.length
 
           if (eventCount > 0 || result.status !== "running") {
+            // Update accumulated content
+            accumulatedContent = result.content
+            accumulatedToolCalls = result.toolCalls || []
+            accumulatedContentBlocks = result.contentBlocks || []
+            if (result.sessionId) {
+              lastSessionId = result.sessionId
+            }
+
             // Send update with cursor for reconnection
             cursor += eventCount
             sendEvent("update", {
@@ -102,18 +171,26 @@ export async function GET(req: Request) {
               sessionId: result.sessionId,
               error: result.error,
             })
+
+            // Periodically persist to database
+            const now = Date.now()
+            if (now - lastDbPersist >= DB_PERSIST_INTERVAL) {
+              await persistToDb(false)
+            }
           }
 
           // Check for completion
           if (result.status === "completed" || result.status === "error") {
+            // Final persist to database
+            await persistToDb(true)
+
             sendEvent("complete", {
               status: result.status,
               sessionId: result.sessionId,
               error: result.error,
               cursor,
             })
-            cleanup()
-            controller.close()
+            cleanup(true) // cleanup and close controller
             return
           }
 
@@ -123,9 +200,24 @@ export async function GET(req: Request) {
       } catch (error) {
         console.error("[agent/stream] Error:", error)
         const message = error instanceof Error ? error.message : "Unknown error"
+
+        // Try to persist error state
+        if (chatId) {
+          try {
+            await prisma.chat.update({
+              where: { id: chatId },
+              data: {
+                status: "error",
+                backgroundSessionId: null,
+              },
+            })
+          } catch {
+            // Best effort
+          }
+        }
+
         sendEvent("error", { error: message, cursor })
-        cleanup()
-        controller.close()
+        cleanup(true) // cleanup and close controller
       }
     },
 
