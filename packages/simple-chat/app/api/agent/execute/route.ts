@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { createBackgroundAgentSession } from "@/lib/agent-session"
+import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel, fetchBranchWithAuth } from "@upstream/common"
 
 export const maxDuration = 60
@@ -76,9 +77,29 @@ export async function POST(req: Request) {
 
     // 6. Build fresh env vars for the agent based on current credentials
     // This is a pure function - no accumulation, returns only what's needed now
+    //
+    // Shared-pool fallback: when running Claude Code without a pasted token,
+    // fetch the rotating credential blob written by /api/cron/refresh-claude-creds.
+    let resolvedAnthropicAuthToken = anthropicAuthToken
+    if (agent === "claude-code" && !resolvedAnthropicAuthToken) {
+      try {
+        resolvedAnthropicAuthToken = await getClaudeCredentials()
+      } catch (err) {
+        console.error("[agent/execute] Failed to fetch shared Claude credential:", err)
+        return Response.json(
+          {
+            error: "SHARED_CREDS_UNAVAILABLE",
+            message:
+              "Shared Claude credentials are unavailable. Add your own Anthropic Auth Token in Settings.",
+          },
+          { status: 503 }
+        )
+      }
+    }
+
     const env = getEnvForModel(model, agent || "opencode", {
       anthropicApiKey,
-      anthropicAuthToken,
+      anthropicAuthToken: resolvedAnthropicAuthToken,
       openaiApiKey,
       opencodeApiKey,
       geminiApiKey,
