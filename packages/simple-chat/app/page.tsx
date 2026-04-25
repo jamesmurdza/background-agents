@@ -13,6 +13,7 @@ import { SignInModal } from "@/components/modals/SignInModal"
 import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, useGitDialogs } from "@/components/modals/GitDialogs"
+import { clearAllStorage } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
@@ -690,7 +691,10 @@ export default function HomePage() {
       onOpenSettings={() => handleOpenSettings()}
       onToggleSidebar={!isMobile ? () => setSidebarCollapsed((v) => !v) : undefined}
       onSignIn={!session ? () => signIn("github") : undefined}
-      onSignOut={session ? () => signOut() : undefined}
+      onSignOut={session ? () => {
+            clearAllStorage()
+            signOut()
+          } : undefined}
       onDeleteChat={displayCurrentChatId ? () => setDeleteConfirmChatId(displayCurrentChatId) : undefined}
       onOpenInVSCode={currentChat?.sandboxId ? handleOpenInVSCode : undefined}
       onOpenTerminal={

@@ -417,6 +417,20 @@ export function saveUnseenChatIds(ids: Set<string>): void {
 // =============================================================================
 
 /**
+ * Clear all local storage - called on sign out
+ */
+export function clearAllStorage(): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.removeItem(LOCAL_STATE_KEY)
+    localStorage.removeItem(SERVER_CACHE_KEY)
+    localStorage.removeItem(UNSEEN_KEY)
+  } catch (error) {
+    console.error("Failed to clear storage:", error)
+  }
+}
+
+/**
  * Collect all descendant chat IDs for a root chat (for cascade delete)
  */
 export function collectDescendantIds(chats: Chat[], rootId: string): string[] {

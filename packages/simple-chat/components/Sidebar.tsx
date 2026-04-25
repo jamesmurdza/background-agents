@@ -6,6 +6,7 @@ import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil,
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { clearAllStorage } from "@/lib/storage"
 
 // Repository filter options - exported for use in parent components
 export const ALL_REPOSITORIES = "__all__"
@@ -518,7 +519,10 @@ export function Sidebar({
                     <Settings className="h-5 w-5" />
                   </button>
                   <button
-                    onClick={() => signOut()}
+                    onClick={() => {
+                      clearAllStorage()
+                      signOut()
+                    }}
                     className="p-3 rounded-lg hover:bg-accent active:bg-accent text-muted-foreground hover:text-foreground transition-colors touch-target"
                     title="Sign out"
                   >
@@ -984,7 +988,10 @@ function UserMenu({ user, onOpenSettings, onOpenApiReference, onOpenHelp, collap
             </button>
           )}
           <button
-            onClick={() => signOut()}
+            onClick={() => {
+              clearAllStorage()
+              signOut()
+            }}
             className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
