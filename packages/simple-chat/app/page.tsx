@@ -939,7 +939,6 @@ export default function HomePage() {
         isMobile={isMobile}
         mode="select"
         onRequestCreate={() => setRepoCreateOpen(true)}
-        currentRepo={currentChat?.repo !== NEW_REPOSITORY ? currentChat?.repo ?? null : null}
       />
 
       <RepoPickerModal
