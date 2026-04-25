@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start --port 4000",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -53,14 +55,18 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.2.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^22",
     "@types/pg": "^8.15.4",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "jsdom": "^29.0.2",
     "postcss": "^8.5",
     "prisma": "^7.0.0",
     "tailwindcss": "^4.2.0",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^1.6.1"
   }
 }
