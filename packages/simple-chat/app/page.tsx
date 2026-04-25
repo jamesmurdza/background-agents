@@ -356,10 +356,6 @@ export default function HomePage() {
 
   // Handler for new chat - uses selected repo filter as default, or NEW_REPOSITORY if "All" is selected
   const handleNewChat = () => {
-    if (!session) {
-      setSignInModalOpen(true)
-      return
-    }
     // If a specific repo is selected in the filter, use it for the new chat
     if (repoFilter !== ALL_REPOSITORIES && repoFilter !== NO_REPOSITORY) {
       // Find the repo to get the default branch

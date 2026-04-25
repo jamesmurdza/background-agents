@@ -292,6 +292,33 @@ export function useChatWithSync() {
 
       return chat.id
     } catch (error) {
+      // If unauthorized, create a local-only chat that can be upgraded after sign-in
+      if (error instanceof Error && error.message.includes("Unauthorized")) {
+        const localChat: Chat = {
+          id: `local-${Date.now()}`,
+          repo,
+          parentChatId,
+          name: "New Chat",
+          status: "pending",
+          messages: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lastActiveAt: Date.now(),
+        }
+
+        setState((prev) => ({
+          ...prev,
+          chats: [localChat, ...prev.chats],
+          currentChatId: switchTo ? localChat.id : prev.currentChatId,
+        }))
+
+        if (switchTo) {
+          setCurrentChatId(localChat.id)
+        }
+
+        return localChat.id
+      }
+
       console.error("Failed to create chat:", error)
       return null
     }
