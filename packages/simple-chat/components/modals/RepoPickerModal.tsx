@@ -214,29 +214,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
     setDragY(0)
   }, [isDragging, dragY, startTime, onClose, isMobile])
 
-  // Fetch branches when repo selected
-  const handleSelectRepo = async (repo: GitHubRepo) => {
-    if (!session?.accessToken) return
-
-    setSelectedRepo(repo)
-    setSelectedBranch(repo.default_branch)
-    setStep("branch")
-    setLoading(true)
-    setError(null)
-    setSearch("")
-
-    try {
-      const branchList = await fetchBranches(
-        session.accessToken,
-        repo.owner.login,
-        repo.name
-      )
-      setBranches(branchList)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch branches")
-    } finally {
-      setLoading(false)
-    }
+  // Handle repo selection - one-click: select repo with default branch immediately
+  // User can change branch later via the branch button in the chat header
+  const handleSelectRepo = (repo: GitHubRepo) => {
+    onSelect(repo.full_name, repo.default_branch)
+    onClose()
   }
 
   // Handle branch selection from dropdown
