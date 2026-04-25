@@ -32,4 +32,6 @@ export {
 export {
   useStreamStore,
   type StreamState,
+  type StreamConnectionParams,
+  type StreamStore,
 } from "./stream-store"
