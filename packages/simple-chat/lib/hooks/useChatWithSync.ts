@@ -342,9 +342,11 @@ export function useChatWithSync() {
       currentChatId: chatId,
     }))
 
-    // Load messages if not already loaded
+    // Load messages if not already loaded. Skip if a previous load failed
+    // — without this guard, every click on a chat whose fetch errors would
+    // re-trigger another doomed fetch.
     const chat = state.chats.find((c) => c.id === chatId)
-    if (chat && chat.messages.length === 0) {
+    if (chat && chat.messages.length === 0 && !chat.messagesLoadFailed) {
       try {
         const chatData = await fetchChat(chatId)
         const incomingMessages = chatData.messages.map(toMessageType)
@@ -358,13 +360,23 @@ export function useChatWithSync() {
             ...prev,
             chats: prev.chats.map((c) =>
               c.id === chatId
-                ? { ...c, messages: mergeMessages(existingChat.messages, incomingMessages) }
+                ? {
+                    ...c,
+                    messages: mergeMessages(existingChat.messages, incomingMessages),
+                    messagesLoadFailed: false,
+                  }
                 : c
             ),
           }
         })
       } catch (err) {
         console.error("Failed to load chat messages:", err)
+        setState((prev) => ({
+          ...prev,
+          chats: prev.chats.map((c) =>
+            c.id === chatId ? { ...c, messagesLoadFailed: true } : c
+          ),
+        }))
       }
     }
   }, [state.chats])
