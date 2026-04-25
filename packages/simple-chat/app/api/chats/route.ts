@@ -14,7 +14,7 @@ import {
   hasCredentialsForModel,
   type Agent,
 } from "@upstream/common"
-import { flagsFromCredentials, toLegacyFlags } from "@/lib/credentials"
+import { flagsFromCredentials } from "@/lib/credentials"
 
 // =============================================================================
 // Types
@@ -151,15 +151,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     const decryptedCreds = decryptUserCredentials(
       user?.credentials as Record<string, unknown> | null
     )
-    const legacyFlags = toLegacyFlags(flagsFromCredentials(decryptedCreds))
+    const flags = flagsFromCredentials(decryptedCreds)
 
     const requestedAgent = (body.agent ?? userSettings.defaultAgent ?? "opencode") as Agent
     const requestedAgentUsable = (agentModels[requestedAgent] ?? []).some((m) =>
-      hasCredentialsForModel(m, legacyFlags, requestedAgent)
+      hasCredentialsForModel(m, flags, requestedAgent)
     )
     const finalAgent: Agent = requestedAgentUsable
       ? requestedAgent
-      : getDefaultAgent(legacyFlags)
+      : getDefaultAgent(flags)
 
     let finalModel: string | null = body.model ?? null
     if (!finalModel) {
@@ -169,9 +169,9 @@ export async function POST(req: NextRequest): Promise<Response> {
         : undefined
       finalModel =
         settingsModelConfig &&
-        hasCredentialsForModel(settingsModelConfig, legacyFlags, finalAgent)
+        hasCredentialsForModel(settingsModelConfig, flags, finalAgent)
           ? settingsModel!
-          : getDefaultModelForAgent(finalAgent, legacyFlags)
+          : getDefaultModelForAgent(finalAgent, flags)
     }
 
     const chat = await prisma.chat.create({

@@ -109,12 +109,12 @@ export async function GET() {
     const credentials = user.credentials
       ? {
           anthropicAuthType: user.credentials.anthropicAuthType,
-          hasAnthropicApiKey: !!user.credentials.anthropicApiKey,
+          ANTHROPIC_API_KEY: !!user.credentials.anthropicApiKey,
           // User has access to Claude if they have their own token OR their team owner has one
-          hasAnthropicAuthToken: !!user.credentials.anthropicAuthToken || teamOwnerHasClaudeSubscription,
-          hasOpenaiApiKey: !!user.credentials.openaiApiKey,
-          hasOpencodeApiKey: !!user.credentials.opencodeApiKey,
-          hasGeminiApiKey: !!user.credentials.geminiApiKey,
+          CLAUDE_CODE_CREDENTIALS: !!user.credentials.anthropicAuthToken || teamOwnerHasClaudeSubscription,
+          OPENAI_API_KEY: !!user.credentials.openaiApiKey,
+          OPENCODE_API_KEY: !!user.credentials.opencodeApiKey,
+          GEMINI_API_KEY: !!user.credentials.geminiApiKey,
           hasDaytonaApiKey: !!user.credentials.daytonaApiKey,
           sandboxAutoStopInterval: user.credentials.sandboxAutoStopInterval,
           squashOnMerge: user.credentials.squashOnMerge,
@@ -124,7 +124,7 @@ export async function GET() {
       : teamOwnerHasClaudeSubscription
         ? {
             // Team member without their own credentials but with access to team owner's Claude subscription
-            hasAnthropicAuthToken: true,
+            CLAUDE_CODE_CREDENTIALS: true,
             ...(serverLlmFallback ? { hasServerLlmFallback: true } : {}),
           }
         : serverLlmFallback

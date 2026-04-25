@@ -17,16 +17,11 @@ import {
   type Credentials,
 } from "@/lib/credentials"
 import type { Settings } from "@/lib/types"
+import { DEFAULT_SETTINGS } from "@/lib/storage"
 
 interface SettingsResponse {
   settings: Settings
   credentialFlags: CredentialFlags
-}
-
-const DEFAULT_SETTINGS: Settings = {
-  defaultAgent: "opencode",
-  defaultModel: "opencode/big-pickle",
-  theme: "system",
 }
 
 function readSettings(raw: unknown): Settings {

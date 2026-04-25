@@ -7,10 +7,9 @@ import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon,
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import type { Settings, Theme, Agent, ModelOption, Credentials, CredentialFlags } from "@/lib/types"
-import { agentModels, agentLabels, hasCredentialsForModel } from "@/lib/types"
+import { agentModels, agentLabels, hasCredentialsForModel, ALL_AGENTS } from "@/lib/types"
 import {
   CREDENTIAL_KEYS,
-  toLegacyFlags,
   type CredentialId,
   type ProviderId,
 } from "@/lib/credentials"
@@ -47,7 +46,6 @@ const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "dark", label: "Dark", icon: Moon },
 ]
 
-const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
 
 type SectionKey = "general" | "api-keys" | "appearance"
 
@@ -209,7 +207,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     }
     return out
   }, [credValues])
-  const liveLegacyFlags = useMemo(() => toLegacyFlags(liveFlags), [liveFlags])
 
   // Get available models for the selected agent
   const availableModels = useMemo(() => {
@@ -392,7 +389,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             <SelectValue placeholder="Select agent" />
           </SelectTrigger>
           <SelectContent>
-            {agents.map((agent) => (
+            {ALL_AGENTS.map((agent) => (
               <SelectItem key={agent} value={agent}>
                 {agentLabels[agent]}
               </SelectItem>
@@ -407,7 +404,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
           </SelectTrigger>
           <SelectContent>
             {availableModels.map((model: ModelOption) => {
-              const hasCredentials = hasCredentialsForModel(model, liveLegacyFlags, defaultAgent)
+              const hasCredentials = hasCredentialsForModel(model, liveFlags, defaultAgent)
               return (
                 <SelectItem key={model.value} value={model.value}>
                   {model.label}

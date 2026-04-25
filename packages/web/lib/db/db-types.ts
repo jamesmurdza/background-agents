@@ -78,11 +78,11 @@ export interface Quota {
 
 export interface UserCredentials {
   anthropicAuthType: string
-  hasAnthropicApiKey: boolean
-  hasAnthropicAuthToken: boolean
-  hasOpenaiApiKey: boolean
-  hasOpencodeApiKey: boolean
-  hasGeminiApiKey: boolean
+  ANTHROPIC_API_KEY?: boolean
+  CLAUDE_CODE_CREDENTIALS?: boolean
+  OPENAI_API_KEY?: boolean
+  OPENCODE_API_KEY?: boolean
+  GEMINI_API_KEY?: boolean
   hasDaytonaApiKey: boolean
   sandboxAutoStopInterval?: number
   squashOnMerge?: boolean

@@ -175,11 +175,11 @@ export async function ensureSandboxReady(
 
   // Get environment variables based on model and agent (API keys)
   const apiKeyEnv = getEnvForModel(model, agent, {
-    anthropicApiKey,
-    anthropicAuthToken,
-    openaiApiKey,
-    opencodeApiKey,
-    geminiApiKey,
+    ANTHROPIC_API_KEY: anthropicApiKey,
+    CLAUDE_CODE_CREDENTIALS: anthropicAuthToken,
+    OPENAI_API_KEY: openaiApiKey,
+    OPENCODE_API_KEY: opencodeApiKey,
+    GEMINI_API_KEY: geminiApiKey,
   })
 
   // Get user-provided repo-level env vars (decrypted)

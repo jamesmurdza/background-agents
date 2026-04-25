@@ -1,21 +1,19 @@
 /**
- * Credentials — single source of truth for the API keys we accept.
+ * Credential field metadata + storage migration shim.
  *
- * Identifiers double as the env-var name we inject into the agent process,
- * so storage, sync, and runtime injection all share one shape:
- * `Partial<Record<CredentialId, string>>`.
+ * The shape itself (CredentialId / CredentialFlags / Credentials) lives in
+ * @upstream/common — this module just adds simple-chat's UI metadata for
+ * each credential field and the on-read normalization for legacy DB rows.
  */
 
-import type { Agent, UserCredentialFlags } from "@upstream/common"
+import {
+  type CredentialId,
+  type CredentialFlags,
+  type Credentials,
+  type ProviderId,
+} from "@upstream/common"
 
-export type CredentialId =
-  | "ANTHROPIC_API_KEY"
-  | "CLAUDE_CODE_CREDENTIALS"
-  | "OPENAI_API_KEY"
-  | "OPENCODE_API_KEY"
-  | "GEMINI_API_KEY"
-
-export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini"
+export type { CredentialId, CredentialFlags, Credentials, ProviderId }
 
 export interface CredentialField {
   id: CredentialId
@@ -64,9 +62,6 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
   },
 ] as const
 
-export type Credentials = Partial<Record<CredentialId, string>>
-export type CredentialFlags = Partial<Record<CredentialId, boolean>>
-
 const CREDENTIAL_IDS = new Set<string>(CREDENTIAL_KEYS.map((c) => c.id))
 
 export function isCredentialId(value: string): value is CredentialId {
@@ -79,83 +74,6 @@ export function flagsFromCredentials(credentials: Credentials): CredentialFlags 
     out[id] = !!credentials[id]
   }
   return out
-}
-
-/** Bridge to common's UserCredentialFlags, consumed by hasCredentialsForModel. */
-export function toLegacyFlags(
-  flags: CredentialFlags | null | undefined
-): UserCredentialFlags {
-  return {
-    hasAnthropicApiKey: !!flags?.ANTHROPIC_API_KEY,
-    hasAnthropicAuthToken: !!flags?.CLAUDE_CODE_CREDENTIALS,
-    hasOpenaiApiKey: !!flags?.OPENAI_API_KEY,
-    hasOpencodeApiKey: !!flags?.OPENCODE_API_KEY,
-    hasGeminiApiKey: !!flags?.GEMINI_API_KEY,
-  }
-}
-
-/**
- * Pick env vars to inject for a given agent+model.
- * The map keys ARE the env var names, so this is just a relevance filter
- * (with two special cases: Claude Code prefers the subscription token, and
- * Gemini also exposes its key as GOOGLE_API_KEY).
- */
-export function envForAgent(
-  agent: Agent | undefined,
-  model: string | undefined,
-  credentials: Credentials
-): Record<string, string> {
-  const env: Record<string, string> = {}
-  const set = (id: CredentialId) => {
-    const v = credentials[id]
-    if (v) env[id] = v
-  }
-
-  if (!agent || agent === "claude-code") {
-    if (credentials.CLAUDE_CODE_CREDENTIALS) set("CLAUDE_CODE_CREDENTIALS")
-    else set("ANTHROPIC_API_KEY")
-    return env
-  }
-
-  if (agent === "codex") {
-    set("OPENAI_API_KEY")
-    return env
-  }
-
-  if (agent === "gemini") {
-    set("GEMINI_API_KEY")
-    if (env.GEMINI_API_KEY) env.GOOGLE_API_KEY = env.GEMINI_API_KEY
-    return env
-  }
-
-  if (agent === "goose") {
-    if (model?.includes("claude")) set("ANTHROPIC_API_KEY")
-    else set("OPENAI_API_KEY")
-    return env
-  }
-
-  if (agent === "pi") {
-    const prefix = model?.split("/")[0]
-    if (prefix === "openai") set("OPENAI_API_KEY")
-    else if (prefix === "google") set("GEMINI_API_KEY")
-    else set("ANTHROPIC_API_KEY")
-    return env
-  }
-
-  if (agent === "eliza") return env
-
-  if (agent === "opencode") {
-    const prefix = model?.split("/")[0]
-    if (prefix === "anthropic") set("ANTHROPIC_API_KEY")
-    else if (prefix === "openai") set("OPENAI_API_KEY")
-    else if (prefix === "opencode") {
-      const isFreeModel = model?.includes("-free") || model === "opencode/big-pickle"
-      if (!isFreeModel) set("OPENCODE_API_KEY")
-    }
-    return env
-  }
-
-  return env
 }
 
 /**

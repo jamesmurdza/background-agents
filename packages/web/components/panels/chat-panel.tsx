@@ -413,8 +413,8 @@ export function ChatPanel({
   )
 
   const canSuggestName = !!(
-    credentials?.hasAnthropicApiKey ||
-    credentials?.hasOpenaiApiKey ||
+    credentials?.ANTHROPIC_API_KEY ||
+    credentials?.OPENAI_API_KEY ||
     credentials?.hasServerLlmFallback
   )
 

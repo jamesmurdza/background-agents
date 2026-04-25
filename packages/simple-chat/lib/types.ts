@@ -14,8 +14,9 @@ export type {
 import type { ContentBlock } from "@upstream/common"
 
 // Re-export agent types
-export type { Agent, ModelOption, UserCredentialFlags } from "@upstream/common"
+export type { Agent, ModelOption } from "@upstream/common"
 export {
+  ALL_AGENTS,
   agentModels,
   agentLabels,
   defaultAgentModel,

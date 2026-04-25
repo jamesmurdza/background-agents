@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
-import { toLegacyFlags } from "@/lib/credentials"
 import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
 import { MessageBubble } from "./MessageBubble"
 import { AgentIcon } from "./icons/agent-icons"
@@ -81,14 +80,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const currentAgent = (chat?.agent || settings.defaultAgent) as Agent
   const currentModel = chat?.model || settings.defaultModel
 
-  // Adapt our flat credential flags to the legacy shape consumed by hasCredentialsForModel.
-  const legacyFlags = useMemo(() => toLegacyFlags(credentialFlags), [credentialFlags])
-
   // Check if the selected model has required credentials
   const availableModels = agentModels[currentAgent] ?? []
   const selectedModelConfig = availableModels.find(m => m.value === currentModel)
   const hasRequiredCredentials = selectedModelConfig
-    ? hasCredentialsForModel(selectedModelConfig, legacyFlags, currentAgent)
+    ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
     : true
 
   // Conflict state
@@ -367,7 +363,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
 
       // Check if the new model requires credentials we don't have
       const newModelConfig = models.find(m => m.value === newModel)
-      if (newModelConfig && !hasCredentialsForModel(newModelConfig, legacyFlags, agent)) {
+      if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, agent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
         if (requiredKey && requiredKey !== "none" && onOpenSettings) {
@@ -385,7 +381,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
 
       // Check if the new model requires credentials we don't have
       const newModelConfig = availableModels.find(m => m.value === model)
-      if (newModelConfig && !hasCredentialsForModel(newModelConfig, legacyFlags, currentAgent)) {
+      if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, currentAgent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
         if (requiredKey && requiredKey !== "none" && onOpenSettings) {
@@ -451,7 +447,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
 
   // Prepare model options for mobile bottom sheet
   const modelOptions = availableModels.map((model: ModelOption) => {
-    const modelHasCredentials = hasCredentialsForModel(model, legacyFlags, currentAgent)
+    const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
     const needsKey = model.requiresKey !== "none" && !modelHasCredentials
     return {
       value: model.value,
@@ -777,7 +773,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
               {showModelDropdown && (
                 <div className="absolute bottom-full right-0 mb-1 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-52">
                   {availableModels.map((model: ModelOption) => {
-                    const modelHasCredentials = hasCredentialsForModel(model, legacyFlags, currentAgent)
+                    const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
                     const needsKey = model.requiresKey !== "none" && !modelHasCredentials
                     return (
                       <button

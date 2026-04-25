@@ -88,8 +88,8 @@ export function MobileHeader({
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   const canSuggestName = !!(
-    credentials?.hasAnthropicApiKey ||
-    credentials?.hasOpenaiApiKey ||
+    credentials?.ANTHROPIC_API_KEY ||
+    credentials?.OPENAI_API_KEY ||
     credentials?.hasServerLlmFallback
   )
   const canRename = !!branch?.sandboxId && !isRunning

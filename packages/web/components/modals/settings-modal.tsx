@@ -14,11 +14,11 @@ interface SettingsModalProps {
   onClose: () => void
   credentials?: {
     anthropicAuthType: string
-    hasAnthropicApiKey: boolean
-    hasAnthropicAuthToken: boolean
-    hasOpenaiApiKey: boolean
-    hasOpencodeApiKey: boolean
-    hasGeminiApiKey: boolean
+    ANTHROPIC_API_KEY?: boolean
+    CLAUDE_CODE_CREDENTIALS?: boolean
+    OPENAI_API_KEY?: boolean
+    OPENCODE_API_KEY?: boolean
+    GEMINI_API_KEY?: boolean
     hasDaytonaApiKey: boolean
     sandboxAutoStopInterval?: number
     squashOnMerge?: boolean
@@ -441,10 +441,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   <div className="flex items-center gap-2">
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">Anthropic API Key</label>
-                    {renderStatus(credentials?.hasAnthropicApiKey ?? false, "anthropicApiKey")}
+                    {renderStatus(credentials?.ANTHROPIC_API_KEY ?? false, "anthropicApiKey")}
                   </div>
                   <div className="flex items-center gap-2">
-                    {renderClearButton(credentials?.hasAnthropicApiKey ?? false, "anthropicApiKey")}
+                    {renderClearButton(credentials?.ANTHROPIC_API_KEY ?? false, "anthropicApiKey")}
                     {renderUndoClearButton("anthropicApiKey")}
                     <a
                       href="https://console.anthropic.com/settings/keys"
@@ -484,10 +484,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   <div className="flex items-center gap-2">
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">Claude Subscription</label>
-                    {renderStatus(credentials?.hasAnthropicAuthToken ?? false, "anthropicAuthToken")}
+                    {renderStatus(credentials?.CLAUDE_CODE_CREDENTIALS ?? false, "anthropicAuthToken")}
                   </div>
                   <div className="flex items-center gap-2">
-                    {renderClearButton(credentials?.hasAnthropicAuthToken ?? false, "anthropicAuthToken")}
+                    {renderClearButton(credentials?.CLAUDE_CODE_CREDENTIALS ?? false, "anthropicAuthToken")}
                     {renderUndoClearButton("anthropicAuthToken")}
                     <a
                       href="https://claude.ai/settings/billing"
@@ -559,10 +559,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">OpenAI API Key</label>
-                    {renderStatus(credentials?.hasOpenaiApiKey ?? false, "openaiApiKey")}
+                    {renderStatus(credentials?.OPENAI_API_KEY ?? false, "openaiApiKey")}
                   </div>
                   <div className="flex items-center gap-2">
-                    {renderClearButton(credentials?.hasOpenaiApiKey ?? false, "openaiApiKey")}
+                    {renderClearButton(credentials?.OPENAI_API_KEY ?? false, "openaiApiKey")}
                     {renderUndoClearButton("openaiApiKey")}
                     <a
                       href="https://platform.openai.com/api-keys"
@@ -602,10 +602,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">OpenCode API Key</label>
-                    {renderStatus(credentials?.hasOpencodeApiKey ?? false, "opencodeApiKey")}
+                    {renderStatus(credentials?.OPENCODE_API_KEY ?? false, "opencodeApiKey")}
                   </div>
                   <div className="flex items-center gap-2">
-                    {renderClearButton(credentials?.hasOpencodeApiKey ?? false, "opencodeApiKey")}
+                    {renderClearButton(credentials?.OPENCODE_API_KEY ?? false, "opencodeApiKey")}
                     {renderUndoClearButton("opencodeApiKey")}
                     <a
                       href="https://opencode.ai/auth"
@@ -645,10 +645,10 @@ export function SettingsModal({ open, onClose, credentials, onCredentialsUpdate,
                   <div className="flex items-center gap-2">
                     <Key className="h-3.5 w-3.5 text-muted-foreground" />
                     <label className="text-xs font-medium text-foreground">Gemini API Key</label>
-                    {renderStatus(credentials?.hasGeminiApiKey ?? false, "geminiApiKey")}
+                    {renderStatus(credentials?.GEMINI_API_KEY ?? false, "geminiApiKey")}
                   </div>
                   <div className="flex items-center gap-2">
-                    {renderClearButton(credentials?.hasGeminiApiKey ?? false, "geminiApiKey")}
+                    {renderClearButton(credentials?.GEMINI_API_KEY ?? false, "geminiApiKey")}
                     {renderUndoClearButton("geminiApiKey")}
                     <a
                       href="https://aistudio.google.com/app/apikey"

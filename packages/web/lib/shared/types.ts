@@ -15,7 +15,9 @@ export type {
   Agent,
   ProviderName,
   ModelOption,
-  UserCredentialFlags,
+  CredentialId,
+  CredentialFlags,
+  Credentials,
 } from "@upstream/common"
 
 export {
@@ -36,9 +38,23 @@ export {
   getModelLabel,
 } from "@upstream/common"
 
-// Import Agent type for use in this file
-import type { Agent, ModelOption, UserCredentialFlags } from "@upstream/common"
-import { agentModels, hasCredentialsForModel } from "@upstream/common"
+import type { Agent, ModelOption, CredentialFlags } from "@upstream/common"
+import { agentModels } from "@upstream/common"
+
+/**
+ * Web's user credential flags: env-var-keyed credential booleans plus a few
+ * web-only fields (Daytona key, sandbox prefs, git/PR preferences) that ride
+ * on the same /api/user/me response.
+ */
+export interface UserCredentialFlags extends CredentialFlags {
+  anthropicAuthType?: string | null
+  hasDaytonaApiKey?: boolean
+  sandboxAutoStopInterval?: number
+  /** Server has OpenRouter (or similar) so AI branch naming works without user API keys */
+  hasServerLlmFallback?: boolean
+  squashOnMerge?: boolean
+  prDescriptionMode?: string
+}
 
 // =============================================================================
 // Web-specific functions (extend common functionality)
@@ -47,12 +63,10 @@ import { agentModels, hasCredentialsForModel } from "@upstream/common"
 /**
  * Get all models for an agent (no filtering by credentials).
  * All models are shown in the UI regardless of API key availability.
- *
- * Note: This is a web-specific wrapper that maintains backward compatibility.
  */
 export function getAvailableModels(
   agent: Agent,
-  _credentials: UserCredentialFlags | null | undefined
+  _flags: CredentialFlags | null | undefined
 ): ModelOption[] {
   return agentModels[agent] ?? []
 }

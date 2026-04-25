@@ -27,9 +27,13 @@ export {
   // Types
   type Agent,
   type ProviderName,
+  type ProviderId,
   type ModelOption,
-  type UserCredentialFlags,
+  type CredentialId,
+  type CredentialFlags,
+  type Credentials,
   // Data
+  ALL_AGENTS,
   agentToProvider,
   agentLabels,
   agentModels,
@@ -46,6 +50,7 @@ export {
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
+  getEnvForModel,
 } from "./agents"
 
 // SSE utilities
@@ -169,10 +174,3 @@ export {
   clearRecentItems,
 } from "./search-palette"
 
-// Credentials
-export {
-  // Types
-  type Credentials,
-  // Functions
-  getEnvForModel,
-} from "./credentials"

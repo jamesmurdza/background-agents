@@ -51,8 +51,8 @@ export async function POST(req: Request) {
   })
   const { anthropicApiKey, anthropicAuthToken } = await resolveUserCredentials(userCredentials, userId)
   const defaultAgent = getDefaultAgent({
-    hasAnthropicApiKey: !!anthropicApiKey,
-    hasAnthropicAuthToken: !!anthropicAuthToken,
+    ANTHROPIC_API_KEY: !!anthropicApiKey,
+    CLAUDE_CODE_CREDENTIALS: !!anthropicAuthToken,
   })
 
   const branch = await prisma.branch.create({

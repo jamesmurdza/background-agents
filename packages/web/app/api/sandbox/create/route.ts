@@ -78,8 +78,8 @@ export async function POST(req: Request) {
   // Determine default agent based on available credentials
   // Users without Anthropic credentials default to opencode with free models
   const defaultAgent = getDefaultAgent({
-    hasAnthropicApiKey: !!anthropicApiKey,
-    hasAnthropicAuthToken: !!anthropicAuthToken,
+    ANTHROPIC_API_KEY: !!anthropicApiKey,
+    CLAUDE_CODE_CREDENTIALS: !!anthropicAuthToken,
   })
 
   // For recreation mode, fetch the existing branch and its repo

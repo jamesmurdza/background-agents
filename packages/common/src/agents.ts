@@ -9,6 +9,9 @@
 
 export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "pi"
 
+/** All agent ids, in display order. */
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
+
 /** SDK provider names (must match ProviderName from SDK) */
 export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "pi"
 
@@ -32,6 +35,35 @@ export const agentLabels: Record<Agent, string> = {
   "gemini": "Gemini",
   "goose": "Goose",
   "pi": "Pi",
+}
+
+// =============================================================================
+// Credentials
+// =============================================================================
+
+/** Provider an API key is associated with. */
+export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini"
+
+/**
+ * Credential identifiers. The id doubles as the env var name we inject
+ * into the agent process, so the storage and runtime shapes are the same.
+ */
+export type CredentialId =
+  | "ANTHROPIC_API_KEY"
+  | "CLAUDE_CODE_CREDENTIALS"
+  | "OPENAI_API_KEY"
+  | "OPENCODE_API_KEY"
+  | "GEMINI_API_KEY"
+
+export type CredentialFlags = Partial<Record<CredentialId, boolean>>
+export type Credentials = Partial<Record<CredentialId, string>>
+
+/** Env vars to inject for a given provider. */
+const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
+  anthropic: ["ANTHROPIC_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  opencode: ["OPENCODE_API_KEY"],
+  gemini: ["GEMINI_API_KEY"],
 }
 
 /**
@@ -70,8 +102,8 @@ export function getProviderForAgent(agent: string | undefined): ProviderName {
 export interface ModelOption {
   value: string
   label: string
-  /** Which API key is required for this model */
-  requiresKey?: "anthropic" | "openai" | "opencode" | "gemini" | "pi" | "none"
+  /** Which provider's API key is required for this model. "none" means no key needed. */
+  requiresKey?: ProviderId | "none"
 }
 
 export const agentModels: Record<Agent, ModelOption[]> = {
@@ -187,61 +219,48 @@ export const defaultAgentModel: Record<Agent, string> = {
 }
 
 // =============================================================================
-// Credentials
+// Credential queries
 // =============================================================================
-
-export interface UserCredentialFlags {
-  hasAnthropicApiKey?: boolean
-  hasAnthropicAuthToken?: boolean
-  hasOpenaiApiKey?: boolean
-  hasOpencodeApiKey?: boolean
-  hasGeminiApiKey?: boolean
-  /** Server has OpenRouter (or similar) so AI branch naming works without user API keys */
-  hasServerLlmFallback?: boolean
-  // Web-specific settings (not used by simple-chat)
-  squashOnMerge?: boolean
-  prDescriptionMode?: string
-}
 
 /**
  * Get the default agent based on user credentials.
  * If user has Anthropic credentials, default to Claude Code.
  * Otherwise, default to OpenCode (which has free models).
  */
-export function getDefaultAgent(credentials: UserCredentialFlags | null | undefined): Agent {
-  if (credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken) {
+export function getDefaultAgent(flags: CredentialFlags | null | undefined): Agent {
+  if (flags?.ANTHROPIC_API_KEY || flags?.CLAUDE_CODE_CREDENTIALS) {
     return "claude-code"
   }
   return "opencode"
 }
 
 /** Check if user has credentials for Claude Code agent */
-export function hasClaudeCodeCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
-  return !!(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken)
+export function hasClaudeCodeCredentials(flags: CredentialFlags | null | undefined): boolean {
+  return !!(flags?.ANTHROPIC_API_KEY || flags?.CLAUDE_CODE_CREDENTIALS)
 }
 
 /** Check if user has credentials for Codex agent */
-export function hasCodexCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
-  return !!credentials?.hasOpenaiApiKey
+export function hasCodexCredentials(flags: CredentialFlags | null | undefined): boolean {
+  return !!flags?.OPENAI_API_KEY
 }
 
 /** Check if user has credentials for Gemini agent */
-export function hasGeminiCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
-  return !!credentials?.hasGeminiApiKey
+export function hasGeminiCredentials(flags: CredentialFlags | null | undefined): boolean {
+  return !!flags?.GEMINI_API_KEY
 }
 
 /** Check if user has credentials for Goose agent */
-export function hasGooseCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
-  return !!(credentials?.hasOpenaiApiKey || credentials?.hasAnthropicApiKey)
+export function hasGooseCredentials(flags: CredentialFlags | null | undefined): boolean {
+  return !!(flags?.OPENAI_API_KEY || flags?.ANTHROPIC_API_KEY)
 }
 
 /** Check if user has credentials for Pi agent */
-export function hasPiCredentials(credentials: UserCredentialFlags | null | undefined): boolean {
-  return !!(credentials?.hasAnthropicApiKey || credentials?.hasOpenaiApiKey || credentials?.hasGeminiApiKey)
+export function hasPiCredentials(flags: CredentialFlags | null | undefined): boolean {
+  return !!(flags?.ANTHROPIC_API_KEY || flags?.OPENAI_API_KEY || flags?.GEMINI_API_KEY)
 }
 
 /** Check if user has credentials for ELIZA agent (always true - no API key needed) */
-export function hasElizaCredentials(_credentials: UserCredentialFlags | null | undefined): boolean {
+export function hasElizaCredentials(_flags: CredentialFlags | null | undefined): boolean {
   return true // ELIZA is a fake agent that doesn't need any API keys
 }
 
@@ -250,28 +269,17 @@ export function hasElizaCredentials(_credentials: UserCredentialFlags | null | u
  */
 export function hasCredentialsForModel(
   model: ModelOption,
-  credentials: UserCredentialFlags | null | undefined,
+  flags: CredentialFlags | null | undefined,
   agent?: Agent
 ): boolean {
-  switch (model.requiresKey) {
-    case "none":
-      return true
-    case "anthropic":
-      // OpenCode and Pi agents require API key only
-      if (agent === "opencode" || agent === "pi") {
-        return !!credentials?.hasAnthropicApiKey
-      }
-      // Claude Code can use either API key or subscription
-      return !!(credentials?.hasAnthropicApiKey || credentials?.hasAnthropicAuthToken)
-    case "openai":
-      return !!credentials?.hasOpenaiApiKey
-    case "opencode":
-      return !!credentials?.hasOpencodeApiKey
-    case "gemini":
-      return !!credentials?.hasGeminiApiKey
-    default:
-      return true
+  if (!model.requiresKey || model.requiresKey === "none") return true
+  if (model.requiresKey === "anthropic") {
+    // OpenCode and Pi require an API key — they can't drive a subscription session.
+    if (agent === "opencode" || agent === "pi") return !!flags?.ANTHROPIC_API_KEY
+    // Claude Code can use either API key or subscription.
+    return !!(flags?.ANTHROPIC_API_KEY || flags?.CLAUDE_CODE_CREDENTIALS)
   }
+  return PROVIDER_ENV[model.requiresKey].some((id) => flags?.[id])
 }
 
 /**
@@ -280,19 +288,46 @@ export function hasCredentialsForModel(
  */
 export function getDefaultModelForAgent(
   agent: Agent,
-  credentials: UserCredentialFlags | null | undefined
+  flags: CredentialFlags | null | undefined
 ): string {
   const allModels = agentModels[agent] ?? []
   const defaultModel = defaultAgentModel[agent]
 
   const defaultModelConfig = allModels.find(m => m.value === defaultModel)
-
-  if (defaultModelConfig && hasCredentialsForModel(defaultModelConfig, credentials, agent)) {
+  if (defaultModelConfig && hasCredentialsForModel(defaultModelConfig, flags, agent)) {
     return defaultModel
   }
 
-  const firstAvailable = allModels.find(m => hasCredentialsForModel(m, credentials, agent))
+  const firstAvailable = allModels.find(m => hasCredentialsForModel(m, flags, agent))
   return firstAvailable?.value || defaultModel
+}
+
+/**
+ * Pick env vars to inject for a given agent + model. The credentials map is
+ * already keyed by env var name, so this is a relevance filter with two
+ * special cases: claude-code prefers the subscription token over the API
+ * key, and Gemini also exposes its key as GOOGLE_API_KEY for compatibility.
+ */
+export function getEnvForModel(
+  model: string | undefined,
+  agent: Agent | undefined,
+  credentials: Credentials
+): Record<string, string> {
+  // Claude Code: subscription token wins over API key.
+  if ((!agent || agent === "claude-code") && credentials.CLAUDE_CODE_CREDENTIALS) {
+    return { CLAUDE_CODE_CREDENTIALS: credentials.CLAUDE_CODE_CREDENTIALS }
+  }
+
+  const opt = agent ? (agentModels[agent] ?? []).find((m) => m.value === model) : undefined
+  if (!opt?.requiresKey || opt.requiresKey === "none") return {}
+
+  const env: Record<string, string> = {}
+  for (const id of PROVIDER_ENV[opt.requiresKey]) {
+    const v = credentials[id]
+    if (v) env[id] = v
+  }
+  if (env.GEMINI_API_KEY) env.GOOGLE_API_KEY = env.GEMINI_API_KEY
+  return env
 }
 
 /**

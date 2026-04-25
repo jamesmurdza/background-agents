@@ -19,7 +19,7 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
-import { envForAgent } from "@/lib/credentials"
+import { getEnvForModel } from "@upstream/common"
 import {
   createSandboxForChat,
   deleteSandboxQuietly,
@@ -201,7 +201,7 @@ export async function POST(
     }
 
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
-    const env = envForAgent(payload.agent as Agent, payload.model, credentials)
+    const env = getEnvForModel(payload.model, payload.agent as Agent, credentials)
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
