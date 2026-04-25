@@ -134,14 +134,21 @@ function summarizeEvents(
 
   const crashEvent = events.find(
     (e) => (e as { type: string }).type === "agent_crashed"
-  ) as { type: "agent_crashed"; message?: string } | undefined
+  ) as { type: "agent_crashed"; message?: string; output?: string } | undefined
   if (crashEvent) {
+    const baseMsg = crashEvent.message ?? "Process exited without completing"
+    // The wrapper captures the agent process's last ~4KB of non-JSON
+    // stdout/stderr in `output`. That's where the actual reason (auth
+    // failure, missing binary, panic, etc.) lives — surface it.
+    const error = crashEvent.output
+      ? `${baseMsg}\n\n${crashEvent.output}`
+      : baseMsg
     return {
       status: "error",
       content,
       toolCalls,
       contentBlocks,
-      error: crashEvent.message ?? "Process exited without completing",
+      error,
       sessionId: sessionId || undefined,
     }
   }
