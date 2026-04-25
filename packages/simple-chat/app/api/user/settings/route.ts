@@ -8,35 +8,43 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface StoredSettings {
-  defaultAgent?: string
-  defaultModel?: string
-  theme?: "light" | "dark" | "system"
-}
-
-interface StoredCredentials {
-  anthropicApiKey?: string
-  anthropicAuthToken?: string
-  openaiApiKey?: string
-  opencodeApiKey?: string
-  geminiApiKey?: string
-}
+import {
+  CREDENTIAL_KEYS,
+  isCredentialId,
+  normalizeStoredCredentials,
+  type CredentialId,
+  type CredentialFlags,
+  type Credentials,
+} from "@/lib/credentials"
+import type { Settings } from "@/lib/types"
 
 interface SettingsResponse {
-  settings: StoredSettings
-  // Never return raw credentials, only flags indicating which are set
-  credentialFlags: {
-    hasAnthropicApiKey: boolean
-    hasAnthropicAuthToken: boolean
-    hasOpenaiApiKey: boolean
-    hasOpencodeApiKey: boolean
-    hasGeminiApiKey: boolean
+  settings: Settings
+  credentialFlags: CredentialFlags
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  defaultAgent: "opencode",
+  defaultModel: "opencode/big-pickle",
+  theme: "system",
+}
+
+function readSettings(raw: unknown): Settings {
+  const s = (raw as Partial<Settings> | null) ?? {}
+  return {
+    defaultAgent: s.defaultAgent ?? DEFAULT_SETTINGS.defaultAgent,
+    defaultModel: s.defaultModel ?? DEFAULT_SETTINGS.defaultModel,
+    theme: s.theme ?? DEFAULT_SETTINGS.theme,
   }
+}
+
+function buildFlags(stored: Record<CredentialId, string>): CredentialFlags {
+  const flags: CredentialFlags = {}
+  for (const { id } of CREDENTIAL_KEYS) {
+    const enc = stored[id]
+    flags[id] = !!(enc && decrypt(enc))
+  }
+  return flags
 }
 
 // =============================================================================
@@ -54,25 +62,14 @@ export async function GET(): Promise<Response> {
       select: { settings: true, credentials: true },
     })
 
-    const settings = (user?.settings as StoredSettings) ?? {}
-    const credentials = (user?.credentials as StoredCredentials) ?? {}
+    const stored = normalizeStoredCredentials(
+      user?.credentials as Record<string, unknown> | null
+    )
 
-    // Decrypt credentials to check if they exist (non-empty after decrypt)
     const response: SettingsResponse = {
-      settings: {
-        defaultAgent: settings.defaultAgent ?? "opencode",
-        defaultModel: settings.defaultModel ?? "opencode/big-pickle",
-        theme: settings.theme ?? "system",
-      },
-      credentialFlags: {
-        hasAnthropicApiKey: !!credentials.anthropicApiKey && !!decrypt(credentials.anthropicApiKey),
-        hasAnthropicAuthToken: !!credentials.anthropicAuthToken && !!decrypt(credentials.anthropicAuthToken),
-        hasOpenaiApiKey: !!credentials.openaiApiKey && !!decrypt(credentials.openaiApiKey),
-        hasOpencodeApiKey: !!credentials.opencodeApiKey && !!decrypt(credentials.opencodeApiKey),
-        hasGeminiApiKey: !!credentials.geminiApiKey && !!decrypt(credentials.geminiApiKey),
-      },
+      settings: readSettings(user?.settings),
+      credentialFlags: buildFlags(stored),
     }
-
     return Response.json(response)
   } catch (error) {
     return internalError(error)
@@ -84,8 +81,8 @@ export async function GET(): Promise<Response> {
 // =============================================================================
 
 interface PatchBody {
-  settings?: Partial<StoredSettings>
-  credentials?: Partial<StoredCredentials>
+  settings?: Partial<Settings>
+  credentials?: Credentials
 }
 
 export async function PATCH(req: NextRequest): Promise<Response> {
@@ -100,66 +97,47 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       return badRequest("Must provide settings or credentials to update")
     }
 
-    // Get current user data
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { settings: true, credentials: true },
     })
 
-    const currentSettings = (user?.settings as StoredSettings) ?? {}
-    const currentCredentials = (user?.credentials as StoredCredentials) ?? {}
+    const newSettings: Settings = body.settings
+      ? { ...readSettings(user?.settings), ...body.settings }
+      : readSettings(user?.settings)
 
-    // Merge settings
-    const newSettings: StoredSettings = body.settings
-      ? { ...currentSettings, ...body.settings }
-      : currentSettings
+    // Normalize legacy keys to the new shape on read; this auto-upgrades the
+    // row's storage format on the next write.
+    const newCredentials = normalizeStoredCredentials(
+      user?.credentials as Record<string, unknown> | null
+    )
 
-    // Merge and encrypt credentials
-    let newCredentials: StoredCredentials = currentCredentials
     if (body.credentials) {
-      newCredentials = { ...currentCredentials }
-
-      // Only update credentials that are provided
-      // Empty string means "clear this credential"
-      // The literal "***" is the UI mask for an existing key — never a real
-      // credential value. Reject defensively in case a stale client sends it.
       for (const [key, value] of Object.entries(body.credentials)) {
+        if (!isCredentialId(key)) continue
+        // The literal "***" is the UI mask for an existing key — never a real
+        // credential value. Reject defensively in case a stale client sends it.
         if (value === "***") continue
-        if (value === "") {
-          // Clear the credential
-          delete newCredentials[key as keyof StoredCredentials]
-        } else if (value) {
-          // Encrypt and store
-          newCredentials[key as keyof StoredCredentials] = encrypt(value)
+        if (value === "" || value === undefined) {
+          delete newCredentials[key]
+        } else if (typeof value === "string") {
+          newCredentials[key] = encrypt(value)
         }
       }
     }
 
-    // Update user
     await prisma.user.update({
       where: { id: userId },
       data: {
-        settings: newSettings as Prisma.InputJsonValue,
-        credentials: newCredentials as Prisma.InputJsonValue,
+        settings: newSettings as unknown as Prisma.InputJsonValue,
+        credentials: newCredentials as unknown as Prisma.InputJsonValue,
       },
     })
 
-    // Return updated state (same format as GET)
     const response: SettingsResponse = {
-      settings: {
-        defaultAgent: newSettings.defaultAgent ?? "opencode",
-        defaultModel: newSettings.defaultModel ?? "opencode/big-pickle",
-        theme: newSettings.theme ?? "system",
-      },
-      credentialFlags: {
-        hasAnthropicApiKey: !!newCredentials.anthropicApiKey,
-        hasAnthropicAuthToken: !!newCredentials.anthropicAuthToken,
-        hasOpenaiApiKey: !!newCredentials.openaiApiKey,
-        hasOpencodeApiKey: !!newCredentials.opencodeApiKey,
-        hasGeminiApiKey: !!newCredentials.geminiApiKey,
-      },
+      settings: newSettings,
+      credentialFlags: buildFlags(newCredentials),
     }
-
     return Response.json(response)
   } catch (error) {
     return internalError(error)

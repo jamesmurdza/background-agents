@@ -63,6 +63,7 @@ export default function HomePage() {
     currentChat,
     currentChatId,
     settings,
+    credentialFlags,
     isHydrated,
     deletingChatIds,
     unseenChatIds,
@@ -872,6 +873,7 @@ export default function HomePage() {
               <ChatPanel
                 chat={displayCurrentChat}
                 settings={settings}
+                credentialFlags={credentialFlags}
                 onSendMessage={handleSendMessage}
                 onEnqueueMessage={enqueueMessage}
                 onRemoveQueuedMessage={removeQueuedMessage}
@@ -967,13 +969,14 @@ export default function HomePage() {
       />
 
         <SettingsModal
-        open={settingsOpen}
-        onClose={handleCloseSettings}
-        settings={settings}
-        onSave={updateSettings}
-        highlightKey={settingsHighlightKey}
-        isMobile={isMobile}
-      />
+          open={settingsOpen}
+          onClose={handleCloseSettings}
+          settings={settings}
+          credentialFlags={credentialFlags}
+          onSave={updateSettings}
+          highlightKey={settingsHighlightKey}
+          isMobile={isMobile}
+        />
 
       {/* Git Dialogs - now use API calls instead of pasting git commands */}
       <MergeDialog

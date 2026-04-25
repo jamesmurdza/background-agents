@@ -7,6 +7,7 @@
  */
 
 import type { Chat, Message, Settings } from "@/lib/types"
+import type { Credentials, CredentialFlags } from "@/lib/credentials"
 
 // =============================================================================
 // Types
@@ -52,18 +53,8 @@ export interface ChatWithMessagesResponse extends ChatResponse {
 }
 
 export interface SettingsResponse {
-  settings: {
-    defaultAgent: string
-    defaultModel: string
-    theme: "light" | "dark" | "system"
-  }
-  credentialFlags: {
-    hasAnthropicApiKey: boolean
-    hasAnthropicAuthToken: boolean
-    hasOpenaiApiKey: boolean
-    hasOpencodeApiKey: boolean
-    hasGeminiApiKey: boolean
-  }
+  settings: Settings
+  credentialFlags: CredentialFlags
 }
 
 // =============================================================================
@@ -195,18 +186,8 @@ export async function fetchSettings(): Promise<SettingsResponse> {
  * Update user settings
  */
 export async function updateSettings(data: {
-  settings?: Partial<{
-    defaultAgent: string
-    defaultModel: string
-    theme: "light" | "dark" | "system"
-  }>
-  credentials?: Partial<{
-    anthropicApiKey: string
-    anthropicAuthToken: string
-    openaiApiKey: string
-    opencodeApiKey: string
-    geminiApiKey: string
-  }>
+  settings?: Partial<Settings>
+  credentials?: Credentials
 }): Promise<SettingsResponse> {
   return fetchApi<SettingsResponse>("/api/user/settings", {
     method: "PATCH",
@@ -263,23 +244,3 @@ export function toMessageType(serverMessage: MessageResponse): Message {
   }
 }
 
-/**
- * Convert server settings to client Settings type
- */
-export function toSettingsType(
-  serverSettings: SettingsResponse["settings"],
-  credentialFlags: SettingsResponse["credentialFlags"]
-): Settings {
-  return {
-    defaultAgent: serverSettings.defaultAgent,
-    defaultModel: serverSettings.defaultModel,
-    theme: serverSettings.theme,
-    // Client doesn't store actual credentials - they're server-side only
-    // These are empty strings, actual values are passed from server during execution
-    anthropicApiKey: credentialFlags.hasAnthropicApiKey ? "***" : "",
-    anthropicAuthToken: credentialFlags.hasAnthropicAuthToken ? "***" : "",
-    openaiApiKey: credentialFlags.hasOpenaiApiKey ? "***" : "",
-    opencodeApiKey: credentialFlags.hasOpencodeApiKey ? "***" : "",
-    geminiApiKey: credentialFlags.hasGeminiApiKey ? "***" : "",
-  }
-}

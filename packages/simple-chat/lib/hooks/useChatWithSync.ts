@@ -19,6 +19,7 @@ import { useSession } from "next-auth/react"
 import { nanoid } from "nanoid"
 import type { AppState, Chat, ChatStatus, Message, QueuedMessage, Settings, SSEUpdateEvent, SSECompleteEvent } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
+import type { Credentials } from "@/lib/credentials"
 import { generateBranchName } from "@/lib/utils"
 import {
   // Local state (device-specific)
@@ -37,6 +38,8 @@ import {
   updateCacheMessages,
   updateCacheLastMessage,
   updateCacheSettings,
+  updateCacheCredentialFlags,
+  DEFAULT_SETTINGS,
   // Merge utilities
   mergeChats,
   mergeMessages,
@@ -53,7 +56,6 @@ import {
   updateSettings as apiUpdateSettings,
   toChatType,
   toMessageType,
-  toSettingsType,
 } from "@/lib/sync/api"
 import { useStreamStore } from "@/lib/stores/stream-store"
 
@@ -61,22 +63,11 @@ import { useStreamStore } from "@/lib/stores/stream-store"
 const SSE_RECONNECT_DELAY = 1000
 const SSE_MAX_RECONNECT_ATTEMPTS = 10
 
-// Default empty state for SSR
-const DEFAULT_SETTINGS: Settings = {
-  anthropicApiKey: "",
-  anthropicAuthToken: "",
-  openaiApiKey: "",
-  opencodeApiKey: "",
-  geminiApiKey: "",
-  defaultAgent: "opencode",
-  defaultModel: "opencode/big-pickle",
-  theme: "system",
-}
-
 const DEFAULT_STATE: AppState = {
   currentChatId: null,
   chats: [],
   settings: DEFAULT_SETTINGS,
+  credentialFlags: {},
 }
 
 export function useChatWithSync() {
@@ -126,12 +117,14 @@ export function useChatWithSync() {
           currentChatId: localState.currentChatId,
           chats: mergeChats(prev.chats, chatsWithLocalState),
           settings: cache.settings,
+          credentialFlags: cache.credentialFlags,
         }
       }
       return {
         currentChatId: localState.currentChatId,
         chats: chatsWithLocalState,
         settings: cache.settings,
+        credentialFlags: cache.credentialFlags,
       }
     })
     setIsHydrated(true)
@@ -153,10 +146,8 @@ export function useChatWithSync() {
 
         // Convert to client types
         const incomingChats = serverChats.map(toChatType)
-        const settings = toSettingsType(
-          serverSettings.settings,
-          serverSettings.credentialFlags
-        )
+        const settings = serverSettings.settings
+        const credentialFlags = serverSettings.credentialFlags
 
         // Merge with local state using ID-based merging
         // This ensures streaming content (with more data) wins over stale server data
@@ -170,6 +161,7 @@ export function useChatWithSync() {
         // Update cache
         updateCacheChats(incomingChats)
         updateCacheSettings(settings)
+        updateCacheCredentialFlags(credentialFlags)
 
         // Update state with ID-based merging
         // Local state with more content wins over server state
@@ -177,6 +169,7 @@ export function useChatWithSync() {
           ...prev,
           chats: mergeChats(prev.chats, incomingWithLocal),
           settings,
+          credentialFlags,
         }))
 
         // Load messages for current chat using merge
@@ -463,34 +456,20 @@ export function useChatWithSync() {
   // Settings (Server-First)
   // =============================================================================
 
-  const updateSettings = useCallback(async (
-    settings: Partial<Settings>
-  ): Promise<{ ok: boolean; error?: string }> => {
+  const updateSettings = useCallback(async (data: {
+    settings?: Partial<Settings>
+    credentials?: Credentials
+  }): Promise<{ ok: boolean; error?: string }> => {
     try {
-      // Separate settings from credentials
-      const { anthropicApiKey, anthropicAuthToken, openaiApiKey, opencodeApiKey, geminiApiKey, ...otherSettings } = settings
+      const response = await apiUpdateSettings(data)
 
-      const credentials: Record<string, string> = {}
-      if (anthropicApiKey !== undefined) credentials.anthropicApiKey = anthropicApiKey
-      if (anthropicAuthToken !== undefined) credentials.anthropicAuthToken = anthropicAuthToken
-      if (openaiApiKey !== undefined) credentials.openaiApiKey = openaiApiKey
-      if (opencodeApiKey !== undefined) credentials.opencodeApiKey = opencodeApiKey
-      if (geminiApiKey !== undefined) credentials.geminiApiKey = geminiApiKey
+      updateCacheSettings(response.settings)
+      updateCacheCredentialFlags(response.credentialFlags)
 
-      const response = await apiUpdateSettings({
-        settings: Object.keys(otherSettings).length > 0 ? otherSettings : undefined,
-        credentials: Object.keys(credentials).length > 0 ? credentials : undefined,
-      })
-
-      const newSettings = toSettingsType(response.settings, response.credentialFlags)
-
-      // Update cache
-      updateCacheSettings(newSettings)
-
-      // Update state
       setState((prev) => ({
         ...prev,
-        settings: newSettings,
+        settings: response.settings,
+        credentialFlags: response.credentialFlags,
       }))
 
       return { ok: true }
@@ -1143,6 +1122,7 @@ export function useChatWithSync() {
     currentChat,
     currentChatId: state.currentChatId,
     settings: state.settings,
+    credentialFlags: state.credentialFlags,
     isHydrated,
     isLoading,
     deletingChatIds,

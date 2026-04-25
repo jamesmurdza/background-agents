@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Chat, Settings, Agent, ModelOption, PendingFile } from "@/lib/types"
+import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
-import { getCredentialFlags } from "@/lib/storage"
+import { toLegacyFlags } from "@/lib/credentials"
 import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
 import { MessageBubble } from "./MessageBubble"
 import { AgentIcon } from "./icons/agent-icons"
@@ -19,6 +19,7 @@ import type { HighlightKey } from "./modals/SettingsModal"
 interface ChatPanelProps {
   chat: Chat | null
   settings: Settings
+  credentialFlags: CredentialFlags
   onSendMessage: (message: string, agent: string, model: string, files?: File[]) => void
   onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
@@ -48,7 +49,7 @@ interface ChatPanelProps {
   canBranch?: boolean
 }
 
-export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -80,14 +81,14 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
   const currentAgent = (chat?.agent || settings.defaultAgent) as Agent
   const currentModel = chat?.model || settings.defaultModel
 
-  // Get credential flags based on current settings
-  const credentialFlags = useMemo(() => getCredentialFlags(settings), [settings])
+  // Adapt our flat credential flags to the legacy shape consumed by hasCredentialsForModel.
+  const legacyFlags = useMemo(() => toLegacyFlags(credentialFlags), [credentialFlags])
 
   // Check if the selected model has required credentials
   const availableModels = agentModels[currentAgent] ?? []
   const selectedModelConfig = availableModels.find(m => m.value === currentModel)
   const hasRequiredCredentials = selectedModelConfig
-    ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
+    ? hasCredentialsForModel(selectedModelConfig, legacyFlags, currentAgent)
     : true
 
   // Conflict state
@@ -366,7 +367,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
 
       // Check if the new model requires credentials we don't have
       const newModelConfig = models.find(m => m.value === newModel)
-      if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, agent)) {
+      if (newModelConfig && !hasCredentialsForModel(newModelConfig, legacyFlags, agent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
         if (requiredKey && requiredKey !== "none" && onOpenSettings) {
@@ -384,7 +385,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
 
       // Check if the new model requires credentials we don't have
       const newModelConfig = availableModels.find(m => m.value === model)
-      if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, currentAgent)) {
+      if (newModelConfig && !hasCredentialsForModel(newModelConfig, legacyFlags, currentAgent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
         if (requiredKey && requiredKey !== "none" && onOpenSettings) {
@@ -450,7 +451,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
 
   // Prepare model options for mobile bottom sheet
   const modelOptions = availableModels.map((model: ModelOption) => {
-    const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
+    const modelHasCredentials = hasCredentialsForModel(model, legacyFlags, currentAgent)
     const needsKey = model.requiresKey !== "none" && !modelHasCredentials
     return {
       value: model.value,
@@ -776,7 +777,7 @@ export function ChatPanel({ chat, settings, onSendMessage, onEnqueueMessage, onR
               {showModelDropdown && (
                 <div className="absolute bottom-full right-0 mb-1 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-52">
                   {availableModels.map((model: ModelOption) => {
-                    const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
+                    const modelHasCredentials = hasCredentialsForModel(model, legacyFlags, currentAgent)
                     const needsKey = model.requiresKey !== "none" && !modelHasCredentials
                     return (
                       <button

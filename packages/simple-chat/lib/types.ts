@@ -131,26 +131,20 @@ export interface QueuedMessage {
 export type Theme = "light" | "dark" | "system"
 
 export interface Settings {
-  // API keys for various providers
-  anthropicApiKey: string
-  /** Claude subscription OAuth token (the JSON blob printed by `security find-generic-password -s "Claude Code-credentials" -w`). Takes precedence over anthropicApiKey for the claude-code agent. */
-  anthropicAuthToken: string
-  openaiApiKey: string
-  opencodeApiKey: string
-  geminiApiKey: string
-
-  // Default agent/model selection
   defaultAgent: string
   defaultModel: string
-
-  // UI preferences
   theme: Theme
 }
+
+export type { CredentialId, Credentials, CredentialFlags } from "./credentials"
+
+import type { CredentialFlags } from "./credentials"
 
 export interface AppState {
   currentChatId: string | null
   chats: Chat[]
   settings: Settings
+  credentialFlags: CredentialFlags
 }
 
 // Re-export GitHub types from common

@@ -3,12 +3,17 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, ChevronDown, Settings as SettingsIcon, Terminal, Copy, Check } from "lucide-react"
+import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon, Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
-import type { Settings, Theme, Agent, ModelOption } from "@/lib/types"
+import type { Settings, Theme, Agent, ModelOption, Credentials, CredentialFlags } from "@/lib/types"
 import { agentModels, agentLabels, hasCredentialsForModel } from "@/lib/types"
-import { getCredentialFlags } from "@/lib/storage"
+import {
+  CREDENTIAL_KEYS,
+  toLegacyFlags,
+  type CredentialId,
+  type ProviderId,
+} from "@/lib/credentials"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -19,15 +24,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-/** Which API key field to highlight */
-export type HighlightKey = "anthropic" | "openai" | "opencode" | "gemini" | null
+/** Which provider's API key field to highlight */
+export type HighlightKey = ProviderId | null
 
 interface SettingsModalProps {
   open: boolean
   onClose: () => void
   settings: Settings
-  onSave: (settings: Partial<Settings>) => Promise<{ ok: boolean; error?: string }>
-  /** Which API key field to highlight with a red outline */
+  credentialFlags: CredentialFlags
+  onSave: (data: {
+    settings?: Partial<Settings>
+    credentials?: Credentials
+  }) => Promise<{ ok: boolean; error?: string }>
+  /** Which provider's first API key field to highlight with a red outline */
   highlightKey?: HighlightKey
   isMobile?: boolean
 }
@@ -49,6 +58,17 @@ const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
 ]
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
+
+const MASK = "***"
+
+/** Initial input values: "***" for credentials the server already has, "" otherwise. */
+function initialCredValues(flags: CredentialFlags): Record<CredentialId, string> {
+  const out = {} as Record<CredentialId, string>
+  for (const { id } of CREDENTIAL_KEYS) {
+    out[id] = flags[id] ? MASK : ""
+  }
+  return out
+}
 
 // A single settings row: label + optional description on the left, control on the right.
 // Pass `stacked` when the control is tall (e.g. textarea) — then the control goes below.
@@ -97,7 +117,7 @@ function PasswordInput({
   onChange: (v: string) => void
   placeholder?: string
   highlight?: boolean
-  inputRef?: React.RefObject<HTMLInputElement | null>
+  inputRef?: (el: HTMLInputElement | null) => void
 }) {
   const [show, setShow] = useState(false)
   return (
@@ -150,22 +170,25 @@ function CopyCode({ text }: { text: string }) {
   )
 }
 
-export function SettingsModal({ open, onClose, settings, onSave, highlightKey, isMobile = false }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, isMobile = false }: SettingsModalProps) {
   const { setTheme } = useTheme()
 
-  // Refs for API key inputs
-  const anthropicInputRef = useRef<HTMLInputElement>(null)
-  const openaiInputRef = useRef<HTMLInputElement>(null)
-  const opencodeInputRef = useRef<HTMLInputElement>(null)
-  const geminiInputRef = useRef<HTMLInputElement>(null)
+  // Refs for API key inputs, keyed by credential id.
+  const inputRefs = useRef<Partial<Record<CredentialId, HTMLInputElement | HTMLTextAreaElement | null>>>({})
+  const setInputRef = useCallback(
+    (id: CredentialId) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+      inputRefs.current[id] = el
+    },
+    []
+  )
   const contentRef = useRef<HTMLDivElement>(null)
 
   // Form state
-  const [anthropicApiKey, setAnthropicApiKey] = useState(settings.anthropicApiKey)
-  const [anthropicAuthToken, setAnthropicAuthToken] = useState(settings.anthropicAuthToken)
-  const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey)
-  const [opencodeApiKey, setOpencodeApiKey] = useState(settings.opencodeApiKey)
-  const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey)
+  const [credValues, setCredValues] = useState<Record<CredentialId, string>>(() =>
+    initialCredValues(credentialFlags)
+  )
+  const initialCreds = useMemo(() => initialCredValues(credentialFlags), [credentialFlags])
+
   const [defaultAgent, setDefaultAgent] = useState<Agent>(settings.defaultAgent as Agent)
   const [defaultModel, setDefaultModel] = useState(settings.defaultModel)
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
@@ -177,17 +200,16 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
   const [startY, setStartY] = useState(0)
   const [startTime, setStartTime] = useState(0)
 
-  // Get current credentials based on form values
-  const currentCredentials = useMemo(() => {
-    return getCredentialFlags({
-      ...settings,
-      anthropicApiKey,
-      anthropicAuthToken,
-      openaiApiKey,
-      opencodeApiKey,
-      geminiApiKey,
-    })
-  }, [anthropicApiKey, anthropicAuthToken, openaiApiKey, opencodeApiKey, geminiApiKey, settings])
+  // Flags reflecting the current form state — a typed value or "***" mask
+  // both count as "credential present" for model availability checks.
+  const liveFlags = useMemo<CredentialFlags>(() => {
+    const out: CredentialFlags = {}
+    for (const { id } of CREDENTIAL_KEYS) {
+      out[id] = !!credValues[id]
+    }
+    return out
+  }, [credValues])
+  const liveLegacyFlags = useMemo(() => toLegacyFlags(liveFlags), [liveFlags])
 
   // Get available models for the selected agent
   const availableModels = useMemo(() => {
@@ -197,17 +219,13 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      setAnthropicApiKey(settings.anthropicApiKey)
-      setAnthropicAuthToken(settings.anthropicAuthToken)
-      setOpenaiApiKey(settings.openaiApiKey)
-      setOpencodeApiKey(settings.opencodeApiKey)
-      setGeminiApiKey(settings.geminiApiKey)
+      setCredValues(initialCredValues(credentialFlags))
       setDefaultAgent(settings.defaultAgent as Agent)
       setDefaultModel(settings.defaultModel)
       setSelectedTheme(settings.theme)
       setDragY(0)
     }
-  }, [open, settings])
+  }, [open, settings, credentialFlags])
 
   // Switch to API Keys tab when a key is highlighted
   useEffect(() => {
@@ -219,18 +237,13 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
   // Focus the highlighted API key field when modal opens
   useEffect(() => {
     if (open && highlightKey) {
-      // Small delay to ensure modal is rendered
+      const target = CREDENTIAL_KEYS.find((c) => c.provider === highlightKey)
+      if (!target) return
       const timer = setTimeout(() => {
-        const refMap = {
-          anthropic: anthropicInputRef,
-          openai: openaiInputRef,
-          opencode: opencodeInputRef,
-          gemini: geminiInputRef,
-        }
-        const ref = refMap[highlightKey]
-        if (ref?.current) {
-          ref.current.scrollIntoView({ behavior: "smooth", block: "center" })
-          ref.current.focus()
+        const el = inputRefs.current[target.id]
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" })
+          el.focus()
         }
       }, 100)
       return () => clearTimeout(timer)
@@ -303,40 +316,49 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
     | { kind: "error"; message: string }
   >({ kind: "idle" })
 
+  const credChanged = useMemo(() => {
+    for (const { id } of CREDENTIAL_KEYS) {
+      if (credValues[id] !== initialCreds[id]) return true
+    }
+    return false
+  }, [credValues, initialCreds])
+
+  const settingsChanged =
+    defaultAgent !== settings.defaultAgent ||
+    defaultModel !== settings.defaultModel ||
+    selectedTheme !== settings.theme
+
+  const hasChanges = credChanged || settingsChanged
+
   const handleSave = async () => {
     if (saveStatus.kind === "saving") return
 
-    // Only send credential fields the user actually changed. The form
-    // initializes credential state to the masked placeholder ("***") for
-    // any key the server has on file; sending that back as a value would
-    // overwrite the real key with the literal string "***".
-    const changed: Partial<Settings> = {}
-    if (anthropicApiKey !== settings.anthropicApiKey) {
-      changed.anthropicApiKey = anthropicApiKey
-    }
-    if (anthropicAuthToken !== settings.anthropicAuthToken) {
-      changed.anthropicAuthToken = anthropicAuthToken
-    }
-    if (openaiApiKey !== settings.openaiApiKey) {
-      changed.openaiApiKey = openaiApiKey
-    }
-    if (opencodeApiKey !== settings.opencodeApiKey) {
-      changed.opencodeApiKey = opencodeApiKey
-    }
-    if (geminiApiKey !== settings.geminiApiKey) {
-      changed.geminiApiKey = geminiApiKey
-    }
-    if (defaultAgent !== settings.defaultAgent) changed.defaultAgent = defaultAgent
-    if (defaultModel !== settings.defaultModel) changed.defaultModel = defaultModel
-    if (selectedTheme !== settings.theme) changed.theme = selectedTheme
+    const settingsPatch: Partial<Settings> = {}
+    if (defaultAgent !== settings.defaultAgent) settingsPatch.defaultAgent = defaultAgent
+    if (defaultModel !== settings.defaultModel) settingsPatch.defaultModel = defaultModel
+    if (selectedTheme !== settings.theme) settingsPatch.theme = selectedTheme
 
-    if (Object.keys(changed).length === 0) {
+    // Only send credential fields the user actually changed. Sending the
+    // mask back ("***") would otherwise overwrite the real key.
+    const credentialsPatch: Credentials = {}
+    for (const { id } of CREDENTIAL_KEYS) {
+      const next = credValues[id]
+      if (next === initialCreds[id]) continue
+      if (next === MASK) continue
+      credentialsPatch[id] = next
+    }
+
+    const data: Parameters<typeof onSave>[0] = {}
+    if (Object.keys(settingsPatch).length > 0) data.settings = settingsPatch
+    if (Object.keys(credentialsPatch).length > 0) data.credentials = credentialsPatch
+
+    if (Object.keys(data).length === 0) {
       onClose()
       return
     }
 
     setSaveStatus({ kind: "saving" })
-    const result = await onSave(changed)
+    const result = await onSave(data)
     if (result.ok) {
       setSaveStatus({ kind: "saved" })
       setTimeout(() => {
@@ -351,15 +373,9 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
     }
   }
 
-  const hasChanges =
-    anthropicApiKey !== settings.anthropicApiKey ||
-    anthropicAuthToken !== settings.anthropicAuthToken ||
-    openaiApiKey !== settings.openaiApiKey ||
-    opencodeApiKey !== settings.opencodeApiKey ||
-    geminiApiKey !== settings.geminiApiKey ||
-    defaultAgent !== settings.defaultAgent ||
-    defaultModel !== settings.defaultModel ||
-    selectedTheme !== settings.theme
+  const setCredValue = useCallback((id: CredentialId, value: string) => {
+    setCredValues((prev) => ({ ...prev, [id]: value }))
+  }, [])
 
   // Section content blocks (reused across desktop and mobile layouts)
   const generalSection = (
@@ -391,7 +407,7 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
           </SelectTrigger>
           <SelectContent>
             {availableModels.map((model: ModelOption) => {
-              const hasCredentials = hasCredentialsForModel(model, currentCredentials, defaultAgent)
+              const hasCredentials = hasCredentialsForModel(model, liveLegacyFlags, defaultAgent)
               return (
                 <SelectItem key={model.value} value={model.value}>
                   {model.label}
@@ -424,82 +440,62 @@ export function SettingsModal({ open, onClose, settings, onSave, highlightKey, i
           API Keys
         </h3>
       )}
-      <SettingsRow
-        label="Anthropic"
-        description={renderHelpLink("https://console.anthropic.com/")}
-      >
-        <PasswordInput
-          value={anthropicApiKey}
-          onChange={setAnthropicApiKey}
-          placeholder="sk-ant-..."
-          highlight={highlightKey === "anthropic"}
-          inputRef={anthropicInputRef}
-        />
-      </SettingsRow>
-      <SettingsRow
-        label="Claude Subscription"
-        description="Claude Code only."
-        stacked
-      >
-        <Textarea
-          value={anthropicAuthToken}
-          onChange={(e) => setAnthropicAuthToken(e.target.value)}
-          placeholder='{"claudeAiOauth":{"token_type":"bearer",...}}'
-          rows={3}
-          autoComplete="off"
-          spellCheck={false}
-          data-lpignore="true"
-          data-1p-ignore="true"
-          data-bwignore="true"
-          data-form-type="other"
-          className="font-mono text-xs"
-        />
-        <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-          <p>
-            First sign in with <CopyCode text="claude auth login" />
-          </p>
-          <p>
-            Then paste the output of{" "}
-            <CopyCode text={'security find-generic-password -s "Claude Code-credentials" -w'} />
-          </p>
-        </div>
-      </SettingsRow>
-      <SettingsRow
-        label="OpenAI"
-        description={renderHelpLink("https://platform.openai.com/api-keys")}
-      >
-        <PasswordInput
-          value={openaiApiKey}
-          onChange={setOpenaiApiKey}
-          placeholder="sk-..."
-          highlight={highlightKey === "openai"}
-          inputRef={openaiInputRef}
-        />
-      </SettingsRow>
-      <SettingsRow
-        label="OpenCode"
-        description={renderHelpLink("https://opencode.ai/auth")}
-      >
-        <PasswordInput
-          value={opencodeApiKey}
-          onChange={setOpencodeApiKey}
-          placeholder="..."
-          highlight={highlightKey === "opencode"}
-          inputRef={opencodeInputRef}
-        />
-      </SettingsRow>
-      <SettingsRow
-        label="Google AI (Gemini)"
-        description={renderHelpLink("https://aistudio.google.com/apikey")}
-      >
-        <PasswordInput
-          value={geminiApiKey}
-          onChange={setGeminiApiKey}
-          placeholder="..."
-          highlight={highlightKey === "gemini"}
-          inputRef={geminiInputRef}
-        />
-      </SettingsRow>
+      {CREDENTIAL_KEYS.map((field) => {
+        const isHighlighted =
+          highlightKey === field.provider &&
+          // Highlight only the first field for the matching provider.
+          CREDENTIAL_KEYS.find((c) => c.provider === field.provider)?.id === field.id
+        const value = credValues[field.id]
+        const description = field.description
+          ? field.description
+          : field.helpUrl
+          ? renderHelpLink(field.helpUrl)
+          : undefined
+
+        if (field.multiline) {
+          return (
+            <SettingsRow key={field.id} label={field.label} description={description} stacked>
+              <Textarea
+                ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
+                value={value}
+                onChange={(e) => setCredValue(field.id, e.target.value)}
+                placeholder={field.placeholder}
+                rows={3}
+                autoComplete="off"
+                spellCheck={false}
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                data-form-type="other"
+                className="font-mono text-xs"
+              />
+              {field.id === "CLAUDE_CODE_CREDENTIALS" && (
+                <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                  <p>
+                    First sign in with <CopyCode text="claude auth login" />
+                  </p>
+                  <p>
+                    Then paste the output of{" "}
+                    <CopyCode text={'security find-generic-password -s "Claude Code-credentials" -w'} />
+                  </p>
+                </div>
+              )}
+            </SettingsRow>
+          )
+        }
+
+        return (
+          <SettingsRow key={field.id} label={field.label} description={description}>
+            <PasswordInput
+              value={value}
+              onChange={(v) => setCredValue(field.id, v)}
+              placeholder={field.placeholder}
+              highlight={isHighlighted}
+              inputRef={setInputRef(field.id) as (el: HTMLInputElement | null) => void}
+            />
+          </SettingsRow>
+        )
+      })}
     </div>
   )
 
