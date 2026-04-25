@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus } from "lucide-react"
+import { Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus, X } from "lucide-react"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -26,6 +26,8 @@ interface RepoPickerModalProps {
   /** Pre-selected repo - when provided, modal opens directly to branch selection.
    *  Used when user selects a repo from the command menu. */
   preselectedRepo?: GitHubRepo | null
+  /** Current repo full name (e.g., "owner/repo") to show which repo is selected */
+  currentRepo?: string | null
 }
 
 // Slugify a chat title into a GitHub-friendly repo name: lowercase, hyphenated,
@@ -44,7 +46,7 @@ type Tab = "select" | "create"
 
 const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
-export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mode, suggestedName = null, onRequestCreate, preselectedRepo = null }: RepoPickerModalProps) {
+export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mode, suggestedName = null, onRequestCreate, preselectedRepo = null, currentRepo = null }: RepoPickerModalProps) {
   const allowSelect = mode === "select"
   const allowCreate = mode === "create"
   const isBranchOnly = mode === "branch-only"
@@ -487,43 +489,52 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
                     No repositories found
                   </div>
                 ) : (
-                  filteredRepos.map((repo, index) => (
-                    <button
-                      key={repo.id}
-                      onClick={() => handleSelectRepo(repo)}
-                      className={cn(
-                        "flex items-center gap-3 w-full rounded-lg hover:bg-accent active:bg-accent transition-colors text-left touch-target",
-                        isMobile ? "px-4 py-4" : "px-3 py-2",
-                        index === selectedRepoIndex && "bg-accent"
-                      )}
-                    >
-                      {repo.private ? (
-                        <Lock className={cn(
-                          "text-muted-foreground shrink-0",
-                          isMobile ? "h-5 w-5" : "h-4 w-4"
-                        )} />
-                      ) : (
-                        <Globe className={cn(
-                          "text-muted-foreground shrink-0",
-                          isMobile ? "h-5 w-5" : "h-4 w-4"
-                        )} />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className={cn(
-                          "font-medium truncate",
-                          isMobile ? "text-base" : "text-sm"
-                        )}>
-                          {repo.full_name}
+                  filteredRepos.map((repo, index) => {
+                    const isSelected = currentRepo === repo.full_name
+                    return (
+                      <button
+                        key={repo.id}
+                        onClick={() => handleSelectRepo(repo)}
+                        className={cn(
+                          "flex items-center gap-3 w-full rounded-lg hover:bg-accent active:bg-accent transition-colors text-left touch-target",
+                          isMobile ? "px-4 py-4" : "px-3 py-2",
+                          index === selectedRepoIndex && "bg-accent"
+                        )}
+                      >
+                        {isSelected && (
+                          <X className={cn(
+                            "text-primary shrink-0",
+                            isMobile ? "h-5 w-5" : "h-4 w-4"
+                          )} />
+                        )}
+                        {repo.private ? (
+                          <Lock className={cn(
+                            "text-muted-foreground shrink-0",
+                            isMobile ? "h-5 w-5" : "h-4 w-4"
+                          )} />
+                        ) : (
+                          <Globe className={cn(
+                            "text-muted-foreground shrink-0",
+                            isMobile ? "h-5 w-5" : "h-4 w-4"
+                          )} />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className={cn(
+                            "font-medium truncate",
+                            isMobile ? "text-base" : "text-sm"
+                          )}>
+                            {repo.full_name}
+                          </div>
+                          <div className={cn(
+                            "text-muted-foreground",
+                            isMobile ? "text-sm" : "text-xs"
+                          )}>
+                            Default: {repo.default_branch}
+                          </div>
                         </div>
-                        <div className={cn(
-                          "text-muted-foreground",
-                          isMobile ? "text-sm" : "text-xs"
-                        )}>
-                          Default: {repo.default_branch}
-                        </div>
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    )
+                  })
                 )}
               </div>
             )}
