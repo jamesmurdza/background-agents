@@ -19,6 +19,7 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
+import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel } from "@upstream/common"
 import {
   createSandboxForChat,
@@ -117,7 +118,36 @@ export async function POST(
   const session = await getServerSession(authOptions)
   const githubToken = session?.accessToken
 
-  const credentials = await getUserCredentials(userId)
+  let credentials = await getUserCredentials(userId)
+
+  // Shared-pool fallback: when Claude Code is selected and the user hasn't
+  // stored their own subscription token, inject the rotating credential blob
+  // written by /api/cron/refresh-claude-creds.
+  if (
+    payload.agent === "claude-code" &&
+    !credentials.CLAUDE_CODE_CREDENTIALS
+  ) {
+    try {
+      credentials = {
+        ...credentials,
+        CLAUDE_CODE_CREDENTIALS: await getClaudeCredentials(),
+      }
+    } catch (err) {
+      console.error(
+        "[chats/messages] Failed to fetch shared Claude credential:",
+        err
+      )
+      return Response.json(
+        {
+          error: "SHARED_CREDS_UNAVAILABLE",
+          message:
+            "Shared Claude credentials are unavailable. Add your own Claude Subscription token in Settings.",
+        },
+        { status: 503 }
+      )
+    }
+  }
+
   const daytona = new Daytona({ apiKey: daytonaApiKey })
 
   let sandboxId = chat.sandboxId

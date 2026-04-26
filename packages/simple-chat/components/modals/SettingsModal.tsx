@@ -468,8 +468,9 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
               />
               {field.id === "CLAUDE_CODE_CREDENTIALS" && (
                 <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                  <p>Leave empty to use the shared pool.</p>
                   <p>
-                    First sign in with <CopyCode text="claude auth login" />
+                    Or sign in with <CopyCode text="claude auth login" />
                   </p>
                   <p>
                     Then paste the output of{" "}

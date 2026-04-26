@@ -9,7 +9,9 @@
     "start": "next start --port 4000",
     "lint": "eslint .",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:ccauth": "tsx --env-file=.env.local scripts/run-ccauth.ts",
+    "seed:ccauth": "tsx --env-file=.env.local scripts/run-ccauth.ts --seed"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.22",
@@ -59,6 +61,7 @@
     "postcss": "^8.5",
     "prisma": "^7.0.0",
     "tailwindcss": "^4.2.0",
+    "tsx": "^4.21.0",
     "typescript": "5.7.3"
   }
 }

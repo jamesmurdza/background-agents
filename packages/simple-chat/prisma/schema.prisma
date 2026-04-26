@@ -152,3 +152,18 @@ model Message {
   @@index([chatId, timestamp])
   @@index([chatId, id])
 }
+
+// =============================================================================
+// CcAuthInfo - kv blobs managed by ccauth + /api/cron/refresh-claude-creds
+// =============================================================================
+// Two well-known rows:
+//   id="claude-cookies":     { value: "<claude.ai cookies JSON>" }
+//   id="claude-credentials": { value: '{"claudeAiOauth":{...}}' }
+// Stored as text (not JSONB) — we hand the raw string to the agent's
+// CLAUDE_CODE_CREDENTIALS env var without re-serializing.
+
+model CcAuthInfo {
+  id        String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
