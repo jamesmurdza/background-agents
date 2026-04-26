@@ -5,7 +5,7 @@ import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Set
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
-import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel } from "@/lib/types"
+import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
 import { MessageBubble } from "./MessageBubble"
 import { AgentIcon } from "./icons/agent-icons"
@@ -76,9 +76,10 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
-  // Get current agent/model (from chat or settings)
-  const currentAgent = (chat?.agent || settings.defaultAgent) as Agent
-  const currentModel = chat?.model || settings.defaultModel
+  // Get current agent/model (from chat, the user's preference, or auto-resolved
+  // from credential flags). Uses ?? so we don't trip over the empty string.
+  const currentAgent = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+  const currentModel = chat?.model ?? settings.defaultModel ?? getDefaultModelForAgent(currentAgent, credentialFlags)
 
   // Check if the selected model has required credentials
   const availableModels = agentModels[currentAgent] ?? []

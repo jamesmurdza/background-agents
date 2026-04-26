@@ -17,8 +17,8 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { nanoid } from "nanoid"
-import type { AppState, Chat, ChatStatus, Message, QueuedMessage, Settings, SSEUpdateEvent, SSECompleteEvent } from "@/lib/types"
-import { NEW_REPOSITORY } from "@/lib/types"
+import type { AppState, Chat, ChatStatus, Message, QueuedMessage, Settings, SSEUpdateEvent, SSECompleteEvent, Agent } from "@/lib/types"
+import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
 import { generateBranchName } from "@/lib/utils"
 import {
@@ -817,8 +817,8 @@ export function useChatWithSync() {
     if (!session?.accessToken) return
 
     const isFirstMessage = chat.messages.length === 0
-    const selectedAgent = agent || chat.agent || state.settings.defaultAgent
-    const selectedModel = model || chat.model || state.settings.defaultModel
+    const selectedAgent = (agent ?? chat.agent ?? state.settings.defaultAgent ?? getDefaultAgent(state.credentialFlags)) as Agent
+    const selectedModel = model ?? chat.model ?? state.settings.defaultModel ?? getDefaultModelForAgent(selectedAgent, state.credentialFlags)
 
     // Optimistic UI: add user + assistant messages immediately.
     const userMessage: Message = {

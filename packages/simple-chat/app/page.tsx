@@ -19,7 +19,7 @@ import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
-import { NEW_REPOSITORY, type Message, type Chat } from "@/lib/types"
+import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, type Message, type Chat } from "@/lib/types"
 import { fetchRepos, fetchBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github"
 
 // Storage key for pending message (persists across OAuth redirect)
@@ -722,6 +722,8 @@ export default function HomePage() {
   const draftIdRef = useRef<string>(`draft-${nanoid()}`)
   const draftChat: Chat | null = useMemo(() => {
     if (!isHydrated || session || currentChatId) return null
+    const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+    const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
     return {
       id: draftIdRef.current,
       repo: NEW_REPOSITORY,
@@ -729,15 +731,15 @@ export default function HomePage() {
       branch: null,
       sandboxId: null,
       sessionId: null,
-      agent: draftAgent ?? settings.defaultAgent,
-      model: draftModel ?? settings.defaultModel,
+      agent: resolvedAgent,
+      model: resolvedModel,
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       status: "pending",
       displayName: null,
     }
-  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel])
+  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags])
 
   const isDraftMode = !!draftChat
   const displayCurrentChat = isHydrated ? (currentChat ?? draftChat) : null

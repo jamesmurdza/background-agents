@@ -28,8 +28,8 @@ interface SettingsResponse {
 function readSettings(raw: unknown): Settings {
   const s = (raw as Partial<Settings> | null) ?? {}
   return {
-    defaultAgent: s.defaultAgent ?? DEFAULT_SETTINGS.defaultAgent,
-    defaultModel: s.defaultModel ?? DEFAULT_SETTINGS.defaultModel,
+    defaultAgent: s.defaultAgent ?? null,
+    defaultModel: s.defaultModel ?? null,
     theme: s.theme ?? DEFAULT_SETTINGS.theme,
   }
 }

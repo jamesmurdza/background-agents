@@ -157,7 +157,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       flags.CLAUDE_SHARED_POOL_AVAILABLE = true
     }
 
-    const requestedAgent = (body.agent ?? userSettings.defaultAgent ?? "opencode") as Agent
+    const requestedAgent = (body.agent ?? userSettings.defaultAgent ?? getDefaultAgent(flags)) as Agent
     const requestedAgentUsable = (agentModels[requestedAgent] ?? []).some((m) =>
       hasCredentialsForModel(m, flags, requestedAgent)
     )

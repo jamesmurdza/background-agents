@@ -52,8 +52,8 @@ export interface ServerCache {
 // =============================================================================
 
 export const DEFAULT_SETTINGS: Settings = {
-  defaultAgent: "opencode",
-  defaultModel: "opencode/big-pickle",
+  defaultAgent: null,
+  defaultModel: null,
   theme: "system",
 }
 

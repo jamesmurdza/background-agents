@@ -7,7 +7,7 @@ import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon,
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import type { Settings, Theme, Agent, ModelOption, Credentials, CredentialFlags } from "@/lib/types"
-import { agentModels, agentLabels, hasCredentialsForModel, ALL_AGENTS } from "@/lib/types"
+import { agentModels, agentLabels, hasCredentialsForModel, ALL_AGENTS, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import {
   CREDENTIAL_KEYS,
   type CredentialId,
@@ -187,8 +187,20 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   )
   const initialCreds = useMemo(() => initialCredValues(credentialFlags), [credentialFlags])
 
-  const [defaultAgent, setDefaultAgent] = useState<Agent>(settings.defaultAgent as Agent)
-  const [defaultModel, setDefaultModel] = useState(settings.defaultModel)
+  // Resolve null preference against current credential flags so the dropdown
+  // shows whatever new chats would actually use. Snapshotted off saved flags
+  // (not in-form values) so it doesn't drift while the user types keys.
+  const initialDefaultAgent = useMemo<Agent>(
+    () => (settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent,
+    [settings.defaultAgent, credentialFlags]
+  )
+  const initialDefaultModel = useMemo<string>(
+    () => settings.defaultModel ?? getDefaultModelForAgent(initialDefaultAgent, credentialFlags),
+    [settings.defaultModel, initialDefaultAgent, credentialFlags]
+  )
+
+  const [defaultAgent, setDefaultAgent] = useState<Agent>(initialDefaultAgent)
+  const [defaultModel, setDefaultModel] = useState(initialDefaultModel)
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
   const [activeSection, setActiveSection] = useState<SectionKey>("general")
 
@@ -217,12 +229,12 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   useEffect(() => {
     if (open) {
       setCredValues(initialCredValues(credentialFlags))
-      setDefaultAgent(settings.defaultAgent as Agent)
-      setDefaultModel(settings.defaultModel)
+      setDefaultAgent(initialDefaultAgent)
+      setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
       setDragY(0)
     }
-  }, [open, settings, credentialFlags])
+  }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel])
 
   // Switch to API Keys tab when a key is highlighted
   useEffect(() => {
@@ -320,9 +332,11 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     return false
   }, [credValues, initialCreds])
 
+  // Compare against the resolved baseline so picking the same value the auto-
+  // resolver chose doesn't get persisted as an explicit preference.
   const settingsChanged =
-    defaultAgent !== settings.defaultAgent ||
-    defaultModel !== settings.defaultModel ||
+    defaultAgent !== initialDefaultAgent ||
+    defaultModel !== initialDefaultModel ||
     selectedTheme !== settings.theme
 
   const hasChanges = credChanged || settingsChanged
@@ -331,8 +345,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (saveStatus.kind === "saving") return
 
     const settingsPatch: Partial<Settings> = {}
-    if (defaultAgent !== settings.defaultAgent) settingsPatch.defaultAgent = defaultAgent
-    if (defaultModel !== settings.defaultModel) settingsPatch.defaultModel = defaultModel
+    if (defaultAgent !== initialDefaultAgent) settingsPatch.defaultAgent = defaultAgent
+    if (defaultModel !== initialDefaultModel) settingsPatch.defaultModel = defaultModel
     if (selectedTheme !== settings.theme) settingsPatch.theme = selectedTheme
 
     // Only send credential fields the user actually changed. Sending the
