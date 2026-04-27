@@ -266,12 +266,21 @@ function TabBar({
           const isActive = tab.id === activeTabId
           const canClose = isTabClosable(tab)
           return (
-            <button
+            <div
               key={tab.id}
               ref={isActive ? activeTabRef : null}
+              role="tab"
+              tabIndex={0}
+              aria-selected={isActive}
               onClick={() => onSelectTab(tab.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onSelectTab(tab.id)
+                }
+              }}
               className={cn(
-                "group relative flex items-center gap-1.5 px-3 shrink-0 text-xs transition-colors",
+                "group relative flex items-center gap-1.5 px-3 shrink-0 text-xs transition-colors cursor-pointer",
                 "hover:bg-accent/50",
                 isActive
                   ? "bg-background text-foreground"
@@ -288,21 +297,22 @@ function TabBar({
 
               {/* Close button - only for closable tabs */}
               {canClose && (
-                <span
-                  role="button"
+                <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation()
                     onCloseTab(tab.id)
                   }}
                   className={cn(
-                    "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity",
+                    "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity cursor-pointer",
                     isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
                   )}
+                  aria-label={`Close ${tab.filename}`}
                 >
                   <X className="h-3 w-3" />
-                </span>
+                </button>
               )}
-            </button>
+            </div>
           )
         })}
       </div>
