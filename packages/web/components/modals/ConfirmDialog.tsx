@@ -54,6 +54,7 @@ export function ConfirmDialog({
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onKeyDown={handleKeyDown}
           className={cn(
             "fixed z-50 bg-popover overflow-hidden flex flex-col",

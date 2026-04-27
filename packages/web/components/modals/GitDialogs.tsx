@@ -157,6 +157,7 @@ function BaseDialog({ open, onClose, title, icon, children, isMobile = false, al
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px]" />
         <Dialog.Content
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
           onKeyDown={handleKeyDown}
           className={cn(

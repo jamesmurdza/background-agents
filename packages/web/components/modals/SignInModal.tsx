@@ -39,6 +39,7 @@ export function SignInModal({ open, onClose, isMobile = false }: SignInModalProp
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
           onKeyDown={handleKeyDown}
           className={cn(
