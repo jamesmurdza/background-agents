@@ -124,9 +124,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   }, [chat?.messages, userHasScrolledUp])
 
   // Focus prompt when switching chats (desktop only)
+  // Use requestAnimationFrame to ensure the DOM is ready after React renders
   useEffect(() => {
     if (!isMobile) {
-      textareaRef.current?.focus()
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus()
+      })
     }
   }, [chat?.id, isMobile])
 
