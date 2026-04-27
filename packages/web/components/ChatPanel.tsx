@@ -123,12 +123,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     }
   }, [chat?.messages, userHasScrolledUp])
 
-  // Focus prompt when switching chats or after sending the first message.
-  // When a new chat starts (status changes to "creating" or "running"), the
-  // component switches from the "welcome" view to the "messages" view, which
-  // remounts the textarea in a different DOM location. We need to re-focus it.
+  // Focus prompt when switching chats or after sandbox creation completes.
+  // While `isCreating` is true the textarea is `disabled`, which causes the
+  // browser to drop focus. Re-focus once it transitions back to enabled.
   useEffect(() => {
     if (isMobile) return
+    if (isCreating) return
     const t = window.setTimeout(() => {
       const el = textareaRef.current
       if (el && document.activeElement !== el) {
@@ -136,7 +136,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
       }
     }, 0)
     return () => window.clearTimeout(t)
-  }, [chat?.id, chat?.status, isMobile])
+  }, [chat?.id, isCreating, isMobile])
 
   // Auto-resize textarea
   useEffect(() => {
