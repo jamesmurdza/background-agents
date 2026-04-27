@@ -320,7 +320,7 @@ export function useChatWithSync() {
     if (!currentChatId) return
     const { previewItem, queuedMessages, queuePaused, ...serverUpdates } = updates
 
-    if (previewItem !== undefined) {
+    if ("previewItem" in updates) {
       setPreviewItem(currentChatId, previewItem)
       setLocalChatState((prev) => ({ ...prev, previewItems: { ...prev.previewItems, [currentChatId]: previewItem } }))
     }
@@ -337,7 +337,7 @@ export function useChatWithSync() {
   const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
     const { previewItem, ...serverUpdates } = updates
 
-    if (previewItem !== undefined) {
+    if ("previewItem" in updates) {
       setPreviewItem(chatId, previewItem)
       setLocalChatState((prev) => ({ ...prev, previewItems: { ...prev.previewItems, [chatId]: previewItem } }))
     }
