@@ -255,7 +255,7 @@ function TabBar({
   }, [activeTabId])
 
   return (
-    <div className="flex items-stretch border-b border-border bg-muted/30 h-8 shrink-0">
+    <div className="flex items-stretch border-b border-border bg-muted/30 h-8 shrink-0 relative z-10">
       {/* Scrollable tabs area */}
       <div
         ref={scrollRef}
@@ -301,10 +301,15 @@ function TabBar({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
+                    e.preventDefault()
                     onCloseTab(tab.id)
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
                   }}
                   className={cn(
                     "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity cursor-pointer",
+                    "border-0 bg-transparent appearance-none",
                     isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
                   )}
                   aria-label={`Close ${tab.filename}`}
