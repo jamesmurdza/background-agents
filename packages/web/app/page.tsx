@@ -578,7 +578,14 @@ export default function HomePage() {
   // collapsed ancestors along the way).
   const treeOrderedChatIds = useMemo(() => {
     // Show empty chats if they have a parentChatId (were branched)
-    const visible = chats.filter((c) => c.messages.length > 0 || c.parentChatId)
+    // Apply the same repo filter as the Sidebar so navigation matches visual order
+    const visible = chats.filter((c) => {
+      const hasMessages = c.messages.length > 0 || (c.messageCount ?? 0) > 0
+      if (!hasMessages && !c.parentChatId) return false
+      if (repoFilter === ALL_REPOSITORIES) return true
+      if (repoFilter === NO_REPOSITORY) return c.repo === NEW_REPOSITORY
+      return c.repo === repoFilter
+    })
     visible.sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
     const visibleIds = new Set(visible.map((c) => c.id))
     const kids = new Map<string, Chat[]>()
@@ -599,7 +606,7 @@ export default function HomePage() {
     }
     for (const r of roots) walk(r)
     return out
-  }, [chats])
+  }, [chats, repoFilter])
 
   const handleRequestMergeChats = useCallback((sourceId: string, targetId?: string) => {
     const source = chats.find((c) => c.id === sourceId)
