@@ -136,14 +136,10 @@ export function ChatPanel({
   const branchRef = useRef(branch)
   branchRef.current = branch
 
-  // Keep global branch ID ref updated and reset interaction tracking on branch switch
+  // Keep global branch ID ref updated
   useEffect(() => {
     globalActiveBranchIdRef.current = branch.id
-    // Reset interaction tracking when branch changes so we don't auto-scroll on load
-    hasUserInteractedRef.current = false
-    // Reset near-bottom tracking so stale scroll state from previous branch doesn't affect new branch
-    isNearBottomRef.current = true
-  }, [branch.id, isNearBottomRef])
+  }, [branch.id])
 
   // Scroll to bottom when branch switch causes messages to be replaced
   const prevBranchIdForMessagesRef = useRef(branch.id)
@@ -227,6 +223,14 @@ export function ChatPanel({
   const prevMessageCountRef = useRef(branch.messages.length)
   // Track previous content length for streaming auto-scroll
   const prevContentLengthRef = useRef(0)
+
+  // Reset scroll tracking state on branch switch
+  useEffect(() => {
+    // Reset interaction tracking when branch changes so we don't auto-scroll on load
+    hasUserInteractedRef.current = false
+    // Reset near-bottom tracking so stale scroll state from previous branch doesn't affect new branch
+    isNearBottomRef.current = true
+  }, [branch.id, isNearBottomRef])
 
   const runAgentExecute = useCallback(
     async (args: {
