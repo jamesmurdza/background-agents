@@ -316,11 +316,11 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    // If there's a current chat with a repo selected, use the same repo and branch
+    // If there's a current chat with a repo selected, inherit its repo and base branch.
+    // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
+    // new chat starts from the same point the current one did.
     if (currentChat && currentChat.repo !== NEW_REPOSITORY) {
-      // Use the branch if available (sandbox created), otherwise baseBranch (before first message)
-      const branchToUse = currentChat.branch || currentChat.baseBranch
-      startNewChat(currentChat.repo, branchToUse, currentChat.id)
+      startNewChat(currentChat.repo, currentChat.baseBranch)
     } else if (repoFilter !== ALL_REPOSITORIES && repoFilter !== NO_REPOSITORY) {
       // If a specific repo is selected in the filter, use it for the new chat
       // Find the repo to get the default branch
