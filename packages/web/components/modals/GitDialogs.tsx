@@ -332,7 +332,6 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
             setSearch(e.target.value)
             if (!open) setOpen(true)
           }}
-          onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
