@@ -126,7 +126,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   // Focus prompt when switching chats (desktop only)
   useEffect(() => {
     if (!isMobile) {
-      textareaRef.current?.focus()
+      // Use setTimeout to ensure focus happens after DOM updates and any
+      // pending browser events (like button click focus) have been processed
+      const timeoutId = setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 0)
+      return () => clearTimeout(timeoutId)
     }
   }, [chat?.id, isMobile])
 
