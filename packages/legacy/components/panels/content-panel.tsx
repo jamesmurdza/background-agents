@@ -255,7 +255,7 @@ function TabBar({
   }, [activeTabId])
 
   return (
-    <div className="flex items-stretch border-b border-border bg-muted/30 h-8 shrink-0 relative z-10">
+    <div className="flex items-stretch border-b border-border bg-muted/30 h-8 shrink-0">
       {/* Scrollable tabs area */}
       <div
         ref={scrollRef}
@@ -266,21 +266,12 @@ function TabBar({
           const isActive = tab.id === activeTabId
           const canClose = isTabClosable(tab)
           return (
-            <div
+            <button
               key={tab.id}
               ref={isActive ? activeTabRef : null}
-              role="tab"
-              tabIndex={0}
-              aria-selected={isActive}
               onClick={() => onSelectTab(tab.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault()
-                  onSelectTab(tab.id)
-                }
-              }}
               className={cn(
-                "group relative flex items-center gap-1.5 px-3 shrink-0 text-xs transition-colors cursor-pointer",
+                "group relative flex items-center gap-1.5 px-3 shrink-0 text-xs transition-colors",
                 "hover:bg-accent/50",
                 isActive
                   ? "bg-background text-foreground"
@@ -297,27 +288,21 @@ function TabBar({
 
               {/* Close button - only for closable tabs */}
               {canClose && (
-                <button
-                  type="button"
+                <span
+                  role="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    e.preventDefault()
                     onCloseTab(tab.id)
                   }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation()
-                  }}
                   className={cn(
-                    "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity cursor-pointer",
-                    "border-0 bg-transparent appearance-none",
+                    "ml-0.5 p-0.5 rounded hover:bg-foreground/10 transition-opacity",
                     isActive ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
                   )}
-                  aria-label={`Close ${tab.filename}`}
                 >
                   <X className="h-3 w-3" />
-                </button>
+                </span>
               )}
-            </div>
+            </button>
           )
         })}
       </div>
