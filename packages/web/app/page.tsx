@@ -22,6 +22,7 @@ import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, type Message, type Chat } from "@/lib/types"
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
+import { PATHS } from "@upstream/common"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 
 // Storage key for pending message (persists across OAuth redirect)
@@ -682,9 +683,7 @@ export default function HomePage() {
       const port = cmd.match(/-p\s+(\d+)/)?.[1] ?? "22"
       if (!userHost) return
       const host = port !== "22" ? `${userHost}:${port}` : userHost
-      // sandbox/create clones into /home/daytona/project — hardcoded there too.
-      const remotePath = "/home/daytona/project"
-      window.open(`vscode://vscode-remote/ssh-remote+${host}${remotePath}`, "_blank")
+      window.open(`vscode://vscode-remote/ssh-remote+${host}${PATHS.PROJECT_DIR}`, "_blank")
     } catch (err) {
       console.error("Failed to open in VS Code:", err)
     }

@@ -9,6 +9,8 @@
 export const PATHS = {
   /** Base directory for repo clones in sandbox */
   SANDBOX_HOME: "/home/daytona",
+  /** Directory where the repository is cloned */
+  PROJECT_DIR: "/home/daytona/project",
   /** Directory for agent log files */
   LOGS_DIR: "/tmp/logs",
   /** Marker file created after clone completes, used as baseline for modified file detection */
