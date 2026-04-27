@@ -77,6 +77,9 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  // Track previous message count to only scroll on new messages, not on any array change
+  const prevMessageCountRef = useRef(0)
+  const prevChatIdRef = useRef<string | null>(null)
 
   // Get current agent/model (from chat, the user's preference, or auto-resolved
   // from credential flags). Uses ?? so we don't trip over the empty string.
@@ -118,12 +121,23 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     setUserHasScrolledUp(!isAtBottom)
   }
 
-  // Auto-scroll to bottom when messages change (only if user hasn't scrolled up)
-  useEffect(() => {
-    if (!userHasScrolledUp) {
+  // Auto-scroll to bottom when new messages arrive (not on every array change).
+  // Uses useLayoutEffect to measure DOM synchronously before browser paint,
+  // preventing scroll jumps when loading long chats.
+  useLayoutEffect(() => {
+    const currentCount = chat?.messages?.length ?? 0
+    const currentChatId = chat?.id ?? null
+    const chatChanged = currentChatId !== prevChatIdRef.current
+    const hasNewMessages = currentCount > prevMessageCountRef.current
+
+    prevMessageCountRef.current = currentCount
+    prevChatIdRef.current = currentChatId
+
+    // Scroll to bottom when: switching chats, or new messages arrive and user is at bottom
+    if (chatChanged || (hasNewMessages && !userHasScrolledUp)) {
       messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
     }
-  }, [chat?.messages, userHasScrolledUp])
+  }, [chat?.id, chat?.messages?.length, userHasScrolledUp])
 
   // Focus prompt when switching chats or when the welcome view transitions to
   // the messages view (which remounts the textarea in a different DOM location).

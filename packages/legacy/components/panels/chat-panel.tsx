@@ -7,7 +7,7 @@ import { generateId } from "@/lib/shared/store"
 import { ASSISTANT_SOURCE, BRANCH_STATUS, PATHS } from "@/lib/shared/constants"
 import { waitForSSEResult } from "@upstream/common"
 import { Terminal } from "lucide-react"
-import { useRef, useEffect, useCallback, useState } from "react"
+import { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SwitchAgentDialog } from "@/components/modals/switch-agent-dialog"
 import type { SlashCommandType } from "@/components/chat/SlashCommandMenu"
@@ -221,6 +221,8 @@ export function ChatPanel({
   // Track whether user has interacted (sent a message) in this session
   // On mobile, don't auto-scroll on initial load so user can access the header
   const hasUserInteractedRef = useRef(false)
+  // Track previous message count to only scroll on new messages
+  const prevMessageCountRef = useRef(branch.messages.length)
 
   const runAgentExecute = useCallback(
     async (args: {
@@ -440,13 +442,19 @@ export function ChatPanel({
     }
   }, [isNearBottomRef])
 
-  // Auto-scroll to bottom - but only after user has interacted (sent a message)
-  // This prevents scrolling away from header on mobile initial load
-  useEffect(() => {
-    if (scrollRef.current && isNearBottomRef.current && hasUserInteractedRef.current) {
+  // Auto-scroll to bottom when new messages arrive (not on every array change).
+  // Uses useLayoutEffect to measure DOM synchronously before browser paint,
+  // preventing scroll jumps when loading long chats.
+  useLayoutEffect(() => {
+    const currentCount = branch.messages.length
+    const hasNewMessages = currentCount > prevMessageCountRef.current
+    prevMessageCountRef.current = currentCount
+
+    // Only scroll if: user has interacted, near bottom, and new messages arrived
+    if (scrollRef.current && isNearBottomRef.current && hasUserInteractedRef.current && hasNewMessages) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [branch.messages, isNearBottomRef])
+  }, [branch.messages.length, isNearBottomRef])
 
   // Send message handler
   const handleSend = useCallback(async () => {
