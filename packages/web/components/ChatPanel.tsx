@@ -643,7 +643,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   )}
                 >
                   <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
-                  {chat.branch}
+                  {chat.branch || chat.baseBranch}
                   <ChevronDown className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
                 </button>
               )}
