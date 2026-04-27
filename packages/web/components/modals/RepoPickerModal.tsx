@@ -235,6 +235,14 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
     onClose()
   }
 
+  // Handle Enter key in create form
+  const handleCreateFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !creating && newRepoName.trim()) {
+      e.preventDefault()
+      handleCreateRepo()
+    }
+  }
+
   // Handle create repository
   const handleCreateRepo = async () => {
     if (!newRepoName.trim()) {
@@ -557,6 +565,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
                       data-repo-create-name
                       value={newRepoName}
                       onChange={(e) => setNewRepoName(e.target.value)}
+                      onKeyDown={handleCreateFormKeyDown}
                       placeholder="my-new-repo"
                       disabled={creating}
                     />
@@ -570,6 +579,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
                       type="text"
                       value={newRepoDescription}
                       onChange={(e) => setNewRepoDescription(e.target.value)}
+                      onKeyDown={handleCreateFormKeyDown}
                       placeholder="Optional"
                       disabled={creating}
                     />

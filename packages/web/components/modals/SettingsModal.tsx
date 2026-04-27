@@ -388,6 +388,16 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     setCredValues((prev) => ({ ...prev, [id]: value }))
   }, [])
 
+  // Handle keyboard shortcuts (Cmd/Ctrl+Enter to save)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      if (hasChanges && saveStatus.kind !== "saving") {
+        handleSave()
+      }
+    }
+  }
+
   // Section content blocks (reused across desktop and mobile layouts)
   const generalSection = (
     <div>
@@ -547,6 +557,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
         )} />
         <Dialog.Content
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
+          onKeyDown={handleKeyDown}
           className={cn(
             "fixed z-50 bg-popover overflow-hidden flex flex-col",
             isMobile

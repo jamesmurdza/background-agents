@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { cn } from "@/lib/utils"
 import { ModalHeader } from "@/components/ui/modal-header"
@@ -27,10 +28,23 @@ export function ConfirmDialog({
   variant = "default",
   isMobile = false,
 }: ConfirmDialogProps) {
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     onConfirm()
     onClose()
-  }
+  }, [onConfirm, onClose])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Don't trigger if user is interacting with form elements
+    const target = e.target as HTMLElement
+    if (target.tagName === "BUTTON" || target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+      return
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleConfirm()
+    }
+  }, [handleConfirm])
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -40,6 +54,7 @@ export function ConfirmDialog({
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
+          onKeyDown={handleKeyDown}
           className={cn(
             "fixed z-50 bg-popover overflow-hidden flex flex-col",
             isMobile

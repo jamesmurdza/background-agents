@@ -103,15 +103,32 @@ interface BaseDialogProps {
   isMobile?: boolean
   /** When true, content area allows overflow (for dropdowns) */
   allowOverflow?: boolean
+  /** Optional callback for Enter key default action */
+  onDefaultAction?: () => void
+  /** Whether the default action is disabled */
+  defaultActionDisabled?: boolean
 }
 
-function BaseDialog({ open, onClose, title, icon, children, isMobile = false, allowOverflow = false }: BaseDialogProps) {
+function BaseDialog({ open, onClose, title, icon, children, isMobile = false, allowOverflow = false, onDefaultAction, defaultActionDisabled = false }: BaseDialogProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragY, setDragY] = useState(0)
   const [startY, setStartY] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const SWIPE_THRESHOLD = 100
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Don't trigger if user is interacting with form elements
+    const target = e.target as HTMLElement
+    if (target.tagName === "BUTTON" || target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+      return
+    }
+
+    if (e.key === "Enter" && onDefaultAction && !defaultActionDisabled) {
+      e.preventDefault()
+      onDefaultAction()
+    }
+  }, [onDefaultAction, defaultActionDisabled])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!isMobile) return
@@ -141,6 +158,7 @@ function BaseDialog({ open, onClose, title, icon, children, isMobile = false, al
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px]" />
         <Dialog.Content
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
+          onKeyDown={handleKeyDown}
           className={cn(
             "fixed z-50 bg-popover flex flex-col",
             // Allow overflow when dropdowns are open so they're not clipped
@@ -278,6 +296,11 @@ interface MergeDialogProps {
 export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false }: MergeDialogProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
+  const handleMergeAndClose = useCallback(async () => {
+    await gitDialogs.handleMerge()
+    onClose()
+  }, [gitDialogs, onClose])
+
   return (
     <BaseDialog
       open={open}
@@ -286,6 +309,8 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
       icon={<GitMerge className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
       isMobile={isMobile}
       allowOverflow={dropdownOpen}
+      onDefaultAction={handleMergeAndClose}
+      defaultActionDisabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
     >
       <div className={cn("space-y-5")}>
         <div>
@@ -341,10 +366,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
             Cancel
           </button>
           <button
-            onClick={async () => {
-              await gitDialogs.handleMerge()
-              onClose()
-            }}
+            onClick={handleMergeAndClose}
             disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
             className={cn(
               "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
@@ -375,6 +397,11 @@ interface RebaseDialogProps {
 export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false }: RebaseDialogProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
+  const handleRebaseAndClose = useCallback(async () => {
+    await gitDialogs.handleRebase()
+    onClose()
+  }, [gitDialogs, onClose])
+
   return (
     <BaseDialog
       open={open}
@@ -383,6 +410,8 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
       icon={<GitBranch className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
       isMobile={isMobile}
       allowOverflow={dropdownOpen}
+      onDefaultAction={handleRebaseAndClose}
+      defaultActionDisabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
     >
       <div className={cn("space-y-5")}>
         <div>
@@ -425,10 +454,7 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
             Cancel
           </button>
           <button
-            onClick={async () => {
-              await gitDialogs.handleRebase()
-              onClose()
-            }}
+            onClick={handleRebaseAndClose}
             disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
             className={cn(
               "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
@@ -473,6 +499,11 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
   const [descriptionDropdownOpen, setDescriptionDropdownOpen] = useState(false)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
 
+  const handleCreatePRAndClose = useCallback(async () => {
+    await gitDialogs.handleCreatePR(descriptionType)
+    onClose()
+  }, [gitDialogs, descriptionType, onClose])
+
   return (
     <BaseDialog
       open={open}
@@ -481,6 +512,8 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
       icon={<GitPullRequest className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
       isMobile={isMobile}
       allowOverflow={descriptionDropdownOpen || branchDropdownOpen}
+      onDefaultAction={isGitHubRepo ? handleCreatePRAndClose : undefined}
+      defaultActionDisabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
     >
       <div className={cn("space-y-5")}>
         {!isGitHubRepo ? (
@@ -585,10 +618,7 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
           </button>
           {isGitHubRepo && (
             <button
-              onClick={async () => {
-                await gitDialogs.handleCreatePR(descriptionType)
-                onClose()
-              }}
+              onClick={handleCreatePRAndClose}
               disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
               className={cn(
                 "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
@@ -620,6 +650,11 @@ interface SquashDialogProps {
 export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false }: SquashDialogProps) {
   const canSquash = gitDialogs.commitsAhead >= 2 && !gitDialogs.commitsLoading
 
+  const handleSquashAndClose = useCallback(async () => {
+    await gitDialogs.handleSquash()
+    onClose()
+  }, [gitDialogs, onClose])
+
   return (
     <BaseDialog
       open={open}
@@ -627,6 +662,8 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
       title="Squash Commits"
       icon={<GitCommitVertical className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
       isMobile={isMobile}
+      onDefaultAction={handleSquashAndClose}
+      defaultActionDisabled={!canSquash || gitDialogs.actionLoading}
     >
       <div className={cn("space-y-5")}>
         <div>
@@ -707,10 +744,7 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
             Cancel
           </button>
           <button
-            onClick={async () => {
-              await gitDialogs.handleSquash()
-              onClose()
-            }}
+            onClick={handleSquashAndClose}
             disabled={!canSquash || gitDialogs.actionLoading}
             className={cn(
               "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
@@ -742,6 +776,10 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
   const agentRunning = chat?.status === "running"
   const branchLabel = gitDialogs.branchName ? gitDialogs.branchLabel(gitDialogs.branchName) : ""
 
+  const handleForcePush = useCallback(async () => {
+    await gitDialogs.handleForcePush()
+  }, [gitDialogs])
+
   return (
     <BaseDialog
       open={open}
@@ -749,6 +787,8 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
       title="Force push"
       icon={<AlertTriangle className={cn(isMobile ? "h-5 w-5" : "h-4 w-4", "text-amber-500")} />}
       isMobile={isMobile}
+      onDefaultAction={handleForcePush}
+      defaultActionDisabled={agentRunning || gitDialogs.actionLoading || !gitDialogs.branchName}
     >
       <div className={cn("space-y-5")}>
         <div>
@@ -793,9 +833,7 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
             Cancel
           </button>
           <button
-            onClick={async () => {
-              await gitDialogs.handleForcePush()
-            }}
+            onClick={handleForcePush}
             disabled={agentRunning || gitDialogs.actionLoading || !gitDialogs.branchName}
             className={cn(
               "rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 flex items-center gap-2",

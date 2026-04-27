@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback } from "react"
 import { signIn } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Github, MessageSquare } from "lucide-react"
@@ -13,9 +14,22 @@ interface SignInModalProps {
 }
 
 export function SignInModal({ open, onClose, isMobile = false }: SignInModalProps) {
-  const handleSignIn = () => {
+  const handleSignIn = useCallback(() => {
     signIn("github")
-  }
+  }, [])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Don't trigger if user is interacting with form elements
+    const target = e.target as HTMLElement
+    if (target.tagName === "BUTTON" || target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+      return
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleSignIn()
+    }
+  }, [handleSignIn])
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -26,6 +40,7 @@ export function SignInModal({ open, onClose, isMobile = false }: SignInModalProp
         )} />
         <Dialog.Content
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
+          onKeyDown={handleKeyDown}
           className={cn(
             "fixed z-50 bg-popover overflow-hidden flex flex-col",
             isMobile
