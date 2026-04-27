@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useRef, useEffect } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { cn } from "@/lib/utils"
-import { ModalHeader } from "@/components/ui/modal-header"
+import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 
 interface ConfirmDialogProps {
   open: boolean
@@ -28,10 +28,23 @@ export function ConfirmDialog({
   variant = "default",
   isMobile = false,
 }: ConfirmDialogProps) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
+
   const handleConfirm = useCallback(() => {
     onConfirm()
     onClose()
   }, [onConfirm, onClose])
+
+  // Focus the confirm button when modal opens
+  useEffect(() => {
+    if (open) {
+      // Small delay to ensure the modal is fully rendered
+      const timer = setTimeout(() => {
+        confirmButtonRef.current?.focus()
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [open])
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -41,6 +54,11 @@ export function ConfirmDialog({
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            confirmButtonRef.current?.focus()
+          }}
+          onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
           className={cn(
             "fixed z-50 bg-popover overflow-hidden flex flex-col",
             isMobile
@@ -61,7 +79,7 @@ export function ConfirmDialog({
                 {cancelLabel}
               </button>
               <button
-                autoFocus
+                ref={confirmButtonRef}
                 onClick={handleConfirm}
                 className={cn(
                   "rounded-md transition-colors px-3 py-1.5 text-sm cursor-pointer",
