@@ -929,7 +929,7 @@ export default function HomePage() {
         onClose={() => setBranchSelectOpen(false)}
         onSelect={async (branch) => {
           if (currentChat && currentChat.messages.length === 0 && !currentChat.sandboxId) {
-            updateCurrentChat({ branch })
+            updateCurrentChat({ baseBranch: branch })
           } else if (currentChat) {
             const chatId = await startNewChat(currentChat.repo, branch)
             if (chatId) selectChat(chatId)
@@ -938,7 +938,7 @@ export default function HomePage() {
         }}
         repo={currentChat?.repo?.split("/")[1] || ""}
         owner={currentChat?.repo?.split("/")[0] || ""}
-        defaultBranch={currentChat?.branch ?? undefined}
+        defaultBranch={repos.find(r => r.full_name === currentChat?.repo)?.default_branch}
         isMobile={isMobile}
       />
 
