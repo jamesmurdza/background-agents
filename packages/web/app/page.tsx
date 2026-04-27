@@ -66,6 +66,7 @@ export default function HomePage() {
     settings,
     credentialFlags,
     isHydrated,
+    isLoadingMessages,
     deletingChatIds,
     unseenChatIds,
     startNewChat,
@@ -865,6 +866,7 @@ export default function HomePage() {
                 onBranchWithMessage={handleBranchWithMessage}
                 onBranchQueuedMessage={handleBranchQueuedMessage}
                 canBranch={canBranch}
+                isLoadingMessages={isLoadingMessages}
               />
             </div>
             {!isMobile && previewOpen && (

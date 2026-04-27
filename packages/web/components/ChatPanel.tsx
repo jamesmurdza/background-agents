@@ -46,9 +46,11 @@ interface ChatPanelProps {
   onBranchQueuedMessage?: (id: string, message: string, agent?: string, model?: string) => void
   /** Whether branching is available (has repo and branch) */
   canBranch?: boolean
+  /** Whether messages are currently being loaded for this chat */
+  isLoadingMessages?: boolean
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -438,7 +440,8 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const canCreateRepo = isNewRepo
   // Show the repo button if either action is available
   const showRepoButton = canSelectRepo || canCreateRepo
-  const isNewChat = chat.messages.length === 0 && !chat.parentChatId
+  // Only show welcome screen if no messages AND not loading messages AND not a child chat
+  const isNewChat = chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
 
   const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
 
@@ -862,6 +865,79 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           </a>
           {" "}and tied to Git branches.
         </p>
+      </div>
+    )
+  }
+
+  // Loading messages skeleton
+  if (isLoadingMessages) {
+    return (
+      <div className="flex-1 flex flex-col bg-background min-h-0">
+        {/* Header skeleton */}
+        {!isMobile && (
+          <div className="pt-3 pl-[1.625rem] pr-4 animate-pulse">
+            <div className="h-6 w-48 rounded bg-muted" />
+          </div>
+        )}
+        {/* Messages skeleton */}
+        <div className={cn(
+          "flex-1 overflow-y-auto",
+          isMobile ? "px-3 py-3" : "px-6 py-4"
+        )}>
+          <div className="max-w-[52rem] mx-auto space-y-6 animate-pulse">
+            {/* User message skeleton */}
+            <div className="flex justify-end">
+              <div className="max-w-[80%] space-y-2">
+                <div className="h-4 w-64 rounded bg-muted ml-auto" />
+                <div className="h-4 w-48 rounded bg-muted ml-auto" />
+              </div>
+            </div>
+            {/* Assistant message skeleton */}
+            <div className="flex justify-start">
+              <div className="max-w-[80%] space-y-2">
+                <div className="h-4 w-72 rounded bg-muted" />
+                <div className="h-4 w-80 rounded bg-muted" />
+                <div className="h-4 w-56 rounded bg-muted" />
+              </div>
+            </div>
+            {/* Another user message skeleton */}
+            <div className="flex justify-end">
+              <div className="max-w-[80%]">
+                <div className="h-4 w-40 rounded bg-muted ml-auto" />
+              </div>
+            </div>
+            {/* Another assistant message skeleton */}
+            <div className="flex justify-start">
+              <div className="max-w-[80%] space-y-2">
+                <div className="h-4 w-64 rounded bg-muted" />
+                <div className="h-4 w-72 rounded bg-muted" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Input skeleton */}
+        <div className={cn(
+          "w-full mx-auto",
+          isMobile ? "max-w-full px-3 pb-3" : "max-w-[52rem] px-4 pb-4"
+        )}>
+          <div className={cn(
+            "flex flex-col border border-border bg-card shadow-sm animate-pulse",
+            isMobile ? "rounded-xl" : "rounded-2xl"
+          )}>
+            <div className={cn(isMobile ? "px-3 py-3" : "px-4 py-3")}>
+              <div className="h-5 w-1/4 rounded bg-muted" />
+            </div>
+            <div className={cn(
+              "flex items-center gap-2 border-t border-border",
+              isMobile ? "px-3 py-2" : "px-4 py-2"
+            )}>
+              <div className="h-6 w-20 rounded bg-muted" />
+              <div className="h-6 w-24 rounded bg-muted" />
+              <div className="flex-1" />
+              <div className={cn("rounded-md bg-muted", isMobile ? "h-9 w-9" : "h-7 w-7")} />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

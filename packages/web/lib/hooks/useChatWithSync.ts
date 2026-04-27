@@ -103,6 +103,7 @@ export function useChatWithSync() {
   const [isHydrated, setIsHydrated] = useState(false)
   const [unseenChatIds, setUnseenChatIds] = useState<Set<string>>(new Set())
   const [deletingChatIds, setDeletingChatIds] = useState<Set<string>>(new Set())
+  const [messagesLoadingFor, setMessagesLoadingFor] = useState<string | null>(null)
   const [localChatState, setLocalChatState] = useState<{
     previewItems: Record<string, Chat["previewItem"]>
     queuedMessages: Record<string, Chat["queuedMessages"]>
@@ -192,10 +193,12 @@ export function useChatWithSync() {
 
     // Skip if messages already loaded or previous load failed
     if (chat.messages.length > 0 || messagesLoadFailed.current.has(currentChatId)) {
+      setMessagesLoadingFor(null)
       return
     }
 
     const loadMessages = async () => {
+      setMessagesLoadingFor(currentChatId)
       try {
         const chatData = await fetchChat(currentChatId)
         const incomingMessages = chatData.messages.map(toMessageType)
@@ -209,6 +212,8 @@ export function useChatWithSync() {
       } catch (err) {
         console.error("Failed to load chat messages:", err)
         messagesLoadFailed.current.add(currentChatId)
+      } finally {
+        setMessagesLoadingFor(null)
       }
     }
 
@@ -680,6 +685,9 @@ export function useChatWithSync() {
     setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: false } }))
   }, [currentChat])
 
+  // True when loading messages for current chat (to prevent flash of empty state)
+  const isLoadingMessages = messagesLoadingFor === currentChatId
+
   return {
     chats,
     currentChat,
@@ -688,6 +696,7 @@ export function useChatWithSync() {
     credentialFlags,
     isHydrated,
     isLoading,
+    isLoadingMessages,
     deletingChatIds,
     unseenChatIds,
     startNewChat,
