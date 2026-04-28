@@ -223,6 +223,8 @@ export function ChatPanel({
   const prevMessageCountRef = useRef(branch.messages.length)
   // Track previous content length for streaming auto-scroll
   const prevContentLengthRef = useRef(0)
+  // Track previous scroll position to detect user-initiated scroll vs content growth
+  const prevScrollTopRef = useRef(0)
 
   // Reset scroll tracking state on branch switch
   useEffect(() => {
@@ -442,9 +444,18 @@ export function ChatPanel({
     if (scrollRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
       const nearBottom = scrollHeight - scrollTop - clientHeight < 150
-      isNearBottomRef.current = nearBottom
-      // If user scrolls to bottom, enable auto-scroll for new messages
-      if (nearBottom) {
+
+      // Detect if user scrolled UP (manual scroll away from bottom)
+      // vs scroll event fired due to content growth (scrollTop stays same or increases from auto-scroll)
+      const userScrolledUp = scrollTop < prevScrollTopRef.current
+      prevScrollTopRef.current = scrollTop
+
+      // Only mark as "not near bottom" if user actively scrolled up
+      // This prevents content growth from disabling auto-scroll
+      if (userScrolledUp && !nearBottom) {
+        isNearBottomRef.current = false
+      } else if (nearBottom) {
+        isNearBottomRef.current = true
         hasUserInteractedRef.current = true
       }
     }
