@@ -171,14 +171,17 @@ export async function GET(req: Request) {
           }
 
           if (snap.status === "completed" || snap.status === "error") {
-            await persistSnapshot(snap, true)
+            // If user intentionally cancelled, treat as completed not error
+            const finalStatus = wasIntentionallyCancelled ? "completed" : snap.status
+            const finalError = wasIntentionallyCancelled ? undefined : snap.error
+            await persistSnapshot({ ...snap, status: finalStatus, error: finalError }, true)
             // Advance the bg session's per-turn meta so the next start()
             // writes to a fresh outputFile.
             await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
             sendEvent("complete", {
-              status: snap.status,
+              status: finalStatus,
               sessionId: snap.sessionId,
-              error: snap.error,
+              error: finalError,
               cursor,
             })
             closeStream()
