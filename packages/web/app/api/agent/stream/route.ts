@@ -148,40 +148,39 @@ export async function GET(req: Request) {
         // periodically persist it to the DB. The route holds NO accumulator
         // state — the snapshot is re-derived from the file each time, so a
         // new SSE connection (reconnect) automatically reconstructs full state.
+        let lastSnap: AgentSnapshot | null = null
         while (!isStreamClosed) {
-          const snap = await snapshotBackgroundAgent(
+          lastSnap = await snapshotBackgroundAgent(
             sandbox,
             backgroundSessionId,
             sessionOpts
           )
 
-          const sig = `${snap.status}|${snap.content.length}|${snap.toolCalls.length}|${snap.contentBlocks.length}|${snap.error ?? ""}`
+          const sig = `${lastSnap.status}|${lastSnap.content.length}|${lastSnap.toolCalls.length}|${lastSnap.contentBlocks.length}|${lastSnap.error ?? ""}`
           if (sig !== lastSentSig) {
             lastSentSig = sig
             cursor += 1
             sendEvent("update", {
-              status: snap.status,
-              content: snap.content,
-              toolCalls: snap.toolCalls,
-              contentBlocks: snap.contentBlocks,
+              status: lastSnap.status,
+              content: lastSnap.content,
+              toolCalls: lastSnap.toolCalls,
+              contentBlocks: lastSnap.contentBlocks,
               cursor,
-              sessionId: snap.sessionId,
-              error: snap.error,
+              sessionId: lastSnap.sessionId,
+              error: lastSnap.error,
             })
           }
 
-          if (snap.status === "completed" || snap.status === "error") {
-            // If intentionally cancelled, let the post-loop handler deal with it
+          if (lastSnap.status === "completed" || lastSnap.status === "error") {
+            // If intentionally cancelled, break and handle below
             if (wasIntentionallyCancelled) break
 
-            await persistSnapshot(snap, true)
-            // Advance the bg session's per-turn meta so the next start()
-            // writes to a fresh outputFile.
+            await persistSnapshot(lastSnap, true)
             await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
             sendEvent("complete", {
-              status: snap.status,
-              sessionId: snap.sessionId,
-              error: snap.error,
+              status: lastSnap.status,
+              sessionId: lastSnap.sessionId,
+              error: lastSnap.error,
               cursor,
             })
             closeStream()
@@ -189,7 +188,7 @@ export async function GET(req: Request) {
           }
 
           if (Date.now() - lastDbPersist >= DB_PERSIST_INTERVAL) {
-            await persistSnapshot(snap, false)
+            await persistSnapshot(lastSnap, false)
           }
 
           if (isStreamClosed) break
@@ -199,36 +198,19 @@ export async function GET(req: Request) {
           )
         }
 
-        // Client disconnected mid-stream.
+        // Client disconnected or intentionally stopped
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer)
           heartbeatTimer = null
         }
-        // Take a final snapshot to capture any output produced since last poll.
-        try {
-          const finalSnap = await snapshotBackgroundAgent(
-            sandbox,
-            backgroundSessionId,
-            sessionOpts
-          )
+        if (lastSnap) {
           if (wasIntentionallyCancelled) {
-            // User intentionally stopped - save content but mark as completed,
-            // not as error. The agent was killed intentionally.
-            await persistSnapshot(
-              {
-                ...finalSnap,
-                status: "completed",
-                error: undefined,
-              },
-              true
-            )
+            // User stopped - save content as completed, not error
+            await persistSnapshot({ ...lastSnap, status: "completed", error: undefined }, true)
           } else {
-            // Accidental disconnect: flush current state but leave status as
-            // running so reconnect will resume.
-            await persistSnapshot(finalSnap, false)
+            // Accidental disconnect - flush state, leave as running for reconnect
+            await persistSnapshot(lastSnap, false)
           }
-        } catch (error) {
-          console.error("[agent/stream] disconnect-flush error:", error)
         }
       } catch (error) {
         console.error("[agent/stream] Error:", error)
