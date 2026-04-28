@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, type RefObject } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Loader2, GitMerge, GitBranch, GitPullRequest, GitCommitVertical, ChevronDown, AlertTriangle } from "lucide-react"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
@@ -103,9 +103,11 @@ interface BaseDialogProps {
   isMobile?: boolean
   /** When true, content area allows overflow (for dropdowns) */
   allowOverflow?: boolean
+  /** Ref to the element that should receive focus when dialog opens */
+  initialFocusRef?: RefObject<HTMLElement | null>
 }
 
-function BaseDialog({ open, onClose, title, icon, children, isMobile = false, allowOverflow = false }: BaseDialogProps) {
+function BaseDialog({ open, onClose, title, icon, children, isMobile = false, allowOverflow = false, initialFocusRef }: BaseDialogProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragY, setDragY] = useState(0)
   const [startY, setStartY] = useState(0)
@@ -140,6 +142,12 @@ function BaseDialog({ open, onClose, title, icon, children, isMobile = false, al
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px]" />
         <Dialog.Content
+          onOpenAutoFocus={(e) => {
+            if (initialFocusRef?.current) {
+              e.preventDefault()
+              initialFocusRef.current.focus()
+            }
+          }}
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
           className={cn(
             "fixed z-50 bg-popover flex flex-col",
@@ -399,6 +407,7 @@ interface MergeDialogProps {
 
 export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false }: MergeDialogProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const mergeButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleMergeAndClose = useCallback(async () => {
     await gitDialogs.handleMerge()
@@ -413,6 +422,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
       icon={<GitMerge className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
       isMobile={isMobile}
       allowOverflow={dropdownOpen}
+      initialFocusRef={mergeButtonRef}
     >
       <div className={cn("space-y-5")}>
         <div>
@@ -434,7 +444,6 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
             isMobile ? "text-sm" : "text-xs"
           )}>Into chat</label>
           <BranchSelector
-            autoFocus
             value={gitDialogs.selectedBranch}
             onChange={gitDialogs.setSelectedBranch}
             branches={gitDialogs.remoteBranches}
@@ -470,6 +479,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
             Cancel
           </button>
           <button
+            ref={mergeButtonRef}
             onClick={handleMergeAndClose}
             disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
             className={cn(
