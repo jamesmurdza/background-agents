@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { PATHS } from "@/lib/constants"
 import {
+  cancelBackgroundAgent,
   finalizeTurn,
   formatAgentError,
   snapshotBackgroundAgent,
@@ -49,6 +50,9 @@ export async function GET(req: Request) {
 
   const encoder = new TextEncoder()
   let isStreamClosed = false
+  // Store sandbox reference for use in cancel() callback
+  let sandboxRef: Awaited<ReturnType<Daytona["get"]>> | null = null
+  let sessionOptsRef: { repoPath: string; previewUrlPattern?: string } | null = null
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -129,6 +133,9 @@ export async function GET(req: Request) {
           repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
           previewUrlPattern: previewUrlPattern || undefined,
         }
+        // Store refs for cancel() callback
+        sandboxRef = sandbox
+        sessionOptsRef = sessionOpts
 
         heartbeatTimer = setInterval(() => {
           sendEvent("heartbeat", { cursor, timestamp: Date.now() })
@@ -225,8 +232,23 @@ export async function GET(req: Request) {
       }
     },
 
-    cancel() {
+    async cancel() {
       isStreamClosed = true
+      // Kill the agent process when the client disconnects/stops
+      if (sandboxRef && sessionOptsRef) {
+        await cancelBackgroundAgent(sandboxRef, backgroundSessionId, sessionOptsRef)
+        // Clear backgroundSessionId in DB so the agent won't be resumed
+        if (chatId) {
+          try {
+            await prisma.chat.update({
+              where: { id: chatId },
+              data: { status: "ready", backgroundSessionId: null },
+            })
+          } catch {
+            /* best effort */
+          }
+        }
+      }
     },
   })
 

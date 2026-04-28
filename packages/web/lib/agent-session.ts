@@ -221,6 +221,33 @@ export async function finalizeTurn(
 }
 
 /**
+ * Cancel a running background agent by killing its process.
+ * Called when the user clicks "Stop" to terminate the agent.
+ */
+export async function cancelBackgroundAgent(
+  sandbox: DaytonaSandbox,
+  backgroundSessionId: string,
+  options: AgentSessionOptions
+): Promise<void> {
+  try {
+    const systemPrompt = buildSystemPrompt(
+      options.repoPath,
+      options.previewUrlPattern
+    )
+
+    const bgSession = await getSession(backgroundSessionId, {
+      sandbox: sandbox as any,
+      systemPrompt,
+    })
+
+    await bgSession.cancel()
+  } catch (err) {
+    console.error("[cancelBackgroundAgent] Error:", err)
+    // Don't rethrow - cancellation is best-effort
+  }
+}
+
+/**
  * Read cumulative state by re-parsing the entire event log on disk in the
  * sandbox. Use on connect, on reconnect, and for any persistence write
  * where you need the full snapshot. Does not advance the session's cursor.
