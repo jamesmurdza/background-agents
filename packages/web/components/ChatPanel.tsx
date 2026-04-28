@@ -139,7 +139,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     if (chatChanged || (hasNewMessages && !userHasScrolledUp)) {
       messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
     }
-  }, [chat?.id, chat?.messages?.length, userHasScrolledUp])
+  }, [chat?.id, chat?.messages, userHasScrolledUp])
 
   // Focus prompt when switching chats or when the welcome view transitions to
   // the messages view (which remounts the textarea in a different DOM location).
