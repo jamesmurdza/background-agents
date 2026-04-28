@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { nanoid } from "nanoid"
-import { Menu } from "lucide-react"
+import { Menu, MoreVertical } from "lucide-react"
 import { Sidebar, ALL_REPOSITORIES, NO_REPOSITORY } from "@/components/Sidebar"
 import { ChatPanel } from "@/components/ChatPanel"
 import { PreviewView, type PreviewItem } from "@/components/PreviewView"
@@ -14,6 +14,7 @@ import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { BranchPickerModal } from "@/components/modals/BranchPickerModal"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
+import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { clearAllStorage } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
@@ -96,6 +97,7 @@ export default function HomePage() {
   const [signInModalOpen, setSignInModalOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [deleteConfirmChatId, setDeleteConfirmChatId] = useState<string | null>(null)
+  const [mobileCommandsOpen, setMobileCommandsOpen] = useState(false)
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
     if (typeof window === "undefined") return 520
@@ -846,6 +848,13 @@ export default function HomePage() {
             <h1 className="text-base font-semibold truncate flex-1">
               {displayCurrentChat?.displayName || "Background Agents"}
             </h1>
+            <button
+              onClick={() => setMobileCommandsOpen(true)}
+              className="p-2 -mr-2 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
+              aria-label="Commands"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
           </div>
         )}
 
@@ -1009,6 +1018,21 @@ export default function HomePage() {
         onClose={() => setHelpOpen(false)}
         isMobile={isMobile}
       />
+
+      {/* Mobile Commands Menu */}
+      {isMobile && (
+        <MobileCommandsMenu
+          open={mobileCommandsOpen}
+          onClose={() => setMobileCommandsOpen(false)}
+          onSlashCommand={handleSlashCommand}
+          onOpenSettings={() => handleOpenSettings()}
+          onOpenHelp={() => setHelpOpen(true)}
+          onOpenGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
+          hasLinkedRepo={!!(currentChat && currentChat.repo !== NEW_REPOSITORY)}
+          inConflict={!!(gitDialogs.rebaseConflict?.inRebase || gitDialogs.rebaseConflict?.inMerge)}
+          hasGitHubLink={!!githubBranchUrl}
+        />
+      )}
 
       <ConfirmDialog
         open={deleteConfirmChatId !== null}
