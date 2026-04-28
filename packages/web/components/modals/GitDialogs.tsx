@@ -975,9 +975,24 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
 
   // Shared state for branch picker
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
-  const [selectedBranch, setSelectedBranch] = useState("")
+  const [selectedBranch, setSelectedBranchState] = useState("")
   const [branchesLoading, setBranchesLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+
+  // Track pre-selected branch from drag-and-drop. This ref is set when
+  // setSelectedBranch is called before the dialog opens, and consumed
+  // when fetchBranches runs.
+  const pendingSelectedBranchRef = useRef<string | null>(null)
+  const setSelectedBranch = useCallback((branch: string) => {
+    // If a dialog is already open, just set the state directly
+    if (mergeOpen || rebaseOpen || prOpen) {
+      setSelectedBranchState(branch)
+    } else {
+      // Store in ref to be consumed when the dialog opens and branches are fetched
+      pendingSelectedBranchRef.current = branch
+      setSelectedBranchState(branch)
+    }
+  }, [mergeOpen, rebaseOpen, prOpen])
 
   // Merge-specific state
   const [squashMerge, setSquashMerge] = useState(false)
@@ -1010,7 +1025,7 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
   const fetchBranches = useCallback(async () => {
     if (!repoOwner || !repoApiName) {
       setRemoteBranches([])
-      setSelectedBranch("")
+      setSelectedBranchState("")
       return
     }
 
@@ -1024,7 +1039,15 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
         .map((b: { name: string }) => b.name)
         .filter((name: string) => name !== branchName)
       setRemoteBranches(branches)
-      setSelectedBranch(branches.includes(baseBranch) ? baseBranch : branches[0] || "")
+      // Use pending branch from drag-and-drop if valid, otherwise fall back to baseBranch
+      const pendingBranch = pendingSelectedBranchRef.current
+      pendingSelectedBranchRef.current = null // Consume the pending value
+      const defaultBranch = pendingBranch && branches.includes(pendingBranch)
+        ? pendingBranch
+        : branches.includes(baseBranch)
+          ? baseBranch
+          : branches[0] || ""
+      setSelectedBranchState(defaultBranch)
     } catch {
       setRemoteBranches([])
     } finally {
@@ -1035,7 +1058,6 @@ export function useGitDialogs({ chat, onAddMessage, onAddMessageToBranch, resolv
   // Fetch branches when dialogs open
   useEffect(() => {
     if (mergeOpen || rebaseOpen || prOpen) {
-      setSelectedBranch("")
       setSquashMerge(false)
       fetchBranches()
     }
