@@ -79,8 +79,6 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  // Track previous message count to only scroll on new messages, not on any array change
-  const prevMessageCountRef = useRef(0)
   const prevChatIdRef = useRef<string | null>(null)
 
   // Get current agent/model (from chat, the user's preference, or auto-resolved
@@ -123,20 +121,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     setUserHasScrolledUp(!isAtBottom)
   }
 
-  // Auto-scroll to bottom when new messages arrive or content grows during streaming.
-  // Uses useLayoutEffect to measure DOM synchronously before browser paint,
-  // preventing scroll jumps when loading long chats.
+  // Auto-scroll to bottom when chat changes or content grows during streaming.
   useLayoutEffect(() => {
-    const currentCount = chat?.messages?.length ?? 0
-    const currentChatId = chat?.id ?? null
-    const chatChanged = currentChatId !== prevChatIdRef.current
-    const hasNewMessages = currentCount > prevMessageCountRef.current
+    const chatChanged = chat?.id !== prevChatIdRef.current
+    prevChatIdRef.current = chat?.id ?? null
 
-    prevMessageCountRef.current = currentCount
-    prevChatIdRef.current = currentChatId
-
-    // Scroll to bottom when: switching chats, new messages arrive, or streaming content grows
-    // The effect re-runs on any chat?.messages change (including content/toolCalls updates)
     if (chatChanged || !userHasScrolledUp) {
       messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
     }
