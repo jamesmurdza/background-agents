@@ -1130,19 +1130,6 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
         </div>
       )}
 
-      {/* Mobile GitHub link - show as a subtle bar if branch exists */}
-      {isMobile && githubBranchUrl && (
-        <a
-          href={githubBranchUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 px-4 py-2 text-xs text-muted-foreground hover:text-foreground bg-muted/30 border-b border-border"
-        >
-          <Github className="h-3.5 w-3.5" />
-          View on GitHub
-        </a>
-      )}
-
       {/* Messages */}
       <div
         ref={messagesContainerRef}

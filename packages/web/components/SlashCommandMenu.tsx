@@ -40,6 +40,7 @@ interface SlashCommandMenuProps {
 
 const CREATE_REPO_COMMAND: SlashCommand = {
   name: "repo",
+  label: "Repository",
   description: "Create repository",
   icon: "FolderGit2",
 }

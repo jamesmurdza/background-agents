@@ -6,6 +6,8 @@
 export interface SlashCommand {
   /** Command name without the leading slash */
   name: string
+  /** Display label for the command */
+  label: string
   /** Human-readable description */
   description: string
   /** Icon name (lucide-react icon) */
@@ -18,27 +20,32 @@ export interface SlashCommand {
 export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: "merge",
-    description: "Merge branch",
+    label: "Merge",
+    description: "Merge this branch into another",
     icon: "GitMerge",
   },
   {
     name: "rebase",
-    description: "Rebase onto another branch",
+    label: "Rebase",
+    description: "Rebase this branch onto another",
     icon: "GitBranch",
   },
   {
     name: "pr",
+    label: "Pull Request",
     description: "Create a pull request",
     icon: "GitPullRequest",
   },
   {
     name: "squash",
-    description: "Squash commits on current branch",
+    label: "Squash",
+    description: "Squash commits into one",
     icon: "GitCommitVertical",
   },
   {
     name: "branch",
-    description: "Branch chat from current branch",
+    label: "Branch",
+    description: "Create a new chat from here",
     icon: "GitBranchPlus",
   },
 ]
@@ -48,7 +55,8 @@ export const SLASH_COMMANDS: SlashCommand[] = [
  */
 export const ABORT_COMMAND: SlashCommand = {
   name: "abort",
-  description: "Abort merge or rebase",
+  label: "Abort",
+  description: "Abort the current merge or rebase",
   icon: "XCircle",
 }
 

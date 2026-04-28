@@ -1,23 +1,43 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, GitBranchPlus, Settings, HelpCircle, Github } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, GitBranchPlus, XCircle, HelpCircle, Github } from "lucide-react"
 import { MobileBottomSheet } from "./ui/MobileBottomSheet"
 import { cn } from "@/lib/utils"
+import { SLASH_COMMANDS, ABORT_COMMAND, type SlashCommand } from "@upstream/common"
 import type { SlashCommandType } from "./SlashCommandMenu"
 
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  GitMerge,
+  GitBranch,
+  GitPullRequest,
+  GitCommitVertical,
+  GitBranchPlus,
+  XCircle,
+}
+
 interface CommandItem {
-  id: SlashCommandType | "settings" | "help" | "github"
+  id: SlashCommandType | "help" | "github"
   label: string
   description: string
   icon: React.ReactNode
   variant?: "default" | "destructive"
 }
 
+function slashCommandToItem(cmd: SlashCommand, variant?: "default" | "destructive"): CommandItem {
+  const Icon = ICON_MAP[cmd.icon]
+  return {
+    id: cmd.name as SlashCommandType,
+    label: cmd.label,
+    description: cmd.description,
+    icon: Icon ? <Icon className="h-5 w-5" /> : null,
+    variant,
+  }
+}
+
 interface MobileCommandsMenuProps {
   open: boolean
   onClose: () => void
   onSlashCommand: (command: SlashCommandType) => void
-  onOpenSettings?: () => void
   onOpenHelp?: () => void
   onOpenGitHub?: () => void
   /** Whether the chat has a linked repo (git commands only show when true) */
@@ -32,7 +52,6 @@ export function MobileCommandsMenu({
   open,
   onClose,
   onSlashCommand,
-  onOpenSettings,
   onOpenHelp,
   onOpenGitHub,
   hasLinkedRepo = false,
@@ -46,44 +65,11 @@ export function MobileCommandsMenu({
   if (hasLinkedRepo) {
     if (inConflict) {
       // During conflict, only show abort
-      commands.push({
-        id: "abort",
-        label: "Abort",
-        description: "Abort the current merge or rebase",
-        icon: <GitMerge className="h-5 w-5" />,
-        variant: "destructive",
-      })
+      commands.push(slashCommandToItem(ABORT_COMMAND, "destructive"))
     } else {
       // Normal git operations
-      commands.push({
-        id: "merge",
-        label: "Merge",
-        description: "Merge another branch into this one",
-        icon: <GitMerge className="h-5 w-5" />,
-      })
-      commands.push({
-        id: "rebase",
-        label: "Rebase",
-        description: "Rebase this branch onto another",
-        icon: <GitBranch className="h-5 w-5" />,
-      })
-      commands.push({
-        id: "pr",
-        label: "Pull Request",
-        description: "Create a pull request",
-        icon: <GitPullRequest className="h-5 w-5" />,
-      })
-      commands.push({
-        id: "squash",
-        label: "Squash",
-        description: "Squash commits into one",
-        icon: <GitCommitVertical className="h-5 w-5" />,
-      })
-      commands.push({
-        id: "branch",
-        label: "Branch",
-        description: "Create a new branch from here",
-        icon: <GitBranchPlus className="h-5 w-5" />,
+      SLASH_COMMANDS.forEach(cmd => {
+        commands.push(slashCommandToItem(cmd))
       })
     }
   }
@@ -101,9 +87,7 @@ export function MobileCommandsMenu({
   const handleSelect = (id: CommandItem["id"]) => {
     onClose()
 
-    if (id === "settings") {
-      onOpenSettings?.()
-    } else if (id === "help") {
+    if (id === "help") {
       onOpenHelp?.()
     } else if (id === "github") {
       onOpenGitHub?.()
@@ -128,7 +112,7 @@ export function MobileCommandsMenu({
                 Git Commands
               </div>
             )}
-            {commands.filter(cmd => !["settings", "help", "github"].includes(cmd.id)).map((command) => (
+            {commands.filter(cmd => !["help", "github"].includes(cmd.id)).map((command) => (
               <button
                 key={command.id}
                 onClick={() => handleSelect(command.id)}
@@ -157,7 +141,7 @@ export function MobileCommandsMenu({
             ))}
 
             {/* Other Actions Section */}
-            {(hasGitHubLink || onOpenSettings || onOpenHelp) && (
+            {(hasGitHubLink || onOpenHelp) && (
               <>
                 <div className="my-2 border-t border-border" />
                 <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -184,22 +168,6 @@ export function MobileCommandsMenu({
             <div className="flex-1 min-w-0">
               <div className="text-base font-medium">Open in GitHub</div>
               <div className="text-sm text-muted-foreground">View this branch on GitHub</div>
-            </div>
-          </button>
-        )}
-
-        {/* Settings */}
-        {onOpenSettings && (
-          <button
-            onClick={() => handleSelect("settings")}
-            className="flex items-center gap-3 w-full px-4 py-4 text-left transition-colors touch-target hover:bg-accent active:bg-accent"
-          >
-            <span className="shrink-0 text-muted-foreground">
-              <Settings className="h-5 w-5" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="text-base font-medium">Settings</div>
-              <div className="text-sm text-muted-foreground">Configure API keys and preferences</div>
             </div>
           </button>
         )}
