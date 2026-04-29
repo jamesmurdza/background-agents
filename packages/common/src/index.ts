@@ -173,37 +173,3 @@ export {
   addRecentItem,
   clearRecentItems,
 } from "./search-palette"
-
-// Daytona Git (sandbox.git replacement)
-export {
-  // Factory
-  createSandboxGit,
-  gitCommands,
-  // Types
-  type SandboxGit,
-  type SandboxLike,
-  type SandboxProcess,
-  type GitStatus as DaytonaGitStatus,
-  type FileStatus,
-  type FileStatusType,
-  type GitCommitResponse,
-  type ExecuteResult,
-  // Errors
-  GitError,
-  GitAuthError,
-  GitNotFoundError,
-  GitConflictError,
-  isAuthError,
-  isNotFoundError,
-  createGitError,
-  // Auth utilities
-  createAuthUrl,
-  stripCredentials,
-  hasCredentials,
-  // Parsers
-  parseGitStatus,
-  parseAheadBehind,
-  parseCommitSha,
-  parseBranchList,
-} from "./daytona-git"
-

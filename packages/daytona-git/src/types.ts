@@ -1,5 +1,5 @@
 /**
- * Type definitions for daytona-git package
+ * Type definitions for @anthropic/daytona-git
  */
 
 // =============================================================================
@@ -37,21 +37,24 @@ export interface GitCommitResponse {
 // =============================================================================
 
 /**
- * Interface for sandbox process execution
- * Compatible with Daytona SDK's sandbox.process
+ * Result of executing a command in the sandbox
  */
-export interface SandboxProcess {
-  executeCommand(command: string): Promise<ExecuteResult>
-}
-
 export interface ExecuteResult {
   result: string
   exitCode: number
 }
 
 /**
- * Minimal sandbox interface required by daytona-git
- * Only needs process.executeCommand - no dependency on git toolbox
+ * Interface for sandbox process execution.
+ * Compatible with Daytona SDK's sandbox.process
+ */
+export interface SandboxProcess {
+  executeCommand(command: string): Promise<ExecuteResult>
+}
+
+/**
+ * Minimal sandbox interface required by daytona-git.
+ * Only needs process.executeCommand - no dependency on git toolbox.
  */
 export interface SandboxLike {
   process: SandboxProcess

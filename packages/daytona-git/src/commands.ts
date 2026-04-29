@@ -1,7 +1,7 @@
 /**
  * Git command implementations
  *
- * Each function executes git commands via sandbox.process.executeCommand()
+ * Each function executes git commands in the sandbox via sandbox.process.executeCommand().
  * Credentials are passed ephemerally and never stored in the sandbox.
  */
 
@@ -11,7 +11,7 @@ import { createGitError } from "./errors"
 import { parseGitStatus } from "./parsers"
 
 /**
- * Helper to execute a command and throw on failure
+ * Helper to execute a command in the sandbox and throw on failure
  */
 async function exec(
   process: SandboxProcess,
@@ -26,7 +26,15 @@ async function exec(
 }
 
 /**
- * Clone a repository
+ * Escape a shell argument to prevent injection
+ */
+function escapeShellArg(arg: string): string {
+  // Use single quotes and escape any single quotes in the string
+  return `'${arg.replace(/'/g, "'\\''")}'`
+}
+
+/**
+ * Clone a repository into the sandbox
  */
 export async function clone(
   process: SandboxProcess,
@@ -52,11 +60,13 @@ export async function clone(
 
   // If commitId specified, checkout that specific commit
   if (commitId) {
-    await exec(process, `cd ${escapeShellArg(path)} && git checkout ${escapeShellArg(commitId)} 2>&1`)
+    await exec(
+      process,
+      `cd ${escapeShellArg(path)} && git checkout ${escapeShellArg(commitId)} 2>&1`
+    )
   }
 
-  // If we used auth, update remote to strip credentials for safety
-  // (though they're not persisted in git config, the URL in .git/config would have them)
+  // If we used auth, update remote to strip credentials from .git/config
   if (username && password) {
     const cleanUrl = stripCredentials(cloneUrl)
     await exec(
@@ -124,7 +134,7 @@ export async function status(
  * 1. Get current remote URL
  * 2. Temporarily set authenticated URL
  * 3. Pull
- * 4. Restore original URL
+ * 4. Restore original URL (credentials never persist)
  */
 export async function pull(
   process: SandboxProcess,
@@ -140,10 +150,13 @@ export async function pull(
 
   // Get original remote URL
   const originalUrl = (
-    await exec(process, `cd ${escapeShellArg(path)} && git remote get-url origin 2>&1`)
+    await exec(
+      process,
+      `cd ${escapeShellArg(path)} && git remote get-url origin 2>&1`
+    )
   ).trim()
 
-  // Set authenticated URL
+  // Set authenticated URL temporarily
   const authUrl = createAuthUrl(originalUrl, username, password)
   await exec(
     process,
@@ -154,7 +167,7 @@ export async function pull(
     // Pull
     await exec(process, `cd ${escapeShellArg(path)} && git pull 2>&1`)
   } finally {
-    // Always restore original URL
+    // Always restore original URL - credentials never persist
     await exec(
       process,
       `cd ${escapeShellArg(path)} && git remote set-url origin ${escapeShellArg(originalUrl)} 2>&1`,
@@ -170,7 +183,7 @@ export async function pull(
  * 1. Get current remote URL
  * 2. Temporarily set authenticated URL
  * 3. Push with upstream tracking
- * 4. Restore original URL
+ * 4. Restore original URL (credentials never persist)
  */
 export async function push(
   process: SandboxProcess,
@@ -180,16 +193,22 @@ export async function push(
 ): Promise<void> {
   if (!username || !password) {
     // No auth - simple push
-    await exec(process, `cd ${escapeShellArg(path)} && git push -u origin HEAD 2>&1`)
+    await exec(
+      process,
+      `cd ${escapeShellArg(path)} && git push -u origin HEAD 2>&1`
+    )
     return
   }
 
   // Get original remote URL
   const originalUrl = (
-    await exec(process, `cd ${escapeShellArg(path)} && git remote get-url origin 2>&1`)
+    await exec(
+      process,
+      `cd ${escapeShellArg(path)} && git remote get-url origin 2>&1`
+    )
   ).trim()
 
-  // Set authenticated URL
+  // Set authenticated URL temporarily
   const authUrl = createAuthUrl(originalUrl, username, password)
   await exec(
     process,
@@ -198,21 +217,16 @@ export async function push(
 
   try {
     // Push with upstream tracking
-    await exec(process, `cd ${escapeShellArg(path)} && git push -u origin HEAD 2>&1`)
+    await exec(
+      process,
+      `cd ${escapeShellArg(path)} && git push -u origin HEAD 2>&1`
+    )
   } finally {
-    // Always restore original URL
+    // Always restore original URL - credentials never persist
     await exec(
       process,
       `cd ${escapeShellArg(path)} && git remote set-url origin ${escapeShellArg(originalUrl)} 2>&1`,
       true // Don't throw if this fails
     )
   }
-}
-
-/**
- * Escape a shell argument to prevent injection
- */
-function escapeShellArg(arg: string): string {
-  // Use single quotes and escape any single quotes in the string
-  return `'${arg.replace(/'/g, "'\\''")}'`
 }
