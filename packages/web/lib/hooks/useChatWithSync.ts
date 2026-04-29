@@ -411,12 +411,31 @@ export function useChatWithSync() {
         }
       })
 
-      eventSource.addEventListener("complete", (event) => {
+      eventSource.addEventListener("complete", async (event) => {
         if (abortSignal?.aborted) return
         try {
           const data: SSECompleteEvent = JSON.parse(event.data)
           useStreamStore.getState().stopStream(chatId)
 
+          // Auto-push before updating status (use branch parameter directly to avoid stale closure issues)
+          // Keep chat in "running" state until push completes so user sees the loading indicator
+          if (data.status === "completed" && branch) {
+            try {
+              await gitPushMutation.mutateAsync({ sandboxId, repoName, branch })
+            } catch (err) {
+              const errorMsg: Message = {
+                id: nanoid(),
+                role: "assistant",
+                content: `Push failed: ${err instanceof Error ? err.message : "Unknown error"}. You can **force push** to overwrite the remote history.`,
+                messageType: "git-operation",
+                isError: true,
+                timestamp: Date.now()
+              }
+              updateChatsCache((old) => old.map((c) => c.id === chatId ? { ...c, messages: [...c.messages, errorMsg] } : c))
+            }
+          }
+
+          // Now update status to ready/error after push attempt
           updateChatsCache((old) => old.map((c) =>
             c.id === chatId ? {
               ...c,
@@ -427,16 +446,6 @@ export function useChatWithSync() {
               sessionId: data.sessionId ?? c.sessionId,
             } : c
           ))
-
-          // Auto-push (use branch parameter directly to avoid stale closure issues)
-          if (data.status === "completed" && branch) {
-            gitPushMutation.mutate({ sandboxId, repoName, branch }, {
-              onError: (err) => {
-                const errorMsg: Message = { id: nanoid(), role: "assistant", content: `Push failed: ${err.message}. You can **force push** to overwrite the remote history.`, messageType: "git-operation", isError: true, timestamp: Date.now() }
-                updateChatsCache((old) => old.map((c) => c.id === chatId ? { ...c, messages: [...c.messages, errorMsg] } : c))
-              },
-            })
-          }
         } catch (err) {
           console.error("Failed to parse SSE complete:", err)
         }
