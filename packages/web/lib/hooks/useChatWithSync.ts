@@ -710,6 +710,35 @@ export function useChatWithSync() {
     setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: false } }))
   }, [currentChat])
 
+  // Auto-dispatch queued messages when a chat transitions from running to ready
+  useEffect(() => {
+    if (!isHydrated) return
+
+    for (const chat of chats) {
+      const prevStatus = prevStatuses.current.get(chat.id)
+      // Only trigger on running → ready/error transition
+      if (prevStatus !== "running" || chat.status === "running") continue
+
+      const queue = localChatState.queuedMessages[chat.id]
+      const paused = localChatState.queuePaused[chat.id]
+
+      // If there are queued messages and queue is not paused, dispatch the first one
+      if (queue && queue.length > 0 && !paused && chat.status === "ready") {
+        const [first, ...rest] = queue
+        // Update queue state (remove the dispatched message)
+        setQueuedMessages(chat.id, rest.length > 0 ? rest : undefined)
+        setLocalChatState((prev) => ({
+          ...prev,
+          queuedMessages: { ...prev.queuedMessages, [chat.id]: rest.length > 0 ? rest : undefined },
+        }))
+        // Send the message (using setTimeout to avoid calling sendMessage during render)
+        setTimeout(() => {
+          sendMessage(first.content, first.agent, first.model, undefined, chat.id)
+        }, 0)
+      }
+    }
+  }, [chats, isHydrated, localChatState.queuedMessages, localChatState.queuePaused, sendMessage])
+
   // Refetch messages for a specific chat (used after git operations add messages on backend)
   // Uses delta sync - only fetches messages after the last known message ID
   const refetchMessages = useCallback(async (chatId: string) => {
