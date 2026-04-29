@@ -245,42 +245,51 @@ export function useChatWithSync() {
     persistCurrentChatId(chatId)
   }, [])
 
-  const removeChat = useCallback(async (chatId: string) => {
-    const allIds = collectDescendantIds(chats, chatId)
-    for (const id of allIds) useStreamStore.getState().stopStream(id)
-    setDeletingChatIds((prev) => new Set([...prev, ...allIds]))
+  const removeChat = useCallback(
+    async (chatId: string, getNextChatId?: (deletedIds: string[]) => string | null) => {
+      const allIds = collectDescendantIds(chats, chatId)
+      for (const id of allIds) useStreamStore.getState().stopStream(id)
+      setDeletingChatIds((prev) => new Set([...prev, ...allIds]))
 
-    try {
-      const result = await deleteChatMutation.mutateAsync(chatId)
-      for (const sandboxId of result.sandboxIdsToCleanup) {
-        sandboxDeleteMutation.mutate(sandboxId)
-      }
-      clearLocalStateForChats(result.deletedChatIds)
-      setLocalChatState((prev) => {
-        const next = { ...prev, previewItems: { ...prev.previewItems }, queuedMessages: { ...prev.queuedMessages }, queuePaused: { ...prev.queuePaused } }
-        for (const id of result.deletedChatIds) {
-          delete next.previewItems[id]
-          delete next.queuedMessages[id]
-          delete next.queuePaused[id]
+      try {
+        const result = await deleteChatMutation.mutateAsync(chatId)
+        for (const sandboxId of result.sandboxIdsToCleanup) {
+          sandboxDeleteMutation.mutate(sandboxId)
         }
-        return next
-      })
-      if (result.deletedChatIds.includes(currentChatId ?? "")) {
-        const remaining = chats.filter((c) => !result.deletedChatIds.includes(c.id))
-        const nextChat = remaining[0]?.id ?? null
-        setCurrentChatIdState(nextChat)
-        persistCurrentChatId(nextChat)
+        clearLocalStateForChats(result.deletedChatIds)
+        setLocalChatState((prev) => {
+          const next = { ...prev, previewItems: { ...prev.previewItems }, queuedMessages: { ...prev.queuedMessages }, queuePaused: { ...prev.queuePaused } }
+          for (const id of result.deletedChatIds) {
+            delete next.previewItems[id]
+            delete next.queuedMessages[id]
+            delete next.queuePaused[id]
+          }
+          return next
+        })
+        if (result.deletedChatIds.includes(currentChatId ?? "")) {
+          let nextChat: string | null = null
+          if (getNextChatId) {
+            nextChat = getNextChatId(result.deletedChatIds)
+          } else {
+            // Fallback: select first remaining chat
+            const remaining = chats.filter((c) => !result.deletedChatIds.includes(c.id))
+            nextChat = remaining[0]?.id ?? null
+          }
+          setCurrentChatIdState(nextChat)
+          persistCurrentChatId(nextChat)
+        }
+      } catch (error) {
+        console.error("Failed to delete chat:", error)
+      } finally {
+        setDeletingChatIds((prev) => {
+          const next = new Set(prev)
+          for (const id of allIds) next.delete(id)
+          return next
+        })
       }
-    } catch (error) {
-      console.error("Failed to delete chat:", error)
-    } finally {
-      setDeletingChatIds((prev) => {
-        const next = new Set(prev)
-        for (const id of allIds) next.delete(id)
-        return next
-      })
-    }
-  }, [chats, currentChatId, deleteChatMutation, sandboxDeleteMutation])
+    },
+    [chats, currentChatId, deleteChatMutation, sandboxDeleteMutation]
+  )
 
   const renameChat = useCallback(async (chatId: string, newName: string) => {
     try {

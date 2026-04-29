@@ -686,6 +686,23 @@ export default function HomePage() {
     handleSelectChat(nextId)
   }, [treeOrderedChatIds, currentChatId, chats, expandChatAndAncestors])
 
+  // Compute the next chat to select after deletion (following chat, or previous if last)
+  const getNextChatId = useCallback(
+    (deletedIds: string[]) => {
+      const deletedSet = new Set(deletedIds)
+      const remaining = treeOrderedChatIds.filter((id) => !deletedSet.has(id))
+      if (remaining.length === 0) return null
+
+      // Find index of first deleted chat in original order
+      const firstDeletedIdx = treeOrderedChatIds.findIndex((id) => deletedSet.has(id))
+
+      // Select chat at same index (following chat) or last remaining if beyond bounds
+      const targetIdx = Math.min(firstDeletedIdx, remaining.length - 1)
+      return remaining[targetIdx] ?? null
+    },
+    [treeOrderedChatIds]
+  )
+
   // Open the current chat's branch on GitHub (available once the branch is pushed).
   const githubBranchUrl =
     currentChat?.branch && currentChat.sandboxId && currentChat.repo !== NEW_REPOSITORY
@@ -820,7 +837,7 @@ export default function HomePage() {
           unseenChatIds={unseenChatIds}
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
-          onDeleteChat={removeChat}
+          onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
           onRenameChat={renameChat}
           onOpenSettings={() => handleOpenSettings()}
           collapsed={sidebarCollapsed}
@@ -847,7 +864,7 @@ export default function HomePage() {
           unseenChatIds={unseenChatIds}
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
-          onDeleteChat={removeChat}
+          onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
           onRenameChat={renameChat}
           onOpenSettings={() => handleOpenSettings()}
           collapsed={false}
@@ -909,7 +926,7 @@ export default function HomePage() {
                 onOpenSettings={handleOpenSettings}
                 onSlashCommand={handleSlashCommand}
                 onRequireSignIn={!session ? () => setSignInModalOpen(true) : undefined}
-                onDeleteChat={displayCurrentChatId ? () => removeChat(displayCurrentChatId) : undefined}
+                onDeleteChat={displayCurrentChatId ? () => removeChat(displayCurrentChatId, getNextChatId) : undefined}
                 onOpenHelp={() => setHelpOpen(true)}
                 onOpenFile={(filePath) => {
                   const filename = filePath.split("/").pop() || filePath
@@ -1071,7 +1088,7 @@ export default function HomePage() {
         open={deleteConfirmChatId !== null}
         onClose={() => setDeleteConfirmChatId(null)}
         onConfirm={() => {
-          if (deleteConfirmChatId) removeChat(deleteConfirmChatId)
+          if (deleteConfirmChatId) removeChat(deleteConfirmChatId, getNextChatId)
         }}
         title="Delete chat"
         description={
