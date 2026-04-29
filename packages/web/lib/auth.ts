@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import GitHubProvider from "next-auth/providers/github"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/db/prisma"
+import { logActivityAsync } from "@/lib/db/activity-log"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
@@ -38,12 +39,31 @@ export const authOptions: NextAuthOptions = {
       // Send user id and access token to client
       if (session.user && token.sub) {
         session.user.id = token.sub
+
+        // Fetch isAdmin status from database
+        const user = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { isAdmin: true },
+        })
+        session.user.isAdmin = user?.isAdmin ?? false
       }
       session.accessToken = token.accessToken as string
       return session
     },
   },
   events: {
+    async signIn({ user }) {
+      // Log user login activity
+      if (user?.id) {
+        logActivityAsync(user.id, "login")
+      }
+    },
+    async signOut({ token }) {
+      // Log user logout activity
+      if (token?.sub) {
+        logActivityAsync(token.sub, "logout")
+      }
+    },
     async createUser({ user }) {
       // When a new user is created via OAuth, update with GitHub ID
       // The adapter creates the user, but we need to ensure githubId is set

@@ -7,6 +7,7 @@ import {
   internalError,
   decryptUserCredentials,
 } from "@/lib/db/api-helpers"
+import { logActivityAsync } from "@/lib/db/activity-log"
 import {
   agentModels,
   getDefaultAgent,
@@ -211,6 +212,14 @@ export async function POST(req: NextRequest): Promise<Response> {
       messageCount: 0,
       lastMessageId: null,
     }
+
+    // Log activity (fire and forget)
+    logActivityAsync(userId, "chat_created", {
+      chatId: chat.id,
+      repo: chat.repo,
+      agent: chat.agent,
+      model: chat.model ?? undefined,
+    })
 
     return Response.json(response, { status: 201 })
   } catch (error) {

@@ -36,6 +36,16 @@ export const queryKeys = {
     files: (sandboxId: string, filePath: string) =>
       [...queryKeys.sandbox.all, "files", sandboxId, filePath] as const,
   },
+
+  // Admin
+  admin: {
+    all: ["admin"] as const,
+    stats: () => [...queryKeys.admin.all, "stats"] as const,
+    activity: (page: number, filters?: { action?: string; userId?: string }) =>
+      [...queryKeys.admin.all, "activity", { page, ...filters }] as const,
+    users: (page: number, search?: string) =>
+      [...queryKeys.admin.all, "users", { page, search }] as const,
+  },
 }
 
 // Type helpers for query keys

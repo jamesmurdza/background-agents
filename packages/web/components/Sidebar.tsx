@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
-import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch } from "lucide-react"
+import Link from "next/link"
+import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch, BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -883,6 +884,7 @@ interface UserMenuProps {
     name?: string | null
     email?: string | null
     image?: string | null
+    isAdmin?: boolean
   }
   onOpenSettings: () => void
   onOpenHelp?: () => void
@@ -947,6 +949,16 @@ function UserMenu({ user, onOpenSettings, onOpenHelp, collapsed }: UserMenuProps
           )}
           role="menu"
         >
+          {user.isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent cursor-pointer"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Admin Dashboard
+            </Link>
+          )}
           <button
             onClick={() => {
               onOpenSettings()

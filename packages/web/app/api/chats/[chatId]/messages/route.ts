@@ -18,6 +18,7 @@ import {
   requireAuth,
   serverConfigError,
 } from "@/lib/db/api-helpers"
+import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel } from "@upstream/common"
@@ -307,6 +308,13 @@ export async function POST(
 
     // ── Stage 6: kick off the agent ────────────────────────────────────────
     await bgSession.start(agentPrompt)
+
+    // Log message sent activity (fire and forget)
+    logActivityAsync(userId, "message_sent", {
+      chatId,
+      agent: payload.agent,
+      model: payload.model,
+    })
 
     const response: SuccessResponse = {
       sandboxId,

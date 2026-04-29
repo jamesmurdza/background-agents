@@ -20,6 +20,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Admin flag for analytics dashboard access
+  isAdmin Boolean @default(false)
+
   // JSONB for flexible settings storage (no migrations needed for new fields)
   // { defaultAgent, defaultModel, theme }
   settings Json?
@@ -28,9 +31,10 @@ model User {
   // { anthropicApiKey, anthropicAuthToken, openaiApiKey, opencodeApiKey, geminiApiKey }
   credentials Json?
 
-  chats    Chat[]
-  accounts Account[]
-  sessions Session[]
+  chats        Chat[]
+  accounts     Account[]
+  sessions     Session[]
+  activityLogs ActivityLog[]
 }
 
 // =============================================================================
@@ -166,4 +170,22 @@ model CcAuthInfo {
   id        String   @id
   value     String   @db.Text
   updatedAt DateTime @updatedAt
+}
+
+// =============================================================================
+// ActivityLog - tracks user actions for admin analytics
+// =============================================================================
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String // "login" | "logout" | "chat_created" | "chat_deleted" | "message_sent" | "settings_updated" | "admin_promoted" | "admin_demoted"
+  metadata  Json? // Flexible payload: { chatId, targetUserId, repo, model, etc. }
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }

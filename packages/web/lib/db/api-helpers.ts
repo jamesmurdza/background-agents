@@ -95,6 +95,32 @@ export function isAuthError(result: AuthResult | Response): result is Response {
 }
 
 /**
+ * Requires admin authentication - returns userId or error Response
+ * Usage: const auth = await requireAdmin()
+ * If not authenticated or not admin, returns an unauthorized/forbidden Response
+ */
+export async function requireAdmin(): Promise<AuthResult | Response> {
+  const userId = await getAuthUserId()
+  if (!userId) {
+    return unauthorized()
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isAdmin: true },
+  })
+
+  if (!user?.isAdmin) {
+    return Response.json(
+      { error: "Forbidden: Admin access required" },
+      { status: 403 }
+    )
+  }
+
+  return { userId }
+}
+
+/**
  * Auth gate for streaming routes that take chatId/assistantMessageId from
  * query parameters. Verifies the caller is signed in, owns the chat, and
  * that the message lives in that chat. Returns the userId on success, or a

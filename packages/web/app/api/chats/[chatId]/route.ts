@@ -8,6 +8,7 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
+import { logActivityAsync } from "@/lib/db/activity-log"
 
 // =============================================================================
 // Types
@@ -272,6 +273,12 @@ export async function DELETE(
     // Delete all chats (messages cascade via onDelete: Cascade)
     await prisma.chat.deleteMany({
       where: { id: { in: chatIdsToDelete } },
+    })
+
+    // Log activity (fire and forget)
+    logActivityAsync(userId, "chat_deleted", {
+      chatId,
+      deletedCount: chatIdsToDelete.length,
     })
 
     // Return the sandbox IDs so client can clean them up
