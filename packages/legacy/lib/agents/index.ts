@@ -1,5 +1,7 @@
 export * from "./agent-events";
 export * from "./agent-session";
-export * from "./claude-hooks";
-export * from "./codex-rules";
-export * from "./opencode-permissions";
+
+// Git safety hooks are now imported from @upstream/agent-configuration/git:
+// - setupClaudeHooks
+// - setupCodexRules
+// - OPENCODE_PERMISSION_ENV

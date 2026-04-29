@@ -17,6 +17,11 @@ import {
   type ContentBlock,
   type ToolCall,
 } from "@upstream/common"
+import {
+  setupClaudeHooks,
+  setupCodexRules,
+  OPENCODE_PERMISSION_ENV,
+} from "@upstream/agent-configuration/git"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 // Re-export Agent type for convenience
@@ -86,13 +91,27 @@ export async function createBackgroundAgentSession(
   const agent = options.agent || "opencode"
   const provider = agentToProvider[agent] || "opencode"
 
+  // Set up git safety hooks based on agent type
+  // This blocks dangerous git operations (push, rebase, reset --hard, etc.)
+  if (agent === "claude-code") {
+    await setupClaudeHooks(sandbox)
+  } else if (agent === "codex") {
+    await setupCodexRules(sandbox)
+  }
+
+  // For OpenCode, inject permission rules via environment variable
+  const env = { ...options.env }
+  if (agent === "opencode") {
+    env.OPENCODE_PERMISSION = OPENCODE_PERMISSION_ENV
+  }
+
   const bgSession = await createSession(provider, {
     sandbox: sandbox as any,
     systemPrompt,
     sessionId: options.sessionId,
     cwd: options.repoPath,
     model: options.model,
-    env: options.env,
+    env: Object.keys(env).length > 0 ? env : undefined,
   })
 
   return {
