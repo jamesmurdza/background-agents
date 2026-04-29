@@ -277,6 +277,10 @@ export default function HomePage() {
       updateChatById(currentChat.id, { baseBranch: branch })
     },
     refetchMessages,
+    onMergeSuccess: () => {
+      if (!currentChat) return
+      updateChatById(currentChat.id, { mergedSuccessfully: true })
+    },
   })
 
   // Close mobile sidebar when switching to desktop

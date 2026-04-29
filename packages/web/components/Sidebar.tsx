@@ -828,6 +828,8 @@ function MobileChatItem({ chat, isActive, isDeleting, isUnseen, onSelect, onDele
         <Loader2 className="h-2.5 w-2.5 flex-shrink-0 animate-spin text-foreground/90" />
       ) : isUnseen ? (
         <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-muted-foreground/80" />
+      ) : chat.mergedSuccessfully ? (
+        <Check className="h-3 w-3 flex-shrink-0 text-green-600 dark:text-green-500" />
       ) : null}
 
       {/* Menu button */}
@@ -1243,6 +1245,10 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
             ) : isUnseen ? (
               <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
                 <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/80" />
+              </div>
+            ) : chat.mergedSuccessfully ? (
+              <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
+                <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
               </div>
             ) : null}
             <button

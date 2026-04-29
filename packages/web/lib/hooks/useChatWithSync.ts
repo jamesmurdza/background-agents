@@ -537,6 +537,7 @@ export function useChatWithSync() {
           status: chat.sandboxId ? "running" : "creating",
           lastActiveAt: Date.now(),
           errorMessage: undefined,
+          mergedSuccessfully: undefined, // Clear merge checkmark when user sends a new message
         } : c
       ))
 

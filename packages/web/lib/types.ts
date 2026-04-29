@@ -132,6 +132,10 @@ export interface Chat {
    *  failed. Suppresses auto-retry on subsequent selects until the user
    *  explicitly retries. */
   messagesLoadFailed?: boolean
+
+  /** Set when a merge from this chat completes successfully. Shows a checkmark
+   *  in the sidebar until the user starts typing in this chat. */
+  mergedSuccessfully?: boolean
 }
 
 export type ChatStatus = "pending" | "creating" | "ready" | "running" | "error"

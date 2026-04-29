@@ -33,6 +33,8 @@ export interface UseGitDialogsOptions {
   onSetBaseBranch?: (targetBranch: string) => void
   /** Refetch messages for a chat (called after git operations add messages on backend). */
   refetchMessages?: (chatId: string) => Promise<void>
+  /** Called when a merge completes successfully (for showing checkmark in sidebar). */
+  onMergeSuccess?: () => void
 }
 
 /** PR description format options */
@@ -970,7 +972,7 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, onSetBaseBranch, refetchMessages }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, onSetBaseBranch, refetchMessages, onMergeSuccess }: UseGitDialogsOptions): UseGitDialogsResult {
   const chatId = chat?.id ?? ""
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
@@ -1136,6 +1138,9 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
         onSetBaseBranch(selectedBranch)
       }
 
+      // Mark the source chat as merged successfully (for checkmark in sidebar)
+      onMergeSuccess?.()
+
       // Success message created by backend - refetch to show it
       await refetchMessages?.(chatId)
       setMergeOpen(false)
@@ -1146,7 +1151,7 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, chat?.parentChatId, chat?.displayName, onSetBaseBranch, resolveChatName, refetchMessages])
+  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, chat?.parentChatId, chat?.displayName, onSetBaseBranch, resolveChatName, refetchMessages, onMergeSuccess])
 
   // Handle rebase
   const handleRebase = useCallback(async () => {
