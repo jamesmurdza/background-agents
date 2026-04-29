@@ -596,11 +596,8 @@ export default function HomePage() {
       case "abort":
         gitDialogs.handleAbortConflict()
         break
-      case "download":
-        handleDownloadProject()
-        break
     }
-  }, [gitDialogs, handleBranchChat, handleDownloadProject])
+  }, [gitDialogs, handleBranchChat])
 
   // Palette handlers
   const handlePaletteSelectRepo = useCallback((repo: GitHubRepo) => {
@@ -812,6 +809,8 @@ export default function HomePage() {
       servers={availableServers}
       onOpenServer={(port, url) => openPreview({ type: "server", port, url })}
       onClosePreview={previewOpen ? closePreview : undefined}
+      onDownloadProject={currentChat?.sandboxId ? handleDownloadProject : undefined}
+      isDownloading={isDownloading}
       chatIds={displayChats.map((c) => c.id)}
       onNavigateChat={handleNavigateChat}
       currentChatId={displayCurrentChatId}

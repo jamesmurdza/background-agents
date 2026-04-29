@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, Download } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -44,6 +44,10 @@ interface CommandPaletteProps {
   servers?: Array<{ port: number; url: string }>
   onOpenServer?: (port: number, url: string) => void
   onClosePreview?: () => void
+  /** Download the project as a zip file. Omitted when no sandbox exists. */
+  onDownloadProject?: () => void
+  /** Whether a download is currently in progress. */
+  isDownloading?: boolean
 }
 
 export function CommandPalette({
@@ -65,6 +69,8 @@ export function CommandPalette({
   servers = [],
   onOpenServer,
   onClosePreview,
+  onDownloadProject,
+  isDownloading = false,
 }: CommandPaletteProps) {
   const handleSelect = (command: string) => {
     onRunCommand(command)
@@ -134,6 +140,16 @@ export function CommandPalette({
             <CommandItem value="close preview" onSelect={() => run(onClosePreview)}>
               <PanelRightClose className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Close Preview Pane</span>
+            </CommandItem>
+          )}
+          {onDownloadProject && (
+            <CommandItem
+              value="download project"
+              onSelect={() => run(onDownloadProject)}
+              disabled={isDownloading}
+            >
+              <Download className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>{isDownloading ? "Downloading..." : "Download Project"}</span>
             </CommandItem>
           )}
           {onDeleteChat && (

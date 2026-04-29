@@ -50,6 +50,8 @@ interface PaletteProviderProps {
   servers?: Array<{ port: number; url: string }>
   onOpenServer?: (port: number, url: string) => void
   onClosePreview?: () => void
+  onDownloadProject?: () => void
+  isDownloading?: boolean
   // For Alt+Up/Down chat navigation
   chatIds: string[]
   currentChatId: string | null
@@ -84,6 +86,8 @@ export function PaletteProvider({
   servers,
   onOpenServer,
   onClosePreview,
+  onDownloadProject,
+  isDownloading,
   chatIds,
   currentChatId,
   onSelectChat,
@@ -198,6 +202,8 @@ export function PaletteProvider({
         servers={servers}
         onOpenServer={onOpenServer}
         onClosePreview={onClosePreview}
+        onDownloadProject={onDownloadProject}
+        isDownloading={isDownloading}
       />
     </PaletteContext.Provider>
   )
