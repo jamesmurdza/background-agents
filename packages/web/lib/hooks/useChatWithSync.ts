@@ -417,8 +417,14 @@ export function useChatWithSync() {
           const data: SSECompleteEvent = JSON.parse(event.data)
           useStreamStore.getState().stopStream(chatId)
 
+          // Clear backgroundSessionId immediately to prevent the "resume streaming" effect
+          // from starting a duplicate SSE connection while we await the push below
+          updateChatsCache((old) => old.map((c) =>
+            c.id === chatId ? { ...c, backgroundSessionId: undefined } : c
+          ))
+
           // Auto-push before updating status (use branch parameter directly to avoid stale closure issues)
-          // Keep chat in "running" state until push completes so user sees the loading indicator
+          // Keep chat in "running" status until push completes so user sees the loading indicator
           if (data.status === "completed" && branch) {
             try {
               await gitPushMutation.mutateAsync({ sandboxId, repoName, branch })
@@ -440,7 +446,6 @@ export function useChatWithSync() {
             c.id === chatId ? {
               ...c,
               status: data.status === "error" ? "error" : "ready",
-              backgroundSessionId: undefined,
               lastActiveAt: Date.now(),
               errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
               sessionId: data.sessionId ?? c.sessionId,
