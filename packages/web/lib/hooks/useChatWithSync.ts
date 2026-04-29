@@ -670,21 +670,29 @@ export function useChatWithSync() {
   }, [currentChat])
 
   // Refetch messages for a specific chat (used after git operations add messages on backend)
+  // Uses delta sync - only fetches messages after the last known message ID
   const refetchMessages = useCallback(async (chatId: string) => {
     try {
-      const chatData = await fetchChat(chatId)
+      // Find the last message ID for this chat to enable delta sync
+      const chat = chats.find((c) => c.id === chatId)
+      const lastMessageId = chat?.messages[chat.messages.length - 1]?.id
+
+      // Fetch only new messages (after lastMessageId)
+      const chatData = await fetchChat(chatId, lastMessageId)
       const incomingMessages = chatData.messages.map(toMessageType)
 
-      updateChatsCache((old) =>
-        old.map((c) => {
-          if (c.id !== chatId) return c
-          return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
-        })
-      )
+      if (incomingMessages.length > 0) {
+        updateChatsCache((old) =>
+          old.map((c) => {
+            if (c.id !== chatId) return c
+            return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
+          })
+        )
+      }
     } catch (err) {
       console.error("Failed to refetch messages:", err)
     }
-  }, [updateChatsCache])
+  }, [chats, updateChatsCache])
 
   // True when messages need to be loaded for current chat (to prevent flash of empty state)
   // A chat needs loading if: has no messages locally, but server says it has messages (messageCount > 0)
