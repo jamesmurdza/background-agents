@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useCallback, useMemo, useState } from "react"
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, FolderGit2, GitBranchPlus, XCircle } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, FolderGit2, GitBranchPlus, XCircle, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { filterSlashCommands, filterSlashCommandsWithConflict, type SlashCommand } from "@upstream/common"
 
@@ -13,9 +13,10 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   FolderGit2,
   GitBranchPlus,
   XCircle,
+  Download,
 }
 
-export type SlashCommandType = "merge" | "rebase" | "pr" | "squash" | "repo" | "branch" | "abort"
+export type SlashCommandType = "merge" | "rebase" | "pr" | "squash" | "repo" | "branch" | "abort" | "download"
 
 interface SlashCommandMenuProps {
   /** The current input value (used for filtering) */

@@ -99,6 +99,7 @@ export default function HomePage() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [deleteConfirmChatId, setDeleteConfirmChatId] = useState<string | null>(null)
   const [mobileCommandsOpen, setMobileCommandsOpen] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
     if (typeof window === "undefined") return 520
@@ -541,6 +542,40 @@ export default function HomePage() {
     sendMessage(message, agent, model, undefined, chatId)
   }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session])
 
+  const handleDownloadProject = useCallback(async () => {
+    if (!currentChat?.sandboxId || isDownloading) return
+
+    setIsDownloading(true)
+    try {
+      const response = await fetch("/api/sandbox/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sandboxId: currentChat.sandboxId }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Download failed" }))
+        throw new Error(error.error || "Download failed")
+      }
+
+      // Create download link from blob
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${currentChat.displayName || "project"}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("[download] Error:", error)
+      // Could add a toast/notification here in the future
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [currentChat?.sandboxId, currentChat?.displayName, isDownloading])
+
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
       case "merge":
@@ -561,8 +596,11 @@ export default function HomePage() {
       case "abort":
         gitDialogs.handleAbortConflict()
         break
+      case "download":
+        handleDownloadProject()
+        break
     }
-  }, [gitDialogs, handleBranchChat])
+  }, [gitDialogs, handleBranchChat, handleDownloadProject])
 
   // Palette handlers
   const handlePaletteSelectRepo = useCallback((repo: GitHubRepo) => {

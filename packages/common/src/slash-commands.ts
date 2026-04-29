@@ -48,6 +48,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Create a new chat from here",
     icon: "GitBranchPlus",
   },
+  {
+    name: "download",
+    label: "Download",
+    description: "Download project as zip",
+    icon: "Download",
+  },
 ]
 
 /**
