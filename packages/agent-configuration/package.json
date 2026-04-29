@@ -1,0 +1,37 @@
+{
+  "name": "@upstream/agent-configuration",
+  "version": "0.1.0",
+  "description": "Agent configuration and policy rules for blocking dangerous operations",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "agent",
+    "configuration",
+    "git",
+    "safety",
+    "permissions"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "@daytonaio/sdk": "^0.150.0"
+  },
+  "peerDependenciesMeta": {
+    "@daytonaio/sdk": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./git": "./src/git/index.ts"
+  }
+}
