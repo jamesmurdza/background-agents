@@ -1,8 +1,5 @@
-import { Prisma } from "@prisma/client"
 import { getServerSession } from "next-auth"
-import { nanoid } from "nanoid"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/db/prisma"
 import {
   compareBranches,
   createPullRequest,
@@ -10,33 +7,10 @@ import {
   formatPRTitleFromBranch,
   formatPRBodyFromCommits,
 } from "@upstream/common"
+import { createGitOperationMessage } from "@/lib/db/git-messages"
 
 /** PR description format options */
 type PRDescriptionType = "short" | "long" | "commits" | "none"
-
-/**
- * Creates a git-operation message in the database
- */
-async function createGitOperationMessage(
-  chatId: string,
-  content: string,
-  isError: boolean = false,
-  metadata?: { action?: string; prUrl?: string; prNumber?: number }
-): Promise<string> {
-  const message = await prisma.message.create({
-    data: {
-      id: nanoid(),
-      chatId,
-      role: "assistant",
-      content,
-      timestamp: BigInt(Date.now()),
-      messageType: "git-operation",
-      isError,
-      metadata: metadata as Prisma.InputJsonValue,
-    },
-  })
-  return message.id
-}
 
 /**
  * Generate PR body based on description type

@@ -85,6 +85,7 @@ export default function HomePage() {
     removeQueuedMessage,
     resumeQueue,
     updateChatById,
+    refetchMessages,
   } = useChatWithSync()
 
   const [repoSelectOpen, setRepoSelectOpen] = useState(false)
@@ -275,6 +276,7 @@ export default function HomePage() {
       if (!currentChat) return
       updateChatById(currentChat.id, { baseBranch: branch })
     },
+    refetchMessages,
   })
 
   // Close mobile sidebar when switching to desktop

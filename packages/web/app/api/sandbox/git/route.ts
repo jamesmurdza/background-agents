@@ -1,37 +1,9 @@
 import { Daytona } from "@daytonaio/sdk"
-import { Prisma } from "@prisma/client"
 import { getServerSession } from "next-auth"
-import { nanoid } from "nanoid"
 import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
-import { prisma } from "@/lib/db/prisma"
+import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { fetchBranchWithAuth } from "@upstream/common"
-
-/**
- * Creates a git-operation message in the database
- */
-async function createGitOperationMessage(
-  chatId: string,
-  content: string,
-  isError: boolean = false,
-  metadata?: { action?: string; prUrl?: string; prNumber?: number },
-  linkBranch?: string
-): Promise<string> {
-  const message = await prisma.message.create({
-    data: {
-      id: nanoid(),
-      chatId,
-      role: "assistant",
-      content,
-      timestamp: BigInt(Date.now()),
-      messageType: "git-operation",
-      isError,
-      metadata: metadata as Prisma.InputJsonValue,
-      linkBranch,
-    },
-  })
-  return message.id
-}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)

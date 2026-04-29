@@ -669,6 +669,23 @@ export function useChatWithSync() {
     setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: false } }))
   }, [currentChat])
 
+  // Refetch messages for a specific chat (used after git operations add messages on backend)
+  const refetchMessages = useCallback(async (chatId: string) => {
+    try {
+      const chatData = await fetchChat(chatId)
+      const incomingMessages = chatData.messages.map(toMessageType)
+
+      updateChatsCache((old) =>
+        old.map((c) => {
+          if (c.id !== chatId) return c
+          return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
+        })
+      )
+    } catch (err) {
+      console.error("Failed to refetch messages:", err)
+    }
+  }, [updateChatsCache])
+
   // True when messages need to be loaded for current chat (to prevent flash of empty state)
   // A chat needs loading if: has no messages locally, but server says it has messages (messageCount > 0)
   const isLoadingMessages = currentChat
@@ -700,5 +717,6 @@ export function useChatWithSync() {
     enqueueMessage,
     removeQueuedMessage,
     resumeQueue,
+    refetchMessages,
   }
 }

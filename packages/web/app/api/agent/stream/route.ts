@@ -1,6 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
-import { nanoid } from "nanoid"
 import { PATHS } from "@/lib/constants"
 import {
   cancelBackgroundAgent,
@@ -11,30 +10,7 @@ import {
 } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
-
-/**
- * Creates a git-operation message in the database
- */
-async function createGitOperationMessage(
-  chatId: string,
-  content: string,
-  isError: boolean = false,
-  metadata?: { action?: string; prUrl?: string; prNumber?: number }
-): Promise<string> {
-  const message = await prisma.message.create({
-    data: {
-      id: nanoid(),
-      chatId,
-      role: "assistant",
-      content,
-      timestamp: BigInt(Date.now()),
-      messageType: "git-operation",
-      isError,
-      metadata: metadata as Prisma.InputJsonValue,
-    },
-  })
-  return message.id
-}
+import { createGitOperationMessage } from "@/lib/db/git-messages"
 
 /**
  * Auto-push to remote after agent completion
