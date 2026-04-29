@@ -31,6 +31,8 @@ export interface UseGitDialogsOptions {
   onMarkBranchNeedsSync?: (branch: string) => void
   /** Update base branch after successful merge (only if chat has no parent chat). */
   onSetBaseBranch?: (targetBranch: string) => void
+  /** Refetch messages for a chat (called after git operations add messages on backend). */
+  refetchMessages?: (chatId: string) => Promise<void>
 }
 
 /** PR description format options */
@@ -968,7 +970,7 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, onSetBaseBranch }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, onSetBaseBranch, refetchMessages }: UseGitDialogsOptions): UseGitDialogsResult {
   const chatId = chat?.id ?? ""
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
@@ -1111,13 +1113,15 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
           inMerge: true,
           conflictedFiles: data.conflictedFiles || [],
         })
-        // Message is created by the backend
+        // Message is created by the backend - refetch to show it
+        await refetchMessages?.(chatId)
         setMergeOpen(false)
         return
       }
 
       if (!res.ok) {
-        // Error message created by backend
+        // Error message created by backend - refetch to show it
+        await refetchMessages?.(chatId)
         setMergeOpen(false)
         return
       }
@@ -1132,15 +1136,17 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
         onSetBaseBranch(selectedBranch)
       }
 
-      // Success message created by backend
+      // Success message created by backend - refetch to show it
+      await refetchMessages?.(chatId)
       setMergeOpen(false)
     } catch {
-      // Error message created by backend on API error
+      // Error message may have been created by backend on API error - refetch to show it
+      await refetchMessages?.(chatId)
       setMergeOpen(false)
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, chat?.parentChatId, chat?.displayName, onSetBaseBranch, resolveChatName])
+  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, chat?.parentChatId, chat?.displayName, onSetBaseBranch, resolveChatName, refetchMessages])
 
   // Handle rebase
   const handleRebase = useCallback(async () => {
@@ -1171,26 +1177,30 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
           inMerge: false,
           conflictedFiles: data.conflictedFiles || [],
         })
-        // Message created by backend
+        // Message created by backend - refetch to show it
+        await refetchMessages?.(chatId)
         setRebaseOpen(false)
         return
       }
 
       if (!res.ok) {
-        // Error message created by backend
+        // Error message created by backend - refetch to show it
+        await refetchMessages?.(chatId)
         setRebaseOpen(false)
         return
       }
 
-      // Success message created by backend
+      // Success message created by backend - refetch to show it
+      await refetchMessages?.(chatId)
       setRebaseOpen(false)
     } catch {
-      // Error message created by backend
+      // Error message may have been created by backend - refetch to show it
+      await refetchMessages?.(chatId)
       setRebaseOpen(false)
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName])
+  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, refetchMessages])
 
   // Handle create PR
   const handleCreatePR = useCallback(async (descriptionType: PRDescriptionTypeForHook = "short") => {
@@ -1211,15 +1221,17 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
         }),
       })
 
-      // Message created by backend (success or error)
+      // Message created by backend (success or error) - refetch to show it
+      await refetchMessages?.(chatId)
       setPROpen(false)
     } catch {
-      // Error message created by backend
+      // Error message may have been created by backend - refetch to show it
+      await refetchMessages?.(chatId)
       setPROpen(false)
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branchName, repoOwner, repoApiName, chatId])
+  }, [selectedBranch, branchName, repoOwner, repoApiName, chatId, refetchMessages])
 
   // Handle force push (temp-branch dance: push commits to a throwaway remote
   // branch so GitHub has the objects, then PATCH the real branch ref to that SHA).
@@ -1242,15 +1254,17 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
         }),
       })
 
-      // Message created by backend (success or error)
+      // Message created by backend (success or error) - refetch to show it
+      await refetchMessages?.(chatId)
       setForcePushOpen(false)
     } catch {
-      // Error message created by backend
+      // Error message may have been created by backend - refetch to show it
+      await refetchMessages?.(chatId)
       setForcePushOpen(false)
     } finally {
       setActionLoading(false)
     }
-  }, [branchName, sandboxId, chatId, repoName, repoOwner, repoApiName])
+  }, [branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, refetchMessages])
 
   // Handle abort conflict
   const handleAbortConflict = useCallback(async () => {
@@ -1272,18 +1286,21 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
 
       const data = await res.json()
       if (!res.ok) {
-        // Error message created by backend
+        // Error message created by backend - refetch to show it
+        await refetchMessages?.(chatId)
         return
       }
 
       setRebaseConflict(EMPTY_CONFLICT_STATE)
-      // Success message created by backend
+      // Success message created by backend - refetch to show it
+      await refetchMessages?.(chatId)
     } catch {
-      // Error message created by backend
+      // Error message may have been created by backend - refetch to show it
+      await refetchMessages?.(chatId)
     } finally {
       setActionLoading(false)
     }
-  }, [sandboxId, chatId, repoName, rebaseConflict.inMerge])
+  }, [sandboxId, chatId, repoName, rebaseConflict.inMerge, refetchMessages])
 
   // Fetch commits ahead when squash dialog opens
   const fetchCommitsAhead = useCallback(async () => {
@@ -1342,15 +1359,17 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
         }),
       })
 
-      // Message created by backend (success or error)
+      // Message created by backend (success or error) - refetch to show it
+      await refetchMessages?.(chatId)
       setSquashOpen(false)
     } catch {
-      // Error message created by backend
+      // Error message may have been created by backend - refetch to show it
+      await refetchMessages?.(chatId)
       setSquashOpen(false)
     } finally {
       setActionLoading(false)
     }
-  }, [branchName, sandboxId, chatId, commitsAhead, baseBranch, repoOwner, repoApiName])
+  }, [branchName, sandboxId, chatId, commitsAhead, baseBranch, repoOwner, repoApiName, refetchMessages])
 
   // Check rebase status
   const checkRebaseStatus = useCallback(async () => {
