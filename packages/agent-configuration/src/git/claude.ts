@@ -4,15 +4,44 @@
  * Claude Code supports bash hooks that run before command execution.
  * The hook script receives command info via stdin and can block execution
  * by exiting with code 2.
+ *
+ * Hooks are registered via ~/.claude/settings.json which specifies which
+ * script to run for which tool events (e.g., PreToolUse for Bash commands).
  */
 
 import type { Sandbox } from "@daytonaio/sdk"
 
+/** Claude config directory path in the sandbox */
+export const CLAUDE_CONFIG_DIR = "/home/daytona/.claude"
+
 /** Claude hooks directory path in the sandbox */
-export const CLAUDE_HOOKS_DIR = "/home/daytona/.claude/hooks"
+export const CLAUDE_HOOKS_DIR = `${CLAUDE_CONFIG_DIR}/hooks`
+
+/** Claude settings file path */
+export const CLAUDE_SETTINGS_FILE = `${CLAUDE_CONFIG_DIR}/settings.json`
 
 /** Claude pre-command hook file path */
 export const CLAUDE_HOOK_FILE = `${CLAUDE_HOOKS_DIR}/prevent-dangerous-git.sh`
+
+/**
+ * Settings configuration that registers the git safety hook.
+ * This tells Claude Code to run our hook script before any Bash command.
+ */
+export const CLAUDE_SETTINGS = {
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: CLAUDE_HOOK_FILE,
+          },
+        ],
+      },
+    ],
+  },
+} as const
 
 /**
  * Bash hook script that blocks dangerous git operations.
@@ -123,7 +152,9 @@ exit 0
 /**
  * Sets up Claude Code hooks in a Daytona sandbox.
  *
- * This uploads the bash hook script that blocks dangerous git operations.
+ * This uploads the bash hook script that blocks dangerous git operations
+ * and registers it in the Claude settings file.
+ *
  * Should be called during agent session setup.
  *
  * @param sandbox - The Daytona sandbox instance
@@ -140,4 +171,32 @@ export async function setupClaudeHooks(sandbox: Sandbox): Promise<void> {
 
   // Make executable
   await sandbox.process.executeCommand(`chmod +x ${CLAUDE_HOOK_FILE}`)
+
+  // Read existing settings (if any) and merge our hooks
+  const existingResult = await sandbox.process.executeCommand(
+    `cat ${CLAUDE_SETTINGS_FILE} 2>/dev/null || echo '{}'`
+  ) as { result: string }
+
+  const existing = JSON.parse(existingResult.result.trim() || "{}")
+
+  // Deep merge hooks
+  if (!existing.hooks) existing.hooks = {}
+  for (const [event, handlers] of Object.entries(CLAUDE_SETTINGS.hooks)) {
+    if (!existing.hooks[event]) existing.hooks[event] = []
+    for (const handler of handlers as Array<Record<string, unknown>>) {
+      const exists = existing.hooks[event].some(
+        (h: Record<string, unknown>) => JSON.stringify(h) === JSON.stringify(handler)
+      )
+      if (!exists) existing.hooks[event].push(handler)
+    }
+  }
+
+  // Upload merged settings
+  await sandbox.fs.uploadFile(
+    Buffer.from(JSON.stringify(existing, null, 2), "utf-8"),
+    CLAUDE_SETTINGS_FILE
+  )
+
+  // Set proper permissions
+  await sandbox.process.executeCommand(`chmod 600 ${CLAUDE_SETTINGS_FILE}`)
 }

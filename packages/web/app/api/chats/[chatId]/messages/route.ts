@@ -22,6 +22,11 @@ import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel } from "@upstream/common"
 import {
+  setupClaudeHooks,
+  setupCodexRules,
+  OPENCODE_PERMISSION_ENV,
+} from "@upstream/agent-configuration"
+import {
   createSandboxForChat,
   deleteSandboxQuietly,
   uploadFilesToSandbox,
@@ -230,13 +235,26 @@ export async function POST(
         uploadedFilePaths.map((p) => `- ${p}`).join("\n")
     }
 
+    // ── Stage 3.5: set up agent-specific git safety hooks ─────────────────────
+    const agent = payload.agent as Agent
+    if (agent === "claude-code") {
+      await setupClaudeHooks(sandbox)
+    } else if (agent === "codex") {
+      await setupCodexRules(sandbox)
+    }
+
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
     const env = getEnvForModel(payload.model, payload.agent as Agent, credentials)
+
+    // For OpenCode, add permission restrictions via env var
+    if (agent === "opencode") {
+      env.OPENCODE_PERMISSION = OPENCODE_PERMISSION_ENV
+    }
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
       sessionId: chat.sessionId ?? undefined,
-      agent: payload.agent as Agent,
+      agent,
       model: payload.model,
       env: Object.keys(env).length > 0 ? env : undefined,
     })

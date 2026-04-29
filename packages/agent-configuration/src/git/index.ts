@@ -39,8 +39,11 @@ export {
 } from "./codex"
 
 export {
+  CLAUDE_CONFIG_DIR,
   CLAUDE_HOOKS_DIR,
+  CLAUDE_SETTINGS_FILE,
   CLAUDE_HOOK_FILE,
+  CLAUDE_SETTINGS,
   CLAUDE_HOOK_CONTENT,
   setupClaudeHooks,
 } from "./claude"

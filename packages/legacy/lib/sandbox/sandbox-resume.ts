@@ -5,9 +5,11 @@ import { prisma } from "@/lib/db/prisma"
 import { buildMcpConfig, getMcpConfigWriteCommand } from "@/lib/mcp/mcp-config"
 import { decrypt } from "@/lib/auth/encryption"
 import type { Agent } from "@/lib/shared/types"
-import { setupClaudeHooks } from "@/lib/agents/claude-hooks"
-import { OPENCODE_PERMISSION_ENV } from "@/lib/agents/opencode-permissions"
-import { setupCodexRules } from "@/lib/agents/codex-rules"
+import {
+  setupClaudeHooks,
+  setupCodexRules,
+  OPENCODE_PERMISSION_ENV,
+} from "@upstream/agent-configuration"
 import { getEnvForModel } from "@upstream/common"
 
 /**
