@@ -69,9 +69,36 @@ export async function GET(req: Request) {
 
   const encoder = new TextEncoder()
   let isStreamClosed = false
-  // Store sandbox reference for use in cancel() callback
+  // Store sandbox reference for use in cancel/abort callbacks
   let sandboxRef: Awaited<ReturnType<Daytona["get"]>> | null = null
   let sessionOptsRef: { repoPath: string; previewUrlPattern?: string } | null = null
+
+  // Shared cleanup function for both cancel() and abort signal
+  const handleClientDisconnect = async () => {
+    if (isStreamClosed) return // Prevent double cleanup
+    isStreamClosed = true
+    // Kill the agent process and update DB status
+    if (sandboxRef && sessionOptsRef) {
+      await cancelBackgroundAgent(sandboxRef, backgroundSessionId, sessionOptsRef)
+    }
+    if (chatId) {
+      try {
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: { status: "ready", backgroundSessionId: null },
+        })
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+
+  // Listen for client disconnect via request abort signal
+  // This is more reliable than ReadableStream.cancel() for detecting when
+  // EventSource clients close the connection (e.g., when user clicks stop button)
+  req.signal.addEventListener("abort", () => {
+    handleClientDisconnect()
+  })
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -276,21 +303,8 @@ export async function GET(req: Request) {
     },
 
     async cancel() {
-      isStreamClosed = true
-      // Kill the agent process and update DB status
-      if (sandboxRef && sessionOptsRef) {
-        await cancelBackgroundAgent(sandboxRef, backgroundSessionId, sessionOptsRef)
-      }
-      if (chatId) {
-        try {
-          await prisma.chat.update({
-            where: { id: chatId },
-            data: { status: "ready", backgroundSessionId: null },
-          })
-        } catch {
-          /* best effort */
-        }
-      }
+      // Delegate to shared cleanup function
+      await handleClientDisconnect()
     },
   })
 
