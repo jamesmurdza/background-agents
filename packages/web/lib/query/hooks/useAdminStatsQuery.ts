@@ -31,6 +31,21 @@ interface AdminStats {
     message_sent?: number
     [key: string]: string | number | undefined
   }>
+  topUsers: Array<{
+    name: string
+    image?: string | null
+    messageCount: number
+    chatCount: number
+  }>
+  repoActivity: Array<{
+    repo: string
+    chatCount: number
+    messageCount: number
+  }>
+  hourlyActivity: Array<{
+    hour: number
+    count: number
+  }>
 }
 
 async function fetchAdminStats(): Promise<AdminStats> {
