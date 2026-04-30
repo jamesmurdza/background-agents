@@ -1,5 +1,0 @@
-This is a test file to verify auto-commit functionality.
-
-Created to test whether auto-commit works without an LLM API key configured.
-The expected behavior is that the commit should succeed with a fallback message
-like "Auto-commit: agent changes" instead of an AI-generated commit message.

@@ -6,12 +6,12 @@ A monorepo for building applications with AI coding agents (Claude Code, OpenCod
 
 | Package | Description |
 |---------|-------------|
-| [`@upstream/agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes |
-| [`@upstream/agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations |
-| [`@upstream/claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona |
-| [`@upstream/common`](packages/common) | Shared utilities and types |
-| [`@upstream/terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
-| [`@upstream/web`](packages/web) | Standalone chat app for AI coding agents |
+| [`web`](packages/web) | Standalone chat app for AI coding agents |
+| [`agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes |
+| [`agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations |
+| [`claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona |
+| [`common`](packages/common) | Shared utilities and types |
+| [`terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
 
 ---
 
@@ -22,12 +22,14 @@ npm install
 npm run dev
 ```
 
+Opens the web app at [http://localhost:4000](http://localhost:4000).
+
 ---
 
 ## Development
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for local setup and [TESTING.md](./TESTING.md) for tests.
+See [DEVELOPMENT.md](./DEVELOPMENT.md) for local setup (database, environment variables) and [TESTING.md](./TESTING.md) for tests.
 
 ## Deployment
 
-See [packages/web/README.md](packages/web/README.md).
+Deploys to Vercel. See [packages/web/README.md](packages/web/README.md) for configuration.
