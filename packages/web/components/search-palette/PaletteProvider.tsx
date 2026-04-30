@@ -52,6 +52,7 @@ interface PaletteProviderProps {
   onClosePreview?: () => void
   onDownloadProject?: () => void
   isDownloading?: boolean
+  onShowDiff?: () => void
   // For Alt+Up/Down chat navigation
   chatIds: string[]
   currentChatId: string | null
@@ -88,6 +89,7 @@ export function PaletteProvider({
   onClosePreview,
   onDownloadProject,
   isDownloading,
+  onShowDiff,
   chatIds,
   currentChatId,
   onSelectChat,
@@ -204,6 +206,7 @@ export function PaletteProvider({
         onClosePreview={onClosePreview}
         onDownloadProject={onDownloadProject}
         isDownloading={isDownloading}
+        onShowDiff={onShowDiff}
       />
     </PaletteContext.Provider>
   )

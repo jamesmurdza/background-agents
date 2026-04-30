@@ -55,6 +55,20 @@
 .hljs-scope .hljs-deletion { color: #d32f2f; }
 .hljs-scope .hljs-addition { color: #067d17; }
 
+/* Git diff line backgrounds */
+.diff-line-addition {
+  background-color: rgba(6, 125, 23, 0.12);
+}
+.diff-line-deletion {
+  background-color: rgba(211, 47, 47, 0.12);
+}
+.dark .diff-line-addition {
+  background-color: rgba(195, 232, 141, 0.12);
+}
+.dark .diff-line-deletion {
+  background-color: rgba(255, 121, 198, 0.12);
+}
+
 /* ============================================================================
    Mobile-First Foundation
    ============================================================================ */

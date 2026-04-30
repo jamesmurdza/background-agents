@@ -8,6 +8,7 @@ export type PreviewItem =
   | { type: "file"; filePath: string; filename: string }
   | { type: "terminal"; id: string }
   | { type: "server"; port: number; url: string }
+  | { type: "git-diff"; baseBranch: string }
 
 /**
  * Props passed to every panel plugin component.

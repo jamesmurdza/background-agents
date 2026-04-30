@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, Download } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, Download, GitCompare } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -48,6 +48,8 @@ interface CommandPaletteProps {
   onDownloadProject?: () => void
   /** Whether a download is currently in progress. */
   isDownloading?: boolean
+  /** Show branch diff panel. Omitted when no sandbox or baseBranch. */
+  onShowDiff?: () => void
 }
 
 export function CommandPalette({
@@ -71,6 +73,7 @@ export function CommandPalette({
   onClosePreview,
   onDownloadProject,
   isDownloading = false,
+  onShowDiff,
 }: CommandPaletteProps) {
   const handleSelect = (command: string) => {
     onRunCommand(command)
@@ -140,6 +143,12 @@ export function CommandPalette({
             <CommandItem value="close preview" onSelect={() => run(onClosePreview)}>
               <PanelRightClose className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Close Preview Pane</span>
+            </CommandItem>
+          )}
+          {onShowDiff && (
+            <CommandItem value="show diff branch changes" onSelect={() => run(onShowDiff)}>
+              <GitCompare className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>Show Branch Diff</span>
             </CommandItem>
           )}
           {onDownloadProject && (

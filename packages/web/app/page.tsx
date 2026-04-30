@@ -844,6 +844,11 @@ export default function HomePage() {
       onClosePreview={previewOpen ? closePreview : undefined}
       onDownloadProject={currentChat?.sandboxId ? handleDownloadProject : undefined}
       isDownloading={isDownloading}
+      onShowDiff={
+        currentChat?.sandboxId && currentChat?.baseBranch
+          ? () => openPreview({ type: "git-diff", baseBranch: currentChat.baseBranch })
+          : undefined
+      }
       chatIds={displayChats.map((c) => c.id)}
       onNavigateChat={handleNavigateChat}
       currentChatId={displayCurrentChatId}

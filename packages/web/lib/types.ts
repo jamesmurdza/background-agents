@@ -118,6 +118,7 @@ export interface Chat {
     | { type: "file"; filePath: string; filename: string }
     | { type: "terminal"; id: string }
     | { type: "server"; port: number; url: string }
+    | { type: "git-diff"; baseBranch: string }
 
   // Status
   status: ChatStatus
