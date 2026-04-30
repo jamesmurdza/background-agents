@@ -60,7 +60,7 @@ test.describe("New Chat Flow", () => {
 
     // Should see the sandbox info text (below the input)
     await expect(page.locator("text=Agents are isolated in Daytona sandboxes and tied to Git branches")).toBeVisible()
-    await expect(page.locator("text=Options and tools are available using Cmd-K.")).toBeVisible()
+    await expect(page.locator("text=Options and tools are available using ⌘K.")).toBeVisible()
 
     // Should see agent and model selectors
     await expect(page.locator("text=OpenCode")).toBeVisible()
@@ -68,6 +68,16 @@ test.describe("New Chat Flow", () => {
 
     // Should see New Chat button in sidebar
     await expect(page.locator('button:has-text("New Chat")')).toBeVisible()
+  })
+
+  test("should show updated shortcuts in the help modal", async ({ page }) => {
+    await page.goto("/")
+
+    await page.getByRole("button", { name: "Help" }).click()
+
+    await expect(page.locator("text=Keyboard shortcuts")).toBeVisible()
+    await expect(page.locator("text=⌥Enter Branch and send to a new chat")).toBeVisible()
+    await expect(page.locator("text=Getting started")).toHaveCount(0)
   })
 
   test("should have New Repository selected by default", async ({ page }) => {

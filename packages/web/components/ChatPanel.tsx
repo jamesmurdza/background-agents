@@ -933,7 +933,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
             </a>
             {" "}and tied to Git branches.
           </p>
-          <p className="mt-1">Options and tools are available using Cmd-K.</p>
+          <p className="mt-1">Options and tools are available using ⌘K.</p>
         </div>
       </div>
     )
