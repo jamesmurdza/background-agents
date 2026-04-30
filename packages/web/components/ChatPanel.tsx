@@ -564,7 +564,9 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   ? "Creating sandbox..."
                   : isRunning
                   ? "Agent is working..."
-                  : "Message..."
+                  : isNewChat
+                  ? "Message..."
+                  : "Enter a prompt or type /merge"
               }
               rows={1}
               className={cn(
