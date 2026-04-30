@@ -158,10 +158,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     if (isMobile) return
     // Don't focus while messages are still loading - the textarea doesn't exist yet
     if (isLoadingMessages) return
-    const t = window.setTimeout(() => {
+    // Use requestAnimationFrame to ensure DOM has been painted before focusing
+    const frameId = requestAnimationFrame(() => {
       focusPrompt(true)
-    }, 0)
-    return () => window.clearTimeout(t)
+    })
+    return () => cancelAnimationFrame(frameId)
   }, [chat?.id, isCreating, isLoadingMessages, isMobile, focusPrompt])
 
   // Auto-resize textarea
