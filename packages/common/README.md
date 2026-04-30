@@ -1,6 +1,6 @@
 # @upstream/common
 
-Shared utilities and types for upstream-agents packages. This package provides common functionality used across the monorepo, including agent configuration, SSE streaming, GitHub API helpers, and utility functions.
+Shared utilities and types for upstream-agents packages. This package provides common functionality used across the monorepo, including agent configuration, GitHub API helpers, and utility functions.
 
 ## Installation
 
@@ -26,50 +26,16 @@ import {
   type Agent,
   type ProviderName,
   type ModelOption,
-  type UserCredentialFlags,
+  type CredentialFlags,
   // Data
-  agentToProvider,
   agentLabels,
   agentModels,
   defaultAgentModel,
   // Functions
-  getProviderForAgent,
   getDefaultAgent,
-  hasClaudeCodeCredentials,
-  hasCodexCredentials,
-  hasGeminiCredentials,
-  hasGooseCredentials,
-  hasPiCredentials,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
-} from "@upstream/common"
-```
-
-### SSE Utilities
-
-Server-Sent Events helpers for real-time streaming.
-
-```typescript
-import {
-  // Types
-  type SSEEvent,
-  type StreamController,
-  type StreamOptions,
-  type ProgressEvent,
-  type ErrorEvent,
-  type DoneEvent,
-  type StreamEvent,
-  // Constants
-  SSE_HEADERS,
-  // Server-side
-  createSSEStream,
-  sendProgress,
-  sendError,
-  sendDone,
-  // Client-side
-  parseSSEStream,
-  waitForSSEResult,
 } from "@upstream/common"
 ```
 
@@ -89,7 +55,6 @@ import {
   type GitHubPullRequest,
   // Core helpers
   githubFetch,
-  githubFetchText,
   isGitHubApiError,
   // High-level API methods
   getUser,
@@ -97,9 +62,7 @@ import {
   getRepo,
   getRepoBranches,
   compareBranches,
-  getDiff,
   createRepo,
-  forkRepo,
   createPullRequest,
 } from "@upstream/common"
 ```
@@ -110,7 +73,6 @@ Helpers for building agent sessions and content blocks.
 
 ```typescript
 import {
-  mapToolName,
   buildSystemPrompt,
   buildContentBlocks,
   type BuildContentBlocksResult,
@@ -132,21 +94,14 @@ import type {
 
 ### Branch Utilities
 
-Generate and validate Git branch names.
+Generate Git branch names.
 
 ```typescript
 import {
-  // Constants
-  BRANCH_NAME_WORDS,
-  BRANCH_NAME_ERRORS,
   // Types
-  type BranchNameWord,
-  type BranchNameError,
   type BranchNameOptions,
   // Functions
   generateBranchName,
-  randomBranchName,
-  validateBranchName,
 } from "@upstream/common"
 ```
 
@@ -180,14 +135,14 @@ import { generateSandboxName } from "@upstream/common"
 
 ### Slash Commands
 
-Command definitions and fuzzy matching.
+Command definitions and filtering.
 
 ```typescript
 import {
   type SlashCommand,
   SLASH_COMMANDS,
-  fuzzyMatch,
   filterSlashCommands,
+  filterSlashCommandsWithConflict,
 } from "@upstream/common"
 ```
 

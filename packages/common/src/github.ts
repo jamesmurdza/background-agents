@@ -93,37 +93,6 @@ export async function githubFetch<T = unknown>(
 }
 
 /**
- * Makes a request to the GitHub API that returns text (e.g., diffs)
- */
-export async function githubFetchText(
-  url: string,
-  token: string,
-  options: GitHubFetchOptions = {}
-): Promise<string> {
-  const { accept = "application/vnd.github.v3+json", ...fetchOptions } = options
-
-  const fullUrl = url.startsWith("http") ? url : `https://api.github.com${url}`
-
-  const response = await fetch(fullUrl, {
-    ...fetchOptions,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: accept,
-    },
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw {
-      message: `GitHub API error: ${response.status} ${text}`,
-      status: response.status,
-    } as GitHubApiError
-  }
-
-  return response.text()
-}
-
-/**
  * Type guard to check if an error is a GitHubApiError
  */
 export function isGitHubApiError(error: unknown): error is GitHubApiError {
@@ -229,29 +198,6 @@ export async function compareBranches(
 }
 
 /**
- * Get diff between commits or branches
- */
-export async function getDiff(
-  token: string,
-  owner: string,
-  repo: string,
-  options: { commitHash?: string; base?: string; head?: string }
-): Promise<string> {
-  const { commitHash, base, head } = options
-
-  let url: string
-  if (commitHash) {
-    url = `/repos/${owner}/${repo}/commits/${commitHash}`
-  } else if (base && head) {
-    url = `/repos/${owner}/${repo}/compare/${base}...${head}`
-  } else {
-    throw new Error("Must provide commitHash or base+head")
-  }
-
-  return githubFetchText(url, token, { accept: "application/vnd.github.v3.diff" })
-}
-
-/**
  * Create a new repository
  */
 export async function createRepo(
@@ -265,15 +211,6 @@ export async function createRepo(
       description: options.description,
       private: options.isPrivate ?? false,
     }),
-  })
-}
-
-/**
- * Fork a repository
- */
-export async function forkRepo(token: string, owner: string, name: string): Promise<GitHubRepo> {
-  return githubFetch<GitHubRepo>(`/repos/${owner}/${name}/forks`, token, {
-    method: "POST",
   })
 }
 

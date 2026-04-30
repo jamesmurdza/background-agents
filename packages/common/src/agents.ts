@@ -15,17 +15,6 @@ export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini"
 /** SDK provider names (must match ProviderName from SDK) */
 export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "pi"
 
-/** Map agent type to SDK provider name */
-export const agentToProvider: Record<Agent, ProviderName> = {
-  "claude-code": "claude",
-  "opencode": "opencode",
-  "codex": "codex",
-  "eliza": "eliza",
-  "gemini": "gemini",
-  "goose": "goose",
-  "pi": "pi",
-}
-
 /** Display labels for each agent */
 export const agentLabels: Record<Agent, string> = {
   "claude-code": "Claude Code",
@@ -70,35 +59,6 @@ const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
   openai: ["OPENAI_API_KEY"],
   opencode: ["OPENCODE_API_KEY"],
   gemini: ["GEMINI_API_KEY"],
-}
-
-/**
- * Get provider name from agent string (handles legacy "claude" value)
- */
-export function getProviderForAgent(agent: string | undefined): ProviderName {
-  if (!agent || agent === "claude" || agent === "claude-code") {
-    return "claude"
-  }
-  if (agent === "opencode") {
-    return "opencode"
-  }
-  if (agent === "codex") {
-    return "codex"
-  }
-  if (agent === "eliza") {
-    return "eliza"
-  }
-  if (agent === "gemini") {
-    return "gemini"
-  }
-  if (agent === "goose") {
-    return "goose"
-  }
-  if (agent === "pi") {
-    return "pi"
-  }
-  // Fallback for any other value
-  return "claude"
 }
 
 // =============================================================================
@@ -238,36 +198,6 @@ export function getDefaultAgent(flags: CredentialFlags | null | undefined): Agen
     return "claude-code"
   }
   return "opencode"
-}
-
-/** Check if user has credentials for Claude Code agent */
-export function hasClaudeCodeCredentials(flags: CredentialFlags | null | undefined): boolean {
-  return !!(flags?.ANTHROPIC_API_KEY || flags?.CLAUDE_CODE_CREDENTIALS || flags?.CLAUDE_SHARED_POOL_AVAILABLE)
-}
-
-/** Check if user has credentials for Codex agent */
-export function hasCodexCredentials(flags: CredentialFlags | null | undefined): boolean {
-  return !!flags?.OPENAI_API_KEY
-}
-
-/** Check if user has credentials for Gemini agent */
-export function hasGeminiCredentials(flags: CredentialFlags | null | undefined): boolean {
-  return !!flags?.GEMINI_API_KEY
-}
-
-/** Check if user has credentials for Goose agent */
-export function hasGooseCredentials(flags: CredentialFlags | null | undefined): boolean {
-  return !!(flags?.OPENAI_API_KEY || flags?.ANTHROPIC_API_KEY)
-}
-
-/** Check if user has credentials for Pi agent */
-export function hasPiCredentials(flags: CredentialFlags | null | undefined): boolean {
-  return !!(flags?.ANTHROPIC_API_KEY || flags?.OPENAI_API_KEY || flags?.GEMINI_API_KEY)
-}
-
-/** Check if user has credentials for ELIZA agent (always true - no API key needed) */
-export function hasElizaCredentials(_flags: CredentialFlags | null | undefined): boolean {
-  return true // ELIZA is a fake agent that doesn't need any API keys
 }
 
 /**

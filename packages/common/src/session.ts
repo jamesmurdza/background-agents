@@ -26,7 +26,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   grep: "Grep",
 }
 
-export function mapToolName(sdkTool: string): string {
+function mapToolName(sdkTool: string): string {
   return TOOL_NAME_MAP[sdkTool.toLowerCase()] || sdkTool
 }
 

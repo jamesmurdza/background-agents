@@ -10,7 +10,7 @@
  * Word list for generating random branch names
  * Used to create memorable, human-readable branch names like "swift-lunar-amber"
  */
-export const BRANCH_NAME_WORDS = [
+const BRANCH_NAME_WORDS = [
   "swift",
   "lunar",
   "amber",
@@ -43,7 +43,7 @@ export const BRANCH_NAME_WORDS = [
   "grand",
 ] as const
 
-export type BranchNameWord = (typeof BRANCH_NAME_WORDS)[number]
+type BranchNameWord = (typeof BRANCH_NAME_WORDS)[number]
 
 // =============================================================================
 // Branch Name Generation
@@ -97,22 +97,14 @@ export function generateBranchName(options: BranchNameOptions = {}): string {
   return words.join("-")
 }
 
-/**
- * Generate a random branch name using three words (no suffix)
- * Convenience function for the "three-word" style: "swift-lunar-amber"
- */
-export function randomBranchName(): string {
-  return generateBranchName({ wordCount: 3, includeSuffix: false })
-}
-
 // =============================================================================
 // Branch Name Validation
 // =============================================================================
 
 /**
- * Validation errors for branch names
+ * Validation errors for branch names (used internally by validateBranchName)
  */
-export const BRANCH_NAME_ERRORS = {
+const BRANCH_NAME_ERRORS = {
   HAS_SPACES: "Branch name cannot contain spaces",
   INVALID_CHARACTERS: "Branch name contains invalid characters",
   INVALID_FORMAT: "Invalid branch name format",
@@ -121,55 +113,4 @@ export const BRANCH_NAME_ERRORS = {
   ALREADY_EXISTS_REMOTE: "A branch with this name already exists on GitHub",
 } as const
 
-export type BranchNameError = (typeof BRANCH_NAME_ERRORS)[keyof typeof BRANCH_NAME_ERRORS]
-
-/**
- * Validates a branch name according to Git naming rules
- * Returns an error message if invalid, or null if valid
- *
- * @param branchName - The branch name to validate
- * @param existingBranches - List of existing local branch names to check for duplicates
- * @param remoteBranches - List of existing remote branch names to check for duplicates
- */
-export function validateBranchName(
-  branchName: string,
-  existingBranches: string[] = [],
-  remoteBranches: string[] = []
-): BranchNameError | null {
-  // Check for spaces
-  if (/\s/.test(branchName)) {
-    return BRANCH_NAME_ERRORS.HAS_SPACES
-  }
-
-  // Check for invalid characters: ~ ^ : ? * [ \
-  if (/[~^:?*\[\\]/.test(branchName)) {
-    return BRANCH_NAME_ERRORS.INVALID_CHARACTERS
-  }
-
-  // Check for invalid format (starts with - or ., ends with . or .lock)
-  if (
-    branchName.startsWith("-") ||
-    branchName.startsWith(".") ||
-    branchName.endsWith(".") ||
-    branchName.endsWith(".lock")
-  ) {
-    return BRANCH_NAME_ERRORS.INVALID_FORMAT
-  }
-
-  // Check for invalid sequences (.. or @{)
-  if (branchName.includes("..") || branchName.includes("@{")) {
-    return BRANCH_NAME_ERRORS.INVALID_SEQUENCE
-  }
-
-  // Check for duplicates in local branches
-  if (existingBranches.includes(branchName)) {
-    return BRANCH_NAME_ERRORS.ALREADY_EXISTS
-  }
-
-  // Check for duplicates in remote branches
-  if (remoteBranches.includes(branchName)) {
-    return BRANCH_NAME_ERRORS.ALREADY_EXISTS_REMOTE
-  }
-
-  return null
-}
+type BranchNameError = (typeof BRANCH_NAME_ERRORS)[keyof typeof BRANCH_NAME_ERRORS]

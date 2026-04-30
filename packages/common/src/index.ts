@@ -16,7 +16,6 @@ export type {
 
 // Session utilities
 export {
-  mapToolName,
   buildSystemPrompt,
   buildContentBlocks,
   type BuildContentBlocksResult,
@@ -34,19 +33,11 @@ export {
   type Credentials,
   // Data
   ALL_AGENTS,
-  agentToProvider,
   agentLabels,
   agentModels,
   defaultAgentModel,
   // Functions
-  getProviderForAgent,
   getDefaultAgent,
-  hasClaudeCodeCredentials,
-  hasCodexCredentials,
-  hasElizaCredentials,
-  hasGeminiCredentials,
-  hasGooseCredentials,
-  hasPiCredentials,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
@@ -65,7 +56,6 @@ export {
   type GitHubPullRequest,
   // Core helpers
   githubFetch,
-  githubFetchText,
   isGitHubApiError,
   // High-level API methods
   getUser,
@@ -73,25 +63,16 @@ export {
   getRepo,
   getRepoBranches,
   compareBranches,
-  getDiff,
   createRepo,
-  forkRepo,
   createPullRequest,
 } from "./github"
 
 // Branch utilities
 export {
-  // Constants
-  BRANCH_NAME_WORDS,
-  BRANCH_NAME_ERRORS,
   // Types
-  type BranchNameWord,
-  type BranchNameError,
   type BranchNameOptions,
   // Functions
   generateBranchName,
-  randomBranchName,
-  validateBranchName,
 } from "./branch"
 
 // Sandbox utilities
@@ -105,7 +86,6 @@ export {
   type SlashCommand,
   SLASH_COMMANDS,
   ABORT_COMMAND,
-  fuzzyMatch,
   filterSlashCommands,
   filterSlashCommandsWithConflict,
 } from "./slash-commands"
@@ -149,5 +129,4 @@ export {
   // Functions
   getRecentItems,
   addRecentItem,
-  clearRecentItems,
 } from "./search-palette"

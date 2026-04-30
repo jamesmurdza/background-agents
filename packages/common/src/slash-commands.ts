@@ -64,7 +64,7 @@ export const ABORT_COMMAND: SlashCommand = {
  * Simple fuzzy match for filtering commands
  * Returns true if all characters in the filter appear in order in the target
  */
-export function fuzzyMatch(filter: string, target: string): boolean {
+function fuzzyMatch(filter: string, target: string): boolean {
   const filterLower = filter.toLowerCase()
   const targetLower = target.toLowerCase()
 
