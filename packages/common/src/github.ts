@@ -228,3 +228,35 @@ export async function createPullRequest(
     body: JSON.stringify(options),
   })
 }
+
+/**
+ * Search response from GitHub Search API
+ */
+export interface GitHubSearchReposResponse {
+  total_count: number
+  incomplete_results: boolean
+  items: GitHubRepo[]
+}
+
+/**
+ * Search repositories using GitHub's Search API
+ * This allows searching across ALL of a user's accessible repos, not just the first page
+ */
+export async function searchRepos(
+  token: string,
+  query: string,
+  options: { perPage?: number } = {}
+): Promise<GitHubRepo[]> {
+  const { perPage = 50 } = options
+
+  // Build search query - search in user's accessible repos
+  // The query searches repo names and descriptions
+  const searchQuery = encodeURIComponent(query)
+
+  const response = await githubFetch<GitHubSearchReposResponse>(
+    `/search/repositories?q=${searchQuery}+in:name,description+fork:true&per_page=${perPage}&sort=updated`,
+    token
+  )
+
+  return response.items
+}

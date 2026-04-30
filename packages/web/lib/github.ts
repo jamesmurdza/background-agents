@@ -8,6 +8,7 @@ import {
   getUserRepos,
   getRepo,
   getRepoBranches,
+  searchRepos,
   type GitHubUser,
   type GitHubRepo,
   type GitHubBranch,
@@ -24,12 +25,13 @@ export async function fetchUser(token: string): Promise<GitHubUser> {
 }
 
 /**
- * Fetch repositories for the authenticated user
+ * Fetch repositories for the authenticated user (most recent 100)
+ * For finding older repos, use fetchSearchRepos which searches across all repos
  */
 export async function fetchRepos(token: string): Promise<GitHubRepo[]> {
   return getUserRepos(token, {
     sort: "updated",
-    perPage: 50,
+    perPage: 100,
     affiliation: "owner,collaborator,organization_member",
   })
 }
@@ -54,6 +56,17 @@ export async function fetchBranches(
   repo: string
 ): Promise<GitHubBranch[]> {
   return getRepoBranches(token, owner, repo, { perPage: 100, paginate: true })
+}
+
+/**
+ * Search repositories using GitHub's Search API
+ * This searches across ALL accessible repos, not just the most recent ones
+ */
+export async function fetchSearchRepos(
+  token: string,
+  query: string
+): Promise<GitHubRepo[]> {
+  return searchRepos(token, query, { perPage: 50 })
 }
 
 /**
