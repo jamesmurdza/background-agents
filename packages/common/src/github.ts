@@ -239,24 +239,43 @@ export interface GitHubSearchReposResponse {
 }
 
 /**
- * Search repositories using GitHub's Search API
- * This allows searching across ALL of a user's accessible repos, not just the first page
+ * Search user's accessible repositories by paginating through the List repos API
+ * This includes owned repos, collaborator repos, and org member repos
+ * Unlike the Search API, this properly respects the affiliation filter
  */
 export async function searchRepos(
   token: string,
   query: string,
-  options: { perPage?: number } = {}
+  options: { perPage?: number; maxPages?: number } = {}
 ): Promise<GitHubRepo[]> {
-  const { perPage = 50 } = options
+  const { perPage = 100, maxPages = 5 } = options
+  const searchLower = query.toLowerCase()
 
-  // Build search query - search in user's accessible repos
-  // The query searches repo names and descriptions
-  const searchQuery = encodeURIComponent(query)
+  const matches: GitHubRepo[] = []
+  let page = 1
 
-  const response = await githubFetch<GitHubSearchReposResponse>(
-    `/search/repositories?q=${searchQuery}+in:name,description+fork:true&per_page=${perPage}&sort=updated`,
-    token
-  )
+  // Paginate through user's repos until we have enough matches or run out of pages
+  while (page <= maxPages) {
+    const repos = await githubFetch<GitHubRepo[]>(
+      `/user/repos?sort=updated&per_page=${perPage}&page=${page}&affiliation=owner,collaborator,organization_member`,
+      token
+    )
 
-  return response.items
+    if (!Array.isArray(repos) || repos.length === 0) break
+
+    // Filter repos that match the search query
+    for (const repo of repos) {
+      const nameMatches = repo.full_name.toLowerCase().includes(searchLower)
+      const descMatches = repo.description?.toLowerCase().includes(searchLower)
+      if (nameMatches || descMatches) {
+        matches.push(repo)
+      }
+    }
+
+    // Stop if we've found enough matches or this was the last page
+    if (matches.length >= 50 || repos.length < perPage) break
+    page++
+  }
+
+  return matches
 }
