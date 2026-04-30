@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import type { Message, ContentBlock, ToolCall, MessageMetadata } from "@/lib/types"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import hljs from "highlight.js/lib/common"
 
 interface MessageBubbleProps {
   message: Message
@@ -125,15 +126,38 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
             </pre>
           ),
           code: ({ children, className, ...props }) => {
-            const isInline = !className
+            // Detect language from className (e.g., "language-typescript")
+            const match = /language-(\w+)/.exec(className || "")
+            const isBlock = !!match
+
+            if (isBlock) {
+              // Extract text content from children
+              const code = String(children).replace(/\n$/, "")
+              const lang = match[1]
+
+              // Try to highlight with specified language, fall back to auto-detect
+              let highlighted: string
+              try {
+                if (hljs.getLanguage(lang)) {
+                  highlighted = hljs.highlight(code, { language: lang }).value
+                } else {
+                  highlighted = hljs.highlightAuto(code).value
+                }
+              } catch {
+                highlighted = code
+              }
+
+              return (
+                <code
+                  className="hljs-scope"
+                  dangerouslySetInnerHTML={{ __html: highlighted }}
+                />
+              )
+            }
+
+            // Inline code - no highlighting
             return (
-              <code
-                {...props}
-                className={cn(
-                  className,
-                  isInline && "break-words"
-                )}
-              >
+              <code {...props} className="break-words">
                 {children}
               </code>
             )
