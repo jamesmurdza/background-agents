@@ -62,7 +62,14 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [branchSearch, setBranchSearch] = useState("")
+
+  // Debounce search for smoother typing
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 50)
+    return () => clearTimeout(timer)
+  }, [search])
 
   // Create repo form state
   const [newRepoName, setNewRepoName] = useState("")
@@ -143,6 +150,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       setSelectedBranch("")
       setBranches([])
       setSearch("")
+      setDebouncedSearch("")
       setBranchSearch("")
       setShowBranchDropdown(false)
       setError(null)
@@ -279,13 +287,13 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
 
   // Filter repos locally by search query
   const filteredRepos = useMemo(() => {
-    if (!search.trim()) return repos
-    const searchLower = search.toLowerCase()
+    if (!debouncedSearch.trim()) return repos
+    const searchLower = debouncedSearch.toLowerCase()
     return repos.filter((repo) =>
       repo.full_name.toLowerCase().includes(searchLower) ||
       repo.description?.toLowerCase().includes(searchLower)
     )
-  }, [repos, search])
+  }, [repos, debouncedSearch])
   const filteredBranches = branches
     .filter((branch) => branch.name.toLowerCase().includes(branchSearch.toLowerCase()))
     .sort((a, b) => {
