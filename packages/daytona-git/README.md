@@ -1,4 +1,4 @@
-# @anthropic/daytona-git
+# @upstream/daytona-git
 
 Git operations for Daytona sandboxes that execute commands directly via `sandbox.process.executeCommand()` instead of the Daytona Git Toolbox.
 
@@ -12,14 +12,14 @@ Git operations for Daytona sandboxes that execute commands directly via `sandbox
 ## Installation
 
 ```bash
-npm install @anthropic/daytona-git
+npm install @upstream/daytona-git
 ```
 
 ## Usage
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSandboxGit } from "@anthropic/daytona-git"
+import { createSandboxGit } from "@upstream/daytona-git"
 
 const daytona = new Daytona({ apiKey })
 const sandbox = await daytona.get(sandboxId)
@@ -116,7 +116,7 @@ await sandbox.git.push(path, "x-access-token", token)
 
 With:
 ```typescript
-import { createSandboxGit } from "@anthropic/daytona-git"
+import { createSandboxGit } from "@upstream/daytona-git"
 
 const git = createSandboxGit(sandbox)
 await git.clone(url, path, branch, undefined, "x-access-token", token)

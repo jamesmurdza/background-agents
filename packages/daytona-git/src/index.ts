@@ -1,5 +1,5 @@
 /**
- * @anthropic/daytona-git
+ * @upstream/daytona-git
  *
  * Git operations for Daytona sandboxes that execute commands directly
  * via sandbox.process.executeCommand() instead of the Daytona Git Toolbox.
@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { createSandboxGit } from "@anthropic/daytona-git"
+ * import { createSandboxGit } from "@upstream/daytona-git"
  *
  * // Create git interface from any Daytona sandbox
  * const git = createSandboxGit(sandbox)
@@ -79,7 +79,7 @@ export {
  * @example
  * ```typescript
  * import { Daytona } from "@daytonaio/sdk"
- * import { createSandboxGit } from "@anthropic/daytona-git"
+ * import { createSandboxGit } from "@upstream/daytona-git"
  *
  * const daytona = new Daytona({ apiKey })
  * const sandbox = await daytona.get(sandboxId)
@@ -162,7 +162,7 @@ export function createSandboxGit(sandbox: SandboxLike): SandboxGit {
  *
  * @example
  * ```typescript
- * import { gitCommands } from "@anthropic/daytona-git"
+ * import { gitCommands } from "@upstream/daytona-git"
  *
  * // Call commands directly with sandbox.process
  * await gitCommands.clone(sandbox.process, url, path, branch)
