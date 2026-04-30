@@ -1,6 +1,8 @@
 # Daytona Background Agents
 
-Building blocks for building applications with AI coding agents running in isolated [Daytona](https://daytona.io) sandboxes.
+Building blocks for running AI coding agents in isolated [Daytona](https://daytona.io) sandboxes. Can be used in your own projects or as a standalone NextJS app:
+
+https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Packages
 
