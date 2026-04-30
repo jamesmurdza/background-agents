@@ -24,30 +24,14 @@ export async function fetchUser(token: string): Promise<GitHubUser> {
 }
 
 /**
- * Fetch ALL repositories for the authenticated user (with pagination)
- * Fetches up to 500 repos (5 pages of 100)
+ * Fetch repositories for the authenticated user (100 most recent)
  */
 export async function fetchRepos(token: string): Promise<GitHubRepo[]> {
-  const allRepos: GitHubRepo[] = []
-  const perPage = 100
-  const maxPages = 5
-
-  for (let page = 1; page <= maxPages; page++) {
-    const repos = await getUserRepos(token, {
-      sort: "updated",
-      perPage,
-      page,
-      affiliation: "owner,collaborator,organization_member",
-    })
-
-    if (!Array.isArray(repos) || repos.length === 0) break
-    allRepos.push(...repos)
-
-    // Stop if this was the last page
-    if (repos.length < perPage) break
-  }
-
-  return allRepos
+  return getUserRepos(token, {
+    sort: "updated",
+    perPage: 100,
+    affiliation: "owner,collaborator,organization_member",
+  })
 }
 
 /**
