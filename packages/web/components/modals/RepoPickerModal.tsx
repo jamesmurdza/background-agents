@@ -7,7 +7,7 @@ import { Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { fetchRepos, fetchBranches, createRepository, fetchSearchRepos } from "@/lib/github"
+import { fetchRepos, fetchBranches, createRepository } from "@/lib/github"
 import type { GitHubRepo, GitHubBranch } from "@/lib/types"
 
 interface RepoPickerModalProps {
@@ -63,8 +63,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [branchSearch, setBranchSearch] = useState("")
-  const [searchResults, setSearchResults] = useState<GitHubRepo[] | null>(null)
-  const [searching, setSearching] = useState(false)
 
   // Create repo form state
   const [newRepoName, setNewRepoName] = useState("")
@@ -103,33 +101,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       }, 50)
     }
   }, [showBranchDropdown])
-
-  // Debounced search using GitHub Search API
-  useEffect(() => {
-    const token = session?.accessToken
-    if (!open || !token || !search.trim()) {
-      setSearchResults(null)
-      setSearching(false)
-      return
-    }
-
-    setSearching(true)
-    const timeoutId = setTimeout(() => {
-      fetchSearchRepos(token, search.trim())
-        .then((results) => {
-          setSearchResults(results)
-          setSearching(false)
-        })
-        .catch((err) => {
-          console.error("Search failed:", err)
-          setSearching(false)
-          // Fall back to local filtering on error
-          setSearchResults(null)
-        })
-    }, 250)
-
-    return () => clearTimeout(timeoutId)
-  }, [open, session?.accessToken, search])
 
   // Reset selection index when filtered results change
   useEffect(() => {
@@ -173,8 +144,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       setBranches([])
       setSearch("")
       setBranchSearch("")
-      setSearchResults(null)
-      setSearching(false)
       setShowBranchDropdown(false)
       setError(null)
       setDragY(0)
@@ -308,17 +277,15 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
     }
   }
 
-  // Use search results from API if available, otherwise filter local repos
+  // Filter repos locally by search query
   const filteredRepos = useMemo(() => {
-    if (searchResults !== null) {
-      // Using GitHub Search API results
-      return searchResults
-    }
-    // No search query - show recent repos, or filter locally as fallback
+    if (!search.trim()) return repos
+    const searchLower = search.toLowerCase()
     return repos.filter((repo) =>
-      repo.full_name.toLowerCase().includes(search.toLowerCase())
+      repo.full_name.toLowerCase().includes(searchLower) ||
+      repo.description?.toLowerCase().includes(searchLower)
     )
-  }, [searchResults, repos, search])
+  }, [repos, search])
   const filteredBranches = branches
     .filter((branch) => branch.name.toLowerCase().includes(branchSearch.toLowerCase()))
     .sort((a, b) => {
@@ -517,27 +484,19 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
               </div>
             )}
 
-            {(loading || searching) && activeTab === "select" && (
+            {loading && activeTab === "select" && (
               <div className={cn(
-                "flex items-center justify-center gap-2",
+                "flex items-center justify-center",
                 isMobile ? "p-12" : "p-8"
               )}>
                 <Loader2 className={cn(
                   "animate-spin text-muted-foreground",
                   isMobile ? "h-8 w-8" : "h-6 w-6"
                 )} />
-                {searching && (
-                  <span className={cn(
-                    "text-muted-foreground",
-                    isMobile ? "text-base" : "text-sm"
-                  )}>
-                    Searching...
-                  </span>
-                )}
               </div>
             )}
 
-            {!loading && !searching && !error && step === "repo" && activeTab === "select" && (
+            {!loading && !error && step === "repo" && activeTab === "select" && (
               <div className={cn(isMobile ? "p-3" : "p-2")}>
                 {filteredRepos.length === 0 ? (
                   <div className={cn(

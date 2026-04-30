@@ -8,7 +8,6 @@ import {
   getUserRepos,
   getRepo,
   getRepoBranches,
-  searchRepos,
   type GitHubUser,
   type GitHubRepo,
   type GitHubBranch,
@@ -25,15 +24,30 @@ export async function fetchUser(token: string): Promise<GitHubUser> {
 }
 
 /**
- * Fetch repositories for the authenticated user (most recent 100)
- * For finding older repos, use fetchSearchRepos which searches across all repos
+ * Fetch ALL repositories for the authenticated user (with pagination)
+ * Fetches up to 500 repos (5 pages of 100)
  */
 export async function fetchRepos(token: string): Promise<GitHubRepo[]> {
-  return getUserRepos(token, {
-    sort: "updated",
-    perPage: 100,
-    affiliation: "owner,collaborator,organization_member",
-  })
+  const allRepos: GitHubRepo[] = []
+  const perPage = 100
+  const maxPages = 5
+
+  for (let page = 1; page <= maxPages; page++) {
+    const repos = await getUserRepos(token, {
+      sort: "updated",
+      perPage,
+      page,
+      affiliation: "owner,collaborator,organization_member",
+    })
+
+    if (!Array.isArray(repos) || repos.length === 0) break
+    allRepos.push(...repos)
+
+    // Stop if this was the last page
+    if (repos.length < perPage) break
+  }
+
+  return allRepos
 }
 
 /**
@@ -56,17 +70,6 @@ export async function fetchBranches(
   repo: string
 ): Promise<GitHubBranch[]> {
   return getRepoBranches(token, owner, repo, { perPage: 100, paginate: true })
-}
-
-/**
- * Search repositories using GitHub's Search API
- * This searches across ALL accessible repos, not just the most recent ones
- */
-export async function fetchSearchRepos(
-  token: string,
-  query: string
-): Promise<GitHubRepo[]> {
-  return searchRepos(token, query, { perPage: 50 })
 }
 
 /**

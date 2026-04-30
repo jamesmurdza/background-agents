@@ -122,15 +122,16 @@ export async function getUser(token: string): Promise<GitHubUser> {
  */
 export async function getUserRepos(
   token: string,
-  options: { sort?: string; perPage?: number; affiliation?: string } = {}
+  options: { sort?: string; perPage?: number; page?: number; affiliation?: string } = {}
 ): Promise<GitHubRepo[]> {
   const {
     sort = "updated",
     perPage = 50,
+    page = 1,
     affiliation = "owner,collaborator,organization_member",
   } = options
   return githubFetch<GitHubRepo[]>(
-    `/user/repos?sort=${sort}&per_page=${perPage}&affiliation=${affiliation}`,
+    `/user/repos?sort=${sort}&per_page=${perPage}&page=${page}&affiliation=${affiliation}`,
     token
   )
 }
