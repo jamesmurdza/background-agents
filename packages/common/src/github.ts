@@ -239,42 +239,43 @@ export interface GitHubSearchReposResponse {
 }
 
 /**
- * GitHub org type for listing user's orgs
- */
-interface GitHubOrg {
-  login: string
-}
-
-/**
- * Search repositories using GitHub's Search API
- * Searches repos the user owns + repos in orgs they belong to
+ * Search user's accessible repositories by paginating through the List repos API
+ * This includes owned repos, collaborator repos, and org member repos
+ * Unlike the Search API, this properly respects the affiliation filter
  */
 export async function searchRepos(
   token: string,
   query: string,
-  options: { perPage?: number } = {}
+  options: { perPage?: number; maxPages?: number } = {}
 ): Promise<GitHubRepo[]> {
-  const { perPage = 50 } = options
+  const { perPage = 100, maxPages = 5 } = options
+  const searchLower = query.toLowerCase()
 
-  // Get current user and their orgs in parallel
-  const [user, orgs] = await Promise.all([
-    getUser(token),
-    githubFetch<GitHubOrg[]>("/user/orgs?per_page=100", token),
-  ])
+  const matches: GitHubRepo[] = []
+  let page = 1
 
-  // Build search query scoped to user's repos and their orgs
-  // In GitHub search, multiple user:/org: qualifiers act as OR
-  const owners = [user.login, ...orgs.map((org) => org.login)]
-  const ownerFilter = owners.map((owner) => `user:${owner}`).join(" ")
+  // Paginate through user's repos until we have enough matches or run out of pages
+  while (page <= maxPages) {
+    const repos = await githubFetch<GitHubRepo[]>(
+      `/user/repos?sort=updated&per_page=${perPage}&page=${page}&affiliation=owner,collaborator,organization_member`,
+      token
+    )
 
-  // Construct the full query
-  // Note: we encode the whole query string to handle spaces properly
-  const fullQuery = `${query} in:name,description ${ownerFilter} fork:true`
+    if (!Array.isArray(repos) || repos.length === 0) break
 
-  const response = await githubFetch<GitHubSearchReposResponse>(
-    `/search/repositories?q=${encodeURIComponent(fullQuery)}&per_page=${perPage}&sort=updated`,
-    token
-  )
+    // Filter repos that match the search query
+    for (const repo of repos) {
+      const nameMatches = repo.full_name.toLowerCase().includes(searchLower)
+      const descMatches = repo.description?.toLowerCase().includes(searchLower)
+      if (nameMatches || descMatches) {
+        matches.push(repo)
+      }
+    }
 
-  return response.items
+    // Stop if we've found enough matches or this was the last page
+    if (matches.length >= 50 || repos.length < perPage) break
+    page++
+  }
+
+  return matches
 }
