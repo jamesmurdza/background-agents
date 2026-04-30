@@ -119,7 +119,8 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
           ),
           pre: ({ children }) => (
             <pre className={cn(
-              "overflow-x-auto rounded-md border border-border bg-muted/50 p-3",
+              "overflow-x-auto rounded-md border border-border p-3 w-full",
+              "bg-secondary/50 dark:bg-muted/50",
               isMobile && "-mx-2 rounded-lg"
             )}>
               {children}
@@ -149,7 +150,7 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
 
               return (
                 <code
-                  className="hljs-scope"
+                  className="hljs-scope text-[13px]"
                   dangerouslySetInnerHTML={{ __html: highlighted }}
                 />
               )
