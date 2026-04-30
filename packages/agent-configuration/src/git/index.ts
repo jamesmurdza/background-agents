@@ -41,6 +41,8 @@ export {
 export {
   CLAUDE_HOOKS_DIR,
   CLAUDE_HOOK_FILE,
+  CLAUDE_SETTINGS_FILE,
   CLAUDE_HOOK_CONTENT,
+  CLAUDE_SETTINGS,
   setupClaudeHooks,
 } from "./claude"

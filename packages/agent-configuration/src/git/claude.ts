@@ -14,6 +14,9 @@ export const CLAUDE_HOOKS_DIR = "/home/daytona/.claude/hooks"
 /** Claude pre-command hook file path */
 export const CLAUDE_HOOK_FILE = `${CLAUDE_HOOKS_DIR}/prevent-dangerous-git.sh`
 
+/** Claude settings file path */
+export const CLAUDE_SETTINGS_FILE = "/home/daytona/.claude/settings.json"
+
 /**
  * Bash hook script that blocks dangerous git operations.
  *
@@ -121,10 +124,30 @@ exit 0
 `
 
 /**
+ * Claude settings fragment that registers the pre-command hook.
+ * Merged into any existing settings.json so we don't clobber user config.
+ */
+export const CLAUDE_SETTINGS = {
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: CLAUDE_HOOK_FILE,
+          },
+        ],
+      },
+    ],
+  },
+} as const
+
+/**
  * Sets up Claude Code hooks in a Daytona sandbox.
  *
- * This uploads the bash hook script that blocks dangerous git operations.
- * Should be called during agent session setup.
+ * This uploads the bash hook script and merges the hook registration into
+ * ~/.claude/settings.json so Claude actually executes the script.
  *
  * @param sandbox - The Daytona sandbox instance
  */
@@ -140,4 +163,31 @@ export async function setupClaudeHooks(sandbox: Sandbox): Promise<void> {
 
   // Make executable
   await sandbox.process.executeCommand(`chmod +x ${CLAUDE_HOOK_FILE}`)
+
+  const existingResult = await sandbox.process.executeCommand(
+    `cat "${CLAUDE_SETTINGS_FILE}" 2>/dev/null || echo '{}'`
+  ) as { result: string }
+  const existing = JSON.parse(existingResult.result.trim() || "{}") as {
+    hooks?: Record<string, Array<Record<string, unknown>>>
+  }
+
+  if (!existing.hooks) existing.hooks = {}
+  for (const [event, handlers] of Object.entries(CLAUDE_SETTINGS.hooks)) {
+    if (!existing.hooks[event]) existing.hooks[event] = []
+    for (const handler of handlers) {
+      const alreadyRegistered = existing.hooks[event].some(
+        (current) => JSON.stringify(current) === JSON.stringify(handler)
+      )
+      if (!alreadyRegistered) {
+        existing.hooks[event].push(handler as Record<string, unknown>)
+      }
+    }
+  }
+
+  await sandbox.fs.uploadFile(
+    Buffer.from(JSON.stringify(existing, null, 2), "utf-8"),
+    CLAUDE_SETTINGS_FILE
+  )
+
+  await sandbox.process.executeCommand(`chmod 600 ${CLAUDE_SETTINGS_FILE}`)
 }
