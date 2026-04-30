@@ -7,6 +7,8 @@ A monorepo for building applications with AI coding agents (Claude Code, OpenCod
 | Package | Description | Links |
 |---------|-------------|-------|
 | [`@upstream/agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes | [README](packages/agents/README.md) |
+| [`@upstream/agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations | — |
+| [`@upstream/claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona | — |
 | [`@upstream/common`](packages/common) | Shared utilities and types | [README](packages/common/README.md) |
 | [`@upstream/terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes | [README](packages/terminal/README.md) |
 | [`@upstream/web`](packages/web) | Standalone chat app for AI coding agents | [README](packages/web/README.md) |
@@ -67,10 +69,12 @@ This is an npm-workspaces monorepo:
 
 ```
 packages/
-├── agents/        # background-agents      — TypeScript SDK for AI coding agents
-├── common/        # @upstream/common      — Shared utilities and types
-├── terminal/      # @upstream/terminal    — WebSocket-based PTY terminal
-└── web/           # @upstream/web         — Main Next.js chat application
+├── agents/              # background-agents             — TypeScript SDK for AI coding agents
+├── agent-configuration/ # @upstream/agent-configuration — Agent safety policies
+├── claude-credentials/  # @upstream/claude-credentials  — Claude Code OAuth credentials
+├── common/              # @upstream/common              — Shared utilities and types
+├── terminal/            # @upstream/terminal            — WebSocket-based PTY terminal
+└── web/                 # @upstream/web                 — Main Next.js chat application
 ```
 
 ### Available Scripts
