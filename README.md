@@ -18,13 +18,7 @@ A monorepo for building applications with AI coding agents (Claude Code, OpenCod
 ## Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Build SDK packages
-npm run build:sdk
-
-# Start the web app
 npm run dev
 ```
 
