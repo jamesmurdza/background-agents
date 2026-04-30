@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { getServerSession } from "next-auth"
+import { createSandboxGit } from "@upstream/daytona-git"
 import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   try {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
+    const git = createSandboxGit(sandbox)
 
     switch (action) {
       case "list-branches": {
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
         }
 
         // Get current branch in sandbox
-        const currentStatus = await sandbox.git.status(repoPath)
+        const currentStatus = await git.status(repoPath)
         const localBranch = currentStatus.currentBranch
         const isMergingIntoActiveBranch = localBranch === targetBranch
 
@@ -119,7 +121,7 @@ export async function POST(req: Request) {
             await sandbox.process.executeCommand(`cd ${repoPath} && git fetch origin 2>&1`)
 
             try {
-              await sandbox.git.pull(repoPath, "x-access-token", githubToken)
+              await git.pull(repoPath, "x-access-token", githubToken)
             } catch {
               // best-effort
             }
@@ -191,7 +193,7 @@ export async function POST(req: Request) {
 
         if (isMergingIntoActiveBranch) {
           try {
-            await sandbox.git.pull(repoPath, "x-access-token", githubToken)
+            await git.pull(repoPath, "x-access-token", githubToken)
           } catch {
             // Pull may fail but GitHub merge succeeded
           }
@@ -409,7 +411,7 @@ export async function POST(req: Request) {
         }
 
         try {
-          await sandbox.git.push(repoPath, "x-access-token", githubToken)
+          await git.push(repoPath, "x-access-token", githubToken)
         } catch (pushErr) {
           await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
           await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)

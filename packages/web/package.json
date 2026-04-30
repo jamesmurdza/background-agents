@@ -29,6 +29,7 @@
     "@upstream/agent-configuration": "*",
     "@upstream/claude-credentials": "*",
     "@upstream/common": "*",
+    "@upstream/daytona-git": "*",
     "@upstream/terminal": "*",
     "ai": "^4.3.16",
     "background-agents": "*",

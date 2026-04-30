@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
+import { createSandboxGit } from "@upstream/daytona-git"
 import { PATHS } from "@/lib/constants"
 import {
   cancelBackgroundAgent,
@@ -22,7 +23,8 @@ async function autoPush(
   githubToken: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await sandbox.git.push(repoPath, "x-access-token", githubToken)
+    const git = createSandboxGit(sandbox)
+    await git.push(repoPath, "x-access-token", githubToken)
     return { success: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"

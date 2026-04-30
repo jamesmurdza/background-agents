@@ -8,6 +8,7 @@
 
 import type { Daytona } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
+import { createSandboxGit } from "@upstream/daytona-git"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 
@@ -94,7 +95,8 @@ export async function createSandboxForChat(
     )
   } else {
     const cloneUrl = `https://github.com/${owner}/${repoApiName}.git`
-    await sandbox.git.clone(
+    const git = createSandboxGit(sandbox)
+    await git.clone(
       cloneUrl,
       repoPath,
       baseBranch,
@@ -123,8 +125,8 @@ export async function createSandboxForChat(
     await sandbox.process.executeCommand(
       `cd ${repoPath} && git config user.email "${gitEmail}" && git config user.name "${gitName}"`
     )
-    await sandbox.git.createBranch(repoPath, newBranch)
-    await sandbox.git.checkoutBranch(repoPath, newBranch)
+    await git.createBranch(repoPath, newBranch)
+    await git.checkoutBranch(repoPath, newBranch)
   }
 
   let previewUrlPattern: string | undefined

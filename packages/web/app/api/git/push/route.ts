@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { getServerSession } from "next-auth"
+import { createSandboxGit } from "@upstream/daytona-git"
 import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 
@@ -36,11 +37,12 @@ export async function POST(req: Request) {
     // 4. Get sandbox from Daytona
     const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
+    const git = createSandboxGit(sandbox)
 
     // 5. Push to remote
     const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
 
-    await sandbox.git.push(repoPath, "x-access-token", githubToken)
+    await git.push(repoPath, "x-access-token", githubToken)
 
     return Response.json({ success: true })
   } catch (error) {
