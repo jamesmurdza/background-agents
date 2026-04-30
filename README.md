@@ -1,6 +1,6 @@
-# Upstream Agents
+# Daytona Background Agents
 
-A monorepo for building applications with AI coding agents (Claude Code, OpenCode, Codex, Gemini, Goose, Pi) running in isolated [Daytona](https://daytona.io) sandboxes.
+Building blocks for building applications with AI coding agents running in isolated [Daytona](https://daytona.io) sandboxes.
 
 ## Packages
 
@@ -32,4 +32,4 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) for local setup (database, environment va
 
 ## Deployment
 
-Deploys to Vercel. See [packages/web/README.md](packages/web/README.md) for configuration.
+The `web` package deploys to Vercel. See [packages/web/README.md](packages/web/README.md) for configuration.
