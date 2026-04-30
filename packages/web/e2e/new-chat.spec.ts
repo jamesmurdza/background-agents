@@ -36,7 +36,7 @@ test.describe("New Chat Flow", () => {
     ).toBeVisible({ timeout: 30_000 })
 
     // Wait for agent to complete - once the chat is no longer new, the idle placeholder changes
-    await expect(page.locator('textarea[placeholder="Enter a prompt or type /merge"]')).toBeVisible({ timeout: 180_000 })
+    await expect(page.locator('textarea[placeholder="Enter prompt or /merge..."]')).toBeVisible({ timeout: 180_000 })
 
     // Verify no error messages appeared
     const errorTexts = ["Failed to create sandbox", "Missing required field"]
