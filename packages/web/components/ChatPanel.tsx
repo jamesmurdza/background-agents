@@ -917,21 +917,24 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           </h2>
         </div>
         {chatInput}
-        <p className={cn(
+        <div className={cn(
           "text-muted-foreground mt-4 text-center",
           isMobile ? "text-sm px-4" : "text-sm"
         )}>
-          Agents are isolated in{" "}
-          <a
-            href="https://www.daytona.io/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-foreground/80 hover:text-foreground transition-colors"
-          >
-            Daytona sandboxes
-          </a>
-          {" "}and tied to Git branches.
-        </p>
+          <p>
+            Agents are isolated in{" "}
+            <a
+              href="https://www.daytona.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Daytona sandboxes
+            </a>
+            {" "}and tied to Git branches.
+          </p>
+          <p className="mt-1">Options and tools are available using Cmd-K.</p>
+        </div>
       </div>
     )
   }

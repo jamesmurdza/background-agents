@@ -60,6 +60,7 @@ test.describe("New Chat Flow", () => {
 
     // Should see the sandbox info text (below the input)
     await expect(page.locator("text=Agents are isolated in Daytona sandboxes and tied to Git branches")).toBeVisible()
+    await expect(page.locator("text=Options and tools are available using Cmd-K.")).toBeVisible()
 
     // Should see agent and model selectors
     await expect(page.locator("text=OpenCode")).toBeVisible()
