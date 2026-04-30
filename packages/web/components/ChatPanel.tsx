@@ -89,6 +89,18 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const prevChatIdRef = useRef<string | null>(null)
 
+  const focusPrompt = useCallback((moveCursorToEnd: boolean = false) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.focus()
+
+    if (moveCursorToEnd) {
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+    }
+  }, [])
+
   // Get current agent/model (from chat, the user's preference, or auto-resolved
   // from credential flags). Uses ?? so we don't trip over the empty string.
   const currentAgent = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
@@ -144,10 +156,10 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   useEffect(() => {
     if (isMobile) return
     const t = window.setTimeout(() => {
-      textareaRef.current?.focus()
+      focusPrompt(true)
     }, 0)
     return () => window.clearTimeout(t)
-  }, [chat?.id, isCreating, isMobile])
+  }, [chat?.id, isCreating, isMobile, focusPrompt])
 
   // Auto-resize textarea
   useEffect(() => {
