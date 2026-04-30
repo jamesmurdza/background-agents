@@ -54,6 +54,7 @@ export {
   type GitHubBranch,
   type GitHubCompareResult,
   type GitHubPullRequest,
+  type GitHubSearchReposResponse,
   // Core helpers
   githubFetch,
   isGitHubApiError,
@@ -65,6 +66,7 @@ export {
   compareBranches,
   createRepo,
   createPullRequest,
+  searchRepos,
 } from "./github"
 
 // Branch utilities
