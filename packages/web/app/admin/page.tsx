@@ -11,6 +11,9 @@ import {
   BarChart3,
   Activity,
   TrendingUp,
+  Clock,
+  GitFork,
+  Trophy,
 } from "lucide-react"
 
 import { StatCard } from "@/components/admin/StatCard"
@@ -19,6 +22,9 @@ import { UserTable } from "@/components/admin/UserTable"
 import { ActivityChart } from "@/components/admin/charts/ActivityChart"
 import { ModelUsageChart } from "@/components/admin/charts/ModelUsageChart"
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart"
+import { TopUsersChart } from "@/components/admin/charts/TopUsersChart"
+import { RepoActivityChart } from "@/components/admin/charts/RepoActivityChart"
+import { HourlyActivityChart } from "@/components/admin/charts/HourlyActivityChart"
 import {
   useAdminStatsQuery,
   useAdminActivityQuery,
@@ -80,6 +86,9 @@ export default function AdminDashboard() {
   const modelUsage = statsQuery.data?.modelUsage ?? []
   const userGrowth = statsQuery.data?.userGrowth ?? []
   const activityTrends = statsQuery.data?.activityTrends ?? []
+  const topUsers = statsQuery.data?.topUsers ?? []
+  const repoActivity = statsQuery.data?.repoActivity ?? []
+  const hourlyActivity = statsQuery.data?.hourlyActivity ?? []
 
   return (
     <div className="min-h-screen bg-background">
@@ -121,7 +130,7 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {/* Charts */}
+        {/* Charts Row 1 */}
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-lg border bg-card p-6">
             <div className="mb-4 flex items-center gap-2">
@@ -133,19 +142,49 @@ export default function AdminDashboard() {
 
           <div className="rounded-lg border bg-card p-6">
             <div className="mb-4 flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">Peak Hours (Last 14 Days)</h3>
+            </div>
+            <HourlyActivityChart data={hourlyActivity} />
+          </div>
+        </section>
+
+        {/* Charts Row 2 */}
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border bg-card p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">Top Active Users (Last 30 Days)</h3>
+            </div>
+            <TopUsersChart data={topUsers} />
+          </div>
+
+          <div className="rounded-lg border bg-card p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <GitFork className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">Repository Activity</h3>
+            </div>
+            <RepoActivityChart data={repoActivity} />
+          </div>
+        </section>
+
+        {/* Charts Row 3 */}
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border bg-card p-6">
+            <div className="mb-4 flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-muted-foreground" />
               <h3 className="font-semibold">Model Usage</h3>
             </div>
             <ModelUsageChart data={modelUsage} />
           </div>
-        </section>
 
-        <section className="rounded-lg border bg-card p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">User Growth (Last 30 Days)</h3>
+          <div className="rounded-lg border bg-card p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">User Growth (Last 30 Days)</h3>
+            </div>
+            <UserGrowthChart data={userGrowth} />
           </div>
-          <UserGrowthChart data={userGrowth} />
         </section>
 
         {/* Recent Activity */}

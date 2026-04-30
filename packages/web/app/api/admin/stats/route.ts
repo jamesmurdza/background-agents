@@ -30,6 +30,9 @@ export async function GET() {
     modelUsageRaw,
     userGrowthRaw,
     activityByDayRaw,
+    topUsersRaw,
+    repoActivityRaw,
+    hourlyActivityRaw,
   ] = await Promise.all([
     // Total users
     prisma.user.count(),
@@ -103,6 +106,47 @@ export async function GET() {
       GROUP BY DATE("createdAt"), action
       ORDER BY date ASC
     `,
+
+    // Top active users (by message count in last 30 days)
+    prisma.$queryRaw<Array<{ userId: string; name: string | null; image: string | null; messageCount: bigint; chatCount: bigint }>>`
+      SELECT
+        u.id as "userId",
+        u.name,
+        u.image,
+        COUNT(DISTINCT m.id)::bigint as "messageCount",
+        COUNT(DISTINCT c.id)::bigint as "chatCount"
+      FROM "User" u
+      LEFT JOIN "Chat" c ON c."userId" = u.id AND c."createdAt" >= NOW() - INTERVAL '30 days'
+      LEFT JOIN "Message" m ON m."chatId" = c.id AND m."createdAt" >= NOW() - INTERVAL '30 days'
+      GROUP BY u.id, u.name, u.image
+      HAVING COUNT(DISTINCT m.id) > 0
+      ORDER BY "messageCount" DESC
+      LIMIT 10
+    `,
+
+    // Repository activity (chats per repo)
+    prisma.$queryRaw<Array<{ repo: string; chatCount: bigint; messageCount: bigint }>>`
+      SELECT
+        c.repo,
+        COUNT(DISTINCT c.id)::bigint as "chatCount",
+        COUNT(DISTINCT m.id)::bigint as "messageCount"
+      FROM "Chat" c
+      LEFT JOIN "Message" m ON m."chatId" = c.id
+      GROUP BY c.repo
+      ORDER BY "chatCount" DESC
+      LIMIT 10
+    `,
+
+    // Hourly activity distribution (last 14 days)
+    prisma.$queryRaw<Array<{ hour: number; count: bigint }>>`
+      SELECT
+        EXTRACT(HOUR FROM "createdAt")::int as hour,
+        COUNT(*)::bigint as count
+      FROM "Message"
+      WHERE "createdAt" >= NOW() - INTERVAL '14 days'
+      GROUP BY hour
+      ORDER BY hour ASC
+    `,
   ])
 
   // Format model usage
@@ -131,6 +175,27 @@ export async function GET() {
   )
   const activityTrends = Object.values(activityByDay)
 
+  // Format top users
+  const topUsers = topUsersRaw.map((item) => ({
+    name: item.name || "Unknown",
+    image: item.image,
+    messageCount: Number(item.messageCount),
+    chatCount: Number(item.chatCount),
+  }))
+
+  // Format repo activity
+  const repoActivity = repoActivityRaw.map((item) => ({
+    repo: item.repo,
+    chatCount: Number(item.chatCount),
+    messageCount: Number(item.messageCount),
+  }))
+
+  // Format hourly activity
+  const hourlyActivity = hourlyActivityRaw.map((item) => ({
+    hour: item.hour,
+    count: Number(item.count),
+  }))
+
   return NextResponse.json({
     stats: {
       totalUsers,
@@ -146,5 +211,8 @@ export async function GET() {
     modelUsage,
     userGrowth,
     activityTrends,
+    topUsers,
+    repoActivity,
+    hourlyActivity,
   })
 }
