@@ -1,5 +1,5 @@
 /**
- * Git error types for @anthropic/daytona-git
+ * Git error types for @upstream/daytona-git
  */
 
 /**
