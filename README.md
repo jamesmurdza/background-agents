@@ -4,14 +4,14 @@ A monorepo for building applications with AI coding agents (Claude Code, OpenCod
 
 ## Packages
 
-| Package | Description | Links |
-|---------|-------------|-------|
-| [`@upstream/agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes | [README](packages/agents/README.md) |
-| [`@upstream/agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations | — |
-| [`@upstream/claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona | — |
-| [`@upstream/common`](packages/common) | Shared utilities and types | [README](packages/common/README.md) |
-| [`@upstream/terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes | [README](packages/terminal/README.md) |
-| [`@upstream/web`](packages/web) | Standalone chat app for AI coding agents | [README](packages/web/README.md) |
+| Package | Description |
+|---------|-------------|
+| [`@upstream/agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes |
+| [`@upstream/agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations |
+| [`@upstream/claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona |
+| [`@upstream/common`](packages/common) | Shared utilities and types |
+| [`@upstream/terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
+| [`@upstream/web`](packages/web) | Standalone chat app for AI coding agents |
 
 ---
 
@@ -119,23 +119,4 @@ For unit tests and Playwright end-to-end tests, see [TESTING.md](./TESTING.md).
 - `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
 
-For detailed package-specific setup, see:
-- [packages/web/README.md](packages/web/README.md)
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make your changes
-4. Run linting: `npm run lint`
-5. Commit your changes: `git commit -m "Add my feature"`
-6. Push to the branch: `git push origin feature/my-feature`
-7. Open a Pull Request
-
----
-
-## License
-
-MIT
+For detailed package-specific setup, see [packages/web/README.md](packages/web/README.md).
