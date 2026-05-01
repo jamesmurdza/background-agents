@@ -15,7 +15,7 @@ import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { BranchPickerModal } from "@/components/modals/BranchPickerModal"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
-import { clearAllStorage } from "@/lib/storage"
+import { clearAllStorage, setDraftChatConfig } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
@@ -89,6 +89,8 @@ export default function HomePage() {
     drafts,
     updateDraft,
     clearDraft,
+    draftChatConfig,
+    isDraftChatId,
   } = useChatWithSync()
 
   const [repoSelectOpen, setRepoSelectOpen] = useState(false)
@@ -310,12 +312,15 @@ export default function HomePage() {
     setSettingsHighlightKey(null)
   }
 
-  // Auto-create a new chat if none exists after hydration. Skip when there
-  // is a pending message in sessionStorage — the replay effect below will
-  // create a chat for the message itself and we don't want to create two.
+  // Auto-enter draft mode if user is authenticated but has no chat selected.
+  // This replaces the old auto-create behavior - now we just enter draft mode
+  // which doesn't create a database record until the first message is sent.
+  // Skip when there is a pending message in sessionStorage — the replay effect
+  // below will handle chat creation when sending the pending message.
   useEffect(() => {
     if (!isHydrated || currentChatId || !session) return
     if (typeof window !== "undefined" && sessionStorage.getItem(PENDING_MESSAGE_KEY)) return
+    // Enter draft mode instead of creating a real chat
     startNewChat()
   }, [isHydrated, currentChatId, session, startNewChat])
 
@@ -746,38 +751,70 @@ export default function HomePage() {
   const displayChats = isHydrated ? chats : []
   const displayCurrentChatId = isHydrated ? currentChatId : null
 
-  // For unauthenticated users with no real chat, render a synthetic "draft"
-  // chat so the prompt bar and dropdowns are interactive. The draft never
-  // talks to the server; on submit we save a pending-message blob to
-  // sessionStorage, prompt sign-in, and replay it once the user is signed in.
+  // For users without a real chat (either unauthenticated or authenticated
+  // with a draft chat ID), render a synthetic "draft" chat so the prompt bar
+  // and dropdowns are interactive.
   //
-  // The draft chat's id is a real-format nanoid generated once per page
-  // load (not a magic-string sentinel) — it's only used for ChatPanel's
-  // internal keying and is never sent to the server. "Draft mode" is
-  // detected by the existence of `draftChat`, not by id comparison.
-  const draftIdRef = useRef<string>(`draft-${nanoid()}`)
+  // For unauthenticated users: The draft never talks to the server; on submit
+  // we save a pending-message blob to sessionStorage, prompt sign-in, and
+  // replay it once the user is signed in.
+  //
+  // For authenticated users with a draft: The draft config is stored in
+  // localStorage via draftChatConfig. When sending a message, the draft is
+  // "materialized" into a real database chat.
+  //
+  // "Draft mode" is detected by the existence of `draftChat`, not by id comparison.
+  const unauthDraftIdRef = useRef<string>(`draft-${nanoid()}`)
   const draftChat: Chat | null = useMemo(() => {
-    if (!isHydrated || session || currentChatId) return null
-    const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
-    const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
-    return {
-      id: draftIdRef.current,
-      repo: NEW_REPOSITORY,
-      baseBranch: "main",
-      branch: null,
-      sandboxId: null,
-      sessionId: null,
-      agent: resolvedAgent,
-      model: resolvedModel,
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: "pending",
-      displayName: null,
+    if (!isHydrated) return null
+
+    // Case 1: Unauthenticated user - use local draft state
+    if (!session && !currentChatId) {
+      const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+      const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
+      return {
+        id: unauthDraftIdRef.current,
+        repo: NEW_REPOSITORY,
+        baseBranch: "main",
+        branch: null,
+        sandboxId: null,
+        sessionId: null,
+        agent: resolvedAgent,
+        model: resolvedModel,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: "pending",
+        displayName: null,
+      }
     }
-  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags])
+
+    // Case 2: Authenticated user with a draft chat ID - use draftChatConfig
+    if (session && currentChatId && isDraftChatId(currentChatId) && draftChatConfig) {
+      const resolvedAgent = (draftChatConfig.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+      const resolvedModel = draftChatConfig.model ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
+      return {
+        id: currentChatId,
+        repo: draftChatConfig.repo,
+        baseBranch: draftChatConfig.baseBranch,
+        branch: null,
+        sandboxId: null,
+        sessionId: null,
+        agent: resolvedAgent,
+        model: resolvedModel,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: "pending",
+        displayName: null,
+      }
+    }
+
+    return null
+  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags, isDraftChatId, draftChatConfig])
 
   const isDraftMode = !!draftChat
+  const isAuthenticatedDraft = isDraftMode && !!session
   const displayCurrentChat = isHydrated ? (currentChat ?? draftChat) : null
 
   // When in draft mode, agent/model dropdowns route to local draft state
@@ -785,15 +822,24 @@ export default function HomePage() {
   const handleUpdateChatProp = useCallback(
     (updates: Partial<Chat>) => {
       if (isDraftMode) {
-        if (updates.agent !== undefined) setDraftAgent(updates.agent)
-        if (updates.model !== undefined) setDraftModel(updates.model)
-        // Other fields (repo, branch, etc.) are ignored — those pickers
-        // already prompt sign-in before they could fire onUpdateChat.
+        if (isAuthenticatedDraft && draftChatConfig) {
+          // Authenticated draft - update the draftChatConfig in localStorage
+          const newConfig = { ...draftChatConfig }
+          if (updates.agent !== undefined) newConfig.agent = updates.agent
+          if (updates.model !== undefined) newConfig.model = updates.model
+          if (updates.repo !== undefined) newConfig.repo = updates.repo
+          if (updates.baseBranch !== undefined) newConfig.baseBranch = updates.baseBranch
+          setDraftChatConfig(newConfig)
+        } else {
+          // Unauthenticated draft - use local component state
+          if (updates.agent !== undefined) setDraftAgent(updates.agent)
+          if (updates.model !== undefined) setDraftModel(updates.model)
+        }
         return
       }
       updateCurrentChat(updates)
     },
-    [isDraftMode, updateCurrentChat]
+    [isDraftMode, isAuthenticatedDraft, draftChatConfig, updateCurrentChat]
   )
 
   // Per-chat draft handling: in draft mode use local state, otherwise use

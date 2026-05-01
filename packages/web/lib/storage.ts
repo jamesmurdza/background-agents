@@ -22,6 +22,17 @@ const UNSEEN_KEY = "simple-chat-unseen-completions"
 // =============================================================================
 
 /**
+ * Configuration for a draft chat (not yet created in database)
+ */
+export interface DraftChatConfig {
+  id: string // draft-{nanoid} - used for local keying only
+  repo: string
+  baseBranch: string
+  agent: string | null
+  model: string | null
+}
+
+/**
  * Device-specific state that stays in localStorage (NOT synced to server)
  */
 export interface LocalState {
@@ -30,6 +41,7 @@ export interface LocalState {
   queuedMessages: Record<string, Chat["queuedMessages"]>
   queuePaused: Record<string, boolean>
   drafts: Record<string, string>
+  draftChatConfig?: DraftChatConfig
 }
 
 // =============================================================================
@@ -127,6 +139,65 @@ export function setDraft(chatId: string, draft: string | undefined): void {
   saveLocalState({
     ...state,
     drafts: newDrafts,
+  })
+}
+
+export function setDraftChatConfig(config: DraftChatConfig | undefined): void {
+  const state = loadLocalState()
+  if (config === undefined) {
+    const { draftChatConfig: _, ...rest } = state
+    saveLocalState(rest as LocalState)
+  } else {
+    saveLocalState({ ...state, draftChatConfig: config })
+  }
+}
+
+export function getDraftChatConfig(): DraftChatConfig | undefined {
+  const state = loadLocalState()
+  return state.draftChatConfig
+}
+
+export function clearDraftChatConfig(): void {
+  setDraftChatConfig(undefined)
+}
+
+/**
+ * Migrate local state from a draft chat ID to a real chat ID
+ * Used when materializing a draft into a real database chat
+ */
+export function migrateDraftToRealChat(draftId: string, realId: string): void {
+  const state = loadLocalState()
+  const newPreviewItems = { ...state.previewItems }
+  const newQueuedMessages = { ...state.queuedMessages }
+  const newQueuePaused = { ...state.queuePaused }
+  const newDrafts = { ...state.drafts }
+
+  // Migrate any state from draft ID to real ID
+  if (newPreviewItems[draftId]) {
+    newPreviewItems[realId] = newPreviewItems[draftId]
+    delete newPreviewItems[draftId]
+  }
+  if (newQueuedMessages[draftId]) {
+    newQueuedMessages[realId] = newQueuedMessages[draftId]
+    delete newQueuedMessages[draftId]
+  }
+  if (newQueuePaused[draftId] !== undefined) {
+    newQueuePaused[realId] = newQueuePaused[draftId]
+    delete newQueuePaused[draftId]
+  }
+  if (newDrafts[draftId]) {
+    newDrafts[realId] = newDrafts[draftId]
+    delete newDrafts[draftId]
+  }
+
+  saveLocalState({
+    ...state,
+    currentChatId: realId,
+    previewItems: newPreviewItems,
+    queuedMessages: newQueuedMessages,
+    queuePaused: newQueuePaused,
+    drafts: newDrafts,
+    draftChatConfig: undefined, // Clear the draft config
   })
 }
 

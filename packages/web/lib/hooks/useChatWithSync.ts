@@ -28,6 +28,10 @@ import {
   clearLocalStateForChats,
   collectDescendantIds,
   DEFAULT_SETTINGS,
+  setDraftChatConfig,
+  clearDraftChatConfig,
+  migrateDraftToRealChat,
+  type DraftChatConfig,
 } from "@/lib/storage"
 import {
   useChatsQuery,
@@ -108,11 +112,13 @@ export function useChatWithSync() {
     queuePaused: Record<string, boolean>
     drafts: Record<string, string>
   }>({ previewItems: {}, queuedMessages: {}, queuePaused: {}, drafts: {} })
+  const [draftChatConfig, setDraftChatConfigState] = useState<DraftChatConfig | undefined>(undefined)
 
   const prevStatuses = useRef<Map<string, ChatStatus>>(new Map())
   const sendInFlight = useRef<Set<string>>(new Set())
   const queueDispatchInFlight = useRef<Set<string>>(new Set())
   const messagesLoadFailed = useRef<Set<string>>(new Set())
+  const materializingDraft = useRef<boolean>(false)
 
   // Hydration
   useEffect(() => {
@@ -125,6 +131,7 @@ export function useChatWithSync() {
       queuePaused: localState.queuePaused,
       drafts: localState.drafts,
     })
+    setDraftChatConfigState(localState.draftChatConfig)
     setIsHydrated(true)
   }, [])
 
@@ -217,6 +224,92 @@ export function useChatWithSync() {
     loadMessages()
   }, [currentChatId, chats, isHydrated, updateChatsCache])
 
+  // Helper to check if a chat ID is a draft
+  const isDraftChatId = useCallback((chatId: string | null): boolean => {
+    return chatId?.startsWith("draft-") ?? false
+  }, [])
+
+  // Enter draft mode - creates a local-only chat that isn't persisted to the database
+  const enterDraftMode = useCallback((
+    repo: string = NEW_REPOSITORY,
+    baseBranch: string = "main",
+    agent: string | null = null,
+    model: string | null = null,
+  ): string => {
+    const draftId = `draft-${nanoid()}`
+    const config: DraftChatConfig = { id: draftId, repo, baseBranch, agent, model }
+    setDraftChatConfigState(config)
+    setDraftChatConfig(config)
+    setCurrentChatIdState(draftId)
+    persistCurrentChatId(draftId)
+    return draftId
+  }, [])
+
+  // Materialize a draft chat into a real database chat
+  const materializeDraft = useCallback(async (
+    draftId: string,
+    options?: { status?: Chat["status"] }
+  ): Promise<string | null> => {
+    if (!draftChatConfig || draftChatConfig.id !== draftId) {
+      console.error("Cannot materialize: draft config not found for", draftId)
+      return null
+    }
+
+    if (materializingDraft.current) {
+      // Already materializing, wait for it
+      return null
+    }
+
+    materializingDraft.current = true
+    try {
+      const newChat = await createChatMutation.mutateAsync({
+        repo: draftChatConfig.repo,
+        baseBranch: draftChatConfig.baseBranch,
+        status: options?.status ?? "pending",
+      })
+
+      // Migrate local state from draft ID to real ID
+      migrateDraftToRealChat(draftId, newChat.id)
+      setLocalChatState((prev) => {
+        const newPreviewItems = { ...prev.previewItems }
+        const newQueuedMessages = { ...prev.queuedMessages }
+        const newQueuePaused = { ...prev.queuePaused }
+        const newDrafts = { ...prev.drafts }
+
+        if (newPreviewItems[draftId]) {
+          newPreviewItems[newChat.id] = newPreviewItems[draftId]
+          delete newPreviewItems[draftId]
+        }
+        if (newQueuedMessages[draftId]) {
+          newQueuedMessages[newChat.id] = newQueuedMessages[draftId]
+          delete newQueuedMessages[draftId]
+        }
+        if (newQueuePaused[draftId] !== undefined) {
+          newQueuePaused[newChat.id] = newQueuePaused[draftId]
+          delete newQueuePaused[draftId]
+        }
+        if (newDrafts[draftId]) {
+          newDrafts[newChat.id] = newDrafts[draftId]
+          delete newDrafts[draftId]
+        }
+
+        return { previewItems: newPreviewItems, queuedMessages: newQueuedMessages, queuePaused: newQueuePaused, drafts: newDrafts }
+      })
+
+      // Clear draft config and update current chat ID
+      setDraftChatConfigState(undefined)
+      clearDraftChatConfig()
+      setCurrentChatIdState(newChat.id)
+
+      return newChat.id
+    } catch (error) {
+      console.error("Failed to materialize draft:", error)
+      return null
+    } finally {
+      materializingDraft.current = false
+    }
+  }, [draftChatConfig, createChatMutation])
+
   // Chat operations
   const startNewChat = useCallback(async (
     repo: string = NEW_REPOSITORY,
@@ -225,18 +318,25 @@ export function useChatWithSync() {
     switchTo: boolean = true,
     initialStatus: Chat["status"] = "pending",
   ): Promise<string | null> => {
-    try {
-      const newChat = await createChatMutation.mutateAsync({ repo, baseBranch, parentChatId, status: initialStatus })
-      if (switchTo) {
-        setCurrentChatIdState(newChat.id)
-        persistCurrentChatId(newChat.id)
+    // Branch chats (with parentChatId) are created immediately since they need to reference the parent
+    if (parentChatId) {
+      try {
+        const newChat = await createChatMutation.mutateAsync({ repo, baseBranch, parentChatId, status: initialStatus })
+        if (switchTo) {
+          setCurrentChatIdState(newChat.id)
+          persistCurrentChatId(newChat.id)
+        }
+        return newChat.id
+      } catch (error) {
+        console.error("Failed to create chat:", error)
+        return null
       }
-      return newChat.id
-    } catch (error) {
-      console.error("Failed to create chat:", error)
-      return null
     }
-  }, [createChatMutation])
+
+    // For regular new chats, enter draft mode instead of creating in DB
+    const draftId = enterDraftMode(repo, baseBranch)
+    return draftId
+  }, [createChatMutation, enterDraftMode])
 
   const selectChat = useCallback((chatId: string) => {
     setUnseenChatIds((prev) => {
@@ -514,8 +614,18 @@ export function useChatWithSync() {
 
   // Send message
   const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string) => {
-    const chatId = targetChatId || currentChatId
+    let chatId = targetChatId || currentChatId
     if (!chatId) return
+
+    // If this is a draft chat, materialize it first
+    if (isDraftChatId(chatId)) {
+      const realChatId = await materializeDraft(chatId)
+      if (!realChatId) {
+        console.error("Failed to materialize draft chat before sending message")
+        return
+      }
+      chatId = realChatId
+    }
 
     const chat = chats.find((c) => c.id === chatId)
     if (!chat) return
@@ -621,7 +731,7 @@ export function useChatWithSync() {
     } finally {
       sendInFlight.current.delete(chatId)
     }
-  }, [currentChatId, chats, session?.accessToken, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation])
+  }, [currentChatId, chats, session?.accessToken, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft])
 
   const dispatchNextQueuedMessage = useCallback((chatId: string, queueOverride?: QueuedMessage[]) => {
     const chat = chats.find((c) => c.id === chatId)
@@ -846,5 +956,8 @@ export function useChatWithSync() {
     drafts: localChatState.drafts,
     updateDraft,
     clearDraft,
+    // Draft chat support
+    draftChatConfig,
+    isDraftChatId,
   }
 }
