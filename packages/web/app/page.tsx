@@ -829,12 +829,13 @@ export default function HomePage() {
       if (isDraftMode) {
         if (isAuthenticatedDraft) {
           // Authenticated draft - update via hook (updates both React state and localStorage)
-          updateDraftChatConfig({
-            agent: updates.agent,
-            model: updates.model,
-            repo: updates.repo,
-            baseBranch: updates.baseBranch,
-          })
+          // Only include defined values to avoid overwriting existing config fields
+          const draftUpdates: { agent?: string | null; model?: string | null; repo?: string; baseBranch?: string } = {}
+          if (updates.agent !== undefined) draftUpdates.agent = updates.agent
+          if (updates.model !== undefined) draftUpdates.model = updates.model
+          if (updates.repo !== undefined) draftUpdates.repo = updates.repo
+          if (updates.baseBranch !== undefined) draftUpdates.baseBranch = updates.baseBranch
+          updateDraftChatConfig(draftUpdates)
         } else {
           // Unauthenticated draft - use local component state
           if (updates.agent !== undefined) setDraftAgent(updates.agent)
