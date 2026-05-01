@@ -128,7 +128,7 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
           ),
           pre: ({ children }) => (
             <pre className={cn(
-              "overflow-x-auto rounded-md border border-border/70 p-3 mt-2 first:mt-0",
+              "overflow-x-auto rounded-md border border-border/70 p-3 mt-3 mb-1 first:mt-0",
               "bg-white/70 dark:bg-white/[0.03]",
               isMobile && "rounded-lg"
             )}>
