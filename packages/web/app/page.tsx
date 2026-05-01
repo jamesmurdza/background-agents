@@ -361,8 +361,13 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    const chat = currentChat
-    const canSelect = !!chat && chat.messages.length === 0 && !chat.sandboxId
+    // Draft chats can always select a repo (no messages yet, no sandbox)
+    if (isDraftChatId(currentChatId)) {
+      setRepoSelectOpen(true)
+      return
+    }
+    // Real chats can select if no messages and no sandbox
+    const canSelect = !!currentChat && currentChat.messages.length === 0 && !currentChat.sandboxId
     if (canSelect) {
       setRepoSelectOpen(true)
     } else {
@@ -377,9 +382,14 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    const chat = currentChat
-    if (!chat || chat.repo === NEW_REPOSITORY) return
-    // Just open the branch picker - it will fetch branches for the current repo
+    // For draft chats, check draftChatConfig for repo
+    if (isDraftChatId(currentChatId)) {
+      if (!draftChatConfig || draftChatConfig.repo === NEW_REPOSITORY) return
+      setBranchSelectOpen(true)
+      return
+    }
+    // For real chats
+    if (!currentChat || currentChat.repo === NEW_REPOSITORY) return
     setBranchSelectOpen(true)
   }
 
@@ -393,9 +403,19 @@ export default function HomePage() {
   }
 
   // Handler for repo selection - updates the current chat's repo
+  // For draft chats, updates the draft config. For real chats, updates the database.
   // If sandbox already exists (chat started without repo), also set up remote and push
   const handleRepoSelect = async (repo: string, branch: string) => {
-    if (!currentChatId || !currentChat) return
+    if (!currentChatId) return
+
+    // For draft chats, just update the draft config
+    if (isDraftChatId(currentChatId)) {
+      updateDraftChatConfig({ repo, baseBranch: branch })
+      return
+    }
+
+    // For real chats
+    if (!currentChat) return
 
     // If sandbox exists, we need to set up the remote and push
     if (currentChat.sandboxId && currentChat.repo === NEW_REPOSITORY) {
