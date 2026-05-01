@@ -77,11 +77,15 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
   return (
     <div className={cn(
       "prose dark:prose-invert max-w-none",
-      "prose-p:leading-relaxed prose-p:my-2",
-      "prose-li:leading-relaxed prose-li:my-0.5",
-      "prose-ul:my-2 prose-ol:my-2",
-      "prose-headings:mt-4 prose-headings:mb-2",
-      "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+      // Spacing is controlled via component overrides below; prose-* utilities
+      // here only set typography (leading, font-size). This avoids conflicts.
+      "prose-p:leading-relaxed",
+      "prose-li:leading-relaxed",
+      "prose-headings:font-semibold",
+      // Remove default prose margins; we apply explicit spacing below
+      "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-pre:my-0 prose-headings:my-0",
+      // First/last child margin reset (handles edge cases)
+      "[&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0",
       isMobile ? "prose-base" : "prose-sm prose-p:text-[15px] prose-li:text-[15px]"
     )}>
       <ReactMarkdown
@@ -93,19 +97,19 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
             </a>
           ),
           p: ({ children }) => (
-            <p className="my-2">{children}</p>
+            <p className="mt-2 first:mt-0">{children}</p>
           ),
           ul: ({ children }) => (
-            <ul className="my-2 pl-4 list-disc">{children}</ul>
+            <ul className="mt-2 first:mt-0 pl-4 list-disc space-y-0.5">{children}</ul>
           ),
           ol: ({ children }) => (
-            <ol className="my-2 pl-4 list-decimal">{children}</ol>
+            <ol className="mt-2 first:mt-0 pl-4 list-decimal space-y-0.5">{children}</ol>
           ),
           li: ({ children }) => (
-            <li className="my-0.5">{children}</li>
+            <li>{children}</li>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto my-2 -mx-2 px-2">
+            <div className="overflow-x-auto mt-2 first:mt-0">
               <table className="w-full border-collapse text-sm">{children}</table>
             </div>
           ),
@@ -119,12 +123,24 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
           ),
           pre: ({ children }) => (
             <pre className={cn(
-              "overflow-x-auto rounded-md border border-border/70 p-3",
+              "overflow-x-auto rounded-md border border-border/70 p-3 mt-2 first:mt-0",
               "bg-white/70 dark:bg-white/[0.03]",
               isMobile && "rounded-lg"
             )}>
               {children}
             </pre>
+          ),
+          h1: ({ children }) => (
+            <h1 className="text-xl font-semibold mt-4 mb-2 first:mt-0">{children}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="text-lg font-semibold mt-4 mb-2 first:mt-0">{children}</h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="text-base font-semibold mt-3 mb-1.5 first:mt-0">{children}</h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className="text-sm font-semibold mt-3 mb-1 first:mt-0">{children}</h4>
           ),
           code: ({ children, className, ...props }) => {
             // Detect language from className (e.g., "language-typescript")
