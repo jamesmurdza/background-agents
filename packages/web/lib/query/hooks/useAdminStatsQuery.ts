@@ -16,11 +16,7 @@ interface AdminStats {
     loginsToday: number
     loginsThisWeek: number
   }
-  modelUsage: Array<{
-    model: string
-    count: number
-  }>
-  userGrowth: Array<{
+  weeklyActiveUsers: Array<{
     date: string
     count: number
   }>
@@ -36,11 +32,6 @@ interface AdminStats {
     image?: string | null
     messageCount: number
     chatCount: number
-  }>
-  repoActivity: Array<{
-    repo: string
-    chatCount: number
-    messageCount: number
   }>
   hourlyActivity: Array<{
     hour: number
