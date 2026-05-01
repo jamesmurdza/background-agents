@@ -73,9 +73,14 @@ export interface AgentSessionOptions {
 // Background Session
 // =============================================================================
 
+export interface BackgroundStartOptions {
+  /** Previous conversation history to inject as context (e.g., on agent switch). */
+  history?: readonly { role: "user" | "assistant"; content: string }[]
+}
+
 export interface BackgroundAgentSession {
   backgroundSessionId: string
-  start: (prompt: string) => Promise<void>
+  start: (prompt: string, options?: BackgroundStartOptions) => Promise<void>
 }
 
 export async function createBackgroundAgentSession(
@@ -116,8 +121,10 @@ export async function createBackgroundAgentSession(
 
   return {
     backgroundSessionId: bgSession.id,
-    async start(prompt: string) {
-      await bgSession.start(prompt)
+    async start(prompt: string, options?: BackgroundStartOptions) {
+      await bgSession.start(prompt, {
+        ...(options?.history?.length && { history: options.history }),
+      })
     },
   }
 }

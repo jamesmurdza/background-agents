@@ -231,12 +231,53 @@ export async function POST(
         uploadedFilePaths.map((p) => `- ${p}`).join("\n")
     }
 
+    // ── Agent switch detection ────────────────────────────────────────────
+    // Detect by comparing the incoming agent against the agent that produced
+    // the most recent assistant message. Per-message agent fields are
+    // immutable, so this works even though chat.agent was already PATCHed
+    // by the dropdown change.
+    const lastAssistant = await prisma.message.findFirst({
+      where: { chatId, role: "assistant" },
+      orderBy: { timestamp: "desc" },
+      select: { agent: true },
+    })
+    const isAgentSwitch =
+      !!lastAssistant?.agent && lastAssistant.agent !== payload.agent
+
+    let history:
+      | { role: "user" | "assistant"; content: string }[]
+      | undefined
+
+    if (isAgentSwitch) {
+      const messages = await prisma.message.findMany({
+        where: { chatId },
+        orderBy: { timestamp: "asc" },
+        select: { role: true, content: true },
+      })
+      history = messages
+        .filter(
+          (
+            m
+          ): m is typeof m & { role: "user" | "assistant" } =>
+            (m.role === "user" || m.role === "assistant") &&
+            !!m.content.trim()
+        )
+        .map((m) => ({ role: m.role, content: m.content }))
+
+      if (history.length === 0) history = undefined
+      else
+        console.log(
+          `[chats/messages] Agent switch detected: injecting ${history.length} history messages`
+        )
+    }
+
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
     const env = getEnvForModel(payload.model, payload.agent as Agent, credentials)
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
-      sessionId: chat.sessionId ?? undefined,
+      // On agent switch, don't pass the old agent's sessionId — it would crash the new CLI
+      sessionId: isAgentSwitch ? undefined : (chat.sessionId ?? undefined),
       agent: payload.agent as Agent,
       model: payload.model,
       env: Object.keys(env).length > 0 ? env : undefined,
@@ -265,6 +306,8 @@ export async function POST(
           role: "user",
           content: agentPrompt,
           timestamp: BigInt(now),
+          agent: payload.agent,
+          model: payload.model,
           uploadedFiles:
             uploadedFilePaths.length > 0
               ? (uploadedFilePaths as unknown as Prisma.InputJsonValue)
@@ -272,6 +315,8 @@ export async function POST(
         },
         update: {
           content: agentPrompt,
+          agent: payload.agent,
+          model: payload.model,
           uploadedFiles:
             uploadedFilePaths.length > 0
               ? (uploadedFilePaths as unknown as Prisma.InputJsonValue)
@@ -287,6 +332,8 @@ export async function POST(
           role: "assistant",
           content: "",
           timestamp: BigInt(now + 1),
+          agent: payload.agent,
+          model: payload.model,
           toolCalls: [],
           contentBlocks: [],
         },
@@ -302,12 +349,14 @@ export async function POST(
           // Persist agent/model so subsequent messages on this chat keep them
           agent: payload.agent,
           model: payload.model,
+          // Clear stale sessionId on agent switch — new agent will generate its own
+          ...(isAgentSwitch && { sessionId: null }),
         },
       })
     })
 
     // ── Stage 6: kick off the agent ────────────────────────────────────────
-    await bgSession.start(agentPrompt)
+    await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     // Log message sent activity (fire and forget)
     logActivityAsync(userId, "message_sent", {

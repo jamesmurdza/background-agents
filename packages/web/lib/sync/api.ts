@@ -47,6 +47,8 @@ export interface MessageResponse {
   uploadedFiles: unknown
   linkBranch: string | null
   metadata: unknown
+  agent: string | null
+  model: string | null
 }
 
 export interface ChatWithMessagesResponse extends ChatResponse {
@@ -236,6 +238,8 @@ export function toMessageType(serverMessage: MessageResponse): Message {
     role: serverMessage.role as Message["role"],
     content: serverMessage.content,
     timestamp: serverMessage.timestamp,
+    agent: serverMessage.agent || undefined,
+    model: serverMessage.model || undefined,
     messageType: serverMessage.messageType as Message["messageType"],
     isError: serverMessage.isError,
     toolCalls: serverMessage.toolCalls as Message["toolCalls"],

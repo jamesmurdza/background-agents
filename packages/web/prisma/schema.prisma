@@ -137,6 +137,10 @@ model Message {
   content   String  @db.Text
   timestamp BigInt // Unix timestamp in milliseconds
 
+  // Which agent/model produced this message (nullable for old messages)
+  agent String?
+  model String?
+
   // Optional fields
   messageType String? // "chat" | "git-operation"
   isError     Boolean @default(false)

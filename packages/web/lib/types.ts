@@ -47,6 +47,10 @@ export interface Message {
   role: "user" | "assistant"
   content: string
   timestamp: number
+  /** Which agent produced this message */
+  agent?: string
+  /** Which model produced this message */
+  model?: string
   /** Type of message - defaults to "chat" for regular messages */
   messageType?: MessageType
   /** For git-operation messages, whether this is an error */
