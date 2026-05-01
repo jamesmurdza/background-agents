@@ -246,10 +246,11 @@ export function useChatWithSync() {
   }, [])
 
   // Materialize a draft chat into a real database chat
+  // Returns the full chat object so callers can use it directly without looking it up
   const materializeDraft = useCallback(async (
     draftId: string,
     options?: { status?: Chat["status"] }
-  ): Promise<string | null> => {
+  ): Promise<Chat | null> => {
     if (!draftChatConfig || draftChatConfig.id !== draftId) {
       console.error("Cannot materialize: draft config not found for", draftId)
       return null
@@ -301,7 +302,7 @@ export function useChatWithSync() {
       clearDraftChatConfig()
       setCurrentChatIdState(newChat.id)
 
-      return newChat.id
+      return newChat
     } catch (error) {
       console.error("Failed to materialize draft:", error)
       return null
@@ -617,17 +618,21 @@ export function useChatWithSync() {
     let chatId = targetChatId || currentChatId
     if (!chatId) return
 
+    let chat: Chat | undefined
+
     // If this is a draft chat, materialize it first
     if (isDraftChatId(chatId)) {
-      const realChatId = await materializeDraft(chatId)
-      if (!realChatId) {
+      const materializedChat = await materializeDraft(chatId)
+      if (!materializedChat) {
         console.error("Failed to materialize draft chat before sending message")
         return
       }
-      chatId = realChatId
+      chatId = materializedChat.id
+      chat = materializedChat
+    } else {
+      chat = chats.find((c) => c.id === chatId)
     }
 
-    const chat = chats.find((c) => c.id === chatId)
     if (!chat) return
 
     if (sendInFlight.current.has(chatId)) return
