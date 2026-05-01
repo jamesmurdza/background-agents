@@ -8,11 +8,9 @@ import {
   MessageSquare,
   FolderOpen,
   LogIn,
-  BarChart3,
   Activity,
   TrendingUp,
   Clock,
-  GitFork,
   Trophy,
 } from "lucide-react"
 
@@ -20,10 +18,8 @@ import { StatCard } from "@/components/admin/StatCard"
 import { ActivityFeed } from "@/components/admin/ActivityFeed"
 import { UserTable } from "@/components/admin/UserTable"
 import { ActivityChart } from "@/components/admin/charts/ActivityChart"
-import { ModelUsageChart } from "@/components/admin/charts/ModelUsageChart"
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart"
 import { TopUsersChart } from "@/components/admin/charts/TopUsersChart"
-import { RepoActivityChart } from "@/components/admin/charts/RepoActivityChart"
 import { HourlyActivityChart } from "@/components/admin/charts/HourlyActivityChart"
 import {
   useAdminStatsQuery,
@@ -83,11 +79,9 @@ export default function AdminDashboard() {
   }
 
   const stats = statsQuery.data?.stats
-  const modelUsage = statsQuery.data?.modelUsage ?? []
   const userGrowth = statsQuery.data?.userGrowth ?? []
   const activityTrends = statsQuery.data?.activityTrends ?? []
   const topUsers = statsQuery.data?.topUsers ?? []
-  const repoActivity = statsQuery.data?.repoActivity ?? []
   const hourlyActivity = statsQuery.data?.hourlyActivity ?? []
 
   return (
@@ -157,25 +151,6 @@ export default function AdminDashboard() {
               <h3 className="font-semibold">Top Active Users (Last 30 Days)</h3>
             </div>
             <TopUsersChart data={topUsers} />
-          </div>
-
-          <div className="rounded-lg border bg-card p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <GitFork className="h-5 w-5 text-muted-foreground" />
-              <h3 className="font-semibold">Repository Activity</h3>
-            </div>
-            <RepoActivityChart data={repoActivity} />
-          </div>
-        </section>
-
-        {/* Charts Row 3 */}
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-lg border bg-card p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-muted-foreground" />
-              <h3 className="font-semibold">Model Usage</h3>
-            </div>
-            <ModelUsageChart data={modelUsage} />
           </div>
 
           <div className="rounded-lg border bg-card p-6">
