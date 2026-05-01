@@ -76,7 +76,7 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
 function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: boolean }) {
   return (
     <div className={cn(
-      "prose dark:prose-invert max-w-none overflow-hidden",
+      "prose dark:prose-invert max-w-none w-full overflow-hidden",
       // Spacing is controlled via component overrides below; prose-* utilities
       // here only set typography (leading, font-size). This avoids conflicts.
       "prose-p:leading-relaxed",
