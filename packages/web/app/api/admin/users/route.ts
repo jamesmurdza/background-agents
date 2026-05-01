@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       }
     : {}
 
-  // Fetch users with chat counts
+  // Fetch users
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
@@ -45,11 +45,6 @@ export async function GET(request: NextRequest) {
         githubId: true,
         isAdmin: true,
         createdAt: true,
-        _count: {
-          select: {
-            chats: true,
-          },
-        },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -58,8 +53,18 @@ export async function GET(request: NextRequest) {
     prisma.user.count({ where }),
   ])
 
-  // Get last activity for each user
+  // Get chat counts (only chats with messages)
   const userIds = users.map((u) => u.id)
+  const chatCounts = await prisma.$queryRaw<Array<{ userId: string; count: bigint }>>`
+    SELECT c."userId", COUNT(DISTINCT c.id)::bigint as count
+    FROM "Chat" c
+    INNER JOIN "Message" m ON m."chatId" = c.id
+    WHERE c."userId" = ANY(${userIds})
+    GROUP BY c."userId"
+  `
+  const chatCountMap = new Map(chatCounts.map((c) => [c.userId, Number(c.count)]))
+
+  // Get last activity for each user
   const lastActivities = await prisma.activityLog.findMany({
     where: { userId: { in: userIds } },
     orderBy: { createdAt: "desc" },
@@ -85,7 +90,7 @@ export async function GET(request: NextRequest) {
         image: user.image,
         githubId: user.githubId,
         isAdmin: user.isAdmin,
-        totalChats: user._count.chats,
+        totalChats: chatCountMap.get(user.id) ?? 0,
         lastActivityAt: lastActivity?.createdAt.toISOString() ?? null,
         lastActivityAction: lastActivity?.action ?? null,
         createdAt: user.createdAt.toISOString(),
