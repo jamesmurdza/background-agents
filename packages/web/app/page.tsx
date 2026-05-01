@@ -325,17 +325,82 @@ export default function HomePage() {
     startNewChat()
   }, [isHydrated, currentChatId, session, startNewChat])
 
+  // =============================================================================
+  // Draft Chat & Display Chat
+  // =============================================================================
+  // For users without a real chat (either unauthenticated or authenticated
+  // with a draft chat ID), create a synthetic "draft" chat so the UI is
+  // interactive. This must be defined before handlers so they can use
+  // displayCurrentChat instead of checking isDraftChatId everywhere.
+  const unauthDraftIdRef = useRef<string>(`draft-${nanoid()}`)
+  const draftChat: Chat | null = useMemo(() => {
+    if (!isHydrated) return null
+
+    // Case 1: Unauthenticated user - use local draft state
+    if (!session && !currentChatId) {
+      const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+      const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
+      return {
+        id: unauthDraftIdRef.current,
+        repo: NEW_REPOSITORY,
+        baseBranch: "main",
+        branch: null,
+        sandboxId: null,
+        sessionId: null,
+        agent: resolvedAgent,
+        model: resolvedModel,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: "pending",
+        displayName: null,
+      }
+    }
+
+    // Case 2: Authenticated user with a draft chat ID - use draftChatConfig
+    if (session && currentChatId && isDraftChatId(currentChatId) && draftChatConfig) {
+      const resolvedAgent = (draftChatConfig.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+      const resolvedModel = draftChatConfig.model ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
+      return {
+        id: currentChatId,
+        repo: draftChatConfig.repo,
+        baseBranch: draftChatConfig.baseBranch,
+        branch: null,
+        sandboxId: null,
+        sessionId: null,
+        agent: resolvedAgent,
+        model: resolvedModel,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: "pending",
+        displayName: null,
+      }
+    }
+
+    return null
+  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags, isDraftChatId, draftChatConfig])
+
+  // Unified current chat - either a real chat or a draft chat
+  const displayCurrentChat = isHydrated ? (currentChat ?? draftChat) : null
+  const isDraftMode = !!draftChat
+  const isAuthenticatedDraft = isDraftMode && !!session
+
+  // =============================================================================
+  // Handlers
+  // =============================================================================
+
   // Handler for new chat - uses current chat's repo/branch if available, otherwise repo filter
   const handleNewChat = () => {
     if (!session) {
       setSignInModalOpen(true)
       return
     }
-    // If there's a current chat with a repo selected, inherit its repo and base branch.
+    // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
-    if (currentChat && currentChat.repo !== NEW_REPOSITORY) {
-      startNewChat(currentChat.repo, currentChat.baseBranch)
+    if (displayCurrentChat && displayCurrentChat.repo !== NEW_REPOSITORY) {
+      startNewChat(displayCurrentChat.repo, displayCurrentChat.baseBranch)
     } else if (repoFilter !== ALL_REPOSITORIES && repoFilter !== NO_REPOSITORY) {
       // If a specific repo is selected in the filter, use it for the new chat
       // Find the repo to get the default branch
@@ -361,13 +426,8 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    // Draft chats can always select a repo (no messages yet, no sandbox)
-    if (isDraftChatId(currentChatId)) {
-      setRepoSelectOpen(true)
-      return
-    }
-    // Real chats can select if no messages and no sandbox
-    const canSelect = !!currentChat && currentChat.messages.length === 0 && !currentChat.sandboxId
+    // Can select repo if chat has no messages and no sandbox (includes drafts)
+    const canSelect = !!displayCurrentChat && displayCurrentChat.messages.length === 0 && !displayCurrentChat.sandboxId
     if (canSelect) {
       setRepoSelectOpen(true)
     } else {
@@ -382,14 +442,7 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    // For draft chats, check draftChatConfig for repo
-    if (isDraftChatId(currentChatId)) {
-      if (!draftChatConfig || draftChatConfig.repo === NEW_REPOSITORY) return
-      setBranchSelectOpen(true)
-      return
-    }
-    // For real chats
-    if (!currentChat || currentChat.repo === NEW_REPOSITORY) return
+    if (!displayCurrentChat || displayCurrentChat.repo === NEW_REPOSITORY) return
     setBranchSelectOpen(true)
   }
 
@@ -406,27 +459,24 @@ export default function HomePage() {
   // For draft chats, updates the draft config. For real chats, updates the database.
   // If sandbox already exists (chat started without repo), also set up remote and push
   const handleRepoSelect = async (repo: string, branch: string) => {
-    if (!currentChatId) return
+    if (!displayCurrentChat) return
 
     // For draft chats, just update the draft config
-    if (isDraftChatId(currentChatId)) {
+    if (isDraftMode) {
       updateDraftChatConfig({ repo, baseBranch: branch })
       return
     }
 
-    // For real chats
-    if (!currentChat) return
-
-    // If sandbox exists, we need to set up the remote and push
-    if (currentChat.sandboxId && currentChat.repo === NEW_REPOSITORY) {
+    // For real chats - if sandbox exists, we need to set up the remote and push
+    if (displayCurrentChat.sandboxId && displayCurrentChat.repo === NEW_REPOSITORY) {
       try {
         const response = await fetch("/api/git/setup-remote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sandboxId: currentChat.sandboxId,
+            sandboxId: displayCurrentChat.sandboxId,
             repoFullName: repo,
-            branch: currentChat.branch,
+            branch: displayCurrentChat.branch,
           }),
         })
 
@@ -442,7 +492,7 @@ export default function HomePage() {
       }
     }
 
-    updateChatRepo(currentChatId, repo, branch)
+    updateChatRepo(displayCurrentChat.id, repo, branch)
   }
 
   // Handler for sending message
@@ -458,14 +508,14 @@ export default function HomePage() {
 
     // Update filter to match the chat's repo if this is the first message and repo differs from filter
     // This ensures the filter follows the user's choice when starting a chat
-    if (currentChat && currentChat.messages.length === 0 &&
-        repoFilter !== ALL_REPOSITORIES && repoFilter !== currentChat.repo) {
+    if (displayCurrentChat && displayCurrentChat.messages.length === 0 &&
+        repoFilter !== ALL_REPOSITORIES && repoFilter !== displayCurrentChat.repo) {
       // If chat has no repo, switch to "No repository" filter
       // Otherwise, switch to the chat's repo
-      if (currentChat.repo === NEW_REPOSITORY) {
+      if (displayCurrentChat.repo === NEW_REPOSITORY) {
         setRepoFilter(NO_REPOSITORY)
       } else {
-        setRepoFilter(currentChat.repo)
+        setRepoFilter(displayCurrentChat.repo)
       }
     }
 
@@ -772,72 +822,6 @@ export default function HomePage() {
   const displayChats = isHydrated ? chats : []
   const displayCurrentChatId = isHydrated ? currentChatId : null
 
-  // For users without a real chat (either unauthenticated or authenticated
-  // with a draft chat ID), render a synthetic "draft" chat so the prompt bar
-  // and dropdowns are interactive.
-  //
-  // For unauthenticated users: The draft never talks to the server; on submit
-  // we save a pending-message blob to sessionStorage, prompt sign-in, and
-  // replay it once the user is signed in.
-  //
-  // For authenticated users with a draft: The draft config is stored in
-  // localStorage via draftChatConfig. When sending a message, the draft is
-  // "materialized" into a real database chat.
-  //
-  // "Draft mode" is detected by the existence of `draftChat`, not by id comparison.
-  const unauthDraftIdRef = useRef<string>(`draft-${nanoid()}`)
-  const draftChat: Chat | null = useMemo(() => {
-    if (!isHydrated) return null
-
-    // Case 1: Unauthenticated user - use local draft state
-    if (!session && !currentChatId) {
-      const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
-      const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
-      return {
-        id: unauthDraftIdRef.current,
-        repo: NEW_REPOSITORY,
-        baseBranch: "main",
-        branch: null,
-        sandboxId: null,
-        sessionId: null,
-        agent: resolvedAgent,
-        model: resolvedModel,
-        messages: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        status: "pending",
-        displayName: null,
-      }
-    }
-
-    // Case 2: Authenticated user with a draft chat ID - use draftChatConfig
-    if (session && currentChatId && isDraftChatId(currentChatId) && draftChatConfig) {
-      const resolvedAgent = (draftChatConfig.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
-      const resolvedModel = draftChatConfig.model ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
-      return {
-        id: currentChatId,
-        repo: draftChatConfig.repo,
-        baseBranch: draftChatConfig.baseBranch,
-        branch: null,
-        sandboxId: null,
-        sessionId: null,
-        agent: resolvedAgent,
-        model: resolvedModel,
-        messages: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        status: "pending",
-        displayName: null,
-      }
-    }
-
-    return null
-  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags, isDraftChatId, draftChatConfig])
-
-  const isDraftMode = !!draftChat
-  const isAuthenticatedDraft = isDraftMode && !!session
-  const displayCurrentChat = isHydrated ? (currentChat ?? draftChat) : null
-
   // When in draft mode, agent/model dropdowns route to local draft state
   // because no real chat row exists to PATCH yet.
   const handleUpdateChatProp = useCallback(
@@ -1086,18 +1070,25 @@ export default function HomePage() {
         open={branchSelectOpen}
         onClose={() => setBranchSelectOpen(false)}
         onSelect={async (branch) => {
-          if (currentChat && currentChat.messages.length === 0 && !currentChat.sandboxId) {
+          // For draft chats, update draftChatConfig
+          if (isDraftMode) {
+            updateDraftChatConfig({ baseBranch: branch })
+            setBranchSelectOpen(false)
+            return
+          }
+          // For real chats
+          if (displayCurrentChat && displayCurrentChat.messages.length === 0 && !displayCurrentChat.sandboxId) {
             // For new chats, update baseBranch (the branch we'll branch from)
             updateCurrentChat({ baseBranch: branch })
-          } else if (currentChat) {
-            const chatId = await startNewChat(currentChat.repo, branch)
+          } else if (displayCurrentChat) {
+            const chatId = await startNewChat(displayCurrentChat.repo, branch)
             if (chatId) selectChat(chatId)
           }
           setBranchSelectOpen(false)
         }}
-        repo={currentChat?.repo?.split("/")[1] || ""}
-        owner={currentChat?.repo?.split("/")[0] || ""}
-        selectedBranch={currentChat?.baseBranch}
+        repo={displayCurrentChat?.repo?.split("/")[1] || ""}
+        owner={displayCurrentChat?.repo?.split("/")[0] || ""}
+        selectedBranch={displayCurrentChat?.baseBranch}
         isMobile={isMobile}
       />
 
