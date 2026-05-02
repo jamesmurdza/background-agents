@@ -139,7 +139,7 @@ export async function pull(
   username?: string,
   password?: string
 ): Promise<void> {
-  const authFlags = password ? buildAuthFlags(password) : ""
+  const authFlags = password ? buildAuthFlags(password, username) : ""
   await exec(
     process,
     `cd ${escapeShellArg(path)} && git ${authFlags} pull 2>&1`
@@ -158,7 +158,7 @@ export async function push(
   username?: string,
   password?: string
 ): Promise<void> {
-  const authFlags = password ? buildAuthFlags(password) : ""
+  const authFlags = password ? buildAuthFlags(password, username) : ""
   await exec(
     process,
     `cd ${escapeShellArg(path)} && git ${authFlags} push -u origin HEAD 2>&1`
