@@ -639,6 +639,11 @@ export function useChatWithSync() {
       chat = materializedChat
     } else {
       chat = chats.find((c) => c.id === chatId)
+      // Fallback to query cache if not found in chats array (e.g., newly created branched chat)
+      if (!chat) {
+        const cachedChats = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())
+        chat = cachedChats?.find((c) => c.id === chatId)
+      }
     }
 
     if (!chat) return
