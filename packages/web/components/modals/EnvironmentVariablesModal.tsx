@@ -229,7 +229,7 @@ export function EnvironmentVariablesModal({
   const hasRepository = !!repoName
 
   const renderContent = () => (
-    <div className="flex flex-col h-full">
+    <>
       {/* Add button at top */}
       <button
         type="button"
@@ -241,22 +241,20 @@ export function EnvironmentVariablesModal({
       </button>
 
       {/* Variable list */}
-      <div className="flex-1 overflow-y-auto">
-        {activeVars.length > 0 && (
-          <div className="space-y-1">
-            {activeVars.map((envVar) => (
-              <EnvVarRow
-                key={envVar.id}
-                envVar={envVar}
-                onChange={(updated) => handleUpdateVariable(activeTab, envVar.id, updated)}
-                onDelete={() => handleDeleteVariable(activeTab, envVar.id)}
-                autoFocus={envVar.id === newVarId}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      {activeVars.length > 0 && (
+        <div className="space-y-1">
+          {activeVars.map((envVar) => (
+            <EnvVarRow
+              key={envVar.id}
+              envVar={envVar}
+              onChange={(updated) => handleUpdateVariable(activeTab, envVar.id, updated)}
+              onDelete={() => handleDeleteVariable(activeTab, envVar.id)}
+              autoFocus={envVar.id === newVarId}
+            />
+          ))}
+        </div>
+      )}
+    </>
   )
 
   // Filter tabs based on whether repo exists
