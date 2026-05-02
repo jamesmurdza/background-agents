@@ -57,7 +57,7 @@ const CREATE_REPO_COMMAND: SlashCommand = {
 
 const ENV_COMMAND: SlashCommand = {
   name: "env",
-  label: "Environment Variables",
+  label: "Environment variables",
   description: "Set environment variables",
   icon: "Variable",
 }
