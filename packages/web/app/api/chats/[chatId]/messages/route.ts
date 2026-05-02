@@ -38,8 +38,6 @@ interface MessagePayload {
   assistantMessageId: string
   /** Branch name for the new sandbox if one is being created. Generated server-side if omitted. */
   newBranch?: string
-  /** User-defined environment variables to pass to the agent */
-  envVars?: Record<string, string>
 }
 
 interface SuccessResponse {
@@ -302,8 +300,6 @@ export async function POST(
 
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
     const env = getEnvForModel(payload.model, payload.agent as Agent, credentials)
-    // Merge user-defined environment variables (they take precedence over system vars)
-    const mergedEnv = { ...env, ...(payload.envVars ?? {}) }
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
@@ -311,7 +307,7 @@ export async function POST(
       sessionId: isAgentSwitch ? undefined : (chat.sessionId ?? undefined),
       agent: payload.agent as Agent,
       model: payload.model,
-      env: Object.keys(mergedEnv).length > 0 ? mergedEnv : undefined,
+      env: Object.keys(env).length > 0 ? env : undefined,
     })
 
     // ── Stage 5: persist messages + chat status (transactional) ────────────

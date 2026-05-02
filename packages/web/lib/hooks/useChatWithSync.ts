@@ -31,7 +31,6 @@ import {
   setDraftChatConfig,
   clearDraftChatConfig,
   migrateDraftToRealChat,
-  getEnvVarsForChat,
   type DraftChatConfig,
 } from "@/lib/storage"
 import {
@@ -678,9 +677,6 @@ export function useChatWithSync() {
       ))
 
       try {
-        // Get user-defined environment variables for this chat
-        const envVars = getEnvVarsForChat(chatId, chat.repo !== NEW_REPOSITORY ? chat.repo : undefined)
-
         const payload = {
           message: content,
           agent: selectedAgent,
@@ -688,7 +684,6 @@ export function useChatWithSync() {
           userMessageId: userMessage.id,
           assistantMessageId: assistantMessage.id,
           newBranch: chat.sandboxId ? undefined : `agent/${generateBranchName()}`,
-          envVars: Object.keys(envVars).length > 0 ? envVars : undefined,
         }
 
         let response: Response
