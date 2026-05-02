@@ -97,14 +97,20 @@ try {
 
 ## How Credentials Work
 
-Credentials are **never persisted** in the sandbox. For operations requiring auth (`clone`, `pull`, `push`):
+Credentials are **never persisted** in the sandbox.
 
-1. Get the current remote URL
-2. Temporarily set an authenticated URL (`https://user:token@github.com/...`)
-3. Run the git command
-4. Restore the original URL
+For `pull` and `push`, credentials are passed via git's `-c` flag:
+```bash
+git -c http.extraHeader='Authorization: Bearer <token>' push
+```
 
-This ensures credentials exist only in memory during the operation.
+This means:
+- No URL manipulation needed
+- No cleanup required
+- No race conditions
+- Credential exists only for that single command invocation
+
+For `clone`, credentials are embedded in the URL temporarily, then stripped from `.git/config` immediately after.
 
 ## Migration from Daytona SDK
 

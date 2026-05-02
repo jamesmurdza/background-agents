@@ -6,7 +6,7 @@
  */
 
 import type { SandboxProcess, GitStatus } from "./types"
-import { createAuthUrl, stripCredentials } from "./auth"
+import { createAuthUrl, stripCredentials, buildAuthFlags } from "./auth"
 import { createGitError } from "./errors"
 import { parseGitStatus } from "./parsers"
 
@@ -130,11 +130,8 @@ export async function status(
 /**
  * Pull changes from remote with authentication
  *
- * Strategy:
- * 1. Get current remote URL
- * 2. Temporarily set authenticated URL
- * 3. Pull
- * 4. Restore original URL (credentials never persist)
+ * Uses git -c flag to pass credentials for a single command invocation.
+ * No state to manage, no cleanup needed.
  */
 export async function pull(
   process: SandboxProcess,
@@ -142,48 +139,18 @@ export async function pull(
   username?: string,
   password?: string
 ): Promise<void> {
-  if (!username || !password) {
-    // No auth - simple pull
-    await exec(process, `cd ${escapeShellArg(path)} && git pull 2>&1`)
-    return
-  }
-
-  // Get original remote URL
-  const originalUrl = (
-    await exec(
-      process,
-      `cd ${escapeShellArg(path)} && git remote get-url origin 2>&1`
-    )
-  ).trim()
-
-  // Set authenticated URL temporarily
-  const authUrl = createAuthUrl(originalUrl, username, password)
+  const authFlags = password ? buildAuthFlags(password) : ""
   await exec(
     process,
-    `cd ${escapeShellArg(path)} && git remote set-url origin ${escapeShellArg(authUrl)} 2>&1`
+    `cd ${escapeShellArg(path)} && git ${authFlags} pull 2>&1`
   )
-
-  try {
-    // Pull
-    await exec(process, `cd ${escapeShellArg(path)} && git pull 2>&1`)
-  } finally {
-    // Always restore original URL - credentials never persist
-    await exec(
-      process,
-      `cd ${escapeShellArg(path)} && git remote set-url origin ${escapeShellArg(originalUrl)} 2>&1`,
-      true // Don't throw if this fails
-    )
-  }
 }
 
 /**
  * Push changes to remote with authentication
  *
- * Strategy:
- * 1. Get current remote URL
- * 2. Temporarily set authenticated URL
- * 3. Push with upstream tracking
- * 4. Restore original URL (credentials never persist)
+ * Uses git -c flag to pass credentials for a single command invocation.
+ * No state to manage, no cleanup needed.
  */
 export async function push(
   process: SandboxProcess,
@@ -191,42 +158,9 @@ export async function push(
   username?: string,
   password?: string
 ): Promise<void> {
-  if (!username || !password) {
-    // No auth - simple push
-    await exec(
-      process,
-      `cd ${escapeShellArg(path)} && git push -u origin HEAD 2>&1`
-    )
-    return
-  }
-
-  // Get original remote URL
-  const originalUrl = (
-    await exec(
-      process,
-      `cd ${escapeShellArg(path)} && git remote get-url origin 2>&1`
-    )
-  ).trim()
-
-  // Set authenticated URL temporarily
-  const authUrl = createAuthUrl(originalUrl, username, password)
+  const authFlags = password ? buildAuthFlags(password) : ""
   await exec(
     process,
-    `cd ${escapeShellArg(path)} && git remote set-url origin ${escapeShellArg(authUrl)} 2>&1`
+    `cd ${escapeShellArg(path)} && git ${authFlags} push -u origin HEAD 2>&1`
   )
-
-  try {
-    // Push with upstream tracking
-    await exec(
-      process,
-      `cd ${escapeShellArg(path)} && git push -u origin HEAD 2>&1`
-    )
-  } finally {
-    // Always restore original URL - credentials never persist
-    await exec(
-      process,
-      `cd ${escapeShellArg(path)} && git remote set-url origin ${escapeShellArg(originalUrl)} 2>&1`,
-      true // Don't throw if this fails
-    )
-  }
 }

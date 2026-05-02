@@ -53,7 +53,7 @@ export {
 } from "./errors"
 
 // Auth utilities
-export { createAuthUrl, stripCredentials, hasCredentials } from "./auth"
+export { createAuthUrl, stripCredentials, hasCredentials, buildAuthFlags } from "./auth"
 
 // Parsers (useful for testing or custom implementations)
 export {

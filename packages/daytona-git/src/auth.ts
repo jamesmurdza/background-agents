@@ -1,11 +1,11 @@
 /**
  * Authentication utilities for git operations
  *
- * Credentials are injected into URLs temporarily and never persisted.
+ * Credentials are passed via git -c flags and never persisted.
  */
 
 /**
- * Create an authenticated git URL
+ * Create an authenticated git URL (used only for clone operations)
  *
  * @param url - Original URL (https://github.com/owner/repo.git)
  * @param username - Git username (e.g., "x-access-token" for GitHub)
@@ -24,6 +24,25 @@ export function createAuthUrl(
   // Handle URLs that already have credentials
   const cleanUrl = stripCredentials(url)
   return cleanUrl.replace("https://", `https://${username}:${password}@`)
+}
+
+/**
+ * Build git -c flags for authentication
+ *
+ * Uses http.extraHeader to pass Bearer token without touching any config.
+ * The credential exists only for the single command invocation.
+ *
+ * @param token - The authentication token (e.g., GitHub PAT)
+ * @returns Git -c flag string to prepend to commands
+ *
+ * @example
+ * buildAuthFlags("ghp_xxx")
+ * // => "-c http.extraHeader='Authorization: Bearer ghp_xxx'"
+ */
+export function buildAuthFlags(token: string): string {
+  // Escape single quotes in token (unlikely but safe)
+  const escaped = token.replace(/'/g, "'\\''")
+  return `-c http.extraHeader='Authorization: Bearer ${escaped}'`
 }
 
 /**
