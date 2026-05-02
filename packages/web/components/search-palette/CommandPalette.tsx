@@ -101,7 +101,7 @@ export function CommandPalette({
         <CommandGroup heading="Chat">
           <CommandItem value="new chat" onSelect={() => run(onNewChat)}>
             <Plus className="mr-2 h-4 w-4 text-muted-foreground" />
-            <span>New Chat</span>
+            <span>New chat</span>
           </CommandItem>
           {onBranchChat && (
             <CommandItem value="branch chat" onSelect={() => run(onBranchChat)}>
@@ -112,7 +112,7 @@ export function CommandPalette({
           {onCreateRepo && (
             <CommandItem value="create repository" onSelect={() => run(onCreateRepo)}>
               <FolderGit2 className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Create Repository</span>
+              <span>Create repository</span>
             </CommandItem>
           )}
           {onOpenInGitHub && (
@@ -142,7 +142,7 @@ export function CommandPalette({
           {onOpenTerminal && (
             <CommandItem value="open terminal" onSelect={() => run(onOpenTerminal)}>
               <TerminalSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Open Terminal</span>
+              <span>Open terminal</span>
             </CommandItem>
           )}
           {onOpenServer && servers.length > 0 && (
@@ -151,13 +151,13 @@ export function CommandPalette({
               onSelect={() => run(() => onOpenServer(servers[0].port, servers[0].url))}
             >
               <Globe className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Open Live Preview</span>
+              <span>Open live preview</span>
             </CommandItem>
           )}
           {onClosePreview && (
             <CommandItem value="close preview" onSelect={() => run(onClosePreview)}>
               <PanelRightClose className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Close Preview Pane</span>
+              <span>Close preview pane</span>
             </CommandItem>
           )}
           {onDownloadProject && (
@@ -167,13 +167,13 @@ export function CommandPalette({
               disabled={isDownloading}
             >
               <Download className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>{isDownloading ? "Downloading..." : "Download Project"}</span>
+              <span>{isDownloading ? "Downloading..." : "Download project"}</span>
             </CommandItem>
           )}
           {onDeleteChat && (
             <CommandItem value="delete chat" onSelect={() => run(onDeleteChat)}>
               <Trash2 className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Delete Chat</span>
+              <span>Delete chat</span>
             </CommandItem>
           )}
         </CommandGroup>
@@ -199,7 +199,7 @@ export function CommandPalette({
           {onToggleSidebar && (
             <CommandItem value="toggle sidebar" onSelect={() => run(onToggleSidebar)}>
               <PanelLeft className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Toggle Sidebar</span>
+              <span>Toggle sidebar</span>
             </CommandItem>
           )}
           <CommandItem value="settings" onSelect={() => run(onOpenSettings)}>
