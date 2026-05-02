@@ -36,9 +36,9 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
         isUser && (isMobile ? "max-w-[95%]" : "max-w-[90%]")
       )}>
         {isUser ? (
-          <div>
+          <div className="min-w-0">
             <div className={cn(
-              "inline-block rounded-lg bg-muted text-foreground text-left",
+              "inline-block rounded-lg bg-muted text-foreground text-left max-w-full min-w-0",
               isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
             )}>
               <MarkdownContent text={message.content} isMobile={isMobile} constrainWidth={false} />
@@ -91,7 +91,7 @@ function CodeBlock({ children, isMobile = false }: { children: React.ReactNode; 
   }
 
   return (
-    <div className="relative group my-4 first:mt-0 last:mb-0">
+    <div className="relative group my-4 first:mt-0 last:mb-0 min-w-0 max-w-full overflow-hidden">
       <pre className={cn(
         "w-full overflow-x-auto max-w-full rounded-md border border-border/70 p-3",
         "bg-white/70 dark:bg-white/[0.03]",
@@ -122,7 +122,7 @@ function CodeBlock({ children, isMobile = false }: { children: React.ReactNode; 
 function MarkdownContent({ text, isMobile = false, constrainWidth = true }: { text: string; isMobile?: boolean; constrainWidth?: boolean }) {
   return (
     <div className={cn(
-      "prose dark:prose-invert max-w-none w-full overflow-hidden",
+      "prose dark:prose-invert max-w-none w-full overflow-hidden min-w-0",
       // Spacing is controlled via component overrides below; prose-* utilities
       // here only set typography (leading, font-size). This avoids conflicts.
       "prose-p:leading-relaxed",
