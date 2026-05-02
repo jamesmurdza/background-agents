@@ -13,6 +13,7 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 | [`agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations |
 | [`claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona |
 | [`common`](packages/common) | Shared utilities and types |
+| [`daytona-git`](packages/daytona-git) | Git operations for Daytona sandboxes |
 | [`terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
 
 ---
