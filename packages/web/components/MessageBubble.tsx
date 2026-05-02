@@ -33,16 +33,15 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
       {/* Content */}
       <div className={cn(
         !isUser && "w-full",
-        isUser && "text-right",
         isUser && (isMobile ? "max-w-[95%]" : "max-w-[90%]")
       )}>
         {isUser ? (
           <div>
             <div className={cn(
-              "inline-block rounded-lg bg-muted text-foreground",
+              "inline-block rounded-lg bg-muted text-foreground text-left",
               isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
             )}>
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <MarkdownContent text={message.content} isMobile={isMobile} />
             </div>
             {/* Uploaded files display */}
             {hasUploadedFiles && (
@@ -119,10 +118,6 @@ function CodeBlock({ children, isMobile = false }: { children: React.ReactNode; 
     </div>
   )
 }
-
-// =============================================================================
-// Assistant Content (with tool calls)
-// =============================================================================
 
 function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: boolean }) {
   return (
@@ -252,6 +247,10 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
     </div>
   )
 }
+
+// =============================================================================
+// Assistant Content (with tool calls)
+// =============================================================================
 
 function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpenFile, onForcePush }: { message: Message; isStreaming?: boolean; isMobile?: boolean; repo?: string; onOpenFile?: (filePath: string) => void; onForcePush?: () => void }) {
   const hasContent = message.content && message.content.trim().length > 0
