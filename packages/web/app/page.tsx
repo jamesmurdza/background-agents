@@ -808,7 +808,7 @@ export default function HomePage() {
   // Copy git checkout command to clipboard
   const handleCopyCheckoutCommand = useCallback(() => {
     if (currentChat?.branch) {
-      const command = `git fetch origin && git checkout ${currentChat.branch}`
+      const command = `git fetch origin ${currentChat.branch} && git checkout ${currentChat.branch}`
       navigator.clipboard.writeText(command)
     }
   }, [currentChat?.branch])
