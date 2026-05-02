@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { ChevronDown, ChevronRight, Terminal, FileText, Search, GitMerge, LucideIcon } from "lucide-react"
+import { ChevronDown, ChevronRight, Terminal, FileText, Search, GitMerge, LucideIcon, Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message, ContentBlock, ToolCall, MessageMetadata } from "@/lib/types"
 import ReactMarkdown from "react-markdown"
@@ -71,6 +71,56 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
 }
 
 // =============================================================================
+// Code Block with Copy Button
+// =============================================================================
+
+function CodeBlock({ children, isMobile = false }: { children: React.ReactNode; isMobile?: boolean }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    // Extract text content from children (the code element)
+    const codeElement = children as React.ReactElement
+    const textContent = codeElement?.props?.children || ""
+
+    try {
+      await navigator.clipboard.writeText(String(textContent))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+    }
+  }
+
+  return (
+    <div className="relative group my-4 first:mt-0 last:mb-0">
+      <pre className={cn(
+        "w-full overflow-x-auto max-w-full rounded-md border border-border/70 p-3",
+        "bg-white/70 dark:bg-white/[0.03]",
+        isMobile && "rounded-lg"
+      )}>
+        {children}
+      </pre>
+      <button
+        onClick={handleCopy}
+        className={cn(
+          "absolute top-2 right-2 p-1.5 rounded-md transition-opacity",
+          "bg-background/80 border border-border/50 hover:bg-muted",
+          "opacity-0 group-hover:opacity-100",
+          copied && "opacity-100"
+        )}
+        aria-label={copied ? "Copied!" : "Copy code"}
+      >
+        {copied ? (
+          <Check className="h-4 w-4 text-green-500" />
+        ) : (
+          <Copy className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+    </div>
+  )
+}
+
+// =============================================================================
 // Assistant Content (with tool calls)
 // =============================================================================
 
@@ -130,13 +180,7 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
             <td className="border border-border px-3 py-1.5">{children}</td>
           ),
           pre: ({ children }) => (
-            <pre className={cn(
-              "w-full overflow-x-auto max-w-full rounded-md border border-border/70 p-3 my-4 first:mt-0 last:mb-0",
-              "bg-white/70 dark:bg-white/[0.03]",
-              isMobile && "rounded-lg"
-            )}>
-              {children}
-            </pre>
+            <CodeBlock isMobile={isMobile}>{children}</CodeBlock>
           ),
           h1: ({ children }) => (
             <h1 className="text-xl font-semibold mt-4 mb-2 first:mt-0 max-w-[95%]">{children}</h1>
