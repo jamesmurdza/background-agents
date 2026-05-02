@@ -10,6 +10,7 @@ import { PreviewView, type PreviewItem } from "@/components/PreviewView"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
 import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
+import { ReAuthModal } from "@/components/modals/ReAuthModal"
 import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { BranchPickerModal } from "@/components/modals/BranchPickerModal"
@@ -20,6 +21,7 @@ import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
+import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
 import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, type Message, type Chat } from "@/lib/types"
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
 import { PATHS } from "@upstream/common"
@@ -59,6 +61,7 @@ function loadAndClearPendingMessage(): PendingMessage | null {
 
 export default function HomePage() {
   const { data: session } = useSession()
+  const { githubTokenInvalid } = useGitHubTokenCheck()
   const isMobile = useMobile()
 
   const {
@@ -1144,6 +1147,13 @@ export default function HomePage() {
       <SignInModal
         open={signInModalOpen}
         onClose={() => setSignInModalOpen(false)}
+        isMobile={isMobile}
+      />
+
+      {/* Re-auth Modal - shown when stored GitHub token has expired or been revoked */}
+      <ReAuthModal
+        open={githubTokenInvalid}
+        onClose={() => {}}
         isMobile={isMobile}
       />
 
