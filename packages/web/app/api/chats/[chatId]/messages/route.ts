@@ -271,6 +271,33 @@ export async function POST(
         )
     }
 
+    // ── Chat fork detection ───────────────────────────────────────────────
+    // When a chat is forked from a parent (via /branch, Option+Enter, etc.),
+    // the first message should include the parent's conversation history so
+    // the agent has context about what was previously discussed.
+    if (!history && chat.parentChatId && !lastAssistant) {
+      const parentMessages = await prisma.message.findMany({
+        where: { chatId: chat.parentChatId },
+        orderBy: { timestamp: "asc" },
+        select: { role: true, content: true },
+      })
+      history = parentMessages
+        .filter(
+          (
+            m
+          ): m is typeof m & { role: "user" | "assistant" } =>
+            (m.role === "user" || m.role === "assistant") &&
+            !!m.content.trim()
+        )
+        .map((m) => ({ role: m.role, content: m.content }))
+
+      if (history.length === 0) history = undefined
+      else
+        console.log(
+          `[chats/messages] Chat fork detected: injecting ${history.length} parent messages`
+        )
+    }
+
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
     const env = getEnvForModel(payload.model, payload.agent as Agent, credentials)
     const bgSession = await createBackgroundAgentSession(sandbox, {
