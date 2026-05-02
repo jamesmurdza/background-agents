@@ -43,7 +43,7 @@ export {
 } from "./errors"
 
 // Auth
-export { authFlags } from "./auth"
+export { withAuth } from "./auth"
 
 // Parsers
 export {
@@ -70,6 +70,8 @@ export function createSandboxGit(sandbox: SandboxLike): SandboxGit {
       commands.checkoutBranch(process, path, branchName),
 
     status: (path) => commands.status(process, path),
+
+    fetch: (path, token?, refspec?) => commands.fetch(process, path, token, refspec),
 
     pull: (path, token?) => commands.pull(process, path, token),
 

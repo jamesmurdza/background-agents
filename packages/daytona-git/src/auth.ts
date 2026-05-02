@@ -1,7 +1,7 @@
 /**
  * Authentication utilities for git operations
  *
- * Credentials are passed via git -c flags and never persisted.
+ * Token is passed via git -c flag and never persisted.
  */
 
 // Declare globals for environments (Node.js Buffer, browser btoa)
@@ -23,23 +23,14 @@ function base64Encode(str: string): string {
   throw new Error("No base64 encoding available")
 }
 
-/**
- * Escape a shell argument to prevent injection
- */
-function escapeShellArg(arg: string): string {
+function esc(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`
 }
 
 /**
- * Build git -c flags for authentication
- *
- * Uses http.extraHeader with Basic auth. The credential exists only
- * for the single command invocation - nothing touches disk.
- *
- * @param token - The authentication token (e.g., GitHub PAT)
- * @returns Git -c flag string to prepend to commands
+ * Build git command with auth header
  */
-export function authFlags(token: string): string {
-  const credentials = base64Encode(`x-access-token:${token}`)
-  return `-c http.extraHeader=${escapeShellArg(`Authorization: Basic ${credentials}`)}`
+export function withAuth(token: string, gitCmd: string): string {
+  const creds = base64Encode(`x-access-token:${token}`)
+  return `git -c http.extraHeader=${esc(`Authorization: Basic ${creds}`)} ${gitCmd}`
 }

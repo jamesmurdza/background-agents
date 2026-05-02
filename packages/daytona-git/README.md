@@ -8,12 +8,6 @@ Git operations for Daytona sandboxes via `sandbox.process.executeCommand()`.
 - **Credentials never stored** - Passed via git `-c` flags per-operation
 - **Simple API** - Just pass the token, no username needed
 
-## Installation
-
-```bash
-npm install @upstream/daytona-git
-```
-
 ## Usage
 
 ```typescript
@@ -24,35 +18,26 @@ const daytona = new Daytona({ apiKey })
 const sandbox = await daytona.get(sandboxId)
 const git = createSandboxGit(sandbox)
 
-// Clone with auth
-await git.clone(
-  "https://github.com/owner/repo.git",
-  "/home/daytona/project",
-  "main",
-  undefined,
-  githubToken
-)
+// Clone
+await git.clone("https://github.com/owner/repo.git", path, "main", undefined, token)
 
 // Branch operations
-await git.createBranch("/home/daytona/project", "feature/new-feature")
-await git.checkoutBranch("/home/daytona/project", "feature/new-feature")
+await git.createBranch(path, "feature/new-feature")
+await git.checkoutBranch(path, "feature/new-feature")
 
 // Status
-const status = await git.status("/home/daytona/project")
+const status = await git.status(path)
 console.log(`On branch: ${status.currentBranch}`)
 
-// Pull and push
-await git.pull("/home/daytona/project", githubToken)
-await git.push("/home/daytona/project", githubToken)
+// Remote operations
+await git.fetch(path, token)
+await git.fetch(path, token, "--prune")     // with refspec
+await git.fetch(path, token, "main")        // specific branch
+await git.pull(path, token)
+await git.push(path, token)
 ```
 
 ## API
-
-### `createSandboxGit(sandbox)`
-
-Creates a `SandboxGit` interface from a Daytona sandbox.
-
-### Methods
 
 | Method | Description |
 |--------|-------------|
@@ -60,6 +45,7 @@ Creates a `SandboxGit` interface from a Daytona sandbox.
 | `createBranch(path, branchName)` | Create a new branch |
 | `checkoutBranch(path, branchName)` | Switch to a branch |
 | `status(path)` | Get repository status |
+| `fetch(path, token?, refspec?)` | Fetch from remote |
 | `pull(path, token?)` | Pull from remote |
 | `push(path, token?)` | Push to remote |
 

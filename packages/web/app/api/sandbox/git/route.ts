@@ -4,7 +4,6 @@ import { createSandboxGit } from "@upstream/daytona-git"
 import { authOptions } from "@/lib/auth"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { fetchBranchWithAuth } from "@upstream/common"
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -34,13 +33,7 @@ export async function POST(req: Request) {
     switch (action) {
       case "list-branches": {
         // Fetch all remote branches
-        if (githubToken) {
-          await fetchBranchWithAuth(sandbox.process, repoPath, githubToken, "--prune")
-        } else {
-          await sandbox.process.executeCommand(
-            `cd ${repoPath} && git fetch origin --prune 2>&1`
-          )
-        }
+        await git.fetch(repoPath, githubToken, "--prune")
         const brResult = await sandbox.process.executeCommand(
           `cd ${repoPath} && git branch -r --format='%(refname:short)' 2>&1`
         )
@@ -118,7 +111,7 @@ export async function POST(req: Request) {
             }
 
             // Replicate merge in sandbox for conflict resolution
-            await sandbox.process.executeCommand(`cd ${repoPath} && git fetch origin 2>&1`)
+            await git.fetch(repoPath, githubToken)
 
             try {
               await git.pull(repoPath, githubToken)
@@ -205,16 +198,15 @@ export async function POST(req: Request) {
             console.log(`[merge] Target sandbox ${targetSandboxId} state: ${targetSandbox.state}`)
             if (targetSandbox.state === "started") {
               console.log(`[merge] Pulling from origin/${targetBranch} into target sandbox at ${repoPath}`)
-              // The local branch may not be tracking the remote, so pull explicitly from origin/<branch>
-              const pullResult = await targetSandbox.process.executeCommand(
-                `cd ${repoPath} && git pull origin ${targetBranch} 2>&1`
-              )
-              if (pullResult.exitCode !== 0) {
-                console.error(`[merge] Pull failed: ${pullResult.result}`)
+              const targetGit = createSandboxGit(targetSandbox)
+              try {
+                await targetGit.pull(repoPath, githubToken)
+                console.log(`[merge] Pull succeeded`)
+                return Response.json({ success: true })
+              } catch (pullErr) {
+                console.error(`[merge] Pull failed:`, pullErr)
                 return Response.json({ success: true, needsSync: true })
               }
-              console.log(`[merge] Pull succeeded: ${pullResult.result}`)
-              return Response.json({ success: true })
             } else {
               // Sandbox not running, tell frontend to mark for sync
               console.log(`[merge] Target sandbox not started, marking needsSync`)
@@ -238,7 +230,7 @@ export async function POST(req: Request) {
         // Fetch target branch from remote first to ensure we have the latest
         // This is important for single-branch clones where the target branch
         // might not exist locally or might be outdated
-        await fetchBranchWithAuth(sandbox.process, repoPath, githubToken, targetBranch)
+        await git.fetch(repoPath, githubToken, targetBranch)
 
         // Rebase onto the freshly fetched remote branch
         // We use origin/${targetBranch} directly instead of checking out the local

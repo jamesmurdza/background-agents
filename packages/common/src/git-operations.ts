@@ -88,64 +88,6 @@ export function formatPRBodyFromCommits(commits: string[]): string {
 }
 
 // =============================================================================
-// Authenticated Git Fetch Helpers
-// =============================================================================
-
-/**
- * Interface for sandbox process execution (compatible with Daytona SDK)
- */
-export interface SandboxProcessExecutor {
-  executeCommand(command: string): Promise<{ result: string; exitCode: number }>
-}
-
-/**
- * Helper to create an authenticated GitHub URL for git operations
- */
-export function createAuthenticatedUrl(originalUrl: string, githubToken: string): string {
-  return originalUrl.replace(/^https:\/\//, `https://x-access-token:${githubToken}@`)
-}
-
-/**
- * Fetch a specific branch from remote with authentication.
- * Temporarily sets authenticated URL, fetches, then restores original URL.
- *
- * This is important for single-branch clones where the target branch
- * might not exist locally or might be outdated.
- *
- * @param executor - Sandbox process executor (sandbox.process)
- * @param repoPath - Path to the repository
- * @param githubToken - GitHub access token
- * @param branchName - Branch to fetch (or "--prune" for all branches)
- */
-export async function fetchBranchWithAuth(
-  executor: SandboxProcessExecutor,
-  repoPath: string,
-  githubToken: string,
-  branchName: string
-): Promise<void> {
-  const origUrlResult = await executor.executeCommand(
-    `cd ${repoPath} && git remote get-url origin 2>&1`
-  )
-  const origUrl = origUrlResult.result.trim()
-  const authedUrl = createAuthenticatedUrl(origUrl, githubToken)
-
-  await executor.executeCommand(
-    `cd ${repoPath} && git remote set-url origin '${authedUrl}' 2>&1`
-  )
-  // For single-branch clones, we need to explicitly create the remote tracking ref
-  // Using refspec format: fetch branchName and create refs/remotes/origin/branchName
-  // For --prune or other flags, use them directly
-  const fetchCmd = branchName.startsWith("-")
-    ? `cd ${repoPath} && git fetch origin ${branchName} 2>&1`
-    : `cd ${repoPath} && git fetch origin ${branchName}:refs/remotes/origin/${branchName} 2>&1`
-  await executor.executeCommand(fetchCmd)
-  // Restore original URL
-  await executor.executeCommand(
-    `cd ${repoPath} && git remote set-url origin '${origUrl}' 2>&1`
-  )
-}
-
-// =============================================================================
 // Git Command Helpers
 // =============================================================================
 
