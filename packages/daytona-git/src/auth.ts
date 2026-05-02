@@ -4,6 +4,25 @@
  * Credentials are passed via git -c flags and never persisted.
  */
 
+// Declare globals for environments (Node.js Buffer, browser btoa)
+declare const Buffer: { from(str: string): { toString(encoding: string): string } } | undefined
+declare const btoa: ((str: string) => string) | undefined
+
+/**
+ * Base64 encode a string (works in both Node.js and browsers)
+ */
+function base64Encode(str: string): string {
+  // Node.js
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(str).toString("base64")
+  }
+  // Browser
+  if (typeof btoa !== "undefined") {
+    return btoa(str)
+  }
+  throw new Error("No base64 encoding available")
+}
+
 /**
  * Create an authenticated git URL (used only for clone operations)
  *
@@ -29,20 +48,26 @@ export function createAuthUrl(
 /**
  * Build git -c flags for authentication
  *
- * Uses http.extraHeader to pass Bearer token without touching any config.
+ * Uses http.extraHeader with Basic auth to pass credentials without touching any config.
  * The credential exists only for the single command invocation.
  *
+ * GitHub's git protocol expects Basic auth with "x-access-token" as username
+ * and the PAT as password, base64 encoded.
+ *
  * @param token - The authentication token (e.g., GitHub PAT)
+ * @param username - Git username (default: "x-access-token" for GitHub)
  * @returns Git -c flag string to prepend to commands
  *
  * @example
  * buildAuthFlags("ghp_xxx")
- * // => "-c http.extraHeader='Authorization: Bearer ghp_xxx'"
+ * // => "-c http.extraHeader='Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2hwX3h4eA=='"
  */
-export function buildAuthFlags(token: string): string {
-  // Escape single quotes in token (unlikely but safe)
-  const escaped = token.replace(/'/g, "'\\''")
-  return `-c http.extraHeader='Authorization: Bearer ${escaped}'`
+export function buildAuthFlags(token: string, username = "x-access-token"): string {
+  // GitHub expects Basic auth: base64(username:password)
+  const credentials = base64Encode(`${username}:${token}`)
+  // Escape single quotes in the header value (unlikely but safe)
+  const escaped = credentials.replace(/'/g, "'\\''")
+  return `-c http.extraHeader='Authorization: Basic ${escaped}'`
 }
 
 /**
