@@ -66,6 +66,7 @@ export {
   compareBranches,
   createRepo,
   createPullRequest,
+  createFileCommit,
 } from "./github"
 
 // Branch utilities
