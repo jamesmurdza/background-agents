@@ -79,7 +79,7 @@ function CodeBlock({ children, isMobile = false }: { children: React.ReactNode; 
 
   const handleCopy = async () => {
     // Extract text content from children (the code element)
-    const codeElement = children as React.ReactElement
+    const codeElement = children as React.ReactElement<{ children?: string }>
     const textContent = codeElement?.props?.children || ""
 
     try {
