@@ -121,13 +121,15 @@ export function MobileBottomSheet({
             ? `translateY(${dragY}px)`
             : "translateY(100%)",
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Drag Handle */}
+        {/* Drag Handle - touch handlers only on this area */}
         {showDragHandle && (
-          <div className="flex justify-center pt-3 pb-1">
+          <div
+            className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
           </div>
         )}

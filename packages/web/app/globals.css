@@ -249,7 +249,7 @@
 }
 
 .pt-safe {
-  padding-top: var(--safe-area-inset-top);
+  padding-top: max(0.75rem, var(--safe-area-inset-top));
 }
 
 .px-safe {

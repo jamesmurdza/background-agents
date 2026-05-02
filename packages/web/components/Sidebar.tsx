@@ -125,6 +125,10 @@ export function Sidebar({
   const [startX, setStartX] = useState(0)
   const [startTime, setStartTime] = useState(0)
 
+  // Mobile user menu state
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false)
+  const mobileUserMenuRef = useRef<HTMLDivElement>(null)
+
   // Repository filter state - supports controlled mode from parent
   const [internalRepoFilter, setInternalRepoFilter] = useState<string>(ALL_REPOSITORIES)
   const repoFilter = controlledRepoFilter ?? internalRepoFilter
@@ -255,6 +259,19 @@ export function Sidebar({
     }
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [repoDropdownOpen])
+
+  // Close mobile user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (mobileUserMenuRef.current && !mobileUserMenuRef.current.contains(e.target as Node)) {
+        setMobileUserMenuOpen(false)
+      }
+    }
+    if (mobileUserMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [mobileUserMenuOpen])
 
   // Animate collapse/expand when toggled via button
   const handleToggleCollapse = useCallback(() => {
@@ -412,7 +429,7 @@ export function Sidebar({
           </div>
 
           {/* Header with close button */}
-          <div className="flex items-center justify-between p-4 pt-safe border-b border-sidebar-border">
+          <div className="flex items-center justify-between px-4 pb-4 pt-safe border-b border-sidebar-border">
             <h1 className="text-base font-semibold text-foreground">
               Background Agents
             </h1>
@@ -524,9 +541,11 @@ export function Sidebar({
           {/* Footer - User & Settings */}
           <div className="p-4 pb-safe border-t border-sidebar-border">
             {session?.user ? (
-              <div className="flex items-center gap-3">
-                {/* User Avatar & Name */}
-                <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative" ref={mobileUserMenuRef}>
+                <button
+                  onClick={() => setMobileUserMenuOpen((v) => !v)}
+                  className="flex items-center gap-3 w-full rounded-lg hover:bg-accent active:bg-accent transition-colors p-2 -m-2"
+                >
                   {session.user.image && (
                     <img
                       src={session.user.image}
@@ -534,7 +553,7 @@ export function Sidebar({
                       className="h-10 w-10 rounded-full"
                     />
                   )}
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <div className="text-base font-medium truncate">
                       {session.user.name}
                     </div>
@@ -542,28 +561,57 @@ export function Sidebar({
                       {session.user.email}
                     </div>
                   </div>
-                </div>
+                </button>
 
-                {/* Action Buttons - larger touch targets */}
-                <div className="flex gap-1">
-                  <button
-                    onClick={onOpenSettings}
-                    className="p-3 rounded-lg hover:bg-accent active:bg-accent text-muted-foreground hover:text-foreground transition-colors touch-target"
-                    title="Settings"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      clearAllStorage()
-                      signOut()
-                    }}
-                    className="p-3 rounded-lg hover:bg-accent active:bg-accent text-muted-foreground hover:text-foreground transition-colors touch-target"
-                    title="Sign out"
-                  >
-                    <LogOut className="h-5 w-5" />
-                  </button>
-                </div>
+                {/* User Menu Popup */}
+                {mobileUserMenuOpen && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-border bg-popover shadow-md py-1 z-50">
+                    {session.user.isAdmin && (
+                      <a
+                        href="/admin"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setMobileUserMenuOpen(false)}
+                        className="flex items-center gap-3 w-full px-4 py-3 text-base hover:bg-accent active:bg-accent cursor-pointer"
+                      >
+                        <BarChart3 className="h-5 w-5" />
+                        Admin Dashboard
+                      </a>
+                    )}
+                    <button
+                      onClick={() => {
+                        onOpenSettings()
+                        setMobileUserMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-base hover:bg-accent active:bg-accent cursor-pointer"
+                    >
+                      <Settings className="h-5 w-5" />
+                      Settings
+                    </button>
+                    {onOpenHelp && (
+                      <button
+                        onClick={() => {
+                          onOpenHelp()
+                          setMobileUserMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 w-full px-4 py-3 text-base hover:bg-accent active:bg-accent cursor-pointer"
+                      >
+                        <HelpCircle className="h-5 w-5" />
+                        Help
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        clearAllStorage()
+                        signOut()
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-base hover:bg-accent active:bg-accent cursor-pointer"
+                    >
+                      <LogOut className="h-5 w-5" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <button

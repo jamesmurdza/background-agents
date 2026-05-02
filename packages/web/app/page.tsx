@@ -305,6 +305,20 @@ export default function HomePage() {
     }
   }, [isMobile])
 
+  // Auto-select first chat on mobile when no chat is selected
+  useEffect(() => {
+    if (isMobile && isHydrated && !currentChatId && chats.length > 0) {
+      // Sort by last activity and select the most recent
+      const sortedChats = [...chats].sort((a, b) =>
+        (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt)
+      )
+      const firstChat = sortedChats[0]
+      if (firstChat) {
+        selectChat(firstChat.id)
+      }
+    }
+  }, [isMobile, isHydrated, currentChatId, chats, selectChat])
+
 
   // Handler for opening settings (optionally with a highlighted API key field)
   const handleOpenSettings = (highlightKey?: HighlightKey) => {
@@ -1052,7 +1066,7 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
         {isMobile && (
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background pt-safe">
+          <div className="flex items-center gap-3 px-4 pb-3 border-b border-border bg-background pt-safe">
             <button
               onClick={() => setMobileSidebarOpen(true)}
               className="p-2 -ml-2 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
@@ -1323,11 +1337,8 @@ export default function HomePage() {
           open={mobileCommandsOpen}
           onClose={() => setMobileCommandsOpen(false)}
           onSlashCommand={handleSlashCommand}
-          onOpenHelp={() => setHelpOpen(true)}
-          onOpenGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
           hasLinkedRepo={!!(currentChat && currentChat.repo !== NEW_REPOSITORY)}
           inConflict={!!(gitDialogs.rebaseConflict?.inRebase || gitDialogs.rebaseConflict?.inMerge)}
-          hasGitHubLink={!!githubBranchUrl}
         />
       )}
 

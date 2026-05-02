@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, GitBranchPlus, XCircle, HelpCircle, Github } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, GitBranchPlus, XCircle } from "lucide-react"
 import { MobileBottomSheet } from "./ui/MobileBottomSheet"
 import { cn } from "@/lib/utils"
 import { SLASH_COMMANDS, ABORT_COMMAND, type SlashCommand } from "@upstream/common"
@@ -16,7 +16,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 interface CommandItem {
-  id: SlashCommandType | "help" | "github"
+  id: SlashCommandType
   label: string
   description: string
   icon: React.ReactNode
@@ -38,25 +38,18 @@ interface MobileCommandsMenuProps {
   open: boolean
   onClose: () => void
   onSlashCommand: (command: SlashCommandType) => void
-  onOpenHelp?: () => void
-  onOpenGitHub?: () => void
   /** Whether the chat has a linked repo (git commands only show when true) */
   hasLinkedRepo?: boolean
   /** Whether we're in a merge/rebase conflict */
   inConflict?: boolean
-  /** Whether the GitHub link is available */
-  hasGitHubLink?: boolean
 }
 
 export function MobileCommandsMenu({
   open,
   onClose,
   onSlashCommand,
-  onOpenHelp,
-  onOpenGitHub,
   hasLinkedRepo = false,
   inConflict = false,
-  hasGitHubLink = false,
 }: MobileCommandsMenuProps) {
   // Build commands list based on context
   const commands: CommandItem[] = []
@@ -74,26 +67,9 @@ export function MobileCommandsMenu({
     }
   }
 
-  // Always-available commands
-  if (hasGitHubLink && onOpenGitHub) {
-    commands.push({
-      id: "github",
-      label: "Open in GitHub",
-      description: "View this branch on GitHub",
-      icon: <Github className="h-5 w-5" />,
-    })
-  }
-
   const handleSelect = (id: CommandItem["id"]) => {
     onClose()
-
-    if (id === "help") {
-      onOpenHelp?.()
-    } else if (id === "github") {
-      onOpenGitHub?.()
-    } else {
-      onSlashCommand(id as SlashCommandType)
-    }
+    onSlashCommand(id)
   }
 
   return (
@@ -112,7 +88,7 @@ export function MobileCommandsMenu({
                 Git Commands
               </div>
             )}
-            {commands.filter(cmd => !["help", "github"].includes(cmd.id)).map((command) => (
+            {commands.map((command) => (
               <button
                 key={command.id}
                 onClick={() => handleSelect(command.id)}
@@ -140,52 +116,11 @@ export function MobileCommandsMenu({
               </button>
             ))}
 
-            {/* Other Actions Section */}
-            {(hasGitHubLink || onOpenHelp) && (
-              <>
-                <div className="my-2 border-t border-border" />
-                <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  More
-                </div>
-              </>
-            )}
           </>
         ) : (
           <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Actions
           </div>
-        )}
-
-        {/* GitHub link */}
-        {hasGitHubLink && onOpenGitHub && (
-          <button
-            onClick={() => handleSelect("github")}
-            className="flex items-center gap-3 w-full px-4 py-4 text-left transition-colors touch-target hover:bg-accent active:bg-accent"
-          >
-            <span className="shrink-0 text-muted-foreground">
-              <Github className="h-5 w-5" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="text-base font-medium">Open in GitHub</div>
-              <div className="text-sm text-muted-foreground">View this branch on GitHub</div>
-            </div>
-          </button>
-        )}
-
-        {/* Help */}
-        {onOpenHelp && (
-          <button
-            onClick={() => handleSelect("help")}
-            className="flex items-center gap-3 w-full px-4 py-4 text-left transition-colors touch-target hover:bg-accent active:bg-accent"
-          >
-            <span className="shrink-0 text-muted-foreground">
-              <HelpCircle className="h-5 w-5" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="text-base font-medium">Help</div>
-              <div className="text-sm text-muted-foreground">Keyboard shortcuts and tips</div>
-            </div>
-          </button>
         )}
       </div>
     </MobileBottomSheet>
