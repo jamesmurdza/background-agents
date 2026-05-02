@@ -55,7 +55,7 @@ const MIN_WIDTH = 140
 const MAX_WIDTH = 400
 const COLLAPSED_WIDTH = 64
 const COLLAPSE_THRESHOLD = 100 // Collapse when dragged below this width
-const SWIPE_THRESHOLD = 80 // Minimum swipe distance to close drawer
+
 interface SidebarProps {
   chats: Chat[]
   currentChatId: string | null
@@ -121,12 +121,6 @@ export function Sidebar({
   const isResizing = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
-
-  // Swipe gesture state for mobile drawer
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragX, setDragX] = useState(0)
-  const [startX, setStartX] = useState(0)
-  const [startTime, setStartTime] = useState(0)
 
   // Mobile user menu state
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false)
@@ -329,45 +323,6 @@ export function Sidebar({
     }
   }, [resize, stopResizing, isMobile])
 
-  // Mobile swipe gesture handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile || !mobileOpen) return
-    setIsDragging(true)
-    setStartX(e.touches[0].clientX)
-    setStartTime(Date.now())
-    setDragX(0)
-  }, [isMobile, mobileOpen])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-
-    const currentX = e.touches[0].clientX
-    const diff = currentX - startX
-
-    // Only allow dragging left (negative direction to close)
-    if (diff < 0) {
-      setDragX(diff)
-    }
-  }, [isDragging, startX])
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging) return
-
-    setIsDragging(false)
-
-    const duration = Date.now() - startTime
-    const velocity = Math.abs(dragX) / duration
-
-    // Close if:
-    // 1. Dragged more than threshold
-    // 2. OR fast swipe (velocity > 0.5)
-    if (Math.abs(dragX) > SWIPE_THRESHOLD || velocity > 0.5) {
-      onMobileClose?.()
-    }
-
-    setDragX(0)
-  }, [isDragging, dragX, startTime, onMobileClose])
-
   // Close mobile drawer when selecting a chat
   const handleSelectChat = (chatId: string) => {
     onSelectChat(chatId)
@@ -410,27 +365,14 @@ export function Sidebar({
           aria-hidden="true"
         />
 
-        {/* Mobile drawer with swipe gesture */}
+        {/* Mobile drawer */}
         <div
           ref={sidebarRef}
-          className={cn(
-            "fixed inset-y-0 left-0 z-50 w-[280px] flex flex-col bg-background border-r border-sidebar-border",
-            !isDragging && "transition-transform duration-300 ease-out"
-          )}
+          className="fixed inset-y-0 left-0 z-50 w-[280px] flex flex-col bg-background border-r border-sidebar-border transition-transform duration-300 ease-out"
           style={{
-            transform: mobileOpen
-              ? `translateX(${Math.min(0, dragX)}px)`
-              : "translateX(-100%)",
+            transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
           }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
         >
-          {/* Swipe indicator bar */}
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-16 flex items-center justify-center">
-            <div className="w-1 h-8 rounded-full bg-muted-foreground/20" />
-          </div>
-
           {/* Header with close button */}
           <div className="flex items-center justify-between px-4 pb-4 pt-safe border-b border-sidebar-border">
             <h1 className="text-base font-semibold text-foreground">
