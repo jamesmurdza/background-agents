@@ -84,6 +84,8 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
       "prose-headings:font-semibold",
       // Remove default prose margins; we apply explicit spacing below
       "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-pre:my-0 prose-headings:my-0",
+      // Make pre elements full width
+      "prose-pre:w-full",
       // First/last child margin reset (handles edge cases)
       "[&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0",
       isMobile ? "prose-base" : "prose-sm prose-p:text-[15px] prose-li:text-[15px]"
