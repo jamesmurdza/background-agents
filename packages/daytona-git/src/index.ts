@@ -43,7 +43,7 @@ export {
 } from "./errors"
 
 // Auth
-export { authFlags } from "./auth"
+export { withAuth } from "./auth"
 
 // Parsers
 export {

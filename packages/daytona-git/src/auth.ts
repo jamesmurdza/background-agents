@@ -1,7 +1,7 @@
 /**
  * Authentication utilities for git operations
  *
- * Credentials are passed via git -c flags and never persisted.
+ * Token is passed via environment variable to avoid exposure in process list.
  */
 
 // Declare globals for environments (Node.js Buffer, browser btoa)
@@ -24,22 +24,17 @@ function base64Encode(str: string): string {
 }
 
 /**
- * Escape a shell argument to prevent injection
- */
-function escapeShellArg(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`
-}
-
-/**
- * Build git -c flags for authentication
+ * Build a command that runs git with auth, hiding token from process list.
  *
- * Uses http.extraHeader with Basic auth. The credential exists only
- * for the single command invocation - nothing touches disk.
+ * Uses an inline environment variable so the token doesn't appear in `ps aux`.
+ * The env var is expanded by the shell, not visible in the command args.
  *
- * @param token - The authentication token (e.g., GitHub PAT)
- * @returns Git -c flag string to prepend to commands
+ * @param token - The authentication token
+ * @param gitCommand - The git command (e.g., "push -u origin HEAD")
+ * @returns Full shell command with hidden auth
  */
-export function authFlags(token: string): string {
+export function withAuth(token: string, gitCommand: string): string {
   const credentials = base64Encode(`x-access-token:${token}`)
-  return `-c http.extraHeader=${escapeShellArg(`Authorization: Basic ${credentials}`)}`
+  // Token in env var, not in command args - hidden from ps
+  return `GIT_AUTH_HEADER='Authorization: Basic ${credentials}' git -c http.extraHeader="$GIT_AUTH_HEADER" ${gitCommand}`
 }

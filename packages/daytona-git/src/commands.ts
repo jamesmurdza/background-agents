@@ -2,11 +2,11 @@
  * Git command implementations
  *
  * Each function executes git commands in the sandbox via sandbox.process.executeCommand().
- * Credentials are passed via -c flags and never stored in the sandbox.
+ * Credentials are passed via environment variables to avoid exposure in process list.
  */
 
 import type { SandboxProcess, GitStatus } from "./types"
-import { authFlags } from "./auth"
+import { withAuth } from "./auth"
 import { createGitError } from "./errors"
 import { parseGitStatus } from "./parsers"
 
@@ -43,10 +43,14 @@ export async function clone(
   commitId?: string,
   token?: string
 ): Promise<void> {
-  const auth = token ? authFlags(token) : ""
   const branchFlag = branch ? `-b ${esc(branch)}` : ""
+  const cloneCmd = `clone --single-branch ${branchFlag} ${esc(url)} ${esc(path)} 2>&1`
 
-  await exec(process, `git ${auth} clone --single-branch ${branchFlag} ${esc(url)} ${esc(path)} 2>&1`)
+  if (token) {
+    await exec(process, withAuth(token, cloneCmd))
+  } else {
+    await exec(process, `git ${cloneCmd}`)
+  }
 
   if (commitId) {
     await exec(process, `cd ${esc(path)} && git checkout ${esc(commitId)} 2>&1`)
@@ -104,8 +108,12 @@ export async function pull(
   path: string,
   token?: string
 ): Promise<void> {
-  const auth = token ? authFlags(token) : ""
-  await exec(process, `cd ${esc(path)} && git ${auth} pull 2>&1`)
+  const pullCmd = `pull 2>&1`
+  if (token) {
+    await exec(process, `cd ${esc(path)} && ${withAuth(token, pullCmd)}`)
+  } else {
+    await exec(process, `cd ${esc(path)} && git ${pullCmd}`)
+  }
 }
 
 /**
@@ -116,6 +124,10 @@ export async function push(
   path: string,
   token?: string
 ): Promise<void> {
-  const auth = token ? authFlags(token) : ""
-  await exec(process, `cd ${esc(path)} && git ${auth} push -u origin HEAD 2>&1`)
+  const pushCmd = `push -u origin HEAD 2>&1`
+  if (token) {
+    await exec(process, `cd ${esc(path)} && ${withAuth(token, pushCmd)}`)
+  } else {
+    await exec(process, `cd ${esc(path)} && git ${pushCmd}`)
+  }
 }
