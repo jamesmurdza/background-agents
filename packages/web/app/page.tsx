@@ -1052,7 +1052,7 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
         {isMobile && (
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background pt-safe">
+          <div className="flex items-center gap-3 px-4 pb-3 border-b border-border bg-background pt-safe">
             <button
               onClick={() => setMobileSidebarOpen(true)}
               className="p-2 -ml-2 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
