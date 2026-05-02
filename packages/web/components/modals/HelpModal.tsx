@@ -47,7 +47,7 @@ export function HelpModal({ open, onClose, isMobile = false }: HelpModalProps) {
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘P</kbd> Search chats, repos, and branches</li>
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘K</kbd> Command palette</li>
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌥↑/↓</kbd> Switch chats</li>
-                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌥Enter</kbd> Branch and send to a new chat</li>
+                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌥Enter</kbd> or <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⇧Enter</kbd> Branch and send to a new chat</li>
               </ul>
             </section>
 

@@ -88,6 +88,28 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const prevChatIdRef = useRef<string | null>(null)
+  // Track if branch modifier key is held (Option/Alt or Shift)
+  const [branchModifierHeld, setBranchModifierHeld] = useState(false)
+
+  // Listen for Option/Alt or Shift key to show branch icon on send button
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey || e.shiftKey) {
+        setBranchModifierHeld(true)
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (!e.altKey && !e.shiftKey) {
+        setBranchModifierHeld(false)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+    }
+  }, [])
 
   const focusPrompt = useCallback((moveCursorToEnd: boolean = false) => {
     const textarea = textareaRef.current
@@ -368,8 +390,8 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
       }
     }
 
-    // Option/Alt+Enter to branch and send
-    if (e.key === "Enter" && e.altKey && !e.shiftKey) {
+    // Option/Alt+Enter or Shift+Enter to branch and send
+    if (e.key === "Enter" && (e.altKey || e.shiftKey)) {
       e.preventDefault()
       if (canBranch && onBranchWithMessage && input.trim()) {
         onBranchWithMessage(input.trim(), currentAgent, currentModel)
@@ -381,7 +403,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     }
 
     // Normal enter to send
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter") {
       e.preventDefault()
       handleSend()
     }
@@ -613,7 +635,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   isMobile ? "h-9 w-9" : "h-7 w-7"
                 )}
               >
-                <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                {branchModifierHeld && canBranch ? (
+                  <GitBranchPlus className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                ) : (
+                  <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                )}
               </button>
             ) : null}
           </div>
