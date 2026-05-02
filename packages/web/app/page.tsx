@@ -595,8 +595,9 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
-    // Create new chat in "creating" state without switching to it (spinner shows immediately)
-    const chatId = await startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "creating")
+    // Create new chat in "pending" state without switching to it
+    // Note: "pending" allows sendMessage to proceed, while "creating" would block it
+    const chatId = await startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "pending")
     if (!chatId) return
     // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
@@ -612,8 +613,9 @@ export default function HomePage() {
     }
     // Remove from queue first
     removeQueuedMessage(id)
-    // Create new chat in "creating" state without switching to it (spinner shows immediately)
-    const chatId = await startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "creating")
+    // Create new chat in "pending" state without switching to it
+    // Note: "pending" allows sendMessage to proceed, while "creating" would block it
+    const chatId = await startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "pending")
     if (!chatId) return
     // Send message to the new chat (it runs in background)
     sendMessage(message, agent, model, undefined, chatId)
