@@ -32,6 +32,7 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
     >
       {/* Content */}
       <div className={cn(
+        !isUser && "w-full",
         isUser && "text-right",
         isUser && (isMobile ? "max-w-[95%]" : "max-w-[90%]")
       )}>
