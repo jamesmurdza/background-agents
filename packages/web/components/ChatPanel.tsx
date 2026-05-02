@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, Plus, GitBranchPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -636,7 +636,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                 )}
               >
                 {branchModifierHeld && canBranch ? (
-                  <GitBranchPlus className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  <Plus className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 ) : (
                   <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 )}
