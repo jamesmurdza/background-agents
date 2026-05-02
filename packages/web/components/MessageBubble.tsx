@@ -41,7 +41,7 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
               "inline-block rounded-lg bg-muted text-foreground text-left",
               isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
             )}>
-              <MarkdownContent text={message.content} isMobile={isMobile} />
+              <MarkdownContent text={message.content} isMobile={isMobile} constrainWidth={false} />
             </div>
             {/* Uploaded files display */}
             {hasUploadedFiles && (
@@ -119,7 +119,7 @@ function CodeBlock({ children, isMobile = false }: { children: React.ReactNode; 
   )
 }
 
-function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: boolean }) {
+function MarkdownContent({ text, isMobile = false, constrainWidth = true }: { text: string; isMobile?: boolean; constrainWidth?: boolean }) {
   return (
     <div className={cn(
       "prose dark:prose-invert max-w-none w-full overflow-hidden",
@@ -150,13 +150,13 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
             </a>
           ),
           p: ({ children }) => (
-            <p className="mt-2 first:mt-0 max-w-[95%]">{children}</p>
+            <p className={cn("mt-2 first:mt-0", constrainWidth && "max-w-[95%]")}>{children}</p>
           ),
           ul: ({ children }) => (
-            <ul className="mt-2 first:mt-0 pl-4 list-disc space-y-0.5 [&_ul]:mt-1 [&_ol]:mt-1 max-w-[95%]">{children}</ul>
+            <ul className={cn("mt-2 first:mt-0 pl-4 list-disc space-y-0.5 [&_ul]:mt-1 [&_ol]:mt-1", constrainWidth && "max-w-[95%]")}>{children}</ul>
           ),
           ol: ({ children }) => (
-            <ol className="mt-2 first:mt-0 pl-4 list-decimal space-y-0.5 [&_ul]:mt-1 [&_ol]:mt-1 max-w-[95%]">{children}</ol>
+            <ol className={cn("mt-2 first:mt-0 pl-4 list-decimal space-y-0.5 [&_ul]:mt-1 [&_ol]:mt-1", constrainWidth && "max-w-[95%]")}>{children}</ol>
           ),
           li: ({ children }) => (
             <li>{children}</li>
@@ -178,16 +178,16 @@ function MarkdownContent({ text, isMobile = false }: { text: string; isMobile?: 
             <CodeBlock isMobile={isMobile}>{children}</CodeBlock>
           ),
           h1: ({ children }) => (
-            <h1 className="text-xl font-semibold mt-4 mb-2 first:mt-0 max-w-[95%]">{children}</h1>
+            <h1 className={cn("text-xl font-semibold mt-4 mb-2 first:mt-0", constrainWidth && "max-w-[95%]")}>{children}</h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-lg font-semibold mt-4 mb-2 first:mt-0 max-w-[95%]">{children}</h2>
+            <h2 className={cn("text-lg font-semibold mt-4 mb-2 first:mt-0", constrainWidth && "max-w-[95%]")}>{children}</h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-base font-semibold mt-3 mb-1.5 first:mt-0 max-w-[95%]">{children}</h3>
+            <h3 className={cn("text-base font-semibold mt-3 mb-1.5 first:mt-0", constrainWidth && "max-w-[95%]")}>{children}</h3>
           ),
           h4: ({ children }) => (
-            <h4 className="text-sm font-semibold mt-3 mb-1 first:mt-0 max-w-[95%]">{children}</h4>
+            <h4 className={cn("text-sm font-semibold mt-3 mb-1 first:mt-0", constrainWidth && "max-w-[95%]")}>{children}</h4>
           ),
           blockquote: ({ children }) => (
             <blockquote className="mt-2 first:mt-0 border-l-2 border-border pl-4 text-muted-foreground italic">
