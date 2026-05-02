@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { createRepo, type GitHubRepo } from "@upstream/common"
+import { createRepo, createFileCommit, type GitHubRepo } from "@upstream/common"
 
 export async function POST(req: Request) {
   // 1. Get session and verify auth
@@ -40,7 +40,20 @@ export async function POST(req: Request) {
       isPrivate: isPrivate ?? false,
     })
 
-    // 4. Return the created repository details
+    // 4. Create initial commit so the default branch exists
+    // Without this, the repo is empty and cloning with a branch fails
+    await createFileCommit(
+      session.accessToken,
+      repo.owner.login,
+      repo.name,
+      {
+        path: "README.md",
+        message: "Initial commit",
+        content: `# ${name}\n`,
+      }
+    )
+
+    // 5. Return the created repository details
     return Response.json({
       name: repo.name,
       full_name: repo.full_name,
