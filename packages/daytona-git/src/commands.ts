@@ -101,6 +101,24 @@ export async function status(
 }
 
 /**
+ * Fetch from remote
+ */
+export async function fetch(
+  process: SandboxProcess,
+  path: string,
+  token?: string,
+  refspec?: string
+): Promise<void> {
+  const ref = refspec ?? ""
+  const fetchCmd = `fetch origin ${ref} 2>&1`
+  if (token) {
+    await exec(process, `cd ${esc(path)} && ${withAuth(token, fetchCmd)}`)
+  } else {
+    await exec(process, `cd ${esc(path)} && git ${fetchCmd}`)
+  }
+}
+
+/**
  * Pull changes from remote
  */
 export async function pull(

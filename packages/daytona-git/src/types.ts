@@ -68,6 +68,8 @@ export interface SandboxGit {
 
   status(path: string): Promise<GitStatus>
 
+  fetch(path: string, token?: string, refspec?: string): Promise<void>
+
   pull(path: string, token?: string): Promise<void>
 
   push(path: string, token?: string): Promise<void>
