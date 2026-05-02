@@ -145,8 +145,8 @@ export function PaletteProvider({
         return
       }
 
-      // Alt + Up/Down for chat navigation (works even in inputs)
-      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      // Alt/Option, Cmd/Meta, or Ctrl + Up/Down for chat navigation (works even in inputs)
+      if ((e.altKey || e.metaKey || e.ctrlKey) && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         if (onNavigateChat) {
           e.preventDefault()
           onNavigateChat(e.key === "ArrowUp" ? "up" : "down")

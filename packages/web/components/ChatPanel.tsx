@@ -88,18 +88,18 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const prevChatIdRef = useRef<string | null>(null)
-  // Track if branch modifier key is held (Option/Alt or Shift)
+  // Track if branch modifier key is held (Option/Alt, Command/Meta, or Ctrl)
   const [branchModifierHeld, setBranchModifierHeld] = useState(false)
 
-  // Listen for Option/Alt or Shift key to show branch icon on send button
+  // Listen for Option/Alt, Command/Meta, or Ctrl key to show branch icon on send button
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey || e.shiftKey) {
+      if (e.altKey || e.metaKey || e.ctrlKey) {
         setBranchModifierHeld(true)
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (!e.altKey && !e.shiftKey) {
+      if (!e.altKey && !e.metaKey && !e.ctrlKey) {
         setBranchModifierHeld(false)
       }
     }
@@ -390,8 +390,8 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
       }
     }
 
-    // Option/Alt+Enter or Shift+Enter to branch and send
-    if (e.key === "Enter" && (e.altKey || e.shiftKey)) {
+    // Option/Alt+Enter, Command/Meta+Enter, or Ctrl+Enter to branch and send
+    if (e.key === "Enter" && (e.altKey || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       if (canBranch && onBranchWithMessage && input.trim()) {
         onBranchWithMessage(input.trim(), currentAgent, currentModel)
