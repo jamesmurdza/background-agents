@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, Download } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, Download, Copy } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -48,6 +48,10 @@ interface CommandPaletteProps {
   onDownloadProject?: () => void
   /** Whether a download is currently in progress. */
   isDownloading?: boolean
+  /** Copy git clone command to clipboard. Omitted when no repo is linked. */
+  onCopyCloneCommand?: () => void
+  /** Copy git checkout command to clipboard. Omitted when no branch exists. */
+  onCopyCheckoutCommand?: () => void
 }
 
 export function CommandPalette({
@@ -71,6 +75,8 @@ export function CommandPalette({
   onClosePreview,
   onDownloadProject,
   isDownloading = false,
+  onCopyCloneCommand,
+  onCopyCheckoutCommand,
 }: CommandPaletteProps) {
   const handleSelect = (command: string) => {
     onRunCommand(command)
@@ -113,6 +119,18 @@ export function CommandPalette({
             <CommandItem value="open in github" onSelect={() => run(onOpenInGitHub)}>
               <Github className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Open in GitHub</span>
+            </CommandItem>
+          )}
+          {onCopyCloneCommand && (
+            <CommandItem value="copy git clone command" onSelect={() => run(onCopyCloneCommand)}>
+              <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>Copy Git Clone Command</span>
+            </CommandItem>
+          )}
+          {onCopyCheckoutCommand && (
+            <CommandItem value="copy git checkout command" onSelect={() => run(onCopyCheckoutCommand)}>
+              <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>Copy Git Checkout Command</span>
             </CommandItem>
           )}
           {onOpenInVSCode && (

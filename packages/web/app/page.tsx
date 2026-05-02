@@ -797,6 +797,22 @@ export default function HomePage() {
     if (githubBranchUrl) window.open(githubBranchUrl, "_blank", "noopener,noreferrer")
   }, [githubBranchUrl])
 
+  // Copy git clone command to clipboard
+  const handleCopyCloneCommand = useCallback(() => {
+    if (currentChat?.repo && currentChat.repo !== NEW_REPOSITORY) {
+      const command = `git clone git@github.com:${currentChat.repo}.git`
+      navigator.clipboard.writeText(command)
+    }
+  }, [currentChat?.repo])
+
+  // Copy git checkout command to clipboard
+  const handleCopyCheckoutCommand = useCallback(() => {
+    if (currentChat?.branch) {
+      const command = `git fetch origin && git checkout ${currentChat.branch}`
+      navigator.clipboard.writeText(command)
+    }
+  }, [currentChat?.branch])
+
   // Open the current chat's sandbox in VS Code via an SSH remote link.
   const handleOpenInVSCode = useCallback(async () => {
     const sandboxId = currentChat?.sandboxId
@@ -898,6 +914,8 @@ export default function HomePage() {
       onClosePreview={previewOpen ? closePreview : undefined}
       onDownloadProject={currentChat?.sandboxId ? handleDownloadProject : undefined}
       isDownloading={isDownloading}
+      onCopyCloneCommand={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? handleCopyCloneCommand : undefined}
+      onCopyCheckoutCommand={currentChat?.branch ? handleCopyCheckoutCommand : undefined}
       chatIds={displayChats.map((c) => c.id)}
       onNavigateChat={handleNavigateChat}
       currentChatId={displayCurrentChatId}
