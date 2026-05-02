@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Settings as SettingsIcon, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, Plus, GitBranchPlus } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, Plus, GitBranchPlus, Variable } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -35,6 +35,8 @@ interface ChatPanelProps {
   onOpenFile?: (filePath: string) => void
   /** Callback to open the force-push modal (from push-failure system messages). */
   onForcePush?: () => void
+  /** Callback to open environment variables modal */
+  onOpenEnvVars?: () => void
   isMobile?: boolean
   /** Conflict state for merge/rebase */
   rebaseConflict?: RebaseConflictState
@@ -56,7 +58,7 @@ interface ChatPanelProps {
   onDraftChange?: (draft: string) => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange }: ChatPanelProps) {
   // Use draft prop as input value (controlled component pattern for per-chat drafts)
   const input = draft
   const setInput = useCallback((value: string) => {
@@ -1119,12 +1121,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   <button
                     onClick={() => {
                       setTitleMenuOpen(false)
-                      onOpenSettings?.()
+                      onOpenEnvVars?.()
                     }}
                     className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
                   >
-                    <SettingsIcon className="h-3.5 w-3.5" />
-                    Settings
+                    <Variable className="h-3.5 w-3.5" />
+                    Environment Variables
                   </button>
                   {onDeleteChat && (
                     <>

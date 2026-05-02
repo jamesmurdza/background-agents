@@ -14,8 +14,9 @@ import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { BranchPickerModal } from "@/components/modals/BranchPickerModal"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
+import { EnvironmentVariablesModal, type EnvironmentVariables, type EnvVar } from "@/components/modals/EnvironmentVariablesModal"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
-import { clearAllStorage } from "@/lib/storage"
+import { clearAllStorage, getChatEnvVars, getRepoEnvVars, setChatEnvVars, setRepoEnvVars } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
@@ -107,6 +108,7 @@ export default function HomePage() {
   const [deleteConfirmChatId, setDeleteConfirmChatId] = useState<string | null>(null)
   const [mobileCommandsOpen, setMobileCommandsOpen] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [envVarsModalOpen, setEnvVarsModalOpen] = useState(false)
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
     if (typeof window === "undefined") return 520
@@ -840,6 +842,51 @@ export default function HomePage() {
   const displayChats = isHydrated ? chats : []
   const displayCurrentChatId = isHydrated ? currentChatId : null
 
+  // Environment variables state
+  const [envVars, setEnvVars] = useState<EnvironmentVariables>(() => ({
+    chat: [],
+    repository: [],
+  }))
+
+  // Load environment variables when current chat changes
+  useEffect(() => {
+    if (!displayCurrentChatId) return
+    const chat = displayChats.find((c) => c.id === displayCurrentChatId)
+    const chatEnvVars = getChatEnvVars(displayCurrentChatId)
+    const repoEnvVars = chat?.repo && chat.repo !== NEW_REPOSITORY
+      ? getRepoEnvVars(chat.repo)
+      : []
+    setEnvVars({ chat: chatEnvVars, repository: repoEnvVars })
+  }, [displayCurrentChatId, displayChats])
+
+  // Handler for opening environment variables modal
+  const handleOpenEnvVars = useCallback(() => {
+    if (!displayCurrentChatId) return
+    const chat = displayChats.find((c) => c.id === displayCurrentChatId)
+    const chatEnvVars = getChatEnvVars(displayCurrentChatId)
+    const repoEnvVars = chat?.repo && chat.repo !== NEW_REPOSITORY
+      ? getRepoEnvVars(chat.repo)
+      : []
+    setEnvVars({ chat: chatEnvVars, repository: repoEnvVars })
+    setEnvVarsModalOpen(true)
+  }, [displayCurrentChatId, displayChats])
+
+  // Handler for saving environment variables
+  const handleSaveEnvVars = useCallback((newEnvVars: EnvironmentVariables) => {
+    if (!displayCurrentChatId) return
+    const chat = displayChats.find((c) => c.id === displayCurrentChatId)
+
+    // Save chat-level env vars
+    setChatEnvVars(displayCurrentChatId, newEnvVars.chat)
+
+    // Save repo-level env vars (only if chat has a repo)
+    if (chat?.repo && chat.repo !== NEW_REPOSITORY) {
+      setRepoEnvVars(chat.repo, newEnvVars.repository)
+    }
+
+    setEnvVars(newEnvVars)
+  }, [displayCurrentChatId, displayChats])
+
   // When in draft mode, agent/model dropdowns route to local draft state
   // because no real chat row exists to PATCH yet.
   const handleUpdateChatProp = useCallback(
@@ -1027,6 +1074,7 @@ export default function HomePage() {
                   openPreview({ type: "file", filePath, filename })
                 }}
                 onForcePush={() => gitDialogs.setForcePushOpen(true)}
+                onOpenEnvVars={handleOpenEnvVars}
                 isMobile={isMobile}
                 rebaseConflict={gitDialogs.rebaseConflict}
                 onAbortConflict={gitDialogs.handleAbortConflict}
@@ -1120,6 +1168,16 @@ export default function HomePage() {
           credentialFlags={credentialFlags}
           onSave={updateSettings}
           highlightKey={settingsHighlightKey}
+          isMobile={isMobile}
+        />
+
+        <EnvironmentVariablesModal
+          open={envVarsModalOpen}
+          onClose={() => setEnvVarsModalOpen(false)}
+          envVars={envVars}
+          onChange={handleSaveEnvVars}
+          repoName={displayCurrentChat?.repo !== NEW_REPOSITORY ? displayCurrentChat?.repo : undefined}
+          hasRepository={displayCurrentChat?.repo !== NEW_REPOSITORY && !!displayCurrentChat?.repo}
           isMobile={isMobile}
         />
 
