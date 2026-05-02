@@ -6,6 +6,15 @@ import { cn } from "@/lib/utils"
 import { SLASH_COMMANDS, ABORT_COMMAND, type SlashCommand } from "@upstream/common"
 import type { SlashCommandType } from "./SlashCommandMenu"
 
+/** Custom italic x icon for variables */
+function VariableIcon({ className }: { className?: string }) {
+  return (
+    <span className={cn("flex items-center justify-center italic font-serif", className)}>
+      𝑥
+    </span>
+  )
+}
+
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,
   GitBranch,
@@ -16,7 +25,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 interface CommandItem {
-  id: SlashCommandType | "help" | "github"
+  id: SlashCommandType | "help" | "github" | "env"
   label: string
   description: string
   icon: React.ReactNode
@@ -40,6 +49,7 @@ interface MobileCommandsMenuProps {
   onSlashCommand: (command: SlashCommandType) => void
   onOpenHelp?: () => void
   onOpenGitHub?: () => void
+  onOpenEnvVars?: () => void
   /** Whether the chat has a linked repo (git commands only show when true) */
   hasLinkedRepo?: boolean
   /** Whether we're in a merge/rebase conflict */
@@ -54,6 +64,7 @@ export function MobileCommandsMenu({
   onSlashCommand,
   onOpenHelp,
   onOpenGitHub,
+  onOpenEnvVars,
   hasLinkedRepo = false,
   inConflict = false,
   hasGitHubLink = false,
@@ -91,6 +102,8 @@ export function MobileCommandsMenu({
       onOpenHelp?.()
     } else if (id === "github") {
       onOpenGitHub?.()
+    } else if (id === "env") {
+      onOpenEnvVars?.()
     } else {
       onSlashCommand(id as SlashCommandType)
     }
@@ -141,7 +154,7 @@ export function MobileCommandsMenu({
             ))}
 
             {/* Other Actions Section */}
-            {(hasGitHubLink || onOpenHelp) && (
+            {(hasGitHubLink || onOpenHelp || onOpenEnvVars) && (
               <>
                 <div className="my-2 border-t border-border" />
                 <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -154,6 +167,22 @@ export function MobileCommandsMenu({
           <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Actions
           </div>
+        )}
+
+        {/* Environment variables */}
+        {onOpenEnvVars && (
+          <button
+            onClick={() => handleSelect("env")}
+            className="flex items-center gap-3 w-full px-4 py-4 text-left transition-colors touch-target hover:bg-accent active:bg-accent"
+          >
+            <span className="shrink-0 text-muted-foreground">
+              <VariableIcon className="h-5 w-5" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-base font-medium">Environment variables</div>
+              <div className="text-sm text-muted-foreground">Set environment variables</div>
+            </div>
+          </button>
         )}
 
         {/* GitHub link */}

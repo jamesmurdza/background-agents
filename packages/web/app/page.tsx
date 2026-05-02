@@ -1245,6 +1245,7 @@ export default function HomePage() {
           onSlashCommand={handleSlashCommand}
           onOpenHelp={() => setHelpOpen(true)}
           onOpenGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
+          onOpenEnvVars={currentChat ? handleOpenEnvVars : undefined}
           hasLinkedRepo={!!(currentChat && currentChat.repo !== NEW_REPOSITORY)}
           inConflict={!!(gitDialogs.rebaseConflict?.inRebase || gitDialogs.rebaseConflict?.inMerge)}
           hasGitHubLink={!!githubBranchUrl}
