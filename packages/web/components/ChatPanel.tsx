@@ -251,6 +251,9 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     // Don't send if credentials are missing - the UI shows a warning instead
     if (!hasRequiredCredentials) return
 
+    // Reset scroll state so we snap to bottom when sending
+    setUserHasScrolledUp(false)
+
     // If the agent is running, queue the message instead of sending.
     if (isRunning && onEnqueueMessage) {
       onEnqueueMessage(input.trim(), currentAgent, currentModel)
