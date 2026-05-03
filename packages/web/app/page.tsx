@@ -129,6 +129,7 @@ export default function HomePage() {
     window.localStorage.setItem("simple-chat-preview-width", String(Math.round(previewWidth)))
   }, [previewWidth])
   const [isResizingPreview, setIsResizingPreview] = useState(false)
+  const [previewPaneHidden, setPreviewPaneHidden] = useState(false)
 
   // Track ports we've already auto-opened in each sandbox so the preview pane
   // only pops open the *first* time a new server appears — not every poll.
@@ -146,7 +147,7 @@ export default function HomePage() {
   const previewItems = (currentChat?.previewItems ?? []) as PreviewItem[]
   const activePreviewIndex = currentChat?.activePreviewIndex ?? 0
   const previewItem = previewItems[activePreviewIndex] ?? null
-  const previewOpen = previewItems.length > 0
+  const previewOpen = previewItems.length > 0 && !previewPaneHidden
 
   /** Get a unique key for a preview item */
   const getPreviewItemKey = useCallback((item: PreviewItem): string => {
@@ -159,6 +160,8 @@ export default function HomePage() {
 
   /** Open a preview item - adds to list if not already present, switches to it if present */
   const openPreview = useCallback((next: PreviewItem) => {
+    // Unhide the pane when opening a preview
+    setPreviewPaneHidden(false)
     const existingIndex = previewItems.findIndex(
       (item) => getPreviewItemKey(item) === getPreviewItemKey(next)
     )
@@ -216,13 +219,10 @@ export default function HomePage() {
     }
   }, [previewItems, activePreviewIndex, getPreviewItemKey, updateCurrentChat])
 
-  /** Close all preview items (close the preview pane) */
+  /** Hide the preview pane (items are preserved) */
   const closePreview = useCallback(() => {
-    updateCurrentChat({
-      previewItems: undefined,
-      activePreviewIndex: undefined,
-    })
-  }, [updateCurrentChat])
+    setPreviewPaneHidden(true)
+  }, [])
   const resizingPreview = useRef(false)
   const startPreviewResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()

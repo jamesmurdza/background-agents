@@ -154,7 +154,6 @@ export function PreviewView({
                 side="bottom"
                 sideOffset={-32}
                 alignOffset={-6}
-                className="min-w-[200px]"
               >
                 {sortedItems.map((previewItem) => {
                   const itemPlugin = getPanelPlugin(previewItem)
@@ -167,8 +166,7 @@ export function PreviewView({
                         "flex items-center justify-between gap-2 cursor-pointer",
                         isActive && "bg-accent"
                       )}
-                      onSelect={(e) => {
-                        e.preventDefault()
+                      onSelect={() => {
                         onSelectItem(previewItem)
                       }}
                     >
@@ -178,7 +176,7 @@ export function PreviewView({
                       </div>
                       {onCloseItem && (
                         <button
-                          className="flex h-4 w-4 items-center justify-center rounded hover:bg-destructive/20 hover:text-destructive transition-colors shrink-0"
+                          className="flex h-4 w-4 items-center justify-center rounded hover:bg-accent transition-colors shrink-0 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
                             onCloseItem(previewItem)
