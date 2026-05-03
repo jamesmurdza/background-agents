@@ -27,7 +27,7 @@ export type { PreviewItem } from "@/lib/plugins/types"
 export interface PreviewViewProps {
   item: PreviewItem | null
   sandboxId: string | null
-  /** Optional — when provided, file titles link to GitHub blob view for that branch. */
+  /** Optional — when provided, enables external link button for files. */
   repo?: string | null
   branch?: string | null
   onClose?: () => void
@@ -53,10 +53,16 @@ function getItemKey(item: PreviewItem): string {
   }
 }
 
-/** Get a short label for a preview item */
+/** Get a display label for a preview item */
 function getItemLabel(item: PreviewItem): string {
   const plugin = getPanelPlugin(item)
-  return plugin?.getLabel(item) ?? "Preview"
+  if (!plugin) return "Preview"
+
+  // For server previews, include "Live preview" prefix
+  if (item.type === "server") {
+    return `Live preview · ${plugin.getLabel(item)}`
+  }
+  return plugin.getLabel(item)
 }
 
 export function PreviewView({
@@ -89,10 +95,8 @@ export function PreviewView({
   }
 
   const Icon = plugin.getIcon()
-  const label = plugin.getLabel(item)
 
-  // When the titled item is a file and we have a repo/branch, let the user
-  // click the title to jump to the file on GitHub in a new tab.
+  // When the item is a file and we have a repo/branch, build the GitHub URL
   // File paths from sandbox are absolute (e.g., /home/daytona/project/src/index.ts)
   // so we need to strip the sandbox prefix to get the repo-relative path.
   const repoRelativePath = item.type === "file"
@@ -110,32 +114,8 @@ export function PreviewView({
     setRefreshKey((k) => k + 1)
   }
 
-  // Build the title node
-  let titleNode: React.ReactNode
-  if (item.type === "file" && fileGithubUrl) {
-    titleNode = (
-      <a
-        href={fileGithubUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group text-xs font-medium truncate flex-1 inline-flex items-center gap-1 hover:underline decoration-dotted underline-offset-2 cursor-pointer"
-        title="Open on GitHub"
-      >
-        <span className="truncate">{label}</span>
-        <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
-      </a>
-    )
-  } else if (item.type === "server") {
-    titleNode = (
-      <span className="text-xs font-medium truncate flex-1">
-        Live preview · {label}
-      </span>
-    )
-  } else {
-    titleNode = (
-      <span className="text-xs font-medium truncate flex-1">{label}</span>
-    )
-  }
+  // Check if we have multiple items to show dropdown
+  const hasMultipleItems = allItems && allItems.length > 0 && onSelectItem
 
   const Component = plugin.Component
 
@@ -144,26 +124,25 @@ export function PreviewView({
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Titlebar */}
         <div className="flex items-center gap-2 px-4 py-3">
-          <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          {titleNode}
-
-          {/* Preview tabs dropdown - shows all open preview items */}
-          {allItems && allItems.length > 0 && onSelectItem && (
+          {/* Title with dropdown (when multiple items) or plain title */}
+          {hasMultipleItems ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 min-w-0 flex-1 text-left rounded-md px-1.5 py-0.5 -ml-1.5 hover:bg-accent transition-colors cursor-pointer"
                   title="Switch preview"
                   aria-label="Switch between open previews"
                 >
-                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                  <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs font-medium truncate">{getItemLabel(item)}</span>
+                  <ChevronsUpDown className="h-3 w-3 text-muted-foreground shrink-0" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[180px]">
+              <DropdownMenuContent align="start" className="min-w-[200px]">
                 {allItems.map((previewItem) => {
                   const itemPlugin = getPanelPlugin(previewItem)
                   const ItemIcon = itemPlugin?.getIcon()
-                  const isActive = item && getItemKey(previewItem) === getItemKey(item)
+                  const isActive = getItemKey(previewItem) === getItemKey(item)
                   return (
                     <DropdownMenuItem
                       key={getItemKey(previewItem)}
@@ -198,7 +177,15 @@ export function PreviewView({
                 })}
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs font-medium truncate">{getItemLabel(item)}</span>
+            </div>
           )}
+
+          {/* Spacer to push buttons to the right */}
+          <div className="flex-1" />
 
           {/* Scale dropdown - only for server previews */}
           {item.type === "server" && (
@@ -221,6 +208,20 @@ export function PreviewView({
                 ))}
               </SelectContent>
             </Select>
+          )}
+
+          {/* External link button - for files with GitHub URL */}
+          {fileGithubUrl && (
+            <a
+              href={fileGithubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+              title="Open on GitHub"
+              aria-label="Open file on GitHub"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           )}
 
           <button
