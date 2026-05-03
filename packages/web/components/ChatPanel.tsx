@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus, FileText, FileCode, FileImage, File as FileIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -84,6 +84,8 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   // File upload state
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [previewFile, setPreviewFile] = useState<PendingFile | null>(null)
+  const [fileContents, setFileContents] = useState<Map<string, string>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -333,6 +335,75 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
   }
 
+  // File type helpers
+  const getFileType = (file: File): 'image' | 'pdf' | 'text' | 'code' | 'other' => {
+    const mimeType = file.type
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+    if (mimeType.startsWith('image/')) return 'image'
+    if (mimeType === 'application/pdf' || ext === 'pdf') return 'pdf'
+
+    const codeExtensions = ['js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala', 'sh', 'bash', 'zsh', 'ps1', 'sql', 'html', 'css', 'scss', 'sass', 'less', 'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env', 'md', 'mdx', 'vue', 'svelte']
+    if (codeExtensions.includes(ext)) return 'code'
+
+    const textExtensions = ['txt', 'log', 'csv', 'tsv', 'rtf']
+    if (mimeType.startsWith('text/') || textExtensions.includes(ext)) return 'text'
+
+    return 'other'
+  }
+
+  const getFileIcon = (file: File) => {
+    const type = getFileType(file)
+    switch (type) {
+      case 'image': return FileImage
+      case 'code': return FileCode
+      case 'text': return FileText
+      default: return FileIcon
+    }
+  }
+
+  const getFilePreviewUrl = (file: File): string | null => {
+    const type = getFileType(file)
+    if (type === 'image' || type === 'pdf') {
+      return URL.createObjectURL(file)
+    }
+    return null
+  }
+
+  // Read text file contents for preview
+  const readFileContent = useCallback((file: File, fileId: string) => {
+    const type = getFileType(file)
+    if (type === 'text' || type === 'code') {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const content = e.target?.result as string
+        setFileContents(prev => new Map(prev).set(fileId, content))
+      }
+      reader.readAsText(file)
+    }
+  }, [])
+
+  // Read file contents when files are added
+  useEffect(() => {
+    pendingFiles.forEach(pf => {
+      if (!fileContents.has(pf.id)) {
+        readFileContent(pf.file, pf.id)
+      }
+    })
+  }, [pendingFiles, fileContents, readFileContent])
+
+  // Clean up object URLs when files are removed
+  useEffect(() => {
+    return () => {
+      pendingFiles.forEach(pf => {
+        const type = getFileType(pf.file)
+        if (type === 'image' || type === 'pdf') {
+          URL.revokeObjectURL(URL.createObjectURL(pf.file))
+        }
+      })
+    }
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle slash command menu navigation
     if (slashMenuOpen && filteredCommands.length > 0 && onSlashCommand) {
@@ -542,6 +613,20 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           "flex items-end gap-2",
           isMobile ? "px-3 py-2" : "px-4 py-3"
         )}>
+          {/* Attachment button - left side */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
+              isMobile ? "h-9 w-9" : "h-7 w-7"
+            )}
+            title="Attach files"
+            aria-label="Attach files"
+          >
+            <Paperclip className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+          </button>
+
           {/* Textarea wrapper with slash command menu */}
           <div className="relative flex-1">
             {/* Slash Command Menu - positioned above the textarea */}
@@ -626,32 +711,83 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           </div>
         </div>
 
-        {/* Pending files display */}
+        {/* Pending files display - square preview boxes */}
         {pendingFiles.length > 0 && (
           <div className={cn(
-            "flex flex-wrap gap-1.5",
+            "flex flex-wrap gap-2",
             isMobile ? "px-3 pb-2" : "px-4 pb-2"
           )}>
-            {pendingFiles.map((file) => (
-              <div
-                key={file.id}
-                className={cn(
-                  "flex items-center gap-1 bg-muted/50 rounded-md",
-                  isMobile ? "px-2 py-1 text-sm" : "px-1.5 py-0.5 text-xs"
-                )}
-              >
-                <Paperclip className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "text-muted-foreground")} />
-                <span className="text-foreground truncate max-w-[120px]">{file.name}</span>
-                <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
-                <button
-                  onClick={() => removeFile(file.id)}
-                  className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+            {pendingFiles.map((pf) => {
+              const fileType = getFileType(pf.file)
+              const IconComponent = getFileIcon(pf.file)
+              const previewUrl = getFilePreviewUrl(pf.file)
+
+              return (
+                <div
+                  key={pf.id}
+                  className={cn(
+                    "relative group cursor-pointer rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors overflow-hidden",
+                    isMobile ? "w-16 h-16" : "w-14 h-14"
+                  )}
+                  onClick={() => setPreviewFile(pf)}
+                  title={`${pf.name} (${formatFileSize(pf.size)})`}
                 >
-                  <X className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3")} />
-                </button>
-              </div>
-            ))}
+                  {/* File preview content */}
+                  <div className="w-full h-full flex items-center justify-center">
+                    {fileType === 'image' && previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt={pf.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : fileType === 'pdf' ? (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <FileText className={cn(isMobile ? "h-6 w-6" : "h-5 w-5")} />
+                        <span className="text-[10px] mt-0.5 font-medium">PDF</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground p-1">
+                        <IconComponent className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+                        <span className="text-[9px] mt-0.5 truncate w-full text-center px-1">
+                          {pf.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remove button - top right corner */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFile(pf.id)
+                    }}
+                    className={cn(
+                      "absolute top-0.5 right-0.5 flex items-center justify-center rounded-full bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground transition-colors shadow-sm",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )}
+                    aria-label={`Remove ${pf.name}`}
+                  >
+                    <X className={cn(isMobile ? "h-3 w-3" : "h-2.5 w-2.5")} />
+                  </button>
+                </div>
+              )
+            })}
           </div>
+        )}
+
+        {/* File preview overlay */}
+        {previewFile && (
+          <FilePreviewOverlay
+            file={previewFile}
+            fileContent={fileContents.get(previewFile.id)}
+            onClose={() => setPreviewFile(null)}
+            onRemove={() => {
+              removeFile(previewFile.id)
+              setPreviewFile(null)
+            }}
+            isMobile={isMobile}
+            getFileType={getFileType}
+          />
         )}
 
         {/* Bottom row with selectors */}
@@ -1298,6 +1434,144 @@ function ErrorBanner({ message, isMobile }: { message: string; isMobile?: boolea
             {expanded ? "Show less" : "Show more"}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// File Preview Overlay Component
+interface FilePreviewOverlayProps {
+  file: PendingFile
+  fileContent?: string
+  onClose: () => void
+  onRemove: () => void
+  isMobile?: boolean
+  getFileType: (file: File) => 'image' | 'pdf' | 'text' | 'code' | 'other'
+}
+
+function FilePreviewOverlay({ file, fileContent, onClose, onRemove, isMobile, getFileType }: FilePreviewOverlayProps) {
+  const fileType = getFileType(file.file)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (fileType === 'image' || fileType === 'pdf') {
+      const url = URL.createObjectURL(file.file)
+      setPreviewUrl(url)
+      return () => URL.revokeObjectURL(url)
+    }
+  }, [file.file, fileType])
+
+  // Close on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  }
+
+  return (
+    <div
+      className="absolute inset-x-0 bottom-full mb-2 z-20"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        className={cn(
+          "mx-auto bg-card border border-border rounded-lg shadow-lg overflow-hidden",
+          isMobile ? "max-w-full mx-3" : "max-w-[48rem]"
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-sm font-medium truncate">{file.name}</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              ({formatFileSize(file.size)})
+            </span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={onRemove}
+              className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              title="Remove file"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+              title="Close preview"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Preview content */}
+        <div
+          className={cn(
+            "overflow-auto",
+            isMobile ? "max-h-[40vh]" : "max-h-[50vh]"
+          )}
+        >
+          {fileType === 'image' && previewUrl && (
+            <div className="flex items-center justify-center p-4 bg-muted/20">
+              <img
+                src={previewUrl}
+                alt={file.name}
+                className="max-w-full max-h-[40vh] object-contain rounded"
+              />
+            </div>
+          )}
+
+          {fileType === 'pdf' && previewUrl && (
+            <div className="w-full h-[50vh]">
+              <iframe
+                src={previewUrl}
+                title={file.name}
+                className="w-full h-full border-0"
+              />
+            </div>
+          )}
+
+          {(fileType === 'text' || fileType === 'code') && (
+            <div className="p-3">
+              {fileContent ? (
+                <pre
+                  className={cn(
+                    "text-sm whitespace-pre-wrap break-words font-mono bg-muted/30 rounded-md p-3 overflow-x-auto",
+                    fileType === 'code' && "text-[13px]"
+                  )}
+                >
+                  {fileContent}
+                </pre>
+              ) : (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Loading content...
+                </div>
+              )}
+            </div>
+          )}
+
+          {fileType === 'other' && (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <FileIcon className="h-12 w-12 mb-3" />
+              <p className="text-sm">Preview not available for this file type</p>
+              <p className="text-xs mt-1">{file.file.type || 'Unknown type'}</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
