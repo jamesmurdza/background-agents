@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { RefreshCw, X, ExternalLink, ChevronsUpDown } from "lucide-react"
 import { PATHS } from "@upstream/common"
@@ -82,6 +82,8 @@ export function PreviewView({
 }: PreviewViewProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [scale, setScale] = useState(1)
+  // Track when the dropdown just opened to ignore the initial pointerup
+  const menuJustOpenedRef = useRef(false)
 
   const scaleOptions = [
     { value: "1", label: "100%" },
@@ -138,7 +140,17 @@ export function PreviewView({
         <div className="flex items-center gap-2 px-4 py-3">
           {/* Title with popup menu (when multiple items) or plain title */}
           {hasMultipleItems ? (
-            <DropdownMenu>
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (open) {
+                  menuJustOpenedRef.current = true
+                  // Reset after a short delay to allow the initial pointerup to be ignored
+                  setTimeout(() => {
+                    menuJustOpenedRef.current = false
+                  }, 150)
+                }
+              }}
+            >
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
@@ -170,7 +182,12 @@ export function PreviewView({
                         "flex items-center justify-between gap-2 cursor-pointer",
                         isActive && "bg-accent"
                       )}
-                      onSelect={() => {
+                      onSelect={(e) => {
+                        // Ignore selection if menu just opened (prevents immediate close from pointerup)
+                        if (menuJustOpenedRef.current) {
+                          e.preventDefault()
+                          return
+                        }
                         if (!isActive) {
                           onSelectItem(previewItem)
                         }
