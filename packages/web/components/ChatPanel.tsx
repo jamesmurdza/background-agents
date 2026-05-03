@@ -115,6 +115,13 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     'jpg', 'jpeg', 'png', 'gif', 'webp',
     // Documents
     'pdf', 'docx', 'txt', 'csv', 'tsv', 'html', 'htm', 'rtf', 'epub',
+    // Code & config files
+    'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala',
+    'sh', 'bash', 'zsh', 'ps1', 'sql', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
+    'json', 'jsonl', 'ndjson', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env',
+    'md', 'mdx', 'graphql', 'gql', 'prisma', 'proto',
+    'dockerfile', 'makefile', 'cmake', 'gradle', 'properties', 'plist', 'lock',
+    'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc', 'log',
   ]
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
