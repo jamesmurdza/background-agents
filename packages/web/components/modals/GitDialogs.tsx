@@ -176,22 +176,6 @@ function BaseDialog({ open, onClose, title, icon, children, isMobile = false, al
 }
 
 // ============================================================================
-// Agent Running Warning Component
-// ============================================================================
-
-function AgentRunningWarning({ action, isMobile = false }: { action: string; isMobile?: boolean }) {
-  return (
-    <p className={cn(
-      "text-amber-500 flex items-center gap-1.5",
-      isMobile ? "text-sm" : "text-xs"
-    )}>
-      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-      Wait for the agent to finish before {action}.
-    </p>
-  )
-}
-
-// ============================================================================
 // Branch Selector Component
 // ============================================================================
 
@@ -489,8 +473,6 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
             Merge
           </button>
         </div>
-
-        {agentRunning && <AgentRunningWarning action="merging" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -580,8 +562,6 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
             Rebase
           </button>
         </div>
-
-        {agentRunning && <AgentRunningWarning action="rebasing" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -748,8 +728,6 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
             </button>
           )}
         </div>
-
-        {agentRunning && <AgentRunningWarning action="creating a PR" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -877,8 +855,6 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
             Squash
           </button>
         </div>
-
-        {agentRunning && <AgentRunningWarning action="squashing" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -936,8 +912,6 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
           <span className="font-semibold text-foreground">{branchLabel}</span>{" "}
           with your local commits. Anyone with the old history will need to re-sync.
         </p>
-
-        {agentRunning && <AgentRunningWarning action="force pushing" isMobile={isMobile} />}
 
         <div className="flex justify-end gap-2 pt-2">
           <button
