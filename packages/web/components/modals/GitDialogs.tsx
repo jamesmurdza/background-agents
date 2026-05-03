@@ -176,6 +176,22 @@ function BaseDialog({ open, onClose, title, icon, children, isMobile = false, al
 }
 
 // ============================================================================
+// Agent Running Warning Component
+// ============================================================================
+
+function AgentRunningWarning({ action, isMobile = false }: { action: string; isMobile?: boolean }) {
+  return (
+    <p className={cn(
+      "text-amber-500 flex items-center gap-1.5",
+      isMobile ? "text-sm" : "text-xs"
+    )}>
+      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+      Wait for the agent to finish before {action}.
+    </p>
+  )
+}
+
+// ============================================================================
 // Branch Selector Component
 // ============================================================================
 
@@ -390,6 +406,7 @@ interface MergeDialogProps {
 
 export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false }: MergeDialogProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const agentRunning = chat?.status === "running"
 
   const handleMergeAndClose = useCallback(async () => {
     await gitDialogs.handleMerge()
@@ -462,7 +479,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
           </button>
           <button
             onClick={handleMergeAndClose}
-            disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
+            disabled={agentRunning || !gitDialogs.selectedBranch || gitDialogs.actionLoading}
             className={cn(
               "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
               isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
@@ -472,6 +489,8 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
             Merge
           </button>
         </div>
+
+        {agentRunning && <AgentRunningWarning action="merging" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -491,6 +510,7 @@ interface RebaseDialogProps {
 
 export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false }: RebaseDialogProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const agentRunning = chat?.status === "running"
 
   const handleRebaseAndClose = useCallback(async () => {
     await gitDialogs.handleRebase()
@@ -550,7 +570,7 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
           </button>
           <button
             onClick={handleRebaseAndClose}
-            disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
+            disabled={agentRunning || !gitDialogs.selectedBranch || gitDialogs.actionLoading}
             className={cn(
               "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
               isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
@@ -560,6 +580,8 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
             Rebase
           </button>
         </div>
+
+        {agentRunning && <AgentRunningWarning action="rebasing" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -590,6 +612,7 @@ interface PRDialogProps {
 
 export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: PRDialogProps) {
   const isGitHubRepo = chat?.repo && chat.repo !== "__new__"
+  const agentRunning = chat?.status === "running"
   const [descriptionType, setDescriptionType] = useState<PRDescriptionType>("short")
   const [descriptionDropdownOpen, setDescriptionDropdownOpen] = useState(false)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
@@ -714,7 +737,7 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
           {isGitHubRepo && (
             <button
               onClick={handleCreatePRAndClose}
-              disabled={!gitDialogs.selectedBranch || gitDialogs.actionLoading}
+              disabled={agentRunning || !gitDialogs.selectedBranch || gitDialogs.actionLoading}
               className={cn(
                 "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
                 isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
@@ -725,6 +748,8 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
             </button>
           )}
         </div>
+
+        {agentRunning && <AgentRunningWarning action="creating a PR" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -744,6 +769,7 @@ interface SquashDialogProps {
 
 export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false }: SquashDialogProps) {
   const canSquash = gitDialogs.commitsAhead >= 2 && !gitDialogs.commitsLoading
+  const agentRunning = chat?.status === "running"
   const squashButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleSquashAndClose = useCallback(async () => {
@@ -841,7 +867,7 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
           <button
             ref={squashButtonRef}
             onClick={handleSquashAndClose}
-            disabled={!canSquash || gitDialogs.actionLoading}
+            disabled={agentRunning || !canSquash || gitDialogs.actionLoading}
             className={cn(
               "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
               isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
@@ -851,6 +877,8 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
             Squash
           </button>
         </div>
+
+        {agentRunning && <AgentRunningWarning action="squashing" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -909,14 +937,7 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
           with your local commits. Anyone with the old history will need to re-sync.
         </p>
 
-        {agentRunning && (
-          <p className={cn(
-            "text-amber-500",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            The agent is running on this branch. Wait for it to finish before force pushing.
-          </p>
-        )}
+        {agentRunning && <AgentRunningWarning action="force pushing" isMobile={isMobile} />}
 
         <div className="flex justify-end gap-2 pt-2">
           <button
