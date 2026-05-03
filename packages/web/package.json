@@ -44,6 +44,7 @@
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "^4.10.38",
     "pg": "^8.16.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -52,9 +53,9 @@
     "remark-gfm": "^4.0.1",
     "sugar-high": "^0.9.0",
     "tailwind-merge": "^3.3.1",
+    "ws": "^8.18.0",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
-    "ws": "^8.18.0",
     "xterm-addon-web-links": "^0.9.0",
     "zod": "^3.24.0",
     "zustand": "^5.0.5"

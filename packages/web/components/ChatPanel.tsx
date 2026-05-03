@@ -758,6 +758,71 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
             }
           }}
         />
+
+        {/* Pending files display - square preview boxes (ABOVE text input) */}
+        {pendingFiles.length > 0 && (
+          <div className={cn(
+            "flex flex-wrap gap-2",
+            isMobile ? "px-3 pt-3 pb-1" : "px-4 pt-3 pb-1"
+          )}>
+            {pendingFiles.map((pf) => {
+              const fileType = getFileType(pf.file)
+              const IconComponent = getFileIcon(pf.file)
+              const previewUrl = getFilePreviewUrl(pf.file)
+              const textContent = fileContents.get(pf.id)
+
+              return (
+                <div
+                  key={pf.id}
+                  className={cn(
+                    "relative group cursor-pointer rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors overflow-hidden",
+                    isMobile ? "w-20 h-20" : "w-[72px] h-[72px]"
+                  )}
+                  onClick={() => setPreviewFile(pf)}
+                  title={`${pf.name} (${formatFileSize(pf.size)})`}
+                >
+                  {/* File preview content */}
+                  <div className="w-full h-full flex items-center justify-center">
+                    {fileType === 'image' && previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt={pf.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : fileType === 'pdf' ? (
+                      <PdfThumbnail file={pf.file} />
+                    ) : (fileType === 'text' || fileType === 'code') && textContent ? (
+                      <TextThumbnail content={textContent} filename={pf.name} />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground p-1">
+                        <IconComponent className={cn(isMobile ? "h-6 w-6" : "h-5 w-5")} />
+                        <span className="text-[9px] mt-0.5 truncate w-full text-center px-1">
+                          {pf.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remove button - top right corner */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFile(pf.id)
+                    }}
+                    className={cn(
+                      "absolute top-0.5 right-0.5 flex items-center justify-center rounded-full bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground transition-colors shadow-sm",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )}
+                    aria-label={`Remove ${pf.name}`}
+                  >
+                    <X className={cn(isMobile ? "h-3 w-3" : "h-2.5 w-2.5")} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {/* Text input area */}
         <div className={cn(
           "flex items-end gap-2",
@@ -877,70 +942,6 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
             >
               <X className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
             </button>
-          </div>
-        )}
-
-        {/* Pending files display - square preview boxes */}
-        {pendingFiles.length > 0 && (
-          <div className={cn(
-            "flex flex-wrap gap-2",
-            isMobile ? "px-3 pb-2" : "px-4 pb-2"
-          )}>
-            {pendingFiles.map((pf) => {
-              const fileType = getFileType(pf.file)
-              const IconComponent = getFileIcon(pf.file)
-              const previewUrl = getFilePreviewUrl(pf.file)
-
-              return (
-                <div
-                  key={pf.id}
-                  className={cn(
-                    "relative group cursor-pointer rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors overflow-hidden",
-                    isMobile ? "w-16 h-16" : "w-14 h-14"
-                  )}
-                  onClick={() => setPreviewFile(pf)}
-                  title={`${pf.name} (${formatFileSize(pf.size)})`}
-                >
-                  {/* File preview content */}
-                  <div className="w-full h-full flex items-center justify-center">
-                    {fileType === 'image' && previewUrl ? (
-                      <img
-                        src={previewUrl}
-                        alt={pf.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : fileType === 'pdf' ? (
-                      <div className="flex flex-col items-center justify-center text-muted-foreground">
-                        <FileText className={cn(isMobile ? "h-6 w-6" : "h-5 w-5")} />
-                        <span className="text-[10px] mt-0.5 font-medium">PDF</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-muted-foreground p-1">
-                        <IconComponent className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-                        <span className="text-[9px] mt-0.5 truncate w-full text-center px-1">
-                          {pf.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Remove button - top right corner */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeFile(pf.id)
-                    }}
-                    className={cn(
-                      "absolute top-0.5 right-0.5 flex items-center justify-center rounded-full bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground transition-colors shadow-sm",
-                      isMobile ? "h-5 w-5" : "h-4 w-4"
-                    )}
-                    aria-label={`Remove ${pf.name}`}
-                  >
-                    <X className={cn(isMobile ? "h-3 w-3" : "h-2.5 w-2.5")} />
-                  </button>
-                </div>
-              )
-            })}
           </div>
         )}
 
@@ -1769,6 +1770,125 @@ function FilePreviewModal({ file, fileContent, onClose, onRemove, isMobile, getF
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// PDF Thumbnail Component - renders first page of PDF as thumbnail
+function PdfThumbnail({ file }: { file: File }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const renderPdf = async () => {
+      try {
+        const pdfjsLib = await import('pdfjs-dist')
+
+        // Set up worker - use CDN worker for compatibility
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+
+        const arrayBuffer = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+        if (cancelled) return
+
+        const page = await pdf.getPage(1)
+        const canvas = canvasRef.current
+        if (!canvas || cancelled) return
+
+        const context = canvas.getContext('2d')
+        if (!context) return
+
+        // Calculate scale to fit in thumbnail (72x72 or 80x80)
+        const thumbnailSize = 72
+        const viewport = page.getViewport({ scale: 1 })
+        const scale = Math.min(
+          thumbnailSize / viewport.width,
+          thumbnailSize / viewport.height
+        )
+        const scaledViewport = page.getViewport({ scale })
+
+        canvas.width = scaledViewport.width
+        canvas.height = scaledViewport.height
+
+        await page.render({
+          canvasContext: context,
+          viewport: scaledViewport
+        }).promise
+
+        if (!cancelled) {
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('PDF thumbnail render error:', err)
+        if (!cancelled) {
+          setError(true)
+          setLoading(false)
+        }
+      }
+    }
+
+    renderPdf()
+
+    return () => {
+      cancelled = true
+    }
+  }, [file])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center text-muted-foreground w-full h-full">
+        <FileText className="h-5 w-5" />
+        <span className="text-[10px] mt-0.5 font-medium">PDF</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-white">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        className={cn(
+          "max-w-full max-h-full object-contain",
+          loading && "opacity-0"
+        )}
+      />
+    </div>
+  )
+}
+
+// Text Thumbnail Component - shows first few words as preview
+function TextThumbnail({ content, filename }: { content: string; filename: string }) {
+  // Get first ~100 characters, clean up whitespace
+  const preview = content
+    .slice(0, 150)
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const ext = filename.split('.').pop()?.toUpperCase() || 'TXT'
+
+  return (
+    <div className="w-full h-full p-1.5 overflow-hidden flex flex-col">
+      {/* Extension badge */}
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[8px] font-semibold text-muted-foreground bg-muted/50 px-1 rounded">
+          {ext}
+        </span>
+      </div>
+      {/* Text preview */}
+      <div className="flex-1 overflow-hidden">
+        <p className="text-[7px] leading-[1.3] text-muted-foreground break-words line-clamp-6">
+          {preview}
+        </p>
       </div>
     </div>
   )
