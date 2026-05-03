@@ -142,9 +142,8 @@ export default function HomePage() {
   const availableServers = serversQuery.data ?? []
   // Preview state lives on each Chat, not globally — switching chats shows
   // whatever that chat last had open (or hides the pane if none).
-  // Support for multiple preview items with ability to switch between them.
-  const previewItems = (currentChat?.previewItems ??
-    (currentChat?.previewItem ? [currentChat.previewItem] : [])) as PreviewItem[]
+  // Multiple preview items can be open and user can switch between them.
+  const previewItems = (currentChat?.previewItems ?? []) as PreviewItem[]
   const activePreviewIndex = currentChat?.activePreviewIndex ?? 0
   const previewItem = previewItems[activePreviewIndex] ?? null
   const previewOpen = previewItems.length > 0
@@ -172,8 +171,6 @@ export default function HomePage() {
       updateCurrentChat({
         previewItems: newItems,
         activePreviewIndex: newItems.length - 1,
-        // Also update legacy previewItem for backwards compatibility
-        previewItem: next
       })
     }
   }, [previewItems, getPreviewItemKey, updateCurrentChat])
@@ -184,10 +181,7 @@ export default function HomePage() {
       (i) => getPreviewItemKey(i) === getPreviewItemKey(item)
     )
     if (index >= 0) {
-      updateCurrentChat({
-        activePreviewIndex: index,
-        previewItem: item // Update legacy field
-      })
+      updateCurrentChat({ activePreviewIndex: index })
     }
   }, [previewItems, getPreviewItemKey, updateCurrentChat])
 
@@ -206,7 +200,6 @@ export default function HomePage() {
       updateCurrentChat({
         previewItems: undefined,
         activePreviewIndex: undefined,
-        previewItem: undefined
       })
     } else {
       // Adjust active index if needed
@@ -219,7 +212,6 @@ export default function HomePage() {
       updateCurrentChat({
         previewItems: newItems,
         activePreviewIndex: newActiveIndex,
-        previewItem: newItems[newActiveIndex]
       })
     }
   }, [previewItems, activePreviewIndex, getPreviewItemKey, updateCurrentChat])
@@ -229,7 +221,6 @@ export default function HomePage() {
     updateCurrentChat({
       previewItems: undefined,
       activePreviewIndex: undefined,
-      previewItem: undefined
     })
   }, [updateCurrentChat])
   const resizingPreview = useRef(false)
@@ -330,10 +321,10 @@ export default function HomePage() {
     if (newServer) {
       availableServers.forEach((s) => seen!.add(s.port))
       if (chatId === currentChat?.id) {
-        updateCurrentChat({ previewItem: { type: "server", port: newServer.port, url: newServer.url } })
+        openPreview({ type: "server", port: newServer.port, url: newServer.url })
       }
     }
-  }, [availableServers, currentChat?.sandboxId, currentChat?.id, updateCurrentChat])
+  }, [availableServers, currentChat?.sandboxId, currentChat?.id, openPreview])
 
   // Handler for adding messages to current chat
   const handleAddMessage = useCallback((message: Message) => {
