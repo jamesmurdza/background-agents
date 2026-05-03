@@ -50,6 +50,7 @@ interface PaletteProviderProps {
   servers?: Array<{ port: number; url: string }>
   onOpenServer?: (port: number, url: string) => void
   onClosePreview?: () => void
+  onShowPreview?: () => void
   onDownloadProject?: () => void
   isDownloading?: boolean
   onCopyCloneCommand?: () => void
@@ -89,6 +90,7 @@ export function PaletteProvider({
   servers,
   onOpenServer,
   onClosePreview,
+  onShowPreview,
   onDownloadProject,
   isDownloading,
   onCopyCloneCommand,
@@ -208,6 +210,7 @@ export function PaletteProvider({
         servers={servers}
         onOpenServer={onOpenServer}
         onClosePreview={onClosePreview}
+        onShowPreview={onShowPreview}
         onDownloadProject={onDownloadProject}
         isDownloading={isDownloading}
         onCopyCloneCommand={onCopyCloneCommand}
