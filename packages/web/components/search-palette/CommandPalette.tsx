@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, Download, Copy } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -54,6 +54,8 @@ interface CommandPaletteProps {
   servers?: Array<{ port: number; url: string }>
   onOpenServer?: (port: number, url: string) => void
   onClosePreview?: () => void
+  /** Show the preview pane (when hidden but has items). */
+  onShowPreview?: () => void
   /** Download the project as a zip file. Omitted when no sandbox exists. */
   onDownloadProject?: () => void
   /** Whether a download is currently in progress. */
@@ -85,6 +87,7 @@ export function CommandPalette({
   servers = [],
   onOpenServer,
   onClosePreview,
+  onShowPreview,
   onDownloadProject,
   isDownloading = false,
   onCopyCloneCommand,
@@ -171,6 +174,12 @@ export function CommandPalette({
             <CommandItem value="hide close preview pane" onSelect={() => run(onClosePreview)}>
               <PanelRightClose className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Hide preview pane</span>
+            </CommandItem>
+          )}
+          {onShowPreview && (
+            <CommandItem value="show open preview pane" onSelect={() => run(onShowPreview)}>
+              <PanelRightOpen className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>Show preview pane</span>
             </CommandItem>
           )}
           {onDownloadProject && (

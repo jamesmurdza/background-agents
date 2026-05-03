@@ -223,6 +223,11 @@ export default function HomePage() {
   const closePreview = useCallback(() => {
     setPreviewPaneHidden(true)
   }, [])
+
+  /** Show the preview pane (unhide it) */
+  const showPreview = useCallback(() => {
+    setPreviewPaneHidden(false)
+  }, [])
   const resizingPreview = useRef(false)
   const startPreviewResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -1070,6 +1075,7 @@ export default function HomePage() {
       servers={availableServers}
       onOpenServer={(port, url) => openPreview({ type: "server", port, url })}
       onClosePreview={previewOpen ? closePreview : undefined}
+      onShowPreview={previewPaneHidden && previewItems.length > 0 ? showPreview : undefined}
       onDownloadProject={currentChat?.sandboxId ? handleDownloadProject : undefined}
       isDownloading={isDownloading}
       onCopyCloneCommand={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? handleCopyCloneCommand : undefined}
