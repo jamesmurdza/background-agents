@@ -176,7 +176,7 @@ export function PreviewView({
                       </div>
                       {onCloseItem && (
                         <button
-                          className="flex h-4 w-4 items-center justify-center rounded hover:bg-destructive/20 hover:text-destructive transition-colors shrink-0"
+                          className="flex h-4 w-4 items-center justify-center rounded hover:bg-accent transition-colors shrink-0 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
                             onCloseItem(previewItem)
