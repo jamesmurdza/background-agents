@@ -154,7 +154,6 @@ export function PreviewView({
                 side="bottom"
                 sideOffset={-32}
                 alignOffset={-6}
-                className="min-w-[200px]"
               >
                 {sortedItems.map((previewItem) => {
                   const itemPlugin = getPanelPlugin(previewItem)
@@ -167,8 +166,7 @@ export function PreviewView({
                         "flex items-center justify-between gap-2 cursor-pointer",
                         isActive && "bg-accent"
                       )}
-                      onSelect={(e) => {
-                        e.preventDefault()
+                      onSelect={() => {
                         onSelectItem(previewItem)
                       }}
                     >
