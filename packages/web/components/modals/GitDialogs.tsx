@@ -176,6 +176,22 @@ function BaseDialog({ open, onClose, title, icon, children, isMobile = false, al
 }
 
 // ============================================================================
+// Agent Running Warning Component
+// ============================================================================
+
+function AgentRunningWarning({ action, isMobile = false }: { action: string; isMobile?: boolean }) {
+  return (
+    <p className={cn(
+      "text-amber-500 flex items-center gap-1.5",
+      isMobile ? "text-sm" : "text-xs"
+    )}>
+      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+      Wait for the agent to finish before {action}.
+    </p>
+  )
+}
+
+// ============================================================================
 // Branch Selector Component
 // ============================================================================
 
@@ -474,15 +490,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
           </button>
         </div>
 
-        {agentRunning && (
-          <p className={cn(
-            "text-amber-500 flex items-center gap-1.5",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            Wait for the agent to finish before merging.
-          </p>
-        )}
+        {agentRunning && <AgentRunningWarning action="merging" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -573,15 +581,7 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
           </button>
         </div>
 
-        {agentRunning && (
-          <p className={cn(
-            "text-amber-500 flex items-center gap-1.5",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            Wait for the agent to finish before rebasing.
-          </p>
-        )}
+        {agentRunning && <AgentRunningWarning action="rebasing" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -749,15 +749,7 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
           )}
         </div>
 
-        {agentRunning && (
-          <p className={cn(
-            "text-amber-500 flex items-center gap-1.5",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            Wait for the agent to finish before creating a PR.
-          </p>
-        )}
+        {agentRunning && <AgentRunningWarning action="creating a PR" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -886,15 +878,7 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
           </button>
         </div>
 
-        {agentRunning && (
-          <p className={cn(
-            "text-amber-500 flex items-center gap-1.5",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            Wait for the agent to finish before squashing.
-          </p>
-        )}
+        {agentRunning && <AgentRunningWarning action="squashing" isMobile={isMobile} />}
       </div>
     </BaseDialog>
   )
@@ -953,14 +937,7 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
           with your local commits. Anyone with the old history will need to re-sync.
         </p>
 
-        {agentRunning && (
-          <p className={cn(
-            "text-amber-500",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            The agent is running on this branch. Wait for it to finish before force pushing.
-          </p>
-        )}
+        {agentRunning && <AgentRunningWarning action="force pushing" isMobile={isMobile} />}
 
         <div className="flex justify-end gap-2 pt-2">
           <button
