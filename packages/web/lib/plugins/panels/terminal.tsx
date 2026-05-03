@@ -287,7 +287,12 @@ export const TerminalPlugin: PanelPlugin = {
 
   canHandle: (item: PreviewItem) => item.type === "terminal",
 
-  getLabel: () => "Terminal",
+  getLabel: (item) => {
+    if (item.type !== "terminal") return "Terminal"
+    const match = item.id.match(/-(\d+)$/)
+    const num = match ? parseInt(match[1], 10) : 1
+    return `Terminal ${num}`
+  },
 
   getIcon: () => TerminalSquare,
 

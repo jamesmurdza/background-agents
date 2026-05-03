@@ -1069,7 +1069,17 @@ export default function HomePage() {
       onOpenInVSCode={currentChat?.sandboxId ? handleOpenInVSCode : undefined}
       onOpenTerminal={
         currentChat?.sandboxId
-          ? () => openPreview({ type: "terminal", id: currentChat.sandboxId! })
+          ? () => {
+              // Generate a unique terminal ID by finding the next available number
+              const existingTerminals = previewItems.filter((i) => i.type === "terminal")
+              const terminalNumbers = existingTerminals.map((t) => {
+                if (t.type !== "terminal") return 0
+                const match = t.id.match(/-(\d+)$/)
+                return match ? parseInt(match[1], 10) : 1
+              })
+              const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
+              openPreview({ type: "terminal", id: `${currentChat.sandboxId}-${nextNumber}` })
+            }
           : undefined
       }
       servers={availableServers}
