@@ -776,7 +776,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   key={pf.id}
                   className={cn(
                     "relative group cursor-pointer rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors overflow-hidden",
-                    isMobile ? "w-20 h-20" : "w-[72px] h-[72px]"
+                    isMobile ? "w-[120px] h-[120px]" : "w-[108px] h-[108px]"
                   )}
                   onClick={() => setPreviewFile(pf)}
                   title={`${pf.name} (${formatFileSize(pf.size)})`}
@@ -1804,7 +1804,7 @@ function PdfThumbnail({ file }: { file: File }) {
         if (!context) return
 
         // Set thumbnail size and calculate scale to make page width match thumbnail
-        const thumbnailSize = 72
+        const thumbnailSize = 108
         const viewport = page.getViewport({ scale: 1 })
 
         // Scale so the page width equals thumbnail size (for a crisp top crop)
