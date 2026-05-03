@@ -492,10 +492,10 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     if (mimeType.startsWith('image/')) return 'image'
     if (mimeType === 'application/pdf' || ext === 'pdf') return 'pdf'
 
-    const codeExtensions = ['js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala', 'sh', 'bash', 'zsh', 'ps1', 'sql', 'html', 'css', 'scss', 'sass', 'less', 'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env', 'md', 'mdx', 'vue', 'svelte']
+    const codeExtensions = ['js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala', 'sh', 'bash', 'zsh', 'ps1', 'sql', 'html', 'css', 'scss', 'sass', 'less', 'json', 'jsonl', 'ndjson', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env', 'md', 'mdx', 'vue', 'svelte', 'graphql', 'gql', 'prisma', 'proto', 'dockerfile', 'makefile', 'cmake', 'gradle', 'properties', 'plist', 'lock']
     if (codeExtensions.includes(ext)) return 'code'
 
-    const textExtensions = ['txt', 'log', 'csv', 'tsv', 'rtf']
+    const textExtensions = ['txt', 'log', 'csv', 'tsv', 'rtf', 'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc']
     if (mimeType.startsWith('text/') || textExtensions.includes(ext)) return 'text'
 
     return 'other'
