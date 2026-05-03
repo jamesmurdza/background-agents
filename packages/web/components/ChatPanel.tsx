@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus, FileText, FileCode, FileImage, File as FileIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -84,7 +84,45 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   // File upload state
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [previewFile, setPreviewFile] = useState<PendingFile | null>(null)
+  const [fileContents, setFileContents] = useState<Map<string, string>>(new Map())
+  const [fileError, setFileError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // File upload constraints
+  const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30 MB
+  const MAX_FILE_COUNT = 20
+  const MAX_IMAGE_DIMENSION = 8000 // 8000 x 8000 pixels
+  const SUPPORTED_MIME_TYPES = [
+    // Images
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    // Documents
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'text/plain',
+    'text/csv',
+    'text/tab-separated-values',
+    'text/html',
+    'text/rtf',
+    'application/rtf',
+    'application/epub+zip',
+  ]
+  const SUPPORTED_EXTENSIONS = [
+    // Images
+    'jpg', 'jpeg', 'png', 'gif', 'webp',
+    // Documents
+    'pdf', 'docx', 'txt', 'csv', 'tsv', 'html', 'htm', 'rtf', 'epub',
+    // Code & config files
+    'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala',
+    'sh', 'bash', 'zsh', 'ps1', 'sql', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
+    'json', 'jsonl', 'ndjson', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env',
+    'md', 'mdx', 'graphql', 'gql', 'prisma', 'proto',
+    'dockerfile', 'makefile', 'cmake', 'gradle', 'properties', 'plist', 'lock',
+    'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc', 'log',
+  ]
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -282,24 +320,115 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     onSendMessage(input.trim(), currentAgent, currentModel, files)
     setInput("")
     setPendingFiles([])
+    setFileError(null)
     textareaRef.current?.focus()
+  }
+
+  // Helper to check if file type is supported
+  const isFileTypeSupported = (file: File): boolean => {
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+    return SUPPORTED_MIME_TYPES.includes(file.type) || SUPPORTED_EXTENSIONS.includes(ext)
+  }
+
+  // Helper to validate image dimensions (async, returns promise)
+  const validateImageDimensions = (file: File): Promise<{ valid: boolean; width?: number; height?: number }> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve({ valid: true })
+        return
+      }
+
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        resolve({
+          valid: img.width <= MAX_IMAGE_DIMENSION && img.height <= MAX_IMAGE_DIMENSION,
+          width: img.width,
+          height: img.height,
+        })
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve({ valid: true }) // Allow if we can't check
+      }
+
+      img.src = url
+    })
   }
 
   // File handling - files can be added anytime, upload happens after sandbox is ready
   // If user is not signed in, trigger sign-in immediately when adding files
-  const addFiles = (files: FileList | File[]) => {
+  const addFiles = async (files: FileList | File[]) => {
+    // Clear previous errors
+    setFileError(null)
+
     // Require sign-in before adding files (files can't persist across OAuth redirect)
     if (onRequireSignIn) {
       onRequireSignIn()
       return
     }
-    const newFiles: PendingFile[] = Array.from(files).map(file => ({
-      id: nanoid(),
-      file,
-      name: file.name,
-      size: file.size,
-    }))
-    setPendingFiles(prev => [...prev, ...newFiles])
+
+    const fileArray = Array.from(files)
+    const errors: string[] = []
+    const validFiles: File[] = []
+
+    // Check file count limit
+    const currentCount = pendingFiles.length
+    const availableSlots = MAX_FILE_COUNT - currentCount
+
+    if (fileArray.length > availableSlots) {
+      if (availableSlots <= 0) {
+        setFileError(`Maximum ${MAX_FILE_COUNT} files allowed per message`)
+        return
+      }
+      errors.push(`Only ${availableSlots} more file(s) can be added (max ${MAX_FILE_COUNT})`)
+      fileArray.splice(availableSlots) // Only process files that fit
+    }
+
+    // Validate each file
+    for (const file of fileArray) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`"${file.name}" exceeds 30 MB limit`)
+        continue
+      }
+
+      // Check file type
+      if (!isFileTypeSupported(file)) {
+        errors.push(`"${file.name}" is not a supported file type`)
+        continue
+      }
+
+      // Check image dimensions
+      if (file.type.startsWith('image/')) {
+        const dimCheck = await validateImageDimensions(file)
+        if (!dimCheck.valid) {
+          errors.push(`"${file.name}" exceeds 8000x8000 pixel limit (${dimCheck.width}x${dimCheck.height})`)
+          continue
+        }
+      }
+
+      validFiles.push(file)
+    }
+
+    // Show errors if any
+    if (errors.length > 0) {
+      setFileError(errors.join('. '))
+    }
+
+    // Add valid files
+    if (validFiles.length > 0) {
+      const newFiles: PendingFile[] = validFiles.map(file => ({
+        id: nanoid(),
+        file,
+        name: file.name,
+        size: file.size,
+      }))
+      setPendingFiles(prev => [...prev, ...newFiles])
+    }
   }
 
   const removeFile = (id: string) => {
@@ -327,11 +456,109 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     }
   }
 
+  // Handle paste from clipboard (for images)
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    const imageFiles: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      // Check if the item is an image
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          // Generate a name for pasted images since they don't have one
+          const extension = item.type.split('/')[1] || 'png'
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          const namedFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
+            type: file.type,
+          })
+          imageFiles.push(namedFile)
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault() // Prevent pasting image data as text
+      addFiles(imageFiles)
+    }
+  }
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes}B`
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
   }
+
+  // File type helpers
+  const getFileType = (file: File): 'image' | 'pdf' | 'text' | 'code' | 'other' => {
+    const mimeType = file.type
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+    if (mimeType.startsWith('image/')) return 'image'
+    if (mimeType === 'application/pdf' || ext === 'pdf') return 'pdf'
+
+    const codeExtensions = ['js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala', 'sh', 'bash', 'zsh', 'ps1', 'sql', 'html', 'css', 'scss', 'sass', 'less', 'json', 'jsonl', 'ndjson', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env', 'md', 'mdx', 'vue', 'svelte', 'graphql', 'gql', 'prisma', 'proto', 'dockerfile', 'makefile', 'cmake', 'gradle', 'properties', 'plist', 'lock']
+    if (codeExtensions.includes(ext)) return 'code'
+
+    const textExtensions = ['txt', 'log', 'csv', 'tsv', 'rtf', 'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc']
+    if (mimeType.startsWith('text/') || textExtensions.includes(ext)) return 'text'
+
+    return 'other'
+  }
+
+  const getFileIcon = (file: File) => {
+    const type = getFileType(file)
+    switch (type) {
+      case 'image': return FileImage
+      case 'code': return FileCode
+      case 'text': return FileText
+      default: return FileIcon
+    }
+  }
+
+  const getFilePreviewUrl = (file: File): string | null => {
+    const type = getFileType(file)
+    if (type === 'image' || type === 'pdf') {
+      return URL.createObjectURL(file)
+    }
+    return null
+  }
+
+  // Read text file contents for preview
+  const readFileContent = useCallback((file: File, fileId: string) => {
+    const type = getFileType(file)
+    if (type === 'text' || type === 'code') {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const content = e.target?.result as string
+        setFileContents(prev => new Map(prev).set(fileId, content))
+      }
+      reader.readAsText(file)
+    }
+  }, [])
+
+  // Read file contents when files are added
+  useEffect(() => {
+    pendingFiles.forEach(pf => {
+      if (!fileContents.has(pf.id)) {
+        readFileContent(pf.file, pf.id)
+      }
+    })
+  }, [pendingFiles, fileContents, readFileContent])
+
+  // Clean up object URLs when files are removed
+  useEffect(() => {
+    return () => {
+      pendingFiles.forEach(pf => {
+        const type = getFileType(pf.file)
+        if (type === 'image' || type === 'pdf') {
+          URL.revokeObjectURL(URL.createObjectURL(pf.file))
+        }
+      })
+    }
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle slash command menu navigation
@@ -529,6 +756,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           ref={fileInputRef}
           type="file"
           multiple
+          accept={SUPPORTED_EXTENSIONS.map(ext => `.${ext}`).join(',') + ',image/*,text/*,application/pdf,application/json'}
           className="hidden"
           onChange={(e) => {
             if (e.target.files) {
@@ -537,11 +765,86 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
             }
           }}
         />
+
+        {/* Pending files display - square preview boxes (ABOVE text input) */}
+        {pendingFiles.length > 0 && (
+          <div className={cn(
+            "flex flex-wrap gap-2",
+            isMobile ? "px-3 pt-3 pb-1" : "px-4 pt-3 pb-1"
+          )}>
+            {pendingFiles.map((pf) => {
+              const fileType = getFileType(pf.file)
+              const IconComponent = getFileIcon(pf.file)
+              const previewUrl = getFilePreviewUrl(pf.file)
+              const textContent = fileContents.get(pf.id)
+
+              return (
+                <div
+                  key={pf.id}
+                  className={cn(
+                    "relative group cursor-pointer rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors overflow-hidden",
+                    isMobile ? "w-[120px] h-[120px]" : "w-[108px] h-[108px]"
+                  )}
+                  onClick={() => setPreviewFile(pf)}
+                  title={`${pf.name} (${formatFileSize(pf.size)})`}
+                >
+                  {/* File preview content */}
+                  <div className="w-full h-full flex items-center justify-center">
+                    {fileType === 'image' ? (
+                      <ImageThumbnail file={pf.file} />
+                    ) : fileType === 'pdf' ? (
+                      <PdfThumbnail file={pf.file} />
+                    ) : (fileType === 'text' || fileType === 'code') && textContent ? (
+                      <TextThumbnail content={textContent} filename={pf.name} />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground p-1">
+                        <IconComponent className={cn(isMobile ? "h-6 w-6" : "h-5 w-5")} />
+                        <span className="text-[9px] mt-0.5 truncate w-full text-center px-1">
+                          {pf.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remove button - top right corner */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFile(pf.id)
+                    }}
+                    className={cn(
+                      "absolute top-0.5 right-0.5 flex items-center justify-center rounded-full bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground transition-colors shadow-sm",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )}
+                    aria-label={`Remove ${pf.name}`}
+                  >
+                    <X className={cn(isMobile ? "h-3 w-3" : "h-2.5 w-2.5")} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {/* Text input area */}
         <div className={cn(
           "flex items-end gap-2",
           isMobile ? "px-3 py-2" : "px-4 py-3"
         )}>
+          {/* Attachment button - left side */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
+              isMobile ? "h-9 w-9" : "h-7 w-7"
+            )}
+            title="Attach files"
+            aria-label="Attach files"
+          >
+            <Paperclip className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+          </button>
+
           {/* Textarea wrapper with slash command menu */}
           <div className="relative flex-1">
             {/* Slash Command Menu - positioned above the textarea */}
@@ -569,6 +872,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 isCreating
                   ? "Creating sandbox..."
@@ -626,31 +930,21 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           </div>
         </div>
 
-        {/* Pending files display */}
-        {pendingFiles.length > 0 && (
+        {/* File upload error message */}
+        {fileError && (
           <div className={cn(
-            "flex flex-wrap gap-1.5",
-            isMobile ? "px-3 pb-2" : "px-4 pb-2"
+            "flex items-start gap-2 text-destructive bg-destructive/10 rounded-md",
+            isMobile ? "mx-3 mb-2 px-3 py-2 text-sm" : "mx-4 mb-2 px-3 py-2 text-xs"
           )}>
-            {pendingFiles.map((file) => (
-              <div
-                key={file.id}
-                className={cn(
-                  "flex items-center gap-1 bg-muted/50 rounded-md",
-                  isMobile ? "px-2 py-1 text-sm" : "px-1.5 py-0.5 text-xs"
-                )}
-              >
-                <Paperclip className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "text-muted-foreground")} />
-                <span className="text-foreground truncate max-w-[120px]">{file.name}</span>
-                <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
-                <button
-                  onClick={() => removeFile(file.id)}
-                  className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
-                >
-                  <X className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3")} />
-                </button>
-              </div>
-            ))}
+            <AlertTriangle className={cn("shrink-0 mt-0.5", isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            <span className="flex-1">{fileError}</span>
+            <button
+              onClick={() => setFileError(null)}
+              className="shrink-0 text-destructive/70 hover:text-destructive transition-colors"
+              aria-label="Dismiss error"
+            >
+              <X className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            </button>
           </div>
         )}
 
@@ -907,45 +1201,61 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   // New chat - centered welcome with input
   if (isNewChat) {
     return (
-      <div className={cn(
-        "flex-1 flex flex-col items-center justify-center bg-background relative",
-        isMobile ? "p-4 pb-safe" : "p-4"
-      )}>
-        {onOpenHelp && (
-          <button
-            onClick={onOpenHelp}
-            className="absolute top-3 right-3 p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            title="Help"
-            aria-label="Help"
-          >
-            <HelpCircle className="h-4 w-4" />
-          </button>
-        )}
-        <div className="text-center mb-6">
-          <h2 className={cn("font-semibold", isMobile ? "text-xl" : "text-2xl")}>
-            What would you like to build?
-          </h2>
-        </div>
-        {chatInput}
+      <>
         <div className={cn(
-          "text-muted-foreground mt-4 text-center",
-          isMobile ? "text-sm px-4" : "text-sm"
+          "flex-1 flex flex-col items-center justify-center bg-background relative",
+          isMobile ? "p-4 pb-safe" : "p-4"
         )}>
-          <p>
-            Agents live in{" "}
-            <a
-              href="https://www.daytona.io/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-foreground/80 hover:text-foreground transition-colors"
+          {onOpenHelp && (
+            <button
+              onClick={onOpenHelp}
+              className="absolute top-3 right-3 p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Help"
+              aria-label="Help"
             >
-              Daytona sandboxes
-            </a>
-            {" "}tied to Git branches.
-          </p>
-          <p className="mt-1">Access additional tools with ⌘K.</p>
+              <HelpCircle className="h-4 w-4" />
+            </button>
+          )}
+          <div className="text-center mb-6">
+            <h2 className={cn("font-semibold", isMobile ? "text-xl" : "text-2xl")}>
+              What would you like to build?
+            </h2>
+          </div>
+          {chatInput}
+          <div className={cn(
+            "text-muted-foreground mt-4 text-center",
+            isMobile ? "text-sm px-4" : "text-sm"
+          )}>
+            <p>
+              Agents live in{" "}
+              <a
+                href="https://www.daytona.io/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground/80 hover:text-foreground transition-colors"
+              >
+                Daytona sandboxes
+              </a>
+              {" "}tied to Git branches.
+            </p>
+            <p className="mt-1">Access additional tools with ⌘K.</p>
+          </div>
         </div>
-      </div>
+        {/* File preview modal */}
+        {previewFile && (
+          <FilePreviewModal
+            file={previewFile}
+            fileContent={fileContents.get(previewFile.id)}
+            onClose={() => setPreviewFile(null)}
+            onRemove={() => {
+              removeFile(previewFile.id)
+              setPreviewFile(null)
+            }}
+            isMobile={isMobile}
+            getFileType={getFileType}
+          />
+        )}
+      </>
     )
   }
 
@@ -1250,6 +1560,20 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
         {chatInput}
       </div>
 
+      {/* File preview modal */}
+      {previewFile && (
+        <FilePreviewModal
+          file={previewFile}
+          fileContent={fileContents.get(previewFile.id)}
+          onClose={() => setPreviewFile(null)}
+          onRemove={() => {
+            removeFile(previewFile.id)
+            setPreviewFile(null)
+          }}
+          isMobile={isMobile}
+          getFileType={getFileType}
+        />
+      )}
     </div>
   )
 }
@@ -1302,3 +1626,437 @@ function ErrorBanner({ message, isMobile }: { message: string; isMobile?: boolea
     </div>
   )
 }
+
+// File Preview Modal Component - Full screen centered modal
+interface FilePreviewModalProps {
+  file: PendingFile
+  fileContent?: string
+  onClose: () => void
+  onRemove: () => void
+  isMobile?: boolean
+  getFileType: (file: File) => 'image' | 'pdf' | 'text' | 'code' | 'other'
+}
+
+function FilePreviewModal({ file, fileContent, onClose, onRemove, isMobile, getFileType }: FilePreviewModalProps) {
+  const fileType = getFileType(file.file)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (fileType === 'image' || fileType === 'pdf') {
+      const url = URL.createObjectURL(file.file)
+      setPreviewUrl(url)
+      return () => URL.revokeObjectURL(url)
+    }
+  }, [file.file, fileType])
+
+  // Close on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={(e) => {
+        // Close when clicking outside the modal content
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <div
+        ref={modalRef}
+        className={cn(
+          "relative bg-card border border-border rounded-lg shadow-2xl overflow-hidden flex flex-col",
+          isMobile
+            ? "w-[calc(100%-2rem)] max-w-full max-h-[85vh] mx-4"
+            : "w-[min(90vw,56rem)] max-h-[85vh]"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-sm font-medium truncate">{file.name}</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              ({formatFileSize(file.size)})
+            </span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => {
+                onRemove()
+              }}
+              className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              title="Remove file"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+              title="Close preview (Esc)"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Preview content */}
+        <div className="flex-1 overflow-auto">
+          {fileType === 'image' && previewUrl && (
+            <div className="flex items-center justify-center p-6 bg-muted/10 min-h-[200px]">
+              <img
+                src={previewUrl}
+                alt={file.name}
+                className="max-w-full max-h-[70vh] object-contain rounded"
+              />
+            </div>
+          )}
+
+          {fileType === 'pdf' && previewUrl && (
+            <div className="w-full h-[70vh]">
+              <iframe
+                src={previewUrl}
+                title={file.name}
+                className="w-full h-full border-0"
+              />
+            </div>
+          )}
+
+          {(fileType === 'text' || fileType === 'code') && (
+            <div className="p-4">
+              {fileContent ? (
+                <pre
+                  className={cn(
+                    "text-sm whitespace-pre-wrap break-words font-mono bg-muted/30 rounded-md p-4 overflow-x-auto max-h-[65vh]",
+                    fileType === 'code' && "text-[13px]"
+                  )}
+                >
+                  {fileContent}
+                </pre>
+              ) : (
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Loading content...
+                </div>
+              )}
+            </div>
+          )}
+
+          {fileType === 'other' && (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <FileIcon className="h-16 w-16 mb-4" />
+              <p className="text-sm">Preview not available for this file type</p>
+              <p className="text-xs mt-1">{file.file.type || 'Unknown type'}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Image Thumbnail Component - renders image to canvas for crisp display on high-DPI
+function ImageThumbnail({ file }: { file: File }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+
+    img.onload = () => {
+      const dpr = window.devicePixelRatio || 1
+      const thumbnailSize = 108
+
+      // Set canvas size accounting for device pixel ratio
+      canvas.width = thumbnailSize * dpr
+      canvas.height = thumbnailSize * dpr
+      canvas.style.width = `${thumbnailSize}px`
+      canvas.style.height = `${thumbnailSize}px`
+
+      // Calculate crop to cover the thumbnail (center crop)
+      const imgAspect = img.width / img.height
+      const thumbAspect = 1 // Square thumbnail
+
+      let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height
+
+      if (imgAspect > thumbAspect) {
+        // Image is wider - crop sides
+        srcW = img.height
+        srcX = (img.width - srcW) / 2
+      } else {
+        // Image is taller - crop top/bottom
+        srcH = img.width
+        srcY = (img.height - srcH) / 2
+      }
+
+      // Enable image smoothing for better quality
+      context.imageSmoothingEnabled = true
+      context.imageSmoothingQuality = 'high'
+
+      // Draw the cropped and scaled image
+      context.drawImage(
+        img,
+        srcX, srcY, srcW, srcH, // Source rectangle
+        0, 0, canvas.width, canvas.height // Destination rectangle
+      )
+
+      URL.revokeObjectURL(url)
+      setLoading(false)
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      setLoading(false)
+    }
+
+    img.src = url
+
+    return () => {
+      URL.revokeObjectURL(url)
+    }
+  }, [file])
+
+  return (
+    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        className={cn(
+          loading && "opacity-0"
+        )}
+      />
+    </div>
+  )
+}
+
+// PDF Thumbnail Component - renders first page of PDF as thumbnail (top square crop)
+// Uses devicePixelRatio for crisp rendering on high-DPI displays
+function PdfThumbnail({ file }: { file: File }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const renderPdf = async () => {
+      try {
+        const pdfjsLib = await import('pdfjs-dist')
+
+        // Set up worker - use unpkg CDN with explicit https protocol
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+
+        const arrayBuffer = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+        if (cancelled) return
+
+        const page = await pdf.getPage(1)
+        const canvas = canvasRef.current
+        if (!canvas || cancelled) return
+
+        const context = canvas.getContext('2d')
+        if (!context) return
+
+        // Account for device pixel ratio for crisp rendering
+        const dpr = window.devicePixelRatio || 1
+        const thumbnailSize = 108
+
+        const viewport = page.getViewport({ scale: 1 })
+
+        // Scale so the page width equals thumbnail size * dpr (for crisp rendering)
+        const scale = (thumbnailSize * dpr) / viewport.width
+        const scaledViewport = page.getViewport({ scale })
+
+        // Set canvas to thumbnail size * dpr (internal resolution)
+        canvas.width = thumbnailSize * dpr
+        canvas.height = thumbnailSize * dpr
+
+        // Scale down via CSS to display at thumbnail size
+        canvas.style.width = `${thumbnailSize}px`
+        canvas.style.height = `${thumbnailSize}px`
+
+        // Fill with white background
+        context.fillStyle = '#ffffff'
+        context.fillRect(0, 0, canvas.width, canvas.height)
+
+        // Render the page directly - it will extend beyond canvas height but be clipped
+        await page.render({
+          canvasContext: context,
+          viewport: scaledViewport
+        }).promise
+
+        if (!cancelled) {
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('PDF thumbnail render error:', err)
+        if (!cancelled) {
+          setError(true)
+          setLoading(false)
+        }
+      }
+    }
+
+    renderPdf()
+
+    return () => {
+      cancelled = true
+    }
+  }, [file])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center text-muted-foreground w-full h-full">
+        <FileText className="h-5 w-5" />
+        <span className="text-[10px] mt-0.5 font-medium">PDF</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-white overflow-hidden">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        className={cn(
+          loading && "opacity-0"
+        )}
+      />
+    </div>
+  )
+}
+
+// Text Thumbnail Component - renders text to canvas for crisp display on high-DPI
+function TextThumbnail({ content, filename }: { content: string; filename: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const ext = filename.split('.').pop()?.toUpperCase() || 'TXT'
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const dpr = window.devicePixelRatio || 1
+    const thumbnailSize = 108
+    const padding = 6
+    const fontSize = 9
+    const lineHeight = fontSize * 1.3
+    const badgePadding = 4
+
+    // Set canvas size accounting for device pixel ratio
+    canvas.width = thumbnailSize * dpr
+    canvas.height = thumbnailSize * dpr
+    canvas.style.width = `${thumbnailSize}px`
+    canvas.style.height = `${thumbnailSize}px`
+
+    // Scale context for high-DPI
+    context.scale(dpr, dpr)
+
+    // Fill background
+    context.fillStyle = '#f5f5f5'
+    context.fillRect(0, 0, thumbnailSize, thumbnailSize)
+
+    // Set up text rendering
+    context.fillStyle = '#666666'
+    context.font = `${fontSize}px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace`
+    context.textBaseline = 'top'
+
+    // Calculate available space
+    const maxWidth = thumbnailSize - padding * 2
+    const maxLines = Math.floor((thumbnailSize - padding * 2 - 16) / lineHeight) // Leave space for badge
+
+    // Split content into lines that fit
+    const lines: string[] = []
+    const contentLines = content.split('\n')
+
+    for (const line of contentLines) {
+      if (lines.length >= maxLines) break
+
+      if (line.length === 0) {
+        lines.push('')
+        continue
+      }
+
+      // Word wrap long lines
+      let remaining = line
+      while (remaining.length > 0 && lines.length < maxLines) {
+        let end = remaining.length
+        while (context.measureText(remaining.slice(0, end)).width > maxWidth && end > 1) {
+          end--
+        }
+        lines.push(remaining.slice(0, end))
+        remaining = remaining.slice(end)
+      }
+    }
+
+    // Draw text lines
+    lines.forEach((line, i) => {
+      context.fillText(line, padding, padding + i * lineHeight, maxWidth)
+    })
+
+    // Draw extension badge
+    const badgeText = ext
+    context.font = `bold ${fontSize}px system-ui, sans-serif`
+    const badgeWidth = context.measureText(badgeText).width + badgePadding * 2
+    const badgeHeight = fontSize + badgePadding
+    const badgeX = thumbnailSize - badgeWidth - 4
+    const badgeY = thumbnailSize - badgeHeight - 4
+
+    context.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    context.beginPath()
+    context.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 3)
+    context.fill()
+
+    context.fillStyle = '#666666'
+    context.fillText(badgeText, badgeX + badgePadding, badgeY + badgePadding / 2)
+  }, [content, filename, ext])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full"
+    />
+  )
+}
+
