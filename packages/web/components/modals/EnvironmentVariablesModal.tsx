@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X, Plus, Trash2, FolderGit2, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
+import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
 import type { EnvVar, EnvironmentVariables } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -41,8 +42,6 @@ const tabs: { key: TabKey; label: string; icon: TabIcon }[] = [
   { key: "chat", label: "Chat", icon: VariableIcon },
   { key: "repository", label: "Repository", icon: FolderGit2 },
 ]
-
-const SWIPE_THRESHOLD = 100
 
 /** Convert a Record<string, string> to EnvVar[] for UI display */
 function recordToEnvVars(record: Record<string, string>): EnvVar[] {
@@ -136,11 +135,11 @@ export function EnvironmentVariablesModal({
   const [newVarId, setNewVarId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Swipe to dismiss state (mobile only)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [startY, setStartY] = useState(0)
-  const [startTime, setStartTime] = useState(0)
+  // Drag to dismiss (mobile only)
+  const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
+    onClose,
+    enabled: isMobile,
+  })
 
   // Reset state when modal opens
   useEffect(() => {
@@ -148,42 +147,10 @@ export function EnvironmentVariablesModal({
       setChatEnvVars(recordToEnvVars(initialChatEnvVars))
       setRepoEnvVars(recordToEnvVars(initialRepoEnvVars))
       setActiveTab("chat")
-      setDragY(0)
       setNewVarId(null)
       setIsSaving(false)
     }
   }, [open, initialChatEnvVars, initialRepoEnvVars])
-
-  // Swipe gesture handlers for mobile
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return
-    const content = contentRef.current
-    if (content && content.scrollTop > 0) return
-    setIsDragging(true)
-    setStartY(e.touches[0].clientY)
-    setStartTime(Date.now())
-    setDragY(0)
-  }, [isMobile])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging || !isMobile) return
-    const currentY = e.touches[0].clientY
-    const diff = currentY - startY
-    if (diff > 0) {
-      setDragY(diff)
-    }
-  }, [isDragging, startY, isMobile])
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging || !isMobile) return
-    setIsDragging(false)
-    const duration = Date.now() - startTime
-    const velocity = Math.abs(dragY) / duration
-    if (dragY > SWIPE_THRESHOLD || velocity > 0.5) {
-      handleSave()
-    }
-    setDragY(0)
-  }, [isDragging, dragY, startTime, isMobile])
 
   const handleSave = async () => {
     if (isSaving) return
@@ -283,9 +250,7 @@ export function EnvironmentVariablesModal({
               {/* Drag handle */}
               <div
                 className="flex justify-center pt-3 pb-1"
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+                {...dragHandlers}
               >
                 <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
               </div>
@@ -293,9 +258,7 @@ export function EnvironmentVariablesModal({
               {/* Header - also draggable */}
               <div
                 className="sticky top-0 flex items-center justify-between border-b border-border bg-popover z-10 px-4 py-3"
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+                {...dragHandlers}
               >
                 <Dialog.Title className="font-semibold text-lg">
                   Environment Variables

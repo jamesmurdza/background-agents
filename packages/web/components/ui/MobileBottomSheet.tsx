@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useState, useRef } from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useDragToClose } from "@/lib/hooks/useDragToClose"
 
 interface MobileBottomSheetProps {
   open: boolean
@@ -26,11 +27,7 @@ export function MobileBottomSheet({
   showDragHandle = true,
   elevated = false,
 }: MobileBottomSheetProps) {
-  const sheetRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [startY, setStartY] = useState(0)
-  const [sheetHeight, setSheetHeight] = useState(0)
+  const { handlers, dragY, isDragging, dragRef } = useDragToClose({ onClose })
 
   // Calculate height style
   const heightStyle = height === "auto"
@@ -38,47 +35,6 @@ export function MobileBottomSheet({
     : height === "full"
     ? { height: "90vh" }
     : { height: `${height}vh` }
-
-  // Measure sheet height for swipe calculations
-  useEffect(() => {
-    if (open && sheetRef.current) {
-      setSheetHeight(sheetRef.current.offsetHeight)
-    }
-  }, [open])
-
-  // Handle touch start
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    setIsDragging(true)
-    setStartY(e.touches[0].clientY)
-    setDragY(0)
-  }, [])
-
-  // Handle touch move
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-
-    const currentY = e.touches[0].clientY
-    const diff = currentY - startY
-
-    // Only allow dragging down
-    if (diff > 0) {
-      setDragY(diff)
-    }
-  }, [isDragging, startY])
-
-  // Handle touch end
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging) return
-
-    setIsDragging(false)
-
-    // If dragged more than 30% of sheet height, close it
-    if (dragY > sheetHeight * 0.3) {
-      onClose()
-    }
-
-    setDragY(0)
-  }, [isDragging, dragY, sheetHeight, onClose])
 
   // Prevent body scroll when open
   useEffect(() => {
@@ -109,7 +65,7 @@ export function MobileBottomSheet({
 
       {/* Sheet */}
       <div
-        ref={sheetRef}
+        ref={dragRef}
         className={cn(
           "fixed bottom-0 left-0 right-0 bg-popover rounded-t-2xl shadow-xl",
           elevated ? "z-[60]" : "z-50",
@@ -126,9 +82,7 @@ export function MobileBottomSheet({
         {showDragHandle && (
           <div
             className="flex justify-center pt-3 pb-1"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            {...handlers}
           >
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
           </div>
@@ -138,9 +92,7 @@ export function MobileBottomSheet({
         {title && (
           <div
             className="flex items-center justify-between px-4 py-3 border-b border-border"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            {...handlers}
           >
             <h3 className="text-base font-semibold">{title}</h3>
             <button

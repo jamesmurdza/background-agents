@@ -6,6 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon, Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
+import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import type { Settings, Theme, Agent, ModelOption, Credentials, CredentialFlags } from "@/lib/types"
 import { agentModels, agentLabels, hasCredentialsForModel, ALL_AGENTS, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import {
@@ -54,8 +55,6 @@ const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
   { key: "api-keys", label: "API Keys", icon: Key },
   { key: "appearance", label: "Appearance", icon: Sun },
 ]
-
-const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
 const MASK = "***"
 
@@ -204,11 +203,11 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
   const [activeSection, setActiveSection] = useState<SectionKey>("general")
 
-  // Swipe to dismiss state (mobile only)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [startY, setStartY] = useState(0)
-  const [startTime, setStartTime] = useState(0)
+  // Drag to dismiss (mobile only)
+  const { handlers: dragHandlers, dragY, isDragging, dragRef } = useDragToClose({
+    onClose,
+    enabled: isMobile,
+  })
 
   // Flags reflecting the current form state — a typed value or "***" mask
   // both count as "credential present" for model availability checks.
@@ -232,7 +231,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setDefaultAgent(initialDefaultAgent)
       setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
-      setDragY(0)
     }
   }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel])
 
@@ -268,48 +266,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setDefaultModel(models[0].value)
     }
   }, [defaultAgent, defaultModel])
-
-  // Swipe gesture handlers for mobile
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return
-
-    // Only enable swipe when at top of scroll
-    const content = contentRef.current
-    if (content && content.scrollTop > 0) return
-
-    setIsDragging(true)
-    setStartY(e.touches[0].clientY)
-    setStartTime(Date.now())
-    setDragY(0)
-  }, [isMobile])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging || !isMobile) return
-
-    const currentY = e.touches[0].clientY
-    const diff = currentY - startY
-
-    // Only allow dragging down
-    if (diff > 0) {
-      setDragY(diff)
-    }
-  }, [isDragging, startY, isMobile])
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging || !isMobile) return
-
-    setIsDragging(false)
-
-    const duration = Date.now() - startTime
-    const velocity = Math.abs(dragY) / duration
-
-    // Close if dragged far enough or fast enough
-    if (dragY > SWIPE_THRESHOLD || velocity > 0.5) {
-      onClose()
-    }
-
-    setDragY(0)
-  }, [isDragging, dragY, startTime, onClose, isMobile])
 
   // Apply theme immediately when changed
   const handleThemeChange = (theme: Theme) => {
@@ -574,9 +530,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
               {/* Drag handle */}
               <div
                 className="flex justify-center pt-3 pb-1"
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+                {...dragHandlers}
               >
                 <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
               </div>
@@ -584,9 +538,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
               {/* Header - also draggable */}
               <div
                 className="sticky top-0 flex items-center justify-between border-b border-border bg-popover z-10 px-4 py-3"
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+                {...dragHandlers}
               >
                 <Dialog.Title className="font-semibold text-lg">
                   Settings

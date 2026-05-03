@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus } from "lucide-react"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
+import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { fetchRepos, fetchBranches, createRepository } from "@/lib/github"
@@ -42,8 +43,6 @@ function slugify(input: string): string {
 type Step = "repo" | "branch" | "create"
 type Tab = "select" | "create"
 
-const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
-
 export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mode, suggestedName = null, onRequestCreate, preselectedRepo = null }: RepoPickerModalProps) {
   const allowSelect = mode === "select"
   const allowCreate = mode === "create"
@@ -77,18 +76,19 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
   const [newRepoIsPrivate, setNewRepoIsPrivate] = useState(true)
   const [creating, setCreating] = useState(false)
 
-  // Swipe gesture state
   const contentRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const branchSearchInputRef = useRef<HTMLInputElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
 
   // Selection index for keyboard navigation
   const [selectedRepoIndex, setSelectedRepoIndex] = useState(0)
   const [selectedBranchIndex, setSelectedBranchIndex] = useState(0)
-  const [dragY, setDragY] = useState(0)
-  const [startY, setStartY] = useState(0)
-  const [startTime, setStartTime] = useState(0)
+
+  // Drag to dismiss (mobile only)
+  const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
+    onClose,
+    enabled: isMobile,
+  })
 
   // Focus search field when modal opens on select tab
   useEffect(() => {
@@ -154,7 +154,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       setBranchSearch("")
       setShowBranchDropdown(false)
       setError(null)
-      setDragY(0)
       // Reset create form
       setNewRepoName("")
       setNewRepoDescription("")
@@ -179,48 +178,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
         .finally(() => setLoading(false))
     }
   }, [open, isBranchOnly, preselectedRepo, session?.accessToken])
-
-  // Swipe gesture handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return
-
-    // Only enable swipe when at top of scroll
-    const content = contentRef.current
-    if (content && content.scrollTop > 0) return
-
-    setIsDragging(true)
-    setStartY(e.touches[0].clientY)
-    setStartTime(Date.now())
-    setDragY(0)
-  }, [isMobile])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging || !isMobile) return
-
-    const currentY = e.touches[0].clientY
-    const diff = currentY - startY
-
-    // Only allow dragging down
-    if (diff > 0) {
-      setDragY(diff)
-    }
-  }, [isDragging, startY, isMobile])
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging || !isMobile) return
-
-    setIsDragging(false)
-
-    const duration = Date.now() - startTime
-    const velocity = Math.abs(dragY) / duration
-
-    // Close if dragged far enough or fast enough
-    if (dragY > SWIPE_THRESHOLD || velocity > 0.5) {
-      onClose()
-    }
-
-    setDragY(0)
-  }, [isDragging, dragY, startTime, onClose, isMobile])
 
   // Handle repo selection - one-click: select repo with default branch immediately
   // User can change branch later via the branch button in the chat header
@@ -396,11 +353,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
           } : undefined}
         >
           {/* Draggable header area */}
-          <div
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
+          <div {...dragHandlers}>
             {/* Drag handle for mobile */}
             {isMobile && (
               <div className="flex justify-center pt-3 pb-1">

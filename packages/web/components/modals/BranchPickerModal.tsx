@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Search, GitBranch, Loader2 } from "lucide-react"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
+import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { fetchRepo, fetchBranches } from "@/lib/github"
@@ -20,8 +21,6 @@ interface BranchPickerModalProps {
   selectedBranch?: string
   isMobile?: boolean
 }
-
-const SWIPE_THRESHOLD = 100 // Minimum swipe distance to dismiss
 
 export function BranchPickerModal({
   open,
@@ -43,11 +42,11 @@ export function BranchPickerModal({
   const contentRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
 
-  // Swipe gesture state
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragY, setDragY] = useState(0)
-  const [startY, setStartY] = useState(0)
-  const [startTime, setStartTime] = useState(0)
+  // Drag to dismiss (mobile only)
+  const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
+    onClose,
+    enabled: isMobile,
+  })
 
   useEffect(() => {
     setSelectedIndex(0)
@@ -59,7 +58,6 @@ export function BranchPickerModal({
       // Reset all state when opening with a new repo
       setSearch("")
       setError(null)
-      setDragY(0)
       setBranches([])
       setSelectedIndex(0)
       setLoading(true)
@@ -81,13 +79,6 @@ export function BranchPickerModal({
         .finally(() => setLoading(false))
     }
   }, [open, session?.accessToken, repo, owner, selectedBranch])
-
-  // Reset drag state when modal closes
-  useEffect(() => {
-    if (!open) {
-      setDragY(0)
-    }
-  }, [open])
 
   // Focus search field when modal opens
   useEffect(() => {
@@ -139,48 +130,6 @@ export function BranchPickerModal({
     }
   }, [filteredBranches, selectedIndex, onClose])
 
-  // Swipe gesture handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile) return
-
-    // Only enable swipe when at top of scroll
-    const content = contentRef.current
-    if (content && content.scrollTop > 0) return
-
-    setIsDragging(true)
-    setStartY(e.touches[0].clientY)
-    setStartTime(Date.now())
-    setDragY(0)
-  }, [isMobile])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging || !isMobile) return
-
-    const currentY = e.touches[0].clientY
-    const diff = currentY - startY
-
-    // Only allow dragging down
-    if (diff > 0) {
-      setDragY(diff)
-    }
-  }, [isDragging, startY, isMobile])
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging || !isMobile) return
-
-    setIsDragging(false)
-
-    const duration = Date.now() - startTime
-    const velocity = Math.abs(dragY) / duration
-
-    // Close if dragged far enough or fast enough
-    if (dragY > SWIPE_THRESHOLD || velocity > 0.5) {
-      onClose()
-    }
-
-    setDragY(0)
-  }, [isDragging, dragY, startTime, onClose, isMobile])
-
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
@@ -208,11 +157,7 @@ export function BranchPickerModal({
           } : undefined}
         >
           {/* Draggable header area */}
-          <div
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
+          <div {...dragHandlers}>
             {/* Drag handle for mobile */}
             {isMobile && (
               <div className="flex justify-center pt-3 pb-1">
