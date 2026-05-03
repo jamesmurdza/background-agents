@@ -494,3 +494,134 @@ async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
 | Run timeout | 20 minutes |
 | Run history retention | Last 50 runs per job |
 | Auto-disable threshold | 3 consecutive failures |
+
+---
+
+## Email Notifications (Optional)
+
+### Overview
+
+Email notifications via **Resend**. Only enabled if `RESEND_API_KEY` environment variable is set. Otherwise, no emails sent (silent fallback).
+
+### When to Notify
+
+| Event | Email? |
+|-------|--------|
+| Run completed with PR | ✓ Yes - link to PR |
+| Run completed, no changes | No - too noisy |
+| Run failed | ✓ Yes - include error |
+| Job auto-disabled (3 failures) | ✓ Yes - needs attention |
+
+### Implementation
+
+```typescript
+// lib/email.ts
+import { Resend } from 'resend'
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null
+
+export async function sendScheduledJobEmail(
+  to: string,
+  subject: string,
+  html: string
+) {
+  if (!resend) return // Silent skip if not configured
+
+  await resend.emails.send({
+    from: 'Background Agents <notifications@yourdomain.com>',
+    to,
+    subject,
+    html
+  })
+}
+```
+
+### Email Templates
+
+**Run Completed (with PR)**
+```
+Subject: [Scheduled] Dep updates created PR #142
+
+Your scheduled job "Dep updates" completed successfully.
+
+Repository: acme/app
+Commits: 3
+Pull Request: #142
+
+[View PR]
+```
+
+**Run Failed**
+```
+Subject: [Scheduled] Dep updates failed
+
+Your scheduled job "Dep updates" failed.
+
+Repository: acme/app
+Error: Sandbox timed out after 20 minutes
+
+[View Details]
+```
+
+**Job Auto-Disabled**
+```
+Subject: [Scheduled] Dep updates has been disabled
+
+Your scheduled job "Dep updates" has been automatically disabled
+after 3 consecutive failures.
+
+Last error: Repository not found
+
+Please check your configuration and re-enable the job.
+
+[View Job]
+```
+
+### Environment Variable
+
+```bash
+# Optional - if not set, no emails sent
+RESEND_API_KEY=re_xxxxx
+```
+
+### Integration Points
+
+Add email calls to existing functions:
+
+```typescript
+async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
+  // ... existing code ...
+
+  // Send email if PR was created
+  if (prUrl && user.email) {
+    await sendScheduledJobEmail(
+      user.email,
+      `[Scheduled] ${job.name} created PR #${prNumber}`,
+      renderPRCreatedEmail({ job, run, prUrl, prNumber, commitCount })
+    )
+  }
+}
+
+async function failRun(run: ScheduledJobRun, error: string) {
+  // ... existing code ...
+
+  // Send email on failure
+  if (user.email) {
+    await sendScheduledJobEmail(
+      user.email,
+      `[Scheduled] ${job.name} failed`,
+      renderFailedEmail({ job, run, error })
+    )
+  }
+
+  // Extra email if job got auto-disabled
+  if (failures >= 3 && user.email) {
+    await sendScheduledJobEmail(
+      user.email,
+      `[Scheduled] ${job.name} has been disabled`,
+      renderDisabledEmail({ job, error })
+    )
+  }
+}
