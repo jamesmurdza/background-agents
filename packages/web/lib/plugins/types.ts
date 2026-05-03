@@ -15,6 +15,8 @@ export type PreviewItem =
 export interface PanelProps {
   item: PreviewItem
   sandboxId: string | null
+  /** Optional scale factor for preview (e.g., 0.5, 0.75, 1) */
+  scale?: number
 }
 
 /**

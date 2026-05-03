@@ -6,6 +6,13 @@ import { RefreshCw, X, ExternalLink } from "lucide-react"
 import { PATHS } from "@upstream/common"
 import { getPanelPlugin } from "@/lib/plugins/registry"
 import { disposeTerminalSession } from "@/lib/plugins/panels/terminal"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // Re-export types from plugins for backwards compatibility
 export type { PreviewItem } from "@/lib/plugins/types"
@@ -31,6 +38,14 @@ export function PreviewView({
   style,
 }: PreviewViewProps) {
   const [refreshKey, setRefreshKey] = useState(0)
+  const [scale, setScale] = useState(1)
+
+  const scaleOptions = [
+    { value: "1", label: "100%" },
+    { value: "0.75", label: "75%" },
+    { value: "0.5", label: "50%" },
+    { value: "0.25", label: "25%" },
+  ]
 
   // Find the plugin that can handle this item
   const plugin = item ? getPanelPlugin(item) : null
@@ -98,6 +113,29 @@ export function PreviewView({
           <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           {titleNode}
 
+          {/* Scale dropdown - only for server previews */}
+          {item.type === "server" && (
+            <Select
+              value={String(scale)}
+              onValueChange={(v) => setScale(parseFloat(v))}
+            >
+              <SelectTrigger
+                className="h-6 w-[4.5rem] text-xs px-2 py-0 border-0 bg-transparent hover:bg-accent"
+                title="Preview scale"
+                aria-label="Adjust preview scale"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {scaleOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <button
             onClick={handleRefresh}
             className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
@@ -122,6 +160,7 @@ export function PreviewView({
             key={`${plugin.id}-${refreshKey}`}
             item={item}
             sandboxId={sandboxId}
+            scale={scale}
           />
         </div>
       </div>
