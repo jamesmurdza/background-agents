@@ -6,6 +6,10 @@
     {
       "path": "/api/cron/refresh-claude-creds",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/agent-lifecycle",
+      "schedule": "* * * * *"
     }
   ]
 }
