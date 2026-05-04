@@ -830,20 +830,6 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           "flex items-end gap-2",
           isMobile ? "px-3 py-2" : "px-4 py-3"
         )}>
-          {/* Attachment button - left side */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className={cn(
-              "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
-              isMobile ? "h-9 w-9" : "h-7 w-7"
-            )}
-            title="Attach files"
-            aria-label="Attach files"
-          >
-            <Paperclip className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-          </button>
-
           {/* Textarea wrapper with slash command menu */}
           <div className="relative flex-1">
             {/* Slash Command Menu - positioned above the textarea */}
@@ -952,6 +938,20 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           "flex items-center gap-2",
           isMobile ? "px-3 py-2 flex-wrap" : "px-4 py-2 gap-4"
         )}>
+          {/* Attachment button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
+              isMobile ? "h-7 w-7" : "h-6 w-6"
+            )}
+            title="Attach files"
+            aria-label="Attach files"
+          >
+            <Paperclip className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+          </button>
+
           {/* Repo display/selector */}
           {showRepoButton ? (
             // Can change repo - show as button
@@ -961,10 +961,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   onClick={onChangeRepo}
                   className={cn(
                     "flex items-center gap-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer",
-                    isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-[13px]"
+                    isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-sm"
                   )}
                 >
-                  {isNewRepo ? "Repository" : chat.repo}
+                  <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  {isNewRepo ? "Repository" : chat.repo?.split("/").pop()}
                   <ChevronDown className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
                 </button>
               )}
@@ -973,12 +974,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   onClick={onChangeBranch}
                   className={cn(
                     "flex items-center gap-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer",
-                    isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-[13px]"
+                    isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-sm"
                   )}
                 >
-                  <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+                  <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                   {chat.branch || chat.baseBranch}
-                  <ChevronDown className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+                  <ChevronDown className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 </button>
               )}
               {!isNewRepo && onUpdateChat && canSelectRepo && (
@@ -1003,11 +1004,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
-                  "text-muted-foreground hover:text-foreground transition-colors",
-                  isMobile ? "text-sm" : "text-[13px]"
+                  "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
+                  isMobile ? "text-sm" : "text-sm"
                 )}
               >
-                {chat.repo}
+                <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                {chat.repo?.split("/").pop()}
               </a>
               {chat.branch && (
                 <a
@@ -1016,11 +1018,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   rel="noopener noreferrer"
                   className={cn(
                     "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
-                    isMobile ? "text-sm" : "text-[13px]"
+                    isMobile ? "text-sm" : "text-sm"
                   )}
+                  title={chat.branch}
                 >
-                  <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
-                  {chat.branch}
+                  <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 </a>
               )}
             </div>
@@ -1060,11 +1062,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   setShowAgentDropdown(!showAgentDropdown)
                   setShowModelDropdown(false)
                 }}
-                className="flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer"
               >
                 <AgentIcon agent={currentAgent} className="h-3.5 w-3.5" />
                 {agentLabels[currentAgent]}
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {showAgentDropdown && (
                 <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-40">
@@ -1073,7 +1075,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                       key={agent}
                       onClick={() => handleAgentChange(agent)}
                       className={cn(
-                        "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-[13px] cursor-pointer",
+                        "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
                         agent === currentAgent && "bg-accent"
                       )}
                     >
@@ -1110,13 +1112,13 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                   setShowAgentDropdown(false)
                 }}
                 className={cn(
-                  "flex items-center gap-1 text-[13px] transition-colors cursor-pointer",
+                  "flex items-center gap-1 text-sm transition-colors cursor-pointer",
                   !hasRequiredCredentials ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {!hasRequiredCredentials && <Key className="h-3 w-3" />}
+                {!hasRequiredCredentials && <Key className="h-3.5 w-3.5" />}
                 {getModelLabel(currentAgent, currentModel)}
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {showModelDropdown && (
                 <div className="absolute bottom-full right-0 mb-1 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-52">
@@ -1128,12 +1130,12 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                         key={model.value}
                         onClick={() => handleModelChange(model.value)}
                         className={cn(
-                          "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center justify-between px-3 py-1.5 text-[13px] cursor-pointer",
+                          "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center justify-between px-3 py-1.5 text-sm cursor-pointer",
                           model.value === currentModel && "bg-accent"
                         )}
                       >
                         <span>{model.label}</span>
-                        {needsKey && <Key className="h-3 w-3 text-red-500 shrink-0" />}
+                        {needsKey && <Key className="h-3.5 w-3.5 text-red-500 shrink-0" />}
                       </button>
                     )
                   })}
