@@ -8,7 +8,7 @@ import { Sidebar, ALL_REPOSITORIES, NO_REPOSITORY } from "@/components/Sidebar"
 import { ChatPanel } from "@/components/ChatPanel"
 import { PreviewView, type PreviewItem } from "@/components/PreviewView"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
-import { SettingsModal, type HighlightKey } from "@/components/modals/SettingsModal"
+import { SettingsModal, type HighlightKey, type SectionKey } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
 import { ReAuthModal } from "@/components/modals/ReAuthModal"
 import { HelpModal } from "@/components/modals/HelpModal"
@@ -22,7 +22,7 @@ import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
 import { clearAllStorage } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
-import { PaletteProvider } from "@/components/search-palette"
+import { PaletteProvider, usePalette } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
@@ -61,6 +61,11 @@ function loadAndClearPendingMessage(): PendingMessage | null {
     }
   }
   return null
+}
+
+function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
+  const { openCommand } = usePalette()
+  return <ChatPanel {...props} onOpenCommandPalette={openCommand} />
 }
 
 export default function HomePage() {
@@ -106,6 +111,7 @@ export default function HomePage() {
   const [branchSelectOpen, setBranchSelectOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsHighlightKey, setSettingsHighlightKey] = useState<HighlightKey>(null)
+  const [settingsDefaultSection, setSettingsDefaultSection] = useState<SectionKey>("general")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(260)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -410,8 +416,19 @@ export default function HomePage() {
   // Handler for opening settings (optionally with a highlighted API key field)
   const handleOpenSettings = (highlightKey?: HighlightKey) => {
     setSettingsHighlightKey(highlightKey ?? null)
+    setSettingsDefaultSection("general")
     setSettingsOpen(true)
     // Close mobile sidebar when opening settings
+    if (isMobile) {
+      setMobileSidebarOpen(false)
+    }
+  }
+
+  // Handler for opening settings to a specific section (used by command palette)
+  const handleOpenSettingsSection = (section?: SectionKey) => {
+    setSettingsHighlightKey(null)
+    setSettingsDefaultSection(section ?? "general")
+    setSettingsOpen(true)
     if (isMobile) {
       setMobileSidebarOpen(false)
     }
@@ -1098,7 +1115,7 @@ export default function HomePage() {
       onCreateRepo={currentChat?.repo === NEW_REPOSITORY ? handleCreateRepo : undefined}
       showGitCommands={!!currentChat && currentChat.repo !== NEW_REPOSITORY}
       onOpenInGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
-      onOpenSettings={() => handleOpenSettings()}
+      onOpenSettings={handleOpenSettingsSection}
       onToggleSidebar={!isMobile ? () => setSidebarCollapsed((v) => !v) : undefined}
       onSignIn={!session ? () => signIn("github") : undefined}
       onSignOut={session ? () => {
@@ -1302,7 +1319,7 @@ export default function HomePage() {
                   showList={selectedScheduledJob === null}
                 />
               ) : (
-                <ChatPanel
+                <ChatPanelWithPalette
                   chat={displayCurrentChat}
                   settings={settings}
                   credentialFlags={credentialFlags}
@@ -1424,6 +1441,7 @@ export default function HomePage() {
           credentialFlags={credentialFlags}
           onSave={updateSettings}
           highlightKey={settingsHighlightKey}
+          defaultSection={settingsDefaultSection}
           isMobile={isMobile}
         />
 

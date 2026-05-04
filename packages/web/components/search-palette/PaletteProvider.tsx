@@ -1,9 +1,12 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { useTheme } from "next-themes"
 import { SearchPalette } from "./SearchPalette"
 import { CommandPalette } from "./CommandPalette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
+import type { SectionKey } from "@/components/modals/SettingsModal"
+import type { Theme } from "@/lib/types"
 
 interface Chat {
   id: string
@@ -40,7 +43,7 @@ interface PaletteProviderProps {
   onCreateRepo?: () => void
   showGitCommands?: boolean
   onOpenInGitHub?: () => void
-  onOpenSettings: () => void
+  onOpenSettings: (section?: SectionKey) => void
   onToggleSidebar?: () => void
   onSignIn?: () => void
   onSignOut?: () => void
@@ -101,6 +104,7 @@ export function PaletteProvider({
   onSelectChat,
   onNavigateChat,
 }: PaletteProviderProps) {
+  const { theme, setTheme } = useTheme()
   const [searchOpen, setSearchOpenState] = useState(false)
   const [commandOpen, setCommandOpenState] = useState(false)
 
@@ -216,6 +220,10 @@ export function PaletteProvider({
         onCopyCloneCommand={onCopyCloneCommand}
         onCopyCheckoutCommand={onCopyCheckoutCommand}
         onOpenEnvVars={onOpenEnvVars}
+        chats={chats.map((c) => ({ id: c.id, displayName: c.displayName }))}
+        onSelectChat={onSelectChat}
+        currentTheme={(theme as Theme) ?? "system"}
+        onThemeChange={(newTheme: Theme) => setTheme(newTheme)}
       />
     </PaletteContext.Provider>
   )

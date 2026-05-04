@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -9,9 +9,12 @@ import {
   CommandGroup,
   CommandItem,
   CommandShortcut,
+  CommandSeparator,
 } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
 import { SLASH_COMMANDS } from "@upstream/common"
+import type { SectionKey } from "@/components/modals/SettingsModal"
+import type { Theme } from "@/lib/types"
 
 /** Custom italic x icon for variables */
 function VariableIcon({ className }: { className?: string }) {
@@ -31,6 +34,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   FolderGit2,
 }
 
+interface ChatItem {
+  id: string
+  displayName: string | null
+}
+
 interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -44,7 +52,7 @@ interface CommandPaletteProps {
   showGitCommands?: boolean
   /** Omitted when the current chat has no pushed branch on GitHub. */
   onOpenInGitHub?: () => void
-  onOpenSettings: () => void
+  onOpenSettings: (section?: SectionKey) => void
   onToggleSidebar?: () => void
   onSignIn?: () => void
   onSignOut?: () => void
@@ -66,6 +74,14 @@ interface CommandPaletteProps {
   onCopyCheckoutCommand?: () => void
   /** Open environment variables modal. Omitted when no chat is active. */
   onOpenEnvVars?: () => void
+  /** Chats for search. */
+  chats?: ChatItem[]
+  /** Select a chat from search. */
+  onSelectChat?: (chatId: string) => void
+  /** Current theme value. */
+  currentTheme?: Theme
+  /** Change theme. */
+  onThemeChange?: (theme: Theme) => void
 }
 
 export function CommandPalette({
@@ -93,6 +109,10 @@ export function CommandPalette({
   onCopyCloneCommand,
   onCopyCheckoutCommand,
   onOpenEnvVars,
+  chats = [],
+  onSelectChat,
+  currentTheme = "system",
+  onThemeChange,
 }: CommandPaletteProps) {
   const handleSelect = (command: string) => {
     onRunCommand(command)
@@ -104,6 +124,26 @@ export function CommandPalette({
     onOpenChange(false)
   }
 
+  const themeIconMap: Record<Theme, typeof Sun> = {
+    system: Monitor,
+    light: Sun,
+    dark: Moon,
+  }
+
+  const themeLabels: Record<Theme, string> = {
+    system: "Auto",
+    light: "Light",
+    dark: "Dark",
+  }
+
+  const settingItems: { value: string; label: string; section: SectionKey; icon: typeof Settings }[] = [
+    { value: "settings general", label: "General settings", section: "general", icon: Settings },
+    { value: "settings api keys credentials", label: "API keys", section: "api-keys", icon: Key },
+    { value: "settings appearance theme", label: "Appearance", section: "appearance", icon: Sun },
+    { value: "settings default agent", label: "Default agent", section: "general", icon: Settings },
+    { value: "settings default model", label: "Default model", section: "general", icon: Settings },
+  ]
+
   return (
     <CommandDialog
       open={open}
@@ -114,6 +154,20 @@ export function CommandPalette({
       <CommandInput placeholder="Type a command..." />
       <CommandList>
         <CommandEmpty>No commands found.</CommandEmpty>
+        {chats.length > 0 && onSelectChat && (
+          <CommandGroup heading="Chats">
+            {chats.map((chat) => (
+              <CommandItem
+                key={chat.id}
+                value={`chat:${chat.displayName ?? "untitled"}:${chat.id}`}
+                onSelect={() => run(() => onSelectChat(chat.id))}
+              >
+                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>{chat.displayName ?? "Untitled Chat"}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
         <CommandGroup heading="Chat">
           <CommandItem value="new chat" onSelect={() => run(onNewChat)}>
             <Plus className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -223,6 +277,38 @@ export function CommandPalette({
             })}
           </CommandGroup>
         )}
+        <CommandGroup heading="Settings">
+          {settingItems.map((item) => (
+            <CommandItem
+              key={item.value}
+              value={item.value}
+              onSelect={() => run(() => onOpenSettings(item.section))}
+            >
+              <item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>{item.label}</span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        {onThemeChange && (
+          <CommandGroup heading="Theme">
+            {(["system", "light", "dark"] as Theme[]).map((theme) => {
+              const Icon = themeIconMap[theme]
+              return (
+                <CommandItem
+                  key={theme}
+                  value={`theme ${theme} ${themeLabels[theme]}`}
+                  onSelect={() => run(() => onThemeChange(theme))}
+                >
+                  <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{themeLabels[theme]}</span>
+                  {currentTheme === theme && (
+                    <CommandShortcut>Active</CommandShortcut>
+                  )}
+                </CommandItem>
+              )
+            })}
+          </CommandGroup>
+        )}
         <CommandGroup heading="Application">
           {onToggleSidebar && (
             <CommandItem value="toggle sidebar" onSelect={() => run(onToggleSidebar)}>
@@ -230,7 +316,7 @@ export function CommandPalette({
               <span>Toggle sidebar</span>
             </CommandItem>
           )}
-          <CommandItem value="settings" onSelect={() => run(onOpenSettings)}>
+          <CommandItem value="settings" onSelect={() => run(() => onOpenSettings())}>
             <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>Settings</span>
           </CommandItem>
