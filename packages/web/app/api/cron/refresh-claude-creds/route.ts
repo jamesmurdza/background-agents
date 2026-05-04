@@ -16,9 +16,9 @@ const SKIP_THRESHOLD_MS = 2 * 60 * 60 * 1000
 export const maxDuration = 300
 
 export async function GET(req: Request) {
-  if (
-    req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  // Verify cron secret (defaults to "dev-secret" in development)
+  const cronSecret = process.env.CRON_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret" : undefined)
+  if (!cronSecret || req.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 })
   }
 

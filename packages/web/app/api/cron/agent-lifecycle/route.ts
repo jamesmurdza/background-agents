@@ -57,8 +57,9 @@ type ChatWithMessages = Prisma.ChatGetPayload<{
 // =============================================================================
 
 export async function GET(req: Request) {
-  // Verify cron secret
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Verify cron secret (defaults to "dev-secret" in development)
+  const cronSecret = process.env.CRON_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret" : undefined)
+  if (!cronSecret || req.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 })
   }
 
