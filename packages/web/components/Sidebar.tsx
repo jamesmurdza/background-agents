@@ -90,6 +90,10 @@ interface SidebarProps {
   onRequestRebaseChat?: (sourceId: string) => void
   /** Mobile rename - opens a bottom sheet in the parent */
   onMobileRename?: (chatId: string, currentName: string) => void
+  /** Open scheduled jobs view */
+  onOpenScheduledJobs?: () => void
+  /** Whether scheduled jobs view is active */
+  scheduledJobsActive?: boolean
 }
 
 export function Sidebar({
@@ -117,6 +121,8 @@ export function Sidebar({
   onRequestMergeChats,
   onRequestRebaseChat,
   onMobileRename,
+  onOpenScheduledJobs,
+  scheduledJobsActive = false,
 }: SidebarProps) {
   const { data: session } = useSession()
   const router = useRouter()
@@ -619,13 +625,22 @@ export function Sidebar({
       {/* Scheduled Jobs Button */}
       <div className={cn("pb-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
         <button
-          onClick={() => router.push("/scheduled-jobs")}
+          onClick={() => {
+            if (onOpenScheduledJobs) {
+              onOpenScheduledJobs()
+            } else {
+              router.push("/scheduled-jobs")
+            }
+          }}
           className={cn(
-            "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-2"
+            "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
+            collapsed ? "p-1.5" : "w-full px-2 py-2",
+            scheduledJobsActive
+              ? "bg-accent text-accent-foreground"
+              : "hover:bg-accent/50"
           )}
         >
-          <Clock className="h-4 w-4 text-muted-foreground" />
+          <Clock className={cn("h-4 w-4", scheduledJobsActive ? "text-foreground" : "text-muted-foreground")} />
           {!collapsed && <span className="text-sm text-foreground">Scheduled Jobs</span>}
         </button>
       </div>

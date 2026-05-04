@@ -19,6 +19,7 @@ import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariab
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
+import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
 import { clearAllStorage } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider } from "@/components/search-palette"
@@ -120,6 +121,7 @@ export default function HomePage() {
   const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
   const [scheduledJobFormOpen, setScheduledJobFormOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
     if (typeof window === "undefined") return 520
@@ -549,6 +551,8 @@ export default function HomePage() {
       setSignInModalOpen(true)
       return
     }
+    // Switch to chat view
+    setViewMode("chat")
     // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
@@ -568,6 +572,7 @@ export default function HomePage() {
   // Handler for selecting a chat - switch to chat view
   const handleSelectChat = (chatId: string) => {
     selectChat(chatId)
+    setViewMode("chat")
   }
 
   // Handler for the repo button in the ChatPanel header. Routes to the Select
@@ -1123,6 +1128,8 @@ export default function HomePage() {
           onToggleChatCollapsed={toggleChatCollapsed}
           onRequestMergeChats={handleRequestMergeChats}
           onRequestRebaseChat={handleRequestRebaseChat}
+          onOpenScheduledJobs={() => setViewMode("scheduled-jobs")}
+          scheduledJobsActive={viewMode === "scheduled-jobs"}
         />
       )}
 
@@ -1153,6 +1160,11 @@ export default function HomePage() {
           onRequestMergeChats={handleRequestMergeChats}
           onRequestRebaseChat={handleRequestRebaseChat}
           onMobileRename={(chatId, name) => setMobileRenameChat({ id: chatId, name })}
+          onOpenScheduledJobs={() => {
+            setViewMode("scheduled-jobs")
+            setMobileSidebarOpen(false)
+          }}
+          scheduledJobsActive={viewMode === "scheduled-jobs"}
         />
       )}
 
@@ -1237,41 +1249,47 @@ export default function HomePage() {
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              <ChatPanel
-                chat={displayCurrentChat}
-                settings={settings}
-                credentialFlags={credentialFlags}
-                onSendMessage={handleSendMessage}
-                onEnqueueMessage={enqueueMessage}
-                onRemoveQueuedMessage={removeQueuedMessage}
-                onResumeQueue={resumeQueue}
-                onStopAgent={stopAgent}
-                onChangeRepo={handleChangeRepo}
-                onChangeBranch={handleChangeBranch}
-                onUpdateChat={handleUpdateChatProp}
-                onOpenSettings={handleOpenSettings}
-                onSlashCommand={handleSlashCommand}
-                onRequireSignIn={!session ? () => setSignInModalOpen(true) : undefined}
-                onDeleteChat={displayCurrentChatId ? () => removeChat(displayCurrentChatId, getNextChatId) : undefined}
-                onOpenHelp={() => setHelpOpen(true)}
-                onOpenFile={(filePath) => {
-                  const filename = filePath.split("/").pop() || filePath
-                  openPreview({ type: "file", filePath, filename })
-                }}
-                onForcePush={() => gitDialogs.setForcePushOpen(true)}
-                onOpenEnvVars={handleOpenEnvVars}
-                isMobile={isMobile}
-                rebaseConflict={gitDialogs.rebaseConflict}
-                onAbortConflict={gitDialogs.handleAbortConflict}
-                conflictActionLoading={gitDialogs.actionLoading}
-                onBranchWithMessage={handleBranchWithMessage}
-                onBranchQueuedMessage={handleBranchQueuedMessage}
-                canBranch={canBranch}
-                isLoadingMessages={isLoadingMessages}
-                draft={currentDraft}
-                onDraftChange={handleDraftChange}
-                onCreateScheduledJob={() => setScheduledJobFormOpen(true)}
-              />
+              {viewMode === "scheduled-jobs" ? (
+                <ScheduledJobsView
+                  onOpenForm={() => setScheduledJobFormOpen(true)}
+                />
+              ) : (
+                <ChatPanel
+                  chat={displayCurrentChat}
+                  settings={settings}
+                  credentialFlags={credentialFlags}
+                  onSendMessage={handleSendMessage}
+                  onEnqueueMessage={enqueueMessage}
+                  onRemoveQueuedMessage={removeQueuedMessage}
+                  onResumeQueue={resumeQueue}
+                  onStopAgent={stopAgent}
+                  onChangeRepo={handleChangeRepo}
+                  onChangeBranch={handleChangeBranch}
+                  onUpdateChat={handleUpdateChatProp}
+                  onOpenSettings={handleOpenSettings}
+                  onSlashCommand={handleSlashCommand}
+                  onRequireSignIn={!session ? () => setSignInModalOpen(true) : undefined}
+                  onDeleteChat={displayCurrentChatId ? () => removeChat(displayCurrentChatId, getNextChatId) : undefined}
+                  onOpenHelp={() => setHelpOpen(true)}
+                  onOpenFile={(filePath) => {
+                    const filename = filePath.split("/").pop() || filePath
+                    openPreview({ type: "file", filePath, filename })
+                  }}
+                  onForcePush={() => gitDialogs.setForcePushOpen(true)}
+                  onOpenEnvVars={handleOpenEnvVars}
+                  isMobile={isMobile}
+                  rebaseConflict={gitDialogs.rebaseConflict}
+                  onAbortConflict={gitDialogs.handleAbortConflict}
+                  conflictActionLoading={gitDialogs.actionLoading}
+                  onBranchWithMessage={handleBranchWithMessage}
+                  onBranchQueuedMessage={handleBranchQueuedMessage}
+                  canBranch={canBranch}
+                  isLoadingMessages={isLoadingMessages}
+                  draft={currentDraft}
+                  onDraftChange={handleDraftChange}
+                  onCreateScheduledJob={() => setScheduledJobFormOpen(true)}
+                />
+              )}
             </div>
             {!isMobile && previewOpen && (
               <>
