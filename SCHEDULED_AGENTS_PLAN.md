@@ -112,7 +112,7 @@ Agents that run automatically on a schedule, execute a prompt against a repo, an
 | Interval picker | Presets (hourly/daily/weekly) + custom "every X hours/days/weeks" |
 | Sandbox reuse | Fresh sandbox every run |
 | Concurrent runs | Skip if previous run still running |
-| Run timeout | 20 minutes |
+| Run timeout | 20 minutes (scheduled), 25 minutes (interactive) |
 | Run retention | Last 50 runs per job |
 | User limits | Max 5 jobs per user |
 | Credentials expire | Run fails, job stays enabled, retry next interval |
@@ -233,18 +233,22 @@ GET    /api/scheduled-jobs/[id]/runs/[runId] # Get run with messages
 
 ---
 
-## Cron Implementation
+## Cron Jobs
 
-### Approach: Vercel Cron + Database Polling
+### Overview
 
-Two cron jobs running every minute:
+Two cron jobs handle all agent lifecycle management:
 
-1. **Dispatcher**: Finds due jobs, starts execution
-2. **Completion Checker**: Polls running jobs, finalizes when done (+ timeout check)
+| Cron | Frequency | Purpose |
+|------|-----------|---------|
+| `dispatch-scheduled-jobs` | Every 1 min | Start due scheduled jobs |
+| `agent-monitor` | Every 2 min | Keepalive, completion check, timeout for ALL agents |
 
 ### Cron 1: Job Dispatcher
 
 `GET /api/cron/dispatch-scheduled-jobs`
+
+Finds scheduled jobs that are due and starts them.
 
 ```typescript
 async function handler() {
@@ -276,55 +280,110 @@ async function handler() {
 }
 ```
 
-### Cron 2: Completion Checker
+### Cron 2: Agent Monitor (Unified)
 
-`GET /api/cron/check-scheduled-runs`
+`GET /api/cron/agent-monitor`
+
+Handles ALL running agents (both interactive chats and scheduled jobs):
+- **Keepalive**: Calls `sandbox.refreshActivity()` to prevent Daytona auto-stop
+- **Completion check**: Detects when agents finish, finalizes results
+- **Timeout**: Stops agents that exceed time limits
 
 ```typescript
-const RUN_TIMEOUT_MINUTES = 20
+const INTERACTIVE_INACTIVITY_TIMEOUT = 10  // minutes
+const INTERACTIVE_HARD_TIMEOUT = 25        // minutes
+const SCHEDULED_HARD_TIMEOUT = 20          // minutes
 
 async function handler() {
-  const runs = await prisma.scheduledJobRun.findMany({
+  const now = new Date()
+  const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
+
+  // =========================================
+  // 1. Handle Interactive Chats
+  // =========================================
+  const runningChats = await prisma.chat.findMany({
+    where: {
+      status: "running",
+      sandboxId: { not: null },
+      backgroundSessionId: { not: null },
+      isScheduledRun: false  // Only interactive chats
+    }
+  })
+
+  for (const chat of runningChats) {
+    const minutesSinceActive = differenceInMinutes(now, chat.lastActiveAt)
+    const totalMinutes = differenceInMinutes(now, chat.updatedAt) // approximation
+
+    // Hard timeout: 25 minutes
+    if (totalMinutes > INTERACTIVE_HARD_TIMEOUT) {
+      await stopInteractiveAgent(chat, daytona, "Run exceeded 25 minute limit")
+      continue
+    }
+
+    // Inactivity timeout: 10 minutes since browser activity
+    if (minutesSinceActive > INTERACTIVE_INACTIVITY_TIMEOUT) {
+      await stopInteractiveAgent(chat, daytona, "No activity for 10 minutes")
+      continue
+    }
+
+    // Still valid — refresh sandbox activity
+    try {
+      const sandbox = await daytona.get(chat.sandboxId!)
+      await sandbox.refreshActivity()
+    } catch (err) {
+      console.error(`[agent-monitor] Failed to refresh sandbox:`, err)
+    }
+  }
+
+  // =========================================
+  // 2. Handle Scheduled Job Runs
+  // =========================================
+  const runningJobs = await prisma.scheduledJobRun.findMany({
     where: { status: "running" },
     include: { job: true }
   })
 
-  for (const run of runs) {
-    // Check for timeout
-    const runningMinutes = differenceInMinutes(new Date(), run.startedAt)
-    if (runningMinutes > RUN_TIMEOUT_MINUTES) {
-      await failRun(run, "Run timed out after 20 minutes")
+  for (const run of runningJobs) {
+    const runningMinutes = differenceInMinutes(now, run.startedAt)
+
+    // Hard timeout: 20 minutes
+    if (runningMinutes > SCHEDULED_HARD_TIMEOUT) {
+      await failScheduledRun(run, "Run timed out after 20 minutes")
       continue
     }
 
-    const snapshot = await snapshotBackgroundAgent(run.sandboxId, run.backgroundSessionId)
+    // Check completion
+    try {
+      const sandbox = await daytona.get(run.sandboxId!)
+      await sandbox.refreshActivity()  // Keep alive
 
-    if (snapshot.status === "completed") {
-      await finalizeRun(run, snapshot)
-    } else if (snapshot.status === "error") {
-      await failRun(run, snapshot.error)
+      const snapshot = await snapshotBackgroundAgent(
+        sandbox,
+        run.backgroundSessionId!,
+        { repoPath: `${PATHS.SANDBOX_HOME}/project` }
+      )
+
+      if (snapshot.status === "completed") {
+        await finalizeScheduledRun(run, snapshot)
+      } else if (snapshot.status === "error") {
+        await failScheduledRun(run, snapshot.error ?? "Unknown error")
+      }
+      // else still running, check again next cycle
+    } catch (err) {
+      console.error(`[agent-monitor] Error checking run ${run.id}:`, err)
     }
-    // else still running, check again next minute
   }
 }
-
-async function failRun(run: ScheduledJobRun, error: string) {
-  await prisma.scheduledJobRun.update({
-    where: { id: run.id },
-    data: { status: "error", completedAt: new Date(), error }
-  })
-
-  // Track consecutive failures, auto-disable after 3
-  const failures = run.job.consecutiveFailures + 1
-  await prisma.scheduledJob.update({
-    where: { id: run.jobId },
-    data: {
-      consecutiveFailures: failures,
-      enabled: failures < 3
-    }
-  })
-}
 ```
+
+### Why `refreshActivity()`?
+
+When the browser closes, the SSE polling stops. Without activity, Daytona auto-stops the sandbox after 5 minutes (our configured `autoStopInterval`).
+
+`sandbox.refreshActivity()` resets this timer, keeping the sandbox alive while the agent runs.
+
+From [Daytona SDK docs](https://www.daytona.io/docs/en/typescript-sdk/sandbox/):
+> **`refreshActivity()`** - "Refreshes the sandbox activity to reset the timer for automated lifecycle management actions."
 
 ### Vercel Config
 
@@ -337,12 +396,29 @@ async function failRun(run: ScheduledJobRun, error: string) {
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/cron/check-scheduled-runs",
-      "schedule": "* * * * *"
+      "path": "/api/cron/agent-monitor",
+      "schedule": "*/2 * * * *"
     }
   ]
 }
 ```
+
+---
+
+## Sandbox Configuration
+
+```typescript
+// lib/sandbox.ts
+const sandbox = await daytona.create({
+  name: generateSandboxName(userId),
+  snapshot: SANDBOX_CONFIG.DEFAULT_SNAPSHOT,
+  autoStopInterval: 5,  // 5 minutes (reduced from 10)
+  public: true,
+  labels: { ... },
+})
+```
+
+The `agent-monitor` cron runs every 2 minutes, well within the 5-minute window to keep sandboxes alive.
 
 ---
 
@@ -403,7 +479,7 @@ async function startJobExecution(job: ScheduledJob, run: ScheduledJobRun) {
 ## Run Finalization
 
 ```typescript
-async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
+async function finalizeScheduledRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
   const job = run.job
 
   // 1. Save messages to linked chat
@@ -469,7 +545,65 @@ async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
       where: { id: { in: oldRuns.map(r => r.id) } }
     })
   }
+
+  // 7. Send email notification (if configured)
+  if (prUrl) {
+    await sendPRCreatedEmail(job, run, prUrl, prNumber, commitCount)
+  }
 }
+
+async function failScheduledRun(run: ScheduledJobRun, error: string) {
+  await prisma.scheduledJobRun.update({
+    where: { id: run.id },
+    data: { status: "error", completedAt: new Date(), error }
+  })
+
+  // Track consecutive failures, auto-disable after 3
+  const failures = run.job.consecutiveFailures + 1
+  await prisma.scheduledJob.update({
+    where: { id: run.jobId },
+    data: {
+      consecutiveFailures: failures,
+      enabled: failures < 3
+    }
+  })
+
+  // Send email notifications
+  await sendFailureEmail(run.job, run, error)
+  if (failures >= 3) {
+    await sendJobDisabledEmail(run.job, error)
+  }
+}
+```
+
+---
+
+## Timeouts Summary
+
+| Agent Type | Inactivity Timeout | Hard Timeout |
+|------------|-------------------|--------------|
+| Interactive (browser) | 10 min (no browser activity) | 25 min |
+| Scheduled (no browser) | N/A | 20 min |
+
+**Timeline example (interactive):**
+
+```
+0 min    User sends message, agent starts
+5 min    User closes browser
+7 min    agent-monitor: lastActiveAt = 5 min ago (< 10) ✓ → refreshActivity()
+9 min    agent-monitor: lastActiveAt = 5 min ago (< 10) ✓ → refreshActivity()
+...
+16 min   agent-monitor: lastActiveAt = 5 min ago (11 > 10) ✗ → STOP (inactivity)
+```
+
+**Timeline example (scheduled):**
+
+```
+0 min    Cron dispatches job, agent starts
+2 min    agent-monitor: runningMinutes = 2 (< 20) ✓ → refreshActivity()
+4 min    agent-monitor: runningMinutes = 4 (< 20) ✓ → refreshActivity()
+...
+21 min   agent-monitor: runningMinutes = 21 (> 20) ✗ → STOP (hard timeout)
 ```
 
 ---
@@ -482,7 +616,8 @@ async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
 | `ScheduledJobRun` | Stores each execution's results, links to Chat |
 | `Chat.isScheduledRun` | Hides scheduled run chats from sidebar |
 | `/api/cron/dispatch-scheduled-jobs` | Finds due jobs, starts execution |
-| `/api/cron/check-scheduled-runs` | Polls running jobs, handles timeout, finalizes |
+| `/api/cron/agent-monitor` | Keepalive + completion + timeout for ALL agents |
+| `sandbox.refreshActivity()` | Resets Daytona inactivity timer |
 | Clock icon in prompt | Entry point to create scheduled job |
 | Scheduled Jobs sidebar item | Entry point to view/manage jobs |
 
@@ -490,8 +625,12 @@ async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
 
 | Limit | Value |
 |-------|-------|
+| Daytona autoStopInterval | 5 minutes |
+| Agent monitor cron | Every 2 minutes |
+| Interactive inactivity timeout | 10 minutes |
+| Interactive hard timeout | 25 minutes |
+| Scheduled hard timeout | 20 minutes |
 | Max jobs per user | 5 |
-| Run timeout | 20 minutes |
 | Run history retention | Last 50 runs per job |
 | Auto-disable threshold | 3 consecutive failures |
 
@@ -585,43 +724,3 @@ Please check your configuration and re-enable the job.
 # Optional - if not set, no emails sent
 RESEND_API_KEY=re_xxxxx
 ```
-
-### Integration Points
-
-Add email calls to existing functions:
-
-```typescript
-async function finalizeRun(run: ScheduledJobRun, snapshot: AgentSnapshot) {
-  // ... existing code ...
-
-  // Send email if PR was created
-  if (prUrl && user.email) {
-    await sendScheduledJobEmail(
-      user.email,
-      `[Scheduled] ${job.name} created PR #${prNumber}`,
-      renderPRCreatedEmail({ job, run, prUrl, prNumber, commitCount })
-    )
-  }
-}
-
-async function failRun(run: ScheduledJobRun, error: string) {
-  // ... existing code ...
-
-  // Send email on failure
-  if (user.email) {
-    await sendScheduledJobEmail(
-      user.email,
-      `[Scheduled] ${job.name} failed`,
-      renderFailedEmail({ job, run, error })
-    )
-  }
-
-  // Extra email if job got auto-disabled
-  if (failures >= 3 && user.email) {
-    await sendScheduledJobEmail(
-      user.email,
-      `[Scheduled] ${job.name} has been disabled`,
-      renderDisabledEmail({ job, error })
-    )
-  }
-}
