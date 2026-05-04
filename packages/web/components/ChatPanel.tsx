@@ -802,7 +802,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                     }}
                     className={cn(
                       "absolute flex items-center justify-center rounded-full bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground transition-colors shadow-sm cursor-pointer",
-                      isMobile ? "h-5 w-5 -top-2 -left-2" : "h-4 w-4 -top-1.5 -left-1.5"
+                      isMobile ? "h-5 w-5 -top-1.5 -left-1.5" : "h-4 w-4 -top-1 -left-1"
                     )}
                     aria-label={`Remove ${pf.name}`}
                   >
