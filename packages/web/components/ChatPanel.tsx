@@ -1225,16 +1225,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
             isMobile ? "text-sm px-4" : "text-sm"
           )}>
             <p>
-              Agents live in{" "}
-              <a
-                href="https://www.daytona.io/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-foreground/80 hover:text-foreground transition-colors"
-              >
-                Daytona sandboxes
-              </a>
-              {" "}tied to Git branches.
+              Changes will apply when you type /merge.
             </p>
             <p className="mt-1">Access additional tools with ⌘K.</p>
           </div>

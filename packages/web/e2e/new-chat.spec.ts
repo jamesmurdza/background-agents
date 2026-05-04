@@ -59,7 +59,7 @@ test.describe("New Chat Flow", () => {
     await expect(page.locator("h2")).toContainText("What would you like to build?")
 
     // Should see the sandbox info text (below the input)
-    await expect(page.locator("text=Agents live in Daytona sandboxes tied to Git branches.")).toBeVisible()
+    await expect(page.locator("text=Changes will apply when you type /merge.")).toBeVisible()
     await expect(page.locator("text=Access additional tools with ⌘K.")).toBeVisible()
 
     // Should see agent and model selectors
