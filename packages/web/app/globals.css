@@ -56,6 +56,31 @@
 .hljs-scope .hljs-addition { color: #067d17; }
 
 /* ============================================================================
+   GitHub-style Markdown Preview
+   ============================================================================ */
+
+.github-markdown {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: 16px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  color: #1f2328;
+}
+
+.dark .github-markdown {
+  color: #e6edf3;
+}
+
+/* Ensure proper spacing for first/last elements */
+.github-markdown > *:first-child {
+  margin-top: 0 !important;
+}
+
+.github-markdown > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* ============================================================================
    Mobile-First Foundation
    ============================================================================ */
 

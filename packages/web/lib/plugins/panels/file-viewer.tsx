@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { FileCode2, Loader2 } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
-import { HighlightedCode, getFileTypeFromPath, ImageFullPreview, PdfFullPreview } from "@/lib/file-preview"
+import { HighlightedCode, getFileTypeFromPath, ImageFullPreview, PdfFullPreview, isMarkdownPath, MarkdownPreview } from "@/lib/file-preview"
 
 function FileViewerComponent({ item, sandboxId }: PanelProps) {
   const [content, setContent] = useState<string | null>(null)
@@ -138,6 +138,16 @@ function FileViewerComponent({ item, sandboxId }: PanelProps) {
         title={filePath}
         className="h-full"
         height="100%"
+      />
+    )
+  }
+
+  // Markdown preview with GitHub-style rendering
+  if (isMarkdownPath(filePath)) {
+    return (
+      <MarkdownPreview
+        content={content ?? ""}
+        className="h-full"
       />
     )
   }

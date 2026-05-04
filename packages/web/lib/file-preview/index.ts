@@ -18,10 +18,15 @@ export {
   getFileTypeFromPath,
   isTextBasedFile,
   isTextBasedPath,
+  isMarkdownFile,
+  isMarkdownPath,
 } from './detect'
 
 // Code/text preview components
 export { HighlightedCode, SimpleCodeView } from './HighlightedCode'
+
+// Markdown preview component
+export { MarkdownPreview } from './MarkdownPreview'
 
 // Image preview components
 export { ImageThumbnail, ImageFullPreview } from './ImagePreview'
