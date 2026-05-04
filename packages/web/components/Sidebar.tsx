@@ -478,7 +478,7 @@ export function Sidebar({
 
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto mobile-scroll scrollbar-auto-hide px-3 py-2">
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {filteredChats.map((chat) => (
                 <MobileChatItem
                   key={chat.id}
@@ -722,7 +722,7 @@ export function Sidebar({
 
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto scrollbar-auto-hide p-2 pt-0">
-            <div className="space-y-1">
+            <div className="space-y-0">
               {renderChatTree({
                 roots: rootChats,
                 childrenByParent,
