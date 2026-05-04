@@ -73,6 +73,8 @@ export function createSandboxGit(sandbox: SandboxLike): SandboxGit {
 
     fetch: (path, token?, refspec?) => commands.fetch(process, path, token, refspec),
 
+    fetchBranch: (path, branch, token?) => commands.fetchBranch(process, path, branch, token),
+
     pull: (path, token?) => commands.pull(process, path, token),
 
     push: (path, token?) => commands.push(process, path, token),

@@ -70,6 +70,9 @@ export interface SandboxGit {
 
   fetch(path: string, token?: string, refspec?: string): Promise<void>
 
+  /** Fetch a branch and ensure its remote tracking ref is created */
+  fetchBranch(path: string, branch: string, token?: string): Promise<void>
+
   pull(path: string, token?: string): Promise<void>
 
   push(path: string, token?: string): Promise<void>
