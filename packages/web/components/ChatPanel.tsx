@@ -1684,15 +1684,6 @@ function FilePreviewModal({ file, fileContent, onClose, onRemove, isMobile }: Fi
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
-              onClick={() => {
-                onRemove()
-              }}
-              className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-              title="Remove file"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-            <button
               onClick={onClose}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
               title="Close preview (Esc)"
