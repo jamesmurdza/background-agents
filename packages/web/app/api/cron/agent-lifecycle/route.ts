@@ -671,7 +671,7 @@ async function finalizeInteractiveChat(
         if (account?.access_token) {
           const git = createSandboxGit(sandbox)
           try {
-            await git.push(`${PATHS.SANDBOX_HOME}/project`, "x-access-token", account.access_token)
+            await git.push(`${PATHS.SANDBOX_HOME}/project`, account.access_token)
           } catch (err) {
             // Create error message with force-push action (same as SSE stream)
             await createGitOperationMessage(
