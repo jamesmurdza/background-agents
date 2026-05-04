@@ -69,9 +69,11 @@ interface ChatPanelProps {
   onDraftChange?: (draft: string) => void
   /** Callback to create a scheduled job */
   onCreateScheduledJob?: () => void
+  /** Whether a message send is in progress (for instant UI feedback) */
+  isSending?: boolean
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob, isSending = false }: ChatPanelProps) {
   // Use draft prop as input value (controlled component pattern for per-chat drafts)
   const input = draft
   const setInput = useCallback((value: string) => {
@@ -175,7 +177,8 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const hasQueued = (chat?.queuedMessages?.length ?? 0) > 0
   const isPaused = !!(chat?.queuePaused && hasQueued)
   const isRunning = chat?.status === "running" || (hasQueued && !chat?.queuePaused)
-  const isCreating = chat?.status === "creating"
+  // Include isSending for instant feedback before server responds
+  const isCreating = chat?.status === "creating" || isSending
   const hasContent = input.trim() || pendingFiles.length > 0
   // When the agent is running, text-only messages are queued for later dispatch.
   const canQueue = !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0

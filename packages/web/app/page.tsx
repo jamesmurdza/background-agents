@@ -124,6 +124,8 @@ export default function HomePage() {
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   const [selectedScheduledJob, setSelectedScheduledJob] = useState<{ id: string; name: string } | null>(null)
   const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
+  // Track when a message send is initiated (for instant UI feedback before server responds)
+  const [isSendingMessage, setIsSendingMessage] = useState(false)
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
     if (typeof window === "undefined") return 520
@@ -542,6 +544,19 @@ export default function HomePage() {
   const isDraftMode = !!draftChat
   const isAuthenticatedDraft = isDraftMode && !!session
 
+  // Clear isSendingMessage once the chat status changes (server responded with optimistic update)
+  // or when the user switches to a different chat
+  useEffect(() => {
+    if (displayCurrentChat?.status === "creating" || displayCurrentChat?.status === "running") {
+      setIsSendingMessage(false)
+    }
+  }, [displayCurrentChat?.status])
+
+  useEffect(() => {
+    // Reset sending state when switching chats
+    setIsSendingMessage(false)
+  }, [displayCurrentChat?.id])
+
   // =============================================================================
   // Handlers
   // =============================================================================
@@ -693,6 +708,8 @@ export default function HomePage() {
       }
     }
 
+    // Set sending state immediately for instant UI feedback
+    setIsSendingMessage(true)
     sendMessage(message, agent, model, files)
   }
 
@@ -1319,6 +1336,7 @@ export default function HomePage() {
                   draft={currentDraft}
                   onDraftChange={handleDraftChange}
                   onCreateScheduledJob={() => setScheduledJobFormOpen(true)}
+                  isSending={isSendingMessage}
                 />
               )}
             </div>
