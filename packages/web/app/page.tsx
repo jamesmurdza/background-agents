@@ -122,6 +122,7 @@ export default function HomePage() {
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
   const [scheduledJobFormOpen, setScheduledJobFormOpen] = useState(false)
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
+  const [selectedScheduledJob, setSelectedScheduledJob] = useState<{ id: string; name: string } | null>(null)
   const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
@@ -554,6 +555,7 @@ export default function HomePage() {
     }
     // Switch to chat view
     setViewMode("chat")
+    setSelectedScheduledJob(null) // Clear selected job when switching to chat
     // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
@@ -574,6 +576,7 @@ export default function HomePage() {
   const handleSelectChat = (chatId: string) => {
     selectChat(chatId)
     setViewMode("chat")
+    setSelectedScheduledJob(null) // Clear selected job when switching to chat
   }
 
   // Handler for opening scheduled jobs view
@@ -1138,6 +1141,7 @@ export default function HomePage() {
           onRequestRebaseChat={handleRequestRebaseChat}
           onOpenScheduledJobs={handleOpenScheduledJobs}
           scheduledJobsActive={viewMode === "scheduled-jobs"}
+          selectedScheduledJob={viewMode === "scheduled-jobs" ? selectedScheduledJob : null}
         />
       )}
 
@@ -1173,6 +1177,7 @@ export default function HomePage() {
             setMobileSidebarOpen(false)
           }}
           scheduledJobsActive={viewMode === "scheduled-jobs"}
+          selectedScheduledJob={viewMode === "scheduled-jobs" ? selectedScheduledJob : null}
         />
       )}
 
@@ -1271,6 +1276,7 @@ export default function HomePage() {
                 <ScheduledJobsView
                   onOpenForm={() => setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}
+                  onJobSelect={(job) => setSelectedScheduledJob(job ? { id: job.id, name: job.name } : null)}
                 />
               ) : (
                 <ChatPanel

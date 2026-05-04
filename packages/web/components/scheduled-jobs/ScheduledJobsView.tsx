@@ -89,13 +89,15 @@ interface ScheduledJobsViewProps {
   onOpenForm?: () => void
   /** Increment to trigger a refresh of the jobs list */
   refreshKey?: number
+  /** Callback when a job is selected/deselected (for sidebar integration) */
+  onJobSelect?: (job: ScheduledJob | null) => void
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function ScheduledJobsView({ onOpenForm, refreshKey }: ScheduledJobsViewProps) {
+export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect }: ScheduledJobsViewProps) {
   const { data: session } = useSession()
 
   // View state: list or detail
@@ -118,6 +120,12 @@ export function ScheduledJobsView({ onOpenForm, refreshKey }: ScheduledJobsViewP
   const [selectedRun, setSelectedRun] = useState<ScheduledJobRun | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [titleMenuOpen, setTitleMenuOpen] = useState(false)
+
+  // Notify parent when job selection changes
+  useEffect(() => {
+    onJobSelect?.(selectedJob)
+  }, [selectedJob, onJobSelect])
 
   // Fetch jobs list
   const fetchJobs = async () => {
@@ -281,18 +289,62 @@ export function ScheduledJobsView({ onOpenForm, refreshKey }: ScheduledJobsViewP
   if (selectedJobId && selectedJob) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Detail Header */}
-        <header className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSelectedJobId(null)}
-              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <div>
-              <h1 className="text-lg font-semibold">{selectedJob.name}</h1>
-              <p className="text-sm text-muted-foreground">{selectedJob.repo}</p>
+        {/* Detail Header - styled like chat header */}
+        <header className="flex items-center justify-between border-b border-border px-4 py-2 shrink-0 h-12">
+          <div className="flex items-center gap-2">
+            {/* Title with dropdown menu - styled like chat title */}
+            <div className="group/title relative flex items-center gap-[2px]">
+              <span className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-default">
+                {selectedJob.name}
+              </span>
+              <button
+                onClick={() => setTitleMenuOpen((v) => !v)}
+                className="flex h-7 w-6 items-center justify-center rounded-r-md rounded-l-none text-muted-foreground hover:bg-accent hover:text-foreground group-hover/title:bg-accent group-hover/title:text-foreground transition-colors cursor-pointer"
+                aria-label="Job menu"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {titleMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setTitleMenuOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-1 min-w-[160px] rounded-md border border-border bg-popover shadow-md py-1 z-50">
+                    <button
+                      onClick={() => {
+                        setTitleMenuOpen(false)
+                        handleEdit(selectedJob)
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTitleMenuOpen(false)
+                        handleRunNow(selectedJob)
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      Run Now
+                    </button>
+                    <div className="my-1 border-t border-border" />
+                    <button
+                      onClick={() => {
+                        setTitleMenuOpen(false)
+                        setDeleteJob(selectedJob)
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left text-destructive cursor-pointer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

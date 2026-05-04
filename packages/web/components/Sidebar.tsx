@@ -94,6 +94,8 @@ interface SidebarProps {
   onOpenScheduledJobs?: () => void
   /** Whether scheduled jobs view is active */
   scheduledJobsActive?: boolean
+  /** Currently selected scheduled job (shown as indented item) */
+  selectedScheduledJob?: { id: string; name: string } | null
 }
 
 export function Sidebar({
@@ -123,6 +125,7 @@ export function Sidebar({
   onMobileRename,
   onOpenScheduledJobs,
   scheduledJobsActive = false,
+  selectedScheduledJob,
 }: SidebarProps) {
   const { data: session } = useSession()
   const router = useRouter()
@@ -623,7 +626,7 @@ export function Sidebar({
       </div>
 
       {/* Scheduled Jobs Button */}
-      <div className={cn("pb-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
+      <div className={cn(collapsed ? "px-0 flex justify-center" : "px-2")}>
         <button
           onClick={() => {
             if (onOpenScheduledJobs) {
@@ -635,7 +638,7 @@ export function Sidebar({
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
             collapsed ? "p-1.5" : "w-full px-2 py-2",
-            scheduledJobsActive
+            scheduledJobsActive && !selectedScheduledJob
               ? "bg-accent text-accent-foreground"
               : "hover:bg-accent/50"
           )}
@@ -644,6 +647,20 @@ export function Sidebar({
           {!collapsed && <span className="text-sm text-foreground">Scheduled Jobs</span>}
         </button>
       </div>
+
+      {/* Selected Scheduled Job (indented under Scheduled Jobs) */}
+      {!collapsed && selectedScheduledJob && (
+        <div className="px-2 pb-2">
+          <div
+            className="flex items-center gap-2 w-full pl-6 pr-2 py-1.5 rounded-md bg-accent text-accent-foreground text-sm truncate"
+          >
+            <span className="truncate">{selectedScheduledJob.name}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Spacer when no selected job */}
+      {!selectedScheduledJob && <div className="pb-2" />}
 
       {/* Chat List - only show when expanded */}
       {!collapsed && (
