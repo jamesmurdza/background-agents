@@ -194,9 +194,11 @@ interface BranchSelectorProps {
   autoFocus?: boolean
   /** Called when Enter is pressed while dropdown is closed (to submit the form) */
   onSubmit?: () => void
+  /** Default value to show while loading */
+  defaultValue?: string
 }
 
-function BranchSelector({ value, onChange, branches, loading, placeholder = "Select chat", isMobile = false, getLabel, onOpenChange, autoFocus, onSubmit }: BranchSelectorProps) {
+function BranchSelector({ value, onChange, branches, loading, placeholder = "Select chat", isMobile = false, getLabel, onOpenChange, autoFocus, onSubmit, defaultValue }: BranchSelectorProps) {
   const label = (b: string) => (getLabel ? getLabel(b) : b)
   const [open, setOpenState] = useState(false)
   const [search, setSearch] = useState("")
@@ -204,6 +206,9 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+
+  // Use defaultValue while loading, otherwise use value
+  const displayValue = value || (loading ? defaultValue : "") || ""
 
   const setOpen = (newOpen: boolean) => {
     setOpenState(newOpen)
@@ -250,20 +255,22 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
     if (!open) {
       // When dropdown is closed:
       // - Enter submits the form (if value selected and onSubmit provided)
-      // - ArrowDown/Space opens the dropdown
+      // - ArrowDown/Space opens the dropdown (only if not loading)
       if (e.key === "Enter") {
-        if (value && onSubmit) {
+        // Allow submit with displayValue (includes defaultValue while loading)
+        if (displayValue && onSubmit) {
           e.preventDefault()
           onSubmit()
         }
-        // If no value selected, let Enter open the dropdown
-        else {
+        // If no value selected and not loading, let Enter open the dropdown
+        else if (!loading) {
           e.preventDefault()
           setOpen(true)
         }
         return
       }
-      if (e.key === "ArrowDown" || e.key === " ") {
+      // Only allow opening dropdown if not loading
+      if (!loading && (e.key === "ArrowDown" || e.key === " ")) {
         e.preventDefault()
         setOpen(true)
       }
@@ -294,18 +301,6 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
     }
   }
 
-  if (loading) {
-    return (
-      <div className={cn(
-        "flex items-center gap-2 text-muted-foreground bg-input border border-border rounded-md",
-        isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
-      )}>
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading branches...
-      </div>
-    )
-  }
-
   return (
     <div ref={containerRef} className="relative">
       <div
@@ -314,30 +309,33 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
           isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
         )}
       >
+        {loading && <Loader2 className="h-4 w-4 animate-spin mr-2 text-muted-foreground shrink-0" />}
         <input
           ref={inputRef}
           type="text"
           autoFocus={autoFocus}
-          value={open ? search : (value ? label(value) : "")}
+          value={open ? search : (displayValue ? label(displayValue) : "")}
           onChange={(e) => {
             setSearch(e.target.value)
-            if (!open) setOpen(true)
+            if (!open && !loading) setOpen(true)
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+          readOnly={loading}
         />
         <button
           type="button"
           tabIndex={-1}
-          onClick={() => setOpen(!open)}
-          className="ml-2 text-muted-foreground hover:text-foreground"
+          onClick={() => !loading && setOpen(!open)}
+          className={cn("ml-2 text-muted-foreground hover:text-foreground", loading && "opacity-50 cursor-not-allowed")}
+          disabled={loading}
         >
           <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
         </button>
       </div>
 
-      {open && (
+      {open && !loading && (
         <div
           ref={listRef}
           className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
@@ -435,6 +433,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
             getLabel={gitDialogs.branchLabel}
             onOpenChange={setDropdownOpen}
             onSubmit={handleMergeAndClose}
+            defaultValue={gitDialogs.baseBranch}
           />
         </div>
 
@@ -537,6 +536,7 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
             getLabel={gitDialogs.branchLabel}
             onOpenChange={setDropdownOpen}
             onSubmit={handleRebaseAndClose}
+            defaultValue={gitDialogs.baseBranch}
           />
         </div>
 
@@ -648,6 +648,7 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
                 isMobile={isMobile}
                 onOpenChange={setBranchDropdownOpen}
                 onSubmit={handleCreatePRAndClose}
+                defaultValue={gitDialogs.baseBranch}
               />
             </div>
 
@@ -1034,9 +1035,13 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
   useEffect(() => {
     if (mergeOpen || rebaseOpen || prOpen) {
       setSquashMerge(false)
+      // Set selectedBranch to baseBranch immediately so user can submit while loading
+      if (!pendingSelectedBranchRef.current && baseBranch) {
+        setSelectedBranchState(baseBranch)
+      }
       fetchBranches()
     }
-  }, [mergeOpen, rebaseOpen, prOpen, fetchBranches])
+  }, [mergeOpen, rebaseOpen, prOpen, fetchBranches, baseBranch])
 
   // Handle merge
   const handleMerge = useCallback(async () => {
