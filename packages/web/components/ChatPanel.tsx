@@ -212,14 +212,23 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
     return () => window.clearTimeout(t)
   }, [chat?.id, isCreating, isMobile, focusPrompt])
 
-  // Auto-resize textarea
+  // Auto-resize textarea - use requestAnimationFrame to batch DOM reads/writes
+  // and avoid layout thrashing on every keystroke
   useEffect(() => {
     const textarea = textareaRef.current
-    if (textarea) {
+    if (!textarea) return
+
+    // Use rAF to batch DOM operations and avoid synchronous layout
+    const rafId = requestAnimationFrame(() => {
+      // Store current scroll position to avoid scroll jumps
+      const scrollTop = textarea.scrollTop
       textarea.style.height = "auto"
       const maxHeight = isMobile ? 120 : 200
       textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + "px"
-    }
+      textarea.scrollTop = scrollTop
+    })
+
+    return () => cancelAnimationFrame(rafId)
   }, [input, isMobile])
 
   // Close dropdowns when clicking outside (desktop only)

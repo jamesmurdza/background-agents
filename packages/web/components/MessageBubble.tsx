@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, memo } from "react"
 import { ChevronDown, ChevronRight, Terminal, FileText, Search, GitMerge, LucideIcon, Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message, ContentBlock, ToolCall, MessageMetadata } from "@/lib/types"
@@ -19,7 +19,9 @@ interface MessageBubbleProps {
   onForcePush?: () => void
 }
 
-export function MessageBubble({ message, isStreaming, isMobile = false, repo, onOpenFile, onForcePush }: MessageBubbleProps) {
+// Memoized MessageBubble to prevent re-renders when parent (ChatPanel) re-renders
+// due to input changes. Only re-render when message content actually changes.
+export const MessageBubble = memo(function MessageBubble({ message, isStreaming, isMobile = false, repo, onOpenFile, onForcePush }: MessageBubbleProps) {
   const isUser = message.role === "user"
   const hasUploadedFiles = isUser && message.uploadedFiles && message.uploadedFiles.length > 0
 
@@ -67,7 +69,20 @@ export function MessageBubble({ message, isStreaming, isMobile = false, repo, on
       </div>
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo - only re-render when these change
+  // This prevents re-renders when typing in the input (which causes ChatPanel to re-render)
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.toolCalls === nextProps.message.toolCalls &&
+    prevProps.message.contentBlocks === nextProps.message.contentBlocks &&
+    prevProps.isStreaming === nextProps.isStreaming &&
+    prevProps.isMobile === nextProps.isMobile &&
+    prevProps.repo === nextProps.repo
+    // Note: onOpenFile and onForcePush are stable callbacks from parent
+  )
+})
 
 // =============================================================================
 // Code Block with Copy Button
