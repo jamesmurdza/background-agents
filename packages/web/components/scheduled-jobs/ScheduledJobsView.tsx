@@ -463,9 +463,8 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showLis
 
         {jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Clock className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h2 className="text-lg font-medium mb-2">No scheduled jobs yet</h2>
-            <p className="text-muted-foreground">
+            <Clock className="h-8 w-8 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">
               Create a scheduled job to run agents automatically
             </p>
           </div>
