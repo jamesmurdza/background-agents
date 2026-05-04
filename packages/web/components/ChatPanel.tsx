@@ -830,20 +830,6 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           "flex items-end gap-2",
           isMobile ? "px-3 py-2" : "px-4 py-3"
         )}>
-          {/* Attachment button - left side */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className={cn(
-              "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
-              isMobile ? "h-9 w-9" : "h-7 w-7"
-            )}
-            title="Attach files"
-            aria-label="Attach files"
-          >
-            <Paperclip className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
-          </button>
-
           {/* Textarea wrapper with slash command menu */}
           <div className="relative flex-1">
             {/* Slash Command Menu - positioned above the textarea */}
@@ -952,6 +938,20 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
           "flex items-center gap-2",
           isMobile ? "px-3 py-2 flex-wrap" : "px-4 py-2 gap-4"
         )}>
+          {/* Attachment button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
+              isMobile ? "h-7 w-7" : "h-6 w-6"
+            )}
+            title="Attach files"
+            aria-label="Attach files"
+          >
+            <Paperclip className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+          </button>
+
           {/* Repo display/selector */}
           {showRepoButton ? (
             // Can change repo - show as button
@@ -964,6 +964,7 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                     isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-sm"
                   )}
                 >
+                  <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                   {isNewRepo ? "Repository" : chat.repo?.split("/").pop()}
                   <ChevronDown className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
                 </button>
@@ -1003,10 +1004,11 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
-                  "text-muted-foreground hover:text-foreground transition-colors",
+                  "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
                   isMobile ? "text-sm" : "text-sm"
                 )}
               >
+                <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 {chat.repo?.split("/").pop()}
               </a>
               {chat.branch && (
