@@ -121,6 +121,7 @@ export default function HomePage() {
   const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
   const [scheduledJobFormOpen, setScheduledJobFormOpen] = useState(false)
+  const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [previewWidth, setPreviewWidth] = useState(() => {
@@ -1269,6 +1270,7 @@ export default function HomePage() {
               {viewMode === "scheduled-jobs" ? (
                 <ScheduledJobsView
                   onOpenForm={() => setScheduledJobFormOpen(true)}
+                  refreshKey={scheduledJobsRefreshKey}
                 />
               ) : (
                 <ChatPanel
@@ -1467,7 +1469,10 @@ export default function HomePage() {
       {scheduledJobFormOpen && (
         <ScheduledJobForm
           onClose={() => setScheduledJobFormOpen(false)}
-          onSuccess={() => setScheduledJobFormOpen(false)}
+          onSuccess={() => {
+            setScheduledJobFormOpen(false)
+            setScheduledJobsRefreshKey((k) => k + 1)
+          }}
         />
       )}
 

@@ -87,13 +87,15 @@ function formatRunLabel(run: ScheduledJobRun): string {
 
 interface ScheduledJobsViewProps {
   onOpenForm?: () => void
+  /** Increment to trigger a refresh of the jobs list */
+  refreshKey?: number
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function ScheduledJobsView({ onOpenForm }: ScheduledJobsViewProps) {
+export function ScheduledJobsView({ onOpenForm, refreshKey }: ScheduledJobsViewProps) {
   const { data: session } = useSession()
 
   // View state: list or detail
@@ -138,7 +140,7 @@ export function ScheduledJobsView({ onOpenForm }: ScheduledJobsViewProps) {
       const interval = setInterval(fetchJobs, 30000)
       return () => clearInterval(interval)
     }
-  }, [session])
+  }, [session, refreshKey])
 
   // Fetch job detail when selected
   useEffect(() => {
