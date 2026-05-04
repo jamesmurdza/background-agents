@@ -102,6 +102,11 @@ export async function status(
 
 /**
  * Fetch from remote
+ *
+ * When a specific branch is requested (refspec is a simple branch name like "main"),
+ * we use a full refspec to ensure the remote tracking ref is created/updated.
+ * This is necessary for single-branch clones where `git fetch origin main` alone
+ * does not create `origin/main`.
  */
 export async function fetch(
   process: SandboxProcess,
@@ -109,7 +114,16 @@ export async function fetch(
   token?: string,
   refspec?: string
 ): Promise<void> {
-  const ref = refspec ?? ""
+  let ref = refspec ?? ""
+
+  // If refspec is a simple branch name (no special chars), convert it to a full
+  // refspec that creates the remote tracking ref. This fixes rebase/merge onto
+  // branches that don't exist locally in single-branch clones.
+  // Skip if it looks like a flag (--prune) or already contains a refspec colon.
+  if (ref && !ref.startsWith("-") && !ref.includes(":")) {
+    ref = `+refs/heads/${ref}:refs/remotes/origin/${ref}`
+  }
+
   const fetchCmd = `fetch origin ${ref} 2>&1`
   if (token) {
     await exec(process, `cd ${esc(path)} && ${withAuth(token, fetchCmd)}`)
