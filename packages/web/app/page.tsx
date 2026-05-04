@@ -575,6 +575,13 @@ export default function HomePage() {
     setViewMode("chat")
   }
 
+  // Handler for opening scheduled jobs view
+  const handleOpenScheduledJobs = () => {
+    setViewMode("scheduled-jobs")
+    selectChat(null as unknown as string) // Deselect current chat
+    setPreviewPaneHidden(true) // Close preview pane
+  }
+
   // Handler for the repo button in the ChatPanel header. Routes to the Select
   // modal when the chat can still choose an existing repo, otherwise to Create
   // (the only other option for a locked NEW_REPOSITORY chat). The two modals
@@ -1128,7 +1135,7 @@ export default function HomePage() {
           onToggleChatCollapsed={toggleChatCollapsed}
           onRequestMergeChats={handleRequestMergeChats}
           onRequestRebaseChat={handleRequestRebaseChat}
-          onOpenScheduledJobs={() => setViewMode("scheduled-jobs")}
+          onOpenScheduledJobs={handleOpenScheduledJobs}
           scheduledJobsActive={viewMode === "scheduled-jobs"}
         />
       )}
@@ -1161,7 +1168,7 @@ export default function HomePage() {
           onRequestRebaseChat={handleRequestRebaseChat}
           onMobileRename={(chatId, name) => setMobileRenameChat({ id: chatId, name })}
           onOpenScheduledJobs={() => {
-            setViewMode("scheduled-jobs")
+            handleOpenScheduledJobs()
             setMobileSidebarOpen(false)
           }}
           scheduledJobsActive={viewMode === "scheduled-jobs"}
