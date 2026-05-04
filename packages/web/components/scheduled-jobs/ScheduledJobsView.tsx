@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { Clock, Plus, MoreHorizontal, Play, Pencil, Trash2, AlertCircle, Check, X, ArrowLeft, ChevronDown, ExternalLink, Github, GitPullRequest, CheckCircle2, XCircle, Circle } from "lucide-react"
+import { Clock, Plus, MoreHorizontal, Play, Pencil, Trash2, AlertCircle, Check, X, ArrowLeft, ChevronDown, ExternalLink, Github, GitPullRequest, CheckCircle2, XCircle, Circle, RefreshCw } from "lucide-react"
 import { format, formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -38,7 +38,7 @@ function getRunStatusIcon(status: string) {
     case "error":
       return <XCircle className="h-3.5 w-3.5 text-destructive" />
     case "running":
-      return <Circle className="h-3.5 w-3.5 fill-blue-500 text-blue-500 animate-pulse" />
+      return <RefreshCw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
     default:
       return <Circle className="h-3.5 w-3.5 text-muted-foreground" />
   }
