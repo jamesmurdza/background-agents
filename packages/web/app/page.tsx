@@ -582,6 +582,7 @@ export default function HomePage() {
   // Handler for opening scheduled jobs view
   const handleOpenScheduledJobs = () => {
     setViewMode("scheduled-jobs")
+    setSelectedScheduledJob(null) // Clear selected job to show list view
     selectChat(null as unknown as string) // Deselect current chat
     setPreviewPaneHidden(true) // Close preview pane
   }
