@@ -87,14 +87,6 @@ export interface UseGitDialogsResult {
 }
 
 // ============================================================================
-// Helper function to generate unique IDs
-// ============================================================================
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-}
-
-// ============================================================================
 // Shared Dialog Component
 // ============================================================================
 
@@ -375,6 +367,134 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
 }
 
 // ============================================================================
+// Shared UI Components - Reduce duplication across dialogs
+// ============================================================================
+
+/** Responsive label for form fields */
+function DialogLabel({ children, isMobile = false }: { children: React.ReactNode; isMobile?: boolean }) {
+  return (
+    <label className={cn(
+      "block text-muted-foreground mb-1",
+      isMobile ? "text-sm" : "text-xs"
+    )}>
+      {children}
+    </label>
+  )
+}
+
+/** Readonly display field for showing current values */
+function DialogReadonlyField({ children, isMobile = false }: { children: React.ReactNode; isMobile?: boolean }) {
+  return (
+    <div className={cn(
+      "bg-muted/50 rounded-md px-3 font-medium truncate",
+      isMobile ? "py-3 text-base" : "py-2 text-sm"
+    )}>
+      {children}
+    </div>
+  )
+}
+
+/** Standard cancel button for dialogs */
+function DialogCancelButton({ onClick, isMobile = false }: { onClick: () => void; isMobile?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "rounded-md hover:bg-accent transition-colors",
+        isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
+      )}
+    >
+      Cancel
+    </button>
+  )
+}
+
+/** Standard primary action button for dialogs */
+interface DialogActionButtonProps {
+  onClick: () => void
+  disabled?: boolean
+  loading?: boolean
+  isMobile?: boolean
+  variant?: "primary" | "destructive"
+  children: React.ReactNode
+  buttonRef?: React.RefObject<HTMLButtonElement | null>
+}
+
+function DialogActionButton({
+  onClick,
+  disabled = false,
+  loading = false,
+  isMobile = false,
+  variant = "primary",
+  children,
+  buttonRef,
+}: DialogActionButtonProps) {
+  const variantClasses = variant === "destructive"
+    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+    : "bg-primary text-primary-foreground hover:bg-primary/90"
+
+  return (
+    <button
+      ref={buttonRef}
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={cn(
+        "rounded-md disabled:opacity-50 flex items-center gap-2",
+        variantClasses,
+        isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
+      )}
+    >
+      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+      {children}
+    </button>
+  )
+}
+
+/** Standard footer with cancel and action buttons */
+interface DialogFooterProps {
+  onCancel: () => void
+  onAction: () => void
+  actionLabel: string
+  disabled?: boolean
+  loading?: boolean
+  isMobile?: boolean
+  variant?: "primary" | "destructive"
+  actionButtonRef?: React.RefObject<HTMLButtonElement | null>
+}
+
+function DialogFooter({
+  onCancel,
+  onAction,
+  actionLabel,
+  disabled = false,
+  loading = false,
+  isMobile = false,
+  variant = "primary",
+  actionButtonRef,
+}: DialogFooterProps) {
+  return (
+    <div className="flex justify-end gap-2 pt-2">
+      <DialogCancelButton onClick={onCancel} isMobile={isMobile} />
+      <DialogActionButton
+        onClick={onAction}
+        disabled={disabled}
+        loading={loading}
+        isMobile={isMobile}
+        variant={variant}
+        buttonRef={actionButtonRef}
+      >
+        {actionLabel}
+      </DialogActionButton>
+    </div>
+  )
+}
+
+/** Responsive icon sizing for dialog headers */
+function dialogIconClass(isMobile: boolean): string {
+  return isMobile ? "h-5 w-5" : "h-4 w-4"
+}
+
+// ============================================================================
 // Merge Dialog
 // ============================================================================
 
@@ -400,29 +520,20 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
       open={open}
       onClose={onClose}
       title="Merge Branch"
-      icon={<GitMerge className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
+      icon={<GitMerge className={dialogIconClass(isMobile)} />}
       isMobile={isMobile}
       allowOverflow={dropdownOpen}
     >
-      <div className={cn("space-y-5")}>
+      <div className="space-y-5">
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>From chat</label>
-          <div className={cn(
-            "bg-muted/50 rounded-md px-3 font-medium truncate",
-            isMobile ? "py-3 text-base" : "py-2 text-sm"
-          )}>
+          <DialogLabel isMobile={isMobile}>From chat</DialogLabel>
+          <DialogReadonlyField isMobile={isMobile}>
             {gitDialogs.branchName ? gitDialogs.branchLabel(gitDialogs.branchName) : "No chat"}
-          </div>
+          </DialogReadonlyField>
         </div>
 
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Into chat</label>
+          <DialogLabel isMobile={isMobile}>Into chat</DialogLabel>
           <BranchSelector
             autoFocus
             value={gitDialogs.selectedBranch}
@@ -450,28 +561,14 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false 
           )}>Squash commits</span>
         </label>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className={cn(
-              "rounded-md hover:bg-accent transition-colors",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleMergeAndClose}
-            disabled={agentRunning || !gitDialogs.selectedBranch || gitDialogs.actionLoading}
-            className={cn(
-              "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            {gitDialogs.actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Merge
-          </button>
-        </div>
+        <DialogFooter
+          onCancel={onClose}
+          onAction={handleMergeAndClose}
+          actionLabel="Merge"
+          disabled={agentRunning || !gitDialogs.selectedBranch}
+          loading={gitDialogs.actionLoading}
+          isMobile={isMobile}
+        />
       </div>
     </BaseDialog>
   )
@@ -503,29 +600,20 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
       open={open}
       onClose={onClose}
       title="Rebase Branch"
-      icon={<GitBranch className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
+      icon={<GitBranch className={dialogIconClass(isMobile)} />}
       isMobile={isMobile}
       allowOverflow={dropdownOpen}
     >
-      <div className={cn("space-y-5")}>
+      <div className="space-y-5">
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Rebase</label>
-          <div className={cn(
-            "bg-muted/50 rounded-md px-3 font-medium truncate",
-            isMobile ? "py-3 text-base" : "py-2 text-sm"
-          )}>
+          <DialogLabel isMobile={isMobile}>Rebase</DialogLabel>
+          <DialogReadonlyField isMobile={isMobile}>
             {gitDialogs.branchName ? gitDialogs.branchLabel(gitDialogs.branchName) : "No chat"}
-          </div>
+          </DialogReadonlyField>
         </div>
 
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Onto branch</label>
+          <DialogLabel isMobile={isMobile}>Onto branch</DialogLabel>
           <BranchSelector
             autoFocus
             value={gitDialogs.selectedBranch}
@@ -540,28 +628,14 @@ export function RebaseDialog({ open, onClose, gitDialogs, chat, isMobile = false
           />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className={cn(
-              "rounded-md hover:bg-accent transition-colors",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleRebaseAndClose}
-            disabled={agentRunning || !gitDialogs.selectedBranch || gitDialogs.actionLoading}
-            className={cn(
-              "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            {gitDialogs.actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Rebase
-          </button>
-        </div>
+        <DialogFooter
+          onCancel={onClose}
+          onAction={handleRebaseAndClose}
+          actionLabel="Rebase"
+          disabled={agentRunning || !gitDialogs.selectedBranch}
+          loading={gitDialogs.actionLoading}
+          isMobile={isMobile}
+        />
       </div>
     </BaseDialog>
   )
@@ -607,11 +681,11 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
       open={open}
       onClose={onClose}
       title="Create Pull Request"
-      icon={<GitPullRequest className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
+      icon={<GitPullRequest className={dialogIconClass(isMobile)} />}
       isMobile={isMobile}
       allowOverflow={descriptionDropdownOpen || branchDropdownOpen}
     >
-      <div className={cn("space-y-5")}>
+      <div className="space-y-5">
         {!isGitHubRepo ? (
           <p className={cn(
             "text-muted-foreground",
@@ -622,23 +696,14 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
         ) : (
           <>
             <div>
-              <label className={cn(
-                "block text-muted-foreground mb-1",
-                isMobile ? "text-sm" : "text-xs"
-              )}>From chat</label>
-              <div className={cn(
-                "bg-muted/50 rounded-md px-3 font-medium truncate",
-                isMobile ? "py-3 text-base" : "py-2 text-sm"
-              )}>
+              <DialogLabel isMobile={isMobile}>From chat</DialogLabel>
+              <DialogReadonlyField isMobile={isMobile}>
                 {gitDialogs.branchName ? gitDialogs.branchLabel(gitDialogs.branchName) : "No chat"}
-              </div>
+              </DialogReadonlyField>
             </div>
 
             <div>
-              <label className={cn(
-                "block text-muted-foreground mb-1",
-                isMobile ? "text-sm" : "text-xs"
-              )}>Into chat</label>
+              <DialogLabel isMobile={isMobile}>Into chat</DialogLabel>
               <BranchSelector
                 autoFocus
                 value={gitDialogs.selectedBranch}
@@ -654,10 +719,7 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
 
             {/* Description type selector */}
             <div>
-              <label className={cn(
-                "block text-muted-foreground mb-1",
-                isMobile ? "text-sm" : "text-xs"
-              )}>Description format</label>
+              <DialogLabel isMobile={isMobile}>Description format</DialogLabel>
               <div className="relative">
                 <button
                   type="button"
@@ -705,30 +767,20 @@ export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: 
           </>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className={cn(
-              "rounded-md hover:bg-accent transition-colors",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            Cancel
-          </button>
-          {isGitHubRepo && (
-            <button
-              onClick={handleCreatePRAndClose}
-              disabled={agentRunning || !gitDialogs.selectedBranch || gitDialogs.actionLoading}
-              className={cn(
-                "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
-                isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-              )}
-            >
-              {gitDialogs.actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Create PR
-            </button>
-          )}
-        </div>
+        {isGitHubRepo ? (
+          <DialogFooter
+            onCancel={onClose}
+            onAction={handleCreatePRAndClose}
+            actionLabel="Create PR"
+            disabled={agentRunning || !gitDialogs.selectedBranch}
+            loading={gitDialogs.actionLoading}
+            isMobile={isMobile}
+          />
+        ) : (
+          <div className="flex justify-end pt-2">
+            <DialogCancelButton onClick={onClose} isMobile={isMobile} />
+          </div>
+        )}
       </div>
     </BaseDialog>
   )
@@ -761,42 +813,27 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
       open={open}
       onClose={onClose}
       title="Squash Commits"
-      icon={<GitCommitVertical className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />}
+      icon={<GitCommitVertical className={dialogIconClass(isMobile)} />}
       isMobile={isMobile}
       initialFocusRef={squashButtonRef}
     >
-      <div className={cn("space-y-5")}>
+      <div className="space-y-5">
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Current branch</label>
-          <div className={cn(
-            "bg-muted/50 rounded-md px-3 font-medium truncate",
-            isMobile ? "py-3 text-base" : "py-2 text-sm"
-          )}>
+          <DialogLabel isMobile={isMobile}>Current branch</DialogLabel>
+          <DialogReadonlyField isMobile={isMobile}>
             {gitDialogs.branchName ? gitDialogs.branchLabel(gitDialogs.branchName) : "No chat"}
-          </div>
+          </DialogReadonlyField>
         </div>
 
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Base branch</label>
-          <div className={cn(
-            "bg-muted/50 rounded-md px-3 font-medium truncate",
-            isMobile ? "py-3 text-base" : "py-2 text-sm"
-          )}>
+          <DialogLabel isMobile={isMobile}>Base branch</DialogLabel>
+          <DialogReadonlyField isMobile={isMobile}>
             {gitDialogs.baseBranch || "main"}
-          </div>
+          </DialogReadonlyField>
         </div>
 
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Commits to squash</label>
+          <DialogLabel isMobile={isMobile}>Commits to squash</DialogLabel>
           {gitDialogs.commitsLoading ? (
             <div className={cn(
               "flex items-center gap-2 text-muted-foreground",
@@ -806,12 +843,9 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
               Counting commits...
             </div>
           ) : (
-            <div className={cn(
-              "bg-muted/50 rounded-md px-3 font-medium",
-              isMobile ? "py-3 text-base" : "py-2 text-sm"
-            )}>
+            <DialogReadonlyField isMobile={isMobile}>
               {gitDialogs.commitsAhead} commit{gitDialogs.commitsAhead !== 1 ? "s" : ""} ahead of {gitDialogs.baseBranch || "main"}
-            </div>
+            </DialogReadonlyField>
           )}
         </div>
 
@@ -833,29 +867,15 @@ export function SquashDialog({ open, onClose, gitDialogs, chat, isMobile = false
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className={cn(
-              "rounded-md hover:bg-accent transition-colors",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            ref={squashButtonRef}
-            onClick={handleSquashAndClose}
-            disabled={agentRunning || !canSquash || gitDialogs.actionLoading}
-            className={cn(
-              "rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            {gitDialogs.actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Squash
-          </button>
-        </div>
+        <DialogFooter
+          onCancel={onClose}
+          onAction={handleSquashAndClose}
+          actionLabel="Squash"
+          disabled={agentRunning || !canSquash}
+          loading={gitDialogs.actionLoading}
+          isMobile={isMobile}
+          actionButtonRef={squashButtonRef}
+        />
       </div>
     </BaseDialog>
   )
@@ -887,22 +907,16 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
       open={open}
       onClose={onClose}
       title="Force push"
-      icon={<AlertTriangle className={cn(isMobile ? "h-5 w-5" : "h-4 w-4", "text-amber-500")} />}
+      icon={<AlertTriangle className={cn(dialogIconClass(isMobile), "text-amber-500")} />}
       isMobile={isMobile}
       initialFocusRef={forcePushButtonRef}
     >
-      <div className={cn("space-y-5")}>
+      <div className="space-y-5">
         <div>
-          <label className={cn(
-            "block text-muted-foreground mb-1",
-            isMobile ? "text-sm" : "text-xs"
-          )}>Branch</label>
-          <div className={cn(
-            "bg-muted/50 rounded-md px-3 font-medium truncate",
-            isMobile ? "py-3 text-base" : "py-2 text-sm"
-          )}>
+          <DialogLabel isMobile={isMobile}>Branch</DialogLabel>
+          <DialogReadonlyField isMobile={isMobile}>
             {branchLabel || "No chat"}
-          </div>
+          </DialogReadonlyField>
         </div>
 
         <p className={cn(
@@ -914,29 +928,16 @@ export function ForcePushDialog({ open, onClose, gitDialogs, chat, isMobile = fa
           with your local commits. Anyone with the old history will need to re-sync.
         </p>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onClose}
-            className={cn(
-              "rounded-md hover:bg-accent transition-colors",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            ref={forcePushButtonRef}
-            onClick={handleForcePush}
-            disabled={agentRunning || gitDialogs.actionLoading || !gitDialogs.branchName}
-            className={cn(
-              "rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 flex items-center gap-2",
-              isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-            )}
-          >
-            {gitDialogs.actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Force push
-          </button>
-        </div>
+        <DialogFooter
+          onCancel={onClose}
+          onAction={handleForcePush}
+          actionLabel="Force push"
+          disabled={agentRunning || !gitDialogs.branchName}
+          loading={gitDialogs.actionLoading}
+          isMobile={isMobile}
+          variant="destructive"
+          actionButtonRef={forcePushButtonRef}
+        />
       </div>
     </BaseDialog>
   )
