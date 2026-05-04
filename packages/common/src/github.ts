@@ -251,3 +251,19 @@ export async function createFileCommit(
   })
 }
 
+/**
+ * Fork a repository to the authenticated user's account.
+ * Returns the forked repository info. Note: forking is async on GitHub's side,
+ * so the returned repo may not be immediately ready for cloning.
+ */
+export async function forkRepo(
+  token: string,
+  owner: string,
+  repo: string
+): Promise<GitHubRepo> {
+  return githubFetch<GitHubRepo>(`/repos/${owner}/${repo}/forks`, token, {
+    method: "POST",
+    body: JSON.stringify({}),
+  })
+}
+

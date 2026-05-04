@@ -8,8 +8,9 @@ import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { fetchRepos, fetchBranches, createRepository } from "@/lib/github"
+import { fetchRepos, fetchBranches, createRepository, fetchRepo, forkRepository, parseGitHubUrl } from "@/lib/github"
 import type { GitHubRepo, GitHubBranch } from "@/lib/types"
+import { GitFork } from "lucide-react"
 
 interface RepoPickerModalProps {
   open: boolean
@@ -70,11 +71,62 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
     return () => clearTimeout(timer)
   }, [search])
 
+  // Check if search input is a GitHub URL and fetch repo info
+  useEffect(() => {
+    const parsed = parseGitHubUrl(debouncedSearch)
+
+    // Reset URL state if not a valid URL
+    if (!parsed) {
+      setUrlRepo(null)
+      setUrlRepoNeedsFork(false)
+      setCheckingUrl(false)
+      return
+    }
+
+    // Check if the parsed URL matches a repo in the user's list
+    const existingRepo = repos.find(
+      r => r.owner.login.toLowerCase() === parsed.owner.toLowerCase() &&
+           r.name.toLowerCase() === parsed.repo.toLowerCase()
+    )
+    if (existingRepo) {
+      setUrlRepo(null)
+      setUrlRepoNeedsFork(false)
+      setCheckingUrl(false)
+      return
+    }
+
+    // Fetch the repo to check ownership/access
+    setCheckingUrl(true)
+    setError(null)
+
+    fetchRepo(parsed.owner, parsed.repo)
+      .then((repo) => {
+        setUrlRepo(repo)
+        // Check if user has push access (owner or collaborator)
+        // If permissions.push is false or undefined, they need to fork
+        const hasPushAccess = repo.permissions?.push === true
+        setUrlRepoNeedsFork(!hasPushAccess)
+      })
+      .catch((err) => {
+        // Repo not found or no access
+        setError(err.message || "Repository not found")
+        setUrlRepo(null)
+        setUrlRepoNeedsFork(false)
+      })
+      .finally(() => setCheckingUrl(false))
+  }, [debouncedSearch, repos])
+
   // Create repo form state
   const [newRepoName, setNewRepoName] = useState("")
   const [newRepoDescription, setNewRepoDescription] = useState("")
   const [newRepoIsPrivate, setNewRepoIsPrivate] = useState(true)
   const [creating, setCreating] = useState(false)
+
+  // URL/fork state
+  const [urlRepo, setUrlRepo] = useState<GitHubRepo | null>(null)
+  const [urlRepoNeedsFork, setUrlRepoNeedsFork] = useState(false)
+  const [checkingUrl, setCheckingUrl] = useState(false)
+  const [forking, setForking] = useState(false)
 
   const contentRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -159,6 +211,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       setNewRepoDescription("")
       setNewRepoIsPrivate(true)
       setCreating(false)
+      // Reset URL/fork state
+      setUrlRepo(null)
+      setUrlRepoNeedsFork(false)
+      setCheckingUrl(false)
+      setForking(false)
     }
   }, [open, allowSelect, suggestedName])
 
@@ -184,6 +241,29 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
   const handleSelectRepo = (repo: GitHubRepo) => {
     onSelect(repo.full_name, repo.default_branch)
     onClose()
+  }
+
+  // Handle selecting a repo from URL (either directly or after forking)
+  const handleSelectUrlRepo = async () => {
+    if (!urlRepo) return
+
+    if (urlRepoNeedsFork) {
+      // Fork the repository first
+      setForking(true)
+      setError(null)
+      try {
+        const forkedRepo = await forkRepository(urlRepo.owner.login, urlRepo.name)
+        onSelect(forkedRepo.full_name, forkedRepo.default_branch)
+        onClose()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fork repository")
+        setForking(false)
+      }
+    } else {
+      // User has access, select directly
+      onSelect(urlRepo.full_name, urlRepo.default_branch)
+      onClose()
+    }
   }
 
   // Handle branch selection from dropdown
@@ -409,7 +489,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={handleRepoKeyDown}
-                    placeholder="Search repositories..."
+                    placeholder="Search or paste a GitHub URL..."
                     className="pl-8"
                   />
                 </div>
@@ -449,7 +529,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
               </div>
             )}
 
-            {loading && activeTab === "select" && (
+            {(loading || checkingUrl) && activeTab === "select" && !urlRepo && (
               <div className={cn(
                 "flex items-center justify-center",
                 isMobile ? "p-12" : "p-8"
@@ -461,7 +541,109 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
               </div>
             )}
 
-            {!loading && !error && step === "repo" && activeTab === "select" && (
+            {/* URL Repository Card - shown when a valid GitHub URL is detected */}
+            {!loading && urlRepo && step === "repo" && activeTab === "select" && (
+              <div className={cn(isMobile ? "p-3" : "p-2")}>
+                <button
+                  onClick={handleSelectUrlRepo}
+                  disabled={forking}
+                  className={cn(
+                    "flex items-center gap-3 w-full rounded-lg border-2 border-primary/50 bg-primary/5 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left",
+                    isMobile ? "px-4 py-4" : "px-3 py-3",
+                    forking && "opacity-70 cursor-wait"
+                  )}
+                >
+                  {forking ? (
+                    <Loader2 className={cn(
+                      "animate-spin text-primary shrink-0",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )} />
+                  ) : urlRepoNeedsFork ? (
+                    <GitFork className={cn(
+                      "text-primary shrink-0",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )} />
+                  ) : urlRepo.private ? (
+                    <Lock className={cn(
+                      "text-primary shrink-0",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )} />
+                  ) : (
+                    <Globe className={cn(
+                      "text-primary shrink-0",
+                      isMobile ? "h-5 w-5" : "h-4 w-4"
+                    )} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className={cn(
+                      "font-medium truncate",
+                      isMobile ? "text-base" : "text-sm"
+                    )}>
+                      {urlRepo.full_name}
+                    </div>
+                    <div className={cn(
+                      "text-muted-foreground",
+                      isMobile ? "text-sm" : "text-xs"
+                    )}>
+                      {forking
+                        ? "Forking repository..."
+                        : urlRepoNeedsFork
+                        ? "Click to fork and use this repository"
+                        : `Default: ${urlRepo.default_branch}`}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Show filtered repos below the URL card */}
+                {filteredRepos.length > 0 && (
+                  <div className={cn(
+                    "mt-2 pt-2 border-t border-border",
+                    isMobile ? "text-sm" : "text-xs"
+                  )}>
+                    <div className="text-muted-foreground px-3 py-1">Your repositories</div>
+                    {filteredRepos.map((repo, index) => (
+                      <button
+                        key={repo.id}
+                        onClick={() => handleSelectRepo(repo)}
+                        className={cn(
+                          "flex items-center gap-3 w-full rounded-lg hover:bg-accent active:bg-accent transition-colors text-left touch-target",
+                          isMobile ? "px-4 py-4" : "px-3 py-2",
+                          index === selectedRepoIndex && "bg-accent"
+                        )}
+                      >
+                        {repo.private ? (
+                          <Lock className={cn(
+                            "text-muted-foreground shrink-0",
+                            isMobile ? "h-5 w-5" : "h-4 w-4"
+                          )} />
+                        ) : (
+                          <Globe className={cn(
+                            "text-muted-foreground shrink-0",
+                            isMobile ? "h-5 w-5" : "h-4 w-4"
+                          )} />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className={cn(
+                            "font-medium truncate",
+                            isMobile ? "text-base" : "text-sm"
+                          )}>
+                            {repo.full_name}
+                          </div>
+                          <div className={cn(
+                            "text-muted-foreground",
+                            isMobile ? "text-sm" : "text-xs"
+                          )}>
+                            Default: {repo.default_branch}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!loading && !checkingUrl && !urlRepo && !error && step === "repo" && activeTab === "select" && (
               <div className={cn(isMobile ? "p-3" : "p-2")}>
                 {filteredRepos.length === 0 ? (
                   <div className={cn(
