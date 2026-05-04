@@ -1208,8 +1208,9 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
             href="https://github.com/jamesmurdza/background-agents"
             target="_blank"
             rel="noopener noreferrer"
-            className="absolute top-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute top-5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
+            <Github className="h-3.5 w-3.5" />
             Backgrounder is open source.
           </a>
           <div className="text-center mb-6">
