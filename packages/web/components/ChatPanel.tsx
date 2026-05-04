@@ -996,36 +996,19 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
               )}
             </div>
           ) : !isNewRepo && (
-            // Repo is locked — link out to the repo on GitHub instead of a
-            // plain label so the user can jump to it.
-            <div className="flex items-center gap-2">
-              <a
-                href={`https://github.com/${chat.repo}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
-                  isMobile ? "text-sm" : "text-sm"
-                )}
-              >
-                <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                {chat.repo?.split("/").pop()}
-              </a>
-              {chat.branch && (
-                <a
-                  href={`https://github.com/${chat.repo}/tree/${chat.branch}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn(
-                    "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
-                    isMobile ? "text-sm" : "text-sm"
-                  )}
-                  title={chat.branch}
-                >
-                  <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                </a>
+            // Repo is locked — link out to the branch on GitHub
+            <a
+              href={`https://github.com/${chat.repo}/tree/${chat.branch}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
+                isMobile ? "text-sm" : "text-sm"
               )}
-            </div>
+            >
+              <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+              {chat.repo?.split("/").pop()}
+            </a>
           )}
 
           {/* Spacer */}
