@@ -147,6 +147,9 @@ export interface Chat {
   /** Index of the currently active preview item in previewItems array */
   activePreviewIndex?: number
 
+  /** Whether the preview pane is hidden (items preserved but pane collapsed) */
+  previewPaneHidden?: boolean
+
   // Status
   status: ChatStatus
 

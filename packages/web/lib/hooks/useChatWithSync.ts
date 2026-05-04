@@ -145,6 +145,7 @@ export function useChatWithSync() {
         ...chat,
         previewItems: previewState?.items,
         activePreviewIndex: previewState?.activeIndex,
+        previewPaneHidden: previewState?.hidden,
         queuedMessages: localChatState.queuedMessages[chat.id],
         queuePaused: localChatState.queuePaused[chat.id],
       }
@@ -444,16 +445,17 @@ export function useChatWithSync() {
 
   const updateCurrentChat = useCallback(async (updates: Partial<Chat>) => {
     if (!currentChatId) return
-    const { previewItems, activePreviewIndex, queuedMessages, queuePaused, ...serverUpdates } = updates
+    const { previewItems, activePreviewIndex, previewPaneHidden, queuedMessages, queuePaused, ...serverUpdates } = updates
 
-    // Handle previewItems/activePreviewIndex fields
-    if ("previewItems" in updates || "activePreviewIndex" in updates) {
+    // Handle previewItems/activePreviewIndex/previewPaneHidden fields
+    if ("previewItems" in updates || "activePreviewIndex" in updates || "previewPaneHidden" in updates) {
       const currentState = localChatState.previewStates[currentChatId]
-      const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined
+      const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined && previewPaneHidden === undefined
         ? undefined
         : {
             items: previewItems ?? currentState?.items ?? [],
             activeIndex: activePreviewIndex ?? currentState?.activeIndex ?? 0,
+            hidden: previewPaneHidden ?? currentState?.hidden,
           }
       setPreviewState(currentChatId, newState)
       setLocalChatState((prev) => {
@@ -477,16 +479,17 @@ export function useChatWithSync() {
   }, [currentChatId, localChatState.previewStates, updateChatMutation])
 
   const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
-    const { previewItems, activePreviewIndex, ...serverUpdates } = updates
+    const { previewItems, activePreviewIndex, previewPaneHidden, ...serverUpdates } = updates
 
-    // Handle previewItems/activePreviewIndex fields
-    if ("previewItems" in updates || "activePreviewIndex" in updates) {
+    // Handle previewItems/activePreviewIndex/previewPaneHidden fields
+    if ("previewItems" in updates || "activePreviewIndex" in updates || "previewPaneHidden" in updates) {
       const currentState = localChatState.previewStates[chatId]
-      const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined
+      const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined && previewPaneHidden === undefined
         ? undefined
         : {
             items: previewItems ?? currentState?.items ?? [],
             activeIndex: activePreviewIndex ?? currentState?.activeIndex ?? 0,
+            hidden: previewPaneHidden ?? currentState?.hidden,
           }
       setPreviewState(chatId, newState)
       setLocalChatState((prev) => {

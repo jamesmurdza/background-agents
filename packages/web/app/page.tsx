@@ -135,7 +135,6 @@ export default function HomePage() {
     window.localStorage.setItem("simple-chat-preview-width", String(Math.round(previewWidth)))
   }, [previewWidth])
   const [isResizingPreview, setIsResizingPreview] = useState(false)
-  const [previewPaneHidden, setPreviewPaneHidden] = useState(false)
 
   // Track ports we've already auto-opened in each sandbox so the preview pane
   // only pops open the *first* time a new server appears — not every poll.
@@ -153,6 +152,7 @@ export default function HomePage() {
   const previewItems = (currentChat?.previewItems ?? []) as PreviewItem[]
   const activePreviewIndex = currentChat?.activePreviewIndex ?? 0
   const previewItem = previewItems[activePreviewIndex] ?? null
+  const previewPaneHidden = currentChat?.previewPaneHidden ?? false
   const previewOpen = previewItems.length > 0 && !previewPaneHidden
 
   /** Get a unique key for a preview item */
@@ -166,20 +166,19 @@ export default function HomePage() {
 
   /** Open a preview item - adds to list if not already present, switches to it if present */
   const openPreview = useCallback((next: PreviewItem) => {
-    // Unhide the pane when opening a preview
-    setPreviewPaneHidden(false)
     const existingIndex = previewItems.findIndex(
       (item) => getPreviewItemKey(item) === getPreviewItemKey(next)
     )
     if (existingIndex >= 0) {
-      // Item already exists, just switch to it
-      updateCurrentChat({ activePreviewIndex: existingIndex })
+      // Item already exists, just switch to it and unhide the pane
+      updateCurrentChat({ activePreviewIndex: existingIndex, previewPaneHidden: false })
     } else {
-      // Add new item and switch to it
+      // Add new item, switch to it, and unhide the pane
       const newItems = [...previewItems, next]
       updateCurrentChat({
         previewItems: newItems,
         activePreviewIndex: newItems.length - 1,
+        previewPaneHidden: false,
       })
     }
   }, [previewItems, getPreviewItemKey, updateCurrentChat])
@@ -225,15 +224,15 @@ export default function HomePage() {
     }
   }, [previewItems, activePreviewIndex, getPreviewItemKey, updateCurrentChat])
 
-  /** Hide the preview pane (items are preserved) */
+  /** Hide the preview pane (items are preserved, persisted to localStorage) */
   const closePreview = useCallback(() => {
-    setPreviewPaneHidden(true)
-  }, [])
+    updateCurrentChat({ previewPaneHidden: true })
+  }, [updateCurrentChat])
 
-  /** Show the preview pane (unhide it) */
+  /** Show the preview pane (unhide it, persisted to localStorage) */
   const showPreview = useCallback(() => {
-    setPreviewPaneHidden(false)
-  }, [])
+    updateCurrentChat({ previewPaneHidden: false })
+  }, [updateCurrentChat])
   const resizingPreview = useRef(false)
   const startPreviewResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -584,7 +583,7 @@ export default function HomePage() {
     setViewMode("scheduled-jobs")
     setSelectedScheduledJob(null) // Clear selected job to show list view
     selectChat(null as unknown as string) // Deselect current chat
-    setPreviewPaneHidden(true) // Close preview pane
+    // Preview pane is automatically hidden when no chat is selected (previewItems will be empty)
   }
 
   // Handler for scheduled job selection (memoized to prevent infinite loops)

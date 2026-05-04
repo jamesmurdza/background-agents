@@ -36,6 +36,7 @@ export interface DraftChatConfig {
 export interface PreviewState {
   items: Chat["previewItems"]
   activeIndex: number
+  hidden?: boolean
 }
 
 /**
