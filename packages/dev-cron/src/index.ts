@@ -50,7 +50,7 @@ interface VercelConfig {
 }
 
 const CRON_SECRET = process.env.CRON_SECRET || "dev-secret"
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000"
+const BASE_URL = process.env.BASE_URL || "http://localhost:4000"
 const VERCEL_JSON = process.env.VERCEL_JSON || "./vercel.json"
 
 function loadVercelConfig(): VercelConfig {
