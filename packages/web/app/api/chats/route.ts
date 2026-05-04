@@ -60,6 +60,8 @@ export async function GET(req: NextRequest): Promise<Response> {
     const chats = await prisma.chat.findMany({
       where: {
         userId,
+        // Exclude chats linked to scheduled job runs (they show in Scheduled Jobs UI)
+        scheduledJobRun: null,
         ...(updatedAfter && {
           updatedAt: { gt: new Date(parseInt(updatedAfter)) },
         }),
