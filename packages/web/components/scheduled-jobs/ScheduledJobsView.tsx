@@ -460,11 +460,12 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect }: Sched
   // List view
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* List Header */}
-      <header className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
+      {/* List Header - styled like chat header */}
+      <div className="flex items-center justify-between pt-3 shrink-0" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
         <div className="flex items-center gap-2">
-          <Clock className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">Scheduled Jobs</h1>
+          <span className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-md hover:bg-accent transition-colors cursor-default">
+            Scheduled Jobs
+          </span>
         </div>
         <button
           onClick={handleCreate}
@@ -473,7 +474,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect }: Sched
           <Plus className="h-4 w-4" />
           New Job
         </button>
-      </header>
+      </div>
 
       {/* List Content */}
       <main className="flex-1 overflow-auto p-6">
