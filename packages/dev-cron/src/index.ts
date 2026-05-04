@@ -11,7 +11,7 @@
  *   npm run dev:cron (if configured in root package.json)
  *
  * Environment variables:
- *   CRON_SECRET  - Bearer token for cron endpoints (default: "dev-secret")
+ *   CRON_SECRET  - Bearer token for cron endpoints (optional in development)
  *   BASE_URL     - Base URL for the dev server (default: "http://localhost:4000")
  *   VERCEL_JSON  - Path to vercel.json (default: "./vercel.json")
  */
@@ -49,7 +49,7 @@ interface VercelConfig {
   crons?: VercelCron[]
 }
 
-const CRON_SECRET = process.env.CRON_SECRET || "dev-secret"
+const CRON_SECRET = process.env.CRON_SECRET || ""
 const BASE_URL = process.env.BASE_URL || "http://localhost:4000"
 const VERCEL_JSON = process.env.VERCEL_JSON || "./vercel.json"
 
@@ -82,11 +82,13 @@ async function runCron(cron: VercelCron): Promise<void> {
 
   try {
     const start = Date.now()
+    const headers: Record<string, string> = {}
+    if (CRON_SECRET) {
+      headers.Authorization = `Bearer ${CRON_SECRET}`
+    }
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${CRON_SECRET}`,
-      },
+      headers,
     })
 
     const elapsed = Date.now() - start
@@ -137,7 +139,7 @@ function main(): void {
   console.log("╚═══════════════════════════════════════╝")
   console.log()
   console.log(`Base URL: ${BASE_URL}`)
-  console.log(`Cron Secret: ${CRON_SECRET.slice(0, 4)}${"*".repeat(Math.max(0, CRON_SECRET.length - 4))}`)
+  console.log(`Cron Secret: ${CRON_SECRET ? `${CRON_SECRET.slice(0, 4)}${"*".repeat(Math.max(0, CRON_SECRET.length - 4))}` : "(none)"}`)
   console.log()
 
   const config = loadVercelConfig()
