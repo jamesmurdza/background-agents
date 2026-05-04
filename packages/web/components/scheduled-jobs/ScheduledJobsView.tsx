@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { Clock, Plus, MoreHorizontal, Play, Pencil, Trash2, AlertCircle, Check, X, ArrowLeft, ChevronDown, ExternalLink, Github } from "lucide-react"
+import { Clock, Plus, MoreHorizontal, Play, Pencil, Trash2, AlertCircle, Check, X, ArrowLeft, ChevronDown, ExternalLink, Github, GitPullRequest } from "lucide-react"
 import { format, formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -66,6 +66,23 @@ function getLastRunText(job: ScheduledJob): string {
 
 function formatRunLabel(run: ScheduledJobRun): string {
   return format(run.startedAt, "MMM d, h:mm a")
+}
+
+function formatDuration(startedAt: number, completedAt: number): string {
+  const durationMs = completedAt - startedAt
+  const seconds = Math.floor(durationMs / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+
+  if (hours > 0) {
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
+  }
+  if (minutes > 0) {
+    const remainingSeconds = seconds % 60
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  }
+  return `${seconds}s`
 }
 
 // =============================================================================
@@ -422,13 +439,40 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect }: Sched
                     )}
                   </div>
                 ) : (
-                  messages.map((message, index) => (
-                    <MessageBubble
-                      key={message.id || index}
-                      message={message}
-                      isStreaming={selectedRun.status === "running" && index === messages.length - 1}
-                    />
-                  ))
+                  <>
+                    {messages.map((message, index) => (
+                      <MessageBubble
+                        key={message.id || index}
+                        message={message}
+                        isStreaming={selectedRun.status === "running" && index === messages.length - 1}
+                      />
+                    ))}
+
+                    {/* Completion summary - styled like system messages */}
+                    {selectedRun.status === "completed" && selectedRun.completedAt && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <Check className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+                        <span className="text-muted-foreground">
+                          Agent finished after {formatDuration(selectedRun.startedAt, selectedRun.completedAt)}.
+                        </span>
+                      </div>
+                    )}
+
+                    {/* PR created message */}
+                    {selectedRun.status === "completed" && selectedRun.prUrl && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <GitPullRequest className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+                        <a
+                          href={selectedRun.prUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Created PR #{selectedRun.prNumber}.
+                        </a>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
