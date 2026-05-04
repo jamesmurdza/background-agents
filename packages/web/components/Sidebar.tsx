@@ -427,7 +427,7 @@ export function Sidebar({
               )}
             >
               <Clock className={cn("h-5 w-5", scheduledJobsActive && !selectedScheduledJob ? "text-foreground" : "text-muted-foreground")} />
-              <span className="text-base text-foreground">Scheduled Jobs</span>
+              <span className="text-base text-foreground">Scheduled Agents</span>
             </button>
           </div>
 
@@ -666,7 +666,7 @@ export function Sidebar({
           )}
         >
           <Clock className={cn("h-4 w-4", scheduledJobsActive && !selectedScheduledJob ? "text-foreground" : "text-muted-foreground")} />
-          {!collapsed && <span className="text-sm text-foreground">Scheduled Jobs</span>}
+          {!collapsed && <span className="text-sm text-foreground">Scheduled Agents</span>}
         </button>
       </div>
 

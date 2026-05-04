@@ -1219,7 +1219,7 @@ export default function HomePage() {
             {viewMode === "scheduled-jobs" ? (
               <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 -ml-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-base font-semibold">Scheduled Jobs</span>
+                <span className="text-base font-semibold">Scheduled Agents</span>
               </div>
             ) : (
               <div className="relative flex-1 min-w-0" ref={mobileTitleMenuRef}>

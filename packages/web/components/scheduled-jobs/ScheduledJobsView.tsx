@@ -441,7 +441,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showLis
       <div className="flex items-center justify-between pt-3 shrink-0" style={{ paddingLeft: "1.625rem", paddingRight: "1.625rem" }}>
         <div className="flex items-center gap-2">
           <span className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-md hover:bg-accent transition-colors cursor-default">
-            Scheduled Jobs
+            Scheduled Agents
           </span>
         </div>
         <button
