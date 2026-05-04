@@ -95,13 +95,15 @@ interface ScheduledJobsViewProps {
   refreshKey?: number
   /** Callback when a job is selected/deselected (for sidebar integration) */
   onJobSelect?: (job: ScheduledJob | null) => void
+  /** When true, reset to show the list view (clear any selected job) */
+  showList?: boolean
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect }: ScheduledJobsViewProps) {
+export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showList }: ScheduledJobsViewProps) {
   const { data: session } = useSession()
 
   // View state: list or detail
@@ -130,6 +132,14 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect }: Sched
   useEffect(() => {
     onJobSelect?.(selectedJob)
   }, [selectedJob, onJobSelect])
+
+  // Reset to list view when showList becomes true
+  useEffect(() => {
+    if (showList) {
+      setSelectedJobId(null)
+      setSelectedJob(null)
+    }
+  }, [showList])
 
   // Fetch jobs list
   const fetchJobs = async () => {

@@ -1283,6 +1283,7 @@ export default function HomePage() {
                   onOpenForm={() => setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}
                   onJobSelect={handleJobSelect}
+                  showList={selectedScheduledJob === null}
                 />
               ) : (
                 <ChatPanel
