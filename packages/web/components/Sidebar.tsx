@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
-import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch, BarChart3 } from "lucide-react"
+import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch, BarChart3, Clock } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { Chat, Message } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -89,6 +90,12 @@ interface SidebarProps {
   onRequestRebaseChat?: (sourceId: string) => void
   /** Mobile rename - opens a bottom sheet in the parent */
   onMobileRename?: (chatId: string, currentName: string) => void
+  /** Open scheduled jobs view */
+  onOpenScheduledJobs?: () => void
+  /** Whether scheduled jobs view is active */
+  scheduledJobsActive?: boolean
+  /** Currently selected scheduled job (shown as indented item) */
+  selectedScheduledJob?: { id: string; name: string } | null
 }
 
 export function Sidebar({
@@ -116,8 +123,12 @@ export function Sidebar({
   onRequestMergeChats,
   onRequestRebaseChat,
   onMobileRename,
+  onOpenScheduledJobs,
+  scheduledJobsActive = false,
+  selectedScheduledJob,
 }: SidebarProps) {
   const { data: session } = useSession()
+  const router = useRouter()
   const isResizing = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -601,7 +612,7 @@ export function Sidebar({
       </div>
 
       {/* New Chat Button */}
-      <div className={cn("pb-2", collapsed ? "px-0 flex justify-center" : "px-2")}>
+      <div className={cn("pb-1", collapsed ? "px-0 flex justify-center" : "px-2")}>
         <button
           onClick={onNewChat}
           className={cn(
@@ -613,6 +624,31 @@ export function Sidebar({
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
         </button>
       </div>
+
+      {/* Scheduled Jobs Button */}
+      <div className={cn(collapsed ? "px-0 flex justify-center" : "px-2")}>
+        <button
+          onClick={() => {
+            if (onOpenScheduledJobs) {
+              onOpenScheduledJobs()
+            } else {
+              router.push("/scheduled-jobs")
+            }
+          }}
+          className={cn(
+            "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
+            collapsed ? "p-1.5" : "w-full px-2 py-2",
+            scheduledJobsActive && !selectedScheduledJob
+              ? "bg-accent text-accent-foreground"
+              : "hover:bg-accent/50"
+          )}
+        >
+          <Clock className={cn("h-4 w-4", scheduledJobsActive && !selectedScheduledJob ? "text-foreground" : "text-muted-foreground")} />
+          {!collapsed && <span className="text-sm text-foreground">Scheduled Jobs</span>}
+        </button>
+      </div>
+
+      <div className="pb-2" />
 
       {/* Chat List - only show when expanded */}
       {!collapsed && (

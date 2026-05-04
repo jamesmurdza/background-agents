@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus, FileText, FileCode, FileImage, File as FileIcon } from "lucide-react"
+import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, AlertTriangle, Loader2, GitBranchPlus, FileText, FileCode, FileImage, File as FileIcon, Clock } from "lucide-react"
 import {
   getFileType,
   formatFileSize,
@@ -67,9 +67,11 @@ interface ChatPanelProps {
   draft?: string
   /** Callback when draft text changes */
   onDraftChange?: (draft: string) => void
+  /** Callback to create a scheduled job */
+  onCreateScheduledJob?: () => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob }: ChatPanelProps) {
   // Use draft prop as input value (controlled component pattern for per-chat drafts)
   const input = draft
   const setInput = useCallback((value: string) => {
@@ -1026,6 +1028,17 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
 
           {/* Spacer */}
           <div className="flex-1" />
+
+          {/* Schedule button */}
+          {onCreateScheduledJob && !isMobile && (
+            <button
+              onClick={onCreateScheduledJob}
+              className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-1 rounded-md hover:bg-accent/50"
+              title="Create scheduled job"
+            >
+              <Clock className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           {/* Agent selector */}
           {isMobile ? (

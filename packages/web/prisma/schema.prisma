@@ -35,10 +35,11 @@ model User {
   // { "owner/repo": { "KEY1": "encrypted_value1", ... }, ... }
   repoEnvironmentVariables Json?
 
-  chats        Chat[]
-  accounts     Account[]
-  sessions     Session[]
-  activityLogs ActivityLog[]
+  chats         Chat[]
+  accounts      Account[]
+  sessions      Session[]
+  activityLogs  ActivityLog[]
+  scheduledJobs ScheduledJob[]
 }
 
 // =============================================================================
@@ -129,6 +130,9 @@ model Chat {
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
 
+  // Link back to scheduled run (if this chat belongs to one)
+  scheduledJobRun ScheduledJobRun?
+
   @@index([userId, updatedAt])
   @@index([userId, lastActiveAt])
 }
@@ -204,4 +208,74 @@ model ActivityLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// =============================================================================
+// ScheduledJob - Automated agent runs on a schedule
+// =============================================================================
+
+model ScheduledJob {
+  id     String @id @default(cuid())
+  userId String
+
+  // Config
+  name       String
+  prompt     String  @db.Text
+  repo       String // "owner/repo"
+  baseBranch String
+  agent      String
+  model      String?
+
+  // Schedule
+  intervalMinutes Int // e.g., 360 = every 6 hours
+  enabled         Boolean  @default(true)
+  nextRunAt       DateTime
+
+  // Auto-PR
+  autoPR Boolean @default(true)
+
+  // Failure tracking
+  consecutiveFailures Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs ScheduledJobRun[]
+
+  @@index([userId])
+  @@index([enabled, nextRunAt])
+}
+
+// =============================================================================
+// ScheduledJobRun - Each execution of a scheduled job
+// =============================================================================
+
+model ScheduledJobRun {
+  id    String @id @default(cuid())
+  jobId String
+
+  // Execution
+  status      String // "pending" | "running" | "completed" | "error"
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  // Results
+  sandboxId           String?
+  backgroundSessionId String?
+  branch              String?
+  commitCount         Int     @default(0)
+  prUrl               String?
+  prNumber            Int?
+  error               String? @db.Text
+
+  // Link to chat for full message history
+  chatId String? @unique
+  chat   Chat?   @relation(fields: [chatId], references: [id])
+
+  job ScheduledJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, startedAt])
+  @@index([status])
 }

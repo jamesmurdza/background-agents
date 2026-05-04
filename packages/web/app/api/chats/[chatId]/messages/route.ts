@@ -29,6 +29,37 @@ import {
 
 export const maxDuration = 300
 
+/**
+ * GET /api/chats/[chatId]/messages
+ *
+ * Returns all messages for a chat.
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+): Promise<Response> {
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
+  const { userId } = auth
+  const { chatId } = await params
+
+  const chat = await getChatWithAuth(chatId, userId)
+  if (!chat) return notFound("Chat not found")
+
+  const messages = await prisma.message.findMany({
+    where: { chatId },
+    orderBy: { timestamp: "asc" },
+  })
+
+  // Convert BigInt timestamps to numbers for JSON serialization
+  const serializedMessages = messages.map((m) => ({
+    ...m,
+    timestamp: Number(m.timestamp),
+  }))
+
+  return Response.json({ messages: serializedMessages })
+}
+
 interface MessagePayload {
   message: string
   agent: string

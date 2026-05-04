@@ -1,0 +1,19 @@
+{
+  "name": "@upstream/dev-cron",
+  "version": "0.1.0",
+  "description": "Local development simulator for Vercel cron jobs",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "dev-cron": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

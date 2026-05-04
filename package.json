@@ -7,6 +7,7 @@
   "scripts": {
     "postinstall": "npm run build:eliza -w background-agents && cd packages/web && npx prisma generate",
     "dev": "npm run dev -w @upstream/web",
+    "dev:cron": "npm run dev -w @upstream/dev-cron",
     "prisma:migrate": "cd packages/web && npx prisma migrate dev",
     "prisma:migrate:deploy": "cd packages/web && npx prisma migrate deploy",
     "prisma:generate": "cd packages/web && npx prisma generate",
