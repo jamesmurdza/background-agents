@@ -30,6 +30,7 @@ interface ChatPanelProps {
   chat: Chat | null
   settings: Settings
   credentialFlags: CredentialFlags
+  showClaudeLimitDialog: () => void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
   onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
@@ -77,7 +78,7 @@ interface ChatPanelProps {
   onOpenPlan?: (messageId: string) => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob, isSending = false, onOpenCommandPalette, onOpenPlan }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob, isSending = false, onOpenCommandPalette, onOpenPlan }: ChatPanelProps) {
   // Use draft prop as input value (controlled component pattern for per-chat drafts)
   const input = draft
   const setInput = useCallback((value: string) => {
@@ -632,6 +633,13 @@ export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEn
   const handleAgentChange = (agent: Agent) => {
     setShowAgentDropdown(false)
     setShowAgentSheet(false)
+
+    // Block switching to claude-code if daily limit is exceeded
+    if (agent === "claude-code" && credentialFlags.CLAUDE_DAILY_LIMIT_EXCEEDED) {
+      showClaudeLimitDialog()
+      return
+    }
+
     // Update chat's agent if possible
     if (chat && onUpdateChat) {
       const models = agentModels[agent] ?? []

@@ -169,6 +169,7 @@ export function useChatWithSync() {
 
   const settings = settingsQuery.data?.settings ?? DEFAULT_SETTINGS
   const credentialFlags = settingsQuery.data?.credentialFlags ?? {}
+  const claudeLimitResetAt = settingsQuery.data?.claudeLimitResetAt ?? null
   const currentChat = useMemo(() => chats.find((c) => c.id === currentChatId) ?? null, [chats, currentChatId])
   const isLoading = chatsQuery.isLoading || settingsQuery.isLoading
 
@@ -1086,6 +1087,7 @@ export function useChatWithSync() {
     currentChatId,
     settings,
     credentialFlags,
+    claudeLimitResetAt,
     isHydrated,
     isLoading,
     isLoadingMessages,
