@@ -30,8 +30,6 @@ interface ChatPanelProps {
   chat: Chat | null
   settings: Settings
   credentialFlags: CredentialFlags
-  claudeLimitResetAt?: string | null
-  claudeLimitRemaining?: number | null
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
   onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
@@ -79,7 +77,7 @@ interface ChatPanelProps {
   onOpenPlan?: (messageId: string) => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, claudeLimitResetAt, claudeLimitRemaining, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob, isSending = false, onOpenCommandPalette, onOpenPlan }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob, isSending = false, onOpenCommandPalette, onOpenPlan }: ChatPanelProps) {
   // Use draft prop as input value (controlled component pattern for per-chat drafts)
   const input = draft
   const setInput = useCallback((value: string) => {
@@ -175,23 +173,6 @@ export function ChatPanel({ chat, settings, credentialFlags, claudeLimitResetAt,
   const hasRequiredCredentials = selectedModelConfig
     ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
     : true
-
-  // Whether claude-code is limited (free user hit daily cap on shared pool)
-  const isClaudeLimited = !!credentialFlags.CLAUDE_DAILY_LIMIT_EXCEEDED
-
-  // Format reset time for display
-  const formatResetTime = (isoString: string): string => {
-    const reset = new Date(isoString)
-    const now = new Date()
-    const diffMs = reset.getTime() - now.getTime()
-
-    if (diffMs > 0 && diffMs < 24 * 60 * 60 * 1000) {
-      const hours = Math.floor(diffMs / (60 * 60 * 1000))
-      const minutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000))
-      return `in ${hours}h ${minutes}m`
-    }
-    return `at ${reset.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-  }
 
   // Conflict state
   const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
@@ -736,16 +717,11 @@ export function ChatPanel({ chat, settings, credentialFlags, claudeLimitResetAt,
   const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
 
   // Prepare agent options for mobile bottom sheet
-  const agentOptions = agents.map(agent => {
-    const agentIsLimited = isClaudeLimited && agent === "claude-code"
-    return {
-      value: agent,
-      label: agentLabels[agent],
-      icon: <AgentIcon agent={agent} className="h-5 w-5" />,
-      description: agentIsLimited ? "Daily limit reached" : undefined,
-      iconRight: agentIsLimited ? <AlertTriangle className="h-4 w-4 text-orange-500" /> : undefined,
-    }
-  })
+  const agentOptions = agents.map(agent => ({
+    value: agent,
+    label: agentLabels[agent],
+    icon: <AgentIcon agent={agent} className="h-5 w-5" />,
+  }))
 
   // Prepare model options for mobile bottom sheet
   const modelOptions = availableModels.map((model: ModelOption) => {
@@ -1099,19 +1075,10 @@ export function ChatPanel({ chat, settings, credentialFlags, claudeLimitResetAt,
             // Mobile: Use bottom sheet
             <button
               onClick={() => setShowAgentSheet(true)}
-              className={cn(
-                "flex items-center gap-1 text-sm py-1 px-2 rounded-md hover:bg-accent/50 transition-colors cursor-pointer",
-                isClaudeLimited && currentAgent === "claude-code"
-                  ? "text-orange-500 hover:text-orange-600"
-                  : "text-muted-foreground hover:text-foreground active:text-foreground"
-              )}
+              className="flex items-center gap-1 text-sm py-1 px-2 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer"
             >
-              {isClaudeLimited && currentAgent === "claude-code" && <AlertTriangle className="h-4 w-4" />}
               <AgentIcon agent={currentAgent} className="h-4 w-4" />
               {agentLabels[currentAgent]}
-              {isClaudeLimited && currentAgent === "claude-code" && (
-                <span className="text-xs opacity-70">(limited)</span>
-              )}
               <ChevronDown className="h-4 w-4" />
             </button>
           ) : (
@@ -1123,48 +1090,28 @@ export function ChatPanel({ chat, settings, credentialFlags, claudeLimitResetAt,
                   setShowAgentDropdown(!showAgentDropdown)
                   setShowModelDropdown(false)
                 }}
-                className={cn(
-                  "flex items-center gap-1 text-sm transition-colors cursor-pointer",
-                  isClaudeLimited && currentAgent === "claude-code"
-                    ? "text-orange-500 hover:text-orange-600"
-                    : "text-muted-foreground hover:text-foreground active:text-foreground"
-                )}
-                title={isClaudeLimited && currentAgent === "claude-code" ? "Claude Code daily limit reached. Use OpenCode or upgrade to Pro." : agentLabels[currentAgent]}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer"
+                title={agentLabels[currentAgent]}
               >
-                {isClaudeLimited && currentAgent === "claude-code" && <AlertTriangle className="h-3.5 w-3.5" />}
                 <AgentIcon agent={currentAgent} className="h-3.5 w-3.5" />
                 <span className="hidden @[32rem]:inline">{agentLabels[currentAgent]}</span>
-                {isClaudeLimited && currentAgent === "claude-code" && (
-                  <span className="hidden @[32rem]:inline text-xs opacity-70">(limited)</span>
-                )}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {showAgentDropdown && (
-                <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-44">
-                  {agents.map((agent) => {
-                    const agentIsLimited = isClaudeLimited && agent === "claude-code"
-                    return (
-                      <button
-                        key={agent}
-                        onClick={() => handleAgentChange(agent)}
-                        className={cn(
-                          "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
-                          agent === currentAgent && "bg-accent",
-                          agentIsLimited && "text-muted-foreground opacity-60"
-                        )}
-                        title={agentIsLimited ? "Daily limit reached. Use OpenCode or upgrade to Pro for unlimited access." : undefined}
-                      >
-                        <AgentIcon agent={agent} className="h-3.5 w-3.5" />
-                        {agentLabels[agent]}
-                        {agentIsLimited && (
-                          <span className="ml-auto text-xs text-orange-500 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            Limited
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
+                <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-40">
+                  {agents.map((agent) => (
+                    <button
+                      key={agent}
+                      onClick={() => handleAgentChange(agent)}
+                      className={cn(
+                        "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
+                        agent === currentAgent && "bg-accent"
+                      )}
+                    >
+                      <AgentIcon agent={agent} className="h-3.5 w-3.5" />
+                      {agentLabels[agent]}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -1676,28 +1623,6 @@ export function ChatPanel({ chat, settings, credentialFlags, claudeLimitResetAt,
           ? (hasQueued ? "px-[27px] pt-0 pb-3 pb-safe" : "px-[27px] py-3 pb-safe")
           : (hasQueued ? "px-[31px] pt-0 pb-4" : "px-[31px] pb-4 pt-2")
       )}>
-        {/* Claude Code limit banner */}
-        {isClaudeLimited && claudeLimitResetAt && (
-          <div className={cn(
-            "mb-2 flex items-center justify-between rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700",
-            isMobile ? "text-sm" : "text-xs"
-          )}>
-            <span>
-              Claude Code daily limit reached.{" "}
-              {claudeLimitResetAt && (
-                <span className="font-medium">
-                  Resets {formatResetTime(claudeLimitResetAt)}
-                </span>
-              )}
-            </span>
-            <a
-              href="/settings"
-              className="ml-2 shrink-0 font-medium text-orange-800 hover:text-orange-900 underline"
-            >
-              Upgrade to Pro
-            </a>
-          </div>
-        )}
         {chatInput}
       </div>
 

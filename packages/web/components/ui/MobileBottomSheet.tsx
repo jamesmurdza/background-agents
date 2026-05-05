@@ -123,7 +123,6 @@ interface MobileSelectOption {
   icon?: React.ReactNode
   description?: string
   disabled?: boolean
-  iconRight?: React.ReactNode
 }
 
 interface MobileSelectProps {
@@ -173,12 +172,7 @@ export function MobileSelect({
               <span className="shrink-0">{option.icon}</span>
             )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-base font-medium">{option.label}</span>
-                {option.iconRight && (
-                  <span className="shrink-0">{option.iconRight}</span>
-                )}
-              </div>
+              <div className="text-base font-medium">{option.label}</div>
               {option.description && (
                 <div className="text-sm text-muted-foreground">{option.description}</div>
               )}
