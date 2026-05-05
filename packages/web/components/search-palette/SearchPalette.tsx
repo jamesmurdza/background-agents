@@ -14,12 +14,7 @@ import {
 import { addRecentItem, getRecentItems, type RecentItem } from "@upstream/common"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import { NEW_REPOSITORY } from "@/lib/types"
-
-interface Chat {
-  id: string
-  displayName: string | null
-  repo: string
-}
+import type { PaletteChat } from "./types"
 
 interface SearchPaletteProps {
   open: boolean
@@ -27,7 +22,7 @@ interface SearchPaletteProps {
   repos: GitHubRepo[]
   currentRepo: string | null // "owner/repo"
   branches: GitHubBranch[]
-  chats: Chat[]
+  chats: PaletteChat[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
   onSelectChat: (chatId: string) => void
@@ -75,7 +70,7 @@ export function SearchPalette({
     onOpenChange(false)
   }
 
-  const handleSelectChat = (chat: Chat) => {
+  const handleSelectChat = (chat: PaletteChat) => {
     onSelectChat(chat.id)
     onOpenChange(false)
   }

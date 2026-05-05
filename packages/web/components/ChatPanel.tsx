@@ -11,11 +11,9 @@ import {
   PdfFullPreview,
   TextThumbnail,
   HighlightedCode,
-  type FileType,
 } from "@/lib/file-preview"
 import { cn } from "@/lib/utils"
-import type { Chat, Settings, Agent, ModelOption, PendingFile, CredentialFlags } from "@/lib/types"
-import { nanoid } from "nanoid"
+import type { Chat, Settings, Agent, ModelOption, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
 import { MessageBubble } from "./MessageBubble"
@@ -23,6 +21,7 @@ import { AgentIcon } from "./icons/agent-icons"
 import { MobileSelect } from "./ui/MobileBottomSheet"
 import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
 import { Input } from "./ui/input"
+import { useFileUpload } from "@/lib/hooks/useFileUpload"
 
 import type { HighlightKey } from "./modals/SettingsModal"
 
@@ -103,48 +102,28 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   const conflictMenuRef = useRef<HTMLDivElement>(null)
   // Plan mode state
   const [planModeEnabled, setPlanModeEnabled] = useState(false)
-  // File upload state
-  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
-  const [isDraggingOver, setIsDraggingOver] = useState(false)
-  const [previewFile, setPreviewFile] = useState<PendingFile | null>(null)
-  const [fileContents, setFileContents] = useState<Map<string, string>>(new Map())
-  const [fileError, setFileError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  // File upload state - using custom hook
+  const {
+    pendingFiles,
+    isDraggingOver,
+    previewFile,
+    fileContents,
+    fileError,
+    fileInputRef,
+    addFiles,
+    removeFile,
+    clearFiles,
+    clearError: clearFileError,
+    setPreviewFile,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handlePaste,
+    getFileTypeForFile,
+    getFilePreviewUrl,
+    supportedExtensions,
+  } = useFileUpload({ onRequireSignIn })
 
-  // File upload constraints
-  const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30 MB
-  const MAX_FILE_COUNT = 20
-  const MAX_IMAGE_DIMENSION = 8000 // 8000 x 8000 pixels
-  const SUPPORTED_MIME_TYPES = [
-    // Images
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    // Documents
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-    'text/plain',
-    'text/csv',
-    'text/tab-separated-values',
-    'text/html',
-    'text/rtf',
-    'application/rtf',
-    'application/epub+zip',
-  ]
-  const SUPPORTED_EXTENSIONS = [
-    // Images
-    'jpg', 'jpeg', 'png', 'gif', 'webp',
-    // Documents
-    'pdf', 'docx', 'txt', 'csv', 'tsv', 'html', 'htm', 'rtf', 'epub',
-    // Code & config files
-    'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala',
-    'sh', 'bash', 'zsh', 'ps1', 'sql', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
-    'json', 'jsonl', 'ndjson', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env',
-    'md', 'mdx', 'graphql', 'gql', 'prisma', 'proto',
-    'dockerfile', 'makefile', 'cmake', 'gradle', 'properties', 'plist', 'lock',
-    'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc', 'log',
-  ]
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -351,174 +330,13 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
     onSendMessage(input.trim(), currentAgent, currentModel, files, planModeEnabled || undefined)
     setInput("")
-    setPendingFiles([])
-    setFileError(null)
+    clearFiles()
     textareaRef.current?.focus()
   }
 
-  // Helper to check if file type is supported
-  const isFileTypeSupported = (file: File): boolean => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || ''
-    return SUPPORTED_MIME_TYPES.includes(file.type) || SUPPORTED_EXTENSIONS.includes(ext)
-  }
-
-  // Helper to validate image dimensions (async, returns promise)
-  const validateImageDimensions = (file: File): Promise<{ valid: boolean; width?: number; height?: number }> => {
-    return new Promise((resolve) => {
-      if (!file.type.startsWith('image/')) {
-        resolve({ valid: true })
-        return
-      }
-
-      const img = new Image()
-      const url = URL.createObjectURL(file)
-
-      img.onload = () => {
-        URL.revokeObjectURL(url)
-        resolve({
-          valid: img.width <= MAX_IMAGE_DIMENSION && img.height <= MAX_IMAGE_DIMENSION,
-          width: img.width,
-          height: img.height,
-        })
-      }
-
-      img.onerror = () => {
-        URL.revokeObjectURL(url)
-        resolve({ valid: true }) // Allow if we can't check
-      }
-
-      img.src = url
-    })
-  }
-
-  // File handling - files can be added anytime, upload happens after sandbox is ready
-  // If user is not signed in, trigger sign-in immediately when adding files
-  const addFiles = async (files: FileList | File[]) => {
-    // Clear previous errors
-    setFileError(null)
-
-    // Require sign-in before adding files (files can't persist across OAuth redirect)
-    if (onRequireSignIn) {
-      onRequireSignIn()
-      return
-    }
-
-    const fileArray = Array.from(files)
-    const errors: string[] = []
-    const validFiles: File[] = []
-
-    // Check file count limit
-    const currentCount = pendingFiles.length
-    const availableSlots = MAX_FILE_COUNT - currentCount
-
-    if (fileArray.length > availableSlots) {
-      if (availableSlots <= 0) {
-        setFileError(`Maximum ${MAX_FILE_COUNT} files allowed per message`)
-        return
-      }
-      errors.push(`Only ${availableSlots} more file(s) can be added (max ${MAX_FILE_COUNT})`)
-      fileArray.splice(availableSlots) // Only process files that fit
-    }
-
-    // Validate each file
-    for (const file of fileArray) {
-      // Check file size
-      if (file.size > MAX_FILE_SIZE) {
-        errors.push(`"${file.name}" exceeds 30 MB limit`)
-        continue
-      }
-
-      // Check file type
-      if (!isFileTypeSupported(file)) {
-        errors.push(`"${file.name}" is not a supported file type`)
-        continue
-      }
-
-      // Check image dimensions
-      if (file.type.startsWith('image/')) {
-        const dimCheck = await validateImageDimensions(file)
-        if (!dimCheck.valid) {
-          errors.push(`"${file.name}" exceeds 8000x8000 pixel limit (${dimCheck.width}x${dimCheck.height})`)
-          continue
-        }
-      }
-
-      validFiles.push(file)
-    }
-
-    // Show errors if any
-    if (errors.length > 0) {
-      setFileError(errors.join('. '))
-    }
-
-    // Add valid files
-    if (validFiles.length > 0) {
-      const newFiles: PendingFile[] = validFiles.map(file => ({
-        id: nanoid(),
-        file,
-        name: file.name,
-        size: file.size,
-      }))
-      setPendingFiles(prev => [...prev, ...newFiles])
-    }
-  }
-
-  const removeFile = (id: string) => {
-    setPendingFiles(prev => prev.filter(f => f.id !== id))
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-    if (e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files)
-    }
-  }
-
-  // Handle paste from clipboard (for images)
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items
-    if (!items) return
-
-    const imageFiles: File[] = []
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      // Check if the item is an image
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile()
-        if (file) {
-          // Generate a name for pasted images since they don't have one
-          const extension = item.type.split('/')[1] || 'png'
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-          const namedFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
-            type: file.type,
-          })
-          imageFiles.push(namedFile)
-        }
-      }
-    }
-
-    if (imageFiles.length > 0) {
-      e.preventDefault() // Prevent pasting image data as text
-      addFiles(imageFiles)
-    }
-  }
-
+  // Helper to get the icon component for a file type
   const getFileIcon = (file: File) => {
-    const type = getFileType(file)
+    const type = getFileTypeForFile(file)
     switch (type) {
       case 'image': return FileImage
       case 'code': return FileCode
@@ -526,48 +344,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       default: return FileIcon
     }
   }
-
-  const getFilePreviewUrl = (file: File): string | null => {
-    const type = getFileType(file)
-    if (type === 'image' || type === 'pdf') {
-      return URL.createObjectURL(file)
-    }
-    return null
-  }
-
-  // Read text file contents for preview
-  const readFileContent = useCallback((file: File, fileId: string) => {
-    const type = getFileType(file)
-    if (type === 'text' || type === 'code') {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const content = e.target?.result as string
-        setFileContents(prev => new Map(prev).set(fileId, content))
-      }
-      reader.readAsText(file)
-    }
-  }, [])
-
-  // Read file contents when files are added
-  useEffect(() => {
-    pendingFiles.forEach(pf => {
-      if (!fileContents.has(pf.id)) {
-        readFileContent(pf.file, pf.id)
-      }
-    })
-  }, [pendingFiles, fileContents, readFileContent])
-
-  // Clean up object URLs when files are removed
-  useEffect(() => {
-    return () => {
-      pendingFiles.forEach(pf => {
-        const type = getFileType(pf.file)
-        if (type === 'image' || type === 'pdf') {
-          URL.revokeObjectURL(URL.createObjectURL(pf.file))
-        }
-      })
-    }
-  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle slash command menu navigation
@@ -617,7 +393,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       if (canBranch && onBranchWithMessage && input.trim()) {
         onBranchWithMessage(input.trim(), currentAgent, currentModel)
         setInput("")
-        setPendingFiles([])
+        clearFiles()
         textareaRef.current?.focus()
       }
       return
@@ -772,7 +548,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           ref={fileInputRef}
           type="file"
           multiple
-          accept={SUPPORTED_EXTENSIONS.map(ext => `.${ext}`).join(',') + ',image/*,text/*,application/pdf,application/json'}
+          accept={supportedExtensions.map(ext => `.${ext}`).join(',') + ',image/*,text/*,application/pdf,application/json'}
           className="hidden"
           onChange={(e) => {
             if (e.target.files) {
@@ -789,7 +565,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
             isMobile ? "px-3 pt-3 pb-1" : "px-4 pt-3 pb-1"
           )}>
             {pendingFiles.map((pf) => {
-              const fileType = getFileType(pf.file)
+              const fileType = getFileTypeForFile(pf.file)
               const IconComponent = getFileIcon(pf.file)
               const previewUrl = getFilePreviewUrl(pf.file)
               const textContent = fileContents.get(pf.id)
@@ -941,7 +717,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
             <AlertTriangle className={cn("shrink-0 mt-0.5", isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
             <span className="flex-1">{fileError}</span>
             <button
-              onClick={() => setFileError(null)}
+              onClick={() => clearFileError()}
               className="shrink-0 text-destructive/70 hover:text-destructive transition-colors"
               aria-label="Dismiss error"
             >

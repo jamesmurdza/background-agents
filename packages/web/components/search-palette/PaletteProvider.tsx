@@ -7,12 +7,7 @@ import { CommandPalette } from "./CommandPalette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import type { SectionKey } from "@/components/modals/SettingsModal"
 import type { Theme } from "@/lib/types"
-
-interface Chat {
-  id: string
-  displayName: string | null
-  repo: string
-}
+import type { PaletteChat } from "./types"
 
 interface PaletteContextValue {
   openSearch: () => void
@@ -34,7 +29,7 @@ interface PaletteProviderProps {
   repos: GitHubRepo[]
   currentRepo: string | null
   branches: GitHubBranch[]
-  chats: Chat[]
+  chats: PaletteChat[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
   onRunCommand: (command: string) => void
