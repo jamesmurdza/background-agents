@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
-import { encrypt, decrypt } from "@/lib/db/encryption"
+import { encrypt } from "@/lib/db/encryption"
 import {
   requireAuth,
   isAuthError,
@@ -9,20 +9,22 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import {
-  CREDENTIAL_KEYS,
   isCredentialId,
   normalizeStoredCredentials,
   type CredentialId,
   type CredentialFlags,
   type Credentials,
 } from "@/lib/credentials"
-import { isSharedPoolAvailable } from "@/lib/claude-credentials"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 
 interface SettingsResponse {
   settings: Settings
   credentialFlags: CredentialFlags
+  /** ISO timestamp when the daily Claude limit resets, or null if not limited */
+  claudeLimitResetAt: string | null
+  /** Remaining Claude Code messages today, or null if not applicable */
+  claudeLimitRemaining: number | null
 }
 
 function readSettings(raw: unknown): Settings {
@@ -32,18 +34,6 @@ function readSettings(raw: unknown): Settings {
     defaultModel: s.defaultModel ?? null,
     theme: s.theme ?? DEFAULT_SETTINGS.theme,
   }
-}
-
-async function buildFlags(stored: Record<CredentialId, string>): Promise<CredentialFlags> {
-  const flags: CredentialFlags = {}
-  for (const { id } of CREDENTIAL_KEYS) {
-    const enc = stored[id]
-    flags[id] = !!(enc && decrypt(enc))
-  }
-  if (await isSharedPoolAvailable()) {
-    flags.CLAUDE_SHARED_POOL_AVAILABLE = true
-  }
-  return flags
 }
 
 // =============================================================================
@@ -58,16 +48,16 @@ export async function GET(): Promise<Response> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { settings: true, credentials: true },
+      select: { settings: true },
     })
 
-    const stored = normalizeStoredCredentials(
-      user?.credentials as Record<string, unknown> | null
-    )
+    const effective = await (await import("@/lib/credentials")).getEffectiveCredentialFlags(userId)
 
     const response: SettingsResponse = {
       settings: readSettings(user?.settings),
-      credentialFlags: await buildFlags(stored),
+      credentialFlags: effective.flags,
+      claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
+      claudeLimitRemaining: effective.limitRemaining,
     }
     return Response.json(response)
   } catch (error) {
@@ -133,9 +123,14 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       },
     })
 
+    // After updating credentials, recompute effective flags
+    const effective = await (await import("@/lib/credentials")).getEffectiveCredentialFlags(userId)
+
     const response: SettingsResponse = {
       settings: newSettings,
-      credentialFlags: await buildFlags(newCredentials),
+      credentialFlags: effective.flags,
+      claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
+      claudeLimitRemaining: effective.limitRemaining,
     }
     return Response.json(response)
   } catch (error) {
