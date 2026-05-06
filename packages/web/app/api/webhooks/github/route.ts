@@ -118,11 +118,18 @@ export async function POST(req: Request): Promise<Response> {
       continue // Skip - already has an active run
     }
 
-    // Create a new pending run
+    // Create a new pending run with trigger context
     await prisma.scheduledJobRun.create({
       data: {
         jobId: job.id,
         status: "pending",
+        triggerContext: {
+          workflowName: payload.workflow_run.name,
+          workflowUrl: payload.workflow_run.html_url,
+          branch: payload.workflow_run.head_branch,
+          commitSha: payload.workflow_run.head_sha,
+          failedAt: new Date().toISOString(),
+        },
       },
     })
 

@@ -395,7 +395,37 @@ async function startJobExecution(
     env: Object.keys(env).length > 0 ? env : undefined,
   })
 
-  // 8. Create user message for the prompt
+  // 8. Build the prompt (augment with trigger context for webhook-triggered runs)
+  let finalPrompt = job.prompt
+
+  if (run.triggerContext && job.triggerType === "webhook") {
+    const ctx = run.triggerContext as {
+      workflowName?: string
+      workflowUrl?: string
+      branch?: string
+      commitSha?: string
+      failedAt?: string
+    }
+
+    const contextLines = [
+      `## CI/CD Failure Context`,
+      ``,
+      `A GitHub Actions workflow has failed:`,
+      ctx.workflowName ? `- **Workflow**: ${ctx.workflowName}` : null,
+      ctx.branch ? `- **Branch**: ${ctx.branch}` : null,
+      ctx.commitSha ? `- **Commit**: ${ctx.commitSha.slice(0, 7)}` : null,
+      ctx.workflowUrl ? `- **Details**: ${ctx.workflowUrl}` : null,
+      ctx.failedAt ? `- **Failed at**: ${ctx.failedAt}` : null,
+      ``,
+      `---`,
+      ``,
+      job.prompt,
+    ].filter(Boolean).join("\n")
+
+    finalPrompt = contextLines
+  }
+
+  // 9. Create user message for the prompt
   const userMessageId = randomUUID()
   const assistantMessageId = randomUUID()
   const timestamp = BigInt(Date.now())
@@ -406,7 +436,7 @@ async function startJobExecution(
         id: userMessageId,
         chatId: chat.id,
         role: "user",
-        content: job.prompt,
+        content: finalPrompt,
         timestamp,
       },
       {
@@ -421,16 +451,16 @@ async function startJobExecution(
     ],
   })
 
-  // 9. Update chat with background session info
+  // 10. Update chat with background session info
   await prisma.chat.update({
     where: { id: chat.id },
     data: { backgroundSessionId: bgSession.backgroundSessionId },
   })
 
-  // 10. Start the agent
-  await bgSession.start(job.prompt)
+  // 11. Start the agent
+  await bgSession.start(finalPrompt)
 
-  // 11. Store session info for monitoring
+  // 12. Store session info for monitoring
   await prisma.scheduledJobRun.update({
     where: { id: run.id },
     data: {

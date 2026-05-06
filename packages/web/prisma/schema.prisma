@@ -272,12 +272,16 @@ model ScheduledJobRun {
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
-   // Results
-   sandboxId           String?
-   backgroundSessionId String?
-   branch              String?
-   baseBranch          String? // The branch this run was created from
-   commitCount         Int     @default(0)
+  // Trigger context (for webhook-triggered runs)
+  // { workflowName, workflowUrl, branch, commitSha, failedAt }
+  triggerContext Json?
+
+  // Results
+  sandboxId           String?
+  backgroundSessionId String?
+  branch              String?
+  baseBranch          String? // The branch this run was created from
+  commitCount         Int     @default(0)
   prUrl               String?
   prNumber            Int?
   error               String? @db.Text
