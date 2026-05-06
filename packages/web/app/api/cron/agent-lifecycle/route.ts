@@ -437,6 +437,7 @@ async function startJobExecution(
       sandboxId,
       backgroundSessionId: bgSession.backgroundSessionId,
       branch,
+      baseBranch: effectiveBaseBranch,
     },
   })
 }
@@ -504,9 +505,10 @@ async function finalizeScheduledRun(
         await finalizeTurn(sandbox, run.backgroundSessionId, { repoPath })
       }
 
-      // Count commits on branch vs base
+      // Count commits on branch vs the base branch this run was created from
+      const baseForComparison = run.baseBranch || job.baseBranch
       const countResult = await sandbox.process.executeCommand(
-        `cd ${repoPath} && git rev-list --count origin/${job.baseBranch}..HEAD 2>/dev/null || echo 0`
+        `cd ${repoPath} && git rev-list --count origin/${baseForComparison}..HEAD 2>/dev/null || echo 0`
       )
       commitCount = parseInt(countResult.result?.trim() || "0", 10)
 

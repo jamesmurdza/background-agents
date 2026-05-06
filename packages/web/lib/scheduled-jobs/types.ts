@@ -26,6 +26,7 @@ export interface ScheduledJobRun {
   startedAt: number
   completedAt: number | null
   branch: string | null
+  baseBranch: string | null
   commitCount: number
   prUrl: string | null
   prNumber: number | null
@@ -69,6 +70,7 @@ export function toScheduledJobRunResponse(run: PrismaScheduledJobRun): Scheduled
     startedAt: run.startedAt.getTime(),
     completedAt: run.completedAt?.getTime() ?? null,
     branch: run.branch,
+    baseBranch: run.baseBranch,
     commitCount: run.commitCount,
     prUrl: run.prUrl,
     prNumber: run.prNumber,
