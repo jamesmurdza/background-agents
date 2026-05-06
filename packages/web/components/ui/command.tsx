@@ -6,21 +6,21 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { SearchIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-function Command({
-  className,
-  ...props
-}: React.ComponentProps<typeof CommandPrimitive>) {
-  return (
-    <CommandPrimitive
-      data-slot="command"
-      className={cn(
-        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-2xl",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+const Command = React.forwardRef<
+  React.ComponentRef<typeof CommandPrimitive>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive
+    ref={ref}
+    data-slot="command"
+    className={cn(
+      "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-2xl",
+      className
+    )}
+    {...props}
+  />
+))
+Command.displayName = CommandPrimitive.displayName
 
 function CommandDialog({
   title = "Command Palette",
@@ -37,6 +37,45 @@ function CommandDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
+  const commandRef = React.useRef<HTMLDivElement>(null)
+  const lastSearchRef = React.useRef<string>("")
+
+  // Handle input changes to scroll to top and select first item
+  React.useEffect(() => {
+    if (!open || !commandRef.current) return
+
+    const handleInput = (e: Event) => {
+      const input = e.target as HTMLInputElement
+      const newSearch = input.value
+
+      // Only scroll if search text actually changed
+      if (newSearch !== lastSearchRef.current) {
+        lastSearchRef.current = newSearch
+
+        // Scroll the list to top after a microtask to let cmdk update the items
+        requestAnimationFrame(() => {
+          const list = commandRef.current?.querySelector("[cmdk-list]")
+          if (list) {
+            list.scrollTop = 0
+          }
+        })
+      }
+    }
+
+    const input = commandRef.current.querySelector("[cmdk-input]")
+    if (input) {
+      input.addEventListener("input", handleInput)
+      return () => input.removeEventListener("input", handleInput)
+    }
+  }, [open])
+
+  // Reset search tracking when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      lastSearchRef.current = ""
+    }
+  }, [open])
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -50,7 +89,10 @@ function CommandDialog({
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <Dialog.Description className="sr-only">{description}</Dialog.Description>
-          <Command className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3">
+          <Command
+            ref={commandRef}
+            className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3"
+          >
             {children}
           </Command>
         </Dialog.Content>

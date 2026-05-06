@@ -2,8 +2,9 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
-import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch, BarChart3, Clock } from "lucide-react"
+import { Plus, Trash2, Settings, LogOut, PanelLeft, MoreHorizontal, Pin, Pencil, X, ChevronDown, ChevronRight, FolderGit2, Check, Loader2, HelpCircle, GitMerge, GitBranch, BarChart3, Clock, Search } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
 import type { Chat, Message } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -129,6 +130,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { data: session } = useSession()
   const router = useRouter()
+  const { openSearch } = usePalette()
   const isResizing = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -409,6 +411,20 @@ export function Sidebar({
             </button>
           </div>
 
+          {/* Search Chat Button */}
+          <div className="px-3 pb-2">
+            <button
+              onClick={() => {
+                openSearch()
+                if (onMobileClose) onMobileClose()
+              }}
+              className="flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target hover:bg-accent/50 active:bg-accent"
+            >
+              <Search className="h-5 w-5 text-muted-foreground" />
+              <span className="text-base text-foreground">Search Chat</span>
+            </button>
+          </div>
+
           {/* Scheduled Jobs Button */}
           <div className="px-3 pb-2">
             <button
@@ -644,6 +660,20 @@ export function Sidebar({
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
+        </button>
+      </div>
+
+      {/* Search Chat Button */}
+      <div className={cn("pb-1", collapsed ? "px-0 flex justify-center" : "px-2")}>
+        <button
+          onClick={openSearch}
+          className={cn(
+            "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
+            collapsed ? "p-1.5" : "w-full px-2 py-2"
+          )}
+        >
+          <Search className="h-4 w-4 text-muted-foreground" />
+          {!collapsed && <span className="text-sm text-foreground">Search Chat</span>}
         </button>
       </div>
 

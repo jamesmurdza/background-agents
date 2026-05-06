@@ -154,20 +154,6 @@ export function CommandPalette({
       <CommandInput placeholder="Type a command..." />
       <CommandList>
         <CommandEmpty>No commands found.</CommandEmpty>
-        {chats.length > 0 && onSelectChat && (
-          <CommandGroup heading="Chats">
-            {chats.map((chat) => (
-              <CommandItem
-                key={chat.id}
-                value={`chat:${chat.displayName ?? "untitled"}:${chat.id}`}
-                onSelect={() => run(() => onSelectChat(chat.id))}
-              >
-                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-                <span>{chat.displayName ?? "Untitled Chat"}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
         <CommandGroup heading="Chat">
           <CommandItem value="new chat" onSelect={() => run(onNewChat)}>
             <Plus className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -333,6 +319,20 @@ export function CommandPalette({
             </CommandItem>
           )}
         </CommandGroup>
+        {chats.length > 0 && onSelectChat && (
+          <CommandGroup heading="Chats">
+            {chats.map((chat) => (
+              <CommandItem
+                key={chat.id}
+                value={`chat:${chat.displayName ?? "untitled"}:${chat.id}`}
+                onSelect={() => run(() => onSelectChat(chat.id))}
+              >
+                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>{chat.displayName ?? "Untitled Chat"}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   )
