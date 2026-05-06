@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, ArrowUp, ArrowDown, ArrowUpDown, Crown, Mail, Github } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface User {
   id: string
@@ -81,6 +82,112 @@ function SortHeader({
   )
 }
 
+// Mobile card view for users
+function MobileUserCard({
+  user,
+  onToggleAdmin,
+  onTogglePro,
+  isUpdating,
+  currentUserId,
+}: {
+  user: User
+  onToggleAdmin: (userId: string, isAdmin: boolean) => void
+  onTogglePro: (userId: string, isPro: boolean) => void
+  isUpdating?: string | null
+  currentUserId?: string
+}) {
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-3">
+      {/* User info row */}
+      <div className="flex items-center gap-3">
+        {user.image ? (
+          <img src={user.image} alt="" className="h-10 w-10 rounded-full" />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-medium">
+            {(user.name || user.email || "?")[0].toUpperCase()}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{user.name || "—"}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            {user.email && (
+              <a
+                href={`mailto:${user.email}`}
+                className="text-muted-foreground hover:text-foreground"
+                title={user.email}
+              >
+                <Mail className="h-3.5 w-3.5" />
+              </a>
+            )}
+            {user.githubId && (
+              <a
+                href={`https://github.com/${user.name || user.githubId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Github className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <span>{user.totalMessages} messages</span>
+        <span>•</span>
+        <span>
+          {user.lastActivityAt
+            ? formatDistanceToNow(new Date(user.lastActivityAt), { addSuffix: true })
+            : "Never active"}
+        </span>
+      </div>
+
+      {/* Actions row */}
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          onClick={() => onTogglePro(user.id, !user.isPro)}
+          disabled={isUpdating === user.id}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            user.isPro
+              ? "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400",
+            "disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+        >
+          <Crown className="h-3 w-3" />
+          {user.isPro ? "Pro" : "Free"}
+        </button>
+        <button
+          onClick={() => onToggleAdmin(user.id, !user.isAdmin)}
+          disabled={isUpdating === user.id || user.id === currentUserId}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            user.isAdmin
+              ? "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400",
+            "disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+        >
+          {user.isAdmin ? (
+            <>
+              <Shield className="h-3 w-3" />
+              Admin
+            </>
+          ) : (
+            <>
+              <ShieldOff className="h-3 w-3" />
+              User
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function UserTable({
   users,
   pagination,
@@ -125,8 +232,45 @@ export function UserTable({
         </button>
       </form>
 
-      {/* Table */}
-      <div className="rounded-lg border">
+      {/* Mobile Card View */}
+      <div className="space-y-3 md:hidden">
+        {isLoading && users.length === 0 ? (
+          [...Array(5)].map((_, i) => (
+            <div key={i} className="rounded-lg border bg-card p-4 space-y-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-24 rounded bg-muted" />
+                  <div className="h-3 w-16 rounded bg-muted" />
+                </div>
+              </div>
+              <div className="h-4 w-32 rounded bg-muted" />
+              <div className="flex gap-2">
+                <div className="h-7 w-16 rounded-full bg-muted" />
+                <div className="h-7 w-16 rounded-full bg-muted" />
+              </div>
+            </div>
+          ))
+        ) : users.length === 0 ? (
+          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+            No users found
+          </div>
+        ) : (
+          users.map((user) => (
+            <MobileUserCard
+              key={user.id}
+              user={user}
+              onToggleAdmin={onToggleAdmin}
+              onTogglePro={onTogglePro}
+              isUpdating={isUpdating}
+              currentUserId={currentUserId}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-lg border">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -288,30 +432,30 @@ export function UserTable({
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground text-center sm:text-left">
             Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
             {pagination.total} users
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <button
               onClick={() => onPageChange(pagination.page - 1)}
               disabled={pagination.page === 1 || isLoading}
               className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft className="h-4 w-4" />
-              Previous
+              <span className="hidden sm:inline">Previous</span>
             </button>
             <span className="text-sm text-muted-foreground">
-              Page {pagination.page} of {pagination.totalPages}
+              {pagination.page} / {pagination.totalPages}
             </span>
             <button
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={pagination.page === pagination.totalPages || isLoading}
               className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Next
+              <span className="hidden sm:inline">Next</span>
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>

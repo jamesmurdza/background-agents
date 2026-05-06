@@ -11,6 +11,9 @@ import {
   Clock,
   Trophy,
   LayoutDashboard,
+  Menu,
+  X,
+  ArrowLeft,
 } from "lucide-react"
 import { ActivityFeed } from "@/components/admin/ActivityFeed"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
@@ -27,6 +30,7 @@ import {
   useAdminTopUsersQuery,
   type TopUsersRange,
 } from "@/lib/query/hooks"
+import { cn } from "@/lib/utils"
 
 type SectionKey = "overview" | "users" | "activity"
 
@@ -42,6 +46,7 @@ export default function AdminDashboard() {
 
   // Navigation state
   const [activeSection, setActiveSection] = useState<SectionKey>("overview")
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // User table state
   const [usersPage, setUsersPage] = useState(1)
@@ -131,12 +136,51 @@ export default function AdminDashboard() {
   const dailyMessagesChats = statsQuery.data?.dailyMessagesChats ?? []
   const messagesByModel = statsQuery.data?.messagesByModel ?? []
 
+  // Handle section change with mobile menu close
+  const handleSectionChange = (section: SectionKey) => {
+    setActiveSection(section)
+    setMobileMenuOpen(false)
+  }
+
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="w-56 shrink-0 border-r bg-card">
+      {/* Mobile Header */}
+      <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b bg-card px-4 md:hidden">
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <h1 className="text-lg font-semibold">Admin</h1>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Desktop: always visible, Mobile: slide-in menu */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 w-56 shrink-0 border-r bg-card transition-transform duration-200 md:static md:translate-x-0",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
         <div className="sticky top-0 p-4">
-          <h1 className="mb-6 text-lg font-semibold">Admin</h1>
+          {/* Desktop title */}
+          <h1 className="mb-6 text-lg font-semibold hidden md:block">Admin</h1>
+          {/* Mobile: add top padding for header */}
+          <div className="h-14 md:hidden" />
           <nav className="space-y-1">
             {sections.map((section) => {
               const Icon = section.icon
@@ -144,12 +188,13 @@ export default function AdminDashboard() {
               return (
                 <button
                   key={section.key}
-                  onClick={() => setActiveSection(section.key)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  onClick={() => handleSectionChange(section.key)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors md:py-2",
                     isActive
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  }`}
+                  )}
                 >
                   <Icon className="h-4 w-4" />
                   {section.label}
@@ -161,44 +206,50 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-6xl space-y-8 p-8">
+      <main className="flex-1 overflow-auto pt-14 md:pt-0">
+        <div className="mx-auto max-w-6xl space-y-6 p-4 md:space-y-8 md:p-8">
           {/* Overview Section */}
           {activeSection === "overview" && (
             <>
               {/* Charts Row 1 */}
-              <section className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-lg border bg-card p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="font-semibold">Daily Messages & Conversations</h3>
+              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
+                <div className="rounded-lg border bg-card p-4 md:p-6">
+                  <div className="mb-3 flex items-center gap-2 md:mb-4">
+                    <MessageSquare className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold md:text-base">Daily Messages & Conversations</h3>
                   </div>
-                  <DailyMessagesChatsChart data={dailyMessagesChats} />
+                  <div className="h-[200px] md:h-auto">
+                    <DailyMessagesChatsChart data={dailyMessagesChats} />
+                  </div>
                 </div>
 
-                <div className="rounded-lg border bg-card p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="font-semibold">Messages by Model (24h)</h3>
+                <div className="rounded-lg border bg-card p-4 md:p-6">
+                  <div className="mb-3 flex items-center gap-2 md:mb-4">
+                    <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold md:text-base">Messages by Model (24h)</h3>
                   </div>
-                  <MessagesByModelChart data={messagesByModel} />
+                  <div className="h-[200px] md:h-auto">
+                    <MessagesByModelChart data={messagesByModel} />
+                  </div>
                 </div>
               </section>
 
               {/* Charts Row 2 */}
-              <section className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-lg border bg-card p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="font-semibold">Weekly Active Users</h3>
+              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
+                <div className="rounded-lg border bg-card p-4 md:p-6">
+                  <div className="mb-3 flex items-center gap-2 md:mb-4">
+                    <Users className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold md:text-base">Weekly Active Users</h3>
                   </div>
-                  <UserGrowthChart data={weeklyActiveUsers} />
+                  <div className="h-[200px] md:h-auto">
+                    <UserGrowthChart data={weeklyActiveUsers} />
+                  </div>
                 </div>
 
-                <div className="rounded-lg border bg-card p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="font-semibold">Top Active Users</h3>
+                <div className="rounded-lg border bg-card p-4 md:p-6">
+                  <div className="mb-3 flex items-center gap-2 md:mb-4">
+                    <Trophy className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold md:text-base">Top Active Users</h3>
                   </div>
                   <TopUsersTable
                     data={topUsers}
@@ -210,13 +261,15 @@ export default function AdminDashboard() {
               </section>
 
               {/* Charts Row 3 */}
-              <section className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-lg border bg-card p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="font-semibold">Peak Hours (Last 14 Days)</h3>
+              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
+                <div className="rounded-lg border bg-card p-4 md:p-6">
+                  <div className="mb-3 flex items-center gap-2 md:mb-4">
+                    <Clock className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold md:text-base">Peak Hours (Last 14 Days)</h3>
                   </div>
-                  <HourlyActivityChart data={hourlyActivity} />
+                  <div className="h-[200px] md:h-auto">
+                    <HourlyActivityChart data={hourlyActivity} />
+                  </div>
                 </div>
               </section>
             </>
@@ -225,7 +278,7 @@ export default function AdminDashboard() {
           {/* Users Section */}
           {activeSection === "users" && (
             <section>
-              <h2 className="mb-4 text-lg font-semibold">User Management</h2>
+              <h2 className="mb-3 text-base font-semibold md:mb-4 md:text-lg">User Management</h2>
               <UserTable
                 users={usersQuery.data?.users ?? []}
                 pagination={
@@ -261,8 +314,8 @@ export default function AdminDashboard() {
           {/* Activity Section */}
           {activeSection === "activity" && (
             <section>
-              <h2 className="mb-4 text-lg font-semibold">Recent Activity</h2>
-              <div className="rounded-lg border bg-card p-6">
+              <h2 className="mb-3 text-base font-semibold md:mb-4 md:text-lg">Recent Activity</h2>
+              <div className="rounded-lg border bg-card p-4 md:p-6">
                 <ActivityFeed
                   activities={activityQuery.data?.activities ?? []}
                   filters={activityQuery.data?.filters}

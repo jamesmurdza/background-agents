@@ -175,12 +175,12 @@ function ActivityFiltersBar({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 grid-cols-2 sm:gap-3 lg:grid-cols-4">
         {/* Action filter */}
         <select
           value={filterState.action || ""}
           onChange={(e) => onFilterChange({ ...filterState, action: e.target.value || undefined })}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-9 rounded-md border border-input bg-background px-2 sm:px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">All Actions</option>
           {filters.actions.map((action) => (
@@ -194,7 +194,7 @@ function ActivityFiltersBar({
         <select
           value={filterState.agent || ""}
           onChange={(e) => onFilterChange({ ...filterState, agent: e.target.value || undefined })}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-9 rounded-md border border-input bg-background px-2 sm:px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           disabled={filters.agents.length === 0}
         >
           <option value="">All Agents</option>
@@ -209,7 +209,7 @@ function ActivityFiltersBar({
         <select
           value={filterState.model || ""}
           onChange={(e) => onFilterChange({ ...filterState, model: e.target.value || undefined })}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-9 rounded-md border border-input bg-background px-2 sm:px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           disabled={filters.models.length === 0}
         >
           <option value="">All Models</option>
@@ -221,19 +221,19 @@ function ActivityFiltersBar({
         </select>
 
         {/* Date range filter */}
-        <div className="flex gap-2">
+        <div className="flex gap-1 sm:gap-2">
           <input
             type="date"
             value={filterState.dateFrom || ""}
             onChange={(e) => onFilterChange({ ...filterState, dateFrom: e.target.value || undefined })}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-1 sm:px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="From"
           />
           <input
             type="date"
             value={filterState.dateTo || ""}
             onChange={(e) => onFilterChange({ ...filterState, dateTo: e.target.value || undefined })}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-input bg-background px-1 sm:px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="To"
           />
         </div>
@@ -241,44 +241,44 @@ function ActivityFiltersBar({
 
       {/* Active filters display */}
       {hasActiveFilters && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {filterState.action && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              Action: {ACTION_LABELS[filterState.action] || filterState.action}
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium text-primary">
+              <span className="hidden sm:inline">Action: </span>{ACTION_LABELS[filterState.action] || filterState.action}
               <button
                 onClick={() => onFilterChange({ ...filterState, action: undefined })}
-                className="ml-1 hover:text-foreground"
+                className="ml-0.5 hover:text-foreground"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
           )}
           {filterState.agent && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium text-primary">
               <Bot className="h-3 w-3" />
-              Agent: {filterState.agent}
+              <span className="hidden sm:inline">Agent: </span>{filterState.agent}
               <button
                 onClick={() => onFilterChange({ ...filterState, agent: undefined })}
-                className="ml-1 hover:text-foreground"
+                className="ml-0.5 hover:text-foreground"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
           )}
           {filterState.model && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium text-primary">
               <Cpu className="h-3 w-3" />
-              Model: {filterState.model}
+              <span className="hidden sm:inline">Model: </span>{filterState.model}
               <button
                 onClick={() => onFilterChange({ ...filterState, model: undefined })}
-                className="ml-1 hover:text-foreground"
+                className="ml-0.5 hover:text-foreground"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
           )}
           {(filterState.dateFrom || filterState.dateTo) && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium text-primary">
               <Calendar className="h-3 w-3" />
               {filterState.dateFrom && filterState.dateTo
                 ? `${filterState.dateFrom} → ${filterState.dateTo}`
@@ -287,7 +287,7 @@ function ActivityFiltersBar({
                   : `To ${filterState.dateTo}`}
               <button
                 onClick={() => onFilterChange({ ...filterState, dateFrom: undefined, dateTo: undefined })}
-                className="ml-1 hover:text-foreground"
+                className="ml-0.5 hover:text-foreground"
               >
                 <X className="h-3 w-3" />
               </button>
