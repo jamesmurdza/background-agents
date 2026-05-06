@@ -400,8 +400,9 @@ export function Sidebar({
             </button>
           </div>
 
-          {/* New Chat Button - larger touch target */}
-          <div className="px-3 py-2">
+          {/* Action Buttons - grouped together */}
+          <div className="px-3 py-2 space-y-1">
+            {/* New Chat Button - larger touch target */}
             <button
               onClick={handleNewChat}
               className="flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target hover:bg-accent/50 active:bg-accent"
@@ -409,10 +410,8 @@ export function Sidebar({
               <Plus className="h-5 w-5 text-muted-foreground" />
               <span className="text-base text-foreground">New Chat</span>
             </button>
-          </div>
 
-          {/* Search Chats Button */}
-          <div className="px-3 pb-2">
+            {/* Search Chats Button */}
             <button
               onClick={() => {
                 openSearch()
@@ -423,10 +422,8 @@ export function Sidebar({
               <Search className="h-5 w-5 text-muted-foreground" />
               <span className="text-base text-foreground">Search Chats</span>
             </button>
-          </div>
 
-          {/* Scheduled Jobs Button */}
-          <div className="px-3 pb-2">
+            {/* Scheduled Jobs Button */}
             <button
               onClick={() => {
                 if (onOpenScheduledJobs) {
@@ -649,36 +646,33 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* New Chat Button */}
-      <div className={cn(collapsed ? "px-0 flex justify-center pb-2" : "px-2 pb-1")}>
+      {/* Action Buttons - grouped together */}
+      <div className={cn(collapsed ? "px-0 flex flex-col items-center" : "px-2")}>
+        {/* New Chat Button */}
         <button
           onClick={onNewChat}
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-2"
+            collapsed ? "p-1.5" : "w-full px-2 py-1.5"
           )}
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
         </button>
-      </div>
 
-      {/* Search Chats Button */}
-      <div className={cn(collapsed ? "px-0 flex justify-center pb-2" : "px-2 pb-1")}>
+        {/* Search Chats Button */}
         <button
           onClick={openSearch}
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-2"
+            collapsed ? "p-1.5" : "w-full px-2 py-1.5"
           )}
         >
           <Search className="h-4 w-4 text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">Search Chats</span>}
         </button>
-      </div>
 
-      {/* Scheduled Jobs Button */}
-      <div className={cn(collapsed ? "px-0 flex justify-center pb-2" : "px-2")}>
+        {/* Scheduled Jobs Button */}
         <button
           onClick={() => {
             if (onOpenScheduledJobs) {
@@ -689,7 +683,7 @@ export function Sidebar({
           }}
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-2",
+            collapsed ? "p-1.5" : "w-full px-2 py-1.5",
             scheduledJobsActive && !selectedScheduledJob
               ? "bg-accent text-accent-foreground"
               : "hover:bg-accent/50"
