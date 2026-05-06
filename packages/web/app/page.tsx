@@ -1200,6 +1200,7 @@ export default function HomePage() {
           onOpenScheduledJobs={handleOpenScheduledJobs}
           scheduledJobsActive={viewMode === "scheduled-jobs"}
           selectedScheduledJob={viewMode === "scheduled-jobs" ? selectedScheduledJob : null}
+          isLoadingChats={!isHydrated}
         />
       )}
 
@@ -1236,6 +1237,7 @@ export default function HomePage() {
           }}
           scheduledJobsActive={viewMode === "scheduled-jobs"}
           selectedScheduledJob={viewMode === "scheduled-jobs" ? selectedScheduledJob : null}
+          isLoadingChats={!isHydrated}
         />
       )}
 

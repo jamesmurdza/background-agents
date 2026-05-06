@@ -65,6 +65,8 @@ interface SidebarProps {
   scheduledJobsActive?: boolean
   /** Currently selected scheduled job (shown as indented item) */
   selectedScheduledJob?: { id: string; name: string } | null
+  /** Whether chats are still being loaded from storage/server */
+  isLoadingChats?: boolean
 }
 
 export function Sidebar({
@@ -95,8 +97,10 @@ export function Sidebar({
   onOpenScheduledJobs,
   scheduledJobsActive = false,
   selectedScheduledJob,
+  isLoadingChats = false,
 }: SidebarProps) {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
+  const isSessionLoading = sessionStatus === "loading"
   const router = useRouter()
   const { openSearch } = usePalette()
   const isResizing = useRef(false)
@@ -482,24 +486,48 @@ export function Sidebar({
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto mobile-scroll scrollbar-auto-hide px-3 py-2">
             <div className="space-y-0.5">
-              {filteredChats.map((chat) => (
-                <MobileChatItem
-                  key={chat.id}
-                  chat={chat}
-                  isActive={chat.id === currentChatId}
-                  isDeleting={deletingChatIds.has(chat.id)}
-                  isUnseen={unseenChatIds?.has(chat.id) ?? false}
-                  onSelect={() => handleSelectChat(chat.id)}
-                  onDelete={() => onDeleteChat(chat.id)}
-                  onRequestRename={() => onMobileRename?.(chat.id, chat.displayName || "Untitled")}
-                />
-              ))}
+              {isLoadingChats ? (
+                /* Chat list skeleton while loading */
+                <div className="space-y-1 animate-pulse">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-lg">
+                      <div className="h-4 w-4 rounded bg-muted flex-shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-4 rounded bg-muted" style={{ width: `${60 + Math.random() * 30}%` }} />
+                        <div className="h-3 rounded bg-muted" style={{ width: `${40 + Math.random() * 40}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                filteredChats.map((chat) => (
+                  <MobileChatItem
+                    key={chat.id}
+                    chat={chat}
+                    isActive={chat.id === currentChatId}
+                    isDeleting={deletingChatIds.has(chat.id)}
+                    isUnseen={unseenChatIds?.has(chat.id) ?? false}
+                    onSelect={() => handleSelectChat(chat.id)}
+                    onDelete={() => onDeleteChat(chat.id)}
+                    onRequestRename={() => onMobileRename?.(chat.id, chat.displayName || "Untitled")}
+                  />
+                ))
+              )}
             </div>
           </div>
 
           {/* Footer - User & Settings */}
           <div className="p-4 pb-safe border-t border-sidebar-border">
-            {session?.user ? (
+            {isSessionLoading ? (
+              /* User skeleton while session is loading */
+              <div className="flex items-center gap-3 animate-pulse">
+                <div className="h-10 w-10 rounded-full bg-muted flex-shrink-0" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="h-4 w-24 rounded bg-muted" />
+                  <div className="h-3 w-32 rounded bg-muted" />
+                </div>
+              </div>
+            ) : session?.user ? (
               <div className="relative" ref={mobileUserMenuRef}>
                 <button
                   onClick={() => setMobileUserMenuOpen((v) => !v)}
@@ -737,35 +765,50 @@ export function Sidebar({
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto scrollbar-auto-hide p-2 pt-0">
             <div className="space-y-0">
-              {renderChatTree({
-                roots: rootChats,
-                childrenByParent,
-                collapsedChatIds,
-                currentChatId,
-                deletingChatIds,
-                unseenChatIds,
-                sidebarCollapsed: collapsed,
-                onToggleCollapsed: toggleChatCollapsed,
-                onSelectChat,
-                onDeleteChat,
-                onRenameChat,
-                onMerge: onRequestMergeChats ? (id) => onRequestMergeChats(id) : undefined,
-                onRebase: onRequestRebaseChat ? (id) => onRequestRebaseChat(id) : undefined,
-                dragSourceId,
-                dragOverId,
-                canDrop,
-                onDragStartChat: (id) => setDragSourceId(id),
-                onDragEndChat: () => { setDragSourceId(null); setDragOverId(null) },
-                onDragEnterChat: (id) => setDragOverId(id),
-                onDragLeaveChat: (id) => setDragOverId((prev) => (prev === id ? null : prev)),
-                onDropChat: (id) => {
-                  if (onRequestMergeChats && dragSourceId) {
-                    onRequestMergeChats(dragSourceId, id)
-                  }
-                  setDragSourceId(null)
-                  setDragOverId(null)
-                },
-              })}
+              {isLoadingChats ? (
+                /* Chat list skeleton while loading */
+                <div className="space-y-0.5 animate-pulse">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-md">
+                      <div className="h-3.5 w-3.5 rounded bg-muted flex-shrink-0" />
+                      <div className="flex-1 space-y-1">
+                        <div className="h-3.5 rounded bg-muted" style={{ width: `${55 + Math.random() * 35}%` }} />
+                        <div className="h-2.5 rounded bg-muted" style={{ width: `${35 + Math.random() * 45}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                renderChatTree({
+                  roots: rootChats,
+                  childrenByParent,
+                  collapsedChatIds,
+                  currentChatId,
+                  deletingChatIds,
+                  unseenChatIds,
+                  sidebarCollapsed: collapsed,
+                  onToggleCollapsed: toggleChatCollapsed,
+                  onSelectChat,
+                  onDeleteChat,
+                  onRenameChat,
+                  onMerge: onRequestMergeChats ? (id) => onRequestMergeChats(id) : undefined,
+                  onRebase: onRequestRebaseChat ? (id) => onRequestRebaseChat(id) : undefined,
+                  dragSourceId,
+                  dragOverId,
+                  canDrop,
+                  onDragStartChat: (id) => setDragSourceId(id),
+                  onDragEndChat: () => { setDragSourceId(null); setDragOverId(null) },
+                  onDragEnterChat: (id) => setDragOverId(id),
+                  onDragLeaveChat: (id) => setDragOverId((prev) => (prev === id ? null : prev)),
+                  onDropChat: (id) => {
+                    if (onRequestMergeChats && dragSourceId) {
+                      onRequestMergeChats(dragSourceId, id)
+                    }
+                    setDragSourceId(null)
+                    setDragOverId(null)
+                  },
+                })
+              )}
             </div>
           </div>
         </>
@@ -776,7 +819,18 @@ export function Sidebar({
 
       {/* Footer - User & Settings */}
       <div className={cn("p-1.5", !collapsed && "border-t border-sidebar-border")}>
-        {session?.user ? (
+        {isSessionLoading ? (
+          /* User skeleton while session is loading */
+          <div className={cn("flex items-center gap-2 animate-pulse", collapsed ? "justify-center" : "px-2 py-1.5")}>
+            <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+            {!collapsed && (
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="h-3.5 w-20 rounded bg-muted" />
+                <div className="h-2.5 w-28 rounded bg-muted" />
+              </div>
+            )}
+          </div>
+        ) : session?.user ? (
           <UserMenu
             user={session.user}
             onOpenSettings={onOpenSettings}
