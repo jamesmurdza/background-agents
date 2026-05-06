@@ -647,13 +647,13 @@ export function Sidebar({
       </div>
 
       {/* Action Buttons - grouped together */}
-      <div className={cn(collapsed ? "px-0 flex flex-col items-center" : "px-2")}>
+      <div className={cn(collapsed ? "px-0 flex flex-col items-center" : "px-2 space-y-0.5")}>
         {/* New Chat Button */}
         <button
           onClick={onNewChat}
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-1.5"
+            collapsed ? "p-1.5" : "w-full px-2 py-2"
           )}
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
@@ -665,7 +665,7 @@ export function Sidebar({
           onClick={openSearch}
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-1.5"
+            collapsed ? "p-1.5" : "w-full px-2 py-2"
           )}
         >
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -683,7 +683,7 @@ export function Sidebar({
           }}
           className={cn(
             "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-1.5",
+            collapsed ? "p-1.5" : "w-full px-2 py-2",
             scheduledJobsActive && !selectedScheduledJob
               ? "bg-accent text-accent-foreground"
               : "hover:bg-accent/50"
@@ -1248,7 +1248,7 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
       data-chat-id={chat.id}
       className={cn(
         "group flex items-center gap-2 rounded-md transition-colors select-none",
-        collapsed ? "justify-center p-2" : "px-2 py-1.5",
+        collapsed ? "justify-center p-2" : "px-2 py-1",
         isDeleting
           ? "opacity-50 cursor-not-allowed"
           : "cursor-pointer",
