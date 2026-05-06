@@ -249,15 +249,91 @@ export async function POST(
     try {
       sandbox = await daytona.get(sandboxId)
     } catch {
-      // Stale sandbox reference. Clear it so the next send creates fresh.
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
-      })
-      return Response.json(
-        { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found" },
-        { status: 410 }
-      )
+      // Sandbox was deleted (e.g., cleanup cronjob). Attempt transparent recreation.
+
+      // Cannot recreate NEW_REPOSITORY chats - no remote to clone from
+      if (chat.repo === NEW_REPOSITORY || chat.repo === "__new__") {
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
+        })
+        return Response.json(
+          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. Cannot recreate sandbox for local repository." },
+          { status: 410 }
+        )
+      }
+
+      // Cannot recreate without GitHub token
+      if (!githubToken) {
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
+        })
+        return Response.json(
+          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },
+          { status: 410 }
+        )
+      }
+
+      // Cannot recreate without existing branch name
+      if (!chat.branch) {
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
+        })
+        return Response.json(
+          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. No branch to restore." },
+          { status: 410 }
+        )
+      }
+
+      console.log(`[chats/messages] Sandbox ${sandboxId} not found, attempting recreation for chat ${chatId}`)
+
+      try {
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: { status: "creating" },
+        })
+
+        const recreated = await createSandboxForChat({
+          daytona,
+          repo: chat.repo,
+          baseBranch: chat.baseBranch ?? "main",
+          newBranch: chat.branch,
+          githubToken,
+          userId,
+          restoreExistingBranch: true,
+        })
+
+        sandboxId = recreated.sandboxId
+        branch = recreated.branch
+        previewUrlPattern = recreated.previewUrlPattern ?? null
+        createdSandbox = true // Important: mark as created for cleanup on downstream failures
+
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: {
+            sandboxId,
+            previewUrlPattern,
+            status: "ready",
+          },
+        })
+
+        sandbox = recreated.sandbox
+
+        console.log(`[chats/messages] Successfully recreated sandbox ${sandboxId} for chat ${chatId}, branchRestored=${recreated.branchRestored}`)
+      } catch (recreationError) {
+        console.error(`[chats/messages] Failed to recreate sandbox for chat ${chatId}:`, recreationError)
+
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
+        })
+        return Response.json(
+          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found and recreation failed." },
+          { status: 410 }
+        )
+      }
     }
 
     if (sandbox.state !== "started") {

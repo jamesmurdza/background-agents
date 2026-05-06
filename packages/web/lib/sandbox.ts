@@ -22,6 +22,11 @@ export interface CreateSandboxOptions {
   githubToken?: string
   /** First 8 chars are used in the sandbox name for traceability. */
   userId?: string
+  /**
+   * If true, attempt to restore an existing branch from remote instead of
+   * creating a fresh one. Used when recreating a deleted sandbox.
+   */
+  restoreExistingBranch?: boolean
 }
 
 export interface CreatedSandbox {
@@ -31,6 +36,11 @@ export interface CreatedSandbox {
   previewUrlPattern: string | undefined
   /** Always "project" in this repo, but returned so callers can plumb it through. */
   repoName: string
+  /**
+   * When restoreExistingBranch is true, indicates whether the branch was
+   * successfully fetched from remote (true) or created fresh (false).
+   */
+  branchRestored?: boolean
 }
 
 function generateSandboxName(userId?: string): string {
@@ -47,9 +57,10 @@ function generateSandboxName(userId?: string): string {
 export async function createSandboxForChat(
   options: CreateSandboxOptions
 ): Promise<CreatedSandbox> {
-  const { daytona, repo, baseBranch, newBranch, githubToken, userId } = options
+  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch } = options
   const isNewRepo = repo === NEW_REPOSITORY || repo === "__new__"
   const repoName = "project"
+  let branchRestored: boolean | undefined
 
   let owner: string | undefined
   let repoApiName: string | undefined
@@ -118,8 +129,23 @@ export async function createSandboxForChat(
     await sandbox.process.executeCommand(
       `cd ${repoPath} && git config user.email "${gitEmail}" && git config user.name "${gitName}"`
     )
-    await git.createBranch(repoPath, newBranch)
-    await git.checkoutBranch(repoPath, newBranch)
+
+    // Branch setup: either restore existing branch from remote or create new
+    if (restoreExistingBranch) {
+      try {
+        await git.fetchBranch(repoPath, newBranch, githubToken!)
+        await git.checkoutBranch(repoPath, newBranch)
+        branchRestored = true
+      } catch {
+        // Branch doesn't exist on remote, create fresh from baseBranch
+        await git.createBranch(repoPath, newBranch)
+        await git.checkoutBranch(repoPath, newBranch)
+        branchRestored = false
+      }
+    } else {
+      await git.createBranch(repoPath, newBranch)
+      await git.checkoutBranch(repoPath, newBranch)
+    }
   }
 
   let previewUrlPattern: string | undefined
@@ -139,6 +165,7 @@ export async function createSandboxForChat(
     branch: newBranch,
     previewUrlPattern,
     repoName,
+    branchRestored,
   }
 }
 
