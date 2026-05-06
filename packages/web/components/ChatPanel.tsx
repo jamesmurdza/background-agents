@@ -732,7 +732,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           isMobile ? "flex flex-col gap-1 px-3 py-2" : "flex items-center gap-3 px-4 py-2"
         )}>
           {/* Left side items - first row on mobile */}
-          <div className={cn("flex items-center gap-2 @container/row1", isMobile ? "w-full" : "flex-1")}>
+          <div className={cn("flex items-center gap-2", isMobile ? "w-full @container/row1" : "flex-1")}>
             {/* Attachment button */}
             <button
               type="button"
@@ -820,7 +820,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           </div>
 
           {/* Right side items - second row on mobile */}
-          <div className={cn("flex items-center gap-2 @container/row2", isMobile && "w-full")}>
+          <div className={cn("flex items-center gap-2", isMobile && "w-full @container/row2")}>
             {/* Schedule button */}
             {onCreateScheduledJob && (
               <button
@@ -936,7 +936,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                 {!hasRequiredCredentials && <Key className="h-3.5 w-3.5" />}
                 <Cpu className="h-3.5 w-3.5 @[32rem]:hidden" />
                 <span className="hidden @[32rem]:inline">{getModelLabel(currentAgent, currentModel)}</span>
-                <ChevronDown className="h-3.5 w-3.5 hidden @[32rem]:block" />
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {showModelDropdown && (
                 <div className="absolute bottom-full right-0 mb-1 max-h-64 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-52">
