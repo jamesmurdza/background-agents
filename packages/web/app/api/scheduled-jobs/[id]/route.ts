@@ -71,6 +71,7 @@ interface UpdateScheduledJobBody {
   model?: string | null
   intervalMinutes?: number
   autoPR?: boolean
+  continueFromLastRun?: boolean
   enabled?: boolean
 }
 
@@ -129,8 +130,9 @@ export async function PATCH(
       // Reschedule next run based on new interval
       updateData.nextRunAt = addMinutes(new Date(), body.intervalMinutes)
     }
-    if (body.autoPR !== undefined) updateData.autoPR = body.autoPR
-    if (body.enabled !== undefined) {
+     if (body.autoPR !== undefined) updateData.autoPR = body.autoPR
+     if (body.continueFromLastRun !== undefined) updateData.continueFromLastRun = body.continueFromLastRun
+     if (body.enabled !== undefined) {
       updateData.enabled = body.enabled
       // Reset failure count when re-enabling
       if (body.enabled && !job.enabled) {

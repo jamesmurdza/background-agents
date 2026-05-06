@@ -55,6 +55,7 @@ interface CreateScheduledJobBody {
   model?: string
   intervalMinutes: number
   autoPR?: boolean
+  continueFromLastRun?: boolean
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -93,22 +94,23 @@ export async function POST(req: NextRequest): Promise<Response> {
       return badRequest(`Maximum ${MAX_JOBS_PER_USER} scheduled jobs allowed`)
     }
 
-    // Create job with first run scheduled
-    const now = new Date()
-    const job = await prisma.scheduledJob.create({
-      data: {
-        userId,
-        name: body.name.trim(),
-        prompt: body.prompt.trim(),
-        repo: body.repo.trim(),
-        baseBranch: body.baseBranch.trim(),
-        agent: body.agent.trim(),
-        model: body.model?.trim() ?? null,
-        intervalMinutes: body.intervalMinutes,
-        autoPR: body.autoPR ?? true,
-        nextRunAt: addMinutes(now, body.intervalMinutes),
-      },
-    })
+     // Create job with first run scheduled
+     const now = new Date()
+     const job = await prisma.scheduledJob.create({
+       data: {
+         userId,
+         name: body.name.trim(),
+         prompt: body.prompt.trim(),
+         repo: body.repo.trim(),
+         baseBranch: body.baseBranch.trim(),
+         agent: body.agent.trim(),
+         model: body.model?.trim() ?? null,
+         intervalMinutes: body.intervalMinutes,
+         autoPR: body.autoPR ?? true,
+         continueFromLastRun: body.continueFromLastRun ?? false,
+         nextRunAt: addMinutes(now, body.intervalMinutes),
+       },
+     })
 
     return Response.json(toScheduledJobResponse(job), { status: 201 })
   } catch (error) {

@@ -48,6 +48,7 @@ export interface ScheduledJob {
   enabled: boolean
   nextRunAt: number
   autoPR: boolean
+  continueFromLastRun: boolean
   consecutiveFailures: number
   createdAt: number
   updatedAt: number
@@ -109,8 +110,9 @@ export function toScheduledJobResponse(
     intervalMinutes: job.intervalMinutes,
     enabled: job.enabled,
     nextRunAt: job.nextRunAt.getTime(),
-    autoPR: job.autoPR,
-    consecutiveFailures: job.consecutiveFailures,
+     autoPR: job.autoPR,
+     continueFromLastRun: job.continueFromLastRun,
+     consecutiveFailures: job.consecutiveFailures,
     createdAt: job.createdAt.getTime(),
     updatedAt: job.updatedAt.getTime(),
     lastRun: lastRun ? toLastRunResponse(lastRun) : null,

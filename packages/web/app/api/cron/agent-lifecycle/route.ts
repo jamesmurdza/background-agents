@@ -327,18 +327,38 @@ async function startJobExecution(
     data: { chatId: chat.id, status: "running" },
   })
 
-  // 4. Create fresh sandbox
+  // 4. Determine base branch (may be from last run if continueFromLastRun is enabled)
+  let effectiveBaseBranch = job.baseBranch
+
+  if (job.continueFromLastRun) {
+    // Find the last successful run with commits
+    const lastSuccessfulRun = await prisma.scheduledJobRun.findFirst({
+      where: {
+        jobId: job.id,
+        status: "completed",
+        commitCount: { gt: 0 },
+        branch: { not: null },
+      },
+      orderBy: { completedAt: "desc" },
+    })
+
+    if (lastSuccessfulRun?.branch) {
+      effectiveBaseBranch = lastSuccessfulRun.branch
+    }
+  }
+
+  // 5. Create fresh sandbox
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
   const { sandbox, sandboxId, previewUrlPattern } = await createSandboxForChat({
     daytona,
     repo: job.repo,
-    baseBranch: job.baseBranch,
+    baseBranch: effectiveBaseBranch,
     newBranch: branch,
     githubToken: account.access_token,
     userId: job.userId,
   })
 
-  // 5. Update chat with sandbox info
+  // 6. Update chat with sandbox info
   await prisma.chat.update({
     where: { id: chat.id },
     data: {

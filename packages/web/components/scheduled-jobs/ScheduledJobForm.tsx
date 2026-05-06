@@ -50,6 +50,7 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
   const [agent, setAgent] = useState(job?.agent ?? "opencode")
   const [intervalMinutes, setIntervalMinutes] = useState(job?.intervalMinutes ?? 1440)
   const [autoPR, setAutoPR] = useState(job?.autoPR ?? true)
+  const [continueFromLastRun, setContinueFromLastRun] = useState(job?.continueFromLastRun ?? false)
   const [customInterval, setCustomInterval] = useState("")
   const [customUnit, setCustomUnit] = useState<"hours" | "days">("hours")
 
@@ -107,19 +108,20 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
       const url = isEditing ? `/api/scheduled-jobs/${job.id}` : "/api/scheduled-jobs"
       const method = isEditing ? "PATCH" : "POST"
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          prompt: prompt.trim(),
-          repo,
-          baseBranch,
-          agent,
-          intervalMinutes: finalInterval,
-          autoPR,
-        }),
-      })
+       const res = await fetch(url, {
+         method,
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+           name: name.trim(),
+           prompt: prompt.trim(),
+           repo,
+           baseBranch,
+           agent,
+           intervalMinutes: finalInterval,
+           autoPR,
+           continueFromLastRun,
+         }),
+       })
 
       if (!res.ok) {
         const data = await res.json()
@@ -291,6 +293,20 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
             />
             <label htmlFor="autoPR" className="text-sm">
               Automatically create PR when there are commits
+            </label>
+          </div>
+
+          {/* Continue from last run */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="continueFromLastRun"
+              checked={continueFromLastRun}
+              onChange={(e) => setContinueFromLastRun(e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            <label htmlFor="continueFromLastRun" className="text-sm">
+              Start changes from the previous run
             </label>
           </div>
 

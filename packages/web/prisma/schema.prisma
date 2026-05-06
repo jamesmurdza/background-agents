@@ -237,6 +237,9 @@ model ScheduledJob {
   // Auto-PR
   autoPR Boolean @default(true)
 
+  // Continue from last run
+  continueFromLastRun Boolean @default(false)
+
   // Failure tracking
   consecutiveFailures Int @default(0)
 
