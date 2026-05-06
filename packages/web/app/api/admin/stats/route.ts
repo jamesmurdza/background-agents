@@ -34,7 +34,8 @@ export async function GET() {
     repoActivityRaw,
     hourlyActivityRaw,
     dailyMessagesChatsRaw,
-    messagesByModelRaw,
+    messagesByAgentModel7dRaw,
+    messagesByAgentModel30dRaw,
   ] = await Promise.all([
     // Total users
     prisma.user.count(),
@@ -193,17 +194,30 @@ export async function GET() {
       ORDER BY d.date ASC
     `,
 
-    // Hourly messages by agent+model in past 24 hours
-    prisma.$queryRaw<Array<{ hour: number; agent: string | null; model: string | null; count: bigint }>>`
+    // Daily messages by agent+model in past 7 days
+    prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
       SELECT
-        EXTRACT(HOUR FROM "createdAt")::int as hour,
+        DATE("createdAt") as date,
         agent,
         model,
         COUNT(*)::bigint as count
       FROM "Message"
-      WHERE "createdAt" >= NOW() - INTERVAL '24 hours'
-      GROUP BY hour, agent, model
-      ORDER BY hour ASC
+      WHERE "createdAt" >= NOW() - INTERVAL '7 days'
+      GROUP BY date, agent, model
+      ORDER BY date ASC
+    `,
+
+    // Daily messages by agent+model in past 30 days
+    prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
+      SELECT
+        DATE("createdAt") as date,
+        agent,
+        model,
+        COUNT(*)::bigint as count
+      FROM "Message"
+      WHERE "createdAt" >= NOW() - INTERVAL '30 days'
+      GROUP BY date, agent, model
+      ORDER BY date ASC
     `,
   ])
 
@@ -261,74 +275,81 @@ export async function GET() {
     chats: Number(item.chats),
   }))
 
-  // Format hourly messages by agent (past 24 hours)
-  const hoursByAgent: Record<string, Record<string, number | string>> = {}
-  const allAgents = new Set<string>()
+  // Helper function to format daily messages by agent/model
+  function formatDailyMessagesByAgentModel(
+    rawData: Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>,
+    days: number
+  ) {
+    const daysByAgent: Record<string, Record<string, number | string>> = {}
+    const daysByModel: Record<string, Record<string, number | string>> = {}
+    const allAgents = new Set<string>()
+    const allModels = new Set<string>()
 
-  // Format hourly messages by model (past 24 hours)
-  const hoursByModel: Record<string, Record<string, number | string>> = {}
-  const allModels = new Set<string>()
+    for (const row of rawData) {
+      const dateStr = row.date.toISOString().split("T")[0]
+      const agentName = row.agent || "unknown"
+      const modelName = row.model || "unknown"
+      const count = Number(row.count)
 
-  for (const row of messagesByModelRaw) {
-    const hourStr = String(row.hour).padStart(2, "0")
-    const agentName = row.agent || "unknown"
-    const modelName = row.model || "unknown"
-    const count = Number(row.count)
+      allAgents.add(agentName)
+      allModels.add(modelName)
 
-    allAgents.add(agentName)
-    allModels.add(modelName)
+      // Aggregate by agent
+      if (!daysByAgent[dateStr]) {
+        daysByAgent[dateStr] = { date: dateStr }
+      }
+      daysByAgent[dateStr][agentName] =
+        ((daysByAgent[dateStr][agentName] as number) || 0) + count
 
-    // Aggregate by agent
-    if (!hoursByAgent[hourStr]) {
-      hoursByAgent[hourStr] = { hour: `${hourStr}:00` }
-    }
-    hoursByAgent[hourStr][agentName] =
-      ((hoursByAgent[hourStr][agentName] as number) || 0) + count
-
-    // Aggregate by model
-    if (!hoursByModel[hourStr]) {
-      hoursByModel[hourStr] = { hour: `${hourStr}:00` }
-    }
-    hoursByModel[hourStr][modelName] =
-      ((hoursByModel[hourStr][modelName] as number) || 0) + count
-  }
-
-  // Fill in missing hours with 0
-  const nowHour = new Date().getHours()
-
-  for (let i = 0; i < 24; i++) {
-    const hourNum = (nowHour - 23 + i + 24) % 24
-    const hourStr = String(hourNum).padStart(2, "0")
-
-    if (!hoursByAgent[hourStr]) {
-      hoursByAgent[hourStr] = { hour: `${hourStr}:00` }
-    }
-    if (!hoursByModel[hourStr]) {
-      hoursByModel[hourStr] = { hour: `${hourStr}:00` }
+      // Aggregate by model
+      if (!daysByModel[dateStr]) {
+        daysByModel[dateStr] = { date: dateStr }
+      }
+      daysByModel[dateStr][modelName] =
+        ((daysByModel[dateStr][modelName] as number) || 0) + count
     }
 
-    // Ensure all agents have a value
-    for (const agent of allAgents) {
-      if (!hoursByAgent[hourStr][agent]) {
-        hoursByAgent[hourStr][agent] = 0
+    // Fill in missing days with 0
+    const today = new Date()
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split("T")[0]
+
+      if (!daysByAgent[dateStr]) {
+        daysByAgent[dateStr] = { date: dateStr }
+      }
+      if (!daysByModel[dateStr]) {
+        daysByModel[dateStr] = { date: dateStr }
+      }
+
+      // Ensure all agents have a value
+      for (const agent of allAgents) {
+        if (!daysByAgent[dateStr][agent]) {
+          daysByAgent[dateStr][agent] = 0
+        }
+      }
+      // Ensure all models have a value
+      for (const model of allModels) {
+        if (!daysByModel[dateStr][model]) {
+          daysByModel[dateStr][model] = 0
+        }
       }
     }
-    // Ensure all models have a value
-    for (const model of allModels) {
-      if (!hoursByModel[hourStr][model]) {
-        hoursByModel[hourStr][model] = 0
-      }
-    }
+
+    // Sort by date and convert to arrays
+    const byAgent = Object.values(daysByAgent).sort((a, b) =>
+      (a.date as string).localeCompare(b.date as string)
+    )
+    const byModel = Object.values(daysByModel).sort((a, b) =>
+      (a.date as string).localeCompare(b.date as string)
+    )
+
+    return { byAgent, byModel }
   }
 
-  // Sort by hour and convert to arrays
-  const messagesByAgent: Array<Record<string, number | string>> = Object.values(
-    hoursByAgent
-  ).sort((a, b) => (a.hour as string).localeCompare(b.hour as string))
-
-  const messagesByModel: Array<Record<string, number | string>> = Object.values(
-    hoursByModel
-  ).sort((a, b) => (a.hour as string).localeCompare(b.hour as string))
+  const messages7d = formatDailyMessagesByAgentModel(messagesByAgentModel7dRaw, 7)
+  const messages30d = formatDailyMessagesByAgentModel(messagesByAgentModel30dRaw, 30)
 
   return NextResponse.json({
     stats: {
@@ -349,7 +370,9 @@ export async function GET() {
     repoActivity,
     hourlyActivity,
     dailyMessagesChats,
-    messagesByAgent,
-    messagesByModel,
+    messagesByAgent7d: messages7d.byAgent,
+    messagesByModel7d: messages7d.byModel,
+    messagesByAgent30d: messages30d.byAgent,
+    messagesByModel30d: messages30d.byModel,
   })
 }

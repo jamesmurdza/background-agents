@@ -42,8 +42,10 @@ interface AdminStats {
     messages: number
     chats: number
   }>
-  messagesByAgent: Array<Record<string, number | string>>
-  messagesByModel: Array<Record<string, number | string>>
+  messagesByAgent7d: Array<Record<string, number | string>>
+  messagesByModel7d: Array<Record<string, number | string>>
+  messagesByAgent30d: Array<Record<string, number | string>>
+  messagesByModel30d: Array<Record<string, number | string>>
 }
 
 async function fetchAdminStats(): Promise<AdminStats> {

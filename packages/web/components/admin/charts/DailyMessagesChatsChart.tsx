@@ -69,6 +69,7 @@ export function DailyMessagesChatsChart({ data }: DailyMessagesChatsChartProps) 
             strokeWidth={2}
             dot={{ r: 2 }}
             activeDot={{ r: 5 }}
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
@@ -78,6 +79,7 @@ export function DailyMessagesChatsChart({ data }: DailyMessagesChatsChartProps) 
             strokeWidth={2}
             dot={{ r: 2 }}
             activeDot={{ r: 5 }}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>

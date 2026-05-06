@@ -134,8 +134,10 @@ export default function AdminDashboard() {
   const topUsers = topUsersQuery.data?.topUsers ?? []
   const hourlyActivity = statsQuery.data?.hourlyActivity ?? []
   const dailyMessagesChats = statsQuery.data?.dailyMessagesChats ?? []
-  const messagesByAgent = statsQuery.data?.messagesByAgent ?? []
-  const messagesByModel = statsQuery.data?.messagesByModel ?? []
+  const messagesByAgent7d = statsQuery.data?.messagesByAgent7d ?? []
+  const messagesByModel7d = statsQuery.data?.messagesByModel7d ?? []
+  const messagesByAgent30d = statsQuery.data?.messagesByAgent30d ?? []
+  const messagesByModel30d = statsQuery.data?.messagesByModel30d ?? []
 
   // Handle section change with mobile menu close
   const handleSectionChange = (section: SectionKey) => {
@@ -227,10 +229,15 @@ export default function AdminDashboard() {
                 <div className="rounded-lg border bg-card p-4 md:p-6">
                   <div className="mb-3 flex items-center gap-2 md:mb-4">
                     <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold md:text-base">Messages (24h)</h3>
+                    <h3 className="text-sm font-semibold md:text-base">Messages</h3>
                   </div>
                   <div className="h-[200px] md:h-auto">
-                    <MessagesByModelChart agentData={messagesByAgent} modelData={messagesByModel} />
+                    <MessagesByModelChart
+                      agentData7d={messagesByAgent7d}
+                      modelData7d={messagesByModel7d}
+                      agentData30d={messagesByAgent30d}
+                      modelData30d={messagesByModel30d}
+                    />
                   </div>
                 </div>
               </section>

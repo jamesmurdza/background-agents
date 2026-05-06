@@ -66,6 +66,7 @@ export function UserGrowthChart({ data }: UserGrowthChartProps) {
             fill="#8884d8"
             fillOpacity={0.3}
             strokeWidth={2}
+            isAnimationActive={false}
           />
         </AreaChart>
       </ResponsiveContainer>

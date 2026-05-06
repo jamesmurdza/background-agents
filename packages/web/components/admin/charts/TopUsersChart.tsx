@@ -62,8 +62,8 @@ export function TopUsersChart({ data }: TopUsersChartProps) {
             ]}
           />
           <Legend />
-          <Bar dataKey="messageCount" name="Messages" fill="#8884d8" radius={[0, 4, 4, 0]} />
-          <Bar dataKey="chatCount" name="Conversations" fill="#82ca9d" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="messageCount" name="Messages" fill="#8884d8" radius={[0, 4, 4, 0]} isAnimationActive={false} />
+          <Bar dataKey="chatCount" name="Conversations" fill="#82ca9d" radius={[0, 4, 4, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

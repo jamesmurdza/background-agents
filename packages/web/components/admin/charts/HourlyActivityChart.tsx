@@ -92,7 +92,7 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
             }}
             formatter={(value) => [value, "Messages"]}
           />
-          <Bar dataKey="count" radius={[2, 2, 0, 0]}>
+          <Bar dataKey="count" radius={[2, 2, 0, 0]} isAnimationActive={false}>
             {fullData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={getColor(entry.count)} />
             ))}
