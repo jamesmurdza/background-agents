@@ -1,8 +1,8 @@
 "use client"
 
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -32,20 +32,20 @@ export function MessagesByModelChart({ data }: MessagesByModelChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="flex h-[300px] items-center justify-center text-muted-foreground">
-        No model usage data available for the past 24 hours
+        No agent/model usage data available for the past 24 hours
       </div>
     )
   }
 
-  // Extract model names (all keys except "hour")
-  const modelKeys = Array.from(
+  // Extract agent+model keys (all keys except "hour")
+  const agentModelKeys = Array.from(
     new Set(data.flatMap((entry) => Object.keys(entry).filter((key) => key !== "hour")))
   )
 
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
+        <AreaChart
           data={data}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
@@ -65,19 +65,19 @@ export function MessagesByModelChart({ data }: MessagesByModelChartProps) {
             labelStyle={{ color: "hsl(var(--popover-foreground))" }}
           />
           <Legend />
-          {modelKeys.map((model, index) => (
-            <Line
-              key={model}
+          {agentModelKeys.map((agentModel, index) => (
+            <Area
+              key={agentModel}
               type="monotone"
-              dataKey={model}
-              name={model}
+              dataKey={agentModel}
+              name={agentModel}
+              stackId="1"
               stroke={COLORS[index % COLORS.length]}
-              strokeWidth={2}
-              dot={{ r: 2 }}
-              activeDot={{ r: 5 }}
+              fill={COLORS[index % COLORS.length]}
+              fillOpacity={0.6}
             />
           ))}
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   )

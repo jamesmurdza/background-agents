@@ -193,15 +193,16 @@ export async function GET() {
       ORDER BY d.date ASC
     `,
 
-    // Hourly messages by model in past 24 hours
-    prisma.$queryRaw<Array<{ hour: number; model: string | null; count: bigint }>>`
+    // Hourly messages by agent+model in past 24 hours
+    prisma.$queryRaw<Array<{ hour: number; agent: string | null; model: string | null; count: bigint }>>`
       SELECT
         EXTRACT(HOUR FROM "createdAt")::int as hour,
+        agent,
         model,
         COUNT(*)::bigint as count
       FROM "Message"
       WHERE "createdAt" >= NOW() - INTERVAL '24 hours'
-      GROUP BY hour, model
+      GROUP BY hour, agent, model
       ORDER BY hour ASC
     `,
   ])
@@ -260,20 +261,22 @@ export async function GET() {
     chats: Number(item.chats),
   }))
 
-  // Format hourly messages by model (past 24 hours)
-  // Pivot from [{hour, model, count}] to [{hour: "00:00", modelA: 5, modelB: 3, ...}]
+  // Format hourly messages by agent+model (past 24 hours)
+  // Pivot from [{hour, agent, model, count}] to [{hour: "00:00", "agent/model": 5, ...}]
   const hoursByModel: Record<string, Record<string, number | string>> = {}
-  const allModels = new Set<string>()
+  const allAgentModels = new Set<string>()
 
   for (const row of messagesByModelRaw) {
     const hourStr = String(row.hour).padStart(2, "0")
+    const agentName = row.agent || "default"
     const modelName = row.model || "unknown"
-    allModels.add(modelName)
+    const agentModelKey = `${agentName}/${modelName}`
+    allAgentModels.add(agentModelKey)
 
     if (!hoursByModel[hourStr]) {
       hoursByModel[hourStr] = { hour: `${hourStr}:00` }
     }
-    hoursByModel[hourStr][modelName] = Number(row.count)
+    hoursByModel[hourStr][agentModelKey] = Number(row.count)
   }
 
   // Fill in missing hours with 0
@@ -287,10 +290,10 @@ export async function GET() {
     if (!hoursByModel[hourStr]) {
       hoursByModel[hourStr] = { hour: `${hourStr}:00` }
     }
-    // Ensure all models have a value
-    for (const model of allModels) {
-      if (!hoursByModel[hourStr][model]) {
-        hoursByModel[hourStr][model] = 0
+    // Ensure all agent+model combinations have a value
+    for (const agentModel of allAgentModels) {
+      if (!hoursByModel[hourStr][agentModel]) {
+        hoursByModel[hourStr][agentModel] = 0
       }
     }
   }
