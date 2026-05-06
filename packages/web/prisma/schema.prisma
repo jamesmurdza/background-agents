@@ -267,11 +267,12 @@ model ScheduledJobRun {
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
-  // Results
-  sandboxId           String?
-  backgroundSessionId String?
-  branch              String?
-  commitCount         Int     @default(0)
+   // Results
+   sandboxId           String?
+   backgroundSessionId String?
+   branch              String?
+   baseBranch          String? // The branch this run was created from
+   commitCount         Int     @default(0)
   prUrl               String?
   prNumber            Int?
   error               String? @db.Text

@@ -306,7 +306,7 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
               className="h-4 w-4 rounded border-border"
             />
             <label htmlFor="continueFromLastRun" className="text-sm">
-              Start changes from the previous run
+               Include commits from previous runs
             </label>
           </div>
 
