@@ -42,6 +42,7 @@ interface AdminStats {
     messages: number
     chats: number
   }>
+  messagesByAgent: Array<Record<string, number | string>>
   messagesByModel: Array<Record<string, number | string>>
 }
 

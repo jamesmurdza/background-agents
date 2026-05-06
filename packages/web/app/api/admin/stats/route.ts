@@ -261,49 +261,74 @@ export async function GET() {
     chats: Number(item.chats),
   }))
 
-  // Format hourly messages by agent+model (past 24 hours)
-  // Pivot from [{hour, agent, model, count}] to [{hour: "00:00", "agent/model": 5, ...}]
+  // Format hourly messages by agent (past 24 hours)
+  const hoursByAgent: Record<string, Record<string, number | string>> = {}
+  const allAgents = new Set<string>()
+
+  // Format hourly messages by model (past 24 hours)
   const hoursByModel: Record<string, Record<string, number | string>> = {}
-  const allAgentModels = new Set<string>()
+  const allModels = new Set<string>()
 
   for (const row of messagesByModelRaw) {
     const hourStr = String(row.hour).padStart(2, "0")
-    const agentName = row.agent || "default"
+    const agentName = row.agent || "unknown"
     const modelName = row.model || "unknown"
-    const agentModelKey = `${agentName}/${modelName}`
-    allAgentModels.add(agentModelKey)
+    const count = Number(row.count)
 
+    allAgents.add(agentName)
+    allModels.add(modelName)
+
+    // Aggregate by agent
+    if (!hoursByAgent[hourStr]) {
+      hoursByAgent[hourStr] = { hour: `${hourStr}:00` }
+    }
+    hoursByAgent[hourStr][agentName] =
+      ((hoursByAgent[hourStr][agentName] as number) || 0) + count
+
+    // Aggregate by model
     if (!hoursByModel[hourStr]) {
       hoursByModel[hourStr] = { hour: `${hourStr}:00` }
     }
-    hoursByModel[hourStr][agentModelKey] = Number(row.count)
+    hoursByModel[hourStr][modelName] =
+      ((hoursByModel[hourStr][modelName] as number) || 0) + count
   }
 
   // Fill in missing hours with 0
-  const messagesByModel: Array<Record<string, number | string>> = []
   const nowHour = new Date().getHours()
 
   for (let i = 0; i < 24; i++) {
     const hourNum = (nowHour - 23 + i + 24) % 24
     const hourStr = String(hourNum).padStart(2, "0")
 
+    if (!hoursByAgent[hourStr]) {
+      hoursByAgent[hourStr] = { hour: `${hourStr}:00` }
+    }
     if (!hoursByModel[hourStr]) {
       hoursByModel[hourStr] = { hour: `${hourStr}:00` }
     }
-    // Ensure all agent+model combinations have a value
-    for (const agentModel of allAgentModels) {
-      if (!hoursByModel[hourStr][agentModel]) {
-        hoursByModel[hourStr][agentModel] = 0
+
+    // Ensure all agents have a value
+    for (const agent of allAgents) {
+      if (!hoursByAgent[hourStr][agent]) {
+        hoursByAgent[hourStr][agent] = 0
+      }
+    }
+    // Ensure all models have a value
+    for (const model of allModels) {
+      if (!hoursByModel[hourStr][model]) {
+        hoursByModel[hourStr][model] = 0
       }
     }
   }
 
-  // Sort by hour and convert to array
-  messagesByModel.push(
-    ...Object.values(hoursByModel).sort((a, b) => {
-      return (a.hour as string).localeCompare(b.hour as string)
-    })
-  )
+  // Sort by hour and convert to arrays
+  const messagesByAgent: Array<Record<string, number | string>> = Object.values(
+    hoursByAgent
+  ).sort((a, b) => (a.hour as string).localeCompare(b.hour as string))
+
+  const messagesByModel: Array<Record<string, number | string>> = Object.values(
+    hoursByModel
+  ).sort((a, b) => (a.hour as string).localeCompare(b.hour as string))
 
   return NextResponse.json({
     stats: {
@@ -324,6 +349,7 @@ export async function GET() {
     repoActivity,
     hourlyActivity,
     dailyMessagesChats,
+    messagesByAgent,
     messagesByModel,
   })
 }
