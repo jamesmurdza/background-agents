@@ -302,7 +302,6 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
           isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
         )}
       >
-        {loading && <Loader2 className="h-4 w-4 animate-spin mr-2 text-muted-foreground shrink-0" />}
         <input
           ref={inputRef}
           type="text"
@@ -317,15 +316,18 @@ function BranchSelector({ value, onChange, branches, loading, placeholder = "Sel
           className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
           readOnly={loading}
         />
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={() => !loading && setOpen(!open)}
-          className={cn("ml-2 text-muted-foreground hover:text-foreground", loading && "opacity-50 cursor-not-allowed")}
-          disabled={loading}
-        >
-          <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-        </button>
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin ml-2 text-muted-foreground shrink-0" />
+        ) : (
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => setOpen(!open)}
+            className="ml-2 text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          </button>
+        )}
       </div>
 
       {open && !loading && (
