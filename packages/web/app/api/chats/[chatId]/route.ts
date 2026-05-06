@@ -49,6 +49,7 @@ interface ChatWithMessagesResponse {
   updatedAt: number
   lastActiveAt: number
   messages: MessageResponse[]
+  messageCount: number
 }
 
 // =============================================================================
@@ -67,14 +68,20 @@ export async function GET(
   try {
     const { searchParams } = new URL(req.url)
     const afterMessageId = searchParams.get("afterMessageId")
+    const beforeMessageId = searchParams.get("beforeMessageId")
+    const limitParam = searchParams.get("limit")
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined
 
     const chat = await getChatWithAuth(chatId, userId)
     if (!chat) {
       return notFound("Chat not found")
     }
 
-    // Fetch messages, optionally after a specific message ID.
-    // The afterMessageId lookup must be scoped to this chat: a message ID
+    // Get total message count for pagination
+    const messageCount = await prisma.message.count({ where: { chatId } })
+
+    // Fetch messages, optionally after/before a specific message ID.
+    // The message ID lookup must be scoped to this chat: a message ID
     // from another chat would otherwise pull a foreign createdAt and
     // produce wrong pagination boundaries.
     const afterCreatedAt = afterMessageId
@@ -86,15 +93,38 @@ export async function GET(
         )?.createdAt
       : undefined
 
+    const beforeCreatedAt = beforeMessageId
+      ? (
+          await prisma.message.findFirst({
+            where: { id: beforeMessageId, chatId },
+            select: { createdAt: true },
+          })
+        )?.createdAt
+      : undefined
+
+    // When loading older messages (beforeMessageId), we need to:
+    // 1. Query with descending order to get the N most recent before the cursor
+    // 2. Reverse the results to maintain chronological order
+    const isLoadingOlder = !!beforeCreatedAt && !afterCreatedAt
+
     const messages = await prisma.message.findMany({
       where: {
         chatId,
         ...(afterCreatedAt && {
           createdAt: { gt: afterCreatedAt },
         }),
+        ...(beforeCreatedAt && {
+          createdAt: { lt: beforeCreatedAt },
+        }),
       },
-      orderBy: { timestamp: "asc" },
+      orderBy: { timestamp: isLoadingOlder ? "desc" : "asc" },
+      ...(limit && { take: limit }),
     })
+
+    // Reverse if we loaded older messages (to restore chronological order)
+    if (isLoadingOlder) {
+      messages.reverse()
+    }
 
     const response: ChatWithMessagesResponse = {
       id: chat.id,
@@ -114,6 +144,7 @@ export async function GET(
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
+      messageCount,
       messages: messages.map((m) => ({
         id: m.id,
         role: m.role,

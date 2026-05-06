@@ -100,6 +100,8 @@ export default function HomePage() {
     resumeQueue,
     updateChatById,
     refetchMessages,
+    loadOlderMessages,
+    hasMoreMessages,
     drafts,
     updateDraft,
     clearDraft,
@@ -1378,6 +1380,8 @@ export default function HomePage() {
                   onCreateScheduledJob={() => setScheduledJobFormOpen(true)}
                   isSending={isSendingMessage}
                   onOpenPlan={(messageId) => openPreview({ type: "plan", messageId, content: "" })}
+                  hasMoreMessages={hasMoreMessages}
+                  onLoadOlderMessages={currentChat ? () => loadOlderMessages(currentChat.id) : undefined}
                 />
               )}
             </div>

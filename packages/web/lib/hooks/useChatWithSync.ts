@@ -214,6 +214,9 @@ export function useChatWithSync() {
     })
   }, [queryClient])
 
+  // Default page size for initial load and "load more"
+  const MESSAGE_PAGE_SIZE = 50
+
   // Load messages for current chat when selected
   useEffect(() => {
     if (!currentChatId || !isHydrated) return
@@ -228,13 +231,18 @@ export function useChatWithSync() {
 
     const loadMessages = async () => {
       try {
-        const chatData = await fetchChat(currentChatId)
+        // Load last N messages initially (most recent)
+        const chatData = await fetchChat(currentChatId, { limit: MESSAGE_PAGE_SIZE })
         const incomingMessages = chatData.messages.map(toMessageType)
 
         updateChatsCache((old) =>
           old.map((c) => {
             if (c.id !== currentChatId) return c
-            return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
+            return {
+              ...c,
+              messages: mergeMessages(c.messages, incomingMessages),
+              messageCount: chatData.messageCount,
+            }
           })
         )
       } catch (err) {
@@ -615,7 +623,7 @@ export function useChatWithSync() {
           // Fetch any new messages created by the backend (e.g., push failure messages)
           // This uses delta sync - only fetches messages after the assistant message
           try {
-            const chatData = await fetchChat(chatId, assistantMessageId)
+            const chatData = await fetchChat(chatId, { afterMessageId: assistantMessageId })
             const incomingMessages = chatData.messages.map(toMessageType)
             if (incomingMessages.length > 0) {
               updateChatsCache((old) =>
@@ -1025,7 +1033,7 @@ export function useChatWithSync() {
       const lastMessageId = chat?.messages[chat.messages.length - 1]?.id
 
       // Fetch only new messages (after lastMessageId)
-      const chatData = await fetchChat(chatId, lastMessageId)
+      const chatData = await fetchChat(chatId, lastMessageId ? { afterMessageId: lastMessageId } : undefined)
       const incomingMessages = chatData.messages.map(toMessageType)
 
       if (incomingMessages.length > 0) {
@@ -1041,10 +1049,53 @@ export function useChatWithSync() {
     }
   }, [chats, updateChatsCache])
 
+  // Load older messages for pagination (prepends to existing messages)
+  const loadOlderMessages = useCallback(async (chatId: string): Promise<boolean> => {
+    try {
+      const chat = chats.find((c) => c.id === chatId)
+      if (!chat || chat.messages.length === 0) return false
+
+      // Get the oldest message ID as cursor
+      const oldestMessageId = chat.messages[0]?.id
+      if (!oldestMessageId) return false
+
+      // Fetch older messages before the cursor
+      const chatData = await fetchChat(chatId, {
+        beforeMessageId: oldestMessageId,
+        limit: MESSAGE_PAGE_SIZE,
+      })
+      const olderMessages = chatData.messages.map(toMessageType)
+
+      if (olderMessages.length === 0) return false
+
+      // Prepend older messages to the existing list
+      updateChatsCache((old) =>
+        old.map((c) => {
+          if (c.id !== chatId) return c
+          return {
+            ...c,
+            messages: [...olderMessages, ...c.messages],
+            messageCount: chatData.messageCount,
+          }
+        })
+      )
+
+      return olderMessages.length === MESSAGE_PAGE_SIZE // true if there may be more
+    } catch (err) {
+      console.error("Failed to load older messages:", err)
+      return false
+    }
+  }, [chats, updateChatsCache])
+
   // True when messages need to be loaded for current chat (to prevent flash of empty state)
   // A chat needs loading if: has no messages locally, but server says it has messages (messageCount > 0)
   const isLoadingMessages = currentChat
     ? currentChat.messages.length === 0 && (currentChat.messageCount ?? 0) > 0
+    : false
+
+  // True if there are more older messages to load for the current chat
+  const hasMoreMessages = currentChat
+    ? currentChat.messages.length < (currentChat.messageCount ?? 0)
     : false
 
   // Set callback for conflict state changes from SSE complete events
@@ -1108,6 +1159,8 @@ export function useChatWithSync() {
     removeQueuedMessage,
     resumeQueue,
     refetchMessages,
+    loadOlderMessages,
+    hasMoreMessages,
     drafts: localChatState.drafts,
     updateDraft,
     clearDraft,

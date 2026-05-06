@@ -53,6 +53,7 @@ export interface MessageResponse {
 
 export interface ChatWithMessagesResponse extends ChatResponse {
   messages: MessageResponse[]
+  messageCount: number
 }
 
 export interface SettingsResponse {
@@ -103,10 +104,18 @@ export async function fetchChats(): Promise<ChatResponse[]> {
  */
 export async function fetchChat(
   chatId: string,
-  afterMessageId?: string
+  options?: {
+    afterMessageId?: string
+    beforeMessageId?: string
+    limit?: number
+  }
 ): Promise<ChatWithMessagesResponse> {
-  const params = afterMessageId ? `?afterMessageId=${afterMessageId}` : ""
-  return fetchApi<ChatWithMessagesResponse>(`/api/chats/${chatId}${params}`)
+  const params = new URLSearchParams()
+  if (options?.afterMessageId) params.set("afterMessageId", options.afterMessageId)
+  if (options?.beforeMessageId) params.set("beforeMessageId", options.beforeMessageId)
+  if (options?.limit) params.set("limit", options.limit.toString())
+  const query = params.toString()
+  return fetchApi<ChatWithMessagesResponse>(`/api/chats/${chatId}${query ? `?${query}` : ""}`)
 }
 
 /**
@@ -116,7 +125,7 @@ export async function fetchMessages(
   chatId: string,
   afterMessageId?: string
 ): Promise<MessageResponse[]> {
-  const chat = await fetchChat(chatId, afterMessageId)
+  const chat = await fetchChat(chatId, afterMessageId ? { afterMessageId } : undefined)
   return chat.messages
 }
 
