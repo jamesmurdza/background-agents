@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
-import { useSession, signIn } from "next-auth/react"
-import { Plus, PanelLeft, X, FolderGit2, Loader2, Clock, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useSession, signIn, signOut } from "next-auth/react"
+import { Plus, PanelLeft, X, FolderGit2, Loader2, Clock, Search, ChevronDown, Check, BarChart3, Settings, HelpCircle, LogOut } from "lucide-react"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
+import { clearAllStorage } from "@/lib/storage"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import {

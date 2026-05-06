@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, Loader2, Plus, FileText, FileCode, FileImage, File as FileIcon, Clock, Command, Brain, Cpu } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, Loader2, Plus, FileText, FileCode, FileImage, File as FileIcon, Clock, Command, Brain, Cpu } from "lucide-react"
 import {
   formatFileSize,
   ImageThumbnail,
