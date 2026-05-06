@@ -79,7 +79,7 @@ export async function createSandboxForChat(
   const sandbox = await daytona.create({
     name: generateSandboxName(userId),
     snapshot: SANDBOX_CONFIG.DEFAULT_SNAPSHOT,
-    autoStopInterval: 10,
+    autoStopInterval: 5,
     autoDeleteInterval: 10080, // 7 days - auto-delete after being stopped for a week
     public: true,
     labels: {
