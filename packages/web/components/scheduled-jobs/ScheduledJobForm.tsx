@@ -147,10 +147,10 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-lg bg-background border border-border shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-lg bg-background border border-border shadow-lg">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3 flex-shrink-0">
           <h2 className="text-lg font-semibold">
             {isEditing ? "Edit Scheduled Job" : "New Scheduled Job"}
           </h2>
@@ -163,7 +163,7 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form id="scheduled-job-form" onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
@@ -346,24 +346,26 @@ export function ScheduledJobForm({ job, onClose, onSuccess }: ScheduledJobFormPr
             </label>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              {loading ? "Saving..." : isEditing ? "Save Changes" : "Create Job"}
-            </button>
-          </div>
         </form>
+
+        {/* Actions - fixed at bottom */}
+        <div className="flex justify-end gap-2 px-4 py-3 border-t border-border flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="scheduled-job-form"
+            disabled={loading}
+            className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Saving..." : isEditing ? "Save Changes" : "Create Job"}
+          </button>
+        </div>
       </div>
     </div>
   )
