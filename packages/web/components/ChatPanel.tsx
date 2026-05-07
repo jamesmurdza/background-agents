@@ -1,18 +1,16 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, HelpCircle, Loader2, Plus, Clock, Command, Brain, Cpu } from "lucide-react"
-import { ErrorBanner, FilePreviewModal, PendingFilesDisplay, ChatHeader, MobileConflictBar, AgentModelSelector } from "./chat"
+import { Github, HelpCircle, Plus, X, Command } from "lucide-react"
+import { ErrorBanner, FilePreviewModal, ChatHeader, MobileConflictBar, ChatInput } from "./chat"
 import { cn } from "@/lib/utils"
 import { useModals, useGit } from "@/lib/contexts"
-import type { Chat, Settings, Agent, CredentialFlags, PendingFile } from "@/lib/types"
-import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
-import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
+import type { Chat, Settings, Agent, CredentialFlags } from "@/lib/types"
+import { NEW_REPOSITORY, agentModels, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
+import { filterSlashCommandsWithConflict } from "@upstream/common"
 import { MessageBubble } from "./MessageBubble"
-import { SlashCommandMenu, type SlashCommandType } from "./SlashCommandMenu"
+import type { SlashCommandType } from "./SlashCommandMenu"
 import { useFileUpload } from "@/lib/hooks/useFileUpload"
-
-import type { HighlightKey } from "./modals/SettingsModal"
 
 interface ChatPanelProps {
   chat: Chat | null
@@ -362,305 +360,69 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   // Only show welcome screen if no messages AND not loading messages AND not a child chat
   const isNewChat = chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
 
-  // Chat input component - responsive design
+  // Chat input component
   const chatInput = (
-    <div className={cn(
-      "w-full mx-auto",
-      isMobile ? "max-w-full" : "max-w-[52rem]"
-    )}>
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={cn(
-          "relative flex flex-col border shadow-sm bg-card border-border",
-          isMobile ? "rounded-xl" : "rounded-2xl",
-          "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-          isDraggingOver && "border-primary ring-2 ring-primary/30"
-        )}
-      >
-        {/* Drop zone overlay */}
-        {isDraggingOver && (
-          <div className="absolute inset-0 bg-primary/5 rounded-2xl flex items-center justify-center z-10 pointer-events-none">
-            <div className="text-primary text-sm font-medium">Drop files here</div>
-          </div>
-        )}
-
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={supportedExtensions.map(ext => `.${ext}`).join(',') + ',image/*,text/*,application/pdf,application/json'}
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files) {
-              addFiles(e.target.files)
-              e.target.value = ""
-            }
-          }}
-        />
-
-        {/* Pending files display - square preview boxes (ABOVE text input) */}
-        <PendingFilesDisplay
-          pendingFiles={pendingFiles}
-          fileContents={fileContents}
-          getFileTypeForFile={getFileTypeForFile}
-          getFilePreviewUrl={getFilePreviewUrl}
-          onRemoveFile={removeFile}
-          onPreviewFile={setPreviewFile}
-          isMobile={isMobile}
-        />
-
-        {/* Text input area */}
-        <div className={cn(
-          "flex items-end gap-2",
-          isMobile ? "px-3 py-2" : "px-4 py-3"
-        )}>
-          {/* Textarea wrapper with slash command menu */}
-          <div className="relative flex-1">
-            {/* Slash Command Menu - positioned above the textarea */}
-            {onSlashCommand && (
-              <SlashCommandMenu
-                input={input}
-                open={slashMenuOpen}
-                onSelect={handleSlashCommandSelect}
-                onClose={() => {
-                  setSlashMenuOpen(false)
-                  setSlashSelectedIndex(0)
-                }}
-                selectedIndex={slashSelectedIndex}
-                onSelectedIndexChange={setSlashSelectedIndex}
-                hasLinkedRepo={hasLinkedRepo}
-                inConflict={inConflict}
-                isMobile={isMobile}
-              />
-            )}
-
-            <textarea
-              ref={textareaRef}
-              data-chat-prompt
-              data-testid="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder={
-                isCreating
-                  ? "Creating sandbox..."
-                  : isRunning
-                  ? "Agent is working..."
-                  : isNewChat
-                  ? "Message..."
-                  : "Enter prompt or /merge..."
-              }
-              rows={1}
-              className={cn(
-                "w-full resize-none bg-transparent text-foreground placeholder:text-muted-foreground/50 focus:outline-none",
-                isMobile ? "text-base" : "text-[15px]"
-              )}
-            />
-          </div>
-
-          {/* Button container - fixed size to prevent layout shift */}
-          <div className={cn(
-            "shrink-0 flex items-center justify-center",
-            isMobile ? "h-9 w-9" : "h-7 w-7"
-          )}>
-            {isRunning && canQueue ? (
-              <button
-                onClick={handleSend}
-                title="Queue message (sent after current response)"
-                className={cn(
-                  "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
-                  isMobile ? "h-9 w-9" : "h-7 w-7"
-                )}
-              >
-                <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-              </button>
-            ) : isRunning ? (
-              <button
-                onClick={onStopAgent}
-                className={cn(
-                  "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors",
-                  isMobile ? "h-9 w-9" : "h-7 w-7"
-                )}
-              >
-                <Square className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "fill-current")} />
-              </button>
-            ) : canSend ? (
-              <button
-                onClick={handleSend}
-                className={cn(
-                  "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
-                  isMobile ? "h-9 w-9" : "h-7 w-7"
-                )}
-              >
-                <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* File upload error message */}
-        {fileError && (
-          <div className={cn(
-            "flex items-start gap-2 text-destructive bg-destructive/10 rounded-md",
-            isMobile ? "mx-3 mb-2 px-3 py-2 text-sm" : "mx-4 mb-2 px-3 py-2 text-xs"
-          )}>
-            <AlertTriangle className={cn("shrink-0 mt-0.5", isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-            <span className="flex-1">{fileError}</span>
-            <button
-              onClick={() => clearFileError()}
-              className="shrink-0 text-destructive/70 hover:text-destructive transition-colors"
-              aria-label="Dismiss error"
-            >
-              <X className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-            </button>
-          </div>
-        )}
-
-        {/* Bottom row with selectors - uses container queries to collapse text labels when narrow */}
-        <div className={cn(
-          "@container",
-          isMobile ? "flex flex-col gap-1 px-3 py-2" : "flex items-center gap-3 px-4 py-2"
-        )}>
-          {/* Left side items - first row on mobile */}
-          <div className={cn("flex items-center gap-2", isMobile ? "w-full @container/row1" : "flex-1")}>
-            {/* Attachment button */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
-                isMobile ? "h-7 w-7" : "h-6 w-6"
-              )}
-              title="Attach files"
-              aria-label="Attach files"
-            >
-              <Paperclip className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-            </button>
-
-            {/* Repo display/selector */}
-            {showRepoButton ? (
-              // Can change repo - show as button
-              <div className="flex items-center gap-1">
-                {onChangeRepo && (
-                  <button
-                    onClick={onChangeRepo}
-                    className={cn(
-                      "flex items-center gap-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer",
-                      isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-sm"
-                    )}
-                    title={isNewRepo ? "Select repository" : chat.repo}
-                  >
-                    <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                    <span className={cn(isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")}>
-                      {isNewRepo ? "Repository" : chat.repo?.split("/").pop()}
-                    </span>
-                    <ChevronDown className={cn(isMobile ? "h-4 w-4 hidden @[16rem]/row1:block" : "h-3.5 w-3.5")} />
-                  </button>
-                )}
-                {!isNewRepo && onChangeBranch && isNewChat && (
-                  <button
-                    onClick={onChangeBranch}
-                    className={cn(
-                      "flex items-center gap-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer",
-                      isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-sm"
-                    )}
-                    title={chat.branch || chat.baseBranch}
-                  >
-                    <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                    <span className={cn(isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")}>
-                      {chat.branch || chat.baseBranch}
-                    </span>
-                    <ChevronDown className={cn(isMobile ? "h-4 w-4 hidden @[16rem]/row1:block" : "h-3.5 w-3.5")} />
-                  </button>
-                )}
-                {!isNewRepo && onUpdateChat && canSelectRepo && (
-                  <button
-                    onClick={() => onUpdateChat({ repo: NEW_REPOSITORY, baseBranch: "main" })}
-                    className={cn(
-                      "rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
-                      isMobile ? "p-1.5" : "p-0.5"
-                    )}
-                    title="Remove repository"
-                  >
-                    <X className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
-                  </button>
-                )}
-              </div>
-            ) : !isNewRepo && (
-              // Repo is locked — link out to the branch on GitHub
-              <a
-                href={`https://github.com/${chat.repo}/tree/${chat.branch}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors",
-                  isMobile ? "text-sm" : "text-sm"
-                )}
-                title={chat.repo}
-              >
-                <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                <span className={cn(isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")}>
-                  {chat.repo?.split("/").pop()}
-                </span>
-              </a>
-            )}
-
-            {/* Spacer - only on desktop */}
-            {!isMobile && <div className="flex-1" />}
-          </div>
-
-          {/* Right side items - second row on mobile */}
-          <div className={cn("flex items-center gap-2", isMobile && "w-full @container/row2")}>
-            {/* Schedule button */}
-            <button
-              onClick={() => modals.setScheduledJobFormOpen(true)}
-              className={cn(
-                "flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded-md hover:bg-accent/50",
-                isMobile ? "p-2 touch-target" : "p-1"
-              )}
-              title="Create scheduled job"
-            >
-              <Clock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-            </button>
-
-            {/* Plan mode toggle */}
-            <button
-              type="button"
-              onClick={() => setPlanModeEnabled((v) => !v)}
-              className={cn(
-                "shrink-0 flex items-center gap-1 rounded-md transition-colors cursor-pointer",
-                planModeEnabled
-                  ? "bg-primary/15 text-primary hover:bg-primary/20"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
-                isMobile ? "h-7 px-2 text-sm" : "h-6 px-1.5 text-sm"
-              )}
-              title={planModeEnabled ? "Plan mode on — agent will plan before acting" : "Plan mode off"}
-              aria-label="Toggle plan mode"
-              aria-pressed={planModeEnabled}
-            >
-              <Brain className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-              <span className={cn("text-sm", isMobile ? "hidden @[18rem]/row2:inline" : "hidden @[32rem]:inline")}>Plan</span>
-            </button>
-
-            {/* Agent and Model selectors */}
-            <AgentModelSelector
-              chat={chat}
-              credentialFlags={credentialFlags}
-              currentAgent={currentAgent}
-              currentModel={currentModel}
-              onUpdateChat={onUpdateChat}
-              showClaudeLimitDialog={showClaudeLimitDialog}
-              isMobile={isMobile}
-            />
-          </div>
-
-        </div>
-      </div>
-    </div>
+    <ChatInput
+      chat={chat}
+      input={input}
+      onInputChange={setInput}
+      onSend={handleSend}
+      onStop={onStopAgent}
+      onKeyDown={handleKeyDown}
+      textareaRef={textareaRef}
+      // File upload
+      pendingFiles={pendingFiles}
+      fileContents={fileContents}
+      fileError={fileError}
+      fileInputRef={fileInputRef}
+      isDraggingOver={isDraggingOver}
+      supportedExtensions={supportedExtensions}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      onAddFiles={addFiles}
+      onRemoveFile={removeFile}
+      onClearFileError={clearFileError}
+      onPreviewFile={setPreviewFile}
+      getFileTypeForFile={getFileTypeForFile}
+      getFilePreviewUrl={getFilePreviewUrl}
+      // Slash commands
+      slashMenuOpen={slashMenuOpen}
+      slashSelectedIndex={slashSelectedIndex}
+      onSlashSelect={handleSlashCommandSelect}
+      onSlashClose={() => {
+        setSlashMenuOpen(false)
+        setSlashSelectedIndex(0)
+      }}
+      onSlashSelectedIndexChange={setSlashSelectedIndex}
+      hasLinkedRepo={hasLinkedRepo}
+      inConflict={inConflict}
+      hasSlashCommands={!!onSlashCommand}
+      // State flags
+      isRunning={isRunning}
+      isCreating={isCreating}
+      isNewChat={isNewChat}
+      canSend={canSend}
+      canQueue={canQueue}
+      // Repo/branch
+      showRepoButton={showRepoButton}
+      isNewRepo={isNewRepo}
+      canSelectRepo={canSelectRepo}
+      onChangeRepo={onChangeRepo}
+      onChangeBranch={onChangeBranch}
+      onUpdateChat={onUpdateChat}
+      // Agent/model
+      credentialFlags={credentialFlags}
+      currentAgent={currentAgent}
+      currentModel={currentModel}
+      showClaudeLimitDialog={showClaudeLimitDialog}
+      // Plan mode
+      planModeEnabled={planModeEnabled}
+      onPlanModeToggle={() => setPlanModeEnabled((v) => !v)}
+      // Mobile
+      isMobile={isMobile}
+    />
   )
 
   // Loading messages skeleton - check BEFORE isNewChat to prevent flash
