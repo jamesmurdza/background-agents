@@ -116,11 +116,42 @@ export default function AdminDashboard() {
     }
   }, [statsQuery.error, activityQuery.error, usersQuery.error, router])
 
-  // Loading state
+  // Loading state with skeleton
   if (status === "loading" || statsQuery.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+      <div className="flex min-h-screen bg-background">
+        {/* Skeleton Sidebar */}
+        <aside className="hidden md:block w-56 shrink-0 border-r bg-card">
+          <div className="p-4">
+            <div className="h-7 w-20 bg-muted animate-pulse rounded mb-6" />
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-9 bg-muted animate-pulse rounded-md" />
+              ))}
+            </div>
+          </div>
+        </aside>
+        {/* Skeleton Content */}
+        <main className="flex-1 p-4 md:p-8">
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="h-7 w-28 bg-muted animate-pulse rounded" />
+              <div className="flex gap-1">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 w-20 bg-muted animate-pulse rounded-md" />
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-lg border bg-card p-6">
+                  <div className="h-5 w-40 bg-muted animate-pulse rounded mb-4" />
+                  <div className="h-[250px] bg-muted/50 animate-pulse rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     )
   }
@@ -179,32 +210,49 @@ export default function AdminDashboard() {
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="sticky top-0 p-4">
-          {/* Desktop title */}
-          <h1 className="mb-6 text-lg font-semibold hidden md:block">Admin</h1>
-          {/* Mobile: add top padding for header */}
-          <div className="h-14 md:hidden" />
-          <nav className="space-y-1">
-            {sections.map((section) => {
-              const Icon = section.icon
-              const isActive = activeSection === section.key
-              return (
-                <button
-                  key={section.key}
-                  onClick={() => handleSectionChange(section.key)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors md:py-2",
-                    isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {section.label}
-                </button>
-              )
-            })}
-          </nav>
+        <div className="sticky top-0 flex h-full flex-col">
+          <div className="p-4">
+            {/* Desktop title with icon */}
+            <div className="mb-6 hidden md:flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <LayoutDashboard className="h-4 w-4 text-primary" />
+              </div>
+              <h1 className="text-lg font-semibold">Admin</h1>
+            </div>
+            {/* Mobile: add top padding for header */}
+            <div className="h-14 md:hidden" />
+            <nav className="space-y-1">
+              {sections.map((section) => {
+                const Icon = section.icon
+                const isActive = activeSection === section.key
+                return (
+                  <button
+                    key={section.key}
+                    onClick={() => handleSectionChange(section.key)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all md:py-2",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    <Icon className={cn("h-4 w-4", isActive && "text-primary")} />
+                    {section.label}
+                  </button>
+                )
+              })}
+            </nav>
+          </div>
+          {/* Back to app link at bottom */}
+          <div className="mt-auto hidden md:block border-t p-4">
+            <button
+              onClick={() => router.push("/")}
+              className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to app
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -216,87 +264,90 @@ export default function AdminDashboard() {
             <>
               {/* Global Time Range Selector */}
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold md:text-lg">Overview</h2>
-                <div className="flex gap-1">
+                <h2 className="text-lg font-semibold md:text-xl">Overview</h2>
+                <div className="flex gap-1 rounded-lg bg-muted p-1">
                   {(["24h", "7d", "30d"] as const).map((range) => (
                     <button
                       key={range}
                       onClick={() => setGlobalTimeRange(range)}
-                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
                         globalTimeRange === range
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                      }`}
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
                     >
-                      {range === "24h" ? "24 Hours" : range === "7d" ? "7 Days" : "30 Days"}
+                      {range === "24h" ? "24h" : range === "7d" ? "7d" : "30d"}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Charts Row 1 */}
+              {/* Charts Grid */}
               <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
-                <div className="rounded-lg border bg-card p-4 md:p-6">
-                  <div className="mb-3 flex items-center gap-2 md:mb-4">
-                    <MessageSquare className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold md:text-base">Daily Messages & Conversations</h3>
+                {/* Daily Messages & Conversations */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+                      <MessageSquare className="h-4 w-4 text-purple-500" />
+                    </div>
+                    <h3 className="font-medium">Daily Messages & Conversations</h3>
                   </div>
-                  <div className="h-[200px] md:h-auto">
-                    <DailyMessagesChatsChart data={dailyMessagesChats} />
-                  </div>
+                  <DailyMessagesChatsChart data={dailyMessagesChats} />
                 </div>
 
-                <div className="rounded-lg border bg-card p-4 md:p-6">
-                  <div className="mb-3 flex items-center gap-2 md:mb-4">
-                    <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold md:text-base">Messages</h3>
+                {/* Messages by Agent/Model */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+                      <TrendingUp className="h-4 w-4 text-blue-500" />
+                    </div>
+                    <h3 className="font-medium">Messages by Agent/Model</h3>
                   </div>
-                  <div className="h-[200px] md:h-auto">
-                    <MessagesByModelChart
-                      agentData7d={messagesByAgent7d}
-                      modelData7d={messagesByModel7d}
-                      agentData30d={messagesByAgent30d}
-                      modelData30d={messagesByModel30d}
-                      timeRange={globalTimeRange}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* Charts Row 2 */}
-              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
-                <div className="rounded-lg border bg-card p-4 md:p-6">
-                  <div className="mb-3 flex items-center gap-2 md:mb-4">
-                    <Users className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold md:text-base">Weekly Active Users</h3>
-                  </div>
-                  <div className="h-[200px] md:h-auto">
-                    <UserGrowthChart data={weeklyActiveUsers} />
-                  </div>
+                  <MessagesByModelChart
+                    agentData7d={messagesByAgent7d}
+                    modelData7d={messagesByModel7d}
+                    agentData30d={messagesByAgent30d}
+                    modelData30d={messagesByModel30d}
+                    timeRange={globalTimeRange}
+                  />
                 </div>
 
-                <div className="rounded-lg border bg-card p-4 md:p-6">
-                  <div className="mb-3 flex items-center gap-2 md:mb-4">
-                    <Trophy className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold md:text-base">Top Active Users</h3>
+                {/* Weekly Active Users */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
+                      <Users className="h-4 w-4 text-green-500" />
+                    </div>
+                    <h3 className="font-medium">Weekly Active Users</h3>
+                  </div>
+                  <UserGrowthChart data={weeklyActiveUsers} />
+                </div>
+
+                {/* Top Active Users */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+                      <Trophy className="h-4 w-4 text-amber-500" />
+                    </div>
+                    <h3 className="font-medium">Top Active Users</h3>
                   </div>
                   <TopUsersTable
                     data={topUsers}
                     isLoading={topUsersQuery.isLoading}
                   />
                 </div>
-              </section>
 
-              {/* Charts Row 3 */}
-              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
-                <div className="rounded-lg border bg-card p-4 md:p-6">
-                  <div className="mb-3 flex items-center gap-2 md:mb-4">
-                    <Clock className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold md:text-base">Peak Hours (Last 14 Days)</h3>
+                {/* Peak Hours */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm lg:col-span-2">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-500/10">
+                      <Clock className="h-4 w-4 text-pink-500" />
+                    </div>
+                    <h3 className="font-medium">Peak Activity Hours</h3>
+                    <span className="text-xs text-muted-foreground">(Last 14 days)</span>
                   </div>
-                  <div className="h-[200px] md:h-auto">
-                    <HourlyActivityChart data={hourlyActivity} />
-                  </div>
+                  <HourlyActivityChart data={hourlyActivity} />
                 </div>
               </section>
             </>
@@ -305,7 +356,7 @@ export default function AdminDashboard() {
           {/* Users Section */}
           {activeSection === "users" && (
             <section>
-              <h2 className="mb-3 text-base font-semibold md:mb-4 md:text-lg">User Management</h2>
+              <h2 className="mb-4 text-lg font-semibold md:text-xl">User Management</h2>
               <UserTable
                 users={usersQuery.data?.users ?? []}
                 pagination={
@@ -341,8 +392,8 @@ export default function AdminDashboard() {
           {/* Activity Section */}
           {activeSection === "activity" && (
             <section>
-              <h2 className="mb-3 text-base font-semibold md:mb-4 md:text-lg">Recent Activity</h2>
-              <div className="rounded-lg border bg-card p-4 md:p-6">
+              <h2 className="mb-4 text-lg font-semibold md:text-xl">Recent Activity</h2>
+              <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
                 <ActivityFeed
                   activities={activityQuery.data?.activities ?? []}
                   filters={activityQuery.data?.filters}

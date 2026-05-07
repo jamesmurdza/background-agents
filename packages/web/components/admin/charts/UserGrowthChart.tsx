@@ -22,49 +22,62 @@ interface UserGrowthChartProps {
 export function UserGrowthChart({ data }: UserGrowthChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+      <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
         No weekly active users data available
       </div>
     )
   }
 
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[250px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}
-          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <defs>
+            <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 12 }}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={(value) => {
               const date = new Date(value)
               return `${date.getMonth() + 1}/${date.getDate()}`
             }}
-            className="text-muted-foreground"
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tickLine={{ stroke: "hsl(var(--border))" }}
           />
-          <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+          <YAxis
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tickLine={{ stroke: "hsl(var(--border))" }}
+            width={45}
+          />
           <Tooltip
             contentStyle={{
               backgroundColor: "hsl(var(--popover))",
               border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
+              borderRadius: "8px",
+              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
             }}
-            labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+            labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 500 }}
+            itemStyle={{ color: "hsl(var(--popover-foreground))" }}
             formatter={(value) => [value, "Active Users (7-day)"]}
             labelFormatter={(label) => {
               const date = new Date(label)
-              return date.toLocaleDateString()
+              return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
             }}
           />
           <Area
             type="monotone"
             dataKey="count"
-            stroke="#8884d8"
-            fill="#8884d8"
-            fillOpacity={0.3}
+            stroke="hsl(262, 83%, 58%)"
+            fill="url(#colorUsers)"
             strokeWidth={2}
             isAnimationActive={false}
           />

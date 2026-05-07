@@ -12,17 +12,16 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
+// Refined color palette that works in both light and dark modes
 const COLORS = [
-  "#8884d8",
-  "#82ca9d",
-  "#ffc658",
-  "#ff7300",
-  "#0088fe",
-  "#00c49f",
-  "#ff8042",
-  "#a4de6c",
-  "#d0ed57",
-  "#83a6ed",
+  "hsl(262, 83%, 58%)",  // Purple
+  "hsl(152, 60%, 50%)",  // Teal
+  "hsl(38, 92%, 50%)",   // Amber
+  "hsl(199, 89%, 48%)",  // Blue
+  "hsl(340, 82%, 52%)",  // Pink
+  "hsl(25, 95%, 53%)",   // Orange
+  "hsl(173, 80%, 40%)",  // Cyan
+  "hsl(280, 65%, 60%)",  // Violet
 ]
 
 type ViewMode = "agents" | "models"
@@ -66,16 +65,16 @@ export function MessagesByModelChart({
     : []
 
   return (
-    <div className="h-[300px] w-full">
+    <div className="space-y-3">
       {/* Toggle buttons - only view mode, time is controlled globally */}
-      <div className="mb-3 flex items-center">
-        <div className="flex gap-1">
+      <div className="flex items-center">
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
           <button
             onClick={() => setViewMode("agents")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               viewMode === "agents"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Agents
@@ -84,8 +83,8 @@ export function MessagesByModelChart({
             onClick={() => setViewMode("models")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               viewMode === "models"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Models
@@ -94,55 +93,65 @@ export function MessagesByModelChart({
       </div>
 
       {!hasData ? (
-        <div className="flex h-[250px] items-center justify-center text-muted-foreground">
+        <div className="flex h-[220px] items-center justify-center text-muted-foreground text-sm">
           No {viewMode === "agents" ? "agent" : "model"} usage data available
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={250}>
-          <AreaChart
-            data={data}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) => {
-                const date = new Date(value)
-                return `${date.getMonth() + 1}/${date.getDate()}`
-              }}
-              className="text-muted-foreground"
-            />
-            <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--popover))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "6px",
-              }}
-              labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-              labelFormatter={(label) => {
-                const date = new Date(label)
-                return date.toLocaleDateString()
-              }}
-              isAnimationActive={false}
-            />
-            <Legend />
-            {dataKeys.map((key, index) => (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                name={key}
-                stackId="1"
-                stroke={COLORS[index % COLORS.length]}
-                fill={COLORS[index % COLORS.length]}
-                fillOpacity={0.6}
+        <div className="h-[220px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              data={data}
+              margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickFormatter={(value) => {
+                  const date = new Date(value)
+                  return `${date.getMonth() + 1}/${date.getDate()}`
+                }}
+                axisLine={{ stroke: "hsl(var(--border))" }}
+                tickLine={{ stroke: "hsl(var(--border))" }}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={{ stroke: "hsl(var(--border))" }}
+                tickLine={{ stroke: "hsl(var(--border))" }}
+                width={45}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--popover))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                }}
+                labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 500 }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                labelFormatter={(label) => {
+                  const date = new Date(label)
+                  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+                }}
                 isAnimationActive={false}
               />
-            ))}
-          </AreaChart>
-        </ResponsiveContainer>
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              {dataKeys.map((key, index) => (
+                <Area
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  name={key}
+                  stackId="1"
+                  stroke={COLORS[index % COLORS.length]}
+                  fill={COLORS[index % COLORS.length]}
+                  fillOpacity={0.6}
+                  isAnimationActive={false}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   )

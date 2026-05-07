@@ -23,7 +23,7 @@ interface HourlyActivityChartProps {
 export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+      <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
         No hourly activity data available
       </div>
     )
@@ -38,13 +38,14 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
 
   const maxCount = Math.max(...fullData.map((d) => d.count))
 
-  // Color intensity based on activity level
+  // Color intensity based on activity level - using primary color
   const getColor = (count: number) => {
     if (count === 0) return "hsl(var(--muted))"
     const intensity = count / maxCount
-    // Gradient from light purple to dark purple
-    const lightness = 70 - intensity * 40
-    return `hsl(250, 60%, ${lightness}%)`
+    // Gradient from light to saturated purple
+    const lightness = 75 - intensity * 30
+    const saturation = 40 + intensity * 40
+    return `hsl(262, ${saturation}%, ${lightness}%)`
   }
 
   const formatHour = (hour: number) => {
@@ -55,34 +56,36 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
   }
 
   return (
-    <div className="h-[200px] w-full">
+    <div className="h-[250px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={fullData}
-          margin={{ top: 5, right: 10, left: 10, bottom: 20 }}
+          margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey="hour"
-            tick={{ fontSize: 10 }}
-            className="text-muted-foreground"
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={formatHour}
             interval={2}
-            label={{ value: "Hour of Day", position: "insideBottom", offset: -5, fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tickLine={{ stroke: "hsl(var(--border))" }}
           />
           <YAxis
-            tick={{ fontSize: 11 }}
-            className="text-muted-foreground"
-            width={50}
-            label={{ value: "Messages", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tickLine={{ stroke: "hsl(var(--border))" }}
+            width={45}
           />
           <Tooltip
             contentStyle={{
               backgroundColor: "hsl(var(--popover))",
               border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
+              borderRadius: "8px",
+              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
             }}
-            labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+            labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 500 }}
+            itemStyle={{ color: "hsl(var(--popover-foreground))" }}
             labelFormatter={(hour) => {
               const h = hour as number
               if (h === 0) return "12:00 AM - 1:00 AM"
@@ -92,7 +95,7 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
             }}
             formatter={(value) => [value, "Messages"]}
           />
-          <Bar dataKey="count" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="count" radius={[3, 3, 0, 0]} isAnimationActive={false}>
             {fullData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={getColor(entry.count)} />
             ))}
