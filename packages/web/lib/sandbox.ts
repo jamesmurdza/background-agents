@@ -26,7 +26,7 @@ export async function ensureSandboxStarted(
   if (sandbox.state === "started") return
 
   const maxAttempts = 5
-  const baseDelayMs = 2000
+  const baseDelayMs = 500
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -48,7 +48,7 @@ export async function ensureSandboxStarted(
         )
       }
 
-      // Exponential backoff: 2s, 4s, 8s, 16s
+      // Exponential backoff: 500ms, 1s, 2s, 4s
       const delayMs = baseDelayMs * Math.pow(2, attempt)
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
