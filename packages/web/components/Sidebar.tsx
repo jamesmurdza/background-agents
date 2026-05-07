@@ -607,7 +607,7 @@ export function Sidebar({
       </div>
 
       {/* Action Buttons - grouped together */}
-      <div className={cn(collapsed ? "px-0 flex flex-col items-center" : "px-2")}>
+      <div className={cn(collapsed ? "px-0 flex flex-col items-center gap-1" : "px-2")}>
         {/* New Chat Button */}
         <button
           onClick={onNewChat}
