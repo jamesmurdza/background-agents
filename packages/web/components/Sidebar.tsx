@@ -7,7 +7,7 @@ import { Plus, PanelLeft, X, FolderGit2, Loader2, Clock, Search, ChevronDown, Ch
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
-import { useModals } from "@/lib/contexts"
+import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD } from "@/lib/contexts"
 import { clearAllStorage } from "@/lib/storage"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -19,14 +19,8 @@ import {
   getFirstMessagePreview,
 } from "./sidebar"
 
-// Repository filter options - exported for use in parent components
-export const ALL_REPOSITORIES = "__all__"
-export const NO_REPOSITORY = "__none__"
-
-const MIN_WIDTH = 140
-const MAX_WIDTH = 400
-const COLLAPSED_WIDTH = 64
-const COLLAPSE_THRESHOLD = 100 // Collapse when dragged below this width
+// Re-export from context for backward compatibility
+export { ALL_REPOSITORIES, NO_REPOSITORY } from "@/lib/contexts"
 
 interface SidebarProps {
   chats: Chat[]

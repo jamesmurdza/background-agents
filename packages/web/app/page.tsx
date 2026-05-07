@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { nanoid } from "nanoid"
 import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock } from "lucide-react"
-import { Sidebar, ALL_REPOSITORIES, NO_REPOSITORY } from "@/components/Sidebar"
+import { Sidebar } from "@/components/Sidebar"
 import { ChatPanel } from "@/components/ChatPanel"
 import { PreviewView, type PreviewItem } from "@/components/PreviewView"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
@@ -28,7 +28,18 @@ import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
 import { usePreview } from "@/lib/hooks/usePreview"
-import { ChatProvider, ModalProvider, useModals, GitProvider, type ChatContextValue, type GitContextValue } from "@/lib/contexts"
+import {
+  ChatProvider,
+  ModalProvider,
+  useModals,
+  GitProvider,
+  SidebarProvider,
+  useSidebar,
+  ALL_REPOSITORIES,
+  NO_REPOSITORY,
+  type ChatContextValue,
+  type GitContextValue,
+} from "@/lib/contexts"
 import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, type Message, type Chat } from "@/lib/types"
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
 import { PATHS } from "@upstream/common"
@@ -72,39 +83,44 @@ function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
 }
 
 // =============================================================================
-// HomePage - Wrapper that sets up ModalProvider
+// HomePage - Wrapper that sets up providers
 // =============================================================================
 export default function HomePage() {
   const isMobile = useMobile()
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
+  return (
+    <SidebarProvider>
+      <HomePageWithSidebar isMobile={isMobile} />
+    </SidebarProvider>
+  )
+}
+
+// Inner component that can access sidebar context to pass closeMobileSidebar to ModalProvider
+function HomePageWithSidebar({ isMobile }: { isMobile: boolean }) {
+  const sidebar = useSidebar()
 
   return (
     <ModalProvider
       isMobile={isMobile}
-      onMobileSidebarClose={() => setMobileSidebarOpen(false)}
+      onMobileSidebarClose={sidebar.closeMobileSidebar}
     >
-      <HomePageContent
-        isMobile={isMobile}
-        mobileSidebarOpen={mobileSidebarOpen}
-        setMobileSidebarOpen={setMobileSidebarOpen}
-      />
+      <HomePageContent isMobile={isMobile} />
     </ModalProvider>
   )
 }
 
 // =============================================================================
-// HomePageContent - Main content inside ModalProvider, can use useModals()
+// HomePageContent - Main content inside providers, can use useModals() and useSidebar()
 // =============================================================================
 interface HomePageContentProps {
   isMobile: boolean
-  mobileSidebarOpen: boolean
-  setMobileSidebarOpen: (open: boolean) => void
 }
 
-function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: HomePageContentProps) {
+function HomePageContent({ isMobile }: HomePageContentProps) {
   const { data: session } = useSession()
   const { githubTokenInvalid } = useGitHubTokenCheck()
   const modals = useModals()
+  const sidebar = useSidebar()
 
   const {
     chats,
@@ -145,20 +161,14 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
     retryWithOpenCode,
   } = useChatWithSync()
 
-  // Sidebar state
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(260)
   const mobileTitleMenuRef = useRef<HTMLDivElement>(null)
 
-  // Additional state not in modal hook
+  // Additional state not in contexts
   const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
-  const [selectedScheduledJob, setSelectedScheduledJob] = useState<{ id: string; name: string } | null>(null)
-  const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
   // Track when a message send is initiated (for instant UI feedback before server responds)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
-  const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
   const [isDownloading, setIsDownloading] = useState(false)
 
   // Preview state from hook
@@ -178,27 +188,6 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
   )
   const availableServers = serversQuery.data ?? []
 
-  const toggleChatCollapsed = useCallback((id: string) => {
-    setCollapsedChatIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
-    })
-  }, [])
-  const expandChatAndAncestors = useCallback((targetId: string, byId: Map<string, Chat>) => {
-    setCollapsedChatIds((prev) => {
-      let next = prev
-      let cur = byId.get(targetId)?.parentChatId
-      while (cur) {
-        if (next.has(cur)) {
-          if (next === prev) next = new Set(prev)
-          next.delete(cur)
-        }
-        cur = byId.get(cur)?.parentChatId
-      }
-      return next
-    })
-  }, [])
   // Track if we've already processed a pending message (to avoid double-sending)
   const pendingMessageProcessed = useRef(false)
 
@@ -211,9 +200,6 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
   // Per-chat draft message text (stored in localStorage via useChatWithSync)
   // For unauthenticated users (draft mode), we use local component state instead.
   const [draftModeInput, setDraftModeInput] = useState("")
-
-  // Repository filter state (shared with Sidebar)
-  const [repoFilter, setRepoFilter] = useState<string>(ALL_REPOSITORIES)
 
   // Use TanStack Query for repos and branches
   const reposQuery = useReposQuery()
@@ -307,9 +293,9 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
   // Close mobile sidebar when switching to desktop
   useEffect(() => {
     if (!isMobile) {
-      setMobileSidebarOpen(false)
+      sidebar.setMobileSidebarOpen(false)
     }
-  }, [isMobile, setMobileSidebarOpen])
+  }, [isMobile, sidebar])
 
   // Auto-select first chat on mobile when no chat is selected
   useEffect(() => {
@@ -471,18 +457,18 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
       return
     }
     // Switch to chat view
-    setViewMode("chat")
-    setSelectedScheduledJob(null) // Clear selected job when switching to chat
+    sidebar.setViewMode("chat")
+    sidebar.setSelectedScheduledJob(null) // Clear selected job when switching to chat
     // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
     if (displayCurrentChat && displayCurrentChat.repo !== NEW_REPOSITORY) {
       startNewChat(displayCurrentChat.repo, displayCurrentChat.baseBranch)
-    } else if (repoFilter !== ALL_REPOSITORIES && repoFilter !== NO_REPOSITORY) {
+    } else if (sidebar.repoFilter !== ALL_REPOSITORIES && sidebar.repoFilter !== NO_REPOSITORY) {
       // If a specific repo is selected in the filter, use it for the new chat
       // Find the repo to get the default branch
-      const repo = repos.find(r => `${r.owner.login}/${r.name}` === repoFilter)
-      startNewChat(repoFilter, repo?.default_branch ?? "main")
+      const repo = repos.find(r => `${r.owner.login}/${r.name}` === sidebar.repoFilter)
+      startNewChat(sidebar.repoFilter, repo?.default_branch ?? "main")
     } else {
       // Default to NEW_REPOSITORY (no repo)
       startNewChat()
@@ -492,21 +478,21 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
   // Handler for selecting a chat - switch to chat view
   const handleSelectChat = (chatId: string) => {
     selectChat(chatId)
-    setViewMode("chat")
-    setSelectedScheduledJob(null) // Clear selected job when switching to chat
+    sidebar.setViewMode("chat")
+    sidebar.setSelectedScheduledJob(null) // Clear selected job when switching to chat
   }
 
   // Handler for opening scheduled jobs view
   const handleOpenScheduledJobs = () => {
-    setViewMode("scheduled-jobs")
-    setSelectedScheduledJob(null) // Clear selected job to show list view
+    sidebar.setViewMode("scheduled-jobs")
+    sidebar.setSelectedScheduledJob(null) // Clear selected job to show list view
     selectChat(null as unknown as string) // Deselect current chat
     // Preview pane is automatically hidden when no chat is selected (preview.preview.previewItems will be empty)
   }
 
   // Handler for scheduled job selection (memoized to prevent infinite loops)
   const handleJobSelect = useCallback((job: { id: string; name: string } | null) => {
-    setSelectedScheduledJob(job ? { id: job.id, name: job.name } : null)
+    sidebar.setSelectedScheduledJob(job ? { id: job.id, name: job.name } : null)
   }, [])
 
   // Handler for the repo button in the ChatPanel header. Routes to the Select
@@ -601,13 +587,13 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
     // Update filter to match the chat's repo if this is the first message and repo differs from filter
     // This ensures the filter follows the user's choice when starting a chat
     if (displayCurrentChat && displayCurrentChat.messages.length === 0 &&
-        repoFilter !== ALL_REPOSITORIES && repoFilter !== displayCurrentChat.repo) {
+        sidebar.repoFilter !== ALL_REPOSITORIES && sidebar.repoFilter !== displayCurrentChat.repo) {
       // If chat has no repo, switch to "No repository" filter
       // Otherwise, switch to the chat's repo
       if (displayCurrentChat.repo === NEW_REPOSITORY) {
-        setRepoFilter(NO_REPOSITORY)
+        sidebar.setRepoFilter(NO_REPOSITORY)
       } else {
-        setRepoFilter(displayCurrentChat.repo)
+        sidebar.setRepoFilter(displayCurrentChat.repo)
       }
     }
 
@@ -809,9 +795,9 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
     const visible = chats.filter((c) => {
       const hasMessages = c.messages.length > 0 || (c.messageCount ?? 0) > 0
       if (!hasMessages && !c.parentChatId) return false
-      if (repoFilter === ALL_REPOSITORIES) return true
-      if (repoFilter === NO_REPOSITORY) return c.repo === NEW_REPOSITORY
-      return c.repo === repoFilter
+      if (sidebar.repoFilter === ALL_REPOSITORIES) return true
+      if (sidebar.repoFilter === NO_REPOSITORY) return c.repo === NEW_REPOSITORY
+      return c.repo === sidebar.repoFilter
     })
     visible.sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
     const visibleIds = new Set(visible.map((c) => c.id))
@@ -833,7 +819,7 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
     }
     for (const r of roots) walk(r)
     return out
-  }, [chats, repoFilter])
+  }, [chats, sidebar.repoFilter])
 
   const handleRequestMergeChats = useCallback((sourceId: string, targetId?: string) => {
     const source = chats.find((c) => c.id === sourceId)
@@ -873,9 +859,9 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
     if (!nextId) return
     // If the target is inside a collapsed parent, expand up the chain.
     const byId = new Map(chats.map((c) => [c.id, c]))
-    expandChatAndAncestors(nextId, byId)
+    sidebar.expandChatAndAncestors(nextId, byId)
     handleSelectChat(nextId)
-  }, [treeOrderedChatIds, currentChatId, chats, expandChatAndAncestors])
+  }, [treeOrderedChatIds, currentChatId, chats, sidebar])
 
   // Compute the next chat to select after deletion (following chat, or previous if last)
   const getNextChatId = useCallback(
@@ -1051,7 +1037,7 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
       showGitCommands={!!currentChat && currentChat.repo !== NEW_REPOSITORY}
       onOpenInGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
       onOpenSettings={modals.openSettingsSection}
-      onToggleSidebar={!isMobile ? () => setSidebarCollapsed((v) => !v) : undefined}
+      onToggleSidebar={!isMobile ? () => sidebar.toggleCollapse() : undefined}
       onSignIn={!session ? () => signIn("github") : undefined}
       onSignOut={session ? () => {
             clearAllStorage()
@@ -1102,20 +1088,20 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
           onNewChat={handleNewChat}
           onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
           onRenameChat={renameChat}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          width={sidebarWidth}
-          onWidthChange={setSidebarWidth}
+          collapsed={sidebar.collapsed}
+          onToggleCollapse={() => sidebar.toggleCollapse()}
+          width={sidebar.width}
+          onWidthChange={sidebar.setWidth}
           isMobile={false}
-          repoFilter={repoFilter}
-          onRepoFilterChange={setRepoFilter}
-          collapsedChatIds={collapsedChatIds}
-          onToggleChatCollapsed={toggleChatCollapsed}
+          repoFilter={sidebar.repoFilter}
+          onRepoFilterChange={sidebar.setRepoFilter}
+          collapsedChatIds={sidebar.collapsedChatIds}
+          onToggleChatCollapsed={sidebar.toggleChatCollapsed}
           onRequestMergeChats={handleRequestMergeChats}
           onRequestRebaseChat={handleRequestRebaseChat}
           onOpenScheduledJobs={handleOpenScheduledJobs}
-          scheduledJobsActive={viewMode === "scheduled-jobs"}
-          selectedScheduledJob={viewMode === "scheduled-jobs" ? selectedScheduledJob : null}
+          scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
+          selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
           isLoadingChats={!isHydrated}
         />
       )}
@@ -1136,20 +1122,20 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
           width={280}
           onWidthChange={() => {}}
           isMobile={true}
-          mobileOpen={mobileSidebarOpen}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-          repoFilter={repoFilter}
-          onRepoFilterChange={setRepoFilter}
-          collapsedChatIds={collapsedChatIds}
-          onToggleChatCollapsed={toggleChatCollapsed}
+          mobileOpen={sidebar.mobileSidebarOpen}
+          onMobileClose={() => sidebar.setMobileSidebarOpen(false)}
+          repoFilter={sidebar.repoFilter}
+          onRepoFilterChange={sidebar.setRepoFilter}
+          collapsedChatIds={sidebar.collapsedChatIds}
+          onToggleChatCollapsed={sidebar.toggleChatCollapsed}
           onRequestMergeChats={handleRequestMergeChats}
           onRequestRebaseChat={handleRequestRebaseChat}
           onOpenScheduledJobs={() => {
             handleOpenScheduledJobs()
-            setMobileSidebarOpen(false)
+            sidebar.setMobileSidebarOpen(false)
           }}
-          scheduledJobsActive={viewMode === "scheduled-jobs"}
-          selectedScheduledJob={viewMode === "scheduled-jobs" ? selectedScheduledJob : null}
+          scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
+          selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
           isLoadingChats={!isHydrated}
         />
       )}
@@ -1160,14 +1146,14 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
         {isMobile && (
           <div className="flex items-center gap-3 px-4 pb-3 border-b border-border bg-background pt-safe">
             <button
-              onClick={() => setMobileSidebarOpen(true)}
+              onClick={() => sidebar.setMobileSidebarOpen(true)}
               className="p-2 -ml-2 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             {/* Title - different for scheduled jobs vs chat */}
-            {viewMode === "scheduled-jobs" ? (
+            {sidebar.viewMode === "scheduled-jobs" ? (
               <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 -ml-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span className="text-base font-semibold">Scheduled Agents</span>
@@ -1231,7 +1217,7 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
               </div>
             )}
             {/* Commands menu - only show for chat view */}
-            {viewMode === "chat" && (
+            {sidebar.viewMode === "chat" && (
               <button
                 onClick={() => modals.setMobileCommandsOpen(true)}
                 className="p-2 -mr-2 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
@@ -1245,12 +1231,12 @@ function HomePageContent({ isMobile, mobileSidebarOpen, setMobileSidebarOpen }: 
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              {viewMode === "scheduled-jobs" ? (
+              {sidebar.viewMode === "scheduled-jobs" ? (
                 <ScheduledJobsView
                   onOpenForm={() => modals.setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}
                   onJobSelect={handleJobSelect}
-                  showList={selectedScheduledJob === null}
+                  showList={sidebar.selectedScheduledJob === null}
                 />
               ) : (
                 <ChatPanelWithPalette
