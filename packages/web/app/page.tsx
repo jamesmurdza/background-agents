@@ -1046,7 +1046,7 @@ export default function HomePage() {
         currentChat?.sandboxId
           ? () => {
               // Generate a unique terminal ID by finding the next available number
-              const existingTerminals = preview.preview.previewItems.filter((i) => i.type === "terminal")
+              const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
               const terminalNumbers = existingTerminals.map((t) => {
                 if (t.type !== "terminal") return 0
                 const match = t.id.match(/-(\d+)$/)
@@ -1164,7 +1164,7 @@ export default function HomePage() {
             ) : (
               <div className="relative flex-1 min-w-0" ref={mobileTitleMenuRef}>
                 <button
-                  onClick={() => displayCurrentChat && modals.setMobileTitleMenuOpen((v) => !v)}
+                  onClick={() => displayCurrentChat && modals.setMobileTitleMenuOpen(!modals.mobileTitleMenuOpen)}
                   className="flex items-center gap-1 text-base font-semibold truncate max-w-full hover:bg-accent active:bg-accent rounded-md px-2 py-1 -ml-2 transition-colors"
                 >
                   <span className="truncate">{displayCurrentChat?.displayName || "Background Agents"}</span>
@@ -1260,28 +1260,16 @@ export default function HomePage() {
                   onChangeRepo={handleChangeRepo}
                   onChangeBranch={handleChangeBranch}
                   onUpdateChat={handleUpdateChatProp}
-                  onOpenSettings={modals.openSettings}
                   onSlashCommand={handleSlashCommand}
-                  onRequireSignIn={!session ? () => modals.setSignInModalOpen(true) : undefined}
-                  onDeleteChat={displayCurrentChatId ? () => removeChat(displayCurrentChatId, getNextChatId) : undefined}
-                  onOpenHelp={() => modals.setHelpOpen(true)}
                   onOpenFile={(filePath) => {
                     const filename = filePath.split("/").pop() || filePath
                     preview.openPreview({ type: "file", filePath, filename })
                   }}
-                  onForcePush={() => gitDialogs.setForcePushOpen(true)}
                   onOpenEnvVars={handleOpenEnvVars}
                   isMobile={isMobile}
-                  rebaseConflict={gitDialogs.rebaseConflict}
-                  onAbortConflict={gitDialogs.handleAbortConflict}
-                  conflictActionLoading={gitDialogs.actionLoading}
-                  onBranchWithMessage={handleBranchWithMessage}
-                  onBranchQueuedMessage={handleBranchQueuedMessage}
-                  canBranch={canBranch}
                   isLoadingMessages={isLoadingMessages}
                   draft={currentDraft}
                   onDraftChange={handleDraftChange}
-                  onCreateScheduledJob={() => modals.setScheduledJobFormOpen(true)}
                   isSending={isSendingMessage}
                   onOpenPlan={(messageId) => preview.openPreview({ type: "plan", messageId, content: "" })}
                   hasMoreMessages={hasMoreMessages}
@@ -1307,9 +1295,9 @@ export default function HomePage() {
                   repo={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? currentChat.repo : null}
                   branch={currentChat?.branch ?? currentChat?.baseBranch ?? null}
                   onClose={preview.closePreview}
-                  allItems={preview.preview.previewItems}
+                  allItems={preview.previewItems}
                   onSelectItem={preview.selectPreviewItem}
-                  onCloseItem={preview.preview.closePreviewItem}
+                  onCloseItem={preview.closePreviewItem}
                   messages={currentChat?.messages}
                 />
               </>
@@ -1380,7 +1368,7 @@ export default function HomePage() {
 
         <EnvironmentVariablesModal
           open={modals.envVarsModalOpen}
-          onClose={() => setEnvVarsModalOpen(false)}
+          onClose={() => modals.setEnvVarsModalOpen(false)}
           chatId={displayCurrentChatId || ""}
           repoName={displayCurrentChat?.repo !== NEW_REPOSITORY ? displayCurrentChat?.repo : undefined}
           onSave={handleSaveEnvVars}

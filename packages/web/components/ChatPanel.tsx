@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X,
 import { ErrorBanner, FilePreviewModal, PendingFilesDisplay } from "./chat"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
+import { useModals, useGit } from "@/lib/contexts"
 import type { Chat, Settings, Agent, ModelOption, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
@@ -30,37 +31,17 @@ interface ChatPanelProps {
   onChangeRepo?: () => void
   onChangeBranch?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
-  onOpenSettings?: (highlightKey?: HighlightKey) => void
   onSlashCommand?: (command: SlashCommandType) => void
-  onRequireSignIn?: () => void
-  onDeleteChat?: () => void
-  onOpenHelp?: () => void
   onOpenFile?: (filePath: string) => void
-  /** Callback to open the force-push modal (from push-failure system messages). */
-  onForcePush?: () => void
   /** Callback to open the environment variables modal */
   onOpenEnvVars?: () => void
   isMobile?: boolean
-  /** Conflict state for merge/rebase */
-  rebaseConflict?: RebaseConflictState
-  /** Callback to abort the current conflict */
-  onAbortConflict?: () => void
-  /** Whether an action is loading (e.g., aborting) */
-  conflictActionLoading?: boolean
-  /** Callback to branch and send a message to the new branch chat */
-  onBranchWithMessage?: (message: string, agent: string, model: string) => void
-  /** Callback to branch a queued message (removes from queue) */
-  onBranchQueuedMessage?: (id: string, message: string, agent?: string, model?: string) => void
-  /** Whether branching is available (has repo and branch) */
-  canBranch?: boolean
   /** Whether messages are currently being loaded for this chat */
   isLoadingMessages?: boolean
   /** Current draft text for this chat */
   draft?: string
   /** Callback when draft text changes */
   onDraftChange?: (draft: string) => void
-  /** Callback to create a scheduled job */
-  onCreateScheduledJob?: () => void
   /** Whether a message send is in progress (for instant UI feedback) */
   isSending?: boolean
   /** Callback to open the command palette */
@@ -73,7 +54,10 @@ interface ChatPanelProps {
   onLoadOlderMessages?: () => Promise<boolean>
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onOpenSettings, onSlashCommand, onRequireSignIn, onDeleteChat, onOpenHelp, onOpenFile, onForcePush, onOpenEnvVars, isMobile = false, rebaseConflict, onAbortConflict, conflictActionLoading = false, onBranchWithMessage, onBranchQueuedMessage, canBranch = false, isLoadingMessages = false, draft = "", onDraftChange, onCreateScheduledJob, isSending = false, onOpenCommandPalette, onOpenPlan, hasMoreMessages = false, onLoadOlderMessages }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, onOpenPlan, hasMoreMessages = false, onLoadOlderMessages }: ChatPanelProps) {
+  // Get modal and git state from contexts
+  const modals = useModals()
+  const git = useGit()
   // Use draft prop as input value (controlled component pattern for per-chat drafts)
   const input = draft
   const setInput = useCallback((value: string) => {
@@ -120,7 +104,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     getFileTypeForFile,
     getFilePreviewUrl,
     supportedExtensions,
-  } = useFileUpload({ onRequireSignIn })
+  } = useFileUpload({ onRequireSignIn: () => modals.setSignInModalOpen(true) })
 
   const titleInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -173,7 +157,8 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
     : true
 
-  // Conflict state
+  // Conflict state (from context)
+  const rebaseConflict = git.rebaseConflict
   const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
   const isMergeConflict = rebaseConflict?.inMerge ?? false
 
@@ -292,11 +277,11 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       return
     }
     if (command === "abort") {
-      onAbortConflict?.()
+      git.handleAbortConflict?.()
       return
     }
     onSlashCommand?.(command)
-  }, [onSlashCommand, onChangeRepo, onAbortConflict])
+  }, [onSlashCommand, onChangeRepo, git])
 
   const handleSend = () => {
     if (!canSend) return
@@ -380,8 +365,8 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     // Option/Alt+Enter, Command/Meta+Enter, or Ctrl+Enter to branch and send
     if (e.key === "Enter" && (e.altKey || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
-      if (canBranch && onBranchWithMessage && input.trim()) {
-        onBranchWithMessage(input.trim(), currentAgent, currentModel)
+      if (git.canBranch && input.trim()) {
+        git.handleBranchWithMessage(input.trim(), currentAgent, currentModel)
         setInput("")
         clearFiles()
         textareaRef.current?.focus()
@@ -417,8 +402,8 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, agent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
-        if (requiredKey && requiredKey !== "none" && onOpenSettings) {
-          onOpenSettings(requiredKey as HighlightKey)
+        if (requiredKey && requiredKey !== "none") {
+          modals.openSettings(requiredKey as HighlightKey)
         }
       }
     }
@@ -435,8 +420,8 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, currentAgent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
-        if (requiredKey && requiredKey !== "none" && onOpenSettings) {
-          onOpenSettings(requiredKey as HighlightKey)
+        if (requiredKey && requiredKey !== "none") {
+          modals.openSettings(requiredKey as HighlightKey)
         }
       }
     }
@@ -763,18 +748,16 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           {/* Right side items - second row on mobile */}
           <div className={cn("flex items-center gap-2", isMobile && "w-full @container/row2")}>
             {/* Schedule button */}
-            {onCreateScheduledJob && (
-              <button
-                onClick={onCreateScheduledJob}
-                className={cn(
-                  "flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded-md hover:bg-accent/50",
-                  isMobile ? "p-2 touch-target" : "p-1"
-                )}
-                title="Create scheduled job"
-              >
-                <Clock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-              </button>
-            )}
+            <button
+              onClick={() => modals.setScheduledJobFormOpen(true)}
+              className={cn(
+                "flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded-md hover:bg-accent/50",
+                isMobile ? "p-2 touch-target" : "p-1"
+              )}
+              title="Create scheduled job"
+            >
+              <Clock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            </button>
 
             {/* Plan mode toggle */}
             <button
@@ -989,16 +972,14 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                 <Command className="h-4 w-4" />
               </button>
             )}
-            {onOpenHelp && (
-              <button
-                onClick={onOpenHelp}
-                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                title="Help"
-                aria-label="Help"
-              >
-                <HelpCircle className="h-4 w-4" />
-              </button>
-            )}
+            <button
+              onClick={() => modals.setHelpOpen(true)}
+              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Help"
+              aria-label="Help"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
           </div>
           <a
             href="https://github.com/jamesmurdza/background-agents"
@@ -1118,12 +1099,12 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                     <button
                       onClick={() => {
                         setConflictMenuOpen(false)
-                        onAbortConflict?.()
+                        git.handleAbortConflict?.()
                       }}
-                      disabled={conflictActionLoading}
+                      disabled={git.actionLoading}
                       className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left text-destructive cursor-pointer disabled:opacity-50"
                     >
-                      {conflictActionLoading ? (
+                      {git.actionLoading ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <X className="h-3.5 w-3.5" />
@@ -1199,13 +1180,13 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                     <span className="h-3.5 w-3.5 flex items-center justify-center text-xs italic font-serif">𝑥</span>
                     Environment Variables
                   </button>
-                  {onDeleteChat && (
+                  {chat && (
                     <>
                       <div className="my-1 border-t border-border" />
                       <button
                         onClick={() => {
                           setTitleMenuOpen(false)
-                          onDeleteChat()
+                          modals.setDeleteConfirmChatId(chat.id)
                         }}
                         className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left text-destructive cursor-pointer"
                       >
@@ -1245,11 +1226,11 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
             )}
           </div>
           <button
-            onClick={onAbortConflict}
-            disabled={conflictActionLoading}
+            onClick={() => git.handleAbortConflict?.()}
+            disabled={git.actionLoading}
             className="flex items-center gap-1 text-destructive hover:text-destructive/80 disabled:opacity-50"
           >
-            {conflictActionLoading ? (
+            {git.actionLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <X className="h-3.5 w-3.5" />
@@ -1307,7 +1288,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                 isMobile={isMobile}
                 repo={isNewRepo ? undefined : chat.repo}
                 onOpenFile={onOpenFile}
-                onForcePush={onForcePush}
+                onForcePush={git.handleForcePush}
                 onOpenPlan={onOpenPlan}
               />
             )
@@ -1340,9 +1321,9 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                   className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 last:border-b-0"
                 >
                   <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">{m.content}</span>
-                  {canBranch && onBranchQueuedMessage && (
+                  {git.canBranch && (
                     <button
-                      onClick={() => onBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
+                      onClick={() => git.handleBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
                       className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
                       aria-label="Branch to new chat"
                       title="Branch to new chat"

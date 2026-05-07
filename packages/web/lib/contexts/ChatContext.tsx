@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, ReactNode } from "react"
-import type { Chat, Settings, Agent, Message, CredentialFlags } from "@/lib/types"
+import type { Chat, Settings, Agent, Message, CredentialFlags, ChatStatus } from "@/lib/types"
 
 // =============================================================================
 // ChatContext - Provides shared chat state to avoid prop drilling
@@ -20,16 +20,16 @@ export interface ChatContextValue {
 
   // Chat operations
   selectChat: (chatId: string) => void
-  startNewChat: (repo?: string, baseBranch?: string, parentChatId?: string, switchTo?: boolean, status?: string) => Promise<string | undefined>
+  startNewChat: (repo?: string, baseBranch?: string, parentChatId?: string, switchTo?: boolean, initialStatus?: ChatStatus) => Promise<string | null>
   removeChat: (chatId: string) => Promise<void>
   renameChat: (chatId: string, name: string) => Promise<void>
   updateCurrentChat: (updates: Partial<Chat>) => void
   updateChatById: (chatId: string, updates: Partial<Chat>) => Promise<void>
 
   // Message operations
-  sendMessage: (message: string, agent: string, model: string, files?: File[], chatId?: string, planMode?: boolean) => void
+  sendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
   stopAgent: () => void
-  addMessage: (chatId: string, message: Message) => void
+  addMessage: (message: Message) => void
 
   // Queue operations
   enqueueMessage: (message: string, agent?: string, model?: string) => void
@@ -41,13 +41,13 @@ export interface ChatContextValue {
   updateDraft: (chatId: string, draft: string) => void
   clearDraft: (chatId: string) => void
   isDraftChatId: (chatId: string) => boolean
-  draftChatConfig: { id: string; repo: string; baseBranch: string; agent: string | null; model: string | null } | null
+  draftChatConfig: { id: string; repo: string; baseBranch: string; agent: string | null; model: string | null } | null | undefined
   updateDraftChatConfig: (updates: Partial<{ repo: string; baseBranch: string; agent: string | null; model: string | null }>) => void
 
   // Message pagination
   hasMoreMessages: boolean
   loadOlderMessages: () => Promise<boolean>
-  refetchMessages: () => void
+  refetchMessages: (chatId: string) => Promise<void>
 
   // Tracking
   deletingChatIds: Set<string>
