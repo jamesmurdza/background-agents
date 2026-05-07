@@ -49,6 +49,69 @@ import { useStreamStore } from "@/lib/stores/stream-store"
 import { fetchChat, toMessageType } from "@/lib/sync/api"
 import { useStreaming, mergeMessages } from "./useStreaming"
 
+// =============================================================================
+// API helpers
+// =============================================================================
+
+interface SendMessagePayload {
+  message: string
+  agent: string
+  model: string
+  userMessageId: string
+  assistantMessageId: string
+  newBranch?: string
+  planMode?: boolean
+}
+
+interface SendMessageResponse {
+  sandboxId: string
+  branch: string | null
+  previewUrlPattern: string | null
+  backgroundSessionId: string
+  uploadedFiles: string[]
+}
+
+/**
+ * Send a message to the API, handling both JSON and FormData (for files)
+ */
+async function sendMessageToApi(
+  chatId: string,
+  payload: SendMessagePayload,
+  files?: File[]
+): Promise<{ ok: true; data: SendMessageResponse } | { ok: false; error: string; isDailyLimit: boolean; resetAt?: string }> {
+  let response: Response
+
+  if (files?.length) {
+    const formData = new FormData()
+    formData.append("payload", JSON.stringify(payload))
+    files.forEach((file, i) => formData.append(`file-${i}`, file))
+    response = await fetch(`/api/chats/${chatId}/messages`, { method: "POST", body: formData })
+  } else {
+    response = await fetch(`/api/chats/${chatId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    return {
+      ok: false,
+      error: err.error || "Failed to send message",
+      isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
+      resetAt: err.resetAt,
+    }
+  }
+
+  const data = await response.json() as SendMessageResponse
+  return { ok: true, data }
+}
+
+// =============================================================================
+// Hook
+// =============================================================================
+
 export function useChatWithSync() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -565,7 +628,7 @@ export function useChatWithSync() {
       }
 
       try {
-        const payload = {
+        const payload: SendMessagePayload = {
           message: content,
           agent: selectedAgent,
           model: selectedModel,
@@ -575,25 +638,11 @@ export function useChatWithSync() {
           planMode: planMode || undefined,
         }
 
-        let response: Response
-        if (files?.length) {
-          const formData = new FormData()
-          formData.append("payload", JSON.stringify(payload))
-          files.forEach((file, i) => formData.append(`file-${i}`, file))
-          response = await fetch(`/api/chats/${chatId}/messages`, { method: "POST", body: formData })
-        } else {
-          response = await fetch(`/api/chats/${chatId}/messages`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          })
-        }
+        const result = await sendMessageToApi(chatId, payload, files)
 
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}))
-
-          // Check for daily limit exceeded error
-          if (err.error === "DAILY_LIMIT_EXCEEDED") {
+        if (!result.ok) {
+          // Handle daily limit exceeded error
+          if (result.isDailyLimit) {
             // Remove the optimistic messages
             updateChatsCache((old) => old.map((c) =>
               c.id === chatId ? {
@@ -606,28 +655,16 @@ export function useChatWithSync() {
             // Show the limit reached dialog with pending message info
             setLimitReachedState({
               show: true,
-              pendingMessage: {
-                chatId,
-                content,
-                files,
-                planMode,
-              },
-              resetAt: err.resetAt ? new Date(err.resetAt) : undefined,
+              pendingMessage: { chatId, content, files, planMode },
+              resetAt: result.resetAt ? new Date(result.resetAt) : undefined,
             })
             return
           }
 
-          throw new Error(err.error || "Failed to send message")
+          throw new Error(result.error)
         }
 
-        const data = await response.json() as {
-          sandboxId: string
-          branch: string | null
-          previewUrlPattern: string | null
-          backgroundSessionId: string
-          uploadedFiles: string[]
-        }
-
+        const { data } = result
         updateChatsCache((old) => old.map((c) =>
           c.id === chatId ? {
             ...c,
