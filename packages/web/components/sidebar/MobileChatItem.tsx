@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import type { Chat } from "@/lib/types"
 import { hasMergedSuccessfully } from "./utils"
 import { MergedChatCheckmark } from "./MergedChatCheckmark"
@@ -23,17 +24,7 @@ export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, onSelect,
   const displayName = chat.displayName || "Untitled"
 
   // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [menuOpen])
+  useClickOutside(menuRef, () => setMenuOpen(false), menuOpen)
 
   return (
     <div

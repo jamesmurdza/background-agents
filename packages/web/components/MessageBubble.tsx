@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, memo } from "react"
-import { GitMerge } from "lucide-react"
+import { GitMerge, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/types"
 import {

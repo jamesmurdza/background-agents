@@ -743,7 +743,6 @@ export function useGitDialogs({ chat, onAddMessageToBranch, resolveChatName, get
 
     // Get the target sandbox ID so we can pull the merged changes there
     const targetSandboxId = getTargetSandboxId?.(selectedBranch) ?? null
-    console.log(`[merge] selectedBranch: ${selectedBranch}, targetSandboxId: ${targetSandboxId}`)
 
     // Resolve names for the success message
     const sourceName = chat?.displayName || branchName

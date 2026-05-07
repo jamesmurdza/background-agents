@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { signOut } from "next-auth/react"
 import { Settings, LogOut, HelpCircle, BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { clearAllStorage } from "@/lib/storage"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 
 interface UserMenuProps {
   user: {
@@ -22,17 +23,7 @@ export function UserMenu({ user, onOpenSettings, onOpenHelp, collapsed }: UserMe
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [menuOpen])
+  useClickOutside(menuRef, () => setMenuOpen(false), menuOpen)
 
   const avatar = user.image ? (
     <img

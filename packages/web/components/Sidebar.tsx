@@ -6,6 +6,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { Plus, PanelLeft, X, FolderGit2, Loader2, Clock, Search, ChevronDown, Check, BarChart3, Settings, HelpCircle, LogOut } from "lucide-react"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { clearAllStorage } from "@/lib/storage"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -230,30 +231,10 @@ export function Sidebar({
   }
 
   // Close repo dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (repoDropdownRef.current && !repoDropdownRef.current.contains(e.target as Node)) {
-        setRepoDropdownOpen(false)
-      }
-    }
-    if (repoDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [repoDropdownOpen])
+  useClickOutside(repoDropdownRef, () => setRepoDropdownOpen(false), repoDropdownOpen)
 
   // Close mobile user menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (mobileUserMenuRef.current && !mobileUserMenuRef.current.contains(e.target as Node)) {
-        setMobileUserMenuOpen(false)
-      }
-    }
-    if (mobileUserMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [mobileUserMenuOpen])
+  useClickOutside(mobileUserMenuRef, () => setMobileUserMenuOpen(false), mobileUserMenuOpen)
 
   // Animate collapse/expand when toggled via button
   const handleToggleCollapse = useCallback(() => {

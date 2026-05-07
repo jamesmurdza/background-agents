@@ -5,6 +5,7 @@ import { MoreHorizontal, Pin, Pencil, Trash2, ChevronDown, ChevronRight, Loader2
 import { cn } from "@/lib/utils"
 import { NEW_REPOSITORY } from "@/lib/types"
 import type { Chat } from "@/lib/types"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { hasMergedSuccessfully } from "./utils"
 import { MergedChatCheckmark } from "./MergedChatCheckmark"
 
@@ -69,17 +70,7 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
   }, [isEditing])
 
   // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [menuOpen])
+  useClickOutside(menuRef, () => setMenuOpen(false), menuOpen)
 
   if (isEditing && !collapsed) {
     return (

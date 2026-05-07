@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, GitBranch, Key, X, Paperclip, Trash2, HelpCircle, Pencil, Loader2, Plus, Clock, Command, Brain, Cpu } from "lucide-react"
 import { ErrorBanner, FilePreviewModal, PendingFilesDisplay } from "./chat"
 import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import type { Chat, Settings, Agent, ModelOption, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY, agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import { filterSlashCommandsWithConflict, type RebaseConflictState } from "@upstream/common"
@@ -255,16 +256,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   }, [isMobile])
 
   // Close title menu on outside click
-  useEffect(() => {
-    if (!titleMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (titleMenuRef.current && !titleMenuRef.current.contains(e.target as Node)) {
-        setTitleMenuOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [titleMenuOpen])
+  useClickOutside(titleMenuRef, () => setTitleMenuOpen(false), titleMenuOpen)
 
   // Update slash menu visibility based on input.
   const hasLinkedRepo = !!(chat?.repo && chat.repo !== NEW_REPOSITORY)
@@ -288,16 +280,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   }, [input, hasLinkedRepo, inConflict])
 
   // Close conflict menu on outside click
-  useEffect(() => {
-    if (!conflictMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (conflictMenuRef.current && !conflictMenuRef.current.contains(e.target as Node)) {
-        setConflictMenuOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [conflictMenuOpen])
+  useClickOutside(conflictMenuRef, () => setConflictMenuOpen(false), conflictMenuOpen)
 
   // Handle slash command selection
   const handleSlashCommandSelect = useCallback((command: SlashCommandType) => {

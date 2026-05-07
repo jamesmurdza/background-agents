@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Loader2, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 
 // =============================================================================
 // Branch Selector Component - Searchable dropdown for selecting git branches
@@ -69,16 +70,7 @@ export function BranchSelector({ value, onChange, branches, loading, placeholder
   }, [highlightedIndex, open])
 
   // Close on click outside
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open])
+  useClickOutside(containerRef, () => setOpen(false), open)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {

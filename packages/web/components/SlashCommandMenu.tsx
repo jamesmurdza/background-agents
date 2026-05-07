@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from "react"
 import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, FolderGit2, GitBranchPlus, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { filterSlashCommands, filterSlashCommandsWithConflict, type SlashCommand } from "@upstream/common"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -69,18 +70,7 @@ export function SlashCommandMenu({
     : filterSingleCommand(input, CREATE_REPO_COMMAND)
 
   // Close menu when clicking outside
-  useEffect(() => {
-    if (!open) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open, onClose])
+  useClickOutside(menuRef, onClose, open)
 
   // Reset selected index when filtered commands change
   useEffect(() => {
