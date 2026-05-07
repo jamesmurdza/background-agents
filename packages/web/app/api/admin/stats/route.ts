@@ -1,14 +1,50 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
+
+type TimeRange = "24h" | "7d" | "30d"
+
+function getRangeInterval(range: TimeRange): string {
+  switch (range) {
+    case "24h":
+      return "1 day"
+    case "7d":
+      return "7 days"
+    case "30d":
+      return "30 days"
+    default:
+      return "7 days"
+  }
+}
+
+function getRangeDays(range: TimeRange): number {
+  switch (range) {
+    case "24h":
+      return 1
+    case "7d":
+      return 7
+    case "30d":
+      return 30
+    default:
+      return 7
+  }
+}
 
 /**
  * GET /api/admin/stats
  * Returns platform-wide statistics for the admin dashboard
+ * Query params:
+ *   - range: "24h" | "7d" | "30d" (default: "7d")
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
   if (isAuthError(auth)) return auth
+
+  // Parse query parameters
+  const { searchParams } = new URL(request.url)
+  const range = (searchParams.get("range") as TimeRange) || "7d"
+  const interval = getRangeInterval(range)
+  const days = getRangeDays(range)
 
   // Calculate time boundaries
   const now = new Date()
@@ -34,8 +70,7 @@ export async function GET() {
     repoActivityRaw,
     hourlyActivityRaw,
     dailyMessagesChatsRaw,
-    messagesByAgentModel7dRaw,
-    messagesByAgentModel30dRaw,
+    messagesByAgentModelRaw,
   ] = await Promise.all([
     // Total users
     prisma.user.count(),
@@ -92,12 +127,12 @@ export async function GET() {
       take: 10,
     }),
 
-    // Weekly active users (WAU) - for each of the last 30 days, count unique users active in the preceding 7 days
+    // Weekly active users (WAU) - for the selected range, count unique users active in the preceding 7 days
     prisma.$queryRaw<Array<{ date: Date; count: bigint }>>`
       SELECT d.date, COUNT(DISTINCT a."userId")::bigint as count
       FROM (
         SELECT generate_series(
-          (NOW() - INTERVAL '30 days')::date,
+          (NOW() - ${interval}::interval)::date,
           NOW()::date,
           '1 day'::interval
         )::date as date
@@ -107,16 +142,16 @@ export async function GET() {
       ORDER BY d.date ASC
     `,
 
-    // Activity by day for last 14 days
+    // Activity by day for selected range
     prisma.$queryRaw<Array<{ date: Date; action: string; count: bigint }>>`
       SELECT DATE("createdAt") as date, action, COUNT(*)::bigint as count
       FROM "ActivityLog"
-      WHERE "createdAt" >= NOW() - INTERVAL '14 days'
+      WHERE "createdAt" >= NOW() - ${interval}::interval
       GROUP BY DATE("createdAt"), action
       ORDER BY date ASC
     `,
 
-    // Top active users (by message count in last 30 days) - from ActivityLog to include deleted
+    // Top active users (by message count in selected range) - from ActivityLog to include deleted
     prisma.$queryRaw<Array<{ userId: string; name: string | null; image: string | null; messageCount: bigint; chatCount: bigint }>>`
       SELECT
         u.id as "userId",
@@ -128,13 +163,13 @@ export async function GET() {
       LEFT JOIN (
         SELECT "userId", COUNT(*)::bigint as count
         FROM "ActivityLog"
-        WHERE action = 'message_sent' AND "createdAt" >= NOW() - INTERVAL '30 days'
+        WHERE action = 'message_sent' AND "createdAt" >= NOW() - ${interval}::interval
         GROUP BY "userId"
       ) m ON m."userId" = u.id
       LEFT JOIN (
         SELECT "userId", COUNT(*)::bigint as count
         FROM "ActivityLog"
-        WHERE action = 'chat_created' AND "createdAt" >= NOW() - INTERVAL '30 days'
+        WHERE action = 'chat_created' AND "createdAt" >= NOW() - ${interval}::interval
         GROUP BY "userId"
       ) c ON c."userId" = u.id
       WHERE COALESCE(m.count, 0) > 0
@@ -155,18 +190,18 @@ export async function GET() {
       LIMIT 10
     `,
 
-    // Hourly activity distribution (last 14 days) - from ActivityLog to include deleted
+    // Hourly activity distribution (selected range) - from ActivityLog to include deleted
     prisma.$queryRaw<Array<{ hour: number; count: bigint }>>`
       SELECT
         EXTRACT(HOUR FROM "createdAt")::int as hour,
         COUNT(*)::bigint as count
       FROM "ActivityLog"
-      WHERE "createdAt" >= NOW() - INTERVAL '14 days' AND action = 'message_sent'
+      WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
       GROUP BY hour
       ORDER BY hour ASC
     `,
 
-    // Daily messages and chats (last 30 days) - from ActivityLog to include deleted
+    // Daily messages and chats (selected range) - from ActivityLog to include deleted
     prisma.$queryRaw<Array<{ date: Date; messages: bigint; chats: bigint }>>`
       SELECT
         d.date,
@@ -174,7 +209,7 @@ export async function GET() {
         COALESCE(c.count, 0)::bigint as chats
       FROM (
         SELECT generate_series(
-          (NOW() - INTERVAL '30 days')::date,
+          (NOW() - ${interval}::interval)::date,
           NOW()::date,
           '1 day'::interval
         )::date as date
@@ -182,19 +217,19 @@ export async function GET() {
       LEFT JOIN (
         SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
         FROM "ActivityLog"
-        WHERE "createdAt" >= NOW() - INTERVAL '30 days' AND action = 'message_sent'
+        WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
         GROUP BY DATE("createdAt")
       ) m ON m.date = d.date
       LEFT JOIN (
         SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
         FROM "ActivityLog"
-        WHERE "createdAt" >= NOW() - INTERVAL '30 days' AND action = 'chat_created'
+        WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'chat_created'
         GROUP BY DATE("createdAt")
       ) c ON c.date = d.date
       ORDER BY d.date ASC
     `,
 
-    // Daily messages by agent+model in past 7 days
+    // Daily messages by agent+model in selected range
     prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
       SELECT
         DATE("createdAt") as date,
@@ -202,20 +237,7 @@ export async function GET() {
         model,
         COUNT(*)::bigint as count
       FROM "Message"
-      WHERE "createdAt" >= NOW() - INTERVAL '7 days'
-      GROUP BY date, agent, model
-      ORDER BY date ASC
-    `,
-
-    // Daily messages by agent+model in past 30 days
-    prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
-      SELECT
-        DATE("createdAt") as date,
-        agent,
-        model,
-        COUNT(*)::bigint as count
-      FROM "Message"
-      WHERE "createdAt" >= NOW() - INTERVAL '30 days'
+      WHERE "createdAt" >= NOW() - ${interval}::interval
       GROUP BY date, agent, model
       ORDER BY date ASC
     `,
@@ -277,8 +299,7 @@ export async function GET() {
 
   // Helper function to format daily messages by agent/model
   function formatDailyMessagesByAgentModel(
-    rawData: Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>,
-    days: number
+    rawData: Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>
   ) {
     const daysByAgent: Record<string, Record<string, number | string>> = {}
     const daysByModel: Record<string, Record<string, number | string>> = {}
@@ -348,8 +369,7 @@ export async function GET() {
     return { byAgent, byModel }
   }
 
-  const messages7d = formatDailyMessagesByAgentModel(messagesByAgentModel7dRaw, 7)
-  const messages30d = formatDailyMessagesByAgentModel(messagesByAgentModel30dRaw, 30)
+  const messagesByAgentModel = formatDailyMessagesByAgentModel(messagesByAgentModelRaw)
 
   return NextResponse.json({
     stats: {
@@ -370,9 +390,7 @@ export async function GET() {
     repoActivity,
     hourlyActivity,
     dailyMessagesChats,
-    messagesByAgent7d: messages7d.byAgent,
-    messagesByModel7d: messages7d.byModel,
-    messagesByAgent30d: messages30d.byAgent,
-    messagesByModel30d: messages30d.byModel,
+    messagesByAgent: messagesByAgentModel.byAgent,
+    messagesByModel: messagesByAgentModel.byModel,
   })
 }

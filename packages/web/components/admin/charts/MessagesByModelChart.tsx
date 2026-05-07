@@ -25,36 +25,19 @@ const COLORS = [
 ]
 
 type ViewMode = "agents" | "models"
-type TimeRange = "24h" | "7d" | "30d"
 
 interface MessagesByModelChartProps {
-  agentData7d: Array<Record<string, number | string>>
-  modelData7d: Array<Record<string, number | string>>
-  agentData30d: Array<Record<string, number | string>>
-  modelData30d: Array<Record<string, number | string>>
-  timeRange: TimeRange
+  agentData: Array<Record<string, number | string>>
+  modelData: Array<Record<string, number | string>>
 }
 
 export function MessagesByModelChart({
-  agentData7d,
-  modelData7d,
-  agentData30d,
-  modelData30d,
-  timeRange,
+  agentData,
+  modelData,
 }: MessagesByModelChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("agents")
 
-  const getData = () => {
-    // For 24h, we use 7d data but it will be filtered/limited on the server in the future
-    // For now, 24h shows the same as 7d
-    const useShortRange = timeRange === "24h" || timeRange === "7d"
-    if (viewMode === "agents") {
-      return useShortRange ? agentData7d : agentData30d
-    }
-    return useShortRange ? modelData7d : modelData30d
-  }
-
-  const data = getData()
+  const data = viewMode === "agents" ? agentData : modelData
   const hasData = data && data.length > 0
 
   // Extract keys (all keys except "date")

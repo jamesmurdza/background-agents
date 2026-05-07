@@ -40,7 +40,7 @@ export const queryKeys = {
   // Admin
   admin: {
     all: ["admin"] as const,
-    stats: () => [...queryKeys.admin.all, "stats"] as const,
+    stats: (range?: string) => [...queryKeys.admin.all, "stats", range] as const,
     activity: (page: number, filters?: {
       action?: string
       userId?: string

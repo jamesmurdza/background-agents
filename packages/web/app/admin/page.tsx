@@ -27,8 +27,7 @@ import {
   useAdminActivityQuery,
   useAdminUsersQuery,
   useUpdateUserMutation,
-  useAdminTopUsersQuery,
-  type TopUsersRange,
+  type StatsTimeRange,
 } from "@/lib/query/hooks"
 import { cn } from "@/lib/utils"
 
@@ -65,11 +64,10 @@ export default function AdminDashboard() {
   }>({})
 
   // Global time range state (affects all charts)
-  const [globalTimeRange, setGlobalTimeRange] = useState<TopUsersRange>("7d")
+  const [globalTimeRange, setGlobalTimeRange] = useState<StatsTimeRange>("7d")
 
-  // Queries
-  const statsQuery = useAdminStatsQuery()
-  const topUsersQuery = useAdminTopUsersQuery(globalTimeRange)
+  // Queries - pass globalTimeRange to stats query
+  const statsQuery = useAdminStatsQuery(globalTimeRange)
   const activityQuery = useAdminActivityQuery({
     page: activityPage,
     limit: 20,
@@ -162,13 +160,11 @@ export default function AdminDashboard() {
   }
 
   const weeklyActiveUsers = statsQuery.data?.weeklyActiveUsers ?? []
-  const topUsers = topUsersQuery.data?.topUsers ?? []
+  const topUsers = statsQuery.data?.topUsers ?? []
   const hourlyActivity = statsQuery.data?.hourlyActivity ?? []
   const dailyMessagesChats = statsQuery.data?.dailyMessagesChats ?? []
-  const messagesByAgent7d = statsQuery.data?.messagesByAgent7d ?? []
-  const messagesByModel7d = statsQuery.data?.messagesByModel7d ?? []
-  const messagesByAgent30d = statsQuery.data?.messagesByAgent30d ?? []
-  const messagesByModel30d = statsQuery.data?.messagesByModel30d ?? []
+  const messagesByAgent = statsQuery.data?.messagesByAgent ?? []
+  const messagesByModel = statsQuery.data?.messagesByModel ?? []
 
   // Handle section change with mobile menu close
   const handleSectionChange = (section: SectionKey) => {
@@ -305,11 +301,8 @@ export default function AdminDashboard() {
                     <h3 className="font-medium">Messages by Agent/Model</h3>
                   </div>
                   <MessagesByModelChart
-                    agentData7d={messagesByAgent7d}
-                    modelData7d={messagesByModel7d}
-                    agentData30d={messagesByAgent30d}
-                    modelData30d={messagesByModel30d}
-                    timeRange={globalTimeRange}
+                    agentData={messagesByAgent}
+                    modelData={messagesByModel}
                   />
                 </div>
 
@@ -334,7 +327,7 @@ export default function AdminDashboard() {
                   </div>
                   <TopUsersTable
                     data={topUsers}
-                    isLoading={topUsersQuery.isLoading}
+                    isLoading={statsQuery.isFetching}
                   />
                 </div>
 
@@ -345,7 +338,6 @@ export default function AdminDashboard() {
                       <Clock className="h-4 w-4 text-pink-500" />
                     </div>
                     <h3 className="font-medium">Peak Activity Hours</h3>
-                    <span className="text-xs text-muted-foreground">(Last 14 days)</span>
                   </div>
                   <HourlyActivityChart data={hourlyActivity} />
                 </div>

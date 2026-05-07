@@ -26,7 +26,6 @@ export { useSandboxDeleteMutation, useDeleteMultipleSandboxes } from "./useSandb
 
 // Admin
 export { useAdminStatsQuery } from "./useAdminStatsQuery"
+export type { StatsTimeRange } from "./useAdminStatsQuery"
 export { useAdminActivityQuery } from "./useAdminActivityQuery"
 export { useAdminUsersQuery, useUpdateUserMutation } from "./useAdminUsersQuery"
-export { useAdminTopUsersQuery } from "./useAdminTopUsersQuery"
-export type { TopUsersRange } from "./useAdminTopUsersQuery"

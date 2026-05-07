@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
 
+export type StatsTimeRange = "24h" | "7d" | "30d"
+
 interface AdminStats {
   stats: {
     totalUsers: number
@@ -42,14 +44,12 @@ interface AdminStats {
     messages: number
     chats: number
   }>
-  messagesByAgent7d: Array<Record<string, number | string>>
-  messagesByModel7d: Array<Record<string, number | string>>
-  messagesByAgent30d: Array<Record<string, number | string>>
-  messagesByModel30d: Array<Record<string, number | string>>
+  messagesByAgent: Array<Record<string, number | string>>
+  messagesByModel: Array<Record<string, number | string>>
 }
 
-async function fetchAdminStats(): Promise<AdminStats> {
-  const response = await fetch("/api/admin/stats")
+async function fetchAdminStats(range: StatsTimeRange): Promise<AdminStats> {
+  const response = await fetch(`/api/admin/stats?range=${range}`)
   if (!response.ok) {
     if (response.status === 403) {
       throw new Error("Forbidden: Admin access required")
@@ -59,13 +59,13 @@ async function fetchAdminStats(): Promise<AdminStats> {
   return response.json()
 }
 
-export function useAdminStatsQuery() {
+export function useAdminStatsQuery(range: StatsTimeRange = "7d") {
   const { status } = useSession()
   const isAuthenticated = status === "authenticated"
 
   return useQuery({
-    queryKey: queryKeys.admin.stats(),
-    queryFn: fetchAdminStats,
+    queryKey: queryKeys.admin.stats(range),
+    queryFn: () => fetchAdminStats(range),
     enabled: isAuthenticated,
     staleTime: 30 * 1000, // 30 seconds
     retry: (failureCount, error) => {
