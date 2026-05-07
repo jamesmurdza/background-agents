@@ -310,9 +310,8 @@ export async function GET(request: NextRequest) {
 
     for (const row of rawData) {
       const dateStr = row.date.toISOString().split("T")[0]
-      // Label null agents/models as "legacy" (pre-migration data) instead of "unknown"
-      const agentName = row.agent || "legacy"
-      const modelName = row.model || "legacy"
+      const agentName = row.agent || "unknown"
+      const modelName = row.model || "unknown"
       const count = Number(row.count)
 
       allAgents.add(agentName)
