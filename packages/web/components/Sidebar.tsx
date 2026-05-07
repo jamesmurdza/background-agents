@@ -600,7 +600,7 @@ export function Sidebar({
         )}
         <button
           onClick={handleToggleCollapse}
-          className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          className="p-1.5 rounded-md hover:bg-accent text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
