@@ -68,13 +68,15 @@ export function DailyMessagesChatsChart({ data, isHourly = false }: DailyMessage
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
+              backgroundColor: "var(--tooltip-bg, #fff)",
+              border: "1px solid var(--tooltip-border, #e5e7eb)",
               borderRadius: "8px",
-              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              padding: "8px 12px",
             }}
-            labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 500 }}
-            itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+            labelStyle={{ color: "var(--tooltip-text, #111)", fontWeight: 600, marginBottom: 4 }}
+            itemStyle={{ color: "var(--tooltip-text, #111)", padding: "2px 0" }}
+            cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "4 4" }}
             labelFormatter={(label) => {
               if (isHourly) {
                 return formatHour(Number(label))

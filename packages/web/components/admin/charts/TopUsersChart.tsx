@@ -51,11 +51,15 @@ export function TopUsersChart({ data }: TopUsersChartProps) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
+              backgroundColor: "var(--tooltip-bg, #fff)",
+              border: "1px solid var(--tooltip-border, #e5e7eb)",
+              borderRadius: "8px",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              padding: "8px 12px",
             }}
-            labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+            labelStyle={{ color: "var(--tooltip-text, #111)", fontWeight: 600, marginBottom: 4 }}
+            itemStyle={{ color: "var(--tooltip-text, #111)", padding: "2px 0" }}
+            cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}
             formatter={(value, name) => [
               value,
               name === "messageCount" ? "Messages" : "Conversations",

@@ -14,6 +14,11 @@
   --sh-string: #067d17;
   --sh-keyword: #d32f2f;
   --sh-comment: #8996a3;
+
+  /* Chart tooltip colors */
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #e5e7eb;
+  --tooltip-text: #111827;
 }
 .dark {
   --sh-class: #89ddff;
@@ -25,6 +30,11 @@
   --sh-string: #c3e88d;
   --sh-keyword: #ff79c6;
   --sh-comment: #676e95;
+
+  /* Chart tooltip colors - dark mode */
+  --tooltip-bg: #1f2937;
+  --tooltip-border: #374151;
+  --tooltip-text: #f9fafb;
 }
 
 /* highlight.js tokens — scoped to `.hljs-scope` so they don't leak into
