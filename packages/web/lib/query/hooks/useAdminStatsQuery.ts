@@ -7,6 +7,7 @@ import { queryKeys } from "../keys"
 export type StatsTimeRange = "24h" | "7d" | "30d"
 
 interface AdminStats {
+  range: StatsTimeRange
   stats: {
     totalUsers: number
     totalChats: number
@@ -39,8 +40,9 @@ interface AdminStats {
     hour: number
     count: number
   }>
-  dailyMessagesChats: Array<{
-    date: string
+  // Messages and chats over time (hourly for 24h, daily for 7d/30d)
+  messagesChats: Array<{
+    time: string
     messages: number
     chats: number
   }>

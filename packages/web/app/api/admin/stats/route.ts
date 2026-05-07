@@ -201,48 +201,84 @@ export async function GET(request: NextRequest) {
       ORDER BY hour ASC
     `,
 
-    // Daily messages and chats (selected range) - from ActivityLog to include deleted
-    prisma.$queryRaw<Array<{ date: Date; messages: bigint; chats: bigint }>>`
-      SELECT
-        d.date,
-        COALESCE(m.count, 0)::bigint as messages,
-        COALESCE(c.count, 0)::bigint as chats
-      FROM (
-        SELECT generate_series(
-          (NOW() - ${interval}::interval)::date,
-          NOW()::date,
-          '1 day'::interval
-        )::date as date
-      ) d
-      LEFT JOIN (
-        SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
-        FROM "ActivityLog"
-        WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
-        GROUP BY DATE("createdAt")
-      ) m ON m.date = d.date
-      LEFT JOIN (
-        SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
-        FROM "ActivityLog"
-        WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'chat_created'
-        GROUP BY DATE("createdAt")
-      ) c ON c.date = d.date
-      ORDER BY d.date ASC
-    `,
+    // Messages and chats by time period (hourly for 24h, daily for 7d/30d)
+    range === "24h"
+      ? prisma.$queryRaw<Array<{ hour: number; messages: bigint; chats: bigint }>>`
+          SELECT
+            h.hour,
+            COALESCE(m.count, 0)::bigint as messages,
+            COALESCE(c.count, 0)::bigint as chats
+          FROM (
+            SELECT generate_series(0, 23) as hour
+          ) h
+          LEFT JOIN (
+            SELECT EXTRACT(HOUR FROM "createdAt")::int as hour, COUNT(*)::bigint as count
+            FROM "ActivityLog"
+            WHERE "createdAt" >= NOW() - '24 hours'::interval AND action = 'message_sent'
+            GROUP BY EXTRACT(HOUR FROM "createdAt")::int
+          ) m ON m.hour = h.hour
+          LEFT JOIN (
+            SELECT EXTRACT(HOUR FROM "createdAt")::int as hour, COUNT(*)::bigint as count
+            FROM "ActivityLog"
+            WHERE "createdAt" >= NOW() - '24 hours'::interval AND action = 'chat_created'
+            GROUP BY EXTRACT(HOUR FROM "createdAt")::int
+          ) c ON c.hour = h.hour
+          ORDER BY h.hour ASC
+        `
+      : prisma.$queryRaw<Array<{ date: Date; messages: bigint; chats: bigint }>>`
+          SELECT
+            d.date,
+            COALESCE(m.count, 0)::bigint as messages,
+            COALESCE(c.count, 0)::bigint as chats
+          FROM (
+            SELECT generate_series(
+              (NOW() - ${interval}::interval)::date,
+              NOW()::date,
+              '1 day'::interval
+            )::date as date
+          ) d
+          LEFT JOIN (
+            SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
+            FROM "ActivityLog"
+            WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
+            GROUP BY DATE("createdAt")
+          ) m ON m.date = d.date
+          LEFT JOIN (
+            SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
+            FROM "ActivityLog"
+            WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'chat_created'
+            GROUP BY DATE("createdAt")
+          ) c ON c.date = d.date
+          ORDER BY d.date ASC
+        `,
 
-    // Daily messages by agent+model in selected range
+    // Messages by agent+model (hourly for 24h, daily for 7d/30d)
     // Exclude git-operation messages (system messages for merge/push/rebase)
-    prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
-      SELECT
-        DATE("createdAt") as date,
-        agent,
-        model,
-        COUNT(*)::bigint as count
-      FROM "Message"
-      WHERE "createdAt" >= NOW() - ${interval}::interval
-        AND (("messageType" IS NULL) OR ("messageType" != 'git-operation'))
-      GROUP BY date, agent, model
-      ORDER BY date ASC
-    `,
+    range === "24h"
+      ? prisma.$queryRaw<Array<{ hour: number; agent: string | null; model: string | null; count: bigint }>>`
+          SELECT
+            EXTRACT(HOUR FROM "createdAt")::int as hour,
+            agent,
+            model,
+            COUNT(*)::bigint as count
+          FROM "Message"
+          WHERE "createdAt" >= NOW() - '24 hours'::interval
+            AND (("messageType" IS NULL) OR ("messageType" != 'git-operation'))
+          GROUP BY hour, agent, model
+          ORDER BY hour ASC
+        `
+      : prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
+          SELECT
+            DATE("createdAt") as date,
+            agent,
+            model,
+            COUNT(*)::bigint as count
+          FROM "Message"
+          WHERE "createdAt" >= NOW() - ${interval}::interval
+            AND (("messageType" IS NULL) OR ("messageType" != 'git-operation'))
+          GROUP BY date, agent, model
+          ORDER BY date ASC
+        `,
   ])
 
   // Format model usage
@@ -292,24 +328,30 @@ export async function GET(request: NextRequest) {
     count: Number(item.count),
   }))
 
-  // Format daily messages and chats
-  const dailyMessagesChats = dailyMessagesChatsRaw.map((item) => ({
-    date: item.date.toISOString().split("T")[0],
-    messages: Number(item.messages),
-    chats: Number(item.chats),
-  }))
+  // Format messages and chats (hourly for 24h, daily otherwise)
+  const messagesChats = range === "24h"
+    ? (dailyMessagesChatsRaw as Array<{ hour: number; messages: bigint; chats: bigint }>).map((item) => ({
+        time: String(item.hour),
+        messages: Number(item.messages),
+        chats: Number(item.chats),
+      }))
+    : (dailyMessagesChatsRaw as Array<{ date: Date; messages: bigint; chats: bigint }>).map((item) => ({
+        time: item.date.toISOString().split("T")[0],
+        messages: Number(item.messages),
+        chats: Number(item.chats),
+      }))
 
-  // Helper function to format daily messages by agent/model
-  function formatDailyMessagesByAgentModel(
-    rawData: Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>
+  // Helper function to format messages by agent/model (hourly or daily)
+  function formatMessagesByAgentModel(
+    rawData: Array<{ hour?: number; date?: Date; agent: string | null; model: string | null; count: bigint }>
   ) {
-    const daysByAgent: Record<string, Record<string, number | string>> = {}
-    const daysByModel: Record<string, Record<string, number | string>> = {}
+    const byAgentMap: Record<string, Record<string, number | string>> = {}
+    const byModelMap: Record<string, Record<string, number | string>> = {}
     const allAgents = new Set<string>()
     const allModels = new Set<string>()
 
     for (const row of rawData) {
-      const dateStr = row.date.toISOString().split("T")[0]
+      const timeKey = range === "24h" ? String(row.hour) : row.date!.toISOString().split("T")[0]
       const agentName = row.agent || "unknown"
       const modelName = row.model || "unknown"
       const count = Number(row.count)
@@ -318,62 +360,86 @@ export async function GET(request: NextRequest) {
       allModels.add(modelName)
 
       // Aggregate by agent
-      if (!daysByAgent[dateStr]) {
-        daysByAgent[dateStr] = { date: dateStr }
+      if (!byAgentMap[timeKey]) {
+        byAgentMap[timeKey] = { time: timeKey }
       }
-      daysByAgent[dateStr][agentName] =
-        ((daysByAgent[dateStr][agentName] as number) || 0) + count
+      byAgentMap[timeKey][agentName] =
+        ((byAgentMap[timeKey][agentName] as number) || 0) + count
 
       // Aggregate by model
-      if (!daysByModel[dateStr]) {
-        daysByModel[dateStr] = { date: dateStr }
+      if (!byModelMap[timeKey]) {
+        byModelMap[timeKey] = { time: timeKey }
       }
-      daysByModel[dateStr][modelName] =
-        ((daysByModel[dateStr][modelName] as number) || 0) + count
+      byModelMap[timeKey][modelName] =
+        ((byModelMap[timeKey][modelName] as number) || 0) + count
     }
 
-    // Fill in missing days with 0
-    const today = new Date()
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today)
-      d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split("T")[0]
-
-      if (!daysByAgent[dateStr]) {
-        daysByAgent[dateStr] = { date: dateStr }
-      }
-      if (!daysByModel[dateStr]) {
-        daysByModel[dateStr] = { date: dateStr }
-      }
-
-      // Ensure all agents have a value
-      for (const agent of allAgents) {
-        if (!daysByAgent[dateStr][agent]) {
-          daysByAgent[dateStr][agent] = 0
+    // Fill in missing time slots with 0
+    if (range === "24h") {
+      // Fill all 24 hours
+      for (let h = 0; h < 24; h++) {
+        const timeKey = String(h)
+        if (!byAgentMap[timeKey]) {
+          byAgentMap[timeKey] = { time: timeKey }
+        }
+        if (!byModelMap[timeKey]) {
+          byModelMap[timeKey] = { time: timeKey }
+        }
+        for (const agent of allAgents) {
+          if (!byAgentMap[timeKey][agent]) {
+            byAgentMap[timeKey][agent] = 0
+          }
+        }
+        for (const model of allModels) {
+          if (!byModelMap[timeKey][model]) {
+            byModelMap[timeKey][model] = 0
+          }
         }
       }
-      // Ensure all models have a value
-      for (const model of allModels) {
-        if (!daysByModel[dateStr][model]) {
-          daysByModel[dateStr][model] = 0
+    } else {
+      // Fill in missing days
+      const today = new Date()
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today)
+        d.setDate(d.getDate() - i)
+        const timeKey = d.toISOString().split("T")[0]
+
+        if (!byAgentMap[timeKey]) {
+          byAgentMap[timeKey] = { time: timeKey }
+        }
+        if (!byModelMap[timeKey]) {
+          byModelMap[timeKey] = { time: timeKey }
+        }
+        for (const agent of allAgents) {
+          if (!byAgentMap[timeKey][agent]) {
+            byAgentMap[timeKey][agent] = 0
+          }
+        }
+        for (const model of allModels) {
+          if (!byModelMap[timeKey][model]) {
+            byModelMap[timeKey][model] = 0
+          }
         }
       }
     }
 
-    // Sort by date and convert to arrays
-    const byAgent = Object.values(daysByAgent).sort((a, b) =>
-      (a.date as string).localeCompare(b.date as string)
-    )
-    const byModel = Object.values(daysByModel).sort((a, b) =>
-      (a.date as string).localeCompare(b.date as string)
-    )
+    // Sort by time and convert to arrays
+    const sortFn = range === "24h"
+      ? (a: Record<string, number | string>, b: Record<string, number | string>) =>
+          Number(a.time) - Number(b.time)
+      : (a: Record<string, number | string>, b: Record<string, number | string>) =>
+          (a.time as string).localeCompare(b.time as string)
+
+    const byAgent = Object.values(byAgentMap).sort(sortFn)
+    const byModel = Object.values(byModelMap).sort(sortFn)
 
     return { byAgent, byModel }
   }
 
-  const messagesByAgentModel = formatDailyMessagesByAgentModel(messagesByAgentModelRaw)
+  const messagesByAgentModel = formatMessagesByAgentModel(messagesByAgentModelRaw as Array<{ hour?: number; date?: Date; agent: string | null; model: string | null; count: bigint }>)
 
   return NextResponse.json({
+    range,
     stats: {
       totalUsers,
       totalChats,
@@ -391,7 +457,7 @@ export async function GET(request: NextRequest) {
     topUsers,
     repoActivity,
     hourlyActivity,
-    dailyMessagesChats,
+    messagesChats,
     messagesByAgent: messagesByAgentModel.byAgent,
     messagesByModel: messagesByAgentModel.byModel,
   })

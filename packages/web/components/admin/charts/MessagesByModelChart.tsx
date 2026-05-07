@@ -29,21 +29,30 @@ type ViewMode = "agents" | "models"
 interface MessagesByModelChartProps {
   agentData: Array<Record<string, number | string>>
   modelData: Array<Record<string, number | string>>
+  isHourly?: boolean
+}
+
+function formatHour(hour: number): string {
+  if (hour === 0) return "12am"
+  if (hour === 12) return "12pm"
+  if (hour < 12) return `${hour}am`
+  return `${hour - 12}pm`
 }
 
 export function MessagesByModelChart({
   agentData,
   modelData,
+  isHourly = false,
 }: MessagesByModelChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("agents")
 
   const data = viewMode === "agents" ? agentData : modelData
   const hasData = data && data.length > 0
 
-  // Extract keys (all keys except "date")
+  // Extract keys (all keys except "time")
   const dataKeys = hasData
     ? Array.from(
-        new Set(data.flatMap((entry) => Object.keys(entry).filter((key) => key !== "date")))
+        new Set(data.flatMap((entry) => Object.keys(entry).filter((key) => key !== "time")))
       )
     : []
 
@@ -88,14 +97,18 @@ export function MessagesByModelChart({
             >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis
-                dataKey="date"
+                dataKey="time"
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 tickFormatter={(value) => {
+                  if (isHourly) {
+                    return formatHour(Number(value))
+                  }
                   const date = new Date(value)
                   return `${date.getMonth() + 1}/${date.getDate()}`
                 }}
                 axisLine={{ stroke: "hsl(var(--border))" }}
                 tickLine={{ stroke: "hsl(var(--border))" }}
+                interval={isHourly ? 3 : "preserveStartEnd"}
               />
               <YAxis
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -113,6 +126,9 @@ export function MessagesByModelChart({
                 labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 500 }}
                 itemStyle={{ color: "hsl(var(--popover-foreground))" }}
                 labelFormatter={(label) => {
+                  if (isHourly) {
+                    return formatHour(Number(label))
+                  }
                   const date = new Date(label)
                   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
                 }}

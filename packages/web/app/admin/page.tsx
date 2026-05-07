@@ -162,9 +162,10 @@ export default function AdminDashboard() {
   const weeklyActiveUsers = statsQuery.data?.weeklyActiveUsers ?? []
   const topUsers = statsQuery.data?.topUsers ?? []
   const hourlyActivity = statsQuery.data?.hourlyActivity ?? []
-  const dailyMessagesChats = statsQuery.data?.dailyMessagesChats ?? []
+  const messagesChats = statsQuery.data?.messagesChats ?? []
   const messagesByAgent = statsQuery.data?.messagesByAgent ?? []
   const messagesByModel = statsQuery.data?.messagesByModel ?? []
+  const isHourly = globalTimeRange === "24h"
 
   // Handle section change with mobile menu close
   const handleSectionChange = (section: SectionKey) => {
@@ -287,9 +288,9 @@ export default function AdminDashboard() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
                       <MessageSquare className="h-4 w-4 text-purple-500" />
                     </div>
-                    <h3 className="font-medium">Daily Messages & Conversations</h3>
+                    <h3 className="font-medium">{isHourly ? "Hourly" : "Daily"} Messages & Conversations</h3>
                   </div>
-                  <DailyMessagesChatsChart data={dailyMessagesChats} />
+                  <DailyMessagesChatsChart data={messagesChats} isHourly={isHourly} />
                 </div>
 
                 {/* Messages by Agent/Model */}
@@ -303,6 +304,7 @@ export default function AdminDashboard() {
                   <MessagesByModelChart
                     agentData={messagesByAgent}
                     modelData={messagesByModel}
+                    isHourly={isHourly}
                   />
                 </div>
 

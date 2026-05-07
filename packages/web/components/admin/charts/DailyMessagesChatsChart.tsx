@@ -11,17 +11,25 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-interface DailyMessagesChatsData {
-  date: string
+interface MessagesChatsData {
+  time: string
   messages: number
   chats: number
 }
 
 interface DailyMessagesChatsChartProps {
-  data: DailyMessagesChatsData[]
+  data: MessagesChatsData[]
+  isHourly?: boolean
 }
 
-export function DailyMessagesChatsChart({ data }: DailyMessagesChatsChartProps) {
+function formatHour(hour: number): string {
+  if (hour === 0) return "12am"
+  if (hour === 12) return "12pm"
+  if (hour < 12) return `${hour}am`
+  return `${hour - 12}pm`
+}
+
+export function DailyMessagesChatsChart({ data, isHourly = false }: DailyMessagesChatsChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
@@ -39,14 +47,18 @@ export function DailyMessagesChatsChart({ data }: DailyMessagesChatsChartProps) 
         >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis
-            dataKey="date"
+            dataKey="time"
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={(value) => {
+              if (isHourly) {
+                return formatHour(Number(value))
+              }
               const date = new Date(value)
               return `${date.getMonth() + 1}/${date.getDate()}`
             }}
             axisLine={{ stroke: "hsl(var(--border))" }}
             tickLine={{ stroke: "hsl(var(--border))" }}
+            interval={isHourly ? 3 : "preserveStartEnd"}
           />
           <YAxis
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -64,6 +76,9 @@ export function DailyMessagesChatsChart({ data }: DailyMessagesChatsChartProps) 
             labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 500 }}
             itemStyle={{ color: "hsl(var(--popover-foreground))" }}
             labelFormatter={(label) => {
+              if (isHourly) {
+                return formatHour(Number(label))
+              }
               const date = new Date(label)
               return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
             }}
