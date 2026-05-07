@@ -1049,53 +1049,10 @@ export function useChatWithSync() {
     }
   }, [chats, updateChatsCache])
 
-  // Load older messages for pagination (prepends to existing messages)
-  const loadOlderMessages = useCallback(async (chatId: string): Promise<boolean> => {
-    try {
-      const chat = chats.find((c) => c.id === chatId)
-      if (!chat || chat.messages.length === 0) return false
-
-      // Get the oldest message ID as cursor
-      const oldestMessageId = chat.messages[0]?.id
-      if (!oldestMessageId) return false
-
-      // Fetch older messages before the cursor
-      const chatData = await fetchChat(chatId, {
-        beforeMessageId: oldestMessageId,
-        limit: MESSAGE_PAGE_SIZE,
-      })
-      const olderMessages = chatData.messages.map(toMessageType)
-
-      if (olderMessages.length === 0) return false
-
-      // Prepend older messages to the existing list
-      updateChatsCache((old) =>
-        old.map((c) => {
-          if (c.id !== chatId) return c
-          return {
-            ...c,
-            messages: [...olderMessages, ...c.messages],
-            messageCount: chatData.messageCount,
-          }
-        })
-      )
-
-      return olderMessages.length === MESSAGE_PAGE_SIZE // true if there may be more
-    } catch (err) {
-      console.error("Failed to load older messages:", err)
-      return false
-    }
-  }, [chats, updateChatsCache])
-
   // True when messages need to be loaded for current chat (to prevent flash of empty state)
   // A chat needs loading if: has no messages locally, but server says it has messages (messageCount > 0)
   const isLoadingMessages = currentChat
     ? currentChat.messages.length === 0 && (currentChat.messageCount ?? 0) > 0
-    : false
-
-  // True if there are more older messages to load for the current chat
-  const hasMoreMessages = currentChat
-    ? currentChat.messages.length < (currentChat.messageCount ?? 0)
     : false
 
   // Set callback for conflict state changes from SSE complete events
@@ -1159,8 +1116,6 @@ export function useChatWithSync() {
     removeQueuedMessage,
     resumeQueue,
     refetchMessages,
-    loadOlderMessages,
-    hasMoreMessages,
     drafts: localChatState.drafts,
     updateDraft,
     clearDraft,

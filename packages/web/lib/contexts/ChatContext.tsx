@@ -44,9 +44,7 @@ export interface ChatContextValue {
   draftChatConfig: { id: string; repo: string; baseBranch: string; agent: string | null; model: string | null } | null | undefined
   updateDraftChatConfig: (updates: Partial<{ repo: string; baseBranch: string; agent: string | null; model: string | null }>) => void
 
-  // Message pagination
-  hasMoreMessages: boolean
-  loadOlderMessages: () => Promise<boolean>
+  // Message operations
   refetchMessages: (chatId: string) => Promise<void>
 
   // Tracking

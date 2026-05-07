@@ -103,8 +103,6 @@ export default function HomePage() {
     resumeQueue,
     updateChatById,
     refetchMessages,
-    loadOlderMessages,
-    hasMoreMessages,
     drafts,
     updateDraft,
     clearDraft,
@@ -995,8 +993,6 @@ export default function HomePage() {
     isDraftChatId,
     draftChatConfig,
     updateDraftChatConfig,
-    hasMoreMessages,
-    loadOlderMessages: currentChat ? () => loadOlderMessages(currentChat.id) : async () => false,
     refetchMessages,
     deletingChatIds,
     unseenChatIds,
@@ -1007,8 +1003,7 @@ export default function HomePage() {
     removeChat, renameChat, handleUpdateChatProp, updateChatById, handleSendMessage,
     stopAgent, handleAddMessage, enqueueMessage, removeQueuedMessage, resumeQueue,
     drafts, updateDraft, clearDraft, isDraftChatId, draftChatConfig, updateDraftChatConfig,
-    hasMoreMessages, loadOlderMessages, currentChat, refetchMessages, deletingChatIds,
-    unseenChatIds, updateChatRepo,
+    refetchMessages, deletingChatIds, unseenChatIds, updateChatRepo,
   ])
 
   const gitContextValue: GitContextValue = useMemo(() => ({
@@ -1267,8 +1262,6 @@ export default function HomePage() {
                   onDraftChange={handleDraftChange}
                   isSending={isSendingMessage}
                   onOpenPlan={(messageId) => preview.openPreview({ type: "plan", messageId, content: "" })}
-                  hasMoreMessages={hasMoreMessages}
-                  onLoadOlderMessages={currentChat ? () => loadOlderMessages(currentChat.id) : undefined}
                 />
               )}
             </div>

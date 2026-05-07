@@ -48,13 +48,9 @@ interface ChatPanelProps {
   onOpenCommandPalette?: () => void
   /** Callback to open a plan in the preview pane */
   onOpenPlan?: (messageId: string) => void
-  /** Whether there are more older messages to load */
-  hasMoreMessages?: boolean
-  /** Callback to load older messages */
-  onLoadOlderMessages?: () => Promise<boolean>
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, onOpenPlan, hasMoreMessages = false, onLoadOlderMessages }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, onOpenPlan }: ChatPanelProps) {
   // Get modal and git state from contexts
   const modals = useModals()
   const git = useGit()
@@ -82,8 +78,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   const conflictMenuRef = useRef<HTMLDivElement>(null)
   // Plan mode state
   const [planModeEnabled, setPlanModeEnabled] = useState(false)
-  // Loading more messages state
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
   // File upload state - using custom hook
   const {
     pendingFiles,
@@ -123,27 +117,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       textarea.setSelectionRange(end, end)
     }
   }, [])
-
-  // Handler for loading older messages
-  const handleLoadOlderMessages = useCallback(async () => {
-    if (!onLoadOlderMessages || isLoadingMore) return
-    setIsLoadingMore(true)
-    try {
-      // Remember scroll height before loading
-      const container = messagesContainerRef.current
-      const prevScrollHeight = container?.scrollHeight ?? 0
-
-      await onLoadOlderMessages()
-
-      // After loading, adjust scroll position to keep the same messages in view
-      if (container) {
-        const newScrollHeight = container.scrollHeight
-        container.scrollTop = newScrollHeight - prevScrollHeight
-      }
-    } finally {
-      setIsLoadingMore(false)
-    }
-  }, [onLoadOlderMessages, isLoadingMore])
 
   // Get current agent/model (from chat, the user's preference, or auto-resolved
   // from credential flags). Uses ?? so we don't trip over the empty string.
@@ -1253,28 +1226,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           "space-y-4 mx-auto",
           isMobile ? "max-w-full" : "max-w-3xl space-y-6"
         )}>
-          {/* Load more button at top when there are older messages */}
-          {hasMoreMessages && onLoadOlderMessages && (
-            <div className="flex justify-center py-2">
-              <button
-                onClick={handleLoadOlderMessages}
-                disabled={isLoadingMore}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors disabled:opacity-50"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-3 w-3 rotate-180" />
-                    Load earlier messages
-                  </>
-                )}
-              </button>
-            </div>
-          )}
           {chat.messages.map((message, index) => {
             const isLastAssistant =
               isRunning &&
