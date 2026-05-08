@@ -55,6 +55,7 @@ interface PaletteProviderProps {
   onCopyCheckoutCommand?: () => void
   onOpenEnvVars?: () => void
   onOpenSkills?: () => void
+  onOpenMcpTools?: () => void
   // For Alt+Up/Down chat navigation
   chatIds: string[]
   currentChatId: string | null
@@ -96,6 +97,7 @@ export function PaletteProvider({
   onCopyCheckoutCommand,
   onOpenEnvVars,
   onOpenSkills,
+  onOpenMcpTools,
   chatIds,
   currentChatId,
   onSelectChat,
@@ -218,6 +220,7 @@ export function PaletteProvider({
         onCopyCheckoutCommand={onCopyCheckoutCommand}
         onOpenEnvVars={onOpenEnvVars}
         onOpenSkills={onOpenSkills}
+        onOpenMcpTools={onOpenMcpTools}
         chats={chats.map((c) => ({ id: c.id, displayName: c.displayName }))}
         onSelectChat={onSelectChat}
         currentTheme={(theme as Theme) ?? "system"}

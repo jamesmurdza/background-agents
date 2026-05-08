@@ -39,6 +39,10 @@ export interface ModalContextValue {
   envVarsModalOpen: boolean
   setEnvVarsModalOpen: (open: boolean) => void
 
+  // MCP tools modal
+  mcpToolsModalOpen: boolean
+  setMcpToolsModalOpen: (open: boolean) => void
+
   // Scheduled jobs
   scheduledJobFormOpen: boolean
   setScheduledJobFormOpen: (open: boolean) => void
@@ -84,6 +88,9 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
 
   // Environment variables modal
   const [envVarsModalOpen, setEnvVarsModalOpen] = useState(false)
+
+  // MCP tools modal
+  const [mcpToolsModalOpen, setMcpToolsModalOpen] = useState(false)
 
   // Scheduled jobs
   const [scheduledJobFormOpen, setScheduledJobFormOpen] = useState(false)
@@ -154,6 +161,10 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
     // Environment variables modal
     envVarsModalOpen,
     setEnvVarsModalOpen,
+
+    // MCP tools modal
+    mcpToolsModalOpen,
+    setMcpToolsModalOpen,
 
     // Scheduled jobs
     scheduledJobFormOpen,

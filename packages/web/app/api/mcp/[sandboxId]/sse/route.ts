@@ -61,16 +61,11 @@ interface ChatWithUser {
 async function getChatAndToken(
   sandboxId: string
 ): Promise<{ chat: ChatWithUser; githubToken: string } | null> {
-  const chat = await prisma.chat.findUnique({
+  const chat = await prisma.chat.findFirst({
     where: { sandboxId },
-    select: {
-      id: true,
-      userId: true,
-      repo: true,
-      agent: true,
-      mcpTools: true,
+    include: {
       user: {
-        select: {
+        include: {
           accounts: {
             where: { provider: "github" },
             select: {

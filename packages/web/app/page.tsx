@@ -17,6 +17,9 @@ import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
 import { BranchPickerModal } from "@/components/modals/BranchPickerModal"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
+import { McpToolsModal } from "@/components/modals/McpToolsModal"
+import type { McpToolsConfig } from "@/lib/mcp/types"
+import { agentSupportsMcp } from "@/lib/mcp/types"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -171,6 +174,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const [isSendingMessage, setIsSendingMessage] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [skillsModalOpen, setSkillsModalOpen] = useState(false)
+  const [mcpToolsConfig, setMcpToolsConfig] = useState<McpToolsConfig>({})
+  const [mcpAgentSupport, setMcpAgentSupport] = useState(false)
 
   // Preview state from hook
   const preview = usePreview({
@@ -360,6 +365,33 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       })
     }
   }, [currentChatId, isDraftChatId, chats])
+
+  // Handler for opening MCP tools modal
+  const handleOpenMcpTools = useCallback(async () => {
+    if (!currentChatId || isDraftChatId(currentChatId)) return
+
+    try {
+      const res = await fetch(`/api/chats/${currentChatId}/mcp-tools`)
+      const data = res.ok ? await res.json() : { mcpTools: {}, agentSupportsMcp: false }
+
+      setMcpToolsConfig(data.mcpTools || {})
+      setMcpAgentSupport(data.agentSupportsMcp ?? false)
+      modals.setMcpToolsModalOpen(true)
+    } catch (error) {
+      console.error("Failed to fetch MCP tools settings:", error)
+    }
+  }, [currentChatId, isDraftChatId, modals])
+
+  // Handler for saving MCP tools settings
+  const handleSaveMcpTools = useCallback(async (mcpTools: McpToolsConfig) => {
+    if (!currentChatId || isDraftChatId(currentChatId)) return
+
+    await fetch(`/api/chats/${currentChatId}/mcp-tools`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mcpTools }),
+    })
+  }, [currentChatId, isDraftChatId])
 
   // Auto-enter draft mode if user is authenticated but has no chat selected.
   // This replaces the old auto-create behavior - now we just enter draft mode
@@ -1064,6 +1096,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           ? () => setSkillsModalOpen(true)
           : undefined
       }
+      onOpenMcpTools={currentChat && !isDraftChatId(currentChat.id) ? handleOpenMcpTools : undefined}
       chatIds={displayChats.map((c) => c.id)}
       onNavigateChat={handleNavigateChat}
       currentChatId={displayCurrentChatId}
@@ -1290,6 +1323,16 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           onSave={handleSaveEnvVars}
           initialChatEnvVars={envVarsChatEnvVars}
           initialRepoEnvVars={envVarsRepoEnvVars}
+          isMobile={isMobile}
+        />
+
+        <McpToolsModal
+          open={modals.mcpToolsModalOpen}
+          onClose={() => modals.setMcpToolsModalOpen(false)}
+          chatId={displayCurrentChatId || ""}
+          agentSupportsMcp={mcpAgentSupport}
+          onSave={handleSaveMcpTools}
+          initialMcpTools={mcpToolsConfig}
           isMobile={isMobile}
         />
 
