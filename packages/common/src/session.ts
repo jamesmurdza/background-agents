@@ -48,6 +48,7 @@ The repository is cloned at ${repoPath}.
 - Always create NEW commits. Never rewrite git history (no git commit --amend, git rebase, or git reset --hard).
 - Do not push — pushing is handled automatically.
 - Use "git restore" to discard file changes (not "git checkout").
+- NEVER commit the \`.agents\` directory or \`skills-lock.json\`. These are local configuration files and must remain uncommitted.
 
 ## File Operations
 - Use ${repoPath} for all file operations.
