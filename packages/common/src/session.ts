@@ -53,6 +53,11 @@ The repository is cloned at ${repoPath}.
 - Use ${repoPath} for all file operations.
 - Always check the current state of files before editing them.
 
+## Agent Skills
+- You may have "skills" (custom instructions, guidelines, and rules) installed in the repository.
+- To check what skills are installed and what they do, look inside the ${repoPath}/.agents/skills/ directory.
+- Always adhere to any instructions defined in these skills.
+
 ## Logs Directory
 - Write any log files to ${PATHS.LOGS_DIR}.
 - Examples: ${PATHS.LOGS_DIR}/build.log, ${PATHS.LOGS_DIR}/test-results.log
