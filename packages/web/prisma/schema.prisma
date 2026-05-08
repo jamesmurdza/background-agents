@@ -130,6 +130,10 @@ model Chat {
   // { "KEY1": "encrypted_value1", ... }
   environmentVariables Json?
 
+  // MCP tools configuration (JSONB for flexibility)
+  // { github: true, jira: false, slack: false }
+  mcpTools Json?
+
   // Relations
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
