@@ -46,21 +46,3 @@ export function useMobile(): boolean {
 
   return isMobile
 }
-
-/**
- * Hook to detect touch-capable devices
- */
-export function useTouchDevice(): boolean {
-  const [isTouch, setIsTouch] = useState(false)
-
-  useEffect(() => {
-    setIsTouch(
-      "ontouchstart" in window ||
-      navigator.maxTouchPoints > 0 ||
-      // @ts-ignore - msMaxTouchPoints is IE-specific
-      navigator.msMaxTouchPoints > 0
-    )
-  }, [])
-
-  return isTouch
-}
