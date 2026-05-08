@@ -1,4 +1,4 @@
-# MCP Integration Plan
+# MCP Integration Plan (Smithery Hosted)
 
 ## Problem Statement
 
@@ -9,63 +9,66 @@ Agents running in sandboxes cannot access GitHub issues, PRs, and other GitHub r
 
 **Key Requirement**: Tokens must NEVER be accessible to agents.
 
-## Solution: Self-Hosted MCP Server with Smithery SDK
-
-Implement an MCP server using **Smithery SDK** that runs **server-side** (not in the sandbox). This provides:
-- Secure token isolation (tokens never leave the server)
-- Extensible architecture (easy to add Jira, Slack, Linear, etc. later)
-- Per-chat opt-in (users explicitly enable tools per chat)
-- Standard MCP protocol for agent compatibility
-
-### Why Smithery SDK?
-
-1. **Extensibility** - Easy to add more tool providers (Jira, Slack, Linear) later
-2. **Single MCP Server** - One endpoint serves all tools, agents connect once
-3. **Community Tools** - Can integrate tools from Smithery registry if needed
-4. **Production Ready** - Battle-tested SDK for MCP servers
-
-### Why NOT Smithery Hosted?
-
-Smithery offers hosted MCP servers, but that would send tokens to their infrastructure. By self-hosting with their SDK, tokens stay on YOUR server.
-
 ---
 
-## Security Model: Token Isolation
+## Solution: Smithery Hosted MCP Servers
+
+Use **Smithery's hosted MCP servers** (like `@smithery-ai/github`) instead of building our own. Your server acts as a **proxy** that:
+1. Looks up user's token from database
+2. Connects to Smithery with the token
+3. Exposes MCP endpoint to sandbox
+4. Agent calls tools, gets results - **never sees token**
+
+### Why Smithery Hosted?
+
+1. **Pre-built MCP servers** - GitHub, Jira, Slack, Linear, etc. already exist
+2. **Maintained by Smithery** - Bug fixes, API updates handled for you
+3. **Easy to add apps** - Just add new connection, minimal code
+4. **Standard MCP protocol** - Works with all MCP-compatible agents
+5. **Token handling** - Tokens are ephemeral, not stored by Smithery
+
+### Token Security
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     YOUR SERVER                              │
 │                                                              │
-│   1. Agent calls: github_get_issue(123)                     │
-│                   ───────────────────►                       │
-│                   (NO token in request)                      │
+│   1. Agent requests MCP connection                          │
+│   2. Look up: sandboxId → Chat → userId → Account           │
+│   3. Get GitHub token from YOUR database                    │
+│   4. Pass token to Smithery in header (ephemeral)           │
 │                                                              │
-│   2. Server internally:                                      │
-│      sandboxId → Chat → userId → Account → access_token     │
-│                                                              │
-│   3. Server calls GitHub API with token                     │
-│                                                              │
-│   4. Returns result (issue data, NO token)                  │
-│                   ◄───────────────────                       │
-│                                                              │
-│   Token: 🔒 NEVER LEAVES THIS BOX                           │
+│   Token source: GitHub OAuth login (already stored)         │
 └─────────────────────────────────────────────────────────────┘
                             │
-                            │  Only tool results
+                            │ Token in Authorization header
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  SMITHERY PLATFORM                           │
+│                                                              │
+│   @smithery-ai/github  @smithery-ai/jira  @smithery-ai/slack│
+│                                                              │
+│   - Receives token (ephemeral, not stored)                  │
+│   - Calls GitHub/Jira/Slack API                             │
+│   - Returns tool results                                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            │ Only tool results (NO token)
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     SANDBOX (Agent)                          │
 │                                                              │
-│   Agent receives: { title: "Bug", body: "...", ... }        │
+│   Agent receives: { issues: [...], prs: [...] }             │
 │                                                              │
 │   Agent CANNOT:                                              │
 │   ❌ See the token                                           │
-│   ❌ Make arbitrary GitHub API calls                         │
+│   ❌ Make arbitrary API calls                                │
 │   ❌ Access other repos                                      │
 │                                                              │
 │   Agent CAN only:                                            │
-│   ✅ Use exposed tools                                       │
-│   ✅ On the chat's repo only                                 │
+│   ✅ Use tools exposed by Smithery MCP servers               │
+│   ✅ Get results for the chat's repo                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -78,18 +81,14 @@ Smithery offers hosted MCP servers, but that would send tokens to their infrastr
 │                         Web Application                              │
 │                                                                      │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                 MCP Server (Smithery SDK)                      │  │
+│  │                 MCP Proxy Endpoint                             │  │
 │  │                 /api/mcp/[sandboxId]/sse                       │  │
 │  │                                                                │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │  │
-│  │  │   GitHub    │  │    Jira     │  │   Slack     │  ...       │  │
-│  │  │   Tools     │  │   Tools     │  │   Tools     │  (future)  │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘            │  │
+│  │  1. Validate sandboxId → Chat → check mcpTools enabled        │  │
+│  │  2. Get token from DB (Account.access_token)                  │  │
+│  │  3. Connect to Smithery with @smithery/api                    │  │
+│  │  4. Proxy MCP messages between agent and Smithery             │  │
 │  │                                                                │  │
-│  │  Authentication:                                               │  │
-│  │  1. Check Chat.mcpToolsEnabled (per-chat opt-in)              │  │
-│  │  2. sandboxId → Chat → userId → Account → tokens              │  │
-│  │  3. Scope operations to Chat.repo only                        │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 │                              ↑                                       │
 │                              │ HTTP/SSE                              │
@@ -103,12 +102,11 @@ Smithery offers hosted MCP servers, but that would send tokens to their infrastr
 │  │                                                                │  │
 │  │  MCP client connects to: https://{app}/api/mcp/{sandboxId}/sse│  │
 │  │                                                                │  │
-│  │  Available tools (if enabled):                                │  │
-│  │  - github_list_issues          - github_get_pr_diff           │  │
-│  │  - github_get_issue            - github_add_comment           │  │
-│  │  - github_create_issue         - github_create_pr_review      │  │
-│  │  - github_list_pull_requests   - github_search_code           │  │
-│  │  - github_get_pull_request     - github_get_file_contents     │  │
+│  │  Available tools (from Smithery):                             │  │
+│  │  GitHub: search_repositories, get_issue, create_issue,        │  │
+│  │          list_pull_requests, get_pull_request, add_comment... │  │
+│  │  Jira:   (future) search_issues, create_issue, ...            │  │
+│  │  Slack:  (future) send_message, list_channels, ...            │  │
 │  │                                                                │  │
 │  │  Token: ❌ NEVER PRESENT                                       │  │
 │  └───────────────────────────────────────────────────────────────┘  │
@@ -119,7 +117,7 @@ Smithery offers hosted MCP servers, but that would send tokens to their infrastr
 
 ## Per-Chat Opt-In Feature
 
-Users must **explicitly enable** MCP tools for each chat (similar to environment variables).
+Users must **explicitly enable** MCP tools for each chat (like environment variables).
 
 ### UI Flow
 
@@ -135,14 +133,15 @@ Users must **explicitly enable** MCP tools for each chat (similar to environment
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │  MCP Tools                                          │    │
 │  │                                                      │    │
-│  │  ☐ GitHub Tools                                     │    │
-│  │    Access issues, PRs, comments, code search        │    │
+│  │  ☑ GitHub Tools                                     │    │
+│  │    Issues, PRs, comments, code search               │    │
+│  │    Using: @smithery-ai/github                       │    │
 │  │                                                      │    │
 │  │  ☐ Jira Tools (coming soon)                         │    │
-│  │    Access issues, projects, sprints                 │    │
+│  │    Issues, projects, sprints                        │    │
 │  │                                                      │    │
 │  │  ☐ Slack Tools (coming soon)                        │    │
-│  │    Send messages, read channels                     │    │
+│  │    Messages, channels                               │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                                                              │
 │                                    [Save Settings]          │
@@ -161,76 +160,35 @@ model Chat {
 }
 ```
 
-Using JSONB allows easy extension for new tool providers without migrations.
-
-### Validation on MCP Endpoint
-
-```typescript
-// /api/mcp/[sandboxId]/sse/route.ts
-
-const chat = await prisma.chat.findUnique({
-  where: { sandboxId },
-  select: { mcpTools: true, repo: true, userId: true }
-})
-
-// Check if GitHub tools enabled for this chat
-const mcpTools = chat.mcpTools as { github?: boolean } | null
-if (!mcpTools?.github) {
-  return new Response("GitHub tools not enabled for this chat", { status: 403 })
-}
-```
-
 ---
 
 ## Implementation Steps
 
-### Phase 1: MCP Server Package (Smithery SDK)
+### Phase 1: Install Smithery Packages
 
-#### 1.1 Create MCP Server Package
-**File: `packages/mcp-server/package.json`**
+**File: `packages/web/package.json`**
 ```json
 {
-  "name": "@anthropic/mcp-server",
-  "version": "0.1.0",
   "dependencies": {
-    "@smithery-ai/mcp-sdk": "^1.x",
-    "@octokit/rest": "^20.x"
+    "@smithery/api": "^1.x",
+    "@modelcontextprotocol/sdk": "^1.x"
   }
 }
 ```
 
-#### 1.2 Create Tool Provider Interface
-**File: `packages/mcp-server/src/providers/base.ts`**
-```typescript
-export interface ToolProvider {
-  name: string
-  tools: ToolDefinition[]
-  isEnabled(chat: Chat): boolean
-  getCredentials(userId: string): Promise<Credentials>
-  handleToolCall(tool: string, args: unknown, ctx: Context): Promise<unknown>
-}
-```
+### Phase 2: Create MCP Proxy Endpoint
 
-#### 1.3 Implement GitHub Provider
-**File: `packages/mcp-server/src/providers/github/index.ts`**
-- Implements ToolProvider interface
-- All GitHub tools (issues, PRs, comments, etc.)
-- Uses Octokit with token from server DB
-
-#### 1.4 Create MCP Server Core
-**File: `packages/mcp-server/src/server.ts`**
-- Uses Smithery SDK for MCP protocol
-- HTTP/SSE transport
-- Dynamically registers tools based on chat settings
-- Routes tool calls to appropriate provider
-
-### Phase 2: API Route Integration
-
-#### 2.1 Create MCP SSE Endpoint
 **File: `packages/web/app/api/mcp/[sandboxId]/sse/route.ts`**
+
 ```typescript
-export async function GET(req: Request, { params }: { params: { sandboxId: string } }) {
-  const { sandboxId } = params
+import { createConnection } from "@smithery/api/mcp"
+import { prisma } from "@/lib/db/prisma"
+
+export async function GET(
+  req: Request,
+  { params }: { params: { sandboxId: string } }
+) {
+  const { sandboxId } = await params
 
   // 1. Look up chat and validate
   const chat = await prisma.chat.findUnique({
@@ -238,66 +196,122 @@ export async function GET(req: Request, { params }: { params: { sandboxId: strin
     include: { user: { include: { accounts: true } } }
   })
 
-  if (!chat) return new Response("Chat not found", { status: 404 })
-
-  // 2. Check which MCP tools are enabled
-  const mcpTools = chat.mcpTools as McpToolsConfig | null
-  if (!mcpTools || !Object.values(mcpTools).some(Boolean)) {
-    return new Response("No MCP tools enabled", { status: 403 })
+  if (!chat) {
+    return new Response("Chat not found", { status: 404 })
   }
 
-  // 3. Get credentials (GitHub token from Account)
-  const githubAccount = chat.user.accounts.find(a => a.provider === "github")
-  const githubToken = githubAccount?.access_token
+  // 2. Check if MCP tools are enabled for this chat
+  const mcpTools = chat.mcpTools as { github?: boolean } | null
+  if (!mcpTools?.github) {
+    return new Response("GitHub tools not enabled for this chat", { status: 403 })
+  }
 
-  // 4. Create MCP server with enabled tools only
-  const server = createMcpServer({
-    enabledTools: mcpTools,
-    credentials: { github: githubToken },
-    repo: chat.repo,  // Scope all operations to this repo
+  // 3. Get GitHub token from user's OAuth account
+  const githubAccount = chat.user.accounts.find(a => a.provider === "github")
+  if (!githubAccount?.access_token) {
+    return new Response("GitHub not connected", { status: 401 })
+  }
+
+  // 4. Connect to Smithery's GitHub MCP server
+  const { transport } = await createConnection({
+    mcpUrl: "https://server.smithery.ai/@smithery-ai/github",
+    headers: {
+      "Authorization": `Bearer ${githubAccount.access_token}`
+    }
   })
 
-  // 5. Return SSE stream
-  return server.handleSSE(req)
+  // 5. Proxy MCP protocol to agent via SSE
+  return transport.handleSSE(req)
 }
 ```
 
-#### 2.2 Create MCP Message Endpoint
 **File: `packages/web/app/api/mcp/[sandboxId]/message/route.ts`**
-- POST endpoint for client→server MCP messages
-- Same authentication logic as SSE endpoint
 
-### Phase 3: Database & UI
+```typescript
+export async function POST(
+  req: Request,
+  { params }: { params: { sandboxId: string } }
+) {
+  // Same auth logic as SSE endpoint
+  // Handle MCP messages from agent
+}
+```
 
-#### 3.1 Update Prisma Schema
-**File: `packages/web/prisma/schema.prisma`**
+### Phase 3: Database & API
+
+**3.1 Update Prisma Schema**
 ```prisma
 model Chat {
   // ... existing fields ...
-
-  // MCP tools enabled for this chat
-  // { github: true, jira: false, slack: false }
   mcpTools Json?
 }
 ```
 
-#### 3.2 Create API Endpoints for Chat Settings
+**3.2 Create Settings API**
 **File: `packages/web/app/api/chat/[id]/mcp-tools/route.ts`**
-- GET: Retrieve current MCP tools settings
-- PATCH: Update MCP tools settings
 
-#### 3.3 Create UI Component
-**File: `packages/web/components/chat/McpToolsSettings.tsx`**
-- Toggle switches for each tool provider
-- Shows available tools per provider
-- Saves to chat settings
-
-### Phase 4: Agent Configuration
-
-#### 4.1 Configure Agent MCP Client
-**File: `packages/agent-configuration/src/mcp.ts`**
 ```typescript
-export function generateMcpConfig(sandboxId: string, baseUrl: string): McpConfig {
+// GET - Get current MCP tools settings
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const chat = await prisma.chat.findUnique({
+    where: { id: params.id },
+    select: { mcpTools: true }
+  })
+  return Response.json({ mcpTools: chat?.mcpTools ?? {} })
+}
+
+// PATCH - Update MCP tools settings
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const { mcpTools } = await req.json()
+  const chat = await prisma.chat.update({
+    where: { id: params.id },
+    data: { mcpTools }
+  })
+  return Response.json({ mcpTools: chat.mcpTools })
+}
+```
+
+### Phase 4: UI Component
+
+**File: `packages/web/components/chat/McpToolsSettings.tsx`**
+
+```tsx
+export function McpToolsSettings({ chatId }: { chatId: string }) {
+  const [settings, setSettings] = useState<McpToolsConfig>({})
+
+  const toggleGitHub = async (enabled: boolean) => {
+    const newSettings = { ...settings, github: enabled }
+    await fetch(`/api/chat/${chatId}/mcp-tools`, {
+      method: "PATCH",
+      body: JSON.stringify({ mcpTools: newSettings })
+    })
+    setSettings(newSettings)
+  }
+
+  return (
+    <div className="space-y-4">
+      <h3>MCP Tools</h3>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-medium">GitHub Tools</p>
+          <p className="text-sm text-muted">Issues, PRs, comments, code search</p>
+        </div>
+        <Switch checked={settings.github} onCheckedChange={toggleGitHub} />
+      </div>
+
+      {/* Future: Jira, Slack, etc. */}
+    </div>
+  )
+}
+```
+
+### Phase 5: Agent Configuration
+
+**File: `packages/agent-configuration/src/mcp.ts`**
+
+```typescript
+export function generateMcpConfig(sandboxId: string, baseUrl: string) {
   return {
     mcpServers: {
       "daytona-tools": {
@@ -309,31 +323,15 @@ export function generateMcpConfig(sandboxId: string, baseUrl: string): McpConfig
 }
 ```
 
-#### 4.2 Update Agent Setup
-**File: `packages/agents/src/agents/claude/index.ts`**
-- Write MCP config to `~/.claude.json` if tools enabled
-- Only configure if chat.mcpTools has any enabled
+**Update agent setup to write MCP config if tools enabled:**
 
-#### 4.3 Update Session Creation
-**File: `packages/web/lib/agent-session.ts`**
-- Check if MCP tools enabled for chat
-- Pass MCP configuration to agent setup
-
-### Phase 5: Security & Hardening
-
-#### 5.1 Request Signing (Optional Enhancement)
-**File: `packages/web/lib/mcp-auth.ts`**
-- Generate signed tokens for sandbox→MCP auth
-- Prevents sandboxId enumeration attacks
-- Short-lived tokens with HMAC signature
-
-#### 5.2 Rate Limiting
-- Per-sandbox rate limits on MCP endpoint
-- Prevents GitHub API quota abuse
-
-#### 5.3 Audit Logging
-- Log all tool invocations
-- Track: timestamp, userId, sandboxId, tool, params, result
+```typescript
+// In agent setup
+if (chat.mcpTools?.github) {
+  const mcpConfig = generateMcpConfig(sandboxId, APP_URL)
+  await sandbox.writeFile("~/.claude.json", JSON.stringify(mcpConfig))
+}
+```
 
 ---
 
@@ -341,403 +339,139 @@ export function generateMcpConfig(sandboxId: string, baseUrl: string): McpConfig
 
 | File | Purpose |
 |------|---------|
-| `packages/mcp-server/package.json` | Package configuration |
-| `packages/mcp-server/tsconfig.json` | TypeScript config |
-| `packages/mcp-server/src/index.ts` | Package entry point |
-| `packages/mcp-server/src/server.ts` | MCP server core (Smithery SDK) |
-| `packages/mcp-server/src/providers/base.ts` | Tool provider interface |
-| `packages/mcp-server/src/providers/github/index.ts` | GitHub tools implementation |
-| `packages/mcp-server/src/providers/github/tools.ts` | GitHub tool definitions |
-| `packages/mcp-server/src/types.ts` | TypeScript types |
-| `packages/web/app/api/mcp/[sandboxId]/sse/route.ts` | SSE endpoint |
-| `packages/web/app/api/mcp/[sandboxId]/message/route.ts` | Message endpoint |
+| `packages/web/app/api/mcp/[sandboxId]/sse/route.ts` | MCP proxy SSE endpoint |
+| `packages/web/app/api/mcp/[sandboxId]/message/route.ts` | MCP message handler |
 | `packages/web/app/api/chat/[id]/mcp-tools/route.ts` | MCP settings API |
-| `packages/web/components/chat/McpToolsSettings.tsx` | Settings UI component |
-| `packages/web/lib/mcp-auth.ts` | MCP authentication utilities |
+| `packages/web/components/chat/McpToolsSettings.tsx` | Settings UI |
+| `packages/web/lib/mcp/smithery.ts` | Smithery connection helpers |
 | `packages/agent-configuration/src/mcp.ts` | MCP config generation |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `packages/web/prisma/schema.prisma` | Add `mcpTools Json?` to Chat model |
-| `packages/web/lib/agent-session.ts` | Add MCP config to session options |
-| `packages/agents/src/agents/claude/index.ts` | Add MCP setup capability |
-| `packages/web/package.json` | Add mcp-server dependency |
-| `package.json` (root) | Add mcp-server to workspaces |
+| `packages/web/prisma/schema.prisma` | Add `mcpTools Json?` to Chat |
+| `packages/web/package.json` | Add `@smithery/api` |
+| `packages/web/lib/agent-session.ts` | Add MCP config to session |
+| `packages/agents/src/agents/claude/index.ts` | Write MCP config if enabled |
 
 ---
 
-## GitHub Tools Specification
+## Available Tools (from @smithery-ai/github)
 
-### 1. `github_list_issues`
+Smithery's GitHub MCP server provides these tools:
+
+| Tool | Description |
+|------|-------------|
+| `search_repositories` | Search GitHub repositories |
+| `search_code` | Search code in repositories |
+| `search_users` | Search GitHub users |
+| `get_repository` | Get repository details |
+| `get_issue` | Get issue details |
+| `create_issue` | Create a new issue |
+| `add_issue_comment` | Add comment to issue |
+| `list_pull_requests` | List pull requests |
+| `get_pull_request` | Get PR details |
+| `get_pull_request_diff` | Get PR diff |
+| `create_pull_request_review` | Review a PR |
+| `get_file_contents` | Get file contents |
+| `list_branches` | List branches |
+
+---
+
+## Adding More Apps (Future)
+
+Adding Jira, Slack, etc. is simple:
+
 ```typescript
-{
-  name: "github_list_issues",
-  description: "List issues in the repository",
-  inputSchema: {
-    type: "object",
-    properties: {
-      state: { type: "string", enum: ["open", "closed", "all"], default: "open" },
-      labels: { type: "array", items: { type: "string" } },
-      assignee: { type: "string" },
-      creator: { type: "string" },
-      since: { type: "string", format: "date-time" },
-      per_page: { type: "number", default: 30, maximum: 100 },
-      page: { type: "number", default: 1 }
-    }
-  }
+// In MCP proxy endpoint
+
+const connections: Record<string, string> = {
+  github: "https://server.smithery.ai/@smithery-ai/github",
+  jira: "https://server.smithery.ai/@smithery-ai/jira",
+  slack: "https://server.smithery.ai/@smithery-ai/slack",
+  linear: "https://server.smithery.ai/@smithery-ai/linear",
 }
+
+// Connect to all enabled providers
+const enabledConnections = Object.entries(mcpTools)
+  .filter(([_, enabled]) => enabled)
+  .map(([provider]) => createConnection({
+    mcpUrl: connections[provider],
+    headers: { Authorization: `Bearer ${tokens[provider]}` }
+  }))
 ```
 
-### 2. `github_get_issue`
-```typescript
-{
-  name: "github_get_issue",
-  description: "Get details of a specific issue including comments",
-  inputSchema: {
-    type: "object",
-    properties: {
-      issue_number: { type: "number" },
-      include_comments: { type: "boolean", default: true }
-    },
-    required: ["issue_number"]
-  }
-}
-```
-
-### 3. `github_create_issue`
-```typescript
-{
-  name: "github_create_issue",
-  description: "Create a new issue",
-  inputSchema: {
-    type: "object",
-    properties: {
-      title: { type: "string" },
-      body: { type: "string" },
-      labels: { type: "array", items: { type: "string" } },
-      assignees: { type: "array", items: { type: "string" } }
-    },
-    required: ["title"]
-  }
-}
-```
-
-### 4. `github_update_issue`
-```typescript
-{
-  name: "github_update_issue",
-  description: "Update an existing issue",
-  inputSchema: {
-    type: "object",
-    properties: {
-      issue_number: { type: "number" },
-      title: { type: "string" },
-      body: { type: "string" },
-      state: { type: "string", enum: ["open", "closed"] },
-      labels: { type: "array", items: { type: "string" } },
-      assignees: { type: "array", items: { type: "string" } }
-    },
-    required: ["issue_number"]
-  }
-}
-```
-
-### 5. `github_list_pull_requests`
-```typescript
-{
-  name: "github_list_pull_requests",
-  description: "List pull requests in the repository",
-  inputSchema: {
-    type: "object",
-    properties: {
-      state: { type: "string", enum: ["open", "closed", "all"], default: "open" },
-      head: { type: "string" },
-      base: { type: "string" },
-      sort: { type: "string", enum: ["created", "updated", "popularity"], default: "created" },
-      direction: { type: "string", enum: ["asc", "desc"], default: "desc" },
-      per_page: { type: "number", default: 30, maximum: 100 }
-    }
-  }
-}
-```
-
-### 6. `github_get_pull_request`
-```typescript
-{
-  name: "github_get_pull_request",
-  description: "Get details of a specific pull request",
-  inputSchema: {
-    type: "object",
-    properties: {
-      pull_number: { type: "number" },
-      include_diff: { type: "boolean", default: false },
-      include_comments: { type: "boolean", default: true }
-    },
-    required: ["pull_number"]
-  }
-}
-```
-
-### 7. `github_get_pr_diff`
-```typescript
-{
-  name: "github_get_pr_diff",
-  description: "Get the diff/changed files for a pull request",
-  inputSchema: {
-    type: "object",
-    properties: {
-      pull_number: { type: "number" }
-    },
-    required: ["pull_number"]
-  }
-}
-```
-
-### 8. `github_add_comment`
-```typescript
-{
-  name: "github_add_comment",
-  description: "Add a comment to an issue or pull request",
-  inputSchema: {
-    type: "object",
-    properties: {
-      issue_number: { type: "number" },
-      body: { type: "string" }
-    },
-    required: ["issue_number", "body"]
-  }
-}
-```
-
-### 9. `github_search_code`
-```typescript
-{
-  name: "github_search_code",
-  description: "Search for code in the repository",
-  inputSchema: {
-    type: "object",
-    properties: {
-      query: { type: "string" },
-      path: { type: "string" },
-      extension: { type: "string" }
-    },
-    required: ["query"]
-  }
-}
-```
-
-### 10. `github_get_file_contents`
-```typescript
-{
-  name: "github_get_file_contents",
-  description: "Get contents of a file at a specific ref (branch/tag/commit)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string" },
-      ref: { type: "string", description: "Branch, tag, or commit SHA" }
-    },
-    required: ["path"]
-  }
-}
-```
-
-### 11. `github_create_pr_review`
-```typescript
-{
-  name: "github_create_pr_review",
-  description: "Create a review on a pull request",
-  inputSchema: {
-    type: "object",
-    properties: {
-      pull_number: { type: "number" },
-      body: { type: "string" },
-      event: { type: "string", enum: ["APPROVE", "REQUEST_CHANGES", "COMMENT"] },
-      comments: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            path: { type: "string" },
-            line: { type: "number" },
-            body: { type: "string" }
-          },
-          required: ["path", "line", "body"]
-        }
-      }
-    },
-    required: ["pull_number", "event"]
-  }
-}
-```
-
-### 12. `github_list_branches`
-```typescript
-{
-  name: "github_list_branches",
-  description: "List branches in the repository",
-  inputSchema: {
-    type: "object",
-    properties: {
-      protected_only: { type: "boolean", default: false },
-      per_page: { type: "number", default: 30, maximum: 100 }
-    }
-  }
-}
-```
+For each new provider:
+1. Add to UI toggle
+2. Store credentials (user connects Jira/Slack via OAuth)
+3. Connect to Smithery's MCP server for that provider
 
 ---
 
 ## Security Considerations
 
-### Token Isolation
-- GitHub tokens NEVER leave the server
-- Sandbox only knows the MCP endpoint URL
-- Authentication happens via sandboxId lookup server-side
+### Token Flow
+1. User logs in with GitHub OAuth → token stored in YOUR database
+2. When agent needs tools → YOUR server looks up token
+3. Token sent to Smithery in header (ephemeral, not stored)
+4. Smithery calls GitHub API → returns results
+5. Agent receives results only, NEVER the token
 
 ### Per-Chat Opt-In
 - Tools disabled by default
-- User must explicitly enable per chat
+- User explicitly enables per chat
 - Can be revoked anytime
 
 ### Scoped Access
-- MCP server only allows operations on the chat's associated repo
-- Cross-repo access explicitly denied
-- `owner/repo` extracted from Chat record and enforced
-
-### Request Validation
-- Validate sandboxId exists and maps to valid chat
-- Verify chat belongs to authenticated user (via sandbox ownership)
-- Check mcpTools settings before allowing any tool call
+- Tools scoped to chat's repository
+- Agent cannot access other repos
 
 ### Audit Trail
-- All tool invocations logged with:
-  - Timestamp
-  - User ID
-  - Sandbox ID
-  - Chat ID
-  - Tool name
-  - Parameters (sanitized)
-  - Result status
-  - Response time
-
----
-
-## Future Extensions
-
-### Additional Tool Providers
-
-The modular architecture makes it easy to add:
-
-```typescript
-// packages/mcp-server/src/providers/jira/index.ts
-export class JiraProvider implements ToolProvider {
-  name = "jira"
-  tools = [
-    "jira_list_issues",
-    "jira_get_issue",
-    "jira_create_issue",
-    "jira_add_comment",
-    // ...
-  ]
-}
-
-// packages/mcp-server/src/providers/slack/index.ts
-export class SlackProvider implements ToolProvider {
-  name = "slack"
-  tools = [
-    "slack_send_message",
-    "slack_list_channels",
-    // ...
-  ]
-}
-
-// packages/mcp-server/src/providers/linear/index.ts
-export class LinearProvider implements ToolProvider {
-  name = "linear"
-  tools = [
-    "linear_list_issues",
-    "linear_create_issue",
-    // ...
-  ]
-}
-```
-
-Each provider:
-1. Implements the `ToolProvider` interface
-2. Gets registered in the MCP server
-3. Appears in the UI toggle
-4. Gets its own credential storage
-
-### User-Configurable Permissions
-- Allow users to enable/disable specific tools within a provider
-- Example: Enable `github_list_issues` but disable `github_create_issue`
-
-### Organization-Level Defaults
-- Org admins can set default tool settings for all chats
-- Individual users can override if permitted
+- Log all MCP tool invocations
+- Track: userId, chatId, tool, timestamp
 
 ---
 
 ## Implementation Order
 
-### Phase 1: Core Infrastructure (~3 days)
-- [ ] Create `packages/mcp-server` with Smithery SDK
-- [ ] Implement GitHub provider with all tools
-- [ ] Create MCP server with HTTP/SSE transport
+### Phase 1: Core (~2 days)
+- [ ] Add `mcpTools` to Chat model, run migration
+- [ ] Install `@smithery/api` package
+- [ ] Create MCP proxy endpoint (`/api/mcp/[sandboxId]/sse`)
 
-### Phase 2: API Integration (~2 days)
-- [ ] Create `/api/mcp/[sandboxId]/sse` endpoint
-- [ ] Create `/api/mcp/[sandboxId]/message` endpoint
-- [ ] Implement authentication & scoping logic
-
-### Phase 3: Database & Settings (~1 day)
-- [ ] Add `mcpTools` column to Chat model
-- [ ] Create API for updating chat MCP settings
-- [ ] Run migration
-
-### Phase 4: UI (~1 day)
-- [ ] Create McpToolsSettings component
+### Phase 2: Settings (~1 day)
+- [ ] Create MCP settings API endpoint
+- [ ] Create McpToolsSettings UI component
 - [ ] Integrate into chat settings panel
-- [ ] Add toggle state management
 
-### Phase 5: Agent Configuration (~1 day)
-- [ ] Generate MCP config for Claude Code
+### Phase 3: Agent Config (~1 day)
+- [ ] Create MCP config generator
 - [ ] Update agent setup to write config if enabled
-- [ ] Test end-to-end connection
+- [ ] Test end-to-end
 
-### Phase 6: Hardening (~1 day)
+### Phase 4: Polish (~1 day)
 - [ ] Add rate limiting
 - [ ] Add audit logging
-- [ ] Security review
+- [ ] Error handling & edge cases
 
-**Total Estimated Time: ~9 days**
+**Total Estimated Time: ~5 days**
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests
-- Tool handler functions
-- Authentication logic
-- Settings validation
-- Rate limiting
-
 ### Integration Tests
-- MCP protocol communication
-- SSE endpoint streaming
-- Tool call routing
-- Settings persistence
+- Enable GitHub tools → verify agent can use them
+- Disable tools → verify 403 response
+- Invalid sandboxId → verify 404
 
 ### End-to-End Tests
-- Enable tools in UI → verify agent can use them
-- Disable tools → verify agent cannot access
-- Test each GitHub tool with real API
+- Create issue via agent
+- List PRs via agent
+- Add comment via agent
 
 ### Security Tests
-- Verify tokens never exposed in responses
-- Verify cross-repo access denied
-- Verify disabled tools return 403
-- Test sandboxId enumeration protection
+- Verify token never in response body
+- Verify disabled tools blocked
+- Verify cross-chat access denied
