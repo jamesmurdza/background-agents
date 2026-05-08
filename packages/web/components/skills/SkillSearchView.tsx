@@ -70,12 +70,14 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo }: SkillSearc
     }
 
     setIsSearching(true)
+    setError(null) // Clear any stale install/search errors
     searchTimeoutRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/skills/search?q=${encodeURIComponent(query.trim())}`)
         if (res.ok) {
           const data = await res.json()
           setSearchResults(data.results ?? [])
+          setError(null) // Clear errors on successful search
         } else {
           setError("Search failed — registry may be unavailable")
           setSearchResults([])
@@ -136,7 +138,7 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo }: SkillSearc
         throw new Error("Failed to save skills")
       }
 
-      // Step 2: Install in sandbox
+      // Step 2: Install in sandbox (includes --list pre-validation)
       const installRes = await fetch("/api/skills/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,18 +147,35 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo }: SkillSearc
 
       if (installRes.ok) {
         const result = await installRes.json()
-        setInstallProgress({ installed: result.installed, total: result.total })
+        const installedCount = result.installed ?? 0
+        setInstallProgress({ installed: installedCount, total: result.total })
+
+        // Surface per-skill failures
+        const failures = (result.results ?? []).filter(
+          (r: { success: boolean; error?: string }) => !r.success
+        )
+        if (failures.length > 0) {
+          const failMsgs = failures.map(
+            (f: { fullHandle: string; error?: string }) =>
+              `${f.fullHandle}: ${f.error ?? "unknown error"}`
+          )
+          setError(`${failures.length} skill(s) failed:\n${failMsgs.join("\n")}`)
+        }
+
+        // Refresh installed list and clear selection
+        await fetchInstalledSkills()
+        setSelectedHandles(new Set())
+
+        // Show installed tab only if at least one skill succeeded
+        setTimeout(() => {
+          if (installedCount > 0) {
+            setActiveTab("installed")
+          }
+          setInstallProgress(null)
+        }, 2000)
+      } else {
+        throw new Error("Install request failed")
       }
-
-      // Refresh installed list and clear selection
-      await fetchInstalledSkills()
-      setSelectedHandles(new Set())
-
-      // Show installed tab after successful install
-      setTimeout(() => {
-        setActiveTab("installed")
-        setInstallProgress(null)
-      }, 1500)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Installation failed")
       setInstallProgress(null)
