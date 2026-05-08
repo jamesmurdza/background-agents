@@ -186,7 +186,9 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo }: SkillSearc
 
   const handleUninstall = async (skillId: string) => {
     try {
-      const res = await fetch(`/api/skills/${skillId}`, { method: "DELETE" })
+      const res = await fetch(`/api/skills/${skillId}?chatId=${encodeURIComponent(chatId)}`, {
+        method: "DELETE",
+      })
       if (res.ok) {
         setInstalledSkills((prev) => prev.filter((s) => s.id !== skillId))
       }
