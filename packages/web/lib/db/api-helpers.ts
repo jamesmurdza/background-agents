@@ -267,6 +267,7 @@ export async function getChatWithAuth(
   status: string
   parentChatId: string | null
   needsSync: boolean
+  conflictState: unknown
   environmentVariables: unknown
   createdAt: Date
   updatedAt: Date

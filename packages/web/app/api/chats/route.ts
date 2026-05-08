@@ -35,6 +35,7 @@ interface ChatResponse {
   status: string
   parentChatId: string | null
   needsSync: boolean
+  conflictState: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] } | null
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -92,6 +93,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       status: chat.status,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
+      conflictState: chat.conflictState as ChatResponse["conflictState"],
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
@@ -200,6 +202,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       status: chat.status,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
+      conflictState: null,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),

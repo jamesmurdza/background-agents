@@ -281,6 +281,18 @@ export async function GET(req: Request) {
               }
 
               conflictState = { inRebase, inMerge, conflictedFiles }
+
+              // Persist conflict state to DB so we don't need to query sandbox on chat load
+              if (chatId) {
+                await prisma.chat.update({
+                  where: { id: chatId },
+                  data: {
+                    conflictState: (inRebase || inMerge)
+                      ? (conflictState as unknown as Prisma.InputJsonValue)
+                      : Prisma.JsonNull,
+                  },
+                })
+              }
             } catch {
               // Best effort - don't fail the complete event if we can't check conflict state
             }

@@ -54,8 +54,22 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
   const [commitsAhead, setCommitsAhead] = useState(0)
   const [commitsLoading, setCommitsLoading] = useState(false)
 
-  // Conflict state
-  const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>(EMPTY_CONFLICT_STATE)
+  // Conflict state - initialize from chat.conflictState (persisted in DB)
+  const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>(() => {
+    if (chat?.conflictState) {
+      return chat.conflictState
+    }
+    return EMPTY_CONFLICT_STATE
+  })
+
+  // Keep conflict state in sync when chat changes
+  useEffect(() => {
+    if (chat?.conflictState) {
+      setRebaseConflict(chat.conflictState)
+    } else {
+      setRebaseConflict(EMPTY_CONFLICT_STATE)
+    }
+  }, [chat?.id, chat?.conflictState])
 
   // Always use "project" as the directory name - sandbox/create always uses this
   const repoName = "project"
@@ -441,12 +455,9 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
     }
   }, [sandboxId, repoName])
 
-  // Check status on mount/sandbox change
-  useEffect(() => {
-    if (sandboxId) {
-      checkRebaseStatus()
-    }
-  }, [sandboxId, checkRebaseStatus])
+  // Note: We no longer check rebase status on mount. Conflict state is loaded
+  // from chat.conflictState (persisted in DB). The checkRebaseStatus function
+  // is still available for manual refresh if needed.
 
   return {
     mergeOpen,

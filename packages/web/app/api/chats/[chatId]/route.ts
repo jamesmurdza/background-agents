@@ -45,6 +45,7 @@ interface ChatWithMessagesResponse {
   status: string
   parentChatId: string | null
   needsSync: boolean
+  conflictState: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] } | null
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -141,6 +142,7 @@ export async function GET(
       status: chat.status,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
+      conflictState: chat.conflictState as ChatWithMessagesResponse["conflictState"],
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
@@ -247,6 +249,7 @@ export async function PATCH(
       status: updatedChat.status,
       parentChatId: updatedChat.parentChatId,
       needsSync: updatedChat.needsSync,
+      conflictState: updatedChat.conflictState as ChatWithMessagesResponse["conflictState"],
       createdAt: updatedChat.createdAt.getTime(),
       updatedAt: updatedChat.updatedAt.getTime(),
       lastActiveAt: updatedChat.lastActiveAt.getTime(),

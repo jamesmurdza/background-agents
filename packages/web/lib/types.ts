@@ -166,6 +166,13 @@ export interface Chat {
    *  failed. Suppresses auto-retry on subsequent selects until the user
    *  explicitly retries. */
   messagesLoadFailed?: boolean
+
+  /** Git conflict state persisted from DB. Set when merge/rebase conflicts occur. */
+  conflictState?: {
+    inRebase: boolean
+    inMerge: boolean
+    conflictedFiles: string[]
+  } | null
 }
 
 export type ChatStatus = "pending" | "creating" | "ready" | "running" | "error"

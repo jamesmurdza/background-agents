@@ -28,6 +28,7 @@ export interface ChatResponse {
   status: string
   parentChatId: string | null
   needsSync: boolean
+  conflictState: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] } | null
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -232,6 +233,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     status: serverChat.status as Chat["status"],
     parentChatId: serverChat.parentChatId || undefined,
     needsSync: serverChat.needsSync,
+    conflictState: serverChat.conflictState,
     createdAt: serverChat.createdAt,
     updatedAt: serverChat.updatedAt,
     lastActiveAt: serverChat.lastActiveAt,

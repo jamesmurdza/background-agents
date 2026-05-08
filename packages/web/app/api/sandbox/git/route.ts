@@ -1,6 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
+import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@upstream/daytona-git"
 import { PATHS } from "@/lib/constants"
+import { prisma } from "@/lib/db/prisma"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 
@@ -140,6 +142,13 @@ export async function POST(req: Request) {
                   `Merge conflict: ${currentBranch} into ${targetBranch}. Conflicted files: ${fileList}`,
                   true
                 )
+                // Save conflict state to DB
+                await prisma.chat.update({
+                  where: { id: chatId },
+                  data: {
+                    conflictState: { inRebase: false, inMerge: true, conflictedFiles } as unknown as Prisma.InputJsonValue,
+                  },
+                })
               }
 
               return Response.json(
@@ -251,6 +260,13 @@ export async function POST(req: Request) {
                 `Rebase conflict: ${currentBranch} onto ${targetBranch}. Conflicted files: ${fileList}`,
                 true
               )
+              // Save conflict state to DB
+              await prisma.chat.update({
+                where: { id: chatId },
+                data: {
+                  conflictState: { inRebase: true, inMerge: false, conflictedFiles } as unknown as Prisma.InputJsonValue,
+                },
+              })
             }
 
             return Response.json({
@@ -325,6 +341,11 @@ export async function POST(req: Request) {
         }
         if (chatId) {
           await createGitOperationMessage(chatId, `Rebase aborted. Your branch is back to its previous state.`)
+          // Clear conflict state in DB
+          await prisma.chat.update({
+            where: { id: chatId },
+            data: { conflictState: Prisma.JsonNull },
+          })
         }
         return Response.json({ success: true })
       }
@@ -341,6 +362,11 @@ export async function POST(req: Request) {
         }
         if (chatId) {
           await createGitOperationMessage(chatId, `Merge aborted. Your branch is back to its previous state.`)
+          // Clear conflict state in DB
+          await prisma.chat.update({
+            where: { id: chatId },
+            data: { conflictState: Prisma.JsonNull },
+          })
         }
         return Response.json({ success: true })
       }

@@ -125,6 +125,10 @@ model Chat {
   // Sync flag for git pull on next execution
   needsSync Boolean @default(false)
 
+  // Git conflict state (persisted so we don't need to query sandbox on chat load)
+  // JSONB: { inRebase: boolean, inMerge: boolean, conflictedFiles: string[] }
+  conflictState Json?
+
   // JSONB for encrypted chat-level environment variables
   // { "KEY1": "encrypted_value1", ... }
   environmentVariables Json?
