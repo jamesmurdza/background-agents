@@ -46,6 +46,7 @@ await git.push(path, token)
 | `checkoutBranch(path, branchName)` | Switch to a branch |
 | `status(path)` | Get repository status |
 | `fetch(path, token?, refspec?)` | Fetch from remote |
+| `fetchBranch(path, branch, token?)` | Fetch a specific branch |
 | `pull(path, token?)` | Pull from remote |
 | `push(path, token?)` | Push to remote |
 

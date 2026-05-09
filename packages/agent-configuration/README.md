@@ -77,14 +77,21 @@ All agents block the same set of dangerous operations:
 import {
   // Claude Code
   setupClaudeHooks,
+  CLAUDE_HOOKS_DIR,
+  CLAUDE_HOOK_FILE,
   CLAUDE_HOOK_CONTENT,
+  CLAUDE_SETTINGS_FILE,
+  CLAUDE_SETTINGS,
 
   // Codex
   setupCodexRules,
+  CODEX_RULES_DIR,
+  CODEX_RULES_FILE,
   CODEX_RULES_CONTENT,
 
   // OpenCode
   OPENCODE_PERMISSION_ENV,
+  OPENCODE_PERMISSION_CONFIG,
   OPENCODE_PERMISSIONS,
 } from '@upstream/agent-configuration'
 ```
