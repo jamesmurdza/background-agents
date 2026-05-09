@@ -38,6 +38,16 @@ model User {
   // { "owner/repo": { "KEY1": "encrypted_value1", ... }, ... }
   repoEnvironmentVariables Json?
 
+  // Smithery connectionId for this user's GitHub MCP connection. Reused under
+  // the GitHub App flow as a stable handle to the per-user Smithery proxy
+  // connection (we update its Authorization header on each token rotation).
+  smitheryGithubConnectionId String?
+
+  // GitHub App installation id, captured in the install callback. Null until
+  // the user installs our GitHub App on at least one account/org. This is what
+  // we use to mint short-lived installation access tokens for the agent.
+  githubAppInstallationId String?
+
   chats         Chat[]
   accounts      Account[]
   sessions      Session[]

@@ -140,6 +140,15 @@ Your plan should include:
   }
 
   // Set up MCP configuration if tools are enabled
+  console.log("[MCP] setup gate", {
+    agent,
+    sandboxId: options.sandboxId ?? null,
+    mcpBaseUrl: options.mcpBaseUrl ?? null,
+    mcpTools: options.mcpTools ?? null,
+    hasSandboxId: !!options.sandboxId,
+    hasMcpBaseUrl: !!options.mcpBaseUrl,
+    hasMcpTools: !!options.mcpTools,
+  })
   if (options.sandboxId && options.mcpBaseUrl && options.mcpTools) {
     await setupMcpForAgent(sandbox, {
       agent,
@@ -147,6 +156,13 @@ Your plan should include:
       baseUrl: options.mcpBaseUrl,
       mcpTools: options.mcpTools,
     })
+  } else {
+    const missing = [
+      !options.sandboxId && "sandboxId",
+      !options.mcpBaseUrl && "mcpBaseUrl (set NEXT_PUBLIC_APP_URL to a public URL)",
+      !options.mcpTools && "mcpTools (toggle a tool on in the MCP modal)",
+    ].filter(Boolean)
+    console.warn(`[MCP] Skipping setup — missing: ${missing.join(", ")}`)
   }
 
   // For OpenCode, inject permission rules via environment variable

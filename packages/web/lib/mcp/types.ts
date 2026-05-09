@@ -30,7 +30,7 @@ export const SMITHERY_MCP_SERVERS: Record<keyof McpToolsConfig, string> = {
  * Agents that support MCP
  */
 export const MCP_SUPPORTED_AGENTS = [
-  "claude",
+  "claude-code",
   "codex",
   "gemini",
   "opencode",

@@ -36,7 +36,7 @@ export interface McpToolsConfig {
  * Agents that support MCP
  */
 export const MCP_SUPPORTED_AGENTS = [
-  "claude",
+  "claude-code",
   "codex",
   "gemini",
   "opencode",
@@ -71,7 +71,7 @@ export function generateMcpConfig(
   const mcpUrl = `${baseUrl}/api/mcp/${sandboxId}/sse`
 
   switch (agent) {
-    case "claude":
+    case "claude-code":
       return generateClaudeConfig(mcpUrl)
     case "codex":
       return generateCodexConfig(mcpUrl)
@@ -212,23 +212,41 @@ export async function setupMcpForAgent(
 ): Promise<void> {
   const { agent, sandboxId, baseUrl, mcpTools } = options
 
+  console.log(`[MCP] setupMcpForAgent called`, {
+    agent,
+    sandboxId,
+    baseUrl,
+    mcpTools,
+  })
+
   // Skip if agent doesn't support MCP
   if (!agentSupportsMcp(agent)) {
-    console.log(`[MCP] Skipping MCP setup for ${agent} (not supported)`)
+    console.warn(
+      `[MCP] Skipping setup for "${agent}" — agent not in MCP_SUPPORTED_AGENTS (${MCP_SUPPORTED_AGENTS.join(", ")})`
+    )
     return
   }
 
   // Skip if no MCP tools enabled
-  if (!mcpTools || !Object.values(mcpTools).some(Boolean)) {
-    console.log(`[MCP] Skipping MCP setup for ${agent} (no tools enabled)`)
+  const enabled = mcpTools
+    ? Object.entries(mcpTools).filter(([, v]) => v).map(([k]) => k)
+    : []
+  if (enabled.length === 0) {
+    console.warn(`[MCP] Skipping setup for "${agent}" — no tools enabled in mcpTools`)
     return
   }
+  console.log(`[MCP] Tools enabled for "${agent}":`, enabled)
 
   // Generate config for this agent
   const config = generateMcpConfig(agent, sandboxId, baseUrl)
   if (!config) {
+    console.warn(`[MCP] generateMcpConfig returned null for "${agent}"`)
     return
   }
+  console.log(`[MCP] Generated config for "${agent}":`, {
+    filePath: config.filePath,
+    content: config.content,
+  })
 
   // Get directory from file path
   const dir = config.filePath.substring(0, config.filePath.lastIndexOf("/"))
@@ -248,7 +266,17 @@ export async function setupMcpForAgent(
     )
   }
 
-  console.log(`[MCP] Wrote MCP config for ${agent} to ${config.filePath}`)
+  // Verify what was actually written so we can rule out merge problems
+  try {
+    const verify = (await sandbox.process.executeCommand(
+      `cat "${config.filePath}"`
+    )) as { result: string }
+    console.log(
+      `[MCP] Wrote MCP config for "${agent}" to ${config.filePath} — final contents:\n${verify.result}`
+    )
+  } catch (err) {
+    console.warn(`[MCP] Wrote config but failed to read it back: ${String(err)}`)
+  }
 }
 
 /**

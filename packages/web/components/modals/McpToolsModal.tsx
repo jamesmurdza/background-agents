@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X, Loader2, Github, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -8,6 +8,11 @@ import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Switch } from "@/components/ui/switch"
 import type { McpToolsConfig } from "@/lib/mcp/types"
+
+interface ConnectResponse {
+  connected: boolean
+  installUrl?: string
+}
 
 interface McpToolsModalProps {
   open: boolean
@@ -124,19 +129,102 @@ export function McpToolsModal({
   const [mcpTools, setMcpTools] = useState<McpToolsConfig>({})
   const [isSaving, setIsSaving] = useState(false)
 
+  // GitHub-via-Smithery connection state
+  const [githubConnected, setGithubConnected] = useState<boolean | null>(null)
+  const [connectingGithub, setConnectingGithub] = useState(false)
+  const [connectError, setConnectError] = useState<string | null>(null)
+
   // Drag to dismiss (mobile only)
   const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
     onClose,
     enabled: isMobile,
   })
 
-  // Reset state when modal opens
+  // Reset state and check current connection status when modal opens
   useEffect(() => {
-    if (open) {
-      setMcpTools(initialMcpTools)
-      setIsSaving(false)
+    if (!open) return
+    setMcpTools(initialMcpTools)
+    setIsSaving(false)
+    setConnectError(null)
+
+    let cancelled = false
+    fetch("/api/mcp/connect/github")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: ConnectResponse | null) => {
+        if (cancelled) return
+        setGithubConnected(data?.connected ?? false)
+      })
+      .catch(() => {
+        if (!cancelled) setGithubConnected(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [open, initialMcpTools])
+
+  /**
+   * Open the GitHub App install page in a popup, then poll until our backend
+   * sees the install (the callback route saves installation_id) or the user
+   * gives up.
+   */
+  const runGithubConnectFlow = useCallback(async () => {
+    setConnectingGithub(true)
+    setConnectError(null)
+    try {
+      const res = await fetch("/api/mcp/connect/github", { method: "POST" })
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(text || `Connect failed (${res.status})`)
+      }
+      const data: ConnectResponse = await res.json()
+
+      if (data.connected) {
+        setGithubConnected(true)
+        return true
+      }
+
+      if (!data.installUrl) {
+        throw new Error("Server did not return an install URL.")
+      }
+
+      const popup = window.open(
+        data.installUrl,
+        "github-app-install",
+        "width=900,height=800,resizable=yes,scrollbars=yes"
+      )
+      if (!popup) {
+        throw new Error("Popup was blocked. Allow popups and try again.")
+      }
+
+      // Poll the connect endpoint until the user finishes the install
+      // callback (which writes installation_id to the DB), or the popup
+      // closes without success, or we hit the safety timeout.
+      const start = Date.now()
+      const TIMEOUT_MS = 5 * 60 * 1000
+      while (Date.now() - start < TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, 1500))
+        const poll = await fetch("/api/mcp/connect/github").then((r) =>
+          r.ok ? (r.json() as Promise<ConnectResponse>) : null
+        )
+        if (poll?.connected) {
+          setGithubConnected(true)
+          if (!popup.closed) popup.close()
+          return true
+        }
+        if (popup.closed && !poll?.connected) {
+          throw new Error("Install window closed before completion.")
+        }
+      }
+      throw new Error("Timed out waiting for GitHub App install.")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to connect GitHub"
+      setConnectError(msg)
+      return false
+    } finally {
+      setConnectingGithub(false)
+    }
+  }, [])
 
   const handleSave = async () => {
     if (isSaving) return
@@ -151,8 +239,38 @@ export function McpToolsModal({
     }
   }
 
-  const handleToggleTool = (key: keyof McpToolsConfig, enabled: boolean) => {
+  const handleToggleTool = async (
+    key: keyof McpToolsConfig,
+    enabled: boolean
+  ) => {
+    // Turning GitHub on requires a Smithery connection. If we don't have one
+    // yet, walk the user through the setup popup before flipping the toggle.
+    if (key === "github" && enabled && !githubConnected) {
+      const ok = await runGithubConnectFlow()
+      if (!ok) return
+    }
     setMcpTools((prev) => ({ ...prev, [key]: enabled }))
+  }
+
+  const handleDisconnectGithub = async () => {
+    setConnectingGithub(true)
+    setConnectError(null)
+    try {
+      const res = await fetch("/api/mcp/connect/github", { method: "DELETE" })
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(text || `Disconnect failed (${res.status})`)
+      }
+      setGithubConnected(false)
+      // Also flip the chat-level toggle off so the proxy doesn't try to use
+      // the now-deleted connection.
+      setMcpTools((prev) => ({ ...prev, github: false }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to disconnect GitHub"
+      setConnectError(msg)
+    } finally {
+      setConnectingGithub(false)
+    }
   }
 
   const renderContent = () => (
@@ -163,9 +281,26 @@ export function McpToolsModal({
           <div className="text-sm">
             <p className="font-medium text-yellow-500">Agent not supported</p>
             <p className="text-muted-foreground mt-1">
-              The current agent does not support MCP tools. Switch to Claude, Codex, Gemini, OpenCode, or Goose to use MCP tools.
+              The current agent does not support MCP tools. Switch to Claude Code, Codex, Gemini, OpenCode, or Goose to use MCP tools.
             </p>
           </div>
+        </div>
+      )}
+
+      {connectError && (
+        <div className="flex items-start gap-3 p-3 mb-4 rounded-lg bg-red-500/10 border border-red-500/20">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-red-500">GitHub connect failed</p>
+            <p className="text-muted-foreground mt-1">{connectError}</p>
+          </div>
+        </div>
+      )}
+
+      {connectingGithub && (
+        <div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-muted text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Install the GitHub App in the popup window. Waiting…</span>
         </div>
       )}
 
@@ -176,10 +311,33 @@ export function McpToolsModal({
             tool={tool}
             enabled={mcpTools[tool.key] ?? false}
             onChange={(enabled) => handleToggleTool(tool.key, enabled)}
-            disabled={!agentSupportsMcp}
+            disabled={
+              !agentSupportsMcp ||
+              (tool.key === "github" && connectingGithub)
+            }
           />
         ))}
       </div>
+
+      {agentSupportsMcp && (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            GitHub access is granted by installing our GitHub App on the repos
+            you choose. Tokens are minted server-side and never exposed to the
+            agent.
+          </p>
+          {githubConnected && (
+            <button
+              type="button"
+              onClick={handleDisconnectGithub}
+              disabled={connectingGithub}
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50 cursor-pointer"
+            >
+              Disconnect GitHub
+            </button>
+          )}
+        </div>
+      )}
     </>
   )
 

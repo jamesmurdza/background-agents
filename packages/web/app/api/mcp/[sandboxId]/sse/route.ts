@@ -1,33 +1,30 @@
 /**
- * MCP Proxy Endpoint - Smithery Integration
+ * MCP Proxy — JSON-RPC ↔ Smithery REST bridge
  *
- * This endpoint acts as a proxy between agents and Smithery's hosted MCP servers.
- * It looks up the user's GitHub token from the database and forwards requests
- * to Smithery's GitHub MCP server (https://github.run.tools).
- *
- * Security:
- * - Token is looked up from database (never sent by agent)
- * - Agent only provides sandboxId for authentication
- * - Token is passed to Smithery, never exposed to agent
+ * The agent (in a Daytona sandbox) speaks raw MCP JSON-RPC to this endpoint.
+ * We translate each method into Smithery's REST API using the user's
+ * connectionId. Smithery is just transport — auth comes from a short-lived
+ * installation token minted from our own GitHub App and passed to Smithery
+ * as the connection's Authorization header.
  *
  * Flow:
- * 1. Agent connects to /api/mcp/[sandboxId]/sse
- * 2. Server looks up GitHub token from DB
- * 3. Server proxies MCP requests to https://github.run.tools with the token
- * 4. Smithery calls GitHub API and returns results
- * 5. Server forwards results to agent (token never visible to agent)
+ *   1. Agent → POST /api/mcp/[sandboxId]/sse  (JSON-RPC)
+ *   2. Server → look up Chat → User.githubAppInstallationId
+ *   3. Server → ensure cached installation token is fresh; if we rotated,
+ *      push the new header to Smithery's connection
+ *   4. Server → smithery.connections.tools.list/call
+ *   5. Server → wrap response as MCP JSON-RPC and return to agent
  */
 
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { parseMcpToolsConfig } from "@/lib/mcp/types"
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Smithery's GitHub MCP server URL */
-const SMITHERY_GITHUB_MCP_URL = "https://github.run.tools"
+import {
+  getSmithery,
+  SMITHERY_NAMESPACE,
+  setGithubConnectionAuth,
+} from "@/lib/mcp/smithery-client"
+import { getInstallationToken } from "@/lib/github/app"
 
 // =============================================================================
 // Types
@@ -51,171 +48,180 @@ interface McpResponse {
   }
 }
 
-interface ChatWithUser {
-  id: string
+interface ChatLookup {
+  chatId: string
   userId: string
-  repo: string
-  agent: string
   mcpTools: unknown
-  user: {
-    accounts: Array<{
-      provider: string
-      access_token: string | null
-    }>
-  }
+  githubAppInstallationId: string
+  smitheryGithubConnectionId: string
 }
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
-/**
- * Look up chat by sandboxId and get user's GitHub token
- */
-async function getChatAndToken(
+async function getChatContext(
   sandboxId: string
-): Promise<{ chat: ChatWithUser; githubToken: string } | null> {
+): Promise<
+  | { chat: ChatLookup; connectionId: string }
+  | { error: "chat_not_found" | "github_not_connected" | "tools_disabled" }
+> {
   const chat = await prisma.chat.findFirst({
     where: { sandboxId },
-    include: {
+    select: {
+      id: true,
+      userId: true,
+      mcpTools: true,
       user: {
-        include: {
-          accounts: {
-            where: { provider: "github" },
-            select: {
-              provider: true,
-              access_token: true,
-            },
-          },
+        select: {
+          githubAppInstallationId: true,
+          smitheryGithubConnectionId: true,
         },
       },
     },
   })
 
-  if (!chat) return null
+  if (!chat) {
+    console.warn(`[MCP-proxy] No chat found for sandboxId=${sandboxId}`)
+    return { error: "chat_not_found" }
+  }
 
-  const githubAccount = chat.user.accounts[0]
-  if (!githubAccount?.access_token) return null
+  const tools = parseMcpToolsConfig(chat.mcpTools)
+  if (!tools?.github) {
+    console.warn(
+      `[MCP-proxy] GitHub MCP not enabled for chat ${chat.id} — mcpTools=${JSON.stringify(
+        chat.mcpTools
+      )}`
+    )
+    return { error: "tools_disabled" }
+  }
+
+  const installationId = chat.user.githubAppInstallationId
+  const connectionId = chat.user.smitheryGithubConnectionId
+  if (!installationId || !connectionId) {
+    console.warn(
+      `[MCP-proxy] User ${chat.userId} hasn't completed the GitHub App install — installationId=${installationId} connectionId=${connectionId}`
+    )
+    return { error: "github_not_connected" }
+  }
 
   return {
-    chat: chat as ChatWithUser,
-    githubToken: githubAccount.access_token,
+    chat: {
+      chatId: chat.id,
+      userId: chat.userId,
+      mcpTools: chat.mcpTools,
+      githubAppInstallationId: installationId,
+      smitheryGithubConnectionId: connectionId,
+    },
+    connectionId,
   }
 }
 
 /**
- * Create MCP error response
+ * Make sure Smithery has a non-expired installation token. We mint/refresh
+ * here (rather than on a timer) so a long-idle session refreshes lazily on
+ * its first use. When the token rotated, also push it to Smithery so the
+ * upstream MCP call sees the new value.
  */
-function mcpError(
+async function ensureFreshAuthHeader(chat: ChatLookup): Promise<void> {
+  const fresh = await getInstallationToken(chat.githubAppInstallationId)
+  if (fresh.rotated) {
+    await setGithubConnectionAuth({
+      userId: chat.userId,
+      installationToken: fresh.token,
+    })
+  }
+}
+
+function ok(id: string | number, result: unknown): McpResponse {
+  return { jsonrpc: "2.0", id, result }
+}
+
+function err(
   id: string | number,
   code: number,
-  message: string
+  message: string,
+  data?: unknown
 ): McpResponse {
-  return {
-    jsonrpc: "2.0",
-    id,
-    error: { code, message },
-  }
-}
-
-/**
- * Proxy an MCP request to Smithery's GitHub MCP server
- */
-async function proxyToSmithery(
-  mcpRequest: McpRequest,
-  githubToken: string
-): Promise<McpResponse> {
-  try {
-    const response = await fetch(SMITHERY_GITHUB_MCP_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${githubToken}`,
-      },
-      body: JSON.stringify(mcpRequest),
-    })
-
-    if (!response.ok) {
-      // Try to get error details from response
-      let errorMessage = `Smithery error: ${response.status} ${response.statusText}`
-      try {
-        const errorBody = await response.json()
-        if (errorBody.error_description) {
-          errorMessage = errorBody.error_description
-        } else if (errorBody.error) {
-          errorMessage = errorBody.error
-        }
-      } catch {
-        // Use default error message
-      }
-      return mcpError(mcpRequest.id, -32000, errorMessage)
-    }
-
-    const result = await response.json()
-    return result as McpResponse
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return mcpError(mcpRequest.id, -32000, `Failed to proxy to Smithery: ${message}`)
-  }
+  return { jsonrpc: "2.0", id, error: { code, message, ...(data ? { data } : {}) } }
 }
 
 // =============================================================================
-// SSE Handler (for initial connection)
+// MCP method handlers
 // =============================================================================
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ sandboxId: string }> }
-): Promise<Response> {
-  const { sandboxId } = await params
-
-  // 1. Look up chat and validate
-  const result = await getChatAndToken(sandboxId)
-  if (!result) {
-    return new Response("Chat not found or GitHub not connected", { status: 404 })
-  }
-
-  const { chat } = result
-
-  // 2. Check if MCP tools are enabled
-  const mcpTools = parseMcpToolsConfig(chat.mcpTools)
-  if (!mcpTools?.github) {
-    return new Response("GitHub tools not enabled for this chat", { status: 403 })
-  }
-
-  // 3. Set up SSE stream
-  const encoder = new TextEncoder()
-  const stream = new TransformStream()
-  const writer = stream.writable.getWriter()
-
-  // Send SSE event
-  const sendEvent = async (data: unknown) => {
-    const json = JSON.stringify(data)
-    await writer.write(encoder.encode(`data: ${json}\n\n`))
-  }
-
-  // Send server info on connection
-  sendEvent({
-    jsonrpc: "2.0",
-    method: "server/info",
-    params: {
-      name: "daytona-mcp-proxy",
+async function handleInitialize(req: McpRequest): Promise<McpResponse> {
+  return ok(req.id, {
+    protocolVersion: "2025-06-18",
+    capabilities: { tools: {} },
+    serverInfo: {
+      name: "simple-chat-mcp-proxy",
       version: "1.0.0",
-      description: "Proxies to Smithery GitHub MCP server",
-    },
-  })
-
-  return new Response(stream.readable, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
     },
   })
 }
 
+async function handleToolsList(
+  req: McpRequest,
+  chat: ChatLookup
+): Promise<McpResponse> {
+  const smithery = getSmithery()
+  try {
+    await ensureFreshAuthHeader(chat)
+    const list = await smithery.connections.tools.list(
+      chat.smitheryGithubConnectionId,
+      { namespace: SMITHERY_NAMESPACE }
+    )
+    // Smithery's Tool shape is already MCP-compatible (name, description,
+    // inputSchema). Pass it straight through.
+    return ok(req.id, { tools: list.tools })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error(`[MCP-proxy] tools/list failed: ${msg}`)
+    return err(req.id, -32000, `tools/list failed: ${msg}`)
+  }
+}
+
+async function handleToolsCall(
+  req: McpRequest,
+  chat: ChatLookup
+): Promise<McpResponse> {
+  const params = (req.params ?? {}) as { name?: string; arguments?: Record<string, unknown> }
+  const toolName = params.name
+  const args = params.arguments ?? {}
+
+  if (!toolName) {
+    return err(req.id, -32602, "Missing 'name' in tools/call params")
+  }
+
+  const smithery = getSmithery()
+  try {
+    await ensureFreshAuthHeader(chat)
+    const result = await smithery.connections.tools.call(toolName, {
+      namespace: SMITHERY_NAMESPACE,
+      connectionId: chat.smitheryGithubConnectionId,
+      body: args,
+    })
+    // Smithery returns the upstream MCP tool result as-is. If it already has
+    // the MCP `content` shape, pass it through; otherwise wrap a JSON string.
+    if (result && typeof result === "object" && Array.isArray((result as { content?: unknown }).content)) {
+      return ok(req.id, result)
+    }
+    return ok(req.id, {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error(`[MCP-proxy] tools/call ${toolName} failed: ${msg}`)
+    return ok(req.id, {
+      content: [{ type: "text", text: `Tool error: ${msg}` }],
+      isError: true,
+    })
+  }
+}
+
 // =============================================================================
-// POST Handler (for MCP JSON-RPC messages)
+// HTTP handlers
 // =============================================================================
 
 export async function POST(
@@ -223,56 +229,107 @@ export async function POST(
   { params }: { params: Promise<{ sandboxId: string }> }
 ): Promise<Response> {
   const { sandboxId } = await params
+  console.log(`[MCP-proxy] POST /api/mcp/${sandboxId}/sse`)
 
-  // 1. Look up chat and validate
-  const result = await getChatAndToken(sandboxId)
-  if (!result) {
-    return Response.json(
-      mcpError(0, -32001, "Chat not found or GitHub not connected"),
-      { status: 404 }
-    )
-  }
-
-  const { chat, githubToken } = result
-
-  // 2. Check if MCP tools are enabled
-  const mcpTools = parseMcpToolsConfig(chat.mcpTools)
-  if (!mcpTools?.github) {
-    return Response.json(
-      mcpError(0, -32002, "GitHub tools not enabled for this chat"),
-      { status: 403 }
-    )
-  }
-
-  // 3. Parse MCP request
+  // Parse JSON-RPC first so we can echo the id back on errors
   let mcpRequest: McpRequest
   try {
     mcpRequest = await req.json()
   } catch {
-    return Response.json(mcpError(0, -32700, "Parse error"), { status: 400 })
+    return Response.json(err(0, -32700, "Parse error"), { status: 400 })
   }
 
-  // 4. Handle notifications (no response needed)
+  // Notifications don't get a response
   if (mcpRequest.method === "notifications/initialized") {
     return new Response(null, { status: 204 })
   }
 
-  // 5. Proxy the request to Smithery's GitHub MCP server
-  const response = await proxyToSmithery(mcpRequest, githubToken)
+  // Look up the chat → user → connectionId
+  const ctx = await getChatContext(sandboxId)
+  if ("error" in ctx) {
+    const codes: Record<typeof ctx.error, number> = {
+      chat_not_found: -32001,
+      tools_disabled: -32002,
+      github_not_connected: -32003,
+    }
+    return Response.json(err(mcpRequest.id, codes[ctx.error], ctx.error), {
+      status: ctx.error === "chat_not_found" ? 404 : 403,
+    })
+  }
 
-  // 6. Log for audit (without sensitive data)
+  let response: McpResponse
+  switch (mcpRequest.method) {
+    case "initialize":
+      response = await handleInitialize(mcpRequest)
+      break
+    case "tools/list":
+      response = await handleToolsList(mcpRequest, ctx.chat)
+      break
+    case "tools/call":
+      response = await handleToolsCall(mcpRequest, ctx.chat)
+      break
+    case "ping":
+      response = ok(mcpRequest.id, {})
+      break
+    default:
+      response = err(mcpRequest.id, -32601, `Method not found: ${mcpRequest.method}`)
+  }
+
   console.log(
     JSON.stringify({
       type: "mcp_request",
       timestamp: new Date().toISOString(),
-      userId: chat.userId,
-      chatId: chat.id,
+      userId: ctx.chat.userId,
+      chatId: ctx.chat.chatId,
       sandboxId,
       method: mcpRequest.method,
-      tool: (mcpRequest.params as { name?: string })?.name,
+      tool:
+        mcpRequest.method === "tools/call"
+          ? (mcpRequest.params as { name?: string })?.name
+          : undefined,
       success: !response.error,
     })
   )
 
   return Response.json(response)
+}
+
+// Some MCP clients try to open an SSE stream first to discover the endpoint.
+// We don't proactively push events, so we just acknowledge with a minimal
+// stream and let the client move on to POST.
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ sandboxId: string }> }
+): Promise<Response> {
+  const { sandboxId } = await params
+  console.log(`[MCP-proxy] GET /api/mcp/${sandboxId}/sse`)
+
+  const ctx = await getChatContext(sandboxId)
+  if ("error" in ctx) {
+    const status = ctx.error === "chat_not_found" ? 404 : 403
+    return new Response(ctx.error, { status })
+  }
+
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    start(controller) {
+      const event = {
+        jsonrpc: "2.0",
+        method: "server/info",
+        params: {
+          name: "simple-chat-mcp-proxy",
+          version: "1.0.0",
+        },
+      }
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  })
 }
