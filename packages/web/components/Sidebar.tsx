@@ -1400,17 +1400,3 @@ function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, 
   )
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function getFirstMessagePreview(chat: Chat): string {
-  const firstUserMessage = chat.messages.find((m) => m.role === "user")
-  if (firstUserMessage) {
-    const preview = firstUserMessage.content.slice(0, 30)
-    return preview.length < firstUserMessage.content.length
-      ? preview + "..."
-      : preview
-  }
-  return "New chat"
-}
