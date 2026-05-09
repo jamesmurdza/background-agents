@@ -63,6 +63,10 @@ interface PaletteProviderProps {
    *  precedence over the flat chatIds rotation so the parent can walk the
    *  sidebar tree and auto-expand branches. */
   onNavigateChat?: (direction: "up" | "down") => void
+  /** Whether rapid fire mode is on */
+  rapidFireMode?: boolean
+  /** Toggle rapid fire mode */
+  onToggleRapidFire?: () => void
 }
 
 export function PaletteProvider({
@@ -100,6 +104,8 @@ export function PaletteProvider({
   currentChatId,
   onSelectChat,
   onNavigateChat,
+  rapidFireMode,
+  onToggleRapidFire,
 }: PaletteProviderProps) {
   const { theme, setTheme } = useTheme()
   const [searchOpen, setSearchOpenState] = useState(false)
@@ -222,6 +228,8 @@ export function PaletteProvider({
         onSelectChat={onSelectChat}
         currentTheme={(theme as Theme) ?? "system"}
         onThemeChange={(newTheme: Theme) => setTheme(newTheme)}
+        rapidFireMode={rapidFireMode}
+        onToggleRapidFire={onToggleRapidFire}
       />
     </PaletteContext.Provider>
   )

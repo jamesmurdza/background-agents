@@ -169,6 +169,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   // Track when a message send is initiated (for instant UI feedback before server responds)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
+  // Rapid fire notification: timestamp of last background task creation, 0 means no notification
+  const [rapidFireNotification, setRapidFireNotification] = useState(0)
   const [isDownloading, setIsDownloading] = useState(false)
   const [skillsModalOpen, setSkillsModalOpen] = useState(false)
 
@@ -585,6 +587,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       return
     }
 
+    // Rapid fire mode: send as background task without switching
+    if (settings.rapidFireMode) {
+      handleRapidFireSend(message, agent, model, files, planMode)
+      return
+    }
+
     // Update filter to match the chat's repo if this is the first message and repo differs from filter
     // This ensures the filter follows the user's choice when starting a chat
     if (displayCurrentChat && displayCurrentChat.messages.length === 0 &&
@@ -602,6 +610,24 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     setIsSendingMessage(true)
     sendMessage(message, agent, model, files, undefined, planMode)
   }
+
+  // Rapid fire: send as a new background chat without switching
+  const handleRapidFireSend = useCallback(async (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => {
+    if (!session) {
+      savePendingMessage({ message, agent, model })
+      modals.setSignInModalOpen(true)
+      return
+    }
+
+    const repo = displayCurrentChat?.repo ?? NEW_REPOSITORY
+    const baseBranch = displayCurrentChat?.baseBranch ?? "main"
+
+    const chatId = await startNewChat(repo, baseBranch, undefined, false, "pending")
+    if (!chatId) return
+
+    sendMessage(message, agent, model, files, chatId, planMode)
+    setRapidFireNotification(Date.now())
+  }, [session, displayCurrentChat, startNewChat, sendMessage, modals, setRapidFireNotification])
 
   // After sign-in, replay any pending message saved before the OAuth
   // redirect. Two effects work together to avoid a stale-closure race:
@@ -1068,6 +1094,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       onNavigateChat={handleNavigateChat}
       currentChatId={displayCurrentChatId}
       onSelectChat={handleSelectChat}
+      rapidFireMode={settings.rapidFireMode}
+      onToggleRapidFire={() => updateSettings({ settings: { rapidFireMode: !settings.rapidFireMode } })}
     >
     <ChatProvider value={chatContextValue}>
     <GitProvider value={gitContextValue}>
@@ -1190,6 +1218,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   isSending={isSendingMessage}
                   onOpenPlan={(messageId) => preview.openPreview({ type: "plan", messageId, content: "" })}
                   isAuthenticated={!!session}
+                  rapidFireMode={settings.rapidFireMode}
+                  rapidFireNotification={rapidFireNotification}
                 />
               )}
             </div>

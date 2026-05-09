@@ -84,6 +84,10 @@ interface CommandPaletteProps {
   currentTheme?: Theme
   /** Change theme. */
   onThemeChange?: (theme: Theme) => void
+  /** Whether rapid fire mode is on */
+  rapidFireMode?: boolean
+  /** Toggle rapid fire mode */
+  onToggleRapidFire?: () => void
 }
 
 export function CommandPalette({
@@ -309,6 +313,15 @@ export function CommandPalette({
             <CommandItem value="toggle sidebar" onSelect={() => run(onToggleSidebar)}>
               <PanelLeft className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Toggle sidebar</span>
+            </CommandItem>
+          )}
+          {onToggleRapidFire !== undefined && (
+            <CommandItem
+              value={rapidFireMode ? "disable rapid fire mode" : "enable rapid fire mode"}
+              onSelect={() => run(onToggleRapidFire)}
+            >
+              <Zap className={cn("mr-2 h-4 w-4", rapidFireMode ? "text-amber-500" : "text-muted-foreground")} />
+              <span>{rapidFireMode ? "Disable rapid fire mode" : "Enable rapid fire mode"}</span>
             </CommandItem>
           )}
           <CommandItem value="settings" onSelect={() => run(() => onOpenSettings())}>

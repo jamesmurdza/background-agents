@@ -33,6 +33,7 @@ function readSettings(raw: unknown): Settings {
     defaultAgent: s.defaultAgent ?? null,
     defaultModel: s.defaultModel ?? null,
     theme: s.theme ?? DEFAULT_SETTINGS.theme,
+    rapidFireMode: s.rapidFireMode ?? DEFAULT_SETTINGS.rapidFireMode,
   }
 }
 
