@@ -44,6 +44,10 @@ interface ChatPanelProps {
   onOpenPlan?: (messageId: string) => void
   /** Whether the user is authenticated */
   isAuthenticated?: boolean
+  /** Whether rapid fire mode is enabled */
+  rapidFireMode?: boolean
+  /** Timestamp of last rapid fire task creation (0 = no notification) */
+  rapidFireNotification?: number
 }
 
 export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onChangeRepo, onChangeBranch, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, onOpenPlan, isAuthenticated = false }: ChatPanelProps) {
@@ -362,6 +366,9 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   // Only show welcome screen if no messages AND not loading messages AND not a child chat
   const isNewChat = chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
 
+  // Rapid fire notification
+  const showRapidFireNotification = rapidFireMode && rapidFireNotification && rapidFireNotification > 0
+
   // Chat input component
   const chatInput = (
     <ChatInput
@@ -508,6 +515,12 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
               What would you like to build?
             </h2>
           </div>
+          {showRapidFireNotification && (
+            <div className="mt-2 flex items-center justify-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Task started
+            </div>
+          )}
           {chatInput}
           <div className={cn(
             "text-muted-foreground mt-4 text-center",
@@ -656,6 +669,12 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           ? (hasQueued ? "px-[27px] pt-0 pb-3 pb-safe" : "px-[27px] py-3 pb-safe")
           : (hasQueued ? "px-[31px] pt-0 pb-4" : "px-[31px] pb-4 pt-2")
       )}>
+        {showRapidFireNotification && (
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-bottom-1 duration-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Task started
+          </div>
+        )}
         {chatInput}
       </div>
 

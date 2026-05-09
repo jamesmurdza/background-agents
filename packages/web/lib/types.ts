@@ -211,6 +211,7 @@ export interface Settings {
   defaultAgent: string | null
   defaultModel: string | null
   theme: Theme
+  rapidFireMode: boolean
 }
 
 export type { CredentialId, Credentials, CredentialFlags } from "./credentials"

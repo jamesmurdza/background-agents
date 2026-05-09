@@ -203,6 +203,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [defaultAgent, setDefaultAgent] = useState<Agent>(initialDefaultAgent)
   const [defaultModel, setDefaultModel] = useState(initialDefaultModel)
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
+  const [rapidFireMode, setRapidFireMode] = useState(settings.rapidFireMode)
   const [activeSection, setActiveSection] = useState<SectionKey>(defaultSection)
 
   // Drag to dismiss (mobile only)
@@ -233,6 +234,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setDefaultAgent(initialDefaultAgent)
       setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
+      setRapidFireMode(settings.rapidFireMode)
       setActiveSection(defaultSection)
     }
   }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
@@ -296,7 +298,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const settingsChanged =
     defaultAgent !== initialDefaultAgent ||
     defaultModel !== initialDefaultModel ||
-    selectedTheme !== settings.theme
+    selectedTheme !== settings.theme ||
+    rapidFireMode !== settings.rapidFireMode
 
   const hasChanges = credChanged || settingsChanged
 
@@ -307,6 +310,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (defaultAgent !== initialDefaultAgent) settingsPatch.defaultAgent = defaultAgent
     if (defaultModel !== initialDefaultModel) settingsPatch.defaultModel = defaultModel
     if (selectedTheme !== settings.theme) settingsPatch.theme = selectedTheme
+    if (rapidFireMode !== settings.rapidFireMode) settingsPatch.rapidFireMode = rapidFireMode
 
     // Only send credential fields the user actually changed. Sending the
     // mask back ("***") would otherwise overwrite the real key.
@@ -397,6 +401,28 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             })}
           </SelectContent>
         </Select>
+      </SettingsRow>
+      <SettingsRow
+        label="Rapid fire mode"
+        description="Send tasks without switching to them. The input clears so you can quickly delegate multiple tasks."
+      >
+        <button
+          type="button"
+          role="switch"
+          aria-checked={rapidFireMode}
+          onClick={() => setRapidFireMode(!rapidFireMode)}
+          className={cn(
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            rapidFireMode ? "bg-primary" : "bg-input"
+          )}
+        >
+          <span
+            className={cn(
+              "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform duration-200 ease-in-out",
+              rapidFireMode ? "translate-x-4" : "translate-x-0"
+            )}
+          />
+        </button>
       </SettingsRow>
     </div>
   )

@@ -59,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultAgent: null,
   defaultModel: null,
   theme: "system",
+  rapidFireMode: false,
 }
 
 const DEFAULT_LOCAL_STATE: LocalState = {
