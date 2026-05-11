@@ -22,6 +22,10 @@ import {
   setupCodexRules,
   OPENCODE_PERMISSION_ENV,
 } from "@upstream/agent-configuration/git"
+import {
+  setupMcpForAgent,
+  type AgentMcpServer,
+} from "@upstream/agent-configuration/mcp"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 // Re-export Agent type for convenience
@@ -69,6 +73,12 @@ export interface AgentSessionOptions {
   env?: Record<string, string>
   /** When true, agent should plan before acting */
   planMode?: boolean
+  /**
+   * MCP servers to expose to the agent. The web layer fetches these from
+   * `ChatMcpServer` and decrypts the per-row Smithery API key before passing
+   * them in — this module stays generic and doesn't touch the DB.
+   */
+  mcpServers?: AgentMcpServer[]
 }
 
 // =============================================================================
@@ -127,6 +137,20 @@ Your plan should include:
     await setupClaudeHooks(sandbox)
   } else if (agent === "codex") {
     await setupCodexRules(sandbox)
+  }
+
+  // Write per-agent MCP config files for the connected Smithery servers.
+  // Must run before createSession() so the CLI loads them on spawn.
+  if (options.mcpServers && options.mcpServers.length > 0) {
+    try {
+      await setupMcpForAgent(sandbox, {
+        agent,
+        servers: options.mcpServers,
+      })
+    } catch (err) {
+      // MCP setup is best-effort — a failure here shouldn't block the turn.
+      console.error("[agent-session] setupMcpForAgent failed:", err)
+    }
   }
 
   // For OpenCode, inject permission rules via environment variable

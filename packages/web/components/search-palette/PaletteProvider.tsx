@@ -54,6 +54,7 @@ interface PaletteProviderProps {
   onCopyCloneCommand?: () => void
   onCopyCheckoutCommand?: () => void
   onOpenEnvVars?: () => void
+  onOpenMcpServers?: () => void
   onOpenSkills?: () => void
   // For Alt+Up/Down chat navigation
   chatIds: string[]
@@ -99,6 +100,7 @@ export function PaletteProvider({
   onCopyCloneCommand,
   onCopyCheckoutCommand,
   onOpenEnvVars,
+  onOpenMcpServers,
   onOpenSkills,
   chatIds,
   currentChatId,
@@ -223,6 +225,7 @@ export function PaletteProvider({
         onCopyCloneCommand={onCopyCloneCommand}
         onCopyCheckoutCommand={onCopyCheckoutCommand}
         onOpenEnvVars={onOpenEnvVars}
+        onOpenMcpServers={onOpenMcpServers}
         onOpenSkills={onOpenSkills}
         chats={chats.map((c) => ({ id: c.id, displayName: c.displayName }))}
         onSelectChat={onSelectChat}

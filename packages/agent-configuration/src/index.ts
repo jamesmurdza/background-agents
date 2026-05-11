@@ -28,3 +28,6 @@
 
 // Re-export all git safety configuration
 export * from "./git"
+
+// Re-export MCP configuration
+export * from "./mcp"

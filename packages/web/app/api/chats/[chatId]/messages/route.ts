@@ -19,6 +19,7 @@ import {
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedClaudeUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
+import { loadChatMcpServers } from "@/lib/mcp/agent-servers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel } from "@upstream/common"
 import { decrypt } from "@/lib/db/encryption"
@@ -472,6 +473,15 @@ export async function POST(
     // Merge: system env vars first, then user env vars (user takes precedence)
     const env = { ...systemEnv, ...userEnv }
 
+    // Fetch this chat's connected MCP servers so the agent sees them as tools.
+    // Best-effort — a fetch error shouldn't block the turn.
+    let mcpServers: Awaited<ReturnType<typeof loadChatMcpServers>> = []
+    try {
+      mcpServers = await loadChatMcpServers(chatId)
+    } catch (err) {
+      console.error("[messages] loadChatMcpServers failed:", err)
+    }
+
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
@@ -481,6 +491,7 @@ export async function POST(
       model: payload.model,
       env: Object.keys(env).length > 0 ? env : undefined,
       planMode: payload.planMode,
+      mcpServers,
     })
 
     // ── Stage 5: persist messages + chat status (transactional) ────────────

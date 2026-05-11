@@ -17,6 +17,7 @@ import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
 import { BranchPickerModal } from "@/components/modals/BranchPickerModal"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
+import { McpServersModal } from "@/components/modals/McpServersModal"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -1085,6 +1086,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       onCopyCloneCommand={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? handleCopyCloneCommand : undefined}
       onCopyCheckoutCommand={currentChat?.branch ? handleCopyCheckoutCommand : undefined}
       onOpenEnvVars={currentChat ? handleOpenEnvVars : undefined}
+      onOpenMcpServers={currentChat ? () => modals.setMcpServersModalOpen(true) : undefined}
       onOpenSkills={
         currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY
           ? () => setSkillsModalOpen(true)
@@ -1322,6 +1324,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           initialRepoEnvVars={envVarsRepoEnvVars}
           isMobile={isMobile}
         />
+
+        {displayCurrentChatId && (
+          <McpServersModal
+            open={modals.mcpServersModalOpen}
+            onClose={() => modals.setMcpServersModalOpen(false)}
+            chatId={displayCurrentChatId}
+          />
+        )}
 
       {/* Skills Search Modal */}
       {currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY && (
