@@ -30,7 +30,7 @@ npm run test -w background-agents
 
 ## Agent SDK integration tests
 
-Integration tests run each provider (Claude, Codex, Gemini, OpenCode, Pi) in real Daytona sandboxes. Tests are skipped when required API keys are not set.
+Integration tests run each provider (Claude, Codex, Gemini, Goose, OpenCode, Pi) in real Daytona sandboxes. Tests are skipped when required API keys are not set.
 
 Run the command below from the repo root.
 
