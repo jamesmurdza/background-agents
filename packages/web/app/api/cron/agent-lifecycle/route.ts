@@ -343,7 +343,38 @@ async function startJobExecution(
     })
 
     if (lastSuccessfulRun?.branch) {
-      effectiveBaseBranch = lastSuccessfulRun.branch
+      // Check if we should use this run's branch
+      // - If no PR was created, use it (commits exist but weren't PR'd)
+      // - If PR exists, check its state via GitHub API
+      let shouldContinueFromRun = !lastSuccessfulRun.prNumber
+
+      if (lastSuccessfulRun.prNumber) {
+        const [owner, repoName] = job.repo.split("/")
+        try {
+          const prRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repoName}/pulls/${lastSuccessfulRun.prNumber}`,
+            {
+              headers: {
+                Authorization: `Bearer ${account.access_token}`,
+                Accept: "application/vnd.github.v3+json",
+              },
+            }
+          )
+
+          if (prRes.ok) {
+            const prData = await prRes.json()
+            // Continue from this run if PR is open or merged (not closed/rejected)
+            shouldContinueFromRun = prData.state === "open" || prData.merged === true
+          }
+        } catch (err) {
+          console.error(`[agent-lifecycle] Failed to check PR state:`, err)
+          // On error, fall back to base branch (safer default)
+        }
+      }
+
+      if (shouldContinueFromRun) {
+        effectiveBaseBranch = lastSuccessfulRun.branch
+      }
     }
   }
 
