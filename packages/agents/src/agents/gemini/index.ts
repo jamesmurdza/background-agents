@@ -36,6 +36,10 @@ export const geminiAgent: AgentDefinition = {
     // Enable full tool access (shell, file writes, etc.) - safe in sandbox environment
     args.push("--yolo")
 
+    // Trust the workspace so --yolo is honored (otherwise Gemini downgrades to "default"
+    // approval mode and refuses tool calls in headless runs)
+    args.push("--skip-trust")
+
     // Add model if specified (e.g., "gemini-2.0-flash", "gemini-1.5-pro")
     if (options.model) {
       args.push("--model", options.model)

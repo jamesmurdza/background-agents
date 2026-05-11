@@ -110,13 +110,16 @@ function generateClaudeConfig(mcpUrl: string): McpConfigResult {
 /**
  * Codex (OpenAI): ~/.codex/config.toml
  *
- * Codex uses TOML format with [mcp.servers] section.
+ * Codex uses TOML with a [mcp_servers.<id>] table (underscore, not dot).
+ * For Streamable-HTTP servers the only required field is `url`; there is no
+ * `type` field — presence of `url` selects the HTTP transport.
  */
 function generateCodexConfig(mcpUrl: string): McpConfigResult {
   const config = `
-[mcp.servers.daytona-github]
-type = "http"
+[mcp_servers.daytona-github]
 url = "${mcpUrl}"
+enabled = true
+startup_timeout_sec = 30
 `
   return {
     filePath: "/home/daytona/.codex/config.toml",
@@ -127,14 +130,14 @@ url = "${mcpUrl}"
 /**
  * Gemini CLI: ~/.gemini/settings.json
  *
- * Gemini uses JSON format with mcpServers section.
+ * Gemini distinguishes between SSE (`url`) and Streamable-HTTP (`httpUrl`).
+ * Our proxy speaks Streamable-HTTP, so use `httpUrl`.
  */
 function generateGeminiConfig(mcpUrl: string): McpConfigResult {
   const config = {
     mcpServers: {
       "daytona-github": {
-        type: "sse",
-        url: mcpUrl,
+        httpUrl: mcpUrl,
       },
     },
   }
@@ -145,24 +148,25 @@ function generateGeminiConfig(mcpUrl: string): McpConfigResult {
 }
 
 /**
- * OpenCode: .opencode/config.json (project-level)
+ * OpenCode: opencode.json at the project root.
  *
- * OpenCode uses JSON format with mcp.servers section.
- * Config is in the project directory.
+ * The `.opencode/` directory is for agents/commands/plugins, NOT config —
+ * opencode reads its JSON config from `<project>/opencode.json` (or one of
+ * the global locations). Use `mcp.<name>` with `type: "remote"` and `url`.
  */
 function generateOpenCodeConfig(mcpUrl: string): McpConfigResult {
   const config = {
+    $schema: "https://opencode.ai/config.json",
     mcp: {
-      servers: {
-        "daytona-github": {
-          url: mcpUrl,
-          transport: "sse",
-        },
+      "daytona-github": {
+        type: "remote",
+        url: mcpUrl,
+        enabled: true,
       },
     },
   }
   return {
-    filePath: "/home/daytona/project/.opencode/config.json",
+    filePath: "/home/daytona/project/opencode.json",
     content: JSON.stringify(config, null, 2),
   }
 }
@@ -170,13 +174,15 @@ function generateOpenCodeConfig(mcpUrl: string): McpConfigResult {
 /**
  * Goose: ~/.config/goose/config.yaml
  *
- * Goose uses YAML format with extensions section.
+ * Goose distinguishes `type: sse` (legacy SSE) from `type: streamable_http`.
+ * Our proxy speaks Streamable-HTTP, so use that. `name` is required.
  */
 function generateGooseConfig(mcpUrl: string): McpConfigResult {
   const config = `
 extensions:
   daytona-github:
-    type: sse
+    type: streamable_http
+    name: daytona-github
     uri: "${mcpUrl}"
     enabled: true
 `
