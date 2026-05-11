@@ -1,5 +1,6 @@
 import { compareBranches, githubFetch, isGitHubApiError } from "@upstream/common"
 import { Daytona } from "@daytonaio/sdk"
+import { createSandboxGit } from "@upstream/daytona-git"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
@@ -172,10 +173,9 @@ export async function POST(req: Request) {
         const sandbox = await daytona.get(sandboxId)
         const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
-        // Fetch the latest from origin
-        await sandbox.process.executeCommand(
-          `cd ${repoPath} && git fetch origin ${head} 2>&1`
-        )
+        // Fetch the latest from origin (token passed via -c http.extraHeader, not stored)
+        const git = createSandboxGit(sandbox)
+        await git.fetch(repoPath, githubToken, head)
 
         // Ensure we're on the correct branch before resetting
         await sandbox.process.executeCommand(

@@ -1,4 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
+import { createSandboxGit } from "@upstream/daytona-git"
 import { PATHS } from "@/lib/constants"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 
@@ -45,8 +46,8 @@ export async function POST(req: Request) {
     // 5. Always use "project" as the directory name - sandbox/create always uses this
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
-    // 6. Set up the remote URL with auth token
-    const remoteUrl = `https://x-access-token:${githubToken}@github.com/${repoFullName}.git`
+    // 6. Set up the remote URL (without credentials - token passed per-operation)
+    const remoteUrl = `https://github.com/${repoFullName}.git`
 
     // Remove existing origin if any, then add the new one
     // Using || true to ignore errors if remote doesn't exist
@@ -57,10 +58,9 @@ export async function POST(req: Request) {
       `cd ${repoPath} && git remote add origin "${remoteUrl}"`
     )
 
-    // 7. Push to the remote
-    await sandbox.process.executeCommand(
-      `cd ${repoPath} && git push -u origin ${branch}`
-    )
+    // 7. Push to the remote (token passed via -c http.extraHeader, not stored)
+    const git = createSandboxGit(sandbox)
+    await git.push(repoPath, githubToken)
 
     return Response.json({ success: true })
   } catch (error) {

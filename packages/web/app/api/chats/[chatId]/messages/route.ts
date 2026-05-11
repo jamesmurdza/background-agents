@@ -350,23 +350,6 @@ export async function POST(
 
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
-    // ── Stage 2b: refresh git remote token if sandbox is pre-existing ──────
-    // The sandbox's git remote URL contains the GitHub token that was active
-    // at clone time. If the user has re-authenticated since then (e.g. token
-    // revoked and re-authorized via ReAuthModal), that stored token is stale
-    // and any agent-initiated git push will fail with a 401. We overwrite the
-    // remote URL with the current session token before the agent starts.
-    // Skipped for newly-created sandboxes (token is already current) and for
-    // NEW_REPOSITORY chats (no remote configured).
-    if (!createdSandbox && githubToken && chat.repo && chat.repo !== NEW_REPOSITORY) {
-      const [repoOwner, repoName] = chat.repo.split("/")
-      if (repoOwner && repoName) {
-        await sandbox.process.executeCommand(
-          `cd ${repoPath} && git remote set-url origin https://x-access-token:${githubToken}@github.com/${repoOwner}/${repoName}.git 2>&1 || true`
-        )
-      }
-    }
-
     // ── Stage 3: file upload ───────────────────────────────────────────────
     let uploadedFilePaths: string[] = []
     if (files.length > 0) {
