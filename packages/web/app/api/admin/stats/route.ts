@@ -275,13 +275,23 @@ export async function GET(request: NextRequest) {
         }
       }
     } else {
-      // Fill in missing days
+      // Fill in missing days - ensure all existing time slots have all agents/models
+      // Get all time keys from the data itself to avoid timezone mismatches
+      const allTimeKeys = new Set<string>()
+      for (const row of rawData) {
+        if (row.date) {
+          allTimeKeys.add(row.date.toISOString().split("T")[0])
+        }
+      }
+      // Also generate expected days in case some days have no data at all
       const today = new Date()
       for (let i = days - 1; i >= 0; i--) {
         const d = new Date(today)
-        d.setDate(d.getDate() - i)
-        const timeKey = d.toISOString().split("T")[0]
+        d.setUTCDate(d.getUTCDate() - i)
+        allTimeKeys.add(d.toISOString().split("T")[0])
+      }
 
+      for (const timeKey of allTimeKeys) {
         if (!byAgentMap[timeKey]) {
           byAgentMap[timeKey] = { time: timeKey }
         }
