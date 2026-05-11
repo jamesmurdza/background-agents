@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor, Zap } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor, Zap, Plug } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -74,6 +74,7 @@ interface CommandPaletteProps {
   onCopyCheckoutCommand?: () => void
   /** Open environment variables modal. Omitted when no chat is active. */
   onOpenEnvVars?: () => void
+  onOpenMcpServers?: () => void
   /** Open skills manager. Omitted when no sandbox exists. */
   onOpenSkills?: () => void
   /** Chats for search. */
@@ -115,6 +116,7 @@ export function CommandPalette({
   onCopyCloneCommand,
   onCopyCheckoutCommand,
   onOpenEnvVars,
+  onOpenMcpServers,
   onOpenSkills,
   chats = [],
   onSelectChat,
@@ -245,6 +247,12 @@ export function CommandPalette({
             <CommandItem value="environment variables" onSelect={() => run(onOpenEnvVars)}>
               <VariableIcon className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Environment variables</span>
+            </CommandItem>
+          )}
+          {onOpenMcpServers && (
+            <CommandItem value="mcp servers tools" onSelect={() => run(onOpenMcpServers)}>
+              <Plug className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>MCP servers</span>
             </CommandItem>
           )}
           {onOpenSkills && (

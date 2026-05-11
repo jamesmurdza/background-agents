@@ -131,14 +131,53 @@ model Chat {
   environmentVariables Json?
 
   // Relations
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   Message[]
+  mcpServers ChatMcpServer[]
 
   // Link back to scheduled run (if this chat belongs to one)
   scheduledJobRun ScheduledJobRun?
 
   @@index([userId, updatedAt])
   @@index([userId, lastActiveAt])
+}
+
+// =============================================================================
+// ChatMcpServer - per-chat MCP connections (via Smithery Connect)
+// =============================================================================
+// Each row is one connected MCP server for a specific chat. The agent in the
+// sandbox will get a config entry pointing at `mcpUrl` with `encryptedApiKey`
+// decrypted into an Authorization header.
+
+model ChatMcpServer {
+  id     String @id @default(cuid())
+  chatId String
+
+  // Identity from Smithery's registry
+  qualifiedName String // e.g. "exa/exa-search" — stable handle
+  displayName   String
+  iconUrl       String?
+
+  // Smithery Connect connection details
+  smitheryConnectionId String // e.g. "chat-<id>-exa-exa-search"
+  smitheryNamespace    String // the namespace owning the connection
+  mcpUrl               String // api.smithery.ai/connect/<ns>/<id>/mcp
+
+  // Encrypted Smithery API key used to call mcpUrl. Stored per-row so that
+  // rotating the global key doesn't silently break existing connections.
+  encryptedApiKey String? @db.Text
+
+  // Lifecycle
+  status    String  @default("pending") // pending | connected | error
+  lastError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, qualifiedName])
+  @@index([chatId])
 }
 
 // =============================================================================
