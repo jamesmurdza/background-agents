@@ -120,6 +120,8 @@ export function CommandPalette({
   onSelectChat,
   currentTheme = "system",
   onThemeChange,
+  rapidFireMode = false,
+  onToggleRapidFire,
 }: CommandPaletteProps) {
   const handleSelect = (command: string) => {
     onRunCommand(command)
