@@ -30,6 +30,9 @@ packages/web/lib/generated/prisma
 *.log
 !packages/web/e2e/results/*.log
 
+# Claude
+.claude/
+
 # Build artifacts
 tsconfig.tsbuildinfo
 next-env.d.ts
