@@ -11,11 +11,6 @@ import type { Sandbox } from "@daytonaio/sdk"
 // Types
 // =============================================================================
 
-export interface McpServerConfig {
-  url: string
-  transport: "sse" | "http"
-}
-
 export interface McpConfigResult {
   filePath: string
   content: string

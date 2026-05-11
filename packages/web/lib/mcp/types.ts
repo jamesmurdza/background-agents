@@ -1,53 +1,25 @@
 /**
- * MCP Types
+ * MCP Types (web-side)
  *
- * Types for MCP (Model Context Protocol) tools configuration
+ * The shape of `Chat.mcpTools` and the supported-agent list are owned by
+ * `@upstream/agent-configuration` so the agent setup code and the web layer
+ * agree on a single definition. This file just re-exports them and adds the
+ * runtime validator used when reading mcpTools from the DB / request body.
  */
 
-/**
- * MCP tools configuration stored in Chat.mcpTools
- * Each key represents a tool provider, value indicates if enabled
- */
-export interface McpToolsConfig {
-  github?: boolean
-  jira?: boolean
-  slack?: boolean
-  linear?: boolean
-}
+export {
+  type McpToolsConfig,
+  type McpSupportedAgent,
+  MCP_SUPPORTED_AGENTS,
+  agentSupportsMcp,
+} from "@upstream/agent-configuration/mcp"
+
+import type { McpToolsConfig } from "@upstream/agent-configuration/mcp"
 
 /**
- * Smithery MCP server URLs (*.run.tools format)
- * These are the actual MCP endpoints that accept GitHub tokens directly
- */
-export const SMITHERY_MCP_SERVERS: Record<keyof McpToolsConfig, string> = {
-  github: "https://github.run.tools",
-  jira: "https://jira.run.tools", // Coming soon
-  slack: "https://slack.run.tools", // Coming soon
-  linear: "https://linear.run.tools", // Coming soon
-}
-
-/**
- * Agents that support MCP
- */
-export const MCP_SUPPORTED_AGENTS = [
-  "claude-code",
-  "codex",
-  "gemini",
-  "opencode",
-  "goose",
-] as const
-
-export type McpSupportedAgent = (typeof MCP_SUPPORTED_AGENTS)[number]
-
-/**
- * Check if an agent supports MCP
- */
-export function agentSupportsMcp(agent: string): agent is McpSupportedAgent {
-  return MCP_SUPPORTED_AGENTS.includes(agent as McpSupportedAgent)
-}
-
-/**
- * Validate McpToolsConfig from unknown JSON
+ * Validate McpToolsConfig from unknown JSON (Prisma JSONB or request body).
+ * Keeps only the recognised boolean keys; returns null for non-objects so
+ * callers can distinguish "no config" from "empty config".
  */
 export function parseMcpToolsConfig(
   value: unknown
@@ -65,12 +37,4 @@ export function parseMcpToolsConfig(
   if (typeof config.linear === "boolean") result.linear = config.linear
 
   return result
-}
-
-/**
- * Check if any MCP tools are enabled
- */
-export function hasEnabledMcpTools(config: McpToolsConfig | null): boolean {
-  if (!config) return false
-  return Object.values(config).some(Boolean)
 }
