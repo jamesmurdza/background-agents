@@ -253,30 +253,30 @@ export async function GET(request: NextRequest) {
         `,
 
     // Messages by agent+model (hourly for 24h, daily for 7d/30d)
-    // Exclude git-operation messages (system messages for merge/push/rebase)
+    // Use ActivityLog to include deleted messages and be consistent with other metrics
     range === "24h"
       ? prisma.$queryRaw<Array<{ hour: number; agent: string | null; model: string | null; count: bigint }>>`
           SELECT
             EXTRACT(HOUR FROM "createdAt")::int as hour,
-            agent,
-            model,
+            metadata->>'agent' as agent,
+            metadata->>'model' as model,
             COUNT(*)::bigint as count
-          FROM "Message"
+          FROM "ActivityLog"
           WHERE "createdAt" >= NOW() - '24 hours'::interval
-            AND (("messageType" IS NULL) OR ("messageType" != 'git-operation'))
-          GROUP BY hour, agent, model
+            AND action = 'message_sent'
+          GROUP BY hour, metadata->>'agent', metadata->>'model'
           ORDER BY hour ASC
         `
       : prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
           SELECT
             DATE("createdAt") as date,
-            agent,
-            model,
+            metadata->>'agent' as agent,
+            metadata->>'model' as model,
             COUNT(*)::bigint as count
-          FROM "Message"
+          FROM "ActivityLog"
           WHERE "createdAt" >= NOW() - ${interval}::interval
-            AND (("messageType" IS NULL) OR ("messageType" != 'git-operation'))
-          GROUP BY date, agent, model
+            AND action = 'message_sent'
+          GROUP BY date, metadata->>'agent', metadata->>'model'
           ORDER BY date ASC
         `,
   ])
