@@ -91,31 +91,3 @@ export function HighlightedCode({
     </div>
   )
 }
-
-interface SimpleCodeViewProps {
-  /** The code content to display */
-  code: string
-  /** Additional className for the container */
-  className?: string
-  /** Maximum height (CSS value) */
-  maxHeight?: string
-}
-
-/**
- * Simple code/text viewer without syntax highlighting.
- * Use this for plain text files or when highlighting is not needed.
- */
-export function SimpleCodeView({
-  code,
-  className = "",
-  maxHeight,
-}: SimpleCodeViewProps) {
-  return (
-    <pre
-      className={`text-sm whitespace-pre-wrap break-words font-mono bg-muted/30 rounded-md p-4 overflow-x-auto ${className}`}
-      style={maxHeight ? { maxHeight } : undefined}
-    >
-      {code}
-    </pre>
-  )
-}

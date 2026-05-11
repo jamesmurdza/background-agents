@@ -15,6 +15,7 @@ import {
   UserMenu,
   ChatItem,
   MobileChatItem,
+  MergedChatCheckmark,
   hasMergedSuccessfully,
   getFirstMessagePreview,
 } from "./sidebar"

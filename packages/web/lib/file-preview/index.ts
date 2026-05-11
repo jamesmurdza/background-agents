@@ -7,7 +7,7 @@
 
 // Types and utilities
 export type { FileType } from './types'
-export { EXT_TO_LANG, CODE_EXTENSIONS, TEXT_EXTENSIONS, formatFileSize } from './types'
+export { formatFileSize } from './types'
 
 // Detection utilities
 export {
@@ -23,7 +23,7 @@ export {
 } from './detect'
 
 // Code/text preview components
-export { HighlightedCode, SimpleCodeView } from './HighlightedCode'
+export { HighlightedCode } from './HighlightedCode'
 
 // Markdown preview component
 export { MarkdownPreview } from './MarkdownPreview'

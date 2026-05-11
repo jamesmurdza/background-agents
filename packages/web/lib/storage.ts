@@ -126,11 +126,6 @@ export function setPreviewState(chatId: string, previewState: PreviewState | und
   })
 }
 
-export function getPreviewState(chatId: string): PreviewState | undefined {
-  const state = loadLocalState()
-  return state.previewStates[chatId]
-}
-
 export function setQueuedMessages(chatId: string, messages: Chat["queuedMessages"]): void {
   const state = loadLocalState()
   saveLocalState({

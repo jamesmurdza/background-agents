@@ -236,30 +236,6 @@ export interface PendingFile {
   size: number
 }
 
-// API types
-export interface CreateSandboxRequest {
-  repo: string
-  baseBranch: string
-  newBranch: string
-}
-
-export interface CreateSandboxResponse {
-  sandboxId: string
-  previewUrlPattern?: string
-}
-
-export interface ExecuteAgentRequest {
-  sandboxId: string
-  prompt: string
-  repoName: string
-  agent?: string
-  model?: string
-}
-
-export interface ExecuteAgentResponse {
-  success: boolean
-}
-
 // =============================================================================
 // SSE Event Types
 // =============================================================================
