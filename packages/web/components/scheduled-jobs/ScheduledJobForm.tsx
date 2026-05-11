@@ -71,6 +71,24 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const { data: repos, isLoading: loadingRepos } = useReposQuery()
   const { data: branches, isLoading: loadingBranches } = useBranchesQueryFromFullName(repo || null)
 
+  // Reset form state when job prop changes or modal opens
+  useEffect(() => {
+    if (open) {
+      setName(job?.name ?? "")
+      setPrompt(job?.prompt ?? "")
+      setRepo(job?.repo ?? "")
+      setBaseBranch(job?.baseBranch ?? "main")
+      setAgent(job?.agent ?? "opencode")
+      setTriggerType(job?.triggerType ?? "interval")
+      setIntervalMinutes(job?.intervalMinutes ?? 1440)
+      setAutoPR(job?.autoPR ?? true)
+      setContinueFromLastRun(job?.continueFromLastRun ?? false)
+      setCustomInterval("")
+      setCustomUnit("hours")
+      setError(null)
+    }
+  }, [open, job])
+
   // Update branch when repo changes
   useEffect(() => {
     if (branches && branches.length > 0 && !job) {
