@@ -35,6 +35,10 @@ export const geminiAgent: AgentDefinition = {
 
     // Enable full tool access (shell, file writes, etc.) - safe in sandbox environment
     args.push("--yolo")
+    
+    // Skip trust checks since we're in a controlled environment
+    args.push("--skip-trust")             
+                                      
 
     // Add model if specified (e.g., "gemini-2.0-flash", "gemini-1.5-pro")
     if (options.model) {
