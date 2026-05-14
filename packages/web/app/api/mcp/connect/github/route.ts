@@ -19,10 +19,7 @@ import {
   internalError,
   serverConfigError,
 } from "@/lib/db/api-helpers"
-import {
-  getInstallUrl,
-  invalidateInstallationToken,
-} from "@/lib/github/app"
+import { createGitHubMcpProvider } from "@upstream/mcp-providers"
 
 interface ConnectResponse {
   /** True iff the user has installed our GitHub App. */
@@ -31,6 +28,18 @@ interface ConnectResponse {
   installUrl?: string
   /** Present iff connected — used to build the github.com management URL. */
   installationId?: string
+}
+
+function getGitHubConfig() {
+  const appId = process.env.GITHUB_APP_ID
+  const appSlug = process.env.GITHUB_APP_SLUG
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY
+
+  if (!appId || !appSlug || !privateKey) {
+    return null
+  }
+
+  return { appId, appSlug, privateKey }
 }
 
 function requireConfig(): Response | null {
@@ -50,7 +59,14 @@ async function getStatus(userId: string): Promise<ConnectResponse> {
   if (user?.githubAppInstallationId) {
     return { connected: true, installationId: user.githubAppInstallationId }
   }
-  return { connected: false, installUrl: getInstallUrl() }
+
+  const config = getGitHubConfig()
+  if (!config) {
+    return { connected: false }
+  }
+
+  const provider = createGitHubMcpProvider(config)
+  return { connected: false, installUrl: provider.getInstallUrl() }
 }
 
 export async function GET(_req: NextRequest): Promise<Response> {
@@ -82,7 +98,11 @@ export async function DELETE(_req: NextRequest): Promise<Response> {
   // re-install with the same installation id could briefly hit the stale
   // cached token.
   if (user?.githubAppInstallationId) {
-    invalidateInstallationToken(user.githubAppInstallationId)
+    const config = getGitHubConfig()
+    if (config) {
+      const provider = createGitHubMcpProvider(config)
+      provider.invalidateToken(user.githubAppInstallationId)
+    }
   }
 
   await prisma.user.update({

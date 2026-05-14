@@ -17,7 +17,7 @@ import {
   internalError,
   getChatWithAuth,
 } from "@/lib/db/api-helpers"
-import { GITHUB_MCP_QUALIFIED_NAME, GITHUB_MCP_URL } from "@/lib/github/app"
+import { GITHUB_MCP_QUALIFIED_NAME, GITHUB_MCP_URL } from "@upstream/mcp-providers"
 
 export async function POST(
   _req: Request,
