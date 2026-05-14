@@ -8,6 +8,7 @@
  * a "try again" message.
  */
 import { prisma } from "@/lib/db/prisma"
+import { encrypt } from "@/lib/db/encryption"
 import {
   requireAuth,
   isAuthError,
@@ -17,7 +18,7 @@ import {
   internalError,
   getChatWithAuth,
 } from "@/lib/db/api-helpers"
-import { finalizeSmitheryConnection } from "@/lib/mcp/smithery-connect"
+import { createSmitheryProvider } from "@upstream/mcp-providers"
 
 export async function POST(
   _req: Request,
@@ -44,12 +45,43 @@ export async function POST(
   if (!apiKey) return serverConfigError("SMITHERY_API_KEY")
 
   try {
-    const ok = await finalizeSmitheryConnection(
-      serverId,
-      server.smitheryConnectionId,
-      apiKey
+    const smithery = createSmitheryProvider({
+      apiKey,
+      namespace: process.env.SMITHERY_NAMESPACE,
+    })
+
+    const status = await smithery.getConnectionStatus(
+      server.smitheryConnectionId
     )
-    if (ok) return Response.json({ connected: true })
+
+    if (status.state === "connected") {
+      const namespace = await smithery.getNamespace()
+      if (!namespace) {
+        return Response.json(
+          { error: "Failed to resolve Smithery namespace" },
+          { status: 500 }
+        )
+      }
+
+      const mcpEndpoint = smithery.getMcpEndpointWithNamespace(
+        namespace,
+        server.smitheryConnectionId
+      )
+
+      await prisma.chatMcpServer.update({
+        where: { id: serverId },
+        data: {
+          mcpUrl: mcpEndpoint,
+          smitheryNamespace: namespace,
+          encryptedApiKey: encrypt(apiKey),
+          status: "connected",
+          lastError: null,
+        },
+      })
+
+      return Response.json({ connected: true })
+    }
+
     return Response.json(
       { error: "Connection not yet authorized. Please try again." },
       { status: 400 }

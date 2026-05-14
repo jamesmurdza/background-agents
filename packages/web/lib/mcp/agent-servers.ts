@@ -10,14 +10,28 @@
 import { prisma } from "@/lib/db/prisma"
 import { decrypt } from "@/lib/db/encryption"
 import {
+  createGitHubMcpProvider,
   GITHUB_MCP_QUALIFIED_NAME,
-  getInstallationToken,
-} from "@/lib/github/app"
+  safeServerName,
+} from "@upstream/mcp-providers"
 import type { AgentMcpServer } from "@upstream/agent-configuration/mcp"
 
-/** Sanitize Smithery's slugs into a name acceptable to every agent CLI. */
-function safeServerName(qualifiedName: string): string {
-  return qualifiedName.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase()
+// Lazily-initialized GitHub provider
+let githubProvider: ReturnType<typeof createGitHubMcpProvider> | null = null
+
+function getGitHubProvider() {
+  if (githubProvider) return githubProvider
+
+  const appId = process.env.GITHUB_APP_ID
+  const appSlug = process.env.GITHUB_APP_SLUG
+  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY
+
+  if (!appId || !appSlug || !privateKey) {
+    return null
+  }
+
+  githubProvider = createGitHubMcpProvider({ appId, appSlug, privateKey })
+  return githubProvider
 }
 
 export async function loadChatMcpServers(
@@ -39,13 +53,14 @@ export async function loadChatMcpServers(
 
     if (row.qualifiedName === GITHUB_MCP_QUALIFIED_NAME) {
       const installationId = row.chat.user.githubAppInstallationId
-      if (!installationId) {
-        // Row exists but App has been uninstalled — skip silently so the agent
-        // doesn't get a row with no usable auth.
+      const github = getGitHubProvider()
+      if (!installationId || !github) {
+        // Row exists but App has been uninstalled or not configured — skip
+        // silently so the agent doesn't get a row with no usable auth.
         continue
       }
       try {
-        const token = await getInstallationToken(installationId)
+        const token = await github.getToken(installationId)
         out.push({
           name: safeServerName(row.qualifiedName),
           url: row.mcpUrl,

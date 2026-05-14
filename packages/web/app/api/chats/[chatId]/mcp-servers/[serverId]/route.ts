@@ -11,7 +11,7 @@ import {
   internalError,
   getChatWithAuth,
 } from "@/lib/db/api-helpers"
-import { deleteSmitheryConnection } from "@/lib/mcp/smithery-connect"
+import { createSmitheryProvider } from "@upstream/mcp-providers"
 
 export async function DELETE(
   _req: Request,
@@ -35,7 +35,11 @@ export async function DELETE(
   try {
     const apiKey = process.env.SMITHERY_API_KEY
     if (apiKey && server.smitheryConnectionId) {
-      await deleteSmitheryConnection(server.smitheryConnectionId, apiKey)
+      const smithery = createSmitheryProvider({
+        apiKey,
+        namespace: process.env.SMITHERY_NAMESPACE,
+      })
+      await smithery.deleteConnection(server.smitheryConnectionId)
     }
 
     await prisma.chatMcpServer.delete({ where: { id: serverId } })

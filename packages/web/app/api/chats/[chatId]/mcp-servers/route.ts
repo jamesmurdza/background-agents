@@ -26,10 +26,10 @@ import {
   getChatWithAuth,
 } from "@/lib/db/api-helpers"
 import {
-  createSmitheryConnection,
+  createSmitheryProvider,
   getSmitheryConnectionId,
   isSmitheryServer,
-} from "@/lib/mcp/smithery-connect"
+} from "@upstream/mcp-providers"
 
 interface ConnectBody {
   slug?: string
@@ -104,8 +104,12 @@ export async function POST(
 
   try {
     // Smithery's PUT is idempotent; safe to call before we touch our DB.
+    const smithery = createSmitheryProvider({
+      apiKey,
+      namespace: process.env.SMITHERY_NAMESPACE,
+    })
     const connectionId = getSmitheryConnectionId(chatId, slug)
-    const result = await createSmitheryConnection(url, connectionId, name, apiKey)
+    const result = await smithery.createConnection(url, connectionId, name)
 
     if (result.status === "error") {
       return Response.json(

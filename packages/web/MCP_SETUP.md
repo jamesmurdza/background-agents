@@ -42,7 +42,7 @@ Without the three `GITHUB_APP_*` vars, the GitHub tile in the modal stays disabl
 
 ### 2. Pin a namespace
 
-By default the resolver picks the first namespace owned by the key, or creates `upstream-<8charHash>` if none exist. See [`lib/mcp/smithery-connect.ts`](./lib/mcp/smithery-connect.ts) `getNamespace()`.
+By default the resolver picks the first namespace owned by the key, or creates `upstream-<8charHash>` if none exist. See `@upstream/mcp-providers` for the implementation.
 
 Manage your namespaces at [smithery.ai/settings/namespaces](https://smithery.ai/settings/namespaces).
 
@@ -118,7 +118,7 @@ Convert the PEM to a single-line env var (Bash):
 awk 'NF {sub(/\r/, ""); printf "%s\\n", $0}' your-key.pem
 ```
 
-Paste the output into `GITHUB_APP_PRIVATE_KEY="..."` (keep the surrounding quotes). Both literal `\n` and real multi-line PEMs are accepted — see [`lib/github/app.ts`](./lib/github/app.ts) `getPrivateKey()`.
+Paste the output into `GITHUB_APP_PRIVATE_KEY="..."` (keep the surrounding quotes). Both literal `\n` and real multi-line PEMs are accepted — see `@upstream/mcp-providers` for the implementation.
 
 ### 4. Local install + smoke test
 
