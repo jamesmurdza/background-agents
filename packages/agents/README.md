@@ -247,11 +247,11 @@ type Event =
 | Provider | Example | Docs |
 |----------|---------|------|
 | **Claude** | `model: "sonnet"`, `model: "opus"`, `model: "haiku"` | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) |
-| **Codex** | `model: "gpt-5.4"` | [Codex CLI models](https://developers.openai.com/codex/models) |
-| **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"` | [Goose providers](https://block.github.io/goose/docs/getting-started/providers) |
+| **Codex** | `model: "gpt-5.4"`, `model: "gpt-5.3-codex"` | [Codex CLI models](https://developers.openai.com/codex/models) |
+| **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://block.github.io/goose/docs/getting-started/providers) |
 | **OpenCode** | `model: "opencode/big-pickle"` (free), `model: "anthropic/claude-sonnet-4-5"` | [OpenCode models](https://opencode.ai/docs/models/) |
-| **Gemini** | `model: "gemini-2.5-flash"`, `model: "gemini-2.5-pro"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
-| **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"` | [Pi CLI models](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#providers--models) |
+| **Gemini** | `model: "gemini-2.5-flash"`, `model: "gemini-2.5-pro"`, `model: "gemini-3.1-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
+| **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"`, `model: "google/gemini-2.5-pro"` | [Pi CLI models](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#providers--models) |
 
 ---
 
