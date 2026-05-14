@@ -57,6 +57,8 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
    - `GITHUB_CLIENT_ID` - GitHub OAuth app client ID
    - `GITHUB_CLIENT_SECRET` - GitHub OAuth app client secret
 
+   For MCP servers (Smithery registry + GitHub App MCP), see [MCP_SETUP.md](./MCP_SETUP.md).
+
 3. **Set up the database**:
 
    Generate the Prisma client and run migrations:
