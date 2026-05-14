@@ -14,8 +14,7 @@
 
 import { SignJWT } from "jose"
 import { createPrivateKey, type KeyObject } from "crypto"
-import type { ITokenMintingProvider, McpServerConfig } from "../types"
-import { safeServerName } from "../types"
+import type { ITokenMintingProvider } from "../types"
 import { GITHUB_MCP_URL, GITHUB_MCP_QUALIFIED_NAME } from "./constants"
 
 /**
@@ -88,18 +87,6 @@ export class GitHubMcpProvider implements ITokenMintingProvider {
     const fresh = await this.mintInstallationToken(installationId)
     this.tokenCache.set(installationId, fresh)
     return fresh.token
-  }
-
-  /**
-   * Build a complete server config with a fresh token.
-   */
-  async getServerConfig(installationId: string): Promise<McpServerConfig> {
-    const token = await this.getToken(installationId)
-    return {
-      name: safeServerName(this.qualifiedName),
-      url: this.mcpUrl,
-      bearerToken: token,
-    }
   }
 
   /**

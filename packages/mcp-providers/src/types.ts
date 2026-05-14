@@ -44,11 +44,6 @@ export interface ITokenMintingProvider extends IMcpProvider {
   getToken(installationId: string): Promise<string>
 
   /**
-   * Build a complete server config with a fresh token.
-   */
-  getServerConfig(installationId: string): Promise<McpServerConfig>
-
-  /**
    * Invalidate a cached token (e.g., after disconnect).
    */
   invalidateToken(installationId: string): void
@@ -77,11 +72,6 @@ export interface IConnectionProvider extends IMcpProvider {
    * Delete a connection (best-effort cleanup).
    */
   deleteConnection(connectionId: string): Promise<void>
-
-  /**
-   * Build a complete server config using the provider's API key.
-   */
-  getServerConfig(connectionId: string): Promise<McpServerConfig>
 
   /**
    * Get the MCP endpoint URL for a specific connection with explicit namespace.

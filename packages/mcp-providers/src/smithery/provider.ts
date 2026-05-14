@@ -21,9 +21,7 @@ import type {
   IConnectionProvider,
   ConnectionResult,
   ConnectionStatus,
-  McpServerConfig,
 } from "../types"
-import { safeServerName } from "../types"
 import { SMITHERY_API_BASE } from "./constants"
 
 /**
@@ -313,21 +311,6 @@ export class SmitheryProvider implements IConnectionProvider {
     } catch (err) {
       // Connection delete is best-effort — DB row deletion is what matters.
       console.warn("[Smithery Connect] DELETE failed (non-fatal):", err)
-    }
-  }
-
-  /**
-   * Build a complete server config using the provider's API key.
-   */
-  async getServerConfig(connectionId: string): Promise<McpServerConfig> {
-    const namespace = await this.getNamespace()
-    if (!namespace) {
-      throw new Error("Failed to resolve Smithery namespace")
-    }
-    return {
-      name: safeServerName(connectionId),
-      url: this.getMcpEndpointWithNamespace(namespace, connectionId),
-      bearerToken: this.config.apiKey,
     }
   }
 

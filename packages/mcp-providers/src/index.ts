@@ -19,15 +19,15 @@
  *   createSmitheryProvider,
  * } from "@upstream/mcp-providers"
  *
- * // GitHub provider
+ * // GitHub provider - mint installation tokens
  * const github = createGitHubMcpProvider({
  *   appId: process.env.GITHUB_APP_ID!,
  *   appSlug: process.env.GITHUB_APP_SLUG!,
  *   privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
  * })
- * const config = await github.getServerConfig(installationId)
+ * const token = await github.getToken(installationId)
  *
- * // Smithery provider
+ * // Smithery provider - manage connections
  * const smithery = createSmitheryProvider({
  *   apiKey: process.env.SMITHERY_API_KEY!,
  * })
