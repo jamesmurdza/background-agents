@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 | [`common`](packages/common) | Shared utilities and types |
 | [`daytona-git`](packages/daytona-git) | Git operations for Daytona sandboxes |
 | [`dev-cron`](packages/dev-cron) | Local development simulator for Vercel cron jobs |
-| [`terminal`](packages/terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
+| [`daytona-terminal`](packages/daytona-terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
 
 ---
 
