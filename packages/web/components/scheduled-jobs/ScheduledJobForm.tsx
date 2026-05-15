@@ -41,11 +41,46 @@ const TRIGGER_TYPES = [
 ] as const
 
 const INTERVAL_PRESETS = [
-  { label: "Hourly", value: 60 },
-  { label: "Every 6 hours", value: 360 },
-  { label: "Daily", value: 1440 },
-  { label: "Weekly", value: 10080 },
-  { label: "Custom", value: -1 },
+  { label: "Hour", value: 60 },
+  { label: "Day", value: 1440 },
+  { label: "Week", value: 10080 },
+]
+
+const DAYS_OF_WEEK = [
+  { label: "Monday", value: 1 },
+  { label: "Tuesday", value: 2 },
+  { label: "Wednesday", value: 3 },
+  { label: "Thursday", value: 4 },
+  { label: "Friday", value: 5 },
+  { label: "Saturday", value: 6 },
+  { label: "Sunday", value: 0 },
+]
+
+const TIME_OPTIONS = [
+  { label: "12:00 AM", value: 0 },
+  { label: "1:00 AM", value: 1 },
+  { label: "2:00 AM", value: 2 },
+  { label: "3:00 AM", value: 3 },
+  { label: "4:00 AM", value: 4 },
+  { label: "5:00 AM", value: 5 },
+  { label: "6:00 AM", value: 6 },
+  { label: "7:00 AM", value: 7 },
+  { label: "8:00 AM", value: 8 },
+  { label: "9:00 AM", value: 9 },
+  { label: "10:00 AM", value: 10 },
+  { label: "11:00 AM", value: 11 },
+  { label: "12:00 PM", value: 12 },
+  { label: "1:00 PM", value: 13 },
+  { label: "2:00 PM", value: 14 },
+  { label: "3:00 PM", value: 15 },
+  { label: "4:00 PM", value: 16 },
+  { label: "5:00 PM", value: 17 },
+  { label: "6:00 PM", value: 18 },
+  { label: "7:00 PM", value: 19 },
+  { label: "8:00 PM", value: 20 },
+  { label: "9:00 PM", value: 21 },
+  { label: "10:00 PM", value: 22 },
+  { label: "11:00 PM", value: 23 },
 ]
 
 const AVAILABLE_AGENTS: Agent[] = ["opencode", "claude-code", "codex"]
@@ -66,10 +101,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const [model, setModel] = useState(job?.model ?? "")
   const [triggerType, setTriggerType] = useState<"interval" | "webhook">(job?.triggerType ?? "interval")
   const [intervalMinutes, setIntervalMinutes] = useState(job?.intervalMinutes ?? 1440)
+  const [runAtHour, setRunAtHour] = useState(9) // Default to 9 AM
+  const [runAtDay, setRunAtDay] = useState(1) // Default to Monday
   const [autoPR, setAutoPR] = useState(job?.autoPR ?? true)
   const [continueFromLastRun, setContinueFromLastRun] = useState(job?.continueFromLastRun ?? false)
-  const [customInterval, setCustomInterval] = useState("")
-  const [customUnit, setCustomUnit] = useState<"hours" | "days">("hours")
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -94,10 +129,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setModel(job?.model ?? initialModels[0]?.value ?? "")
       setTriggerType(job?.triggerType ?? "interval")
       setIntervalMinutes(job?.intervalMinutes ?? 1440)
+      setRunAtHour(9)
+      setRunAtDay(1)
       setAutoPR(job?.autoPR ?? true)
       setContinueFromLastRun(job?.continueFromLastRun ?? false)
-      setCustomInterval("")
-      setCustomUnit("hours")
       setError(null)
     }
   }, [open, job])
@@ -123,9 +158,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
-  // Check if using custom interval
-  const isCustomInterval = !INTERVAL_PRESETS.find((p) => p.value === intervalMinutes && p.value !== -1)
-
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -145,19 +177,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       return
     }
 
-    // Calculate interval (only for interval trigger type)
-    let finalInterval = intervalMinutes
-    if (triggerType === "interval") {
-      if (isCustomInterval && customInterval) {
-        const num = parseInt(customInterval, 10)
-        if (isNaN(num) || num < 1) {
-          setError("Invalid interval")
-          return
-        }
-        finalInterval = customUnit === "hours" ? num * 60 : num * 1440
-      }
-    }
-
     setLoading(true)
 
     try {
@@ -175,7 +194,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           agent,
           model: model || null,
           triggerType,
-          intervalMinutes: triggerType === "interval" ? finalInterval : undefined,
+          intervalMinutes: triggerType === "interval" ? intervalMinutes : undefined,
           autoPR,
           continueFromLastRun,
         }),
@@ -372,116 +391,117 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
             {/* Trigger Type - Segmented Control */}
             <div>
               <label className="block text-sm font-medium mb-2">Trigger</label>
-
-              {/* Segmented Control */}
               <div className={cn(
-                "inline-flex rounded-lg border border-border p-1 bg-muted/50",
+                "inline-flex rounded-md bg-muted p-0.5",
                 isEditing && "opacity-50"
               )}>
-                {TRIGGER_TYPES.map((t) => {
-                  const isSelected = triggerType === t.value
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => !isEditing && setTriggerType(t.value)}
-                      disabled={isEditing}
-                      className={cn(
-                        "px-4 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer",
-                        isSelected
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  )
-                })}
+                {TRIGGER_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => !isEditing && setTriggerType(t.value)}
+                    disabled={isEditing}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
+                      triggerType === t.value
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Conditional content below segmented control */}
-              {triggerType === "interval" && (
-                <div className="mt-3">
-                  <div className="flex gap-2">
+            {/* Schedule - only for scheduled trigger */}
+            {triggerType === "interval" && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Run every</span>
+                <select
+                  value={intervalMinutes}
+                  onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {INTERVAL_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Day of week - only for weekly */}
+                {intervalMinutes === 10080 && (
+                  <>
+                    <span className="text-muted-foreground">on</span>
                     <select
-                      value={isCustomInterval ? -1 : intervalMinutes}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10)
-                        if (val === -1) {
-                          setCustomInterval("")
-                        } else {
-                          setIntervalMinutes(val)
-                        }
-                      }}
-                      className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={runAtDay}
+                      onChange={(e) => setRunAtDay(parseInt(e.target.value, 10))}
+                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      {INTERVAL_PRESETS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
+                      {DAYS_OF_WEEK.map((d) => (
+                        <option key={d.value} value={d.value}>
+                          {d.label}
                         </option>
                       ))}
                     </select>
+                  </>
+                )}
 
-                    {isCustomInterval && (
-                      <>
-                        <input
-                          type="number"
-                          min="1"
-                          value={customInterval}
-                          onChange={(e) => setCustomInterval(e.target.value)}
-                          placeholder="1"
-                          className="w-20 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                        <select
-                          value={customUnit}
-                          onChange={(e) => setCustomUnit(e.target.value as "hours" | "days")}
-                          className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
-                          <option value="hours">hours</option>
-                          <option value="days">days</option>
-                        </select>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {triggerType === "webhook" && (
-                <div className="mt-3 text-xs text-muted-foreground">
-                  A webhook will be created on the repository when you save.
-                </div>
-              )}
-            </div>
-
-            {/* Auto-PR */}
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="autoPR"
-                checked={autoPR}
-                onChange={(e) => setAutoPR(e.target.checked)}
-                className="h-4 w-4 rounded border-border"
-              />
-              <label htmlFor="autoPR" className="text-sm">
-                Automatically create PR when there are commits
-              </label>
-            </div>
-
-            {/* Continue from last run - only for scheduled triggers */}
-            {triggerType === "interval" && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="continueFromLastRun"
-                  checked={continueFromLastRun}
-                  onChange={(e) => setContinueFromLastRun(e.target.checked)}
-                  className="h-4 w-4 rounded border-border"
-                />
-                <label htmlFor="continueFromLastRun" className="text-sm">
-                  Include commits from the previous run
-                </label>
+                {/* Time of day - for daily and weekly */}
+                {intervalMinutes >= 1440 && (
+                  <>
+                    <span className="text-muted-foreground">at</span>
+                    <select
+                      value={runAtHour}
+                      onChange={(e) => setRunAtHour(parseInt(e.target.value, 10))}
+                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             )}
+
+            {/* Options Section */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Options</label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="autoPR"
+                    checked={autoPR}
+                    onChange={(e) => setAutoPR(e.target.checked)}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <label htmlFor="autoPR" className="text-sm">
+                    Automatically create PR when there are commits
+                  </label>
+                </div>
+
+                {/* Continue from last run - only for scheduled triggers */}
+                {triggerType === "interval" && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="continueFromLastRun"
+                      checked={continueFromLastRun}
+                      onChange={(e) => setContinueFromLastRun(e.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <label htmlFor="continueFromLastRun" className="text-sm">
+                      Include commits from the previous run
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
 
           </form>
 
