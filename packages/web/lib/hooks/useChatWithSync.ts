@@ -237,9 +237,6 @@ export function useChatWithSync() {
     }
   }, [chats, currentChatId, isHydrated])
 
-  // Default page size for initial load and "load more"
-  const MESSAGE_PAGE_SIZE = 50
-
   // Load messages for current chat when selected
   useEffect(() => {
     if (!currentChatId || !isHydrated) return
@@ -254,8 +251,7 @@ export function useChatWithSync() {
 
     const loadMessages = async () => {
       try {
-        // Load last N messages initially (most recent)
-        const chatData = await fetchChat(currentChatId, { limit: MESSAGE_PAGE_SIZE })
+        const chatData = await fetchChat(currentChatId)
         const incomingMessages = chatData.messages.map(toMessageType)
 
         updateChatsCache((old) =>

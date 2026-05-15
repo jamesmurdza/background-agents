@@ -106,14 +106,10 @@ export async function fetchChat(
   chatId: string,
   options?: {
     afterMessageId?: string
-    beforeMessageId?: string
-    limit?: number
   }
 ): Promise<ChatWithMessagesResponse> {
   const params = new URLSearchParams()
   if (options?.afterMessageId) params.set("afterMessageId", options.afterMessageId)
-  if (options?.beforeMessageId) params.set("beforeMessageId", options.beforeMessageId)
-  if (options?.limit) params.set("limit", options.limit.toString())
   const query = params.toString()
   return fetchApi<ChatWithMessagesResponse>(`/api/chats/${chatId}${query ? `?${query}` : ""}`)
 }
