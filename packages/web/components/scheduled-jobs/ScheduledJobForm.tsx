@@ -280,7 +280,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
             isMobile
               ? "inset-x-4 top-1/2 -translate-y-1/2 rounded-xl max-h-[85vh]"
               : "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full border border-border rounded-lg shadow-xl max-h-[90vh]",
-            !isMobile && (isEditing ? "max-w-lg" : "max-w-2xl")
+            !isMobile && "max-w-2xl"
           )}
         >
           <ModalHeader
