@@ -515,19 +515,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
             <div>
               <label className="block text-sm font-medium mb-2">Options</label>
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="autoPR"
-                    checked={autoPR}
-                    onChange={(e) => setAutoPR(e.target.checked)}
-                    className="h-4 w-4 rounded border-border"
-                  />
-                  <label htmlFor="autoPR" className="text-sm">
-                    Automatically create PR when there are commits
-                  </label>
-                </div>
-
                 {/* Continue from last run - only for scheduled triggers */}
                 {triggerType === "interval" && (
                   <div className="flex items-center gap-2">
@@ -543,6 +530,19 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                     </label>
                   </div>
                 )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="autoPR"
+                    checked={autoPR}
+                    onChange={(e) => setAutoPR(e.target.checked)}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <label htmlFor="autoPR" className="text-sm">
+                    Automatically create PR when there are new commits
+                  </label>
+                </div>
               </div>
             </div>
 
