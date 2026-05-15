@@ -277,6 +277,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                     }}
                     disabled={isEditing}
                     isMobile={isMobile}
+                    showLabel
                   />
 
                   {/* Branch selector */}
@@ -287,6 +288,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                       onChange={setBaseBranch}
                       defaultBranch={baseBranch}
                       isMobile={isMobile}
+                      showLabel
                     />
                   )}
 
@@ -367,46 +369,33 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               </div>
             </div>
 
-            {/* Trigger Type - Radio Cards */}
+            {/* Trigger Type - Radio Buttons */}
             <div>
-              <label className="block text-sm font-medium mb-2">When should this run?</label>
-              <div className="space-y-2">
+              <label className="block text-sm font-medium mb-2">Trigger</label>
+              <div className="space-y-3">
                 {TRIGGER_TYPES.map((t) => {
                   const isSelected = triggerType === t.value
                   return (
-                    <div
-                      key={t.value}
-                      className={cn(
-                        "rounded-lg border transition-colors",
-                        isSelected
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/50",
-                        isEditing && "opacity-70 pointer-events-none"
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => !isEditing && setTriggerType(t.value)}
-                        className="w-full flex items-start gap-3 p-3 text-left cursor-pointer"
-                        disabled={isEditing}
-                      >
-                        <div className={cn(
-                          "mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                          isSelected ? "border-primary" : "border-muted-foreground/50"
-                        )}>
-                          {isSelected && (
-                            <div className="h-2 w-2 rounded-full bg-primary" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium">{t.label}</div>
-                          <div className="text-xs text-muted-foreground">{t.description}</div>
-                        </div>
-                      </button>
+                    <div key={t.value}>
+                      <label className={cn(
+                        "flex items-center gap-2 cursor-pointer",
+                        isEditing && "opacity-50 cursor-not-allowed"
+                      )}>
+                        <input
+                          type="radio"
+                          name="triggerType"
+                          value={t.value}
+                          checked={isSelected}
+                          onChange={() => setTriggerType(t.value)}
+                          disabled={isEditing}
+                          className="h-4 w-4 text-primary"
+                        />
+                        <span className="text-sm">{t.label}</span>
+                      </label>
 
-                      {/* Expanded content for selected card */}
+                      {/* Conditional content for selected option */}
                       {isSelected && t.value === "interval" && (
-                        <div className="px-3 pb-3 pl-10">
+                        <div className="mt-2 ml-6">
                           <div className="flex gap-2">
                             <select
                               value={isCustomInterval ? -1 : intervalMinutes}
@@ -452,10 +441,8 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                       )}
 
                       {isSelected && t.value === "webhook" && (
-                        <div className="px-3 pb-3 pl-10">
-                          <div className="text-xs text-muted-foreground">
-                            A webhook will be created on the repository when you save.
-                          </div>
+                        <div className="mt-2 ml-6 text-xs text-muted-foreground">
+                          A webhook will be created on the repository when you save.
                         </div>
                       )}
                     </div>
