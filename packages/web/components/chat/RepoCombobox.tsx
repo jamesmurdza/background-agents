@@ -98,8 +98,7 @@ export function RepoCombobox({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex items-center gap-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer",
-            isMobile ? "text-sm py-1 px-2 rounded-md hover:bg-accent/50" : "text-sm",
+            "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-sm",
             disabled && "opacity-50 cursor-not-allowed"
           )}
           title={value || "Select repository"}

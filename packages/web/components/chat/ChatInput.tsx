@@ -308,7 +308,7 @@ export function ChatInput({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className={cn(
-                "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer",
+                "shrink-0 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
                 isMobile ? "h-7 w-7" : "h-6 w-6"
               )}
               title="Attach files"
@@ -344,7 +344,7 @@ export function ChatInput({
                   <button
                     onClick={() => onUpdateChat({ repo: NEW_REPOSITORY, baseBranch: "main" })}
                     className={cn(
-                      "rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
+                      "text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
                       isMobile ? "p-1.5" : "p-0.5"
                     )}
                     title="Remove repository"
@@ -383,10 +383,10 @@ export function ChatInput({
                 <button
                   type="button"
                   className={cn(
-                    "shrink-0 flex items-center gap-1 rounded-md transition-colors cursor-pointer",
+                    "shrink-0 flex items-center gap-1 transition-colors cursor-pointer",
                     planModeEnabled
-                      ? "bg-primary/15 text-primary hover:bg-primary/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                      ? "text-primary hover:text-primary/80"
+                      : "text-muted-foreground hover:text-foreground",
                     isMobile ? "h-7 px-2 text-sm" : "h-6 px-1.5 text-sm"
                   )}
                   title={planModeEnabled ? "Plan mode — agent will plan before acting" : "Edit mode — agent will edit code directly"}
