@@ -33,6 +33,8 @@ interface RepoComboboxProps {
   isMobile?: boolean
   /** Always show label regardless of container width */
   showLabel?: boolean
+  /** If true, clicking the button opens the create modal directly instead of showing the dropdown */
+  createOnly?: boolean
 }
 
 export function RepoCombobox({
@@ -42,6 +44,7 @@ export function RepoCombobox({
   disabled = false,
   isMobile = false,
   showLabel = false,
+  createOnly = false,
 }: RepoComboboxProps) {
   const [open, setOpen] = useState(false)
   const [repos, setRepos] = useState<GitHubRepo[]>([])
@@ -89,6 +92,30 @@ export function RepoCombobox({
   const handleCreateClick = () => {
     setOpen(false)
     onRequestCreate?.()
+  }
+
+  // If createOnly mode, render a simple button that opens the create modal directly
+  if (createOnly) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onRequestCreate?.()}
+        className={cn(
+          "flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-sm",
+          disabled && "opacity-50 cursor-not-allowed"
+        )}
+        title="Create new repository"
+      >
+        <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+        <span className={cn(
+          showLabel ? "inline" : (isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")
+        )}>
+          {displayLabel}
+        </span>
+        <ChevronDown className={cn(isMobile ? "h-4 w-4 hidden @[16rem]/row1:block" : "h-3.5 w-3.5")} />
+      </button>
+    )
   }
 
   return (

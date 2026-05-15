@@ -65,7 +65,7 @@ interface ChatInputProps {
   // Repo/branch
   showRepoButton: boolean
   isNewRepo: boolean
-  canSelectRepo: boolean
+  canSelectExistingRepo: boolean
   onUpdateChat?: (updates: Partial<Chat>) => void
   /** Default branch for the current repo (used by BranchCombobox) */
   defaultBranch?: string
@@ -125,7 +125,7 @@ export function ChatInput({
   // Repo/branch
   showRepoButton,
   isNewRepo,
-  canSelectRepo,
+  canSelectExistingRepo,
   onUpdateChat,
   defaultBranch,
   // Agent/model
@@ -326,7 +326,7 @@ export function ChatInput({
                     onUpdateChat?.({ repo, baseBranch: branch })
                   }}
                   onRequestCreate={() => modals.setRepoCreateOpen(true)}
-                  disabled={!canSelectRepo}
+                  createOnly={!canSelectExistingRepo && isNewRepo}
                   isMobile={isMobile}
                 />
                 {!isNewRepo && isNewChat && (
@@ -340,7 +340,7 @@ export function ChatInput({
                     isMobile={isMobile}
                   />
                 )}
-                {!isNewRepo && onUpdateChat && canSelectRepo && (
+                {!isNewRepo && onUpdateChat && canSelectExistingRepo && (
                   <button
                     onClick={() => onUpdateChat({ repo: NEW_REPOSITORY, baseBranch: "main" })}
                     className={cn(
