@@ -119,17 +119,6 @@ export async function fetchChat(
 }
 
 /**
- * Fetch messages for a chat (delta sync)
- */
-export async function fetchMessages(
-  chatId: string,
-  afterMessageId?: string
-): Promise<MessageResponse[]> {
-  const chat = await fetchChat(chatId, afterMessageId ? { afterMessageId } : undefined)
-  return chat.messages
-}
-
-/**
  * Create a new chat
  */
 export async function createChat(data: {
