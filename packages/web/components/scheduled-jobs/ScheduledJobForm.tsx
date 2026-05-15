@@ -242,79 +242,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               />
             </div>
 
-            {/* Trigger Type */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Trigger</label>
-              <select
-                value={triggerType}
-                onChange={(e) => setTriggerType(e.target.value as "interval" | "webhook")}
-                disabled={isEditing}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-              >
-                {TRIGGER_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Webhook info */}
-            {triggerType === "webhook" && (
-              <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-                This agent will run whenever a GitHub Actions workflow fails on this repository.
-                A webhook will be created on the repository when you save.
-              </div>
-            )}
-
-            {/* Interval - only show for interval trigger */}
-            {triggerType === "interval" && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Run Every</label>
-                <div className="flex gap-2">
-                  <select
-                    value={isCustomInterval ? -1 : intervalMinutes}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10)
-                      if (val === -1) {
-                        setCustomInterval("")
-                      } else {
-                        setIntervalMinutes(val)
-                      }
-                    }}
-                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    {INTERVAL_PRESETS.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  {isCustomInterval && (
-                    <>
-                      <input
-                        type="number"
-                        min="1"
-                        value={customInterval}
-                        onChange={(e) => setCustomInterval(e.target.value)}
-                        placeholder="1"
-                        className="w-20 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                      <select
-                        value={customUnit}
-                        onChange={(e) => setCustomUnit(e.target.value as "hours" | "days")}
-                        className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="hours">hours</option>
-                        <option value="days">days</option>
-                      </select>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Prompt Field - styled like ChatInput */}
             <div>
               <label className="block text-sm font-medium mb-1">Prompt</label>
@@ -430,6 +357,79 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 </div>
               </div>
             </div>
+
+            {/* Trigger Type */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Trigger</label>
+              <select
+                value={triggerType}
+                onChange={(e) => setTriggerType(e.target.value as "interval" | "webhook")}
+                disabled={isEditing}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              >
+                {TRIGGER_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Webhook info */}
+            {triggerType === "webhook" && (
+              <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                This agent will run whenever a GitHub Actions workflow fails on this repository.
+                A webhook will be created on the repository when you save.
+              </div>
+            )}
+
+            {/* Interval - only show for interval trigger */}
+            {triggerType === "interval" && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Run Every</label>
+                <div className="flex gap-2">
+                  <select
+                    value={isCustomInterval ? -1 : intervalMinutes}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      if (val === -1) {
+                        setCustomInterval("")
+                      } else {
+                        setIntervalMinutes(val)
+                      }
+                    }}
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {INTERVAL_PRESETS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {isCustomInterval && (
+                    <>
+                      <input
+                        type="number"
+                        min="1"
+                        value={customInterval}
+                        onChange={(e) => setCustomInterval(e.target.value)}
+                        placeholder="1"
+                        className="w-20 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <select
+                        value={customUnit}
+                        onChange={(e) => setCustomUnit(e.target.value as "hours" | "days")}
+                        className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="hours">hours</option>
+                        <option value="days">days</option>
+                      </select>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Auto-PR */}
             <div className="flex items-center gap-2">
