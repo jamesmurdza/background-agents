@@ -429,6 +429,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       // Plan mode
       planModeEnabled={planModeEnabled}
       onPlanModeToggle={() => setPlanModeEnabled((v) => !v)}
+      onSetPlanMode={setPlanModeEnabled}
       // Mobile
       isMobile={isMobile}
     />

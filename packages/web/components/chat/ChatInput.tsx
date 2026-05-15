@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, GitBranch, X, Paperclip, Clock, Brain } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, GitBranch, X, Paperclip, Pencil, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
@@ -9,6 +9,12 @@ import { NEW_REPOSITORY } from "@/lib/types"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { SlashCommandMenu, type SlashCommandType } from "../SlashCommandMenu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // =============================================================================
 // ChatInput - The main chat input area with all controls
@@ -69,6 +75,7 @@ interface ChatInputProps {
   // Plan mode
   planModeEnabled: boolean
   onPlanModeToggle: () => void
+  onSetPlanMode: (enabled: boolean) => void
   // Mobile
   isMobile: boolean
 }
@@ -128,6 +135,7 @@ export function ChatInput({
   // Plan mode
   planModeEnabled,
   onPlanModeToggle,
+  onSetPlanMode,
   // Mobile
   isMobile,
 }: ChatInputProps) {
@@ -380,36 +388,48 @@ export function ChatInput({
 
           {/* Right side items */}
           <div className={cn("flex items-center gap-2", isMobile && "w-full @container/row2")}>
-            {/* Schedule button */}
-            <button
-              onClick={() => modals.setScheduledJobFormOpen(true)}
-              className={cn(
-                "flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded-md hover:bg-accent/50",
-                isMobile ? "p-2 touch-target" : "p-1"
-              )}
-              title="Create scheduled job"
-            >
-              <Clock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-            </button>
-
-            {/* Plan mode toggle */}
-            <button
-              type="button"
-              onClick={onPlanModeToggle}
-              className={cn(
-                "shrink-0 flex items-center gap-1 rounded-md transition-colors cursor-pointer",
-                planModeEnabled
-                  ? "bg-primary/15 text-primary hover:bg-primary/20"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
-                isMobile ? "h-7 px-2 text-sm" : "h-6 px-1.5 text-sm"
-              )}
-              title={planModeEnabled ? "Plan mode on — agent will plan before acting" : "Plan mode off"}
-              aria-label="Toggle plan mode"
-              aria-pressed={planModeEnabled}
-            >
-              <Brain className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-              <span className={cn("text-sm", isMobile ? "hidden @[18rem]/row2:inline" : "hidden @[32rem]:inline")}>Plan</span>
-            </button>
+            {/* Mode selector dropdown (Edit/Plan) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "shrink-0 flex items-center gap-1 rounded-md transition-colors cursor-pointer",
+                    planModeEnabled
+                      ? "bg-primary/15 text-primary hover:bg-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                    isMobile ? "h-7 px-2 text-sm" : "h-6 px-1.5 text-sm"
+                  )}
+                  title={planModeEnabled ? "Plan mode — agent will plan before acting" : "Edit mode — agent will edit code directly"}
+                >
+                  {planModeEnabled ? (
+                    <ListChecks className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  ) : (
+                    <Pencil className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  )}
+                  <span className={cn("text-sm", isMobile ? "hidden @[18rem]/row2:inline" : "hidden @[32rem]:inline")}>
+                    {planModeEnabled ? "Plan" : "Edit"}
+                  </span>
+                  <ChevronDown className={cn(isMobile ? "h-3 w-3" : "h-3 w-3")} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[140px]">
+                <DropdownMenuItem
+                  onClick={() => onSetPlanMode(false)}
+                  className={cn(!planModeEnabled && "bg-accent")}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onSetPlanMode(true)}
+                  className={cn(planModeEnabled && "bg-accent")}
+                >
+                  <ListChecks className="h-4 w-4 mr-2" />
+                  Plan
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Agent and Model selectors */}
             <AgentModelSelector
