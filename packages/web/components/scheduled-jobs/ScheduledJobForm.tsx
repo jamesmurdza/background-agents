@@ -372,86 +372,76 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
             {/* Trigger Type - Segmented Control */}
             <div>
               <label className="block text-sm font-medium mb-2">Trigger</label>
-
-              {/* Segmented Control */}
               <div className={cn(
-                "inline-flex rounded-lg border border-border p-1 bg-muted/50",
+                "inline-flex rounded-md bg-muted p-0.5",
                 isEditing && "opacity-50"
               )}>
-                {TRIGGER_TYPES.map((t) => {
-                  const isSelected = triggerType === t.value
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => !isEditing && setTriggerType(t.value)}
-                      disabled={isEditing}
-                      className={cn(
-                        "px-4 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer",
-                        isSelected
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Conditional content below segmented control */}
-              {triggerType === "interval" && (
-                <div className="mt-3">
-                  <div className="flex gap-2">
-                    <select
-                      value={isCustomInterval ? -1 : intervalMinutes}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10)
-                        if (val === -1) {
-                          setCustomInterval("")
-                        } else {
-                          setIntervalMinutes(val)
-                        }
-                      }}
-                      className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {INTERVAL_PRESETS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
-
-                    {isCustomInterval && (
-                      <>
-                        <input
-                          type="number"
-                          min="1"
-                          value={customInterval}
-                          onChange={(e) => setCustomInterval(e.target.value)}
-                          placeholder="1"
-                          className="w-20 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                        <select
-                          value={customUnit}
-                          onChange={(e) => setCustomUnit(e.target.value as "hours" | "days")}
-                          className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
-                          <option value="hours">hours</option>
-                          <option value="days">days</option>
-                        </select>
-                      </>
+                {TRIGGER_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => !isEditing && setTriggerType(t.value)}
+                    disabled={isEditing}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
+                      triggerType === t.value
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                  </div>
-                </div>
-              )}
-
-              {triggerType === "webhook" && (
-                <div className="mt-3 text-xs text-muted-foreground">
-                  A webhook will be created on the repository when you save.
-                </div>
-              )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Interval - only for scheduled trigger */}
+            {triggerType === "interval" && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Run every</label>
+                <div className="flex gap-2">
+                  <select
+                    value={isCustomInterval ? -1 : intervalMinutes}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      if (val === -1) {
+                        setCustomInterval("")
+                      } else {
+                        setIntervalMinutes(val)
+                      }
+                    }}
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {INTERVAL_PRESETS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {isCustomInterval && (
+                    <>
+                      <input
+                        type="number"
+                        min="1"
+                        value={customInterval}
+                        onChange={(e) => setCustomInterval(e.target.value)}
+                        placeholder="1"
+                        className="w-20 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <select
+                        value={customUnit}
+                        onChange={(e) => setCustomUnit(e.target.value as "hours" | "days")}
+                        className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="hours">hours</option>
+                        <option value="days">days</option>
+                      </select>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Auto-PR */}
             <div className="flex items-center gap-2">
