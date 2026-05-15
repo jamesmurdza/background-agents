@@ -312,6 +312,87 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               />
             </div>
 
+            {/* Trigger Type - Segmented Control */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Trigger</label>
+              <div className={cn(
+                "inline-flex rounded-md bg-muted p-0.5",
+                isEditing && "opacity-50"
+              )}>
+                {TRIGGER_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => !isEditing && setTriggerType(t.value)}
+                    disabled={isEditing}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
+                      triggerType === t.value
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Schedule - only for scheduled trigger */}
+            {triggerType === "interval" && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Run every</span>
+                <select
+                  value={intervalMinutes}
+                  onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {INTERVAL_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Day of week - only for weekly */}
+                {intervalMinutes === 10080 && (
+                  <>
+                    <span className="text-muted-foreground">on</span>
+                    <select
+                      value={runAtDay}
+                      onChange={(e) => setRunAtDay(parseInt(e.target.value, 10))}
+                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {DAYS_OF_WEEK.map((d) => (
+                        <option key={d.value} value={d.value}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                {/* Time of day - for daily and weekly */}
+                {intervalMinutes >= 1440 && (
+                  <>
+                    <span className="text-muted-foreground">at</span>
+                    <select
+                      value={runAtHourLocal}
+                      onChange={(e) => setRunAtHourLocal(parseInt(e.target.value, 10))}
+                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-muted-foreground">{timezoneName}</span>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Prompt Field - styled like ChatInput */}
             <div>
               <label className="block text-sm font-medium mb-1">Prompt</label>
@@ -429,87 +510,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 </div>
               </div>
             </div>
-
-            {/* Trigger Type - Segmented Control */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Trigger</label>
-              <div className={cn(
-                "inline-flex rounded-md bg-muted p-0.5",
-                isEditing && "opacity-50"
-              )}>
-                {TRIGGER_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => !isEditing && setTriggerType(t.value)}
-                    disabled={isEditing}
-                    className={cn(
-                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
-                      triggerType === t.value
-                        ? "bg-background shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Schedule - only for scheduled trigger */}
-            {triggerType === "interval" && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Run every</span>
-                <select
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10))}
-                  className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {INTERVAL_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Day of week - only for weekly */}
-                {intervalMinutes === 10080 && (
-                  <>
-                    <span className="text-muted-foreground">on</span>
-                    <select
-                      value={runAtDay}
-                      onChange={(e) => setRunAtDay(parseInt(e.target.value, 10))}
-                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {DAYS_OF_WEEK.map((d) => (
-                        <option key={d.value} value={d.value}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-
-                {/* Time of day - for daily and weekly */}
-                {intervalMinutes >= 1440 && (
-                  <>
-                    <span className="text-muted-foreground">at</span>
-                    <select
-                      value={runAtHourLocal}
-                      onChange={(e) => setRunAtHourLocal(parseInt(e.target.value, 10))}
-                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {TIME_OPTIONS.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-muted-foreground">{timezoneName}</span>
-                  </>
-                )}
-              </div>
-            )}
 
             {/* Options Section */}
             <div>
