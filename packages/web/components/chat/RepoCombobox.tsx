@@ -31,6 +31,8 @@ interface RepoComboboxProps {
   disabled?: boolean
   /** Mobile layout */
   isMobile?: boolean
+  /** Always show label regardless of container width */
+  showLabel?: boolean
 }
 
 export function RepoCombobox({
@@ -39,6 +41,7 @@ export function RepoCombobox({
   onRequestCreate,
   disabled = false,
   isMobile = false,
+  showLabel = false,
 }: RepoComboboxProps) {
   const [open, setOpen] = useState(false)
   const [repos, setRepos] = useState<GitHubRepo[]>([])
@@ -102,7 +105,9 @@ export function RepoCombobox({
           title={value || "Select repository"}
         >
           <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-          <span className={cn(isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")}>
+          <span className={cn(
+            showLabel ? "inline" : (isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")
+          )}>
             {displayLabel}
           </span>
           <ChevronDown className={cn(isMobile ? "h-4 w-4 hidden @[16rem]/row1:block" : "h-3.5 w-3.5")} />

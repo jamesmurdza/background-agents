@@ -277,6 +277,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                     }}
                     disabled={isEditing}
                     isMobile={isMobile}
+                    showLabel
                   />
 
                   {/* Branch selector */}
@@ -287,6 +288,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                       onChange={setBaseBranch}
                       defaultBranch={baseBranch}
                       isMobile={isMobile}
+                      showLabel
                     />
                   )}
 
