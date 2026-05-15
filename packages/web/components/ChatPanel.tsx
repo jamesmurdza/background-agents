@@ -356,12 +356,10 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   }
 
   const isNewRepo = chat.repo === NEW_REPOSITORY
-  // Can select an existing repo if no messages yet OR no sandbox created
-  const canSelectRepo = chat.messages.length === 0 || !chat.sandboxId
-  // Can create a new repo anytime if still on NEW_REPOSITORY (even after sandbox is created)
-  const canCreateRepo = isNewRepo
-  // Show the repo button if either action is available
-  const showRepoButton = canSelectRepo || canCreateRepo
+  // Can select a repo if: no messages yet, OR no sandbox created, OR still on NEW_REPOSITORY
+  const canSelectRepo = chat.messages.length === 0 || !chat.sandboxId || isNewRepo
+  // Show the repo button if selection is available
+  const showRepoButton = canSelectRepo
   // Only show welcome screen if no messages AND not loading messages AND not a child chat
   const isNewChat = chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
 

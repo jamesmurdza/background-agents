@@ -469,7 +469,8 @@ export function useChatWithSync() {
   const updateChatRepo = useCallback(async (chatId: string, repo: string, baseBranch: string) => {
     const chat = chats.find((c) => c.id === chatId)
     if (!chat) return
-    const canSelectRepo = chat.messages.length === 0 || !chat.sandboxId
+    const isNewRepo = chat.repo === NEW_REPOSITORY
+    const canSelectRepo = chat.messages.length === 0 || !chat.sandboxId || isNewRepo
     if (!canSelectRepo) return
 
     try {
