@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react"
 import { cn } from "@/lib/utils"
-import { RefreshCw, X, ExternalLink, ChevronsUpDown } from "lucide-react"
+import { RefreshCw, X, ExternalLink, ChevronsUpDown, Download } from "lucide-react"
 import { PATHS } from "@upstream/common"
 import { getPanelPlugin } from "@/lib/plugins/registry"
 import { disposeTerminalSession } from "@/lib/plugins/panels/terminal"
@@ -87,8 +87,46 @@ export function PreviewView({
 }: PreviewViewProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [scale, setScale] = useState(1)
+  const [isDownloading, setIsDownloading] = useState(false)
   // Track when the dropdown just opened to ignore the initial pointerup
   const menuJustOpenedRef = useRef(false)
+
+  // Download a file that's not in the repo
+  const handleDownloadFile = async () => {
+    if (item?.type !== "file" || !sandboxId || isDownloading) return
+
+    setIsDownloading(true)
+    try {
+      const response = await fetch("/api/sandbox/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sandboxId,
+          action: "read-file",
+          filePath: item.filePath,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch file")
+      }
+
+      const data = await response.json()
+      const blob = new Blob([data.content], { type: "text/plain" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = item.filePath.split("/").pop() || "download"
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Failed to download file:", error)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   const scaleOptions = [
     { value: "1", label: "100%" },
@@ -255,7 +293,7 @@ export function PreviewView({
             </Select>
           )}
 
-          {/* External link button - for files (GitHub) and servers (preview URL) */}
+          {/* External link button - for files in repo (GitHub) and servers (preview URL) */}
           {externalUrl && (
             <a
               href={externalUrl}
@@ -267,6 +305,19 @@ export function PreviewView({
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
+          )}
+
+          {/* Download button - for files NOT in the repo */}
+          {item.type === "file" && !isFileInRepo && (
+            <button
+              onClick={handleDownloadFile}
+              disabled={isDownloading}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+              title="Download file"
+              aria-label="Download file"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
           )}
 
           {/* Refresh button - not shown for terminals */}
