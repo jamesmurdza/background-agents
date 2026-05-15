@@ -120,6 +120,7 @@ export function BranchCombobox({
       <PopoverContent
         className="w-64 p-0"
         align="start"
+        side="bottom"
         sideOffset={8}
       >
         <Command shouldFilter={false}>

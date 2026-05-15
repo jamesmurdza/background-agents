@@ -111,6 +111,7 @@ export function RepoCombobox({
       <PopoverContent
         className="w-72 p-0"
         align="start"
+        side="bottom"
         sideOffset={8}
       >
         <Command shouldFilter={false}>
@@ -132,8 +133,22 @@ export function RepoCombobox({
             )}
             {!loading && !error && (
               <>
+                {onRequestCreate && (
+                  <>
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={handleCreateClick}
+                        className="cursor-pointer"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create new repository
+                      </CommandItem>
+                    </CommandGroup>
+                    <CommandSeparator />
+                  </>
+                )}
                 <CommandEmpty>No repositories found</CommandEmpty>
-                <CommandGroup>
+                <CommandGroup heading={repos.length > 0 ? "Your repositories" : undefined}>
                   {filteredRepos.map((repo) => (
                     <CommandItem
                       key={repo.full_name}
@@ -160,20 +175,6 @@ export function RepoCombobox({
                     </CommandItem>
                   ))}
                 </CommandGroup>
-                {onRequestCreate && (
-                  <>
-                    <CommandSeparator />
-                    <CommandGroup>
-                      <CommandItem
-                        onSelect={handleCreateClick}
-                        className="cursor-pointer"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create new repository
-                      </CommandItem>
-                    </CommandGroup>
-                  </>
-                )}
               </>
             )}
           </CommandList>
