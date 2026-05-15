@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks, Plus } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
@@ -320,54 +320,37 @@ export function ChatInput({
             {/* Repo display/selector */}
             {showRepoButton ? (
               <div className="flex items-center gap-1">
-                {/* If chat started but no repo, only allow creating new repo */}
-                {!canSelectExistingRepo && isNewRepo ? (
+                <RepoCombobox
+                  value={isNewRepo ? null : chat.repo}
+                  onChange={(repo, branch) => {
+                    onUpdateChat?.({ repo, baseBranch: branch })
+                  }}
+                  onRequestCreate={() => modals.setRepoCreateOpen(true)}
+                  createOnly={!canSelectExistingRepo && isNewRepo}
+                  isMobile={isMobile}
+                />
+                {!isNewRepo && isNewChat && (
+                  <BranchCombobox
+                    repo={chat.repo}
+                    value={chat.branch || chat.baseBranch}
+                    onChange={(branch) => {
+                      onUpdateChat?.({ baseBranch: branch })
+                    }}
+                    defaultBranch={defaultBranch}
+                    isMobile={isMobile}
+                  />
+                )}
+                {!isNewRepo && onUpdateChat && canSelectExistingRepo && (
                   <button
-                    type="button"
-                    onClick={() => modals.setRepoCreateOpen(true)}
-                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-sm"
-                    title="Create new repository"
+                    onClick={() => onUpdateChat({ repo: NEW_REPOSITORY, baseBranch: "main" })}
+                    className={cn(
+                      "text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
+                      isMobile ? "p-1.5" : "p-0.5"
+                    )}
+                    title="Remove repository"
                   >
-                    <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-                    <span className={cn(isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")}>
-                      Repository
-                    </span>
-                    <Plus className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                    <X className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
                   </button>
-                ) : (
-                  <>
-                    <RepoCombobox
-                      value={isNewRepo ? null : chat.repo}
-                      onChange={(repo, branch) => {
-                        onUpdateChat?.({ repo, baseBranch: branch })
-                      }}
-                      onRequestCreate={() => modals.setRepoCreateOpen(true)}
-                      isMobile={isMobile}
-                    />
-                    {!isNewRepo && isNewChat && (
-                      <BranchCombobox
-                        repo={chat.repo}
-                        value={chat.branch || chat.baseBranch}
-                        onChange={(branch) => {
-                          onUpdateChat?.({ baseBranch: branch })
-                        }}
-                        defaultBranch={defaultBranch}
-                        isMobile={isMobile}
-                      />
-                    )}
-                    {!isNewRepo && onUpdateChat && canSelectExistingRepo && (
-                      <button
-                        onClick={() => onUpdateChat({ repo: NEW_REPOSITORY, baseBranch: "main" })}
-                        className={cn(
-                          "text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
-                          isMobile ? "p-1.5" : "p-0.5"
-                        )}
-                        title="Remove repository"
-                      >
-                        <X className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
-                      </button>
-                    )}
-                  </>
                 )}
               </div>
             ) : !isNewRepo && (
