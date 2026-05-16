@@ -6,16 +6,16 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| [`web`](packages/web) | Standalone chat app for AI coding agents |
-| [`agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes |
-| [`agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations |
-| [`claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona |
-| [`common`](packages/common) | Shared utilities and types |
-| [`daytona-git`](packages/daytona-git) | Git operations for Daytona sandboxes |
-| [`dev-cron`](packages/dev-cron) | Local development simulator for Vercel cron jobs |
-| [`daytona-terminal`](packages/daytona-terminal) | WebSocket-based PTY terminal for Daytona sandboxes |
+| Package | Description | Maintainer |
+|---------|-------------|------------|
+| [`web`](packages/web) | Standalone chat app for AI coding agents | [![](https://github.com/jamesmurdza.png?size=20)](https://github.com/jamesmurdza) |
+| [`agents`](packages/agents) | TypeScript SDK for running AI coding agents in Daytona sandboxes | [![](https://github.com/pluuto19.png?size=20)](https://github.com/pluuto19) |
+| [`agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations | [![](https://github.com/jamesmurdza.png?size=20)](https://github.com/jamesmurdza) |
+| [`claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona | [![](https://github.com/synacktraa.png?size=20)](https://github.com/synacktraa) |
+| [`common`](packages/common) | Shared utilities and types | [![](https://github.com/jamesmurdza.png?size=20)](https://github.com/jamesmurdza) |
+| [`daytona-git`](packages/daytona-git) | Git operations for Daytona sandboxes | [![](https://github.com/jamesmurdza.png?size=20)](https://github.com/jamesmurdza) |
+| [`dev-cron`](packages/dev-cron) | Local development simulator for Vercel cron jobs | [![](https://github.com/jamesmurdza.png?size=20)](https://github.com/jamesmurdza) |
+| [`daytona-terminal`](packages/daytona-terminal) | WebSocket-based PTY terminal for Daytona sandboxes | [![](https://github.com/jamesmurdza.png?size=20)](https://github.com/jamesmurdza) |
 
 ---
 
