@@ -68,10 +68,21 @@ export async function GET(
   try {
     const { searchParams } = new URL(req.url)
     const afterMessageId = searchParams.get("afterMessageId")
+    const statusOnly = searchParams.get("statusOnly") === "true"
 
     const chat = await getChatWithAuth(chatId, userId)
     if (!chat) {
       return notFound("Chat not found")
+    }
+
+    // If only status is requested, return minimal response (for SSE reconnection checks)
+    if (statusOnly) {
+      return Response.json({
+        id: chat.id,
+        status: chat.status,
+        backgroundSessionId: chat.backgroundSessionId,
+        sandboxId: chat.sandboxId,
+      })
     }
 
     // Get total message count

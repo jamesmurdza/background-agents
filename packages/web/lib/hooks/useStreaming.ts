@@ -14,8 +14,9 @@ import { useStreamStore } from "@/lib/stores/stream-store"
 import { queryKeys } from "@/lib/query"
 import { fetchChat, toMessageType } from "@/lib/sync/api"
 
-const SSE_RECONNECT_DELAY = 1000
-const SSE_MAX_RECONNECT_ATTEMPTS = 10
+const SSE_INITIAL_RETRY_DELAY = 1000
+const SSE_MAX_RETRY_DELAY = 30000
+const SSE_BACKOFF_MULTIPLIER = 1.5
 
 /**
  * Merge messages, preferring the one with more content.
@@ -194,26 +195,54 @@ export function useStreaming(options: UseStreamingOptions = {}) {
         } catch {}
       })
 
-      eventSource.onerror = () => {
+      eventSource.onerror = async () => {
         if (abortSignal?.aborted) return
         eventSource.close()
         const store = useStreamStore.getState()
         const stream = store.getStream(chatId)
         if (!stream) return
 
-        const attempts = (stream.reconnectAttempts || 0) + 1
-        if (attempts <= SSE_MAX_RECONNECT_ATTEMPTS) {
-          store.updateStream(chatId, { reconnectAttempts: attempts, eventSource: null })
-          setTimeout(() => {
-            if (useStreamStore.getState().isStreaming(chatId)) connect(stream.cursor)
-          }, SSE_RECONNECT_DELAY)
-        } else {
-          store.stopStream(chatId)
-          updateChatsCache((old) => old.map((c) =>
-            c.id === chatId && c.status === "running"
-              ? { ...c, status: "ready", backgroundSessionId: undefined }
-              : c
-          ))
+        const failures = (stream.reconnectAttempts || 0) + 1
+        store.updateStream(chatId, { reconnectAttempts: failures, eventSource: null })
+
+        // Exponential backoff before retrying
+        const delay = Math.min(
+          SSE_INITIAL_RETRY_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, failures - 1),
+          SSE_MAX_RETRY_DELAY
+        )
+        await new Promise((r) => setTimeout(r, delay))
+
+        // Check if still streaming (user might have stopped)
+        if (!useStreamStore.getState().isStreaming(chatId)) return
+
+        // Verify actual backend status before deciding whether to reconnect
+        try {
+          const res = await fetch(`/api/chats/${chatId}?statusOnly=true`)
+          if (!res.ok) throw new Error(`Status check failed: ${res.status}`)
+          const backendState = await res.json()
+
+          if (backendState.status === "running" && backendState.backgroundSessionId) {
+            // Agent still running - reconnect
+            if (useStreamStore.getState().isStreaming(chatId)) {
+              connect(stream.cursor)
+            }
+          } else {
+            // Agent actually done - sync local state with backend
+            useStreamStore.getState().stopStream(chatId)
+            updateChatsCache((old) =>
+              old.map((c) =>
+                c.id === chatId
+                  ? { ...c, status: backendState.status, backgroundSessionId: undefined }
+                  : c
+              )
+            )
+          }
+        } catch (err) {
+          // Fetch failed (network still down) - keep trying
+          console.warn(`[useStreaming] Backend status check failed for chat ${chatId}:`, err)
+          if (useStreamStore.getState().isStreaming(chatId)) {
+            connect(stream.cursor)
+          }
         }
       }
     }
