@@ -9,6 +9,7 @@
 import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
 import { createSandboxGit } from "@upstream/daytona-git"
+import { installSkills } from "@upstream/skills/sandbox"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
@@ -303,100 +304,22 @@ export async function installSkillsForRepo(
   if (skills.length === 0) return { installed: 0, total: 0 }
 
   const repoPath = `${PATHS.SANDBOX_HOME}/project`
-  let installed = 0
 
-  // Cache --list results per source repo so we only clone once per repo
-  const availableSkillsCache = new Map<string, Set<string> | null>()
-
-  for (const skill of skills) {
-    try {
-      // fullHandle is "owner/repo/skillId" — extract parts for install command
-      // Must use --agent '*' -y for non-interactive sandbox environments
-      const parts = skill.fullHandle.split("/")
-      const source = parts.length >= 2 ? `${parts[0]}/${parts[1]}` : skill.fullHandle
-      const skillId = parts.length >= 3 ? parts.slice(2).join("/") : null
-
-      // Pre-validate: check the skill actually exists in the repo
-      if (skillId) {
-        if (!availableSkillsCache.has(source)) {
-          try {
-            const listCmd = await sandbox.process.executeCommand(
-              `cd ${repoPath} && npx -y skills add ${source} --list 2>&1`
-            )
-            const names = parseSkillList(listCmd.result ?? "")
-            availableSkillsCache.set(source, names.length > 0 ? new Set(names) : null)
-          } catch {
-            availableSkillsCache.set(source, null)
-          }
-        }
-
-        const available = availableSkillsCache.get(source)
-        if (available && !available.has(skillId)) {
-          console.warn(
-            `[sandbox] Skill "${skillId}" not found in ${source}, removing stale DB record`
-          )
-          await prisma.skill.delete({ where: { id: skill.id } }).catch(() => {})
-          continue
-        }
-      }
-
-      const skillFlag = skillId ? ` --skill ${skillId}` : ""
-      const installCmd = `npx -y skills add ${source}${skillFlag} --agent '*' -y`
-      const cmd = await sandbox.process.executeCommand(
-        `cd ${repoPath} && ${installCmd} 2>&1`
-      )
-      if (cmd.exitCode === 0) {
-        installed++
-      } else {
-        console.error(
-          `[sandbox] Failed to install skill ${skill.fullHandle}:`,
-          cmd.result?.trim()
-        )
-      }
-    } catch (err) {
-      console.error(
-        `[sandbox] Error installing skill ${skill.fullHandle}:`,
-        err
-      )
+  const result = await installSkills(
+    sandbox,
+    repoPath,
+    skills.map((s) => ({ id: s.id, fullHandle: s.fullHandle })),
+    async (id) => {
+      console.warn(`[sandbox] Removing stale skill DB record: ${id}`)
+      await prisma.skill.delete({ where: { id } }).catch(() => {})
     }
-  }
+  )
 
-  if (installed > 0) {
+  if (result.installed > 0) {
     console.log(
-      `[sandbox] Installed ${installed}/${skills.length} skills for ${repo}`
+      `[sandbox] Installed ${result.installed}/${result.total} skills for ${repo}`
     )
   }
 
-  return { installed, total: skills.length }
-}
-
-/** Strip ANSI escape codes, cursor controls, and terminal noise from CLI output */
-function stripAnsi(str: string): string {
-  return str
-    // eslint-disable-next-line no-control-regex
-    .replace(/\x1B\[[0-9;?]*[A-Za-z]/g, "")   // CSI sequences (colors, cursor)
-    // eslint-disable-next-line no-control-regex
-    .replace(/\x1B\][^\x07]*\x07/g, "")         // OSC sequences
-    // eslint-disable-next-line no-control-regex
-    .replace(/\x1B[@-Z\\-_]/g, "")              // Two-byte escape sequences
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, "") // Control chars (keep \n)
-    .replace(/\r/g, "")                          // Carriage returns
-}
-
-/**
- * Parse the output of `npx skills add <source> --list` to extract valid
- * skill names. Output includes lines like:
- *   │    - skill-name
- */
-function parseSkillList(output: string): string[] {
-  const cleaned = stripAnsi(output)
-  const skills: string[] = []
-  for (const line of cleaned.split("\n")) {
-    const match = line.match(/[-–]\s+(\S+)\s*$/)
-    if (match && match[1]) {
-      skills.push(match[1])
-    }
-  }
-  return skills
+  return { installed: result.installed, total: result.total }
 }

@@ -34,6 +34,7 @@
     "@upstream/daytona-git": "*",
     "@upstream/daytona-terminal": "*",
     "@upstream/mcp-providers": "*",
+    "@upstream/skills": "*",
     "ai": "^4.3.16",
     "background-agents": "*",
     "class-variance-authority": "^0.7.1",

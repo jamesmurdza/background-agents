@@ -8,6 +8,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { PATHS } from "@/lib/constants"
+import { uninstallSkill, getSkillNameFromHandle } from "@upstream/skills/sandbox"
 
 // =============================================================================
 // DELETE - Uninstall a skill by ID (DB + sandbox filesystem)
@@ -51,14 +52,8 @@ export async function DELETE(
             const sandbox = await daytona.get(chat.sandboxId)
             const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
-            // Extract skillId from fullHandle (owner/repo/skillId)
-            const parts = skill.fullHandle.split("/")
-            const skillName = parts.length >= 3 ? parts.slice(2).join("/") : parts[parts.length - 1]
-
-            // Use `npx skills remove` with --all -y for non-interactive
-            await sandbox.process.executeCommand(
-              `cd ${repoPath} && npx -y skills remove ${skillName} --all -y 2>&1`
-            )
+            const skillName = getSkillNameFromHandle(skill.fullHandle)
+            await uninstallSkill(sandbox, repoPath, skillName)
           }
         } catch (err) {
           // Best-effort — log but don't fail the request
