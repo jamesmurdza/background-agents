@@ -472,8 +472,10 @@ export function useChatWithSync() {
     if (!canSelectExistingRepo && !canAssignNewRepo) return
 
     try {
-      // Reset branch to null when changing repo (branch is created on first message)
-      await updateChatMutation.mutateAsync({ chatId, data: { repo, baseBranch, branch: null } })
+      // When assigning a new repo to an existing sandbox, preserve the working branch.
+      // Only reset branch to null when selecting a repo before sandbox creation.
+      const branchToSet = canAssignNewRepo ? chat.branch : null
+      await updateChatMutation.mutateAsync({ chatId, data: { repo, baseBranch, branch: branchToSet } })
     } catch (error) {
       console.error("Failed to update chat repo:", error)
     }
