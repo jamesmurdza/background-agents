@@ -405,9 +405,15 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // =============================================================================
   // Track the last pathname we processed to avoid re-syncing
   const lastProcessedPathname = useRef<string | null>(null)
+  // Track current chat ID in a ref so the effect doesn't re-run when it changes
+  const currentChatIdRef = useRef<string | null>(currentChatId)
+  currentChatIdRef.current = currentChatId
 
-  // Sync URL to state - runs when pathname changes
-  // Only takes action when URL state doesn't match app state
+  // Sync URL to state - runs ONLY when pathname changes (not when state changes)
+  // This effect is for:
+  // 1. Initial page load - sync URL to state
+  // 2. Browser back/forward - sync URL to state
+  // It should NOT run when app state changes (handlers update URL directly)
   useEffect(() => {
     if (!isHydrated) return
 
@@ -432,7 +438,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         sidebar.setViewMode("chat")
       }
       // Only start new chat if we don't have a draft already
-      if (!currentChatId || !isDraftChatId(currentChatId)) {
+      const chatId = currentChatIdRef.current
+      if (!chatId || !isDraftChatId(chatId)) {
         startNewChat()
       }
       return
@@ -441,7 +448,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     // Handle /chat/[chatId] route - sync if URL chat doesn't match state
     if (urlChatId) {
       // Only select chat if it's different from current
-      if (urlChatId !== currentChatId) {
+      const chatId = currentChatIdRef.current
+      if (urlChatId !== chatId) {
         const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
         if (chatExists) {
           selectChat(urlChatId)
@@ -459,8 +467,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
     // Handle home route (/) - redirect to current chat or new chat
     if (isHomeRoute) {
-      if (currentChatId) {
-        router.replace(ROUTES.chat(currentChatId))
+      const chatId = currentChatIdRef.current
+      if (chatId) {
+        router.replace(ROUTES.chat(chatId))
       } else {
         router.replace(ROUTES.newChat)
       }
@@ -472,7 +481,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isNewChatRoute,
     isHomeRoute,
     urlChatId,
-    currentChatId,
+    // NOTE: currentChatId intentionally NOT in deps - we use ref to avoid re-running on state change
     chats,
     isDraftChatId,
     selectChat,
