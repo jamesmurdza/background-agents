@@ -403,107 +403,116 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // =============================================================================
   // URL Sync (for initial load and browser back/forward only)
   // =============================================================================
-  // Track the last pathname we processed to avoid re-syncing
-  const lastProcessedPathname = useRef<string | null>(null)
-  // Track current chat ID in a ref so the effect doesn't re-run when it changes
-  const currentChatIdRef = useRef<string | null>(currentChatId)
-  currentChatIdRef.current = currentChatId
+  // We use window.history.pushState for navigation to avoid Next.js remounting
+  // the component. This means we need to:
+  // 1. Handle initial page load by syncing URL → state
+  // 2. Listen for popstate events (browser back/forward) to sync URL → state
+  //
+  // The handlers (handleSelectChat, etc.) update state directly and use pushState
+  // to update the URL without triggering a navigation.
 
-  // Sync URL to state - runs ONLY when pathname changes (not when state changes)
-  // This effect is for:
-  // 1. Initial page load - sync URL to state
-  // 2. Browser back/forward - sync URL to state
-  // It should NOT run when app state changes (handlers update URL directly)
+  // Track if we've done initial sync
+  const initialSyncDone = useRef(false)
+
+  // Initial sync: on first hydrated render, sync URL to state
   useEffect(() => {
-    if (!isHydrated) return
+    if (!isHydrated || initialSyncDone.current) return
+    initialSyncDone.current = true
 
-    const currentPathname = pathname ?? "/"
+    const currentPath = window.location.pathname
+    console.log('[INITIAL_SYNC] running', { currentPath, currentChatId })
 
-    console.log('[URL_SYNC_EFFECT] running', {
-      currentPathname,
-      lastProcessedPathname: lastProcessedPathname.current,
-      urlChatId,
-      currentChatIdRef: currentChatIdRef.current,
-    })
-
-    // Skip if we already processed this exact pathname
-    if (lastProcessedPathname.current === currentPathname) {
-      console.log('[URL_SYNC_EFFECT] skipping - already processed')
-      return
-    }
-    console.log('[URL_SYNC_EFFECT] processing new pathname')
-    lastProcessedPathname.current = currentPathname
-
-    // Handle /jobs routes - switch to jobs view if needed
-    if (isJobsRoute) {
-      if (sidebar.viewMode !== "scheduled-jobs") {
-        sidebar.setViewMode("scheduled-jobs")
-      }
-      // ScheduledJobsView handles urlJobId directly via props
+    // Parse the URL to determine what to do
+    if (currentPath.startsWith("/jobs")) {
+      sidebar.setViewMode("scheduled-jobs")
       return
     }
 
-    // Handle /chat/new route
-    if (isNewChatRoute) {
-      if (sidebar.viewMode !== "chat") {
-        sidebar.setViewMode("chat")
-      }
-      // Only start new chat if we don't have a draft already
-      const chatId = currentChatIdRef.current
-      if (!chatId || !isDraftChatId(chatId)) {
+    if (currentPath === "/chat/new") {
+      sidebar.setViewMode("chat")
+      if (!currentChatId || !isDraftChatId(currentChatId)) {
         startNewChat()
       }
       return
     }
 
-    // Handle /chat/[chatId] route - sync if URL chat doesn't match state
-    if (urlChatId) {
-      // Only select chat if it's different from current
-      const chatId = currentChatIdRef.current
-      if (urlChatId !== chatId) {
-        console.log('[URL_SYNC_EFFECT] urlChatId !== chatId, calling selectChat', { urlChatId, chatId })
+    const chatMatch = currentPath.match(/^\/chat\/([^/]+)$/)
+    if (chatMatch) {
+      const urlChatId = chatMatch[1]
+      sidebar.setViewMode("chat")
+      if (urlChatId !== currentChatId) {
         const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
         if (chatExists) {
+          console.log('[INITIAL_SYNC] selecting chat from URL', urlChatId)
           selectChat(urlChatId)
         } else {
-          // Chat doesn't exist, redirect to new chat
-          console.log('[URL_SYNC_EFFECT] chat does not exist, redirecting to newChat')
-          router.replace(ROUTES.newChat)
-          return
+          console.log('[INITIAL_SYNC] chat does not exist, redirecting')
+          window.history.replaceState(null, "", ROUTES.newChat)
+          startNewChat()
         }
-      } else {
-        console.log('[URL_SYNC_EFFECT] urlChatId === chatId, no action needed')
-      }
-      if (sidebar.viewMode !== "chat") {
-        sidebar.setViewMode("chat")
       }
       return
     }
 
-    // Handle home route (/) - redirect to current chat or new chat
-    if (isHomeRoute) {
-      const chatId = currentChatIdRef.current
-      if (chatId) {
-        router.replace(ROUTES.chat(chatId))
+    // Home route - redirect to current chat or new chat
+    if (currentPath === "/") {
+      if (currentChatId) {
+        window.history.replaceState(null, "", ROUTES.chat(currentChatId))
       } else {
-        router.replace(ROUTES.newChat)
+        window.history.replaceState(null, "", ROUTES.newChat)
+        startNewChat()
       }
     }
-  }, [
-    isHydrated,
-    pathname,
-    isJobsRoute,
-    isNewChatRoute,
-    isHomeRoute,
-    urlChatId,
-    // NOTE: currentChatId intentionally NOT in deps - we use ref to avoid re-running on state change
-    chats,
-    isDraftChatId,
-    selectChat,
-    startNewChat,
-    sidebar,
-    router,
-  ])
+  }, [isHydrated, currentChatId, chats, isDraftChatId, selectChat, startNewChat, sidebar])
+
+  // Listen for popstate (browser back/forward)
+  useEffect(() => {
+    if (!isHydrated) return
+
+    const handlePopState = () => {
+      const currentPath = window.location.pathname
+      console.log('[POPSTATE] browser navigation detected', { currentPath, currentChatId })
+
+      if (currentPath.startsWith("/jobs")) {
+        sidebar.setViewMode("scheduled-jobs")
+        selectChat(null as unknown as string)
+        return
+      }
+
+      if (currentPath === "/chat/new") {
+        sidebar.setViewMode("chat")
+        startNewChat()
+        return
+      }
+
+      const chatMatch = currentPath.match(/^\/chat\/([^/]+)$/)
+      if (chatMatch) {
+        const urlChatId = chatMatch[1]
+        sidebar.setViewMode("chat")
+        const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
+        if (chatExists) {
+          selectChat(urlChatId)
+        } else {
+          window.history.replaceState(null, "", ROUTES.newChat)
+          startNewChat()
+        }
+        return
+      }
+
+      // Home route
+      if (currentPath === "/") {
+        if (currentChatId) {
+          window.history.replaceState(null, "", ROUTES.chat(currentChatId))
+        } else {
+          window.history.replaceState(null, "", ROUTES.newChat)
+          startNewChat()
+        }
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [isHydrated, currentChatId, chats, isDraftChatId, selectChat, startNewChat, sidebar])
 
   // =============================================================================
   // Draft Chat & Display Chat
@@ -568,14 +577,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // DEBUG: Log render state
   console.log('[RENDER]', {
-    pathname,
-    urlChatId,
+    currentPath: typeof window !== 'undefined' ? window.location.pathname : 'SSR',
     currentChatId,
     currentChatFound: !!currentChat,
     displayChatId: displayCurrentChat?.id,
     displayChatName: displayCurrentChat?.displayName,
     isLoadingMessages,
-    lastProcessedPathname: lastProcessedPathname.current,
   })
 
   // Dynamic page title based on current view
@@ -637,36 +644,33 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
     // Navigate to the new chat URL
     if (newChatId) {
-      // Mark this pathname as processed so sync effect doesn't re-process
-      lastProcessedPathname.current = ROUTES.chat(newChatId)
-      router.push(ROUTES.chat(newChatId))
+      // Update URL without triggering Next.js navigation
+      window.history.pushState(null, "", ROUTES.chat(newChatId))
     }
-  }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat, router])
+  }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat])
 
   // Handler for selecting a chat - switch to chat view and update URL
   const handleSelectChat = useCallback((chatId: string) => {
     console.log('[handleSelectChat] called with', chatId)
-    // Mark pathname as processed first
-    lastProcessedPathname.current = ROUTES.chat(chatId)
     // Update state
     selectChat(chatId)
     sidebar.setViewMode("chat")
     sidebar.setSelectedScheduledJob(null)
-    // Push URL
-    router.push(ROUTES.chat(chatId))
-  }, [selectChat, sidebar, router])
+    // Update URL without triggering Next.js navigation (which causes remount)
+    // Using window.history.pushState avoids the component remount that router.push causes
+    window.history.pushState(null, "", ROUTES.chat(chatId))
+  }, [selectChat, sidebar])
 
   // Handler for opening scheduled jobs view
   const handleOpenScheduledJobs = useCallback(() => {
-    // Mark pathname as processed first
-    lastProcessedPathname.current = ROUTES.jobs
+    console.log('[handleOpenScheduledJobs] called')
     // Update state
     sidebar.setViewMode("scheduled-jobs")
     sidebar.setSelectedScheduledJob(null)
     selectChat(null as unknown as string)
-    // Push URL
-    router.push(ROUTES.jobs)
-  }, [sidebar, selectChat, router])
+    // Update URL without triggering Next.js navigation
+    window.history.pushState(null, "", ROUTES.jobs)
+  }, [sidebar, selectChat])
 
   // Handler for scheduled job selection (memoized to prevent infinite loops)
   const handleJobSelect = useCallback((job: { id: string; name: string } | null) => {
@@ -675,14 +679,13 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Handler for navigating to a job (updates URL)
   const handleNavigateToJob = useCallback((jobId: string | null) => {
+    console.log('[handleNavigateToJob] called with', jobId)
     if (jobId) {
-      lastProcessedPathname.current = ROUTES.job(jobId)
-      router.push(ROUTES.job(jobId))
+      window.history.pushState(null, "", ROUTES.job(jobId))
     } else {
-      lastProcessedPathname.current = ROUTES.jobs
-      router.push(ROUTES.jobs)
+      window.history.pushState(null, "", ROUTES.jobs)
     }
-  }, [router])
+  }, [])
 
   // Handler for the Create Repository palette/slash command.
   const handleCreateRepo = () => {
