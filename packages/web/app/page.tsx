@@ -451,13 +451,11 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         const urlChatId = matched.chatId
         sidebar.setViewMode("chat")
         if (urlChatId !== currentChatId) {
-          const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
-          if (chatExists) {
-            selectChat(urlChatId)
-          } else {
-            window.history.replaceState(null, "", ROUTES.newChat.build())
-            startNewChat()
-          }
+          // Always select the chat - if it doesn't exist in our local cache,
+          // the chat detail fetch will handle it. We don't redirect to /chat/new
+          // because the chat might exist on the server but not be loaded yet.
+          // Also handles draft chats which aren't in the chats array.
+          selectChat(urlChatId)
         }
         break
       }
@@ -471,7 +469,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         }
         break
     }
-  }, [currentChatId, chats, isDraftChatId, selectChat, startNewChat, sidebar])
+  }, [currentChatId, isDraftChatId, selectChat, startNewChat, sidebar])
 
   // Track if we've done initial sync
   const initialSyncDone = useRef(false)
@@ -483,13 +481,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     syncUrlToState(true)
   }, [isHydrated, syncUrlToState])
 
+  // Store syncUrlToState in a ref so the popstate listener always has access
+  // to the latest version without needing to re-add the event listener
+  const syncUrlToStateRef = useRef(syncUrlToState)
+  useEffect(() => {
+    syncUrlToStateRef.current = syncUrlToState
+  }, [syncUrlToState])
+
   // Listen for popstate (browser back/forward)
   useEffect(() => {
     if (!isHydrated) return
-    const handlePopState = () => syncUrlToState(false)
+    const handlePopState = () => syncUrlToStateRef.current(false)
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [isHydrated, syncUrlToState])
+  }, [isHydrated])
 
   // =============================================================================
   // Draft Chat & Display Chat
