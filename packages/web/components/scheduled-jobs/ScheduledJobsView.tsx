@@ -568,15 +568,6 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
             {/* Desktop Table Layout */}
             <div className="hidden md:block rounded-lg border border-border">
               <table className="w-full">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Repository</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Every</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Last Run</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground"></th>
-                  </tr>
-                </thead>
                 <tbody className="divide-y divide-border">
                   {jobs.map((job) => (
                     <tr
