@@ -13,3 +13,4 @@ if (!url) {
 process.env.DATABASE_URL = url;
 
 execSync("npx prisma migrate deploy", { stdio: "inherit" });
+execSync("npx prisma generate", { stdio: "inherit" });
