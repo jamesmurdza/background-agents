@@ -396,13 +396,15 @@ export function useChatWithSync() {
     return draftId
   }, [createChatMutation, enterDraftMode])
 
-  const selectChat = useCallback((chatId: string) => {
-    setUnseenChatIds((prev) => {
-      if (!prev.has(chatId)) return prev
-      const next = new Set(prev)
-      next.delete(chatId)
-      return next
-    })
+  const selectChat = useCallback((chatId: string | null) => {
+    if (chatId) {
+      setUnseenChatIds((prev) => {
+        if (!prev.has(chatId)) return prev
+        const next = new Set(prev)
+        next.delete(chatId)
+        return next
+      })
+    }
     setCurrentChatIdState(chatId)
     persistCurrentChatId(chatId)
   }, [])

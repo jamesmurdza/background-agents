@@ -7,9 +7,9 @@ import { nanoid } from "nanoid"
 import { MobileHeader } from "@/components/MobileHeader"
 import { Sidebar } from "@/components/Sidebar"
 import { ChatPanel } from "@/components/ChatPanel"
-import { PreviewView, type PreviewItem } from "@/components/PreviewView"
+import { PreviewView } from "@/components/PreviewView"
 import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
-import { SettingsModal, type HighlightKey, type SectionKey } from "@/components/modals/SettingsModal"
+import { SettingsModal } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
 import { ReAuthModal } from "@/components/modals/ReAuthModal"
 import { HelpModal } from "@/components/modals/HelpModal"
@@ -409,22 +409,18 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // The handlers (handleSelectChat, etc.) update state directly and use pushState
   // to update the URL without triggering a navigation.
 
-  // Track if we've done initial sync
-  const initialSyncDone = useRef(false)
-
-  // Initial sync: on first hydrated render, sync URL to state
-  useEffect(() => {
-    if (!isHydrated || initialSyncDone.current) return
-    initialSyncDone.current = true
-
+  // Sync URL to state - used for initial load and browser back/forward
+  const syncUrlToState = useCallback((isInitialSync: boolean = false) => {
     const currentPath = window.location.pathname
 
-    // Parse the URL to determine what to do
+    // Jobs routes
     if (currentPath.startsWith("/jobs")) {
       sidebar.setViewMode("scheduled-jobs")
+      if (!isInitialSync) selectChat(null)
       return
     }
 
+    // New chat route
     if (currentPath === "/chat/new") {
       sidebar.setViewMode("chat")
       if (!currentChatId || !isDraftChatId(currentChatId)) {
@@ -433,6 +429,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       return
     }
 
+    // Chat route with ID
     const chatMatch = currentPath.match(/^\/chat\/([^/]+)$/)
     if (chatMatch) {
       const urlChatId = chatMatch[1]
@@ -458,55 +455,25 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         startNewChat()
       }
     }
-  }, [isHydrated, currentChatId, chats, isDraftChatId, selectChat, startNewChat, sidebar])
+  }, [currentChatId, chats, isDraftChatId, selectChat, startNewChat, sidebar])
+
+  // Track if we've done initial sync
+  const initialSyncDone = useRef(false)
+
+  // Initial sync: on first hydrated render, sync URL to state
+  useEffect(() => {
+    if (!isHydrated || initialSyncDone.current) return
+    initialSyncDone.current = true
+    syncUrlToState(true)
+  }, [isHydrated, syncUrlToState])
 
   // Listen for popstate (browser back/forward)
   useEffect(() => {
     if (!isHydrated) return
-
-    const handlePopState = () => {
-      const currentPath = window.location.pathname
-
-      if (currentPath.startsWith("/jobs")) {
-        sidebar.setViewMode("scheduled-jobs")
-        selectChat(null as unknown as string)
-        return
-      }
-
-      if (currentPath === "/chat/new") {
-        sidebar.setViewMode("chat")
-        startNewChat()
-        return
-      }
-
-      const chatMatch = currentPath.match(/^\/chat\/([^/]+)$/)
-      if (chatMatch) {
-        const urlChatId = chatMatch[1]
-        sidebar.setViewMode("chat")
-        const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
-        if (chatExists) {
-          selectChat(urlChatId)
-        } else {
-          window.history.replaceState(null, "", ROUTES.newChat)
-          startNewChat()
-        }
-        return
-      }
-
-      // Home route
-      if (currentPath === "/") {
-        if (currentChatId) {
-          window.history.replaceState(null, "", ROUTES.chat(currentChatId))
-        } else {
-          window.history.replaceState(null, "", ROUTES.newChat)
-          startNewChat()
-        }
-      }
-    }
-
+    const handlePopState = () => syncUrlToState(false)
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [isHydrated, currentChatId, chats, isDraftChatId, selectChat, startNewChat, sidebar])
+  }, [isHydrated, syncUrlToState])
 
   // =============================================================================
   // Draft Chat & Display Chat
@@ -649,7 +616,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     // Update state
     sidebar.setViewMode("scheduled-jobs")
     sidebar.setSelectedScheduledJob(null)
-    selectChat(null as unknown as string)
+    selectChat(null)
     // Update URL without triggering Next.js navigation
     window.history.pushState(null, "", ROUTES.jobs)
   }, [sidebar, selectChat])
