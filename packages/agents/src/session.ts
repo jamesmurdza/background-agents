@@ -171,6 +171,9 @@ async function createSessionWithId(
     await agent.capabilities.setup(sandbox, options.env ?? {})
   }
 
+  // Debug: log planMode before creating session
+  console.log(`[createSession] planMode=${options.planMode}`)
+
   // Create the background session
   const session = createBgSession(agent, sandbox, sessionDir, {
     model: options.model,

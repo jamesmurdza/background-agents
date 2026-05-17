@@ -119,11 +119,17 @@ class BackgroundSessionImpl implements BackgroundSession {
     prompt: string,
     options: Omit<StartOptions, "prompt"> = {}
   ): Promise<TurnHandle> {
+    // Debug: log defaults.planMode
+    console.log(`[BackgroundSession.start] defaults.planMode=${(this.defaults as { planMode?: boolean }).planMode}`)
+
     const opts: RunOptions = {
       ...this.defaults,
       ...options,
       prompt,
     }
+
+    // Debug: log merged opts.planMode
+    console.log(`[BackgroundSession.start] opts.planMode=${opts.planMode}`)
 
     // Prepend conversation history to prompt when injecting context
     if (options.history?.length) {

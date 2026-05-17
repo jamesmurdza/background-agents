@@ -36,6 +36,9 @@ export const opencodeAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
+    // Debug: log planMode to verify it's being passed correctly
+    console.log(`[opencode buildCommand] planMode=${options.planMode}`)
+
     // OpenCode sometimes writes JSON events to stderr; run under bash and redirect 2>&1
     const parts: string[] = ["opencode", "run", "--format", "json", "--variant", "medium"]
 
