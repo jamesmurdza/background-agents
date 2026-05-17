@@ -42,6 +42,7 @@ export function useUpdateChatMutation() {
         if (data.status !== undefined) updated.status = data.status as Chat["status"]
         if (data.agent !== undefined) updated.agent = data.agent
         if (data.model !== undefined) updated.model = data.model
+        if (data.planModeEnabled !== undefined) updated.planModeEnabled = data.planModeEnabled
         if (data.repo !== undefined) updated.repo = data.repo
         if (data.baseBranch !== undefined) updated.baseBranch = data.baseBranch
         if (data.branch !== undefined) updated.branch = data.branch
@@ -64,6 +65,7 @@ export function useUpdateChatMutation() {
           if (data.status !== undefined) updated.status = data.status as Chat["status"]
           if (data.agent !== undefined) updated.agent = data.agent
           if (data.model !== undefined) updated.model = data.model
+          if (data.planModeEnabled !== undefined) updated.planModeEnabled = data.planModeEnabled
           if (data.repo !== undefined) updated.repo = data.repo
           if (data.baseBranch !== undefined) updated.baseBranch = data.baseBranch
           if (data.branch !== undefined) updated.branch = data.branch
