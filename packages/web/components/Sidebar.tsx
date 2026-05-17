@@ -330,7 +330,7 @@ export function Sidebar({
           }}
         >
           {/* Header with close button */}
-          <div className="flex items-center justify-between px-4 pb-4 pt-safe border-b border-sidebar-border">
+          <div className="flex items-center justify-between px-4 pb-2 pt-safe">
             <h1 className="text-base font-semibold text-foreground">
               Background Agents
             </h1>
