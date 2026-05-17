@@ -143,6 +143,7 @@ export function useChatWithSync() {
 
   const prevStatuses = useRef<Map<string, ChatStatus>>(new Map())
   const sendInFlight = useRef<Set<string>>(new Set())
+  const stopInFlight = useRef<Set<string>>(new Set())
   const queueDispatchInFlight = useRef<Set<string>>(new Set())
   const messagesLoadFailed = useRef<Set<string>>(new Set())
   const materializingDraft = useRef<boolean>(false)
@@ -590,6 +591,7 @@ export function useChatWithSync() {
     if (!chat) return
 
     if (sendInFlight.current.has(chatId)) return
+    if (stopInFlight.current.has(chatId)) return
     if (useStreamStore.getState().isStreaming(chatId)) return
     if (chat.status === "creating" || chat.status === "running") return
 
@@ -713,6 +715,7 @@ export function useChatWithSync() {
     if (localChatState.queuePaused[chatId]) return false
     if (queueDispatchInFlight.current.has(chatId)) return false
     if (sendInFlight.current.has(chatId)) return false
+    if (stopInFlight.current.has(chatId)) return false
     if (useStreamStore.getState().isStreaming(chatId)) return false
     if (chat.status !== "ready" || !!chat.backgroundSessionId) return false
 
@@ -735,13 +738,18 @@ export function useChatWithSync() {
   const stopAgent = useCallback(async () => {
     if (!currentChat) return
 
+    const chatId = currentChat.id
+
+    // Prevent sending messages while stop is in progress
+    stopInFlight.current.add(chatId)
+
     // Stop the SSE stream on the client side
-    useStreamStore.getState().stopStream(currentChat.id)
+    useStreamStore.getState().stopStream(chatId)
     const hasQueue = (currentChat.queuedMessages?.length ?? 0) > 0
 
     // Optimistically update the UI
     updateChatsCache((old) => old.map((c) =>
-      c.id === currentChat.id
+      c.id === chatId
         ? {
             ...c,
             status: "ready",
@@ -752,20 +760,21 @@ export function useChatWithSync() {
     ))
 
     if (hasQueue) {
-      setQueuePaused(currentChat.id, true)
-      setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: true } }))
+      setQueuePaused(chatId, true)
+      setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [chatId]: true } }))
     }
 
-    // Call the stop endpoint to actually kill the agent process
-    // This is fire-and-forget - we've already updated the UI optimistically
+    // Call the stop endpoint and wait for it to complete before allowing new messages
     try {
       await fetch("/api/agent/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: currentChat.id }),
+        body: JSON.stringify({ chatId }),
       })
     } catch (err) {
       console.error("[stopAgent] Failed to stop agent:", err)
+    } finally {
+      stopInFlight.current.delete(chatId)
     }
   }, [currentChat, updateChatsCache])
 
