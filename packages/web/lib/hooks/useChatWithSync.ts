@@ -497,31 +497,43 @@ export function useChatWithSync() {
     }
   }, [updateSettingsMutation])
 
+  // Helper to update preview state for a chat (extracted to avoid duplication)
+  const updatePreviewStateForChat = useCallback((
+    chatId: string,
+    updates: Pick<Partial<Chat>, "previewItems" | "activePreviewIndex" | "previewPaneHidden">
+  ) => {
+    const { previewItems, activePreviewIndex, previewPaneHidden } = updates
+
+    if (!("previewItems" in updates) && !("activePreviewIndex" in updates) && !("previewPaneHidden" in updates)) {
+      return
+    }
+
+    const currentState = localChatState.previewStates[chatId]
+    const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined && previewPaneHidden === undefined
+      ? undefined
+      : {
+          items: previewItems ?? currentState?.items ?? [],
+          activeIndex: activePreviewIndex ?? currentState?.activeIndex ?? 0,
+          hidden: previewPaneHidden ?? currentState?.hidden,
+        }
+    setPreviewState(chatId, newState)
+    setLocalChatState((prev) => {
+      const newPreviewStates = { ...prev.previewStates }
+      if (newState === undefined) {
+        delete newPreviewStates[chatId]
+      } else {
+        newPreviewStates[chatId] = newState
+      }
+      return { ...prev, previewStates: newPreviewStates }
+    })
+  }, [localChatState.previewStates])
+
   const updateCurrentChat = useCallback(async (updates: Partial<Chat>) => {
     if (!currentChatId) return
     const { previewItems, activePreviewIndex, previewPaneHidden, queuedMessages, queuePaused, ...serverUpdates } = updates
 
     // Handle previewItems/activePreviewIndex/previewPaneHidden fields
-    if ("previewItems" in updates || "activePreviewIndex" in updates || "previewPaneHidden" in updates) {
-      const currentState = localChatState.previewStates[currentChatId]
-      const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined && previewPaneHidden === undefined
-        ? undefined
-        : {
-            items: previewItems ?? currentState?.items ?? [],
-            activeIndex: activePreviewIndex ?? currentState?.activeIndex ?? 0,
-            hidden: previewPaneHidden ?? currentState?.hidden,
-          }
-      setPreviewState(currentChatId, newState)
-      setLocalChatState((prev) => {
-        const newPreviewStates = { ...prev.previewStates }
-        if (newState === undefined) {
-          delete newPreviewStates[currentChatId]
-        } else {
-          newPreviewStates[currentChatId] = newState
-        }
-        return { ...prev, previewStates: newPreviewStates }
-      })
-    }
+    updatePreviewStateForChat(currentChatId, { previewItems, activePreviewIndex, previewPaneHidden })
 
     if (Object.keys(serverUpdates).length > 0) {
       try {
@@ -530,32 +542,13 @@ export function useChatWithSync() {
         console.error("Failed to update chat:", error)
       }
     }
-  }, [currentChatId, localChatState.previewStates, updateChatMutation])
+  }, [currentChatId, updatePreviewStateForChat, updateChatMutation])
 
   const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
     const { previewItems, activePreviewIndex, previewPaneHidden, ...serverUpdates } = updates
 
     // Handle previewItems/activePreviewIndex/previewPaneHidden fields
-    if ("previewItems" in updates || "activePreviewIndex" in updates || "previewPaneHidden" in updates) {
-      const currentState = localChatState.previewStates[chatId]
-      const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined && previewPaneHidden === undefined
-        ? undefined
-        : {
-            items: previewItems ?? currentState?.items ?? [],
-            activeIndex: activePreviewIndex ?? currentState?.activeIndex ?? 0,
-            hidden: previewPaneHidden ?? currentState?.hidden,
-          }
-      setPreviewState(chatId, newState)
-      setLocalChatState((prev) => {
-        const newPreviewStates = { ...prev.previewStates }
-        if (newState === undefined) {
-          delete newPreviewStates[chatId]
-        } else {
-          newPreviewStates[chatId] = newState
-        }
-        return { ...prev, previewStates: newPreviewStates }
-      })
-    }
+    updatePreviewStateForChat(chatId, { previewItems, activePreviewIndex, previewPaneHidden })
 
     if (Object.keys(serverUpdates).length > 0) {
       try {
@@ -564,7 +557,7 @@ export function useChatWithSync() {
         console.error("Failed to update chat:", error)
       }
     }
-  }, [localChatState.previewStates, updateChatMutation])
+  }, [updatePreviewStateForChat, updateChatMutation])
 
   // Send message
   const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean) => {
