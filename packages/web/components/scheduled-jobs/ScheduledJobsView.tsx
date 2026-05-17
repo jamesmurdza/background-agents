@@ -598,7 +598,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
                   {jobs.map((job) => (
                     <tr
                       key={job.id}
-                      className="bg-card cursor-pointer"
+                      className="bg-white/50 dark:bg-white/5 cursor-pointer"
                       onClick={() => setSelectedJobId(job.id, job.name)}
                     >
                       <td className="px-4 py-3">
