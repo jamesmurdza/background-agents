@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRouter, usePathname, useParams } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { nanoid } from "nanoid"
 import { MobileHeader } from "@/components/MobileHeader"
@@ -29,6 +30,8 @@ import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
 import { usePreview } from "@/lib/hooks/usePreview"
+import { usePageTitle } from "@/lib/hooks/usePageTitle"
+import { ROUTES } from "@/lib/hooks/useUrlNavigation"
 import {
   ChatProvider,
   ModalProvider,
@@ -118,10 +121,19 @@ interface HomePageContentProps {
 }
 
 function HomePageContent({ isMobile }: HomePageContentProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useParams()
   const { data: session } = useSession()
   const { githubTokenInvalid } = useGitHubTokenCheck()
   const modals = useModals()
   const sidebar = useSidebar()
+
+  // URL-based routing
+  const urlChatId = params?.chatId as string | undefined
+  const isJobsRoute = pathname?.startsWith("/jobs") ?? false
+  const isNewChatRoute = pathname === "/chat/new"
+  const isHomeRoute = pathname === "/"
 
   const {
     chats,
@@ -387,6 +399,79 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   }, [isHydrated, currentChatId, session, startNewChat])
 
   // =============================================================================
+  // URL Sync & Page Titles
+  // =============================================================================
+  // Track if initial URL sync has been done
+  const initialUrlSyncDone = useRef(false)
+
+  // Sync URL to state on initial load and URL changes
+  useEffect(() => {
+    if (!isHydrated) return
+
+    // Handle /jobs route - switch to jobs view
+    if (isJobsRoute && sidebar.viewMode !== "scheduled-jobs") {
+      sidebar.setViewMode("scheduled-jobs")
+      sidebar.setSelectedScheduledJob(null)
+      initialUrlSyncDone.current = true
+      return
+    }
+
+    // Handle /chat/new route - ensure we're in draft mode
+    if (isNewChatRoute) {
+      if (!currentChatId || !isDraftChatId(currentChatId)) {
+        startNewChat()
+      }
+      if (sidebar.viewMode !== "chat") {
+        sidebar.setViewMode("chat")
+      }
+      initialUrlSyncDone.current = true
+      return
+    }
+
+    // Handle /chat/[chatId] route - select the chat from URL
+    if (urlChatId && urlChatId !== currentChatId) {
+      const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
+      if (chatExists) {
+        selectChat(urlChatId)
+        if (sidebar.viewMode !== "chat") {
+          sidebar.setViewMode("chat")
+        }
+      } else if (initialUrlSyncDone.current) {
+        // Chat doesn't exist, redirect to new chat
+        router.replace(ROUTES.newChat)
+      }
+      initialUrlSyncDone.current = true
+      return
+    }
+
+    // Handle home route (/) - redirect to current chat or new chat
+    if (isHomeRoute && isHydrated) {
+      if (currentChatId) {
+        router.replace(ROUTES.chat(currentChatId))
+      } else {
+        router.replace(ROUTES.newChat)
+      }
+      initialUrlSyncDone.current = true
+      return
+    }
+
+    initialUrlSyncDone.current = true
+  }, [
+    isHydrated,
+    isJobsRoute,
+    isNewChatRoute,
+    isHomeRoute,
+    urlChatId,
+    currentChatId,
+    chats,
+    isDraftChatId,
+    selectChat,
+    startNewChat,
+    sidebar,
+    router,
+  ])
+
+  // =============================================================================
   // Draft Chat & Display Chat
   // =============================================================================
   // For users without a real chat (either unauthenticated or authenticated
@@ -447,6 +532,22 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const isDraftMode = !!draftChat
   const isAuthenticatedDraft = isDraftMode && !!session
 
+  // Dynamic page title based on current view
+  const pageTitle = useMemo(() => {
+    if (isJobsRoute) {
+      return sidebar.selectedScheduledJob?.name ?? "Scheduled Agents"
+    }
+    if (displayCurrentChat?.displayName) {
+      return displayCurrentChat.displayName
+    }
+    if (isNewChatRoute || isDraftMode) {
+      return "New Chat"
+    }
+    return null
+  }, [isJobsRoute, isNewChatRoute, isDraftMode, displayCurrentChat?.displayName, sidebar.selectedScheduledJob?.name])
+
+  usePageTitle(pageTitle)
+
   // Clear isSendingMessage once the chat status changes (server responded with optimistic update)
   // or when the user switches to a different chat
   useEffect(() => {
@@ -465,7 +566,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // =============================================================================
 
   // Handler for new chat - uses current chat's repo/branch if available, otherwise repo filter
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(async () => {
     if (!session) {
       modals.setSignInModalOpen(true)
       return
@@ -476,33 +577,42 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
+    let newChatId: string | null = null
     if (displayCurrentChat && displayCurrentChat.repo !== NEW_REPOSITORY) {
-      startNewChat(displayCurrentChat.repo, displayCurrentChat.baseBranch)
+      newChatId = await startNewChat(displayCurrentChat.repo, displayCurrentChat.baseBranch)
     } else if (sidebar.repoFilter !== ALL_REPOSITORIES && sidebar.repoFilter !== NO_REPOSITORY) {
       // If a specific repo is selected in the filter, use it for the new chat
       // Find the repo to get the default branch
       const repo = repos.find(r => `${r.owner.login}/${r.name}` === sidebar.repoFilter)
-      startNewChat(sidebar.repoFilter, repo?.default_branch ?? "main")
+      newChatId = await startNewChat(sidebar.repoFilter, repo?.default_branch ?? "main")
     } else {
       // Default to NEW_REPOSITORY (no repo)
-      startNewChat()
+      newChatId = await startNewChat()
     }
-  }
+    // Navigate to the new chat URL
+    if (newChatId) {
+      router.push(ROUTES.chat(newChatId))
+    }
+  }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat, router])
 
-  // Handler for selecting a chat - switch to chat view
-  const handleSelectChat = (chatId: string) => {
+  // Handler for selecting a chat - switch to chat view and update URL
+  const handleSelectChat = useCallback((chatId: string) => {
     selectChat(chatId)
     sidebar.setViewMode("chat")
     sidebar.setSelectedScheduledJob(null) // Clear selected job when switching to chat
-  }
+    // Update URL to match selected chat
+    router.push(ROUTES.chat(chatId))
+  }, [selectChat, sidebar, router])
 
   // Handler for opening scheduled jobs view
-  const handleOpenScheduledJobs = () => {
+  const handleOpenScheduledJobs = useCallback(() => {
     sidebar.setViewMode("scheduled-jobs")
     sidebar.setSelectedScheduledJob(null) // Clear selected job to show list view
     selectChat(null as unknown as string) // Deselect current chat
+    // Update URL to jobs route
+    router.push(ROUTES.jobs)
     // Preview pane is automatically hidden when no chat is selected (preview.preview.previewItems will be empty)
-  }
+  }, [sidebar, selectChat, router])
 
   // Handler for scheduled job selection (memoized to prevent infinite loops)
   const handleJobSelect = useCallback((job: { id: string; name: string } | null) => {
