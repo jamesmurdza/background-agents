@@ -59,6 +59,9 @@ export const claudeAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
+    // Debug: log planMode to verify it's being passed correctly
+    console.log(`[claude buildCommand] planMode=${options.planMode}`)
+
     const args: string[] = []
 
     // Print mode for non-interactive usage
@@ -67,8 +70,15 @@ export const claudeAgent: AgentDefinition = {
     // Add output format flag for JSON streaming (requires --verbose)
     args.push("--output-format", "stream-json", "--verbose")
 
-    // Skip permission prompts when already running in a sandbox
-    args.push("--dangerously-skip-permissions")
+    // Enable CLI-enforced plan mode (read-only)
+    // Must be set BEFORE --dangerously-skip-permissions check
+    if (options.planMode) {
+      args.push("--permission-mode", "plan")
+    } else {
+      // Only skip permission prompts when NOT in plan mode
+      // In plan mode, we want the CLI to enforce read-only restrictions
+      args.push("--dangerously-skip-permissions")
+    }
 
     // Apply system prompt via native CLI flag when provided
     if (options.systemPrompt) {
@@ -83,11 +93,6 @@ export const claudeAgent: AgentDefinition = {
     // Resume session if provided
     if (options.sessionId) {
       args.push("--resume", options.sessionId)
-    }
-
-    // Enable CLI-enforced plan mode (read-only)
-    if (options.planMode) {
-      args.push("--permission-mode", "plan")
     }
 
     // The "--" sentinel signals end-of-options to the Claude CLI's argument parser
