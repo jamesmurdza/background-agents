@@ -131,6 +131,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // URL-based routing
   const urlChatId = params?.chatId as string | undefined
+  const urlJobId = params?.jobId as string | undefined
+  const urlRunId = params?.runId as string | undefined
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
   const isHomeRoute = pathname === "/"
@@ -399,65 +401,74 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   }, [isHydrated, currentChatId, session, startNewChat])
 
   // =============================================================================
-  // URL Sync & Page Titles
+  // URL Sync (for initial load and browser back/forward only)
   // =============================================================================
-  // Track if initial URL sync has been done
-  const initialUrlSyncDone = useRef(false)
+  // Track the last URL we synced to, to avoid re-syncing when handlers already updated state
+  const lastSyncedUrl = useRef<string | null>(null)
 
-  // Sync URL to state on initial load and URL changes
+  // Sync URL to state - only runs when URL changes externally (initial load, back/forward)
+  // Handlers update state first then push URL, so we skip sync when state already matches
   useEffect(() => {
     if (!isHydrated) return
 
-    // Handle /jobs route - switch to jobs view
-    if (isJobsRoute && sidebar.viewMode !== "scheduled-jobs") {
-      sidebar.setViewMode("scheduled-jobs")
-      sidebar.setSelectedScheduledJob(null)
-      initialUrlSyncDone.current = true
+    // Construct current URL for comparison (pathname already includes dynamic segments)
+    const currentUrl = pathname ?? "/"
+
+    // Skip if we already synced this URL (prevents double-processing)
+    if (lastSyncedUrl.current === currentUrl) return
+    lastSyncedUrl.current = currentUrl
+
+    // Handle /jobs routes - switch to jobs view
+    if (isJobsRoute) {
+      if (sidebar.viewMode !== "scheduled-jobs") {
+        sidebar.setViewMode("scheduled-jobs")
+      }
+      // The ScheduledJobsView component handles urlJobId directly via props
       return
     }
 
     // Handle /chat/new route - ensure we're in draft mode
     if (isNewChatRoute) {
+      if (sidebar.viewMode !== "chat") {
+        sidebar.setViewMode("chat")
+      }
+      // Only start new chat if we don't have a draft already
       if (!currentChatId || !isDraftChatId(currentChatId)) {
         startNewChat()
+      }
+      return
+    }
+
+    // Handle /chat/[chatId] route - only sync if chat doesn't match
+    if (urlChatId) {
+      if (urlChatId !== currentChatId) {
+        const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
+        if (chatExists) {
+          selectChat(urlChatId)
+        } else {
+          // Chat doesn't exist, redirect to new chat
+          router.replace(ROUTES.newChat)
+          return
+        }
       }
       if (sidebar.viewMode !== "chat") {
         sidebar.setViewMode("chat")
       }
-      initialUrlSyncDone.current = true
-      return
-    }
-
-    // Handle /chat/[chatId] route - select the chat from URL
-    if (urlChatId && urlChatId !== currentChatId) {
-      const chatExists = chats.some(c => c.id === urlChatId) || isDraftChatId(urlChatId)
-      if (chatExists) {
-        selectChat(urlChatId)
-        if (sidebar.viewMode !== "chat") {
-          sidebar.setViewMode("chat")
-        }
-      } else if (initialUrlSyncDone.current) {
-        // Chat doesn't exist, redirect to new chat
-        router.replace(ROUTES.newChat)
-      }
-      initialUrlSyncDone.current = true
       return
     }
 
     // Handle home route (/) - redirect to current chat or new chat
-    if (isHomeRoute && isHydrated) {
+    if (isHomeRoute) {
       if (currentChatId) {
         router.replace(ROUTES.chat(currentChatId))
       } else {
         router.replace(ROUTES.newChat)
       }
-      initialUrlSyncDone.current = true
       return
     }
-
-    initialUrlSyncDone.current = true
   }, [
     isHydrated,
+    pathname,
     isJobsRoute,
     isNewChatRoute,
     isHomeRoute,
@@ -591,25 +602,33 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
     // Navigate to the new chat URL
     if (newChatId) {
+      // Mark this URL as handled so sync effect doesn't re-process
+      lastSyncedUrl.current = `/chat/${newChatId}`
       router.push(ROUTES.chat(newChatId))
     }
   }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat, router])
 
   // Handler for selecting a chat - switch to chat view and update URL
   const handleSelectChat = useCallback((chatId: string) => {
+    // Update URL first to mark this as a "handled" navigation
+    lastSyncedUrl.current = `/chat/${chatId}`
+    // Then update state
     selectChat(chatId)
     sidebar.setViewMode("chat")
     sidebar.setSelectedScheduledJob(null) // Clear selected job when switching to chat
-    // Update URL to match selected chat
+    // Finally push the URL (won't trigger sync since lastSyncedUrl already matches)
     router.push(ROUTES.chat(chatId))
   }, [selectChat, sidebar, router])
 
   // Handler for opening scheduled jobs view
   const handleOpenScheduledJobs = useCallback(() => {
+    // Update URL first to mark this as a "handled" navigation
+    lastSyncedUrl.current = "/jobs"
+    // Then update state
     sidebar.setViewMode("scheduled-jobs")
     sidebar.setSelectedScheduledJob(null) // Clear selected job to show list view
     selectChat(null as unknown as string) // Deselect current chat
-    // Update URL to jobs route
+    // Finally push the URL (won't trigger sync since lastSyncedUrl already matches)
     router.push(ROUTES.jobs)
     // Preview pane is automatically hidden when no chat is selected (preview.preview.previewItems will be empty)
   }, [sidebar, selectChat, router])
@@ -617,7 +636,18 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Handler for scheduled job selection (memoized to prevent infinite loops)
   const handleJobSelect = useCallback((job: { id: string; name: string } | null) => {
     sidebar.setSelectedScheduledJob(job ? { id: job.id, name: job.name } : null)
-  }, [])
+  }, [sidebar])
+
+  // Handler for navigating to a job (updates URL)
+  const handleNavigateToJob = useCallback((jobId: string | null) => {
+    if (jobId) {
+      lastSyncedUrl.current = `/jobs/${jobId}`
+      router.push(ROUTES.job(jobId))
+    } else {
+      lastSyncedUrl.current = "/jobs"
+      router.push(ROUTES.jobs)
+    }
+  }, [router])
 
   // Handler for the Create Repository palette/slash command.
   const handleCreateRepo = () => {
@@ -1277,7 +1307,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onOpenForm={() => modals.setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}
                   onJobSelect={handleJobSelect}
-                  showList={sidebar.selectedScheduledJob === null}
+                  showList={sidebar.selectedScheduledJob === null && !urlJobId}
+                  urlJobId={urlJobId}
+                  onNavigateToJob={handleNavigateToJob}
                 />
               ) : (
                 <ChatPanelWithPalette
