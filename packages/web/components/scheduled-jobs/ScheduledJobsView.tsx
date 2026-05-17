@@ -469,116 +469,214 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-border">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Repository</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Every</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Last Run</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {jobs.map((job) => (
-                  <tr
-                    key={job.id}
-                    className="hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => setSelectedJobId(job.id, job.name)}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {getJobStatusIcon(job)}
-                        <span className={cn(
-                          "text-sm font-medium",
-                          !job.enabled && "text-muted-foreground"
-                        )}>
-                          {job.name}
+          <>
+            {/* Mobile Card Layout */}
+            <div className="space-y-3 md:hidden">
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="rounded-lg border border-border p-4 hover:bg-muted/30 cursor-pointer transition-colors"
+                  onClick={() => setSelectedJobId(job.id, job.name)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {getJobStatusIcon(job)}
+                      <span className={cn(
+                        "text-sm font-medium truncate",
+                        !job.enabled && "text-muted-foreground"
+                      )}>
+                        {job.name}
+                      </span>
+                      {!job.enabled && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                          Disabled
                         </span>
-                        {!job.enabled && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                            Disabled
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {job.repo}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {formatInterval(job.intervalMinutes)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      )}
+                    </div>
+                    <div className="relative shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMenuOpenId(menuOpenId === job.id ? null : job.id)
+                        }}
+                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+
+                      {menuOpenId === job.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMenuOpenId(null)
+                            }}
+                          />
+                          <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-md border border-border bg-popover py-1 shadow-lg">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEdit(job)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRunNow(job)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                              Run Now
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setMenuOpenId(null)
+                                setDeleteJob(job)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-accent"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                    <div className="truncate">{job.repo}</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span>Every {formatInterval(job.intervalMinutes)}</span>
                       <span className={cn(
                         job.lastRun?.status === "error" && "text-destructive"
                       )}>
                         {getLastRunText(job)}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="relative inline-block">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setMenuOpenId(menuOpenId === job.id ? null : job.id)
-                          }}
-                          className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                        {menuOpenId === job.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setMenuOpenId(null)
-                              }}
-                            />
-                            <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-md border border-border bg-popover py-1 shadow-lg">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleEdit(job)
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRunNow(job)
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-                              >
-                                <Play className="h-3.5 w-3.5" />
-                                Run Now
-                              </button>
-                              <button
+            {/* Desktop Table Layout */}
+            <div className="hidden md:block rounded-lg border border-border">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Name</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Repository</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Every</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Last Run</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {jobs.map((job) => (
+                    <tr
+                      key={job.id}
+                      className="hover:bg-muted/30 cursor-pointer transition-colors"
+                      onClick={() => setSelectedJobId(job.id, job.name)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {getJobStatusIcon(job)}
+                          <span className={cn(
+                            "text-sm font-medium",
+                            !job.enabled && "text-muted-foreground"
+                          )}>
+                            {job.name}
+                          </span>
+                          {!job.enabled && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              Disabled
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {job.repo}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {formatInterval(job.intervalMinutes)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        <span className={cn(
+                          job.lastRun?.status === "error" && "text-destructive"
+                        )}>
+                          {getLastRunText(job)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="relative inline-block">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMenuOpenId(menuOpenId === job.id ? null : job.id)
+                            }}
+                            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+
+                          {menuOpenId === job.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setMenuOpenId(null)
-                                  setDeleteJob(job)
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-accent"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                              />
+                              <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-md border border-border bg-popover py-1 shadow-lg">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEdit(job)
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRunNow(job)
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+                                >
+                                  <Play className="h-3.5 w-3.5" />
+                                  Run Now
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setMenuOpenId(null)
+                                    setDeleteJob(job)
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-accent"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </main>
 
