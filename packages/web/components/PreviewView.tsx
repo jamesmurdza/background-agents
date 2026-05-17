@@ -52,8 +52,6 @@ function getItemKey(item: PreviewItem): string {
       return `terminal:${item.id}`
     case "server":
       return `server:${item.port}`
-    case "plan":
-      return `plan:${item.messageId}`
   }
 }
 
