@@ -41,6 +41,7 @@ interface ChatWithMessagesResponse {
   backgroundSessionId: string | null
   agent: string
   model: string | null
+  planModeEnabled: boolean
   displayName: string | null
   status: string
   parentChatId: string | null
@@ -122,6 +123,7 @@ export async function GET(
       backgroundSessionId: chat.backgroundSessionId,
       agent: chat.agent,
       model: chat.model,
+      planModeEnabled: chat.planModeEnabled,
       displayName: chat.displayName,
       status: chat.status,
       parentChatId: chat.parentChatId,
@@ -162,6 +164,7 @@ interface PatchChatBody {
   status?: string
   agent?: string
   model?: string
+  planModeEnabled?: boolean
   repo?: string
   baseBranch?: string
   branch?: string
@@ -198,6 +201,7 @@ export async function PATCH(
     if (body.status !== undefined) updateData.status = body.status
     if (body.agent !== undefined) updateData.agent = body.agent
     if (body.model !== undefined) updateData.model = body.model
+    if (body.planModeEnabled !== undefined) updateData.planModeEnabled = body.planModeEnabled
     if (body.repo !== undefined) updateData.repo = body.repo
     if (body.baseBranch !== undefined) updateData.baseBranch = body.baseBranch
     if (body.branch !== undefined) updateData.branch = body.branch
@@ -228,6 +232,7 @@ export async function PATCH(
       backgroundSessionId: updatedChat.backgroundSessionId,
       agent: updatedChat.agent,
       model: updatedChat.model,
+      planModeEnabled: updatedChat.planModeEnabled,
       displayName: updatedChat.displayName,
       status: updatedChat.status,
       parentChatId: updatedChat.parentChatId,

@@ -112,8 +112,9 @@ model Chat {
   backgroundSessionId String? // Active execution ID (for recovery)
 
   // Agent config
-  agent String  @default("opencode")
-  model String?
+  agent           String  @default("opencode")
+  model           String?
+  planModeEnabled Boolean @default(false)
 
   // Display
   displayName String?
