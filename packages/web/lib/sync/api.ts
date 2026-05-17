@@ -141,6 +141,7 @@ export async function updateChat(
     status: string
     agent: string
     model: string
+    planModeEnabled: boolean
     repo: string
     baseBranch: string
     branch: string | null
