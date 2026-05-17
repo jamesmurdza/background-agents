@@ -85,6 +85,23 @@ function formatDuration(startedAt: number, completedAt: number): string {
   return `${seconds}s`
 }
 
+function getTriggerDescription(job: ScheduledJob): string {
+  if (job.triggerType === "webhook") {
+    return "Webhook"
+  }
+  // Interval trigger - show human-readable schedule
+  const minutes = job.intervalMinutes
+  if (minutes < 60) {
+    return `Every ${minutes} minute${minutes === 1 ? "" : "s"}`
+  }
+  const hours = Math.round(minutes / 60)
+  if (minutes < 1440) {
+    return `Every ${hours} hour${hours === 1 ? "" : "s"}`
+  }
+  const days = Math.round(minutes / 1440)
+  return `Every ${days} day${days === 1 ? "" : "s"}`
+}
+
 // =============================================================================
 // Props
 // =============================================================================
@@ -475,7 +492,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="rounded-lg border border-border p-4 hover:bg-muted/30 cursor-pointer transition-colors"
+                  className="rounded-lg border border-border bg-muted/20 p-4 hover:bg-muted/40 cursor-pointer transition-colors"
                   onClick={() => setSelectedJobId(job.id, job.name)}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -553,7 +570,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
                   <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
                     <div className="truncate">{job.repo}</div>
                     <div className="flex items-center justify-between gap-2">
-                      <span>Every {formatInterval(job.intervalMinutes)}</span>
+                      <span>{getTriggerDescription(job)}</span>
                       <span className={cn(
                         job.lastRun?.status === "error" && "text-destructive"
                       )}>
@@ -566,13 +583,13 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
             </div>
 
             {/* Desktop Table Layout */}
-            <div className="hidden md:block rounded-lg border border-border">
+            <div className="hidden md:block rounded-lg border border-border bg-muted/20">
               <table className="w-full">
                 <tbody className="divide-y divide-border">
                   {jobs.map((job) => (
                     <tr
                       key={job.id}
-                      className="hover:bg-muted/30 cursor-pointer transition-colors"
+                      className="hover:bg-muted/40 cursor-pointer transition-colors"
                       onClick={() => setSelectedJobId(job.id, job.name)}
                     >
                       <td className="px-4 py-3">
@@ -595,7 +612,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
                         {job.repo}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {formatInterval(job.intervalMinutes)}
+                        {getTriggerDescription(job)}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
                         <span className={cn(
