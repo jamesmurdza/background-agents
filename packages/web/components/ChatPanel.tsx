@@ -59,8 +59,12 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   // Slash command menu state
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
-  // Plan mode state
-  const [planModeEnabled, setPlanModeEnabled] = useState(false)
+  // Plan mode state - stored on chat object for per-chat persistence
+  const planModeEnabled = chat?.planModeEnabled ?? false
+  const setPlanModeEnabled = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    const newValue = typeof value === 'function' ? value(planModeEnabled) : value
+    onUpdateChat?.({ planModeEnabled: newValue })
+  }, [onUpdateChat, planModeEnabled])
   // Computed current agent for plan mode check
   const currentAgentForPlanMode = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
   // Reset plan mode when switching to an agent that doesn't support it
@@ -68,7 +72,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     if (planModeEnabled && !agentSupportsPlanMode[currentAgentForPlanMode]) {
       setPlanModeEnabled(false)
     }
-  }, [currentAgentForPlanMode, planModeEnabled])
+  }, [currentAgentForPlanMode, planModeEnabled, setPlanModeEnabled])
   // File upload state - using custom hook
   const {
     pendingFiles,
