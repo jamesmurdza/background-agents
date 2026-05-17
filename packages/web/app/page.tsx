@@ -131,6 +131,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // URL-based routing
   const urlChatId = params?.chatId as string | undefined
+  const urlJobId = params?.jobId as string | undefined
+  const urlRunId = params?.runId as string | undefined
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
   const isHomeRoute = pathname === "/"
@@ -409,18 +411,19 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   useEffect(() => {
     if (!isHydrated) return
 
-    const currentUrl = pathname + (urlChatId ? `/${urlChatId}` : "")
+    // Construct current URL for comparison (pathname already includes dynamic segments)
+    const currentUrl = pathname ?? "/"
 
     // Skip if we already synced this URL (prevents double-processing)
     if (lastSyncedUrl.current === currentUrl) return
     lastSyncedUrl.current = currentUrl
 
-    // Handle /jobs route - only sync if view mode doesn't match
+    // Handle /jobs routes - switch to jobs view
     if (isJobsRoute) {
       if (sidebar.viewMode !== "scheduled-jobs") {
         sidebar.setViewMode("scheduled-jobs")
-        sidebar.setSelectedScheduledJob(null)
       }
+      // The ScheduledJobsView component handles urlJobId directly via props
       return
     }
 
@@ -633,7 +636,18 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Handler for scheduled job selection (memoized to prevent infinite loops)
   const handleJobSelect = useCallback((job: { id: string; name: string } | null) => {
     sidebar.setSelectedScheduledJob(job ? { id: job.id, name: job.name } : null)
-  }, [])
+  }, [sidebar])
+
+  // Handler for navigating to a job (updates URL)
+  const handleNavigateToJob = useCallback((jobId: string | null) => {
+    if (jobId) {
+      lastSyncedUrl.current = `/jobs/${jobId}`
+      router.push(ROUTES.job(jobId))
+    } else {
+      lastSyncedUrl.current = "/jobs"
+      router.push(ROUTES.jobs)
+    }
+  }, [router])
 
   // Handler for the Create Repository palette/slash command.
   const handleCreateRepo = () => {
@@ -1293,7 +1307,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onOpenForm={() => modals.setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}
                   onJobSelect={handleJobSelect}
-                  showList={sidebar.selectedScheduledJob === null}
+                  showList={sidebar.selectedScheduledJob === null && !urlJobId}
+                  urlJobId={urlJobId}
+                  onNavigateToJob={handleNavigateToJob}
                 />
               ) : (
                 <ChatPanelWithPalette

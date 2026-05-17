@@ -97,17 +97,30 @@ interface ScheduledJobsViewProps {
   onJobSelect?: (job: ScheduledJob | null) => void
   /** When true, reset to show the list view (clear any selected job) */
   showList?: boolean
+  /** Job ID from URL - controls which job is selected */
+  urlJobId?: string | null
+  /** Callback when navigating to a job (updates URL) */
+  onNavigateToJob?: (jobId: string | null) => void
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showList }: ScheduledJobsViewProps) {
+export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showList, urlJobId, onNavigateToJob }: ScheduledJobsViewProps) {
   const { data: session } = useSession()
 
-  // View state: list or detail
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  // View state: list or detail - controlled by URL if provided
+  const [internalSelectedJobId, setInternalSelectedJobId] = useState<string | null>(null)
+
+  // Use URL job ID if provided, otherwise use internal state
+  const selectedJobId = urlJobId !== undefined ? (urlJobId || null) : internalSelectedJobId
+
+  // Wrapper to update both internal state and notify parent for URL update
+  const setSelectedJobId = (jobId: string | null) => {
+    setInternalSelectedJobId(jobId)
+    onNavigateToJob?.(jobId)
+  }
 
   // Jobs list state
   const [jobs, setJobs] = useState<ScheduledJob[]>([])
