@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { usePathname, useParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { nanoid } from "nanoid"
 import { MobileHeader } from "@/components/MobileHeader"
@@ -122,18 +122,18 @@ interface HomePageContentProps {
 
 function HomePageContent({ isMobile }: HomePageContentProps) {
   const pathname = usePathname()
-  const params = useParams()
   const { data: session } = useSession()
   const { githubTokenInvalid } = useGitHubTokenCheck()
   const modals = useModals()
   const sidebar = useSidebar()
 
-  // URL params for jobs (used by ScheduledJobsView)
-  const urlJobId = params?.jobId as string | undefined
-
-  // Derived route state for page title
+  // Derived route state for page title (uses Next.js pathname for SSR compatibility)
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
+
+  // For jobs, we derive the ID from sidebar state since we use pushState for navigation
+  // The sidebar.selectedScheduledJob is updated by handleNavigateToJob
+  const urlJobId = sidebar.selectedScheduledJob?.id
 
   const {
     chats,
@@ -417,6 +417,17 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     if (currentPath.startsWith("/jobs")) {
       sidebar.setViewMode("scheduled-jobs")
       if (!isInitialSync) selectChat(null)
+
+      // Check for specific job ID in URL: /jobs/[jobId]
+      const jobMatch = currentPath.match(/^\/jobs\/([^/]+)$/)
+      if (jobMatch) {
+        const jobId = jobMatch[1]
+        // Set selected job with ID (name will be updated when job data loads)
+        sidebar.setSelectedScheduledJob({ id: jobId, name: jobId })
+      } else {
+        // Just /jobs - clear selection
+        sidebar.setSelectedScheduledJob(null)
+      }
       return
     }
 
@@ -626,14 +637,17 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     sidebar.setSelectedScheduledJob(job ? { id: job.id, name: job.name } : null)
   }, [sidebar])
 
-  // Handler for navigating to a job (updates URL)
-  const handleNavigateToJob = useCallback((jobId: string | null) => {
+  // Handler for navigating to a job (updates URL and sidebar state)
+  const handleNavigateToJob = useCallback((jobId: string | null, jobName?: string) => {
     if (jobId) {
+      // Update sidebar state - use jobName if provided, otherwise use jobId as placeholder
+      sidebar.setSelectedScheduledJob({ id: jobId, name: jobName ?? jobId })
       window.history.pushState(null, "", ROUTES.job(jobId))
     } else {
+      sidebar.setSelectedScheduledJob(null)
       window.history.pushState(null, "", ROUTES.jobs)
     }
-  }, [])
+  }, [sidebar])
 
   // Handler for the Create Repository palette/slash command.
   const handleCreateRepo = () => {

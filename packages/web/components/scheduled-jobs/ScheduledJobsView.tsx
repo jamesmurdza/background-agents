@@ -99,8 +99,8 @@ interface ScheduledJobsViewProps {
   showList?: boolean
   /** Job ID from URL - controls which job is selected */
   urlJobId?: string | null
-  /** Callback when navigating to a job (updates URL) */
-  onNavigateToJob?: (jobId: string | null) => void
+  /** Callback when navigating to a job (updates URL and sidebar state) */
+  onNavigateToJob?: (jobId: string | null, jobName?: string) => void
 }
 
 // =============================================================================
@@ -116,10 +116,10 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showLis
   const selectedJobId = isUrlControlled ? (urlJobId || null) : null
 
   // Handler to change selected job - updates URL when URL-controlled
-  const setSelectedJobId = (jobId: string | null) => {
+  const setSelectedJobId = (jobId: string | null, jobName?: string) => {
     if (isUrlControlled) {
       // URL-controlled: notify parent to update URL
-      onNavigateToJob?.(jobId)
+      onNavigateToJob?.(jobId, jobName)
     }
   }
 
@@ -499,7 +499,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, onJobSelect, showLis
                   <tr
                     key={job.id}
                     className="hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => setSelectedJobId(job.id)}
+                    onClick={() => setSelectedJobId(job.id, job.name)}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
