@@ -492,7 +492,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="rounded-lg border border-border bg-background p-4 hover:bg-muted/30 cursor-pointer transition-colors"
+                  className="rounded-lg border border-border bg-white/50 dark:bg-white/5 p-4 cursor-pointer"
                   onClick={() => setSelectedJobId(job.id, job.name)}
                 >
                   <div className="flex items-start justify-between gap-3">
