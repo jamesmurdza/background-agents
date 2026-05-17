@@ -140,6 +140,7 @@ export interface Chat {
   // Agent config (per-chat, can be changed)
   agent?: string        // "claude-code" | "opencode" | "codex" | etc.
   model?: string        // Model ID for the agent
+  planModeEnabled?: boolean  // Whether plan mode is enabled for this chat
 
   // Chat data
   messages: Message[]
