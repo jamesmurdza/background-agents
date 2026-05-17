@@ -205,24 +205,24 @@ export function useStreaming(options: UseStreamingOptions = {}) {
         const failures = (stream.reconnectAttempts || 0) + 1
         store.updateStream(chatId, { reconnectAttempts: failures, eventSource: null })
 
-        // Exponential backoff before retrying
-        const delay = Math.min(
-          SSE_INITIAL_RETRY_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, failures - 1),
-          SSE_MAX_RETRY_DELAY
-        )
-        await new Promise((r) => setTimeout(r, delay))
-
         // Check if still streaming (user might have stopped)
         if (!useStreamStore.getState().isStreaming(chatId)) return
 
-        // Verify actual backend status before deciding whether to reconnect
+        // Check backend status IMMEDIATELY on SSE failure (no delay first)
+        // This catches the case where agent finished right as we tried to connect
         try {
           const res = await fetch(`/api/chats/${chatId}?statusOnly=true`)
           if (!res.ok) throw new Error(`Status check failed: ${res.status}`)
           const backendState = await res.json()
 
           if (backendState.status === "running" && backendState.backgroundSessionId) {
-            // Agent still running - reconnect
+            // Agent still running - apply backoff then reconnect
+            const delay = Math.min(
+              SSE_INITIAL_RETRY_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, failures - 1),
+              SSE_MAX_RETRY_DELAY
+            )
+            await new Promise((r) => setTimeout(r, delay))
+
             if (useStreamStore.getState().isStreaming(chatId)) {
               connect(stream.cursor)
             }
@@ -238,8 +238,14 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             )
           }
         } catch (err) {
-          // Fetch failed (network still down) - keep trying
+          // Fetch failed (network still down) - apply backoff then retry
           console.warn(`[useStreaming] Backend status check failed for chat ${chatId}:`, err)
+          const delay = Math.min(
+            SSE_INITIAL_RETRY_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, failures - 1),
+            SSE_MAX_RETRY_DELAY
+          )
+          await new Promise((r) => setTimeout(r, delay))
+
           if (useStreamStore.getState().isStreaming(chatId)) {
             connect(stream.cursor)
           }
