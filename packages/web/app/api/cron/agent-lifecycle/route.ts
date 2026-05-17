@@ -795,11 +795,14 @@ async function finalizeInteractiveChat(
             await git.push(`${PATHS.SANDBOX_HOME}/project`, account.access_token, pushOptions)
           } catch (err) {
             // Create error message with force-push action (same as SSE stream)
+            // Use dedupeKey to prevent duplicate messages if stream already created one
             await createGitOperationMessage(
               chat.id,
               `Push failed: ${err instanceof Error ? err.message : "Unknown error"}`,
               true,
-              { action: "force-push" }
+              { action: "force-push" },
+              undefined,
+              { dedupeKey: "Push failed" }
             )
           }
         }

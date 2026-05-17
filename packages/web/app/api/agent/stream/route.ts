@@ -262,11 +262,14 @@ export async function GET(req: Request) {
 
                   if (!pushResult.success) {
                     // Create error message with force-push action
+                    // Use dedupeKey to prevent duplicate messages if cron also tries to push
                     await createGitOperationMessage(
                       chatId,
                       `Push failed: ${pushResult.error}. You can force push to overwrite the remote history.`,
                       true,
-                      { action: "force-push" }
+                      { action: "force-push" },
+                      undefined,
+                      { dedupeKey: "Push failed" }
                     )
                   }
                 }

@@ -36,15 +36,36 @@ export interface GitOperationMessageResponse {
  * @param isError - Whether this is an error message
  * @param metadata - Optional metadata for actions/links
  * @param linkBranch - Optional branch name for linking to GitHub
- * @returns The created message in serialized format (ready for JSON response)
+ * @param options - Additional options
+ * @param options.dedupeKey - If provided, prevents duplicate messages with the same key within 30 seconds
+ * @returns The created message in serialized format (ready for JSON response), or null if deduplicated
  */
 export async function createGitOperationMessage(
   chatId: string,
   content: string,
   isError: boolean = false,
   metadata?: GitOperationMetadata,
-  linkBranch?: string
-): Promise<GitOperationMessageResponse> {
+  linkBranch?: string,
+  options?: { dedupeKey?: string }
+): Promise<GitOperationMessageResponse | null> {
+  // Check for recent duplicate if dedupeKey is provided
+  if (options?.dedupeKey) {
+    const thirtySecondsAgo = BigInt(Date.now() - 30000)
+    const existingMessage = await prisma.message.findFirst({
+      where: {
+        chatId,
+        messageType: "git-operation",
+        content: { startsWith: options.dedupeKey },
+        timestamp: { gte: thirtySecondsAgo },
+      },
+      orderBy: { timestamp: "desc" },
+    })
+    if (existingMessage) {
+      // Return null to indicate message was deduplicated
+      return null
+    }
+  }
+
   const message = await prisma.message.create({
     data: {
       id: nanoid(),
