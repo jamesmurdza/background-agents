@@ -263,6 +263,7 @@ export async function getChatWithAuth(
   backgroundSessionId: string | null
   agent: string
   model: string | null
+  planModeEnabled: boolean
   displayName: string | null
   status: string
   parentChatId: string | null
