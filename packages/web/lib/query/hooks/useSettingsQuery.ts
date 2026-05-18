@@ -12,6 +12,9 @@ export interface SettingsData {
   credentialFlags: CredentialFlags
   claudeLimitResetAt?: string | null
   claudeLimitRemaining?: number | null
+  claudeLimitUsed?: number | null
+  claudeLimitTotal?: number | null
+  claudeIsPro?: boolean
 }
 
 /**
@@ -31,6 +34,9 @@ export function useSettingsQuery() {
         credentialFlags: response.credentialFlags,
         claudeLimitResetAt: response.claudeLimitResetAt,
         claudeLimitRemaining: response.claudeLimitRemaining,
+        claudeLimitUsed: response.claudeLimitUsed,
+        claudeLimitTotal: response.claudeLimitTotal,
+        claudeIsPro: response.claudeIsPro,
       }
     },
     enabled: isAuthenticated,

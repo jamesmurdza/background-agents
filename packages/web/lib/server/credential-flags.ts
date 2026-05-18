@@ -13,6 +13,12 @@ export interface EffectiveFlags {
   flags: CredentialFlags
   limitResetAt: Date | null
   limitRemaining: number | null
+  /** Number of shared Claude messages used today */
+  limitUsed: number | null
+  /** Daily limit (10 for free users, null for pro/unlimited) */
+  limitTotal: number | null
+  /** Whether user is a pro subscriber */
+  isPro: boolean
 }
 
 /**
@@ -45,32 +51,41 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // (no personal API key or subscription token)
   const hasOwnAnthropicKey = !!flags.ANTHROPIC_API_KEY || !!flags.CLAUDE_CODE_CREDENTIALS
   const usesSharedPool = flags.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicKey
+  const isPro = user?.isPro ?? false
 
   let limitResetAt: Date | null = null
   let limitRemaining: number | null = null
+  let limitUsed: number | null = null
+  let limitTotal: number | null = null
 
-  if (usesSharedPool && !user?.isPro) {
+  if (usesSharedPool) {
     const now = new Date()
-    const exceeded = await hasExceededClaudeLimit(userId)
-    flags.CLAUDE_DAILY_LIMIT_EXCEEDED = exceeded
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 
-    if (exceeded) {
-      limitResetAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
-      limitRemaining = 0
-    } else {
-      const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-      const todayCount = await prisma.activityLog.count({
-        where: {
-          userId,
-          action: "message_sent",
-          createdAt: { gte: startOfDay },
-          metadata: { path: ["useSharedClaude"], equals: true },
-        },
-      })
-      limitRemaining = Math.max(0, getDailyClaudeCodeLimit() - todayCount)
-      limitResetAt = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000)
+    // Count messages sent today using shared Claude
+    const todayCount = await prisma.activityLog.count({
+      where: {
+        userId,
+        action: "message_sent",
+        createdAt: { gte: startOfDay },
+        metadata: { path: ["useSharedClaude"], equals: true },
+      },
+    })
+
+    limitUsed = todayCount
+    limitResetAt = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000)
+
+    if (!isPro) {
+      // Free users have a daily limit
+      const dailyLimit = getDailyClaudeCodeLimit()
+      limitTotal = dailyLimit
+      limitRemaining = Math.max(0, dailyLimit - todayCount)
+
+      const exceeded = todayCount >= dailyLimit
+      flags.CLAUDE_DAILY_LIMIT_EXCEEDED = exceeded
     }
+    // Pro users: limitTotal and limitRemaining stay null (unlimited)
   }
 
-  return { flags, limitResetAt, limitRemaining }
+  return { flags, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro }
 }

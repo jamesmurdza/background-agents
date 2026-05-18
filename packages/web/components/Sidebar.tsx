@@ -16,6 +16,7 @@ import {
   ChatItem,
   MobileChatItem,
   MergedChatCheckmark,
+  ClaudeUsageIndicator,
   hasMergedSuccessfully,
   getFirstMessagePreview,
 } from "./sidebar"
@@ -60,6 +61,14 @@ interface SidebarProps {
   selectedScheduledJob?: { id: string; name: string } | null
   /** Whether chats are still being loaded from storage/server */
   isLoadingChats?: boolean
+  /** Claude usage data for the user menu */
+  claudeUsage?: {
+    used: number | null
+    remaining: number | null
+    total: number | null
+    isPro: boolean
+    resetAt: string | null
+  }
 }
 
 export function Sidebar({
@@ -88,6 +97,7 @@ export function Sidebar({
   scheduledJobsActive = false,
   selectedScheduledJob,
   isLoadingChats = false,
+  claudeUsage,
 }: SidebarProps) {
   const modals = useModals()
   const { data: session, status: sessionStatus } = useSession()
@@ -508,8 +518,20 @@ export function Sidebar({
                     />
                   )}
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-base font-medium truncate">
-                      {session.user.name}
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-medium truncate">
+                        {session.user.name}
+                      </span>
+                      {claudeUsage && claudeUsage.used !== null && (
+                        <ClaudeUsageIndicator
+                          used={claudeUsage.used}
+                          remaining={claudeUsage.remaining}
+                          total={claudeUsage.total}
+                          isPro={claudeUsage.isPro}
+                          resetAt={claudeUsage.resetAt}
+                          variant="compact"
+                        />
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground truncate">
                       {session.user.email}
@@ -520,6 +542,19 @@ export function Sidebar({
                 {/* User Menu Popup */}
                 {mobileUserMenuOpen && (
                   <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-border bg-popover shadow-md py-1 z-50">
+                    {/* Claude usage indicator */}
+                    {claudeUsage && claudeUsage.used !== null && (
+                      <div className="px-4 py-3 border-b border-border">
+                        <ClaudeUsageIndicator
+                          used={claudeUsage.used}
+                          remaining={claudeUsage.remaining}
+                          total={claudeUsage.total}
+                          isPro={claudeUsage.isPro}
+                          resetAt={claudeUsage.resetAt}
+                          variant="full"
+                        />
+                      </div>
+                    )}
                     {session.user.isAdmin && (
                       <a
                         href="/admin"
@@ -795,6 +830,7 @@ export function Sidebar({
           <UserMenu
             user={session.user}
             collapsed={collapsed}
+            claudeUsage={claudeUsage}
           />
         ) : (
           <button

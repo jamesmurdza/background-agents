@@ -37,6 +37,7 @@ import {
 import {
   useChatsQuery,
   useSettingsQuery,
+  type SettingsData,
   useCreateChatMutation,
   useUpdateChatMutation,
   useDeleteChatMutation,
@@ -206,6 +207,10 @@ export function useChatWithSync() {
   const settings = settingsQuery.data?.settings ?? DEFAULT_SETTINGS
   const credentialFlags = settingsQuery.data?.credentialFlags ?? {}
   const claudeLimitResetAt = settingsQuery.data?.claudeLimitResetAt ?? null
+  const claudeLimitUsed = settingsQuery.data?.claudeLimitUsed ?? null
+  const claudeLimitTotal = settingsQuery.data?.claudeLimitTotal ?? null
+  const claudeLimitRemaining = settingsQuery.data?.claudeLimitRemaining ?? null
+  const claudeIsPro = settingsQuery.data?.claudeIsPro ?? false
   const currentChat = useMemo(() => chats.find((c) => c.id === currentChatId) ?? null, [chats, currentChatId])
   const isLoading = chatsQuery.isLoading || settingsQuery.isLoading
 
@@ -671,6 +676,24 @@ export function useChatWithSync() {
 
         startStreaming(chatId, data.sandboxId, "project", data.backgroundSessionId, assistantMessage.id, data.previewUrlPattern ?? undefined, data.branch, undefined, planMode)
 
+        // Optimistically update Claude usage count if using shared pool with Claude Code
+        if (selectedAgent === "claude-code") {
+          const hasOwnAnthropicKey = !!credentialFlags.ANTHROPIC_API_KEY || !!credentialFlags.CLAUDE_CODE_CREDENTIALS
+          const usesSharedPool = credentialFlags.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicKey
+          if (usesSharedPool) {
+            queryClient.setQueryData<SettingsData>(queryKeys.settings.all, (old) => {
+              if (!old || old.claudeLimitUsed === null || old.claudeLimitUsed === undefined) return old
+              return {
+                ...old,
+                claudeLimitUsed: old.claudeLimitUsed + 1,
+                claudeLimitRemaining: old.claudeLimitRemaining !== null && old.claudeLimitRemaining !== undefined
+                  ? Math.max(0, old.claudeLimitRemaining - 1)
+                  : null,
+              }
+            })
+          }
+        }
+
         if (isFirstMessage) {
           suggestNameMutation.mutate({ chatId, prompt: content })
         }
@@ -690,7 +713,7 @@ export function useChatWithSync() {
     } finally {
       sendInFlight.current.delete(chatId)
     }
-  }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, localChatState.previewStates, updateChatById])
+  }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, localChatState.previewStates, updateChatById, queryClient])
 
   const dispatchNextQueuedMessage = useCallback((chatId: string, queueOverride?: QueuedMessage[]) => {
     const chat = chats.find((c) => c.id === chatId)
@@ -950,6 +973,10 @@ export function useChatWithSync() {
     settings,
     credentialFlags,
     claudeLimitResetAt,
+    claudeLimitUsed,
+    claudeLimitTotal,
+    claudeLimitRemaining,
+    claudeIsPro,
     isHydrated,
     isLoading,
     isLoadingMessages,

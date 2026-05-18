@@ -144,6 +144,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     settings,
     credentialFlags,
     claudeLimitResetAt,
+    claudeLimitUsed,
+    claudeLimitTotal,
+    claudeLimitRemaining,
+    claudeIsPro,
     isHydrated,
     isLoadingMessages,
     deletingChatIds,
@@ -1165,6 +1169,15 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleBranchQueuedMessage,
   }), [gitDialogs, canBranch, handleBranchChat, handleBranchWithMessage, handleBranchQueuedMessage])
 
+  // Claude usage data for sidebar user menu
+  const claudeUsage = useMemo(() => ({
+    used: claudeLimitUsed,
+    remaining: claudeLimitRemaining,
+    total: claudeLimitTotal,
+    isPro: claudeIsPro,
+    resetAt: claudeLimitResetAt,
+  }), [claudeLimitUsed, claudeLimitRemaining, claudeLimitTotal, claudeIsPro, claudeLimitResetAt])
+
   return (
     <PaletteProvider
       repos={repos}
@@ -1254,6 +1267,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
           selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
           isLoadingChats={!isHydrated}
+          claudeUsage={claudeUsage}
         />
       )}
 
@@ -1288,6 +1302,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
           selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
           isLoadingChats={!isHydrated}
+          claudeUsage={claudeUsage}
         />
       )}
 

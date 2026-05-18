@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { clearAllStorage } from "@/lib/storage"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useModals } from "@/lib/contexts"
+import { ClaudeUsageIndicator } from "./ClaudeUsageIndicator"
 
 interface UserMenuProps {
   user: {
@@ -16,9 +17,17 @@ interface UserMenuProps {
     isAdmin?: boolean
   }
   collapsed: boolean
+  /** Claude usage data */
+  claudeUsage?: {
+    used: number | null
+    remaining: number | null
+    total: number | null
+    isPro: boolean
+    resetAt: string | null
+  }
 }
 
-export function UserMenu({ user, collapsed }: UserMenuProps) {
+export function UserMenu({ user, collapsed, claudeUsage }: UserMenuProps) {
   const modals = useModals()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -53,7 +62,19 @@ export function UserMenu({ user, collapsed }: UserMenuProps) {
         {avatar}
         {!collapsed && (
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{user.name}</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium truncate">{user.name}</span>
+              {claudeUsage && claudeUsage.used !== null && (
+                <ClaudeUsageIndicator
+                  used={claudeUsage.used}
+                  remaining={claudeUsage.remaining}
+                  total={claudeUsage.total}
+                  isPro={claudeUsage.isPro}
+                  resetAt={claudeUsage.resetAt}
+                  variant="compact"
+                />
+              )}
+            </div>
             <div className="text-xs text-muted-foreground truncate">{user.email}</div>
           </div>
         )}
@@ -67,6 +88,19 @@ export function UserMenu({ user, collapsed }: UserMenuProps) {
           )}
           role="menu"
         >
+          {/* Claude usage indicator in menu */}
+          {claudeUsage && claudeUsage.used !== null && (
+            <div className="px-3 py-2 border-b border-border">
+              <ClaudeUsageIndicator
+                used={claudeUsage.used}
+                remaining={claudeUsage.remaining}
+                total={claudeUsage.total}
+                isPro={claudeUsage.isPro}
+                resetAt={claudeUsage.resetAt}
+                variant="full"
+              />
+            </div>
+          )}
           {user.isAdmin && (
             <a
               href="/admin"

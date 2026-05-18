@@ -61,6 +61,9 @@ export interface SettingsResponse {
   credentialFlags: CredentialFlags
   claudeLimitResetAt?: string | null
   claudeLimitRemaining?: number | null
+  claudeLimitUsed?: number | null
+  claudeLimitTotal?: number | null
+  claudeIsPro?: boolean
 }
 
 // =============================================================================
