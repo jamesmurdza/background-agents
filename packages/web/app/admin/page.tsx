@@ -176,20 +176,16 @@ export default function AdminDashboard() {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Mobile Header */}
-      <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b bg-card px-4 md:hidden">
-        <button
-          onClick={() => router.push("/")}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h1 className="text-lg font-semibold">Admin</h1>
+      <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center border-b bg-card px-4 md:hidden">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent"
         >
           {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
+        <h1 className="flex-1 text-center text-lg font-semibold">Admin</h1>
+        {/* Spacer to balance the hamburger menu and keep title centered */}
+        <div className="w-9" />
       </header>
 
       {/* Mobile Menu Overlay */}
