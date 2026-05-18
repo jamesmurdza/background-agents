@@ -24,6 +24,7 @@ export interface ChatResponse {
   backgroundSessionId: string | null
   agent: string
   model: string | null
+  planModeEnabled: boolean
   displayName: string | null
   status: string
   parentChatId: string | null
@@ -219,6 +220,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     backgroundSessionId: serverChat.backgroundSessionId || undefined,
     agent: serverChat.agent,
     model: serverChat.model || undefined,
+    planModeEnabled: serverChat.planModeEnabled,
     displayName: serverChat.displayName,
     status: serverChat.status as Chat["status"],
     parentChatId: serverChat.parentChatId || undefined,
