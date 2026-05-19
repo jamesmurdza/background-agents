@@ -32,6 +32,7 @@ export type {
   SkillInstallResult,
   SkillsInstallResult,
   SkillRecord,
+  DiscoveredSkill,
 } from "./types"
 
 // Registry client
@@ -45,6 +46,7 @@ export {
   parseSkillHandle,
   uninstallSkill,
   getSkillNameFromHandle,
+  discoverInstalledSkills,
   type OnSkillRemove,
 } from "./sandbox"
 

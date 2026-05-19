@@ -28,8 +28,10 @@ import {
   deleteSandboxQuietly,
   ensureSandboxStarted,
   installSkillsForRepo,
+  discoverSkillsForRepo,
   uploadFilesToSandbox,
 } from "@/lib/sandbox"
+
 
 export const maxDuration = 300
 
@@ -485,6 +487,15 @@ export async function POST(
     // Debug: log planMode from payload
     console.log(`[messages route] payload.planMode=${payload.planMode}`)
 
+    // ── Stage 3b: discover installed skills ───────────────────────────────
+    // Scan .agents/skills/ to build the skill catalog for the system prompt.
+    // Runs on every message so the catalog stays current (e.g. skills added
+    // between turns or committed in the repo). Best-effort — never blocks.
+    let discoveredSkills: { name: string; description: string; location: string }[] = []
+    if (chat.repo !== NEW_REPOSITORY) {
+      discoveredSkills = await discoverSkillsForRepo(sandbox, repoPath)
+    }
+
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
@@ -495,6 +506,7 @@ export async function POST(
       env: Object.keys(env).length > 0 ? env : undefined,
       planMode: payload.planMode,
       mcpServers,
+      skills: discoveredSkills.length > 0 ? discoveredSkills : undefined,
     })
 
     // ── Stage 5: persist messages + chat status (transactional) ────────────

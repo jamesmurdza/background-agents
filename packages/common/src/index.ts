@@ -19,6 +19,7 @@ export {
   buildSystemPrompt,
   buildContentBlocks,
   type BuildContentBlocksResult,
+  type SkillCatalogEntry,
 } from "./session"
 
 // Agent configuration

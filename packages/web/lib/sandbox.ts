@@ -9,7 +9,7 @@
 import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
 import { createSandboxGit } from "@upstream/daytona-git"
-import { installSkills } from "@upstream/skills/sandbox"
+import { installSkills, discoverInstalledSkills } from "@upstream/skills/sandbox"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
@@ -284,6 +284,29 @@ export async function deleteSandboxQuietly(
 }
 
 /**
+ * Discover installed skills in a sandbox for a given repo path.
+ *
+ * Scans .agents/skills/ and parses SKILL.md frontmatter for each installed
+ * skill. Returns a catalog suitable for injection into the system prompt.
+ * Best-effort — returns an empty array on any error.
+ */
+export async function discoverSkillsForRepo(
+  sandbox: Awaited<ReturnType<Daytona["get"]>>,
+  repoPath: string
+): Promise<{ name: string; description: string; location: string }[]> {
+  try {
+    const skills = await discoverInstalledSkills(sandbox, repoPath)
+    if (skills.length > 0) {
+      console.log(`[sandbox] Discovered ${skills.length} skill(s) in ${repoPath}`)
+    }
+    return skills
+  } catch (err) {
+    console.error("[sandbox] discoverSkillsForRepo failed:", err)
+    return []
+  }
+}
+
+/**
  * Install all repo-scoped skills into a sandbox.
  *
  * Called during sandbox creation/restoration to ensure skills are present
@@ -296,6 +319,7 @@ export async function installSkillsForRepo(
   userId: string,
   repo: string
 ): Promise<{ installed: number; total: number }> {
+
   const skills = await prisma.skill.findMany({
     where: { userId, repo },
     orderBy: { createdAt: "asc" },
