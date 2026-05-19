@@ -22,6 +22,10 @@ interface AgentModelSelectorProps {
   onUpdateChat?: (updates: Partial<Chat>) => void
   showClaudeLimitDialog: () => void
   isMobile: boolean
+  /** Called when a dropdown opens, so parent can close other dropdowns */
+  onDropdownOpen?: () => void
+  /** When true, close all dropdowns (controlled by parent) */
+  closeDropdowns?: boolean
 }
 
 const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
@@ -34,6 +38,8 @@ export function AgentModelSelector({
   onUpdateChat,
   showClaudeLimitDialog,
   isMobile,
+  onDropdownOpen,
+  closeDropdowns,
 }: AgentModelSelectorProps) {
   const modals = useModals()
 
@@ -47,6 +53,14 @@ export function AgentModelSelector({
   const hasRequiredCredentials = selectedModelConfig
     ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
     : true
+
+  // Close dropdowns when parent requests it
+  useEffect(() => {
+    if (closeDropdowns) {
+      setShowAgentDropdown(false)
+      setShowModelDropdown(false)
+    }
+  }, [closeDropdowns])
 
   // Close dropdowns when clicking outside (desktop only)
   useEffect(() => {
@@ -185,8 +199,10 @@ export function AgentModelSelector({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            setShowAgentDropdown(!showAgentDropdown)
+            const opening = !showAgentDropdown
+            setShowAgentDropdown(opening)
             setShowModelDropdown(false)
+            if (opening) onDropdownOpen?.()
           }}
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground active:text-foreground transition-colors cursor-pointer"
           title={agentLabels[currentAgent]}
@@ -219,8 +235,10 @@ export function AgentModelSelector({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            setShowModelDropdown(!showModelDropdown)
+            const opening = !showModelDropdown
+            setShowModelDropdown(opening)
             setShowAgentDropdown(false)
+            if (opening) onDropdownOpen?.()
           }}
           className={cn(
             "flex items-center gap-1 text-sm transition-colors cursor-pointer",

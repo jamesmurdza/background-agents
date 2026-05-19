@@ -507,6 +507,8 @@ export function ChatInput({
               onUpdateChat={onUpdateChat}
               showClaudeLimitDialog={showClaudeLimitDialog}
               isMobile={isMobile}
+              onDropdownOpen={() => setShowModeDropdown(false)}
+              closeDropdowns={showModeDropdown}
             />
           </div>
         </div>
