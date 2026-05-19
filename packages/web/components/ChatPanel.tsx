@@ -27,6 +27,10 @@ interface ChatPanelProps {
   onOpenFile?: (filePath: string) => void
   /** Callback to open the environment variables modal */
   onOpenEnvVars?: () => void
+  /** True when the current chat is a not-yet-persisted draft. */
+  isDraftChat?: boolean
+  /** Persists the draft chat to the DB and returns the real chatId. */
+  onMaterializeDraftForMcp?: (draftId: string) => Promise<string | null>
   isMobile?: boolean
   /** Whether messages are currently being loaded for this chat */
   isLoadingMessages?: boolean
@@ -46,7 +50,7 @@ interface ChatPanelProps {
   rapidFireNotification?: number
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, rapidFireMode = false, rapidFireNotification = 0 }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, rapidFireMode = false, rapidFireNotification = 0 }: ChatPanelProps) {
   // Get modal and git state from contexts
   const modals = useModals()
   const git = useGit()
@@ -447,6 +451,10 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       planModeSupported={agentSupportsPlanMode[currentAgent]}
       onPlanModeToggle={() => setPlanModeEnabled((v) => !v)}
       onSetPlanMode={setPlanModeEnabled}
+      // MCP servers — only show when authenticated and we have a chat to attach to.
+      showMcpButton={isAuthenticated && !!chat?.id && !!onMaterializeDraftForMcp}
+      isDraftChat={isDraftChat}
+      onMaterializeDraftForMcp={onMaterializeDraftForMcp ?? (async () => null)}
       // Mobile
       isMobile={isMobile}
     />

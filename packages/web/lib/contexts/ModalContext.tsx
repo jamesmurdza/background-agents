@@ -35,7 +35,7 @@ export interface ModalContextValue {
   envVarsModalOpen: boolean
   setEnvVarsModalOpen: (open: boolean) => void
 
-  // MCP servers modal
+  // MCP servers picker (popover, attached to chat input)
   mcpServersModalOpen: boolean
   setMcpServersModalOpen: (open: boolean) => void
 
@@ -83,7 +83,7 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
   // Environment variables modal
   const [envVarsModalOpen, setEnvVarsModalOpen] = useState(false)
 
-  // MCP servers modal
+  // MCP servers picker (popover, attached to chat input)
   const [mcpServersModalOpen, setMcpServersModalOpen] = useState(false)
 
   // Scheduled jobs
@@ -152,7 +152,7 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
     envVarsModalOpen,
     setEnvVarsModalOpen,
 
-    // MCP servers modal
+    // MCP servers picker (popover, attached to chat input)
     mcpServersModalOpen,
     setMcpServersModalOpen,
 

@@ -10,6 +10,7 @@ import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { RepoCombobox } from "./RepoCombobox"
 import { BranchCombobox } from "./BranchCombobox"
+import { McpServersCombobox } from "./McpServersCombobox"
 import { SlashCommandMenu, type SlashCommandType } from "../SlashCommandMenu"
 import {
   DropdownMenu,
@@ -79,6 +80,10 @@ interface ChatInputProps {
   planModeSupported: boolean
   onPlanModeToggle: () => void
   onSetPlanMode: (enabled: boolean) => void
+  // MCP servers (chat-scoped, draft-aware)
+  showMcpButton: boolean
+  isDraftChat: boolean
+  onMaterializeDraftForMcp: (draftId: string) => Promise<string | null>
   // Mobile
   isMobile: boolean
 }
@@ -139,6 +144,10 @@ export function ChatInput({
   planModeSupported,
   onPlanModeToggle,
   onSetPlanMode,
+  // MCP servers
+  showMcpButton,
+  isDraftChat,
+  onMaterializeDraftForMcp,
   // Mobile
   isMobile,
 }: ChatInputProps) {
@@ -371,6 +380,18 @@ export function ChatInput({
                   {chat.repo?.split("/").pop()}
                 </span>
               </a>
+            )}
+
+            {/* MCP servers picker */}
+            {showMcpButton && (
+              <McpServersCombobox
+                chatId={chat.id}
+                isDraftChat={isDraftChat}
+                onMaterializeDraft={onMaterializeDraftForMcp}
+                open={modals.mcpServersModalOpen}
+                onOpenChange={modals.setMcpServersModalOpen}
+                isMobile={isMobile}
+              />
             )}
 
             {/* Spacer - only on desktop */}

@@ -17,7 +17,6 @@ import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
 import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
 import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
-import { McpServersModal } from "@/components/modals/McpServersModal"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -1356,6 +1355,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                     preview.openPreview({ type: "file", filePath, filename })
                   }}
                   onOpenEnvVars={handleOpenEnvVars}
+                  isDraftChat={!!displayCurrentChatId && isDraftChatId(displayCurrentChatId)}
+                  onMaterializeDraftForMcp={handleMaterializeDraftForMcp}
                   isMobile={isMobile}
                   isLoadingMessages={isLoadingMessages}
                   draft={currentDraft}
@@ -1431,16 +1432,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           initialRepoEnvVars={envVarsRepoEnvVars}
           isMobile={isMobile}
         />
-
-        {displayCurrentChatId && (
-          <McpServersModal
-            open={modals.mcpServersModalOpen}
-            onClose={() => modals.setMcpServersModalOpen(false)}
-            chatId={displayCurrentChatId}
-            isDraftChat={isDraftChatId(displayCurrentChatId)}
-            onMaterializeDraft={handleMaterializeDraftForMcp}
-          />
-        )}
 
       {/* Skills Search Modal */}
       {currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY && (

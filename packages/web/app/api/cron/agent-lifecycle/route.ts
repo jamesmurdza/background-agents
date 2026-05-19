@@ -28,7 +28,7 @@ export const maxDuration = 300
 // Timeouts
 // =============================================================================
 
-const INTERACTIVE_INACTIVITY_TIMEOUT = 10 // minutes
+const INTERACTIVE_INACTIVITY_TIMEOUT =  10 // minutes
 const INTERACTIVE_HARD_TIMEOUT = 25 // minutes
 const SCHEDULED_HARD_TIMEOUT = 20 // minutes
 
