@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { Plus, PanelLeft, X, FolderGit2, Loader2, Clock, Search, ChevronDown, Check, BarChart3, Settings, HelpCircle, LogOut } from "lucide-react"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
-import { cn } from "@/lib/utils"
+import { cn, chatHasMessages, isDefaultRepo, getRepoDisplayName } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD } from "@/lib/contexts"
 import { clearAllStorage } from "@/lib/storage"
 import type { Chat } from "@/lib/types"
-import { NEW_REPOSITORY } from "@/lib/types"
 import {
   UserMenu,
   ChatItem,
@@ -31,7 +30,6 @@ interface RepoFilterDropdownProps {
   setRepoDropdownOpen: (open: boolean) => void
   uniqueRepos: string[]
   repoCounts: { counts: Record<string, number>; total: number; noRepoCount: number }
-  getRepoDisplayName: (repo: string) => string
   /** Mobile variant uses larger touch targets and rounded-lg styling */
   variant: "mobile" | "desktop"
 }
@@ -43,7 +41,6 @@ function RepoFilterDropdown({
   setRepoDropdownOpen,
   uniqueRepos,
   repoCounts,
-  getRepoDisplayName,
   variant,
 }: RepoFilterDropdownProps) {
   const isMobile = variant === "mobile"
@@ -91,7 +88,7 @@ function RepoFilterDropdown({
           </button>
 
           {/* No repository option */}
-          {uniqueRepos.includes(NEW_REPOSITORY) && (
+          {uniqueRepos.some(isDefaultRepo) && (
             <button
               onClick={() => {
                 setRepoFilter(NO_REPOSITORY)
@@ -106,13 +103,13 @@ function RepoFilterDropdown({
           )}
 
           {/* Divider if there are actual repos */}
-          {uniqueRepos.some(r => r !== NEW_REPOSITORY) && (
+          {uniqueRepos.some(r => !isDefaultRepo(r)) && (
             <div className="my-1 border-t border-border" />
           )}
 
           {/* Repository list */}
           {uniqueRepos
-            .filter(repo => repo !== NEW_REPOSITORY)
+            .filter(repo => !isDefaultRepo(repo))
             .map((repo) => (
               <button
                 key={repo}
@@ -227,15 +224,14 @@ export function Sidebar({
   const uniqueRepos = useMemo(() => {
     const repos = new Set<string>()
     chats.forEach((chat) => {
-      const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-      if (hasMessages) {
+      if (chatHasMessages(chat)) {
         repos.add(chat.repo)
       }
     })
     return Array.from(repos).sort((a, b) => {
       // Sort NEW_REPOSITORY to the end
-      if (a === NEW_REPOSITORY) return 1
-      if (b === NEW_REPOSITORY) return -1
+      if (isDefaultRepo(a)) return 1
+      if (isDefaultRepo(b)) return -1
       return a.localeCompare(b)
     })
   }, [chats])
@@ -244,12 +240,10 @@ export function Sidebar({
   const filteredChats = useMemo(() => {
     return chats
       .filter((chat) => {
-        // Use messageCount if messages haven't been loaded yet, otherwise use messages.length
-        const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
         // Show empty chats only if they have a parentChatId (were branched)
-        if (!hasMessages && !chat.parentChatId) return false
+        if (!chatHasMessages(chat) && !chat.parentChatId) return false
         if (repoFilter === ALL_REPOSITORIES) return true
-        if (repoFilter === NO_REPOSITORY) return chat.repo === NEW_REPOSITORY
+        if (repoFilter === NO_REPOSITORY) return isDefaultRepo(chat.repo)
         return chat.repo === repoFilter
       })
       .sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
@@ -290,7 +284,7 @@ export function Sidebar({
     const target = chatById.get(targetId)
     if (!source || !target) return false
     if (!source.branch || !target.branch) return false
-    if (source.repo === NEW_REPOSITORY || source.repo !== target.repo) return false
+    if (isDefaultRepo(source.repo) || source.repo !== target.repo) return false
     return true
   }, [chatById])
 
@@ -313,10 +307,9 @@ export function Sidebar({
     let total = 0
     let noRepoCount = 0
     chats.forEach((chat) => {
-      const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-      if (hasMessages) {
+      if (chatHasMessages(chat)) {
         total++
-        if (chat.repo === NEW_REPOSITORY) {
+        if (isDefaultRepo(chat.repo)) {
           noRepoCount++
         } else {
           counts[chat.repo] = (counts[chat.repo] || 0) + 1
@@ -325,14 +318,6 @@ export function Sidebar({
     })
     return { counts, total, noRepoCount }
   }, [chats])
-
-  // Get display name for repository
-  const getRepoDisplayName = (repo: string) => {
-    if (repo === NEW_REPOSITORY) return "No repository"
-    if (repo === ALL_REPOSITORIES) return "All chats"
-    if (repo === NO_REPOSITORY) return "No repository"
-    return repo
-  }
 
   // Close repo dropdown when clicking outside
   useClickOutside(repoDropdownRef, () => setRepoDropdownOpen(false), repoDropdownOpen)
@@ -510,7 +495,6 @@ export function Sidebar({
               setRepoDropdownOpen={setRepoDropdownOpen}
               uniqueRepos={uniqueRepos}
               repoCounts={repoCounts}
-              getRepoDisplayName={getRepoDisplayName}
               variant="mobile"
             />
           </div>
@@ -730,7 +714,6 @@ export function Sidebar({
               setRepoDropdownOpen={setRepoDropdownOpen}
               uniqueRepos={uniqueRepos}
               repoCounts={repoCounts}
-              getRepoDisplayName={getRepoDisplayName}
               variant="desktop"
             />
           </div>
