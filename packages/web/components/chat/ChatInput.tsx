@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
