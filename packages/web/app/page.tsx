@@ -513,11 +513,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     if (!isHydrated) return null
 
     // Case 1: Unauthenticated user - use local draft state
-    if (!session && !currentChatId) {
+    // This applies when there's no session AND either no chat ID or the chat ID is a draft
+    if (!session && (!currentChatId || isDraftChatId(currentChatId))) {
       const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
       const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
       return {
-        id: unauthDraftIdRef.current,
+        id: currentChatId ?? unauthDraftIdRef.current,
         repo: NEW_REPOSITORY,
         baseBranch: "main",
         branch: null,
