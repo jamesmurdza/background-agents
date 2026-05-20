@@ -116,7 +116,7 @@ if (!gotTheLock) {
 }
 
 // Handle deep link
-function handleDeepLink(url: string) {
+async function handleDeepLink(url: string) {
   if (!mainWindow) return;
 
   try {
@@ -124,9 +124,38 @@ function handleDeepLink(url: string) {
     const action = parsed.hostname;
     const params = Object.fromEntries(parsed.searchParams);
 
-    // Handle auth callback - reload the app to pick up the new session
-    if (action === "auth" || action === "auth-callback") {
-      console.log("Auth callback received, reloading app...");
+    // Handle auth with JWT token - set session cookie and reload
+    if (action === "auth" && params.token) {
+      console.log("Auth token received, setting session cookie...");
+
+      try {
+        // Set JWT directly as session cookie
+        const backendUrl = new URL(BACKEND_URL);
+        await mainWindow.webContents.session.cookies.set({
+          url: BACKEND_URL,
+          name: backendUrl.protocol === "https:" ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+          value: params.token,
+          httpOnly: true,
+          secure: backendUrl.protocol === "https:",
+          sameSite: "lax",
+          // Expire in 30 days (NextAuth default)
+          expirationDate: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        });
+
+        console.log("Session cookie set successfully");
+      } catch (cookieError) {
+        console.error("Failed to set session cookie:", cookieError);
+      }
+
+      mainWindow.loadURL(BACKEND_URL);
+      mainWindow.show();
+      mainWindow.focus();
+      return;
+    }
+
+    // Handle legacy auth-callback (for backwards compatibility)
+    if (action === "auth-callback") {
+      console.log("Legacy auth callback received, reloading app...");
       mainWindow.loadURL(BACKEND_URL);
       mainWindow.show();
       mainWindow.focus();
