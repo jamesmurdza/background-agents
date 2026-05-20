@@ -53,16 +53,11 @@ export default function ElectronStartPage() {
 
       const { token } = await response.json()
 
-      // Redirect to Electron via deep link
-      window.location.href = `background-agents://auth?token=${encodeURIComponent(token)}`
-
-      // Mark as redirected and prompt to close
+      // Mark as redirected to show success message
       setRedirected(true)
 
-      // Try to close the window after a short delay
-      setTimeout(() => {
-        window.close()
-      }, 500)
+      // Redirect to Electron via deep link
+      window.location.href = `background-agents://auth?token=${encodeURIComponent(token)}`
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
       setRedirecting(false)
