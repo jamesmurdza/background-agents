@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     if (chatId) {
       await createGitOperationMessage(
         chatId,
-        `Pull request created: #${prData.number} - ${prData.title} (${prData.html_url})`,
+        `Pull request created: #${prData.number} - ${prData.title}`,
         false,
         { action: "view-pr", prUrl: prData.html_url, prNumber: prData.number }
       )

@@ -30,6 +30,9 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
   // Link the merge message to the target branch on GitHub, if we know it.
   const branchUrl = repo && linkBranch ? `https://github.com/${repo}/tree/${linkBranch}` : null
 
+  // Link for view-pr action
+  const prUrl = metadata?.action === "view-pr" && metadata?.prUrl ? metadata.prUrl : null
+
   // Parse "Merged X into Y" / "Squash merged X into Y" to bold the two names,
   // whether they're branch names or chat titles.
   const parseMergeMessage = (text: string) => {
@@ -81,15 +84,18 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
     )
   }
 
+  // Determine the link URL (PR link takes precedence over branch link)
+  const linkUrl = prUrl || (branchUrl && !hasForcePushLink ? branchUrl : null)
+
   return (
     <div className={cn(
       "flex items-start gap-2",
       isMobile ? "text-base" : "text-sm"
     )}>
       <Icon className={cn(iconClasses, "mt-0.5")} />
-      {branchUrl && !hasForcePushLink ? (
+      {linkUrl ? (
         <a
-          href={branchUrl}
+          href={linkUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-muted-foreground hover:text-foreground transition-colors"
