@@ -6,6 +6,73 @@ import { EMPTY_CONFLICT_STATE } from "@upstream/common"
 import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, RebaseConflictState } from "./types"
 
 // ============================================================================
+// Helper Types & Functions
+// ============================================================================
+
+interface GitOperationOptions<T = void> {
+  /** Called before the API request to validate inputs. Return false to abort. */
+  validate?: () => boolean
+  /** The async function that performs the API request */
+  execute: () => Promise<Response>
+  /** Optional handler for processing the response. Return true to skip default refetch/close. */
+  onResponse?: (res: Response, data: unknown) => Promise<boolean | void>
+  /** Called on successful completion (res.ok === true) */
+  onSuccess?: (data: unknown) => void
+  /** Function to close the dialog */
+  closeDialog: () => void
+  /** Function to refetch messages */
+  refetchMessages?: (chatId: string) => Promise<void>
+  /** Chat ID for refetching messages */
+  chatId: string
+  /** Function to set loading state */
+  setLoading: (loading: boolean) => void
+}
+
+/**
+ * Executes a git operation with standardized loading state, error handling,
+ * and message refetching. Reduces boilerplate in git operation handlers.
+ */
+async function executeGitOperation<T = void>({
+  validate,
+  execute,
+  onResponse,
+  onSuccess,
+  closeDialog,
+  refetchMessages,
+  chatId,
+  setLoading,
+}: GitOperationOptions<T>): Promise<void> {
+  if (validate && !validate()) return
+
+  setLoading(true)
+
+  try {
+    const res = await execute()
+    const data = await res.json()
+
+    // Allow custom response handling (e.g., for conflict detection)
+    if (onResponse) {
+      const handled = await onResponse(res, data)
+      if (handled) return
+    }
+
+    if (res.ok && onSuccess) {
+      onSuccess(data)
+    }
+
+    // Refetch messages and close dialog (backend creates success/error messages)
+    await refetchMessages?.(chatId)
+    closeDialog()
+  } catch {
+    // Error message may have been created by backend - refetch to show it
+    await refetchMessages?.(chatId)
+    closeDialog()
+  } finally {
+    setLoading(false)
+  }
+}
+
+// ============================================================================
 // useGitDialogs Hook
 // ============================================================================
 
@@ -108,17 +175,12 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
 
   // Handle merge
   const handleMerge = useCallback(async () => {
-    if (!selectedBranch || !branchName || !sandboxId || !chatId) return
-
     // Block merge into a running branch (frontend check only - backend creates the message)
     const targetStatus = getTargetChatStatus?.(selectedBranch)
     if (targetStatus === "running") {
-      // The API will create the error message
       setMergeOpen(false)
       return
     }
-
-    setActionLoading(true)
 
     // Get the target sandbox ID so we can pull the merged changes there
     const targetSandboxId = getTargetSandboxId?.(selectedBranch) ?? null
@@ -127,8 +189,9 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
     const sourceName = chat?.displayName || branchName
     const targetName = resolveChatName?.(selectedBranch) || selectedBranch
 
-    try {
-      const res = await fetch("/api/sandbox/git", {
+    await executeGitOperation({
+      validate: () => !!(selectedBranch && branchName && sandboxId && chatId),
+      execute: () => fetch("/api/sandbox/git", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,58 +208,44 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           sourceName,
           targetName,
         }),
-      })
-
-      const data = await res.json()
-
-      if (res.status === 409 && data.conflict && data.inMerge) {
-        setRebaseConflict({
-          inRebase: false,
-          inMerge: true,
-          conflictedFiles: data.conflictedFiles || [],
-        })
-        // Message is created by the backend - refetch to show it
-        await refetchMessages?.(chatId)
-        setMergeOpen(false)
-        return
-      }
-
-      if (!res.ok) {
-        // Error message created by backend - refetch to show it
-        await refetchMessages?.(chatId)
-        setMergeOpen(false)
-        return
-      }
-
-      // If sandbox was stopped, mark branch for sync on next wake
-      if (data.needsSync && onMarkBranchNeedsSync) {
-        onMarkBranchNeedsSync(selectedBranch)
-      }
-
-      // If this chat has no parent chat, update base branch to the merge target
-      if (!chat?.parentChatId && onSetBaseBranch) {
-        onSetBaseBranch(selectedBranch)
-      }
-
-      // Success message created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-      setMergeOpen(false)
-    } catch {
-      // Error message may have been created by backend on API error - refetch to show it
-      await refetchMessages?.(chatId)
-      setMergeOpen(false)
-    } finally {
-      setActionLoading(false)
-    }
+      }),
+      onResponse: async (res, data: unknown) => {
+        const responseData = data as { conflict?: boolean; inMerge?: boolean; conflictedFiles?: string[] }
+        if (res.status === 409 && responseData.conflict && responseData.inMerge) {
+          setRebaseConflict({
+            inRebase: false,
+            inMerge: true,
+            conflictedFiles: responseData.conflictedFiles || [],
+          })
+          await refetchMessages?.(chatId)
+          setMergeOpen(false)
+          return true // Handled - skip default close
+        }
+        return false
+      },
+      onSuccess: (data: unknown) => {
+        const responseData = data as { needsSync?: boolean }
+        // If sandbox was stopped, mark branch for sync on next wake
+        if (responseData.needsSync && onMarkBranchNeedsSync) {
+          onMarkBranchNeedsSync(selectedBranch)
+        }
+        // If this chat has no parent chat, update base branch to the merge target
+        if (!chat?.parentChatId && onSetBaseBranch) {
+          onSetBaseBranch(selectedBranch)
+        }
+      },
+      closeDialog: () => setMergeOpen(false),
+      refetchMessages,
+      chatId,
+      setLoading: setActionLoading,
+    })
   }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, chat?.parentChatId, chat?.displayName, onSetBaseBranch, resolveChatName, refetchMessages])
 
   // Handle rebase
   const handleRebase = useCallback(async () => {
-    if (!selectedBranch || !branchName || !sandboxId || !chatId) return
-    setActionLoading(true)
-
-    try {
-      const res = await fetch("/api/sandbox/git", {
+    await executeGitOperation({
+      validate: () => !!(selectedBranch && branchName && sandboxId && chatId),
+      execute: () => fetch("/api/sandbox/git", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -209,48 +258,33 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           repoApiName,
           chatId,
         }),
-      })
-
-      const data = await res.json()
-
-      if (res.status === 409 && data.conflict) {
-        setRebaseConflict({
-          inRebase: true,
-          inMerge: false,
-          conflictedFiles: data.conflictedFiles || [],
-        })
-        // Message created by backend - refetch to show it
-        await refetchMessages?.(chatId)
-        setRebaseOpen(false)
-        return
-      }
-
-      if (!res.ok) {
-        // Error message created by backend - refetch to show it
-        await refetchMessages?.(chatId)
-        setRebaseOpen(false)
-        return
-      }
-
-      // Success message created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-      setRebaseOpen(false)
-    } catch {
-      // Error message may have been created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-      setRebaseOpen(false)
-    } finally {
-      setActionLoading(false)
-    }
+      }),
+      onResponse: async (res, data: unknown) => {
+        const responseData = data as { conflict?: boolean; conflictedFiles?: string[] }
+        if (res.status === 409 && responseData.conflict) {
+          setRebaseConflict({
+            inRebase: true,
+            inMerge: false,
+            conflictedFiles: responseData.conflictedFiles || [],
+          })
+          await refetchMessages?.(chatId)
+          setRebaseOpen(false)
+          return true // Handled - skip default close
+        }
+        return false
+      },
+      closeDialog: () => setRebaseOpen(false),
+      refetchMessages,
+      chatId,
+      setLoading: setActionLoading,
+    })
   }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, refetchMessages])
 
   // Handle create PR
   const handleCreatePR = useCallback(async (descriptionType: PRDescriptionType = "short") => {
-    if (!selectedBranch || !branchName || !repoOwner || !repoApiName || !chatId) return
-    setActionLoading(true)
-
-    try {
-      const res = await fetch("/api/github/pr", {
+    await executeGitOperation({
+      validate: () => !!(selectedBranch && branchName && repoOwner && repoApiName && chatId),
+      execute: () => fetch("/api/github/pr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -261,28 +295,20 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           descriptionType,
           chatId,
         }),
-      })
-
-      // Message created by backend (success or error) - refetch to show it
-      await refetchMessages?.(chatId)
-      setPROpen(false)
-    } catch {
-      // Error message may have been created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-      setPROpen(false)
-    } finally {
-      setActionLoading(false)
-    }
+      }),
+      closeDialog: () => setPROpen(false),
+      refetchMessages,
+      chatId,
+      setLoading: setActionLoading,
+    })
   }, [selectedBranch, branchName, repoOwner, repoApiName, chatId, refetchMessages])
 
   // Handle force push (temp-branch dance: push commits to a throwaway remote
   // branch so GitHub has the objects, then PATCH the real branch ref to that SHA).
   const handleForcePush = useCallback(async () => {
-    if (!branchName || !sandboxId || !repoOwner || !repoApiName || !chatId) return
-    setActionLoading(true)
-
-    try {
-      const res = await fetch("/api/sandbox/git", {
+    await executeGitOperation({
+      validate: () => !!(branchName && sandboxId && repoOwner && repoApiName && chatId),
+      execute: () => fetch("/api/sandbox/git", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -294,28 +320,21 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           repoApiName,
           chatId,
         }),
-      })
-
-      // Message created by backend (success or error) - refetch to show it
-      await refetchMessages?.(chatId)
-      setForcePushOpen(false)
-    } catch {
-      // Error message may have been created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-      setForcePushOpen(false)
-    } finally {
-      setActionLoading(false)
-    }
+      }),
+      closeDialog: () => setForcePushOpen(false),
+      refetchMessages,
+      chatId,
+      setLoading: setActionLoading,
+    })
   }, [branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, refetchMessages])
 
   // Handle abort conflict
   const handleAbortConflict = useCallback(async () => {
-    if (!sandboxId || !chatId) return
     const isMerge = rebaseConflict.inMerge
-    setActionLoading(true)
 
-    try {
-      const res = await fetch("/api/sandbox/git", {
+    await executeGitOperation({
+      validate: () => !!(sandboxId && chatId),
+      execute: () => fetch("/api/sandbox/git", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,24 +343,15 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           action: isMerge ? "abort-merge" : "abort-rebase",
           chatId,
         }),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        // Error message created by backend - refetch to show it
-        await refetchMessages?.(chatId)
-        return
-      }
-
-      setRebaseConflict(EMPTY_CONFLICT_STATE)
-      // Success message created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-    } catch {
-      // Error message may have been created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-    } finally {
-      setActionLoading(false)
-    }
+      }),
+      onSuccess: () => {
+        setRebaseConflict(EMPTY_CONFLICT_STATE)
+      },
+      closeDialog: () => {}, // No dialog to close - just clear conflict state
+      refetchMessages,
+      chatId,
+      setLoading: setActionLoading,
+    })
   }, [sandboxId, chatId, repoName, rebaseConflict.inMerge, refetchMessages])
 
   // Fetch commits ahead when squash dialog opens
@@ -384,11 +394,9 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
 
   // Handle squash
   const handleSquash = useCallback(async () => {
-    if (!branchName || !sandboxId || !chatId || commitsAhead < 2) return
-    setActionLoading(true)
-
-    try {
-      const res = await fetch("/api/github/squash", {
+    await executeGitOperation({
+      validate: () => !!(branchName && sandboxId && chatId && commitsAhead >= 2),
+      execute: () => fetch("/api/github/squash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -399,18 +407,12 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           sandboxId,
           chatId,
         }),
-      })
-
-      // Message created by backend (success or error) - refetch to show it
-      await refetchMessages?.(chatId)
-      setSquashOpen(false)
-    } catch {
-      // Error message may have been created by backend - refetch to show it
-      await refetchMessages?.(chatId)
-      setSquashOpen(false)
-    } finally {
-      setActionLoading(false)
-    }
+      }),
+      closeDialog: () => setSquashOpen(false),
+      refetchMessages,
+      chatId,
+      setLoading: setActionLoading,
+    })
   }, [branchName, sandboxId, chatId, commitsAhead, baseBranch, repoOwner, repoApiName, refetchMessages])
 
   // Check rebase status
