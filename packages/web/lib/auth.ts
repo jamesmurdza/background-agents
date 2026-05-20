@@ -26,6 +26,21 @@ export const authOptions: NextAuthOptions = {
     },
   ],
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // Allow redirects to the electron callback URL
+      if (url.startsWith("/api/auth/electron-callback")) {
+        return `${baseUrl}${url}`
+      }
+      // Allow relative URLs
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`
+      }
+      // Allow URLs on the same origin
+      if (new URL(url).origin === baseUrl) {
+        return url
+      }
+      return baseUrl
+    },
     async jwt({ token, user, account }) {
       // On initial sign in, persist user id
       if (user) {
