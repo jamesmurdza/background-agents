@@ -71,12 +71,12 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   }, [chat?.id, chat?.planModeEnabled])
   // Wrapper that updates both local state and persists to database
   const setPlanModeEnabled = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
-    setPlanModeEnabledLocal((prev) => {
-      const newValue = typeof value === 'function' ? value(prev) : value
-      onUpdateChat?.({ planModeEnabled: newValue })
-      return newValue
-    })
-  }, [onUpdateChat])
+    // Calculate the new value outside the state setter to avoid calling onUpdateChat during render
+    const newValue = typeof value === 'function' ? value(planModeEnabled) : value
+    setPlanModeEnabledLocal(newValue)
+    // Call onUpdateChat after the state update, not inside the setter callback
+    onUpdateChat?.({ planModeEnabled: newValue })
+  }, [onUpdateChat, planModeEnabled])
   // Computed current agent for plan mode check
   const currentAgentForPlanMode = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
   // Reset plan mode when switching to an agent that doesn't support it
