@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/main.ts",
+    "dev": "npm run build && electron dist/main.js",
     "build": "tsup src/main.ts --format esm --target node18 --external electron && tsup src/preload.ts --format cjs --target node18 --external electron",
     "start": "electron dist/main.js",
     "package": "npm run build && electron-builder",
