@@ -8,6 +8,7 @@ import { Plus, PanelLeft, X, FolderGit2, Loader2, Clock, Search, ChevronDown, Ch
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
+import { useElectron } from "@/lib/hooks/useElectron"
 import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD } from "@/lib/contexts"
 import { clearAllStorage } from "@/lib/storage"
 import type { Chat } from "@/lib/types"
@@ -220,6 +221,7 @@ export function Sidebar({
   const isSessionLoading = sessionStatus === "loading"
   const router = useRouter()
   const { openSearch } = usePalette()
+  const { isDesktopApp } = useElectron()
   const isResizing = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -681,7 +683,10 @@ export function Sidebar({
         collapsed ? "justify-center" : "justify-between"
       )}>
         {!collapsed && (
-          <h1 className="text-sm font-semibold text-foreground truncate">
+          <h1 className={cn(
+            "text-sm font-semibold text-foreground truncate",
+            isDesktopApp && "invisible" // Hide text but keep space for window controls
+          )}>
             Background Agents
           </h1>
         )}

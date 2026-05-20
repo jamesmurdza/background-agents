@@ -28,6 +28,7 @@ export async function POST(): Promise<Response> {
         name: session.user.name,
       },
       secret: process.env.NEXTAUTH_SECRET!,
+      // Default maxAge is 30 days, matching NextAuth's session duration
     })
 
     return Response.json({ token })
