@@ -15,6 +15,7 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 | [`daytona-git`](packages/daytona-git) | Git operations for Daytona sandboxes | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`daytona-terminal`](packages/daytona-terminal) | WebSocket-based PTY terminal for Daytona sandboxes | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`dev-cron`](packages/dev-cron) | Local development simulator for Vercel cron jobs | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
+| [`electron`](packages/electron) | Electron desktop app for Background Agents | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`mcp-providers`](packages/mcp-providers) | MCP provider integrations | <a href="https://github.com/abdulrehmann231"><img src="https://github.com/abdulrehmann231.png?size=64" width="28" height="28"></a> |
 | [`skills`](packages/skills) | Agent skills integration for Daytona sandboxes | <a href="https://github.com/pluuto19"><img src="https://github.com/pluuto19.png?size=64" width="28" height="28"></a> |
 | [`web`](packages/web) | Standalone chat app for AI coding agents | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
