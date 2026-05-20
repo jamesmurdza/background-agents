@@ -507,7 +507,7 @@ export function McpServersCombobox({
             onValueChange={setSearch}
           />
           <CommandList>
-            {loadingRegistry && allServers.length === 0 ? (
+            {loadingRegistry ? (
               <div
                 className="flex items-center justify-center py-6"
                 role="status"
