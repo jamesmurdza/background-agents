@@ -72,14 +72,28 @@ export interface SettingsResponse {
 // API Helpers
 // =============================================================================
 
+// API base URL - configurable for Electron app pointing to hosted backend
+const API_BASE_URL = typeof window !== "undefined"
+  ? (window as { BACKGROUND_AGENTS_API_URL?: string }).BACKGROUND_AGENTS_API_URL || ""
+  : process.env.NEXT_PUBLIC_API_URL || ""
+
 async function fetchApi<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
-  const response = await fetch(path, {
+  const url = `${API_BASE_URL}${path}`
+
+  // Get auth token from Electron if available
+  const authToken = typeof window !== "undefined" && (window as { electron?: { getAuthToken?: () => Promise<string | null> } }).electron?.getAuthToken
+    ? await (window as { electron: { getAuthToken: () => Promise<string | null> } }).electron.getAuthToken()
+    : null
+
+  const response = await fetch(url, {
     ...options,
+    credentials: "include", // Include cookies for same-origin, or auth header for cross-origin
     headers: {
       "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...options?.headers,
     },
   })

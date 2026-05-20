@@ -1,0 +1,57 @@
+{
+  "name": "@upstream/electron",
+  "version": "0.1.0",
+  "description": "Electron desktop app for Background Agents",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "build": "tsup src/main.ts src/preload.ts --format esm --target node18 --external electron",
+    "start": "electron dist/main.js",
+    "package": "npm run build && electron-builder",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
+    "package:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.3"
+  },
+  "build": {
+    "appId": "com.background-agents.desktop",
+    "productName": "Background Agents",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": ["AppImage", "deb"],
+      "category": "Development"
+    },
+    "protocols": {
+      "name": "Background Agents",
+      "schemes": ["background-agents"]
+    }
+  }
+}
