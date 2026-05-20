@@ -6,8 +6,10 @@ import { Github, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 
-// Check if running in Electron
-const isElectron = typeof window !== "undefined" && !!(window as { electron?: unknown }).electron
+// Check if running in Electron (must be called at runtime, not module load)
+function isElectron(): boolean {
+  return typeof window !== "undefined" && !!(window as { electron?: unknown }).electron
+}
 
 interface SignInModalProps {
   open: boolean
@@ -17,7 +19,7 @@ interface SignInModalProps {
 
 export function SignInModal({ open, onClose, isMobile = false }: SignInModalProps) {
   const handleSignIn = () => {
-    if (isElectron) {
+    if (isElectron()) {
       // In Electron, redirect to a special callback that will redirect back to the app
       signIn("github", { callbackUrl: "/api/auth/electron-callback" })
     } else {

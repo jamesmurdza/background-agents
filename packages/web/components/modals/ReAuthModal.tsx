@@ -6,8 +6,10 @@ import { AlertTriangle, Github } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 
-// Check if running in Electron
-const isElectron = typeof window !== "undefined" && !!(window as { electron?: unknown }).electron
+// Check if running in Electron (must be called at runtime, not module load)
+function isElectron(): boolean {
+  return typeof window !== "undefined" && !!(window as { electron?: unknown }).electron
+}
 
 interface ReAuthModalProps {
   open: boolean
@@ -25,7 +27,7 @@ interface ReAuthModalProps {
  */
 export function ReAuthModal({ open, onClose, isMobile = false }: ReAuthModalProps) {
   const handleReAuth = () => {
-    if (isElectron) {
+    if (isElectron()) {
       signIn("github", { callbackUrl: "/api/auth/electron-callback" })
     } else {
       signIn("github")
