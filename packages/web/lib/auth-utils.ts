@@ -15,13 +15,7 @@ export function isElectron(): boolean {
  * to the Electron app.
  */
 export function signInWithGitHub() {
-  const electron = isElectron()
-  console.log("[signInWithGitHub] isElectron:", electron, "window.electron:", typeof window !== "undefined" ? !!(window as { electron?: unknown }).electron : "SSR")
-  if (electron) {
-    console.log("[signInWithGitHub] Using Electron callback URL")
-    signIn("github", { callbackUrl: "/api/auth/electron-callback" })
-  } else {
-    console.log("[signInWithGitHub] Using default sign-in")
-    signIn("github")
-  }
+  // OAuth happens inside Electron (not system browser) because cookies
+  // don't transfer between them, and NextAuth needs cookies for state verification
+  signIn("github")
 }

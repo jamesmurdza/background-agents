@@ -53,22 +53,16 @@ function createWindow() {
     mainWindow?.show();
   });
 
-  // Handle external links - open in system browser
+  // Handle external links - open non-OAuth URLs in system browser
+  // OAuth stays inside Electron because cookies don't transfer to system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow OAuth to open in Electron
+    if (url.includes("github.com/login/oauth")) {
+      return { action: "allow" };
+    }
+    // Open other external links in system browser
     shell.openExternal(url);
     return { action: "deny" };
-  });
-
-  // Intercept OAuth sign-in navigation - open in system browser
-  // The browser will handle the full OAuth flow and redirect back via deep link
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    // Only intercept the initial sign-in request, not callbacks or other navigation
-    // The callbackUrl in the sign-in request already points to /api/auth/electron-callback
-    // which will redirect to background-agents://auth-callback
-    if (url.includes("/api/auth/signin") || url.includes("github.com/login/oauth/authorize")) {
-      event.preventDefault();
-      shell.openExternal(url);
-    }
   });
 
   // Minimize to tray instead of closing
