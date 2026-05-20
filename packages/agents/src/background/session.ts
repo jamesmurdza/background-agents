@@ -301,9 +301,9 @@ class BackgroundSessionImpl implements BackgroundSession {
       }
 
       // Not in startup grace, but give a brief window for I/O flush.
-      // Retry up to 3 times with 200ms delay to handle slow file system flushes.
-      for (let attempt = 0; attempt < 3 && !sawEnd; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
+      // Retry up to 5 times with 300ms delay to handle slow file system flushes.
+      for (let attempt = 0; attempt < 5 && !sawEnd; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 300))
 
         // Re-read session state and output
         const recheck = await this.readSessionState()
