@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "dev": "npm run build && electron dist/main.js",
+    "dev": "npm run build && BACKGROUND_AGENTS_URL=http://localhost:4000 electron dist/main.js",
     "build": "tsup src/main.ts --format esm --target node18 --external electron && tsup src/preload.ts --format cjs --target node18 --external electron",
     "start": "electron dist/main.js",
     "package": "npm run build && electron-builder",
