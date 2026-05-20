@@ -8,7 +8,7 @@
  * Usage:
  *   # Set required API keys
  *   export DAYTONA_API_KEY=...
- *   export ANTHROPIC_API_KEY=...  # for claude, opencode
+ *   export ANTHROPIC_API_KEY=...  # for claude, goose, opencode
  *   export OPENAI_API_KEY=...     # for codex
  *   export GEMINI_API_KEY=...     # for gemini
  *
@@ -24,6 +24,7 @@
  *     ├── codex.jsonl           - OpenAI Codex CLI raw output
  *     ├── eliza.jsonl           - Eliza deterministic test agent output (generated separately)
  *     ├── gemini.jsonl          - Google Gemini CLI raw output
+ *     ├── goose.jsonl           - Goose CLI raw output
  *     ├── opencode.jsonl        - OpenCode CLI raw output
  *     └── pi.jsonl              - Pi Coding Agent CLI raw output
  */
@@ -88,6 +89,12 @@ const providers: ProviderConfig[] = [
     name: "gemini",
     apiKeyEnvVar: "GEMINI_API_KEY",
     apiKey: GEMINI_API_KEY,
+  },
+  {
+    name: "goose",
+    apiKeyEnvVar: "ANTHROPIC_API_KEY",
+    apiKey: ANTHROPIC_API_KEY,
+    model: "claude-sonnet-4-20250514",
   },
   {
     name: "opencode",
