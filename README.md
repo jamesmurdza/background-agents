@@ -25,15 +25,40 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 - Node.js 18+
 
-## Quick start
+## Configuration
+
+Create a `.env.local` file at the monorepo root:
+
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
+- `DATABASE_URL` - PostgreSQL connection string
+- `DAYTONA_API_KEY` - Your [Daytona](https://www.daytona.io/) API key
+- `NEXTAUTH_URL` - `http://localhost:4000` for local development
+- `NEXTAUTH_SECRET` - Random secret (generate with `openssl rand -base64 32`)
+- `ENCRYPTION_KEY` - 64-char hex string (generate with `openssl rand -hex 32`)
+
+See [DEVELOPMENT.md](./DEVELOPMENT.md) for database setup and full configuration details.
+
+## Quick start (Web)
 
 ```bash
 npm install
-npm run build:sdk
 npm run dev
 ```
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for local setup (database, environment variables) and [TESTING.md](./TESTING.md) for tests.
+Open http://localhost:4000
+
+## Quick start (Desktop)
+
+```bash
+npm install
+npm run dev:electron
+```
+
+This starts the local web server and launches the Electron app.
 
 ## Deployment
 
