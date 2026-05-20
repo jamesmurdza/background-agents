@@ -53,40 +53,16 @@ function createWindow() {
     mainWindow?.show();
   });
 
-  // Handle external links and OAuth
+  // Handle external links - open non-app URLs in system browser
+  // But allow OAuth to happen within Electron so cookies work
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow OAuth popups to open within Electron
+    if (url.includes("github.com") || url.includes("/api/auth/")) {
+      return { action: "allow" };
+    }
+    // Open other external links in system browser
     shell.openExternal(url);
     return { action: "deny" };
-  });
-
-  // Intercept navigation to OAuth/auth URLs - open in system browser
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    const authUrls = [
-      "github.com/login",
-      "github.com/sessions",
-      "/api/auth/signin",
-      "/api/auth/callback",
-      "accounts.google.com",
-      "login.microsoftonline.com",
-    ];
-
-    const shouldOpenExternal = authUrls.some((authUrl) => url.includes(authUrl));
-
-    if (shouldOpenExternal) {
-      event.preventDefault();
-      shell.openExternal(url);
-    }
-  });
-
-  // Also intercept new window requests for OAuth popups
-  mainWindow.webContents.on("did-create-window", (childWindow) => {
-    childWindow.webContents.on("will-navigate", (event, url) => {
-      if (url.includes("github.com") || url.includes("/api/auth/")) {
-        event.preventDefault();
-        shell.openExternal(url);
-        childWindow.close();
-      }
-    });
   });
 
   // Minimize to tray instead of closing
