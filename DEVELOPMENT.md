@@ -41,9 +41,9 @@ Prerequisites: Node.js 18+ and the Postgres database from [Database setup](#data
 
 **Note:** In a sandbox environment, take `DAYTONA_API_KEY` and `GITHUB_PAT` from the shell environment variables.
 
-**Database:** Put `DATABASE_URL` in `packages/web/.env` (same value as in [Database setup](#database-setup), or your provider's URL).
+**Database:** Put `DATABASE_URL` in `.env.local` at the repo root (same value as in [Database setup](#database-setup), or your provider's URL).
 
-**Minimal `packages/web/.env`:** Fill in the database URL, then set the rest. With `GITHUB_PAT` set, GitHub OAuth placeholders are not used; they can stay as shown.
+**Minimal `.env.local` (at repo root):** Fill in the database URL, then set the rest. With `GITHUB_PAT` set, GitHub OAuth placeholders are not used; they can stay as shown.
 
 ```bash
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"

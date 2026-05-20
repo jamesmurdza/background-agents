@@ -6,9 +6,10 @@
   ],
   "scripts": {
     "postinstall": "npm run build:eliza -w background-agents && cd packages/web && npx prisma generate",
-    "dev": "set -a && source .env.local && set +a && next dev packages/web --port 4000",
+    "predev": "npm run build:eliza -w background-agents",
+    "dev": "dotenv -e .env.local -- next dev packages/web --port 4000",
     "dev:cron": "npm run dev -w @upstream/dev-cron",
-    "dev:electron": "set -a && source .env.local && set +a && next dev packages/web --port 4000 & sleep 3 && npm run build -w @upstream/electron && BACKGROUND_AGENTS_URL=http://localhost:4000 electron packages/electron/dist/main.js",
+    "dev:electron": "npm run build:eliza -w background-agents && dotenv -e .env.local -- next dev packages/web --port 4000 & sleep 3 && npm run build -w @upstream/electron && BACKGROUND_AGENTS_URL=http://localhost:4000 electron packages/electron/dist/main.js",
     "prisma:migrate": "cd packages/web && npx prisma migrate dev",
     "prisma:migrate:deploy": "cd packages/web && npx prisma migrate deploy",
     "prisma:generate": "cd packages/web && npx prisma generate",
@@ -18,12 +19,13 @@
     "build:electron": "npm run build -w @upstream/electron",
     "publish:sdk": "npm publish -w background-agents",
     "build:web": "npm run build -w background-agents && cd packages/web && npx prisma generate && npm run build",
-    "start": "set -a && source .env.local && set +a && next start packages/web --port 4000",
+    "start": "dotenv -e .env.local -- next start packages/web --port 4000",
     "start:electron": "npm run start -w @upstream/electron",
     "lint": "npm run lint --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.0.0",
     "typescript": "5.7.3"
   },
   "engines": {

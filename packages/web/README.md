@@ -40,10 +40,10 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 2. **Configure environment variables**:
 
-   Copy the example environment file and fill in your values:
+   Create a `.env.local` file at the **monorepo root** (not in packages/web):
 
    ```bash
-   cp .env.example .env
+   cp .env.example .env.local
    ```
 
    Required variables:
