@@ -59,19 +59,15 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  // Intercept OAuth navigation - open in system browser with electron callback
+  // Intercept OAuth sign-in navigation - open in system browser
+  // The browser will handle the full OAuth flow and redirect back via deep link
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    // Check if this is an OAuth sign-in URL
-    if (url.includes("/api/auth/signin") ||
-        url.includes("github.com/login/oauth") ||
-        url.includes("/api/auth/callback")) {
+    // Only intercept the initial sign-in request, not callbacks or other navigation
+    // The callbackUrl in the sign-in request already points to /api/auth/electron-callback
+    // which will redirect to background-agents://auth-callback
+    if (url.includes("/api/auth/signin") || url.includes("github.com/login/oauth/authorize")) {
       event.preventDefault();
-
-      // Add electron=true param so backend knows to redirect to custom protocol
-      const authUrl = new URL(url);
-      authUrl.searchParams.set("electron", "true");
-
-      shell.openExternal(authUrl.toString());
+      shell.openExternal(url);
     }
   });
 
