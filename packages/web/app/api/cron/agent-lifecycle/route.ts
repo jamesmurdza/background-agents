@@ -28,7 +28,6 @@ export const maxDuration = 300
 // Timeouts
 // =============================================================================
 
-const INTERACTIVE_INACTIVITY_TIMEOUT =  10 // minutes
 const INTERACTIVE_HARD_TIMEOUT = 25 // minutes
 const SCHEDULED_HARD_TIMEOUT = 20 // minutes
 
@@ -183,7 +182,6 @@ export async function GET(req: Request) {
       results.monitoredInteractive++
 
       try {
-        const minutesSinceActive = differenceInMinutes(now, chat.lastActiveAt)
         // Get run start time from last assistant message (when agent started)
         const runStartedAt = chat.messages[0]?.createdAt ?? chat.lastActiveAt
         const totalMinutes = differenceInMinutes(now, runStartedAt)
@@ -192,14 +190,6 @@ export async function GET(req: Request) {
         if (totalMinutes > INTERACTIVE_HARD_TIMEOUT) {
           await stopAgent(chat.sandboxId!, chat.backgroundSessionId!, daytona)
           await markChatError(chat.id, "Run exceeded 25 minute limit")
-          results.timedOutInteractive++
-          continue
-        }
-
-        // Inactivity timeout: 10 minutes since browser activity
-        if (minutesSinceActive > INTERACTIVE_INACTIVITY_TIMEOUT) {
-          await stopAgent(chat.sandboxId!, chat.backgroundSessionId!, daytona)
-          await markChatError(chat.id, "No activity for 10 minutes")
           results.timedOutInteractive++
           continue
         }
