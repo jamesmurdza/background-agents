@@ -183,10 +183,15 @@ export function McpServersCombobox({
     }
   }, [])
 
-  // Load connected list + GitHub app status whenever the popover opens.
+  // Load connected list on mount (for the badge count) and when popover opens.
+  useEffect(() => {
+    loadConnected()
+  }, [loadConnected])
+
+  // Load GitHub app status whenever the popover opens.
   useEffect(() => {
     if (open) {
-      loadConnected()
+      loadConnected() // Refresh when opening
       loadGithubStatus()
     }
   }, [open, loadConnected, loadGithubStatus])
