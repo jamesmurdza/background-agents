@@ -53,16 +53,26 @@ function createWindow() {
     mainWindow?.show();
   });
 
-  // Handle external links - open non-app URLs in system browser
-  // But allow OAuth to happen within Electron so cookies work
+  // Handle external links - open in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Allow OAuth popups to open within Electron
-    if (url.includes("github.com") || url.includes("/api/auth/")) {
-      return { action: "allow" };
-    }
-    // Open other external links in system browser
     shell.openExternal(url);
     return { action: "deny" };
+  });
+
+  // Intercept OAuth navigation - open in system browser with electron callback
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    // Check if this is an OAuth sign-in URL
+    if (url.includes("/api/auth/signin") ||
+        url.includes("github.com/login/oauth") ||
+        url.includes("/api/auth/callback")) {
+      event.preventDefault();
+
+      // Add electron=true param so backend knows to redirect to custom protocol
+      const authUrl = new URL(url);
+      authUrl.searchParams.set("electron", "true");
+
+      shell.openExternal(authUrl.toString());
+    }
   });
 
   // Minimize to tray instead of closing
@@ -117,6 +127,15 @@ function handleDeepLink(url: string) {
     const parsed = new URL(url);
     const action = parsed.hostname;
     const params = Object.fromEntries(parsed.searchParams);
+
+    // Handle auth callback - reload the app to pick up the new session
+    if (action === "auth" || action === "auth-callback") {
+      console.log("Auth callback received, reloading app...");
+      mainWindow.loadURL(BACKEND_URL);
+      mainWindow.show();
+      mainWindow.focus();
+      return;
+    }
 
     mainWindow.webContents.send("deep-link", { action, params });
     mainWindow.show();
