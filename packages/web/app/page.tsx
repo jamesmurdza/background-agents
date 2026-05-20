@@ -1221,6 +1221,24 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
             }
           : undefined
       }
+      onToggleTerminal={
+        currentChat?.sandboxId
+          ? () => {
+              const existingTerminal = preview.previewItems.find((i) => i.type === "terminal")
+              if (existingTerminal) {
+                // Terminal exists — toggle pane visibility
+                if (preview.previewOpen) {
+                  preview.closePreview()
+                } else {
+                  preview.openPreview(existingTerminal)
+                }
+              } else {
+                // No terminal yet — create one and show it
+                preview.openPreview({ type: "terminal", id: `${currentChat.sandboxId}-1` })
+              }
+            }
+          : undefined
+      }
       servers={availableServers}
       onOpenServer={(port, url) => preview.openPreview({ type: "server", port, url })}
       onClosePreview={preview.previewOpen ? preview.closePreview : undefined}
@@ -1233,7 +1251,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       onOpenMcpServers={displayCurrentChatId && session ? () => modals.setMcpServersModalOpen(true) : undefined}
       onOpenSkills={
         currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY
-          ? () => setSkillsModalOpen(true)
+          ? () => setSkillsModalOpen((prev) => !prev)
           : undefined
       }
       chatIds={displayChats.map((c) => c.id)}

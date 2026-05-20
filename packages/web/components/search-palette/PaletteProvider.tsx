@@ -45,6 +45,7 @@ interface PaletteProviderProps {
   onDeleteChat?: () => void
   onOpenInVSCode?: () => void
   onOpenTerminal?: () => void
+  onToggleTerminal?: () => void
   servers?: Array<{ port: number; url: string }>
   onOpenServer?: (port: number, url: string) => void
   onClosePreview?: () => void
@@ -91,6 +92,7 @@ export function PaletteProvider({
   onDeleteChat,
   onOpenInVSCode,
   onOpenTerminal,
+  onToggleTerminal,
   servers,
   onOpenServer,
   onClosePreview,
@@ -158,6 +160,41 @@ export function PaletteProvider({
         return
       }
 
+      // Cmd/Ctrl + B for toggle sidebar
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault()
+        onToggleSidebar?.()
+        return
+      }
+
+      // Cmd/Ctrl + J for toggle terminal
+      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        e.preventDefault()
+        onToggleTerminal?.()
+        return
+      }
+
+      // Cmd/Ctrl + S for skills screen
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault()
+        onOpenSkills?.()
+        return
+      }
+
+      // Cmd/Ctrl + Shift + O for branch chat
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "O") {
+        e.preventDefault()
+        onBranchChat?.()
+        return
+      }
+
+      // Cmd/Ctrl + O for new chat (check after Shift+O to avoid conflict)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "o") {
+        e.preventDefault()
+        onNewChat()
+        return
+      }
+
       // Alt/Option, Cmd/Meta, or Ctrl + Up/Down for chat navigation (works even in inputs)
       if ((e.altKey || e.metaKey || e.ctrlKey) && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         if (onNavigateChat) {
@@ -184,7 +221,7 @@ export function PaletteProvider({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [chatIds, currentChatIndex, onSelectChat, openSearch, openCommand, onNavigateChat])
+  }, [chatIds, currentChatIndex, onSelectChat, openSearch, openCommand, onNavigateChat, onToggleSidebar, onToggleTerminal, onOpenSkills, onNewChat, onBranchChat])
 
   return (
     <PaletteContext.Provider value={{ openSearch, openCommand }}>

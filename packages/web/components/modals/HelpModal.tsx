@@ -46,6 +46,11 @@ export function HelpModal({ open, onClose, isMobile = false }: HelpModalProps) {
               <ul className="space-y-1 text-muted-foreground">
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘P</kbd> Search chats, repos, and branches</li>
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘K</kbd> Command palette</li>
+                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘B</kbd> Toggle sidebar</li>
+                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘J</kbd> Toggle terminal</li>
+                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘S</kbd> Skills</li>
+                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘O</kbd> New chat</li>
+                <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌘⇧O</kbd> Branch chat</li>
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌥↑/↓</kbd> Switch chats</li>
                 <li><kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⌥Enter</kbd> or <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono">⇧Enter</kbd> Branch and send to a new chat</li>
               </ul>
