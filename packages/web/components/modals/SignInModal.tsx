@@ -1,15 +1,10 @@
 "use client"
 
-import { signIn } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Github, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
-
-// Check if running in Electron (must be called at runtime, not module load)
-function isElectron(): boolean {
-  return typeof window !== "undefined" && !!(window as { electron?: unknown }).electron
-}
+import { signInWithGitHub } from "@/lib/auth-utils"
 
 interface SignInModalProps {
   open: boolean
@@ -19,12 +14,7 @@ interface SignInModalProps {
 
 export function SignInModal({ open, onClose, isMobile = false }: SignInModalProps) {
   const handleSignIn = () => {
-    if (isElectron()) {
-      // In Electron, redirect to a special callback that will redirect back to the app
-      signIn("github", { callbackUrl: "/api/auth/electron-callback" })
-    } else {
-      signIn("github")
-    }
+    signInWithGitHub()
   }
 
   return (

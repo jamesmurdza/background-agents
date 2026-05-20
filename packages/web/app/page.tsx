@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { usePathname } from "next/navigation"
-import { useSession, signIn, signOut } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
+import { signInWithGitHub } from "@/lib/auth-utils"
 import { nanoid } from "nanoid"
 import { MobileHeader } from "@/components/MobileHeader"
 import { Sidebar } from "@/components/Sidebar"
@@ -1197,7 +1198,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       onOpenInGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
       onOpenSettings={modals.openSettingsSection}
       onToggleSidebar={!isMobile ? () => sidebar.toggleCollapse() : undefined}
-      onSignIn={!session ? () => signIn("github") : undefined}
+      onSignIn={!session ? () => signInWithGitHub() : undefined}
       onSignOut={session ? () => {
             clearAllStorage()
             signOut()
