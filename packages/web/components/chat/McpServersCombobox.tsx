@@ -364,7 +364,9 @@ export function McpServersCombobox({
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Connect failed")
+      if (!res.ok && data.state !== "input_required") {
+        throw new Error(data.error || "Connect failed")
+      }
 
       if (data.connected) {
         setBusySlug(null)
@@ -372,9 +374,13 @@ export function McpServersCombobox({
         return
       }
 
-      // Auth required: open Smithery's auth URL in a popup and poll for close.
+      // Setup or auth required: open the appropriate URL in a popup and poll for close.
+      const popupUrl = data.state === "input_required" ? data.setupUrl : data.authUrl
+      if (!popupUrl) {
+        throw new Error("Server requires configuration but no setup URL provided")
+      }
       const popup = window.open(
-        data.authUrl,
+        popupUrl,
         "smithery-oauth",
         "width=600,height=700,scrollbars=yes"
       )
