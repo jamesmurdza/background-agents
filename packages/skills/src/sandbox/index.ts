@@ -10,3 +10,4 @@ export {
   type OnSkillRemove,
 } from "./install"
 export { uninstallSkill, getSkillNameFromHandle } from "./uninstall"
+export { discoverInstalledSkills } from "./discover"

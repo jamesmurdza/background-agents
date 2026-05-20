@@ -34,9 +34,17 @@ function mapToolName(sdkTool: string): string {
 // System Prompt Builder
 // =============================================================================
 
+export interface SkillCatalogEntry {
+  name: string
+  description: string
+  /** Absolute path to SKILL.md inside the sandbox */
+  location: string
+}
+
 export function buildSystemPrompt(
   repoPath: string,
-  previewUrlPattern?: string
+  previewUrlPattern?: string,
+  skills?: SkillCatalogEntry[]
 ): string {
   let prompt = `You are an AI coding agent running in a Daytona sandbox.
 The repository is cloned at ${repoPath}.
@@ -52,12 +60,30 @@ The repository is cloned at ${repoPath}.
 
 ## File Operations
 - Use ${repoPath} for all file operations.
-- Always check the current state of files before editing them.
+- Always check the current state of files before editing them.`
+
+  if (skills && skills.length > 0) {
+    const catalog = skills
+      .map(
+        (s) =>
+          `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n  </skill>`
+      )
+      .join("\n")
+
+    prompt += `
 
 ## Agent Skills
-- You may have "skills" (custom instructions, guidelines, and rules) installed in the repository.
-- To check what skills are installed and what they do, look inside the ${repoPath}/.agents/skills/ directory.
-- Always adhere to any instructions defined in these skills.
+The following skills provide specialized instructions for specific tasks.
+When a task matches a skill's description, read the full SKILL.md at the listed
+location before proceeding. Resolve any relative paths in the skill against its
+directory (the parent folder of SKILL.md).
+
+<available_skills>
+${catalog}
+</available_skills>`
+  }
+
+  prompt += `
 
 ## Logs Directory
 - Write any log files to ${PATHS.LOGS_DIR}.

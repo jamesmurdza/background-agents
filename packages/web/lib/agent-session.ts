@@ -16,6 +16,7 @@ import {
   type Agent,
   type ContentBlock,
   type ToolCall,
+  type SkillCatalogEntry,
 } from "@upstream/common"
 import {
   setupClaudeHooks,
@@ -74,6 +75,11 @@ export interface AgentSessionOptions {
   /** When true, agent should plan before acting */
   planMode?: boolean
   /**
+   * Discovered skills to inject as a structured catalog in the system prompt.
+   * Populated by scanning .agents/skills/ after install.
+   */
+  skills?: SkillCatalogEntry[]
+  /**
    * MCP servers to expose to the agent. The web layer fetches these from
    * `ChatMcpServer` and decrypts the per-row Smithery API key before passing
    * them in — this module stays generic and doesn't touch the DB.
@@ -101,7 +107,8 @@ export async function createBackgroundAgentSession(
 ): Promise<BackgroundAgentSession> {
   const systemPrompt = buildSystemPrompt(
     options.repoPath,
-    options.previewUrlPattern
+    options.previewUrlPattern,
+    options.skills
   )
 
   // Map agent type to SDK provider name
@@ -142,6 +149,9 @@ export async function createBackgroundAgentSession(
   if (agent === "opencode" && !options.planMode) {
     env.OPENCODE_PERMISSION = OPENCODE_PERMISSION_ENV
   }
+
+  // Debug: log the full assembled system prompt before sending to the LLM
+  console.log("[agent-session] System prompt:\n" + systemPrompt)
 
   const bgSession = await createSession(provider, {
     sandbox: sandbox as any,
@@ -268,7 +278,8 @@ export async function finalizeTurn(
   try {
     const systemPrompt = buildSystemPrompt(
       options.repoPath,
-      options.previewUrlPattern
+      options.previewUrlPattern,
+      options.skills
     )
     const bgSession = await getSession(backgroundSessionId, {
       sandbox: sandbox as any,
@@ -292,7 +303,8 @@ export async function cancelBackgroundAgent(
   try {
     const systemPrompt = buildSystemPrompt(
       options.repoPath,
-      options.previewUrlPattern
+      options.previewUrlPattern,
+      options.skills
     )
 
     const bgSession = await getSession(backgroundSessionId, {
@@ -320,7 +332,8 @@ export async function snapshotBackgroundAgent(
   try {
     const systemPrompt = buildSystemPrompt(
       options.repoPath,
-      options.previewUrlPattern
+      options.previewUrlPattern,
+      options.skills
     )
 
     const bgSession = await getSession(backgroundSessionId, {

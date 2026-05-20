@@ -68,3 +68,14 @@ export interface SkillRecord {
   id: string
   fullHandle: string
 }
+
+/**
+ * A skill discovered by scanning .agents/skills/ inside the sandbox.
+ * Contains only the metadata needed for the system prompt catalog.
+ */
+export interface DiscoveredSkill {
+  name: string
+  description: string
+  /** Absolute path to SKILL.md inside the sandbox */
+  location: string
+}
