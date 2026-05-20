@@ -87,22 +87,6 @@ export function getFileTypeFromPath(filePath: string): FileType {
 }
 
 /**
- * Check if a file is a text-based file (can be displayed as code/text)
- */
-export function isTextBasedFile(file: File): boolean {
-  const type = getFileType(file)
-  return type === 'text' || type === 'code'
-}
-
-/**
- * Check if a file path points to a text-based file
- */
-export function isTextBasedPath(filePath: string): boolean {
-  const type = getFileTypeFromPath(filePath)
-  return type === 'text' || type === 'code'
-}
-
-/**
  * Markdown file extensions
  */
 const MARKDOWN_EXTENSIONS = ['md', 'mdx', 'markdown']

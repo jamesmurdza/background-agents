@@ -1,6 +1,6 @@
 // Queries
 export { useChatsQuery, usePrefetchChats } from "./useChatsQuery"
-export { useSettingsQuery, useSettings, useCredentialFlags } from "./useSettingsQuery"
+export { useSettingsQuery } from "./useSettingsQuery"
 export type { SettingsData } from "./useSettingsQuery"
 export { useReposQuery } from "./useReposQuery"
 export { useBranchesQuery, useBranchesQueryFromFullName } from "./useBranchesQuery"
