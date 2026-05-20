@@ -824,7 +824,7 @@ export function Sidebar({
           />
         ) : (
           <button
-            onClick={() => signIn("github")}
+            onClick={() => signInWithGitHub()}
             className={cn(
               "flex items-center justify-center gap-2 w-full rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors cursor-pointer",
               collapsed ? "p-2" : "px-3 py-2"

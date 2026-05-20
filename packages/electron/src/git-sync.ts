@@ -1,7 +1,10 @@
 import { ipcMain, Notification, app } from "electron";
-import { simpleGit, SimpleGit } from "simple-git";
+import simpleGitModule from "simple-git";
+import type { SimpleGit } from "simple-git";
 import path from "path";
 import fs from "fs";
+
+const simpleGit = simpleGitModule;
 
 interface GitSyncSettings {
   enabled: boolean;
