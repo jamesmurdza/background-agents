@@ -5,12 +5,8 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "type": "module",
-  "bin": {
-    "background-agents": "./dist/cli.js"
-  },
   "scripts": {
-    "build": "npm run build:eliza && npm run build:cli && tsc",
-    "build:cli": "esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.js --banner:js='#!/usr/bin/env node' --external:electron",
+    "build": "npm run build:eliza && tsc",
     "build:eliza": "npm run build:eliza-bundle && npm run build:eliza-embed",
     "build:eliza-bundle": "esbuild src/agents/eliza/cli.ts --bundle --platform=node --format=esm --outfile=dist/agents/eliza/cli.bundle.js",
     "build:eliza-embed": "npx tsx scripts/embed-eliza-bundle.ts",
@@ -59,8 +55,7 @@
   "files": [
     "dist",
     "README.md",
-    "next.config.codeagentsdk.cjs",
-    "electron-app"
+    "next.config.codeagentsdk.cjs"
   ],
   "exports": {
     ".": "./src/index.ts",
