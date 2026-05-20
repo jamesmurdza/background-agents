@@ -819,49 +819,59 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Use branch if available (sandbox created), otherwise baseBranch (before first message)
   const branchForNewChat = currentChat?.branch || currentChat?.baseBranch
   const canBranch = !!(branchForNewChat && currentChat?.repo !== NEW_REPOSITORY)
-  const handleBranchChat = useCallback(() => {
-    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
+
+  // Shared helper for creating a background branch and optionally sending a message.
+  // Returns false if branch creation is not possible or was aborted.
+  const createBranchAndSend = useCallback(async (options?: {
+    message?: string
+    agent?: string
+    model?: string
+    /** If true, save the message for retry after sign-in */
+    savePendingOnAuth?: boolean
+  }): Promise<boolean> => {
+    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return false
     if (!session) {
+      if (options?.savePendingOnAuth && options.message && options.agent && options.model) {
+        savePendingMessage({ message: options.message, agent: options.agent, model: options.model })
+      }
       modals.setSignInModalOpen(true)
-      return
+      return false
     }
-    startNewChat(currentChat.repo, branchForNewChat, currentChat.id)
-  }, [currentChat, branchForNewChat, startNewChat, session, modals])
+    // When no message is provided, navigate to the new chat
+    const navigateToChat = !options?.message
+    // Create new chat in "pending" state (allows sendMessage) without switching to it
+    const chatId = await startNewChat(
+      currentChat.repo,
+      branchForNewChat,
+      currentChat.id,
+      navigateToChat,
+      navigateToChat ? undefined : "pending"
+    )
+    if (!chatId) return false
+    // Send message to the new chat if provided (it runs in background)
+    if (options?.message) {
+      sendMessage(options.message, options.agent, options.model, undefined, chatId)
+    }
+    return true
+  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, modals])
+
+  const handleBranchChat = useCallback(() => {
+    createBranchAndSend()
+  }, [createBranchAndSend])
 
   // Branch and send a message to the new chat (Option+Enter)
   // The new chat starts in the background - we stay on the current chat
   const handleBranchWithMessage = useCallback(async (message: string, agent: string, model: string) => {
-    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
-    if (!session) {
-      savePendingMessage({ message, agent, model })
-      modals.setSignInModalOpen(true)
-      return
-    }
-    // Create new chat in "pending" state without switching to it
-    // Note: "pending" allows sendMessage to proceed, while "creating" would block it
-    const chatId = await startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "pending")
-    if (!chatId) return
-    // Send message to the new chat (it runs in background)
-    sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, modals])
+    await createBranchAndSend({ message, agent, model, savePendingOnAuth: true })
+  }, [createBranchAndSend])
 
   // Branch a queued message to a new chat (removes from queue)
   // The new chat starts in the background - we stay on the current chat
   const handleBranchQueuedMessage = useCallback(async (id: string, message: string, agent?: string, model?: string) => {
-    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return
-    if (!session) {
-      modals.setSignInModalOpen(true)
-      return
-    }
     // Remove from queue first
     removeQueuedMessage(id)
-    // Create new chat in "pending" state without switching to it
-    // Note: "pending" allows sendMessage to proceed, while "creating" would block it
-    const chatId = await startNewChat(currentChat.repo, branchForNewChat, currentChat.id, false, "pending")
-    if (!chatId) return
-    // Send message to the new chat (it runs in background)
-    sendMessage(message, agent, model, undefined, chatId)
-  }, [currentChat, branchForNewChat, startNewChat, sendMessage, removeQueuedMessage, session, modals])
+    await createBranchAndSend({ message, agent, model })
+  }, [createBranchAndSend, removeQueuedMessage])
 
   const handleDownloadProject = useCallback(async () => {
     if (!currentChat?.sandboxId || isDownloading) return
