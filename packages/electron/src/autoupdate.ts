@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog } from "electron";
-import { autoUpdater } from "electron-updater";
+import pkg from "electron-updater";
+const { autoUpdater } = pkg;
 
 export function setupAutoUpdater(mainWindow: BrowserWindow) {
   // Configure auto-updater
