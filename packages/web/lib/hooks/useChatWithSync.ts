@@ -811,6 +811,27 @@ export function useChatWithSync() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHydrated, runningChatsKey, startStreaming])
 
+  // Reconnect streams when page becomes visible (handles browser throttling of background tabs)
+  useEffect(() => {
+    if (!isHydrated) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+
+      const runningChats = chats.filter((c) => c.status === "running" && c.backgroundSessionId && c.sandboxId)
+      for (const chat of runningChats) {
+        if (useStreamStore.getState().isStreaming(chat.id)) continue
+        const lastAssistantMsg = [...chat.messages].reverse().find((m) => m.role === "assistant")
+        if (lastAssistantMsg) {
+          startStreaming(chat.id, chat.sandboxId!, "project", chat.backgroundSessionId!, lastAssistantMsg.id, chat.previewUrlPattern, chat.branch)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isHydrated, chats, startStreaming])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
