@@ -501,22 +501,34 @@ export function McpServersCombobox({
         sideOffset={8}
       >
         <Command shouldFilter={false}>
-          <CommandInput
-            placeholder="Search MCP servers..."
-            value={search}
-            onValueChange={setSearch}
-          />
-          <CommandList>
-            {loadingRegistry ? (
-              <div
-                className="flex items-center justify-center py-6"
-                role="status"
-                aria-label="Loading MCP servers"
-              >
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="relative">
+            <CommandInput
+              placeholder="Search MCP servers..."
+              value={search}
+              onValueChange={setSearch}
+            />
+            {loadingRegistry && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2
+                  className="h-4 w-4 animate-spin text-muted-foreground"
+                  aria-label="Searching"
+                />
               </div>
-            ) : allServers.length === 0 ? (
-              <CommandEmpty>No servers found</CommandEmpty>
+            )}
+          </div>
+          <CommandList>
+            {allServers.length === 0 ? (
+              loadingRegistry ? (
+                <div
+                  className="flex items-center justify-center py-6"
+                  role="status"
+                  aria-label="Loading MCP servers"
+                >
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <CommandEmpty>No servers found</CommandEmpty>
+              )
             ) : (
               allServers.map((s) => {
                 const isGitHub = s.slug === GITHUB_QUALIFIED_NAME
