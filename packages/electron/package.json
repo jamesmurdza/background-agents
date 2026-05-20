@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
-    "build": "tsup src/main.ts src/preload.ts --format esm --target node18 --external electron",
+    "build": "tsup src/main.ts --format esm --target node18 --external electron && tsup src/preload.ts --format cjs --target node18 --external electron",
     "start": "electron dist/main.js",
     "package": "npm run build && electron-builder",
     "package:mac": "npm run build && electron-builder --mac",
