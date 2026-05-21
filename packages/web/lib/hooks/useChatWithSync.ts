@@ -334,6 +334,8 @@ export function useChatWithSync() {
       const newChat = await createChatMutation.mutateAsync({
         repo: draftChatConfig.repo,
         baseBranch: draftChatConfig.baseBranch,
+        agent: draftChatConfig.agent,
+        model: draftChatConfig.model,
         status: options?.status ?? "pending",
         planModeEnabled: draftChatConfig.planMode,
       })

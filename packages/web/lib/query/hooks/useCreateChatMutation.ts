@@ -10,6 +10,8 @@ interface CreateChatParams {
   repo?: string
   baseBranch?: string
   parentChatId?: string
+  agent?: string | null
+  model?: string | null
   status?: Chat["status"]
   planModeEnabled?: boolean
 }
@@ -27,6 +29,8 @@ export function useCreateChatMutation() {
         repo: params.repo ?? NEW_REPOSITORY,
         baseBranch: params.baseBranch,
         parentChatId: params.parentChatId,
+        agent: params.agent ?? undefined,
+        model: params.model ?? undefined,
         status: params.status,
         planModeEnabled: params.planModeEnabled,
       })
