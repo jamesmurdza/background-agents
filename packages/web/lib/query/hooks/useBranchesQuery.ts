@@ -23,14 +23,3 @@ export function useBranchesQuery(owner: string, repo: string) {
     staleTime: 30 * 1000, // 30 seconds
   })
 }
-
-/**
- * Fetches branches for a repo given as "owner/name" string
- */
-export function useBranchesQueryFromFullName(fullName: string | null | undefined) {
-  const parts = fullName?.split("/") ?? []
-  const owner = parts[0] ?? ""
-  const repo = parts[1] ?? ""
-
-  return useBranchesQuery(owner, repo)
-}

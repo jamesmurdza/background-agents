@@ -7,6 +7,7 @@ import type { CodeAgentSandbox } from "../../types/provider"
 import type { Event } from "../../types/events"
 import { parseClaudeLine } from "./parser"
 import { CLAUDE_TOOL_MAPPINGS } from "./tools"
+import { escapeShell } from "../../utils/shell"
 
 /** Claude credentials directory */
 const CLAUDE_CREDENTIALS_DIR = "/home/daytona/.claude"
@@ -33,7 +34,7 @@ async function claudeSetup(
   if (!credentialsJson || !sandbox.executeCommand) return
 
   // Escape single quotes for shell command
-  const safeCredentials = credentialsJson.replace(/'/g, "'\\''")
+  const safeCredentials = escapeShell(credentialsJson)
 
   // Create directory and write credentials file with secure permissions
   await sandbox.executeCommand(

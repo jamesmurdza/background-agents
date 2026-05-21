@@ -11,13 +11,7 @@ import type {
 import type { Event } from "../../types/events"
 import { parseOpencodeLine } from "./parser"
 import { OPENCODE_TOOL_MAPPINGS } from "./tools"
-
-/**
- * Quote a string for bash
- */
-function quote(s: string): string {
-  return `'${s.replace(/'/g, "'\\''")}'`
-}
+import { quote } from "../../utils/shell"
 
 /**
  * OpenCode CLI agent definition.

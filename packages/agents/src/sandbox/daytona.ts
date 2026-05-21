@@ -5,15 +5,11 @@
 import type { Sandbox } from "@daytonaio/sdk"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, ProviderName } from "../types/index"
 import { getPackageName, getShellInstaller } from "../utils/install"
+import { escapeShell } from "../utils/shell"
 import { ELIZA_BUNDLE_B64 } from "../agents/eliza/bundle-content"
 
 // Path to ELIZA bundle (uploaded to sandbox when needed)
 const ELIZA_SANDBOX_PATH = "/tmp/eliza-cli.bundle.js"
-
-/** Escape a string for use in single-quoted shell strings */
-function escapeShell(str: string): string {
-  return str.replace(/'/g, "'\\''")
-}
 
 export function adaptDaytonaSandbox(
   sandbox: Sandbox,
