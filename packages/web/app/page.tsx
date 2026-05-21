@@ -756,7 +756,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     const repo = displayCurrentChat?.repo ?? NEW_REPOSITORY
     const baseBranch = displayCurrentChat?.baseBranch ?? "main"
 
-    const chatId = await startNewChat(repo, baseBranch, undefined, false, "pending")
+    const chatId = await startNewChat(repo, baseBranch, undefined, false, "pending", agent, model)
     if (!chatId) return
 
     sendMessage(message, agent, model, files, chatId, planMode)
@@ -839,13 +839,18 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
     // When no message is provided, navigate to the new chat
     const navigateToChat = !options?.message
+    // Use provided agent/model or inherit from current chat
+    const agentToUse = options?.agent ?? currentChat?.agent
+    const modelToUse = options?.model ?? currentChat?.model
     // Create new chat in "pending" state (allows sendMessage) without switching to it
     const chatId = await startNewChat(
       currentChat.repo,
       branchForNewChat,
       currentChat.id,
       navigateToChat,
-      navigateToChat ? undefined : "pending"
+      navigateToChat ? undefined : "pending",
+      agentToUse,
+      modelToUse
     )
     if (!chatId) return false
     // Send message to the new chat if provided (it runs in background)

@@ -20,7 +20,7 @@ export interface ChatContextValue {
 
   // Chat operations
   selectChat: (chatId: string) => void
-  startNewChat: (repo?: string, baseBranch?: string, parentChatId?: string, switchTo?: boolean, initialStatus?: ChatStatus) => Promise<string | null>
+  startNewChat: (repo?: string, baseBranch?: string, parentChatId?: string, switchTo?: boolean, initialStatus?: ChatStatus, agent?: string | null, model?: string | null) => Promise<string | null>
   removeChat: (chatId: string) => Promise<void>
   renameChat: (chatId: string, name: string) => Promise<void>
   updateCurrentChat: (updates: Partial<Chat>) => void
