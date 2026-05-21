@@ -36,6 +36,7 @@ import {
   agentToProvider,
   agentModels,
   defaultAgentModel,
+  agentSupportsPlanMode,
   // Functions
   getDefaultAgent,
   hasCredentialsForModel,
@@ -91,6 +92,7 @@ import {
   buildSystemPrompt,
   buildContentBlocks,
   type BuildContentBlocksResult,
+  type SkillCatalogEntry,
 } from "@upstream/common"
 ```
 
@@ -185,6 +187,7 @@ import {
   OpenCodeIcon,
   GeminiIcon,
   GooseIcon,
+  KiloIcon,
   ElizaIcon,
   PiIcon,
   AgentIcon,
