@@ -14,6 +14,7 @@ export const COPILOT_TOOL_MAPPINGS: Record<string, string> = {
   // File reading
   read_file: "read",
   read: "read",
+  view: "read",
   // File writing
   write_file: "write",
   create_file: "write",

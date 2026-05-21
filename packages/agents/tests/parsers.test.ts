@@ -1442,12 +1442,15 @@ describe("parseCopilotLine", () => {
     expect(event).toEqual({ type: "end", error: "Turn ended with status: cancelled" })
   })
 
-  it("parses assistant.turn_end (alternate naming)", () => {
+  it("ignores assistant.turn_end in autopilot mode (end comes from session.task_complete)", () => {
+    // In autopilot mode the CLI fires a continuation turn after assistant.turn_end,
+    // so the parser intentionally returns null here. The true terminal event is
+    // session.task_complete. See parser comment for details.
     const event = parseCopilotLine(
       JSON.stringify({ type: "assistant.turn_end", status: "success" }),
       mappings
     )
-    expect(event).toEqual({ type: "end" })
+    expect(event).toBeNull()
   })
 
   it("parses session.shutdown as end event", () => {
@@ -1466,5 +1469,161 @@ describe("parseCopilotLine", () => {
       parseCopilotLine('{"type": "session.compaction"}', mappings)
     ).toBeNull()
   })
-})
 
+  it("suppresses internal autopilot tool: report_intent", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_start",
+        data: { toolName: "report_intent", toolCallId: "call_ri_001" },
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+
+  it("suppresses internal autopilot tool: ask_user", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_start",
+        data: { toolName: "ask_user", toolCallId: "call_au_001" },
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+
+  it("suppresses internal autopilot tool: task_complete", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_start",
+        data: { toolName: "task_complete", toolCallId: "call_tc_001" },
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+
+  it("suppresses tool.execution_complete for a suppressed internal tool call ID", () => {
+    const ctx = createContext()
+    // Suppress the tool_start
+    const startEvent = parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_start",
+        data: { toolName: "report_intent", toolCallId: "call_ri_002" },
+      }),
+      mappings,
+      ctx
+    )
+    expect(startEvent).toBeNull()
+
+    // The paired tool_end should also be suppressed
+    const endEvent = parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_complete",
+        data: { toolCallId: "call_ri_002" },
+      }),
+      mappings,
+      ctx
+    )
+    expect(endEvent).toBeNull()
+  })
+
+  it("does NOT suppress tool.execution_complete for a real tool call ID", () => {
+    const ctx = createContext()
+    // A real shell tool — should NOT be suppressed
+    parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_start",
+        data: { toolName: "shell", toolCallId: "call_sh_001", arguments: { command: "ls" } },
+      }),
+      mappings,
+      ctx
+    )
+    const endEvent = parseCopilotLine(
+      JSON.stringify({
+        type: "tool.execution_complete",
+        data: { toolCallId: "call_sh_001", result: { content: "file.ts\n" } },
+      }),
+      mappings,
+      ctx
+    )
+    expect(endEvent).toEqual({ type: "tool_end", output: "file.ts\n" })
+  })
+
+  it("suppresses ephemeral assistant.message_delta events (narration)", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "assistant.message_delta",
+        data: { deltaContent: "Gathering environment info", messageId: "msg-1" },
+        ephemeral: true,
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+
+  it("passes through non-ephemeral assistant.message_delta events", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "assistant.message_delta",
+        data: { deltaContent: "Hello!", messageId: "msg-2" },
+        ephemeral: false,
+      }),
+      mappings
+    )
+    expect(event).toEqual({ type: "token", text: "Hello!" })
+  })
+
+  it("emits text from assistant.message with no tool requests (final response)", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "assistant.message",
+        data: {
+          messageId: "msg-3",
+          content: "Here is my final answer.",
+          toolRequests: [],
+        },
+      }),
+      mappings
+    )
+    expect(event).toEqual({ type: "token", text: "Here is my final answer." })
+  })
+
+  it("suppresses assistant.message with tool requests (narration before tool call)", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "assistant.message",
+        data: {
+          messageId: "msg-4",
+          content: "Let me check the filesystem.",
+          toolRequests: [{ toolCallId: "call_abc", name: "bash", type: "function" }],
+        },
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+
+  it("suppresses ephemeral assistant.message events", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "assistant.message",
+        data: { messageId: "msg-5", content: "internal reasoning" },
+        ephemeral: true,
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+
+  it("returns null for assistant.message with empty content and no tool requests", () => {
+    const event = parseCopilotLine(
+      JSON.stringify({
+        type: "assistant.message",
+        data: { messageId: "msg-6", content: "", toolRequests: [] },
+      }),
+      mappings
+    )
+    expect(event).toBeNull()
+  })
+})

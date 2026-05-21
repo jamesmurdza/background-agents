@@ -20,6 +20,7 @@
  *   - session.shutdown                         → EndEvent
  */
 
+import type { ParseContext } from "../../core/agent"
 import type { Event } from "../../types/events"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
@@ -30,6 +31,8 @@ import { safeJsonParse } from "../../utils/json"
  */
 interface CopilotBaseEvent {
   type: string
+  /** When true, event is internal (reasoning/narration) and should not be shown */
+  ephemeral?: boolean
   [key: string]: unknown
 }
 
@@ -89,9 +92,24 @@ interface CopilotSessionShutdown extends CopilotBaseEvent {
   type: "session.shutdown"
 }
 
+/**
+ * Full message event emitted at the end of each assistant turn.
+ * Contains the complete text plus any tool requests.
+ * Only the content from messages WITHOUT toolRequests is user-facing.
+ */
+interface CopilotMessage extends CopilotBaseEvent {
+  type: "assistant.message"
+  data?: {
+    messageId?: string
+    content?: string
+    toolRequests?: unknown[]
+  }
+}
+
 type CopilotEvent =
   | CopilotSessionStart
   | CopilotMessageDelta
+  | CopilotMessage
   | CopilotToolExecutionStart
   | CopilotToolExecutionComplete
   | CopilotTurnEnd
@@ -102,11 +120,42 @@ type CopilotEvent =
   | CopilotBaseEvent
 
 /**
+ * Internal Copilot autopilot workflow-control tools.
+ *
+ * The Copilot CLI's autopilot mode uses these tools to manage its own
+ * execution loop (intent reporting, task completion signalling, etc.).
+ * They are not user-visible actions and should not be surfaced in the UI —
+ * doing so produces confusing output like "report_intent", "ask_user",
+ * "task_complete" appearing as messages.
+ */
+const COPILOT_INTERNAL_TOOLS = new Set([
+  "report_intent",
+  "ask_user",
+  "task_complete",
+  "request_clarification",
+  "set_status",
+  "get_context",
+  "plan",
+  "think",
+])
+
+/** Key used to store suppressed tool call IDs in ParseContext.state */
+const SUPPRESSED_IDS_KEY = "copilot_suppressed_tool_call_ids"
+
+function getSuppressedIds(context: ParseContext): Set<string> {
+  if (!context.state[SUPPRESSED_IDS_KEY]) {
+    context.state[SUPPRESSED_IDS_KEY] = new Set<string>()
+  }
+  return context.state[SUPPRESSED_IDS_KEY] as Set<string>
+}
+
+/**
  * Parse a single JSONL line from the Copilot CLI.
  */
 export function parseCopilotLine(
   line: string,
-  toolMappings: Record<string, string>
+  toolMappings: Record<string, string>,
+  context?: ParseContext
 ): Event | null {
   const json = safeJsonParse<CopilotEvent>(line)
   if (!json || !json.type) return null
@@ -118,10 +167,30 @@ export function parseCopilotLine(
   }
 
   // ─── Text streaming ───────────────────────────────────────
-  // @github/copilot wraps content in data.deltaContent
+  // @github/copilot wraps content in data.deltaContent.
+  // In autopilot mode, narration/reasoning deltas are marked ephemeral: true
+  // and must be filtered — otherwise the model's internal chain-of-thought
+  // streams into the UI as visible text.
   if (json.type === "message.delta" || json.type === "assistant.message_delta") {
+    if (json.ephemeral === true) return null
     const ev = json as CopilotMessageDelta
     const text = ev.data?.deltaContent ?? ev.content ?? ev.deltaContent ?? ""
+    if (!text) return null
+    return { type: "token", text }
+  }
+
+  // ─── Full message (end of turn) ────────────────────────────
+  // In autopilot mode, the actual user-facing response lives here,
+  // not in the deltas (which are all ephemeral). We only emit text
+  // from messages that have NO tool requests — those are final responses.
+  // Messages WITH toolRequests are just narration before a tool call.
+  if (json.type === "assistant.message") {
+    if (json.ephemeral === true) return null
+    const ev = json as CopilotMessage
+    const toolRequests = ev.data?.toolRequests
+    const hasToolCalls = Array.isArray(toolRequests) && toolRequests.length > 0
+    if (hasToolCalls) return null // narration before tool call — suppress
+    const text = ev.data?.content ?? ""
     if (!text) return null
     return { type: "token", text }
   }
@@ -135,6 +204,16 @@ export function parseCopilotLine(
   ) {
     const ev = json as CopilotToolExecutionStart
     const name = ev.data?.toolName ?? ev.name ?? "unknown"
+
+    // Suppress internal autopilot workflow-control tools — they manage the
+    // CLI's own execution loop and are not user-visible actions.
+    if (COPILOT_INTERNAL_TOOLS.has(name)) {
+      // Record the tool call ID so the paired tool.execution_complete is
+      // also suppressed (prevents orphan tool_end events).
+      const callId = ev.data?.toolCallId ?? ev.callId
+      if (callId && context) getSuppressedIds(context).add(callId)
+      return null
+    }
     const args = ev.data?.arguments ?? ev.arguments
     return createToolStartEvent(name, args, toolMappings)
   }
@@ -147,6 +226,12 @@ export function parseCopilotLine(
     json.type === "tool.end"
   ) {
     const ev = json as CopilotToolExecutionComplete
+    // Suppress tool_end for suppressed internal tool calls.
+    const callId = ev.data?.toolCallId ?? ev.callId
+    if (callId && context && getSuppressedIds(context).has(callId)) {
+      getSuppressedIds(context).delete(callId) // clean up
+      return null
+    }
     const output = ev.data?.result?.content ?? ev.result ?? ev.output
     return { type: "tool_end", output }
   }
