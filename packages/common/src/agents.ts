@@ -7,13 +7,13 @@
 // Agent Types
 // =============================================================================
 
-export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "pi"
+export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "kilo" | "pi"
 
 /** All agent ids, in display order. */
-export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "eliza"]
 
 /** SDK provider names (must match ProviderName from SDK) */
-export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "pi"
+export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "pi"
 
 /** Display labels for each agent */
 export const agentLabels: Record<Agent, string> = {
@@ -23,6 +23,7 @@ export const agentLabels: Record<Agent, string> = {
   "eliza": "Eliza",
   "gemini": "Gemini",
   "goose": "Goose",
+  "kilo": "Kilo",
   "pi": "Pi",
 }
 
@@ -34,6 +35,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "eliza": "eliza",
   "gemini": "gemini",
   "goose": "goose",
+  "kilo": "kilo",
   "pi": "pi",
 }
 
@@ -42,7 +44,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
 // =============================================================================
 
 /** Provider an API key is associated with. */
-export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini"
+export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini" | "kilo"
 
 /**
  * Credential identifiers. The id doubles as the env var name we inject
@@ -54,6 +56,7 @@ export type CredentialId =
   | "OPENAI_API_KEY"
   | "OPENCODE_API_KEY"
   | "GEMINI_API_KEY"
+  | "KILO_API_KEY"
 
 export type CredentialFlags = Partial<Record<CredentialId, boolean>> & {
   // Server has a shared Claude credential pool (e.g. the rotating row written
@@ -73,6 +76,7 @@ const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
   openai: ["OPENAI_API_KEY"],
   opencode: ["OPENCODE_API_KEY"],
   gemini: ["GEMINI_API_KEY"],
+  kilo: ["KILO_API_KEY"],
 }
 
 // =============================================================================
@@ -169,6 +173,38 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
     { value: "claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "anthropic" },
   ],
+  "kilo": [
+    // Auto-routers
+    { value: "kilo/kilo-auto/free", label: "Auto Free", requiresKey: "none" },
+    { value: "kilo/kilo-auto/balanced", label: "Auto Balanced", requiresKey: "kilo" },
+    { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
+    { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
+    // Free models
+    { value: "kilo/deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash (Free)", requiresKey: "none" },
+    { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super (Free)", requiresKey: "none" },
+    { value: "kilo/stepfun/step-3.5-flash:free", label: "Step 3.5 Flash (Free)", requiresKey: "none" },
+    // Anthropic via Kilo gateway
+    { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
+    { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
+    { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
+    // OpenAI via Kilo gateway
+    { value: "kilo/openai/gpt-5.5", label: "GPT-5.5", requiresKey: "kilo" },
+    { value: "kilo/openai/gpt-5.4", label: "GPT-5.4", requiresKey: "kilo" },
+    { value: "kilo/openai/o3", label: "o3", requiresKey: "kilo" },
+    { value: "kilo/openai/o4-mini", label: "o4 Mini", requiresKey: "kilo" },
+    // Google via Kilo gateway
+    { value: "kilo/google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "kilo" },
+    { value: "kilo/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "kilo" },
+    { value: "kilo/google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "kilo" },
+    // DeepSeek via Kilo gateway
+    { value: "kilo/deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "kilo" },
+    { value: "kilo/deepseek/deepseek-r1-0528", label: "DeepSeek R1", requiresKey: "kilo" },
+    // Other notable models
+    { value: "kilo/moonshotai/kimi-k2.6", label: "Kimi K2.6", requiresKey: "kilo" },
+    { value: "kilo/qwen/qwen3-coder", label: "Qwen3 Coder", requiresKey: "kilo" },
+    { value: "kilo/mistralai/devstral-medium", label: "Devstral Medium", requiresKey: "kilo" },
+    { value: "kilo/x-ai/grok-4.20", label: "Grok 4.20", requiresKey: "kilo" },
+  ],
   "pi": [
     // Anthropic models (default provider)
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5 (Recommended)", requiresKey: "anthropic" },
@@ -195,6 +231,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
   "gemini": "gemini-2.5-flash",
   "goose": "gpt-4o",
+  "kilo": "kilo/kilo-auto/free", // Free auto-router, no API key needed
   "pi": "claude-sonnet-4-5",
 }
 
@@ -206,6 +243,7 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
   "eliza": false,
   "gemini": true,
   "goose": true,
+  "kilo": false,
   "pi": false,
 }
 

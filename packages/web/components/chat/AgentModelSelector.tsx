@@ -28,7 +28,7 @@ interface AgentModelSelectorProps {
   closeDropdowns?: boolean
 }
 
-const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "pi", "eliza"]
+const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "eliza"]
 
 export function AgentModelSelector({
   chat,

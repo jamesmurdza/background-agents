@@ -126,6 +126,7 @@ export {
   OpenCodeIcon,
   GeminiIcon,
   GooseIcon,
+  KiloIcon,
   ElizaIcon,
   PiIcon,
   AgentIcon,

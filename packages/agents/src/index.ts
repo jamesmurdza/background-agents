@@ -133,6 +133,7 @@ export {
   elizaAgent,
   geminiAgent,
   gooseAgent,
+  kiloAgent,
   opencodeAgent,
   piAgent,
 } from "./agents/index"

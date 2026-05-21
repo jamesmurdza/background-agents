@@ -58,6 +58,13 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     helpUrl: "https://opencode.ai/auth",
   },
   {
+    id: "KILO_API_KEY",
+    provider: "kilo",
+    label: "Kilo",
+    helpUrl: "https://app.kilo.ai",
+    placeholder: "kilo-...",
+  },
+  {
     id: "GEMINI_API_KEY",
     provider: "gemini",
     label: "Google AI (Gemini)",

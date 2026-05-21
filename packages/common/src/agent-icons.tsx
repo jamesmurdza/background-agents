@@ -192,6 +192,39 @@ export function ElizaIcon({ className }: AgentIconProps) {
   )
 }
 
+// Kilo icon - Kilo Code agent logo
+// Stylized "K" representing the Kilo brand
+export function KiloIcon({ className }: AgentIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-4 w-4", className)}
+    >
+      {/* Rounded square background */}
+      <rect
+        x="2"
+        y="2"
+        width="20"
+        height="20"
+        rx="4"
+        fill="currentColor"
+      />
+      {/* K letterform */}
+      <path
+        d="M8 6v12M8 12l6-6M8 12l6 6"
+        stroke="currentColor"
+        className="stroke-background"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
 // Pi icon - Official Pi Coding Agent logo
 // Source: https://shittycodingagent.ai/logo.svg
 export function PiIcon({ className }: AgentIconProps) {
@@ -232,6 +265,8 @@ export function AgentIcon({ agent, className }: { agent: Agent; className?: stri
       return <GeminiIcon className={className} />
     case "goose":
       return <GooseIcon className={className} />
+    case "kilo":
+      return <KiloIcon className={className} />
     case "pi":
       return <PiIcon className={className} />
     default:

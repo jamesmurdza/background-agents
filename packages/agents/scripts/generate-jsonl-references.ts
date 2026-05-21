@@ -103,6 +103,12 @@ const providers: ProviderConfig[] = [
     model: "anthropic/claude-sonnet-4-6",
   },
   {
+    name: "kilo",
+    apiKeyEnvVar: "ANTHROPIC_API_KEY",
+    apiKey: ANTHROPIC_API_KEY,
+    model: "anthropic/claude-sonnet-4-6",
+  },
+  {
     name: "pi",
     apiKeyEnvVar: "ANTHROPIC_API_KEY",
     apiKey: ANTHROPIC_API_KEY,
