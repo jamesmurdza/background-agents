@@ -70,6 +70,22 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     label: "Google AI (Gemini)",
     helpUrl: "https://aistudio.google.com/apikey",
   },
+  {
+    id: "NOUS_API_KEY",
+    provider: "nous",
+    label: "Nous Portal",
+    helpUrl: "https://portal.nousresearch.com",
+    placeholder: "nous-...",
+    description: "Hermes agent: highest priority. Gives access to Nous-hosted models.",
+  },
+  {
+    id: "OPENROUTER_API_KEY",
+    provider: "openrouter",
+    label: "OpenRouter",
+    helpUrl: "https://openrouter.ai/keys",
+    placeholder: "sk-or-v1-...",
+    description: "Hermes agent: used when no Nous Portal key is set. Access to 200+ models.",
+  },
 ] as const
 
 const CREDENTIAL_IDS = new Set<string>(CREDENTIAL_KEYS.map((c) => c.id))
@@ -97,6 +113,8 @@ const LEGACY_KEY_MAP: Record<string, CredentialId> = {
   openaiApiKey: "OPENAI_API_KEY",
   opencodeApiKey: "OPENCODE_API_KEY",
   geminiApiKey: "GEMINI_API_KEY",
+  nousApiKey: "NOUS_API_KEY",
+  openrouterApiKey: "OPENROUTER_API_KEY",
 }
 
 export function normalizeStoredCredentials(

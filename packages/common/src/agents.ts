@@ -7,13 +7,13 @@
 // Agent Types
 // =============================================================================
 
-export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "kilo" | "pi"
+export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "kilo" | "pi" | "hermes"
 
 /** All agent ids, in display order. */
-export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "eliza"]
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "hermes", "eliza"]
 
 /** SDK provider names (must match ProviderName from SDK) */
-export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "pi"
+export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "pi" | "hermes"
 
 /** Display labels for each agent */
 export const agentLabels: Record<Agent, string> = {
@@ -25,6 +25,7 @@ export const agentLabels: Record<Agent, string> = {
   "goose": "Goose",
   "kilo": "Kilo",
   "pi": "Pi",
+  "hermes": "Hermes",
 }
 
 /** Maps agent type to SDK provider name */
@@ -37,6 +38,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "goose": "goose",
   "kilo": "kilo",
   "pi": "pi",
+  "hermes": "hermes",
 }
 
 // =============================================================================
@@ -44,7 +46,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
 // =============================================================================
 
 /** Provider an API key is associated with. */
-export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini" | "kilo"
+export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini" | "kilo" | "nous" | "openrouter"
 
 /**
  * Credential identifiers. The id doubles as the env var name we inject
@@ -57,6 +59,8 @@ export type CredentialId =
   | "OPENCODE_API_KEY"
   | "GEMINI_API_KEY"
   | "KILO_API_KEY"
+  | "NOUS_API_KEY"
+  | "OPENROUTER_API_KEY"
 
 export type CredentialFlags = Partial<Record<CredentialId, boolean>> & {
   // Server has a shared Claude credential pool (e.g. the rotating row written
@@ -77,7 +81,27 @@ const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
   opencode: ["OPENCODE_API_KEY"],
   gemini: ["GEMINI_API_KEY"],
   kilo: ["KILO_API_KEY"],
+  // Hermes credential precedence order: Nous Portal → OpenRouter → direct keys.
+  // hasCredentialsForModel checks any of these; getEnvForModel resolves the winner.
+  nous: ["NOUS_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
 }
+
+/**
+ * Credential precedence for Hermes, in priority order.
+ * The first credential ID that is non-empty wins.
+ * Each entry maps: [credentialId, HERMES_INFERENCE_PROVIDER value, env var name Hermes expects]
+ */
+const HERMES_CREDENTIAL_PRECEDENCE: Array<{
+  id: CredentialId
+  hermesProvider: string
+  hermesEnvVar: string
+}> = [
+  { id: "NOUS_API_KEY",        hermesProvider: "nous",        hermesEnvVar: "NOUS_API_KEY" },
+  { id: "OPENROUTER_API_KEY",  hermesProvider: "openrouter",  hermesEnvVar: "OPENROUTER_API_KEY" },
+  { id: "ANTHROPIC_API_KEY",   hermesProvider: "anthropic",   hermesEnvVar: "ANTHROPIC_API_KEY" },
+  { id: "OPENAI_API_KEY",      hermesProvider: "openai",      hermesEnvVar: "OPENAI_API_KEY" },
+]
 
 // =============================================================================
 // Model Configuration
@@ -221,6 +245,22 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini" },
   ],
+  "hermes": [
+    // Nous Portal models (requires NOUS_API_KEY — highest precedence)
+    { value: "nous/hermes-3-70b", label: "Hermes 3 70B (Recommended)", requiresKey: "nous" },
+    { value: "nous/hermes-3-8b", label: "Hermes 3 8B", requiresKey: "nous" },
+    // OpenRouter models (requires OPENROUTER_API_KEY — second priority)
+    { value: "openrouter/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6 via OpenRouter", requiresKey: "openrouter" },
+    { value: "openrouter/openai/gpt-4.1", label: "GPT-4.1 via OpenRouter", requiresKey: "openrouter" },
+    { value: "openrouter/google/gemini-2.5-flash", label: "Gemini 2.5 Flash via OpenRouter", requiresKey: "openrouter" },
+    { value: "openrouter/deepseek/deepseek-chat", label: "DeepSeek Chat via OpenRouter", requiresKey: "openrouter" },
+    // Direct Anthropic models (requires ANTHROPIC_API_KEY — third priority)
+    { value: "anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6 (Direct)", requiresKey: "anthropic" },
+    { value: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5 (Direct)", requiresKey: "anthropic" },
+    // Direct OpenAI models (requires OPENAI_API_KEY — fourth priority)
+    { value: "openai/gpt-4.1", label: "GPT-4.1 (Direct)", requiresKey: "openai" },
+    { value: "openai/gpt-4o", label: "GPT-4o (Direct)", requiresKey: "openai" },
+  ],
 }
 
 /** Default model per agent */
@@ -233,6 +273,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "goose": "gpt-4o",
   "kilo": "kilo/kilo-auto/free", // Free auto-router, no API key needed
   "pi": "claude-sonnet-4-5",
+  "hermes": "nous/hermes-3-70b",
 }
 
 /** Whether each agent supports plan mode (read-only execution) */
@@ -245,6 +286,7 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
   "goose": true,
   "kilo": false,
   "pi": false,
+  "hermes": false,
 }
 
 // =============================================================================
@@ -323,6 +365,23 @@ export function getEnvForModel(
   // Claude Code: subscription token wins over API key.
   if ((!agent || agent === "claude-code") && credentials.CLAUDE_CODE_CREDENTIALS) {
     return { CLAUDE_CODE_CREDENTIALS: credentials.CLAUDE_CODE_CREDENTIALS }
+  }
+
+  // Hermes: three-tier credential precedence.
+  // Nous Portal → OpenRouter → direct API keys (Anthropic, OpenAI).
+  // Injects the winning key under its correct env var name plus
+  // HERMES_INFERENCE_PROVIDER so Hermes routes to the right backend.
+  if (agent === "hermes") {
+    for (const { id, hermesProvider, hermesEnvVar } of HERMES_CREDENTIAL_PRECEDENCE) {
+      const v = credentials[id]
+      if (v) {
+        return {
+          [hermesEnvVar]: v,
+          HERMES_INFERENCE_PROVIDER: hermesProvider,
+        }
+      }
+    }
+    return {}
   }
 
   const opt = agent ? (agentModels[agent] ?? []).find((m) => m.value === model) : undefined
