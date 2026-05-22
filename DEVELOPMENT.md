@@ -6,12 +6,6 @@ This document describes how to run the web app locally with `npm run dev`.
 
 ---
 
-## Building without a database
-
-You can run `npm run build` without setting `DATABASE_URL` or `ENCRYPTION_KEY`. The build uses placeholder values and skips database migrations. This is useful for CI/CD pipelines or Docker image builds where no database is available at build time.
-
----
-
 ## Database setup
 
 You need a Postgres database for the development server below.
