@@ -11,7 +11,8 @@
     "package": "npm run build && electron-builder",
     "package:mac": "npm run build && electron-builder --mac",
     "package:win": "npm run build && electron-builder --win",
-    "package:linux": "npm run build && electron-builder --linux"
+    "package:linux": "npm run build && electron-builder --linux",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",

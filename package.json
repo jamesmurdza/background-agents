@@ -22,7 +22,8 @@
     "start": "dotenv -e .env.local -- next start packages/web --port 4000",
     "start:electron": "npm run start -w @upstream/electron",
     "lint": "npm run lint --workspaces --if-present",
-    "clean": "npm run clean --workspaces --if-present"
+    "clean": "npm run clean --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",

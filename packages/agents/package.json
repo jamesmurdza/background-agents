@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
     "generate:jsonl-refs": "npx tsx scripts/generate-jsonl-references.ts"
   },

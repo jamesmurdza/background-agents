@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start --port 4000",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:ccauth": "tsx --env-file=.env.local scripts/run-ccauth.ts",
