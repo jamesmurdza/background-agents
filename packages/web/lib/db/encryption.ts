@@ -2,10 +2,12 @@ import CryptoJS from "crypto-js"
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
 const IS_PRODUCTION = process.env.NODE_ENV === "production"
+const IS_BUILD_TIME = process.env.NEXT_PHASE === "phase-production-build"
 
-if (!ENCRYPTION_KEY && IS_PRODUCTION) {
+if (!ENCRYPTION_KEY && IS_PRODUCTION && !IS_BUILD_TIME) {
   // Fail loudly at module load. Storing user API keys in plaintext is not
-  // an acceptable production fallback.
+  // an acceptable production fallback. We skip this check at build time
+  // since the key isn't needed to compile the application.
   throw new Error(
     "ENCRYPTION_KEY environment variable is required in production"
   )
