@@ -90,17 +90,26 @@ const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
 /**
  * Credential precedence for Hermes, in priority order.
  * The first credential ID that is non-empty wins.
- * Each entry maps: [credentialId, HERMES_INFERENCE_PROVIDER value, env var name Hermes expects]
+ *
+ * Derived from HERMES_OVERLAYS in hermes_cli/providers.py:
+ *   "openrouter" overlay: extra_env_vars=("OPENAI_API_KEY",) — OpenRouter uses OPENAI_API_KEY as bearer
+ *   "anthropic" overlay:  extra_env_vars=("ANTHROPIC_TOKEN", ...) — Anthropic uses ANTHROPIC_TOKEN
+ *   "nous":               auth_type="oauth_device_code" — no API key, skipped in headless mode
  */
 const HERMES_CREDENTIAL_PRECEDENCE: Array<{
   id: CredentialId
   hermesProvider: string
   hermesEnvVar: string
+  /** If set, injected as OPENROUTER_BASE_URL to redirect the openrouter overlay. */
+  baseUrl?: string
 }> = [
-  { id: "NOUS_API_KEY",        hermesProvider: "nous",        hermesEnvVar: "NOUS_API_KEY" },
-  { id: "OPENROUTER_API_KEY",  hermesProvider: "openrouter",  hermesEnvVar: "OPENROUTER_API_KEY" },
-  { id: "ANTHROPIC_API_KEY",   hermesProvider: "anthropic",   hermesEnvVar: "ANTHROPIC_API_KEY" },
-  { id: "OPENAI_API_KEY",      hermesProvider: "openai",      hermesEnvVar: "OPENAI_API_KEY" },
+  // OpenRouter: Hermes's "openrouter" overlay reads OPENAI_API_KEY as the bearer token.
+  // User's OPENROUTER_API_KEY is injected under OPENAI_API_KEY so hermes routes correctly.
+  { id: "OPENROUTER_API_KEY", hermesProvider: "openrouter", hermesEnvVar: "OPENAI_API_KEY" },
+  // Direct OpenAI key: same overlay but redirected to OpenAI's endpoint via OPENROUTER_BASE_URL.
+  { id: "OPENAI_API_KEY",     hermesProvider: "openrouter", hermesEnvVar: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1" },
+  // Anthropic: Hermes's "anthropic" overlay reads ANTHROPIC_TOKEN, not ANTHROPIC_API_KEY.
+  { id: "ANTHROPIC_API_KEY",  hermesProvider: "anthropic",  hermesEnvVar: "ANTHROPIC_TOKEN" },
 ]
 
 // =============================================================================
@@ -379,12 +388,24 @@ export function getEnvForModel(
     const slashIdx = hermesModel.indexOf("/")
     const prefix = slashIdx > -1 ? hermesModel.slice(0, slashIdx) : ""
 
-    // Map prefix → which credential + Hermes provider name
-    const prefixMap: Record<string, { id: CredentialId; hermesProvider: string; hermesEnvVar: string }> = {
-      "nous":       { id: "NOUS_API_KEY",       hermesProvider: "nous",       hermesEnvVar: "NOUS_API_KEY" },
-      "openrouter": { id: "OPENROUTER_API_KEY", hermesProvider: "openrouter", hermesEnvVar: "OPENROUTER_API_KEY" },
-      "anthropic":  { id: "ANTHROPIC_API_KEY",  hermesProvider: "anthropic",  hermesEnvVar: "ANTHROPIC_API_KEY" },
-      "openai":     { id: "OPENAI_API_KEY",     hermesProvider: "openai",     hermesEnvVar: "OPENAI_API_KEY" },
+    // Map prefix → which credential + Hermes provider name + env var Hermes actually reads.
+    // Source: HERMES_OVERLAYS in hermes_cli/providers.py
+    //
+    // Special case for OPENAI_API_KEY with the openrouter overlay:
+    //   The openrouter overlay defaults to https://openrouter.ai/api/v1, which only
+    //   accepts OpenRouter API keys (sk-or-...). A direct OPENAI_API_KEY gets a 401.
+    //   Injecting OPENROUTER_BASE_URL=https://api.openai.com/v1 redirects the overlay
+    //   to OpenAI's endpoint where the key IS valid.
+    const prefixMap: Record<string, { id: CredentialId; hermesProvider: string; hermesEnvVar: string; baseUrl?: string }> = {
+      // "nous" uses OAuth device-code — no API key injection possible in headless mode.
+      // Fall through to precedence scan if this prefix is selected without a Nous key.
+      //
+      // OpenRouter API key: use the real OpenRouter endpoint (no baseUrl override).
+      "openrouter": { id: "OPENROUTER_API_KEY", hermesProvider: "openrouter", hermesEnvVar: "OPENAI_API_KEY" },
+      // Direct OpenAI key: openrouter overlay but pointed at OpenAI's endpoint.
+      "openai":     { id: "OPENAI_API_KEY",     hermesProvider: "openrouter", hermesEnvVar: "OPENAI_API_KEY", baseUrl: "https://api.openai.com/v1" },
+      // "anthropic" overlay reads ANTHROPIC_TOKEN (not ANTHROPIC_API_KEY).
+      "anthropic":  { id: "ANTHROPIC_API_KEY",  hermesProvider: "anthropic",  hermesEnvVar: "ANTHROPIC_TOKEN" },
     }
 
     const mapped = prefixMap[prefix]
@@ -394,6 +415,7 @@ export function getEnvForModel(
         return {
           [mapped.hermesEnvVar]: v,
           HERMES_INFERENCE_PROVIDER: mapped.hermesProvider,
+          ...(mapped.baseUrl ? { OPENROUTER_BASE_URL: mapped.baseUrl } : {}),
           ...(hermesModel ? { HERMES_INFERENCE_MODEL: hermesModel } : {}),
         }
       }
@@ -401,14 +423,15 @@ export function getEnvForModel(
       // Fall through to the precedence scan so we can still inject something.
     }
 
-    // Fallback: walk precedence chain (Nous → OpenRouter → Anthropic → OpenAI)
+    // Fallback: walk precedence chain (OpenRouter → Anthropic → OpenAI direct)
     // Used when model has no recognized prefix or the matching key is missing.
-    for (const { id, hermesProvider, hermesEnvVar } of HERMES_CREDENTIAL_PRECEDENCE) {
+    for (const { id, hermesProvider, hermesEnvVar, baseUrl } of HERMES_CREDENTIAL_PRECEDENCE) {
       const v = credentials[id]
       if (v) {
         return {
           [hermesEnvVar]: v,
           HERMES_INFERENCE_PROVIDER: hermesProvider,
+          ...(baseUrl ? { OPENROUTER_BASE_URL: baseUrl } : {}),
           ...(hermesModel ? { HERMES_INFERENCE_MODEL: hermesModel } : {}),
         }
       }

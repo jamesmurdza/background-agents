@@ -163,8 +163,9 @@ export function adaptDaytonaSandbox(
         return
       }
 
-      // For goose, also check in ~/.local/bin which is the default install location
-      const checkCommand = name === "goose"
+      // For goose and hermes, also check in ~/.local/bin which is the default
+      // install location (goose binary, pip --user scripts).
+      const checkCommand = (name === "goose" || name === "hermes")
         ? `which ${name} || test -x "$HOME/.local/bin/${name}"`
         : `which ${name}`
       const checkResult = await sandbox.process.executeCommand(checkCommand)

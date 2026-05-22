@@ -79,7 +79,10 @@ export const hermesAgent: AgentDefinition = {
     // This uses bash process substitution to redirect stderr through sed into
     // the merged stdout stream. Works in bash (which is what CommandSpec uses).
     const hermesCmd = parts.join(" ")
-    const command = `${hermesCmd} 2> >(sed 's/^/HERMES_STDERR:/' >&1)`
+    // Prepend ~/.local/bin so hermes is found after `pip install --user`.
+    // The nohup sh -c wrapper used by the sandbox strips PATH to a minimal set.
+    // This is the same pattern goose uses.
+    const command = `export PATH="$HOME/.local/bin:$PATH" && ${hermesCmd} 2> >(sed 's/^/HERMES_STDERR:/' >&1)`
 
     const env: Record<string, string> = {
       ...options.env,

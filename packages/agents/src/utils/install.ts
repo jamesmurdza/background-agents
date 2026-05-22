@@ -10,6 +10,7 @@ const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   codex: "@openai/codex",
   eliza: "", // eliza is built-in, no installation needed
   goose: "", // goose uses shell script installer, not npm
+  hermes: "", // hermes uses pip installer, not npm
   kilo: "@kilocode/cli",
   opencode: "opencode",
   gemini: "@google/gemini-cli",
@@ -27,6 +28,9 @@ const PROVIDER_SHELL_INSTALLERS: Partial<Record<ProviderName, string>> = {
   // 3. Extract to temp dir and move binary to ~/.local/bin
   // Use --no-same-owner and --no-same-permissions to avoid permission issues
   goose: `mkdir -p ~/.local/bin ~/.goose_tmp && curl -fsSL "https://github.com/block/goose/releases/download/stable/goose-x86_64-unknown-linux-gnu.tar.bz2" | tar -xjf - --no-same-owner --no-same-permissions -C ~/.goose_tmp && mv ~/.goose_tmp/goose ~/.local/bin/goose && chmod +x ~/.local/bin/goose && rm -rf ~/.goose_tmp`,
+  // Hermes: pip install --user puts the `hermes` binary in ~/.local/bin.
+  // The official installer script is too heavy for the sandbox timeout (120s).
+  hermes: `pip install --user hermes-agent || pip3 install --user hermes-agent`,
 }
 
 /**
@@ -133,7 +137,7 @@ export function ensureCliInstalled(
  * Check installation status of all providers
  */
 export function getInstallationStatus(): Record<ProviderName, boolean> {
-  const providers: ProviderName[] = ["claude", "codex", "eliza", "goose", "kilo", "opencode", "gemini", "pi"]
+  const providers: ProviderName[] = ["claude", "codex", "eliza", "goose", "hermes", "kilo", "opencode", "gemini", "pi"]
   const status: Record<string, boolean> = {}
 
   for (const provider of providers) {
