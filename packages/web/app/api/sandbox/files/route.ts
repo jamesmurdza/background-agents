@@ -1,12 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
 import { ensureSandboxStarted } from "@/lib/sandbox"
+import { escapeShell } from "@upstream/common"
 
 export const maxDuration = 30
-
-/** Escape a string for single-quoted shell contexts. */
-function escapeShell(str: string): string {
-  return str.replace(/'/g, "'\\''")
-}
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as {

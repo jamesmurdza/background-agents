@@ -13,19 +13,10 @@ interface ElectronAPI {
   getAuthToken: () => Promise<string | null>
   setAuthToken: (token: string) => Promise<boolean>
   openExternal: (url: string) => void
-  getGitSyncSettings: () => Promise<GitSyncSettings>
-  setGitSyncSettings: (settings: GitSyncSettings) => Promise<boolean>
   onDeepLink: (callback: (data: { action: string; params: Record<string, string> }) => void) => () => void
   onNavigateToChat: (callback: (chatId: string) => void) => () => void
   onGitPushed: (callback: (data: { repo: string; branch: string; commitSha: string }) => void) => () => void
   onShortcut: (callback: (action: string) => void) => () => void
-}
-
-interface GitSyncSettings {
-  enabled: boolean
-  syncDirectory: string
-  autoSync: boolean
-  bidirectionalSync: boolean
 }
 
 declare global {
@@ -102,81 +93,4 @@ export function useElectron() {
     openExternal,
     api,
   }
-}
-
-/**
- * Hook to listen for deep link navigation
- */
-export function useDeepLinkNavigation(onNavigate: (chatId: string) => void) {
-  useEffect(() => {
-    const api = getElectronAPI()
-    if (!api) return
-
-    const cleanup = api.onNavigateToChat(onNavigate)
-    return cleanup
-  }, [onNavigate])
-}
-
-/**
- * Hook to listen for shortcuts
- */
-export function useElectronShortcuts(handlers: {
-  onNewChat?: () => void
-  onSearch?: () => void
-  onSettings?: () => void
-}) {
-  useEffect(() => {
-    const api = getElectronAPI()
-    if (!api) return
-
-    const cleanup = api.onShortcut((action) => {
-      switch (action) {
-        case "new-chat":
-          handlers.onNewChat?.()
-          break
-        case "search":
-          handlers.onSearch?.()
-          break
-        case "settings":
-          handlers.onSettings?.()
-          break
-      }
-    })
-
-    return cleanup
-  }, [handlers])
-}
-
-/**
- * Hook for git sync settings
- */
-export function useGitSyncSettings() {
-  const [settings, setSettings] = useState<GitSyncSettings | null>(null)
-  const [loading, setLoading] = useState(true)
-  const api = getElectronAPI()
-
-  useEffect(() => {
-    if (!api) {
-      setLoading(false)
-      return
-    }
-
-    api.getGitSyncSettings().then((s) => {
-      setSettings(s)
-      setLoading(false)
-    })
-  }, [api])
-
-  const updateSettings = useCallback(async (newSettings: Partial<GitSyncSettings>) => {
-    if (!api || !settings) return false
-
-    const updated = { ...settings, ...newSettings }
-    const success = await api.setGitSyncSettings(updated)
-    if (success) {
-      setSettings(updated)
-    }
-    return success
-  }, [api, settings])
-
-  return { settings, loading, updateSettings, isAvailable: !!api }
 }
