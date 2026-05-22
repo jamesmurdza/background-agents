@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld("electron", {
     bidirectionalSync: boolean;
   }) => ipcRenderer.invoke("set-git-sync-settings", settings),
 
+  // License auto-detection
+  getClaudeLicenseAutoDetect: () =>
+    ipcRenderer.invoke("get-claude-license-auto-detect"),
+  getLicenseDetectSettings: () =>
+    ipcRenderer.invoke("get-license-detect-settings"),
+  setLicenseDetectSettings: (settings: { autoDetectEnabled: boolean }) =>
+    ipcRenderer.invoke("set-license-detect-settings", settings),
+
   // Event listeners
   onDeepLink: (callback: (data: { action: string; params: Record<string, string> }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { action: string; params: Record<string, string> }) => callback(data);
@@ -87,6 +95,16 @@ declare global {
         syncDirectory: string;
         autoSync: boolean;
         bidirectionalSync: boolean;
+      }) => Promise<boolean>;
+      getClaudeLicenseAutoDetect: () => Promise<{
+        found: boolean;
+        credentials: string | null;
+        source: "keychain" | "file" | null;
+        error?: string;
+      }>;
+      getLicenseDetectSettings: () => Promise<{ autoDetectEnabled: boolean }>;
+      setLicenseDetectSettings: (settings: {
+        autoDetectEnabled: boolean;
       }) => Promise<boolean>;
       onDeepLink: (callback: (data: { action: string; params: Record<string, string> }) => void) => () => void;
       onNavigateToChat: (callback: (chatId: string) => void) => () => void;
