@@ -91,7 +91,7 @@ export {
 export { generateSandboxName } from "./sandbox"
 
 // Common utilities
-export { cn } from "./utils"
+export { cn, escapeShell, quote } from "./utils"
 
 // Slash commands
 export {
