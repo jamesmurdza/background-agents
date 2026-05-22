@@ -1,6 +1,6 @@
 # Testing procedures
 
-This document describes how to run Playwright end-to-end tests for the web application.
+This document describes how to run tests for the web application and agent SDK.
 
 **Note:** PostgreSQL install commands below are for **Linux** (Debian/Ubuntu-style). Adapt for other OSes.
 
