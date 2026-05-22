@@ -9,8 +9,12 @@ declare global {
 }
 
 function createPrismaClient() {
-  const connectionString =
-    process.env.DATABASE_URL ?? process.env.POSTGRES_URL
+  const isBuildTime = process.env.NEXT_PHASE === "phase-production-build"
+
+  // At build time, use a placeholder URL - the client won't actually connect
+  const connectionString = isBuildTime
+    ? "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+    : (process.env.DATABASE_URL ?? process.env.POSTGRES_URL)
 
   if (!connectionString) {
     throw new Error(
