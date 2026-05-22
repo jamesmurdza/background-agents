@@ -9,12 +9,8 @@ This document describes how to run Playwright end-to-end tests for the web appli
 To check for build errors without a real database:
 
 ```bash
-DATABASE_URL="postgresql://x:x@localhost:5432/x" npm run build:web
+npm run build:web
 ```
-
-Prisma only validates the URL format during generation—it doesn't connect.
-
-The structure begins with the simplest setup and progresses to the more involved one.
 
 ## Agent SDK tests
 
