@@ -11,6 +11,7 @@ import { elizaAgent } from "./eliza/index"
 import { geminiAgent } from "./gemini/index"
 import { gooseAgent } from "./goose/index"
 import { kiloAgent } from "./kilo/index"
+import { hermesAgent } from "./hermes/index"
 import { opencodeAgent } from "./opencode/index"
 import { piAgent } from "./pi/index"
 
@@ -21,6 +22,7 @@ registry.register(elizaAgent)
 registry.register(geminiAgent)
 registry.register(gooseAgent)
 registry.register(kiloAgent)
+registry.register(hermesAgent)
 registry.register(opencodeAgent)
 registry.register(piAgent)
 
@@ -31,6 +33,7 @@ export { elizaAgent } from "./eliza/index"
 export { geminiAgent } from "./gemini/index"
 export { gooseAgent } from "./goose/index"
 export { kiloAgent } from "./kilo/index"
+export { hermesAgent } from "./hermes/index"
 export { opencodeAgent } from "./opencode/index"
 export { piAgent } from "./pi/index"
 
@@ -51,5 +54,6 @@ export { parseElizaLine } from "./eliza/parser"
 export { parseGeminiLine } from "./gemini/parser"
 export { parseGooseLine } from "./goose/parser"
 export { parseKiloLine } from "./kilo/parser"
+export { parseHermesLine } from "./hermes/parser"
 export { parseOpencodeLine } from "./opencode/parser"
 export { parsePiLine } from "./pi/parser"
