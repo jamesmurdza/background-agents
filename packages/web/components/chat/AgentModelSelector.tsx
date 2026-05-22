@@ -5,7 +5,7 @@ import { ChevronDown, Key, Cpu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
-import { agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
+import { agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent, ALL_AGENTS } from "@/lib/types"
 import { AgentIcon } from "../icons/agent-icons"
 import { MobileSelect } from "../ui/MobileBottomSheet"
 import type { HighlightKey } from "../modals/SettingsModal"
@@ -28,7 +28,9 @@ interface AgentModelSelectorProps {
   closeDropdowns?: boolean
 }
 
-const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "eliza"]
+// Drive the list from ALL_AGENTS so new agents (e.g. hermes) are picked up
+// automatically without needing to edit this file.
+const agents: Agent[] = ALL_AGENTS
 
 export function AgentModelSelector({
   chat,

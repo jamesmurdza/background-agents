@@ -367,17 +367,49 @@ export function getEnvForModel(
     return { CLAUDE_CODE_CREDENTIALS: credentials.CLAUDE_CODE_CREDENTIALS }
   }
 
-  // Hermes: three-tier credential precedence.
-  // Nous Portal → OpenRouter → direct API keys (Anthropic, OpenAI).
-  // Injects the winning key under its correct env var name plus
-  // HERMES_INFERENCE_PROVIDER so Hermes routes to the right backend.
+  // Hermes: model-aware credential injection.
+  // Model values encode the provider as a prefix: "anthropic/claude-...", "openai/gpt-...",
+  // "nous/hermes-...", "openrouter/...". We use the prefix to pick the right credential
+  // directly rather than always walking the full precedence chain.
+  // Also sets HERMES_INFERENCE_MODEL so Hermes routes to the exact model requested.
   if (agent === "hermes") {
+    const hermesModel = model ?? ""
+
+    // Extract provider prefix from model value (e.g. "anthropic" from "anthropic/claude-sonnet-4.6")
+    const slashIdx = hermesModel.indexOf("/")
+    const prefix = slashIdx > -1 ? hermesModel.slice(0, slashIdx) : ""
+
+    // Map prefix → which credential + Hermes provider name
+    const prefixMap: Record<string, { id: CredentialId; hermesProvider: string; hermesEnvVar: string }> = {
+      "nous":       { id: "NOUS_API_KEY",       hermesProvider: "nous",       hermesEnvVar: "NOUS_API_KEY" },
+      "openrouter": { id: "OPENROUTER_API_KEY", hermesProvider: "openrouter", hermesEnvVar: "OPENROUTER_API_KEY" },
+      "anthropic":  { id: "ANTHROPIC_API_KEY",  hermesProvider: "anthropic",  hermesEnvVar: "ANTHROPIC_API_KEY" },
+      "openai":     { id: "OPENAI_API_KEY",     hermesProvider: "openai",     hermesEnvVar: "OPENAI_API_KEY" },
+    }
+
+    const mapped = prefixMap[prefix]
+    if (mapped) {
+      const v = credentials[mapped.id]
+      if (v) {
+        return {
+          [mapped.hermesEnvVar]: v,
+          HERMES_INFERENCE_PROVIDER: mapped.hermesProvider,
+          ...(hermesModel ? { HERMES_INFERENCE_MODEL: hermesModel } : {}),
+        }
+      }
+      // User picked a model whose provider they don't have a key for.
+      // Fall through to the precedence scan so we can still inject something.
+    }
+
+    // Fallback: walk precedence chain (Nous → OpenRouter → Anthropic → OpenAI)
+    // Used when model has no recognized prefix or the matching key is missing.
     for (const { id, hermesProvider, hermesEnvVar } of HERMES_CREDENTIAL_PRECEDENCE) {
       const v = credentials[id]
       if (v) {
         return {
           [hermesEnvVar]: v,
           HERMES_INFERENCE_PROVIDER: hermesProvider,
+          ...(hermesModel ? { HERMES_INFERENCE_MODEL: hermesModel } : {}),
         }
       }
     }
