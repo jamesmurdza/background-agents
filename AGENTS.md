@@ -6,3 +6,7 @@ Primary reference for coding agents working in this repo.
 - **Development server** (`npm run dev`): [DEVELOPMENT.md](./DEVELOPMENT.md)
 
 For **architecture, deployment, and production configuration**, see the root [README.md](./README.md).
+
+## After editing code
+
+Run `npm run typecheck` to verify there are no type errors. This is much faster than a full build (~5 seconds vs 2-3 minutes).
