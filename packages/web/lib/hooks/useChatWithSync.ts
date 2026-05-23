@@ -141,6 +141,11 @@ export function useChatWithSync() {
     drafts: Record<string, string>
   }>({ previewStates: {}, queuedMessages: {}, queuePaused: {}, drafts: {} })
   const [draftChatConfig, setDraftChatConfigState] = useState<DraftChatConfig | undefined>(undefined)
+  // Ref kept in sync with draftChatConfig state. materializeDraft reads from this
+  // so it always sees the current value regardless of when its useCallback closure
+  // was created (fixes stale-closure bug on fresh page loads where React state
+  // hasn't hydrated yet but localStorage already has the config).
+  const draftChatConfigRef = useRef<DraftChatConfig | undefined>(undefined)
 
   const prevStatuses = useRef<Map<string, ChatStatus>>(new Map())
   const sendInFlight = useRef<Set<string>>(new Set())
@@ -185,6 +190,7 @@ export function useChatWithSync() {
       drafts: localState.drafts,
     })
     setDraftChatConfigState(localState.draftChatConfig)
+    draftChatConfigRef.current = localState.draftChatConfig
     setIsHydrated(true)
   }, [])
 
@@ -299,6 +305,7 @@ export function useChatWithSync() {
     const draftId = `draft-${nanoid()}`
     const config: DraftChatConfig = { id: draftId, repo, baseBranch, agent, model }
     setDraftChatConfigState(config)
+    draftChatConfigRef.current = config
     setDraftChatConfig(config)
     setCurrentChatIdState(draftId)
     persistCurrentChatId(draftId)
@@ -307,11 +314,12 @@ export function useChatWithSync() {
 
   // Update the draft chat config (both React state and localStorage)
   const updateDraftChatConfig = useCallback((updates: Partial<Omit<DraftChatConfig, "id">>) => {
-    if (!draftChatConfig) return
-    const newConfig: DraftChatConfig = { ...draftChatConfig, ...updates }
+    if (!draftChatConfigRef.current) return
+    const newConfig: DraftChatConfig = { ...draftChatConfigRef.current, ...updates }
     setDraftChatConfigState(newConfig)
+    draftChatConfigRef.current = newConfig
     setDraftChatConfig(newConfig)
-  }, [draftChatConfig])
+  }, [])
 
   // Materialize a draft chat into a real database chat
   // Returns the full chat object so callers can use it directly without looking it up
@@ -319,7 +327,10 @@ export function useChatWithSync() {
     draftId: string,
     options?: { status?: Chat["status"] }
   ): Promise<Chat | null> => {
-    if (!draftChatConfig || draftChatConfig.id !== draftId) {
+    // Read from the ref, not the closure — avoids stale-closure bug where
+    // draftChatConfig is undefined on first render before hydration completes.
+    const config = draftChatConfigRef.current
+    if (!config || config.id !== draftId) {
       console.error("Cannot materialize: draft config not found for", draftId)
       return null
     }
@@ -332,12 +343,12 @@ export function useChatWithSync() {
     materializingDraft.current = true
     try {
       const newChat = await createChatMutation.mutateAsync({
-        repo: draftChatConfig.repo,
-        baseBranch: draftChatConfig.baseBranch,
-        agent: draftChatConfig.agent,
-        model: draftChatConfig.model,
+        repo: config.repo,
+        baseBranch: config.baseBranch,
+        agent: config.agent,
+        model: config.model,
         status: options?.status ?? "pending",
-        planModeEnabled: draftChatConfig.planMode,
+        planModeEnabled: config.planMode,
       })
 
       // Migrate local state from draft ID to real ID
@@ -370,6 +381,7 @@ export function useChatWithSync() {
 
       // Clear draft config and update current chat ID
       setDraftChatConfigState(undefined)
+      draftChatConfigRef.current = undefined
       clearDraftChatConfig()
       setCurrentChatIdState(newChat.id)
 
@@ -380,7 +392,7 @@ export function useChatWithSync() {
     } finally {
       materializingDraft.current = false
     }
-  }, [draftChatConfig, createChatMutation])
+  }, [createChatMutation])
 
   // Chat operations
   const startNewChat = useCallback(async (

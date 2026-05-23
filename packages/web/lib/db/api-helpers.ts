@@ -237,7 +237,17 @@ export async function getUserCredentials(userId: string): Promise<Credentials> {
     select: { credentials: true },
   })
 
-  return decryptUserCredentials(user?.credentials as Record<string, unknown> | null)
+  const creds = decryptUserCredentials(user?.credentials as Record<string, unknown> | null)
+
+  // Fallback: if a credential isn't stored in the DB, check process.env.
+  // This lets operators set API keys in .env / .env.local without the UI.
+  for (const { id } of CREDENTIAL_KEYS) {
+    if (!creds[id] && process.env[id]) {
+      creds[id] = process.env[id]
+    }
+  }
+
+  return creds
 }
 
 // =============================================================================

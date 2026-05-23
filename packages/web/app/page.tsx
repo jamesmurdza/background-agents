@@ -456,6 +456,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         const urlChatId = matched.chatId
         sidebar.setViewMode("chat")
         if (urlChatId !== currentChatId) {
+          // Guard: if the URL contains a draft ID that no longer matches our active
+          // draftChatConfig (e.g. a stale URL from a previous session where the draft
+          // was already materialized, or a new draft was created), do NOT overwrite
+          // currentChatId with the dead draft ID. Redirect the URL instead.
+          if (isDraftChatId(urlChatId) && draftChatConfig?.id !== urlChatId) {
+            // We have a mismatched draft URL. Use whatever currentChatId localStorage
+            // already has, or fall back to /chat/new for a fresh draft.
+            const target = currentChatId
+              ? ROUTES.chat.build(currentChatId)
+              : ROUTES.newChat.build()
+            window.history.replaceState(null, "", target)
+            if (!currentChatId) startNewChat()
+            break
+          }
           // Always select the chat - if it doesn't exist in our local cache,
           // the chat detail fetch will handle it. We don't redirect to /chat/new
           // because the chat might exist on the server but not be loaded yet.
@@ -474,7 +488,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         }
         break
     }
-  }, [currentChatId, isDraftChatId, selectChat, startNewChat, sidebar])
+  }, [currentChatId, isDraftChatId, draftChatConfig, selectChat, startNewChat, sidebar])
 
   // Track if we've done initial sync
   const initialSyncDone = useRef(false)

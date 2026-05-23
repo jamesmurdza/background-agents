@@ -5,7 +5,7 @@ import { ChevronDown, Key, Cpu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
-import { agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
+import { agentModels, agentLabels, getModelLabel, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent, ALL_AGENTS } from "@/lib/types"
 import { AgentIcon } from "../icons/agent-icons"
 import { MobileSelect } from "../ui/MobileBottomSheet"
 import type { HighlightKey } from "../modals/SettingsModal"
@@ -28,7 +28,7 @@ interface AgentModelSelectorProps {
   closeDropdowns?: boolean
 }
 
-const agents: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "eliza"]
+const agents = ALL_AGENTS
 
 export function AgentModelSelector({
   chat,

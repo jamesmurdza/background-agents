@@ -597,7 +597,26 @@ class BackgroundSessionImpl implements BackgroundSession {
       const t = l.trim()
       return t && !(t.startsWith("{") && t.endsWith("}"))
     })
-    const output = nonJsonLines.join("\n").trim().slice(-4096) || undefined
+    const nonJsonOutput = nonJsonLines.join("\n").trim()
+
+    // ── Model not available ─────────────────────────────────────────────────
+    // The Copilot CLI writes this to stderr (non-JSON) when the --model flag
+    // names a model the account can't access:
+    //   Error: Model "claude-sonnet-4.5" from --model flag is not available.
+    const modelNotAvailableMatch = nonJsonOutput.match(
+      /Model\s+"([^"]+)"\s+(?:from --model flag\s+)?is not available/i
+    )
+    if (modelNotAvailableMatch) {
+      return {
+        type: "agent_crashed",
+        message:
+          `Model "${modelNotAvailableMatch[1]}" is not available on your GitHub Copilot plan. ` +
+          `Select a different model (e.g. gpt-5-mini, gpt-4o, claude-haiku-4.5).`,
+      }
+    }
+
+    // ── Generic crash fallback ──────────────────────────────────────────────
+    const output = nonJsonOutput.slice(-4096) || undefined
     return {
       type: "agent_crashed",
       message: "Agent process exited without completing (crashed or killed)",
@@ -682,6 +701,15 @@ class BackgroundSessionImpl implements BackgroundSession {
         "reason=crashed",
         crashEvent.message
       )
+      // Always log the full raw output so the real failure reason is visible
+      // in server logs even when the CLI only emits JSON (which synthesizeCrashEvent
+      // strips out, leaving crashEvent.output undefined).
+      const rawTail = (result.rawOutput ?? "").trim().slice(-8192)
+      console.error(
+        `[background-session] agent=${this.agent.name} CRASHED\n` +
+        `--- raw output (last 8KB) ---\n${rawTail || "(empty)"}\n` +
+        `--- end raw output ---`
+      )
       await this.writeMetaIfChanged(
         {
           ...baseMeta,
@@ -709,15 +737,25 @@ class BackgroundSessionImpl implements BackgroundSession {
     }
   }
 
-  private buildFullCommand(spec: { cmd: string; args: string[]; cwd?: string }): string {
+  private buildFullCommand(spec: { cmd: string; args: string[]; cwd?: string; env?: Record<string, string> }): string {
     const quotedArgs = spec.args.map((arg) => this.quoteArg(arg))
     const command = [spec.cmd, ...quotedArgs].join(" ")
+
+    // Inline env vars as KEY='value' prefix so they are guaranteed to reach
+    // the spawned process regardless of how executeBackground handles the
+    // sandbox's persistent env (setEnvVars may not be inherited).
+    const envPrefix = spec.env
+      ? Object.entries(spec.env)
+          .map(([k, v]) => `${k}=${this.quoteArg(v)}`)
+          .join(" ") + " "
+      : ""
+
     // If cwd is specified, prepend a cd command
     if (spec.cwd) {
       const safeCwd = spec.cwd.replace(/'/g, "'\\''")
-      return `cd '${safeCwd}' && ${command}`
+      return `cd '${safeCwd}' && ${envPrefix}${command}`
     }
-    return command
+    return `${envPrefix}${command}`
   }
 
   private quoteArg(arg: string): string {

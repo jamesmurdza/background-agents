@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/prisma"
 import { isSharedPoolAvailable } from "@/lib/claude-credentials"
 import { hasExceededClaudeLimit, getDailyClaudeCodeLimit } from "@/lib/db/usage-limit"
 import { decryptUserCredentials } from "@/lib/db/api-helpers"
-import { flagsFromCredentials, type CredentialFlags } from "@/lib/credentials"
+import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags } from "@/lib/credentials"
 
 export interface EffectiveFlags {
   flags: CredentialFlags
@@ -42,6 +42,13 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   const decryptedCreds = decryptUserCredentials(
     user?.credentials as Record<string, unknown> | null
   )
+
+  // Fallback: check process.env for any missing credentials
+  for (const { id } of CREDENTIAL_KEYS) {
+    if (!decryptedCreds[id] && process.env[id]) {
+      decryptedCreds[id] = process.env[id]
+    }
+  }
 
   const flags = flagsFromCredentials(decryptedCreds)
 

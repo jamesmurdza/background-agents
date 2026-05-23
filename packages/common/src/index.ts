@@ -123,6 +123,7 @@ export {
 export {
   ClaudeCodeIcon,
   CodexIcon,
+  CopilotIcon,
   OpenCodeIcon,
   GeminiIcon,
   GooseIcon,
