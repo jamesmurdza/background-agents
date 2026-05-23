@@ -5,7 +5,7 @@ import type { ProviderName } from "../types/index"
  * CLI package information for each provider.
  * Note: goose uses a shell script installer, not npm.
  */
-const PROVIDER_PACKAGES: Record<ProviderName, string> = {
+export const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
   eliza: "", // eliza is built-in, no installation needed
@@ -19,7 +19,7 @@ const PROVIDER_PACKAGES: Record<ProviderName, string> = {
  * Shell script installers for providers that don't use npm.
  * These commands download and install the CLI binary directly.
  */
-const PROVIDER_SHELL_INSTALLERS: Partial<Record<ProviderName, string>> = {
+export const PROVIDER_SHELL_INSTALLERS: Partial<Record<ProviderName, string>> = {
   // Goose: Download the binary directly without the interactive installer script
   // 1. Create temp and bin directories
   // 2. Download the tarball for x86_64 Linux

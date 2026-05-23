@@ -1,4 +1,8 @@
 import { Image } from "@daytonaio/sdk"
+import {
+  PROVIDER_PACKAGES,
+  PROVIDER_SHELL_INSTALLERS,
+} from "background-agents"
 
 /**
  * Snapshot name used for sandbox creation.
@@ -19,97 +23,66 @@ export const SNAPSHOT_RESOURCES = {
 } as const
 
 /**
- * NPM packages to pre-install for each agent CLI.
- * Goose uses a binary download, not npm.
+ * Get the Goose install command, adapted for the sandbox image build.
+ * Uses absolute paths since we're installing as root before the user exists.
  */
-export const AGENT_PACKAGES = {
-  claude: "@anthropic-ai/claude-code",
-  codex: "@openai/codex",
-  opencode: "opencode-ai",
-  gemini: "@google/gemini-cli",
-  pi: "@mariozechner/pi-coding-agent",
-} as const
-
-/**
- * Shell command to install Goose binary (not available via npm).
- */
-const GOOSE_INSTALL_CMD = `
-  mkdir -p ~/.local/bin ~/.goose_tmp &&
-  curl -fsSL "https://github.com/block/goose/releases/download/stable/goose-x86_64-unknown-linux-gnu.tar.bz2" |
-  tar -xjf - --no-same-owner --no-same-permissions -C ~/.goose_tmp &&
-  mv ~/.goose_tmp/goose ~/.local/bin/goose &&
-  chmod +x ~/.local/bin/goose &&
-  rm -rf ~/.goose_tmp
-`
-  .trim()
-  .replace(/\n\s*/g, " ")
+function getGooseInstallCmd(): string {
+  const cmd = PROVIDER_SHELL_INSTALLERS.goose
+  if (!cmd) return ""
+  // Replace ~ with /home/daytona for absolute paths
+  return cmd.replace(/~/g, "/home/daytona")
+}
 
 /**
  * Builds the Daytona Image spec with all agent CLIs pre-installed.
  *
- * Pre-installed agents:
- * - Claude (@anthropic-ai/claude-code)
- * - Codex (@openai/codex)
- * - OpenCode (opencode-ai)
- * - Gemini (@google/gemini-cli)
- * - Pi (@mariozechner/pi-coding-agent)
- * - Goose (binary from GitHub releases)
- *
- * Note: Eliza is built-in to the agents package (no CLI installation needed).
+ * Pre-installed agents are sourced from PROVIDER_PACKAGES in background-agents.
+ * Goose uses a binary installer from PROVIDER_SHELL_INSTALLERS.
+ * Eliza is built-in to the agents package (no CLI installation needed).
  */
 export function getAgentSandboxImage(): Image {
-  return (
-    Image.base("node:22-bookworm")
-      .runCommands(
-        // Install system dependencies (curl for Goose download, git for agents, sudo for user)
-        "apt-get update && apt-get install -y --no-install-recommends " +
-          "curl ca-certificates git bzip2 sudo " +
-          "&& rm -rf /var/lib/apt/lists/*"
-      )
-      .runCommands(
-        // Install Claude Code CLI
-        "npm install -g @anthropic-ai/claude-code"
-      )
-      .runCommands(
-        // Install Codex CLI
-        "npm install -g @openai/codex"
-      )
-      .runCommands(
-        // Install Gemini CLI
-        "npm install -g @google/gemini-cli"
-      )
-      .runCommands(
-        // Install OpenCode CLI
-        "npm install -g opencode-ai"
-      )
-      .runCommands(
-        // Install Pi CLI
-        "npm install -g @mariozechner/pi-coding-agent"
-      )
-      // Create daytona user (non-root) - Claude Code refuses to run as root
-      .runCommands(
-        "useradd -m -s /bin/bash daytona || true && " +
-          "echo 'daytona ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"
-      )
-      // Install Goose binary
-      .runCommands(
-        "mkdir -p /home/daytona/.local/bin /tmp/goose_tmp && " +
-          'curl -fsSL "https://github.com/block/goose/releases/download/stable/goose-x86_64-unknown-linux-gnu.tar.bz2" | ' +
-          "tar -xjf - --no-same-owner --no-same-permissions -C /tmp/goose_tmp && " +
-          "mv /tmp/goose_tmp/goose /home/daytona/.local/bin/goose && " +
-          "chmod +x /home/daytona/.local/bin/goose && " +
-          "rm -rf /tmp/goose_tmp"
-      )
-      // Create required directories and set up PATH for daytona user
-      .runCommands(
-        "mkdir -p /home/daytona/.gemini /home/daytona/.config/goose /home/daytona/project && " +
-          "chown -R daytona:daytona /home/daytona"
-      )
-      .runCommands(
-        'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
-      )
-      // Set the default user to daytona
-      .dockerfileCommands(["USER daytona"])
-      .workdir("/home/daytona/project")
+  // Get npm packages (filter out empty strings for built-in/shell-installed providers)
+  const npmPackages = Object.entries(PROVIDER_PACKAGES)
+    .filter(([_, pkg]) => pkg !== "")
+    .map(([_, pkg]) => pkg)
+
+  let image = Image.base("node:22-bookworm")
+    .runCommands(
+      // Install system dependencies (curl for Goose download, git for agents, sudo for user)
+      "apt-get update && apt-get install -y --no-install-recommends " +
+        "curl ca-certificates git bzip2 sudo " +
+        "&& rm -rf /var/lib/apt/lists/*"
+    )
+
+  // Install each npm package separately for better error isolation
+  for (const pkg of npmPackages) {
+    image = image.runCommands(`npm install -g ${pkg}`)
+  }
+
+  // Create daytona user (non-root) - Claude Code refuses to run as root
+  image = image.runCommands(
+    "useradd -m -s /bin/bash daytona || true && " +
+      "echo 'daytona ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"
   )
+
+  // Install Goose binary
+  const gooseCmd = getGooseInstallCmd()
+  if (gooseCmd) {
+    image = image.runCommands(gooseCmd)
+  }
+
+  // Create required directories and set up PATH for daytona user
+  image = image
+    .runCommands(
+      "mkdir -p /home/daytona/.gemini /home/daytona/.config/goose /home/daytona/project && " +
+        "chown -R daytona:daytona /home/daytona"
+    )
+    .runCommands(
+      'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
+    )
+    // Set the default user to daytona
+    .dockerfileCommands(["USER daytona"])
+    .workdir("/home/daytona/project")
+
+  return image
 }

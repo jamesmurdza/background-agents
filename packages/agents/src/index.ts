@@ -154,6 +154,8 @@ export {
   ensureCliInstalled,
   getPackageName,
   getInstallationStatus,
+  PROVIDER_PACKAGES,
+  PROVIDER_SHELL_INSTALLERS,
 } from "./utils/index"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
