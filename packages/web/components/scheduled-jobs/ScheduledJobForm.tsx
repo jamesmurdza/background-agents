@@ -505,21 +505,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               </div>
             )}
 
-            {/* MCP servers. In create mode we materialize the job on first
-                click so the picker has a real id to attach connections to;
-                cancel cleans up. After materialize the trigger/schedule fields
-                lock since the PATCH endpoint can't update those. */}
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">MCP Servers</label>
-              <McpServersCombobox
-                entityId={materializedJobId ?? job?.id ?? "draft"}
-                apiBase="/api/scheduled-jobs"
-                isDraft={!isEditing && !materializedJobId}
-                onMaterializeDraft={materializeJob}
-                isMobile={isMobile}
-              />
-            </div>
-
             {/* Prompt Field - styled like ChatInput */}
             <div>
               <label className="block text-sm font-medium mb-1">Prompt</label>
@@ -560,6 +545,17 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                       showLabel
                     />
                   )}
+
+                  {/* MCP servers picker — inline alongside repo/branch like the
+                      chat input. In create mode the first click materializes
+                      the job so the picker has a real id; cancel cleans up. */}
+                  <McpServersCombobox
+                    entityId={materializedJobId ?? job?.id ?? "draft"}
+                    apiBase="/api/scheduled-jobs"
+                    isDraft={!isEditing && !materializedJobId}
+                    onMaterializeDraft={materializeJob}
+                    isMobile={isMobile}
+                  />
 
                   {/* Spacer */}
                   <div className="flex-1" />
