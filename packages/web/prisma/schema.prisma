@@ -300,11 +300,44 @@ model ScheduledJob {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  runs ScheduledJobRun[]
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs       ScheduledJobRun[]
+  mcpServers ScheduledJobMcpServer[]
 
   @@index([userId])
   @@index([enabled, nextRunAt])
+}
+
+// =============================================================================
+// ScheduledJobMcpServer - per-job MCP connections
+// =============================================================================
+// Mirrors ChatMcpServer but scoped to a ScheduledJob. The cron loader fetches
+// these at run time and writes the per-agent MCP config into the sandbox.
+
+model ScheduledJobMcpServer {
+  id    String @id @default(cuid())
+  jobId String
+
+  qualifiedName String
+  displayName   String
+  iconUrl       String?
+
+  smitheryConnectionId String?
+  smitheryNamespace    String?
+  mcpUrl               String
+
+  encryptedApiKey String? @db.Text
+
+  status    String  @default("pending") // pending | connected | error
+  lastError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  job ScheduledJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, qualifiedName])
+  @@index([jobId])
 }
 
 // =============================================================================
