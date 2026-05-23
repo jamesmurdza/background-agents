@@ -14,6 +14,8 @@ npm run generate:jsonl-refs -w background-agents
 
 These fixtures are used as samples to verify that the agents are working and to analyze their output formats.
 
+**Important:** Never generate stub or placeholder reference files. Always use real data captured from actual agent runs. If API keys are not available, the reference files should remain missing until they can be properly generated.
+
 ---
 
 ## Unit tests
