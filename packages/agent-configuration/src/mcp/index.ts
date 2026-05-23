@@ -40,6 +40,8 @@ const MCP_SUPPORTED_AGENTS = [
   "gemini",
   "opencode",
   "goose",
+  "copilot",
+  "kilo",
 ] as const
 
 type McpSupportedAgent = (typeof MCP_SUPPORTED_AGENTS)[number]
@@ -160,6 +162,51 @@ function generateGooseConfig(servers: AgentMcpServer[]): McpConfigFile {
   }
 }
 
+/**
+ * GitHub Copilot CLI: ~/.copilot/mcp-config.json — `mcpServers.<name>` with
+ * `type: "http"`. `tools: ["*"]` allowlists every tool the server exposes;
+ * Copilot does not auto-enable tools otherwise.
+ */
+function generateCopilotConfig(servers: AgentMcpServer[]): McpConfigFile {
+  const mcpServers: Record<string, unknown> = {}
+  for (const s of servers) {
+    mcpServers[s.name] = {
+      type: "http",
+      url: s.url,
+      headers: { Authorization: `Bearer ${s.bearerToken}` },
+      tools: ["*"],
+    }
+  }
+  return {
+    filePath: "/home/daytona/.copilot/mcp-config.json",
+    content: JSON.stringify({ mcpServers }, null, 2),
+    format: "json",
+  }
+}
+
+/**
+ * Kilo CLI: ~/.config/kilo/kilo.json — `mcp.<name>` with `type: "remote"`.
+ * Uses the `mcp` key (same as OpenCode), but a Kilo-specific path and the
+ * `remote` transport label. We write `.json` rather than `.jsonc` because the
+ * merge path JSON.parses the existing file; Kilo accepts either filename.
+ */
+function generateKiloConfig(servers: AgentMcpServer[]): McpConfigFile {
+  const mcp: Record<string, unknown> = {}
+  for (const s of servers) {
+    mcp[s.name] = {
+      type: "remote",
+      url: s.url,
+      headers: { Authorization: `Bearer ${s.bearerToken}` },
+      enabled: true,
+    }
+  }
+  return {
+    filePath: "/home/daytona/.config/kilo/kilo.json",
+    content: JSON.stringify({ mcp }, null, 2),
+    format: "json",
+  }
+}
+
 function generateMcpConfigForAgent(
   agent: string,
   servers: AgentMcpServer[]
@@ -178,6 +225,10 @@ function generateMcpConfigForAgent(
       return generateOpenCodeConfig(servers)
     case "goose":
       return generateGooseConfig(servers)
+    case "copilot":
+      return generateCopilotConfig(servers)
+    case "kilo":
+      return generateKiloConfig(servers)
   }
 }
 
