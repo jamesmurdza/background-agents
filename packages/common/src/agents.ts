@@ -122,7 +122,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-5-codex", label: "GPT-5 Codex", requiresKey: "opencode" },
     { value: "opencode/gpt-5-nano", label: "GPT-5 Nano", requiresKey: "opencode" },
     { value: "opencode/gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "opencode" },
-    { value: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "opencode" },
+    { value: "opencode/gemini-3-pro", label: "Gemini 3 Pro", requiresKey: "opencode" },
     { value: "opencode/kimi-k2.5", label: "Kimi K2.5", requiresKey: "opencode" },
     // Anthropic direct models (requires Anthropic API key)
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
@@ -157,12 +157,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o4-mini", label: "o4 Mini", requiresKey: "openai" },
   ],
   "codex": [
-    { value: "gpt-5.4", label: "GPT-5.4 (Recommended)", requiresKey: "openai" },
+    { value: "gpt-5.5", label: "GPT-5.5 (Recommended)", requiresKey: "openai" },
+    { value: "gpt-5.4", label: "GPT-5.4", requiresKey: "openai" },
+    { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", requiresKey: "openai" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "openai" },
     { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark", requiresKey: "openai" },
-    { value: "gpt-5.2-codex", label: "GPT-5.2 Codex", requiresKey: "openai" },
     { value: "gpt-5.2", label: "GPT-5.2", requiresKey: "openai" },
-    { value: "gpt-5.1", label: "GPT-5.1", requiresKey: "openai" },
   ],
   "copilot": [
     { value: "claude-sonnet-4.5", label: "Claude Sonnet 4.5", requiresKey: "github" },
@@ -182,8 +182,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   "gemini": [
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)", requiresKey: "gemini" },
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
-    { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
-    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", requiresKey: "gemini" },
+    { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
+    { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini" },
   ],
   "goose": [
     { value: "gpt-4o", label: "GPT-4o (Recommended)", requiresKey: "openai" },
@@ -212,7 +212,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/openai/o3", label: "o3", requiresKey: "kilo" },
     { value: "kilo/openai/o4-mini", label: "o4 Mini", requiresKey: "kilo" },
     // Google via Kilo gateway
-    { value: "kilo/google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "kilo" },
+    { value: "kilo/google/gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "kilo" },
     // DeepSeek via Kilo gateway
@@ -246,7 +246,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
   "opencode": "opencode/big-pickle", // Free model, no API key needed
-  "codex": "gpt-5.4",
+  "codex": "gpt-5.5",
   "copilot": "gpt-5-mini",
   "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
   "gemini": "gemini-2.5-flash",
