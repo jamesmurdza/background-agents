@@ -14,6 +14,7 @@ import { registerShortcuts, unregisterShortcuts } from "./shortcuts.js";
 import { setupDeepLinks } from "./deeplinks.js";
 import { setupGitSync } from "./git-sync.js";
 import { setupAutoUpdater } from "./autoupdate.js";
+import { setupLicenseDetect } from "./license-detect.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -187,6 +188,7 @@ app.whenReady().then(async () => {
   setupDeepLinks(handleDeepLink);
   setupGitSync();
   setupAutoUpdater(window);
+  setupLicenseDetect();
 
   // macOS: recreate window if dock icon clicked
   app.on("activate", () => {

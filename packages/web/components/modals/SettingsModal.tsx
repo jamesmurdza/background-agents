@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon, Copy, Check, GitBranch, FlaskConical } from "lucide-react"
+import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon, Copy, Check, GitBranch, FlaskConical, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
+import { useElectron, type LicenseDetectResult } from "@/lib/hooks/useElectron"
 import type { Settings, Theme, Agent, ModelOption, Credentials, CredentialFlags } from "@/lib/types"
 import { agentModels, agentLabels, hasCredentialsForModel, ALL_AGENTS, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import {
@@ -173,6 +174,12 @@ function CopyCode({ text }: { text: string }) {
 
 export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, defaultSection = "general", isMobile = false }: SettingsModalProps) {
   const { setTheme } = useTheme()
+  const { isDesktopApp, getClaudeLicenseAutoDetect, getLicenseDetectSettings, setLicenseDetectSettings } = useElectron()
+
+  // License auto-detect state (desktop only)
+  const [licenseAutoDetectEnabled, setLicenseAutoDetectEnabled] = useState(true)
+  const [licenseDetectResult, setLicenseDetectResult] = useState<LicenseDetectResult | null>(null)
+  const [licenseDetectLoading, setLicenseDetectLoading] = useState(false)
 
   // Refs for API key inputs, keyed by credential id.
   const inputRefs = useRef<Partial<Record<CredentialId, HTMLInputElement | HTMLTextAreaElement | null>>>({})
@@ -243,6 +250,42 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     }
   }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
 
+  // Load license auto-detect settings and check for credentials (desktop only)
+  useEffect(() => {
+    if (open && isDesktopApp) {
+      // Load settings
+      getLicenseDetectSettings().then((settings) => {
+        if (settings) {
+          setLicenseAutoDetectEnabled(settings.autoDetectEnabled)
+        }
+      })
+      // Check for auto-detected credentials
+      refreshLicenseDetect()
+    }
+  }, [open, isDesktopApp, getLicenseDetectSettings])
+
+  // Refresh license detection
+  const refreshLicenseDetect = useCallback(async () => {
+    if (!isDesktopApp) return
+    setLicenseDetectLoading(true)
+    try {
+      const result = await getClaudeLicenseAutoDetect()
+      setLicenseDetectResult(result)
+    } finally {
+      setLicenseDetectLoading(false)
+    }
+  }, [isDesktopApp, getClaudeLicenseAutoDetect])
+
+  // Handle auto-detect toggle change
+  const handleAutoDetectToggle = useCallback(async (enabled: boolean) => {
+    setLicenseAutoDetectEnabled(enabled)
+    await setLicenseDetectSettings({ autoDetectEnabled: enabled })
+    if (enabled) {
+      // Refresh detection when enabling
+      refreshLicenseDetect()
+    }
+  }, [setLicenseDetectSettings, refreshLicenseDetect])
+
   // Switch to API Keys tab when a key is highlighted
   useEffect(() => {
     if (open && highlightKey) {
@@ -306,7 +349,14 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     rapidFireMode !== settings.rapidFireMode ||
     enablePrepushHooks !== settings.enablePrepushHooks
 
-  const hasChanges = credChanged || settingsChanged
+  // Check if auto-detected credentials should be saved (desktop only)
+  const autoDetectHasNewCredentials = isDesktopApp &&
+    licenseAutoDetectEnabled &&
+    licenseDetectResult?.found &&
+    licenseDetectResult.credentials &&
+    !credentialFlags["CLAUDE_CODE_CREDENTIALS"] // Only if not already saved
+
+  const hasChanges = credChanged || settingsChanged || autoDetectHasNewCredentials
 
   const handleSave = async () => {
     if (saveStatus.kind === "saving") return
@@ -326,6 +376,15 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       if (next === initialCreds[id]) continue
       if (next === MASK) continue
       credentialsPatch[id] = next
+    }
+
+    // If auto-detect is enabled and credentials were found, include them
+    if (isDesktopApp && licenseAutoDetectEnabled && licenseDetectResult?.found && licenseDetectResult.credentials) {
+      // Only include if user hasn't manually entered a different value
+      const manualValue = credValues["CLAUDE_CODE_CREDENTIALS"]
+      if (!manualValue || manualValue === MASK || manualValue === initialCreds["CLAUDE_CODE_CREDENTIALS"]) {
+        credentialsPatch["CLAUDE_CODE_CREDENTIALS"] = licenseDetectResult.credentials
+      }
     }
 
     const data: Parameters<typeof onSave>[0] = {}
@@ -509,6 +568,117 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
           : undefined
 
         if (field.multiline) {
+          // Special handling for CLAUDE_CODE_CREDENTIALS with auto-detect (desktop only)
+          if (field.id === "CLAUDE_CODE_CREDENTIALS" && isDesktopApp) {
+            const autoDetectActive = licenseAutoDetectEnabled && licenseDetectResult?.found
+            const sourceLabel = licenseDetectResult?.source === "keychain"
+              ? "macOS Keychain"
+              : licenseDetectResult?.source === "file"
+              ? "credentials file"
+              : null
+
+            return (
+              <SettingsRow key={field.id} label={field.label} description={description} stacked>
+                {/* Auto-detect toggle and status */}
+                <div className="mb-3 p-3 rounded-md bg-muted/50 border border-border/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={licenseAutoDetectEnabled}
+                        onClick={() => handleAutoDetectToggle(!licenseAutoDetectEnabled)}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          licenseAutoDetectEnabled ? "bg-primary" : "bg-input"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform duration-200 ease-in-out",
+                            licenseAutoDetectEnabled ? "translate-x-4" : "translate-x-0"
+                          )}
+                        />
+                      </button>
+                      <span className="text-sm font-medium">Auto-detect from Claude Code</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => refreshLicenseDetect()}
+                      disabled={licenseDetectLoading || !licenseAutoDetectEnabled}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw className={cn("h-3 w-3", licenseDetectLoading && "animate-spin")} />
+                      Refresh
+                    </button>
+                  </div>
+
+                  {/* Status indicator */}
+                  {licenseAutoDetectEnabled && (
+                    <div className="text-xs">
+                      {licenseDetectLoading ? (
+                        <span className="text-muted-foreground">Checking for credentials...</span>
+                      ) : licenseDetectResult?.found ? (
+                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                          <Check className="h-3 w-3" />
+                          Detected from {sourceLabel}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {licenseDetectResult?.error || "Not found - enter manually below"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {!licenseAutoDetectEnabled && (
+                    <p className="text-xs text-muted-foreground">
+                      Enable to automatically use credentials from your local Claude Code installation.
+                    </p>
+                  )}
+                </div>
+
+                {/* Manual input - shown when auto-detect is off OR credentials not found */}
+                {(!licenseAutoDetectEnabled || !licenseDetectResult?.found) && (
+                  <>
+                    <Textarea
+                      ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
+                      value={value}
+                      onChange={(e) => setCredValue(field.id, e.target.value)}
+                      placeholder={field.placeholder}
+                      rows={3}
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      data-bwignore="true"
+                      data-form-type="other"
+                      className="font-mono text-xs"
+                    />
+                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                      <p>Leave empty to use the shared pool.</p>
+                      <p>
+                        Or sign in with <CopyCode text="claude auth login" />
+                      </p>
+                      <p>
+                        Then paste the output of{" "}
+                        <CopyCode text={'security find-generic-password -s "Claude Code-credentials" -w'} />
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Show indication when auto-detected credentials are being used */}
+                {autoDetectActive && (
+                  <p className="text-xs text-muted-foreground">
+                    Using auto-detected credentials. Toggle off to enter manually.
+                  </p>
+                )}
+              </SettingsRow>
+            )
+          }
+
+          // Default multiline handling (non-CLAUDE_CODE_CREDENTIALS or web app)
           return (
             <SettingsRow key={field.id} label={field.label} description={description} stacked>
               <Textarea
