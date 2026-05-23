@@ -37,37 +37,29 @@ export function getAgentSandboxImage(): Image {
     .filter((cmd): cmd is string => !!cmd)
     .map((cmd) => cmd.replace(/~/g, "/home/daytona"))
 
-  let image = Image.base("node:22-bookworm").runCommands(
-    // Install system dependencies
-    "apt-get update && apt-get install -y --no-install-recommends " +
-      "curl ca-certificates git bzip2 sudo " +
-      "&& rm -rf /var/lib/apt/lists/*"
+  return (
+    Image.base("node:22-bookworm")
+      // Install system dependencies
+      .runCommands(
+        "apt-get update && apt-get install -y --no-install-recommends " +
+          "curl ca-certificates git bzip2 sudo " +
+          "&& rm -rf /var/lib/apt/lists/*"
+      )
+      // Install npm packages
+      .runCommands(`npm install -g ${npmPackages.join(" ")}`)
+      // Create daytona user (non-root) - some agents refuse to run as root
+      .runCommands(
+        "useradd -m -s /bin/bash daytona || true && " +
+          "echo 'daytona ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"
+      )
+      // Run shell installers
+      .runCommands(...shellInstallers)
+      // Set up daytona user environment
+      .runCommands(
+        "chown -R daytona:daytona /home/daytona && " +
+          'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
+      )
+      .dockerfileCommands(["USER daytona"])
+      .workdir("/home/daytona/project")
   )
-
-  // Install each npm package separately for better error isolation
-  for (const pkg of npmPackages) {
-    image = image.runCommands(`npm install -g ${pkg}`)
-  }
-
-  // Create daytona user (non-root) - some agents refuse to run as root
-  image = image.runCommands(
-    "useradd -m -s /bin/bash daytona || true && " +
-      "echo 'daytona ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"
-  )
-
-  // Run shell installers (e.g., goose binary)
-  for (const cmd of shellInstallers) {
-    image = image.runCommands(cmd)
-  }
-
-  // Set up daytona user environment
-  image = image
-    .runCommands("chown -R daytona:daytona /home/daytona")
-    .runCommands(
-      'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
-    )
-    .dockerfileCommands(["USER daytona"])
-    .workdir("/home/daytona/project")
-
-  return image
 }
