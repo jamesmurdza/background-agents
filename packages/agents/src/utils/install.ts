@@ -10,7 +10,7 @@ const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   codex: "@openai/codex",
   eliza: "", // eliza is built-in, no installation needed
   goose: "", // goose uses shell script installer, not npm
-  opencode: "opencode",
+  opencode: "opencode-ai",
   gemini: "@google/gemini-cli",
   pi: "@mariozechner/pi-coding-agent",
 }
