@@ -561,11 +561,17 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
           // Highlight only the first field for the matching provider.
           CREDENTIAL_KEYS.find((c) => c.provider === field.provider)?.id === field.id
         const value = credValues[field.id]
-        const description = field.description
-          ? field.description
-          : field.helpUrl
-          ? renderHelpLink(field.helpUrl)
-          : undefined
+        const description = field.description ? (
+          field.helpUrl ? (
+            <>
+              {field.description} {renderHelpLink(field.helpUrl, "Get one →")}
+            </>
+          ) : (
+            field.description
+          )
+        ) : field.helpUrl ? (
+          renderHelpLink(field.helpUrl)
+        ) : undefined
 
         if (field.multiline) {
           // Special handling for CLAUDE_CODE_CREDENTIALS with auto-detect (desktop only)
