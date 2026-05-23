@@ -147,14 +147,7 @@ export { adaptDaytonaSandbox, adaptSandbox } from "./sandbox/index"
 // Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
-export {
-  safeJsonParse,
-  isCliInstalled,
-  installProvider,
-  ensureCliInstalled,
-  getPackageName,
-  getInstallationStatus,
-} from "./utils/index"
+export { safeJsonParse, getPackageName, getShellInstaller } from "./utils/index"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
 export { isDebugEnabled, debugLog } from "./debug"
