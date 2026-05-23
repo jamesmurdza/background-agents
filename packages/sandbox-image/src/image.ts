@@ -25,7 +25,7 @@ export const SNAPSHOT_RESOURCES = {
 export const AGENT_PACKAGES = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
-  // opencode: "opencode", // Package doesn't exist on npm - skipped
+  opencode: "opencode-ai",
   gemini: "@google/gemini-cli",
   pi: "@mariozechner/pi-coding-agent",
 } as const
@@ -50,12 +50,12 @@ const GOOSE_INSTALL_CMD = `
  * Pre-installed agents:
  * - Claude (@anthropic-ai/claude-code)
  * - Codex (@openai/codex)
+ * - OpenCode (opencode-ai)
  * - Gemini (@google/gemini-cli)
  * - Pi (@mariozechner/pi-coding-agent)
  * - Goose (binary from GitHub releases)
  *
  * Note: Eliza is built-in to the agents package (no CLI installation needed).
- * Note: OpenCode is skipped as the npm package doesn't exist.
  */
 export function getAgentSandboxImage(): Image {
   const npmPackages = Object.values(AGENT_PACKAGES).join(" ")
@@ -78,6 +78,10 @@ export function getAgentSandboxImage(): Image {
     .runCommands(
       // Install Gemini CLI
       "npm install -g @google/gemini-cli"
+    )
+    .runCommands(
+      // Install OpenCode CLI
+      "npm install -g opencode-ai"
     )
     .runCommands(
       // Install Pi CLI
