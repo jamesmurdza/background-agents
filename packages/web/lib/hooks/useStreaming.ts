@@ -115,6 +115,23 @@ export function useStreaming(options: UseStreamingOptions = {}) {
         useStreamStore.getState().stopStream(chatId)
       }, { once: true })
 
+      // Track last heartbeat to detect silent stream failures
+      let lastHeartbeat = Date.now()
+      const HEARTBEAT_TIMEOUT = 45000 // 3 missed heartbeats (15s interval)
+
+      const heartbeatCheckInterval = setInterval(() => {
+        const timeSinceHeartbeat = Date.now() - lastHeartbeat
+        if (timeSinceHeartbeat > HEARTBEAT_TIMEOUT) {
+          console.warn(`[SSE] No heartbeat for ${Math.round(timeSinceHeartbeat / 1000)}s, reconnecting chat:`, chatId)
+          clearInterval(heartbeatCheckInterval)
+          eventSource.close()
+          const stream = useStreamStore.getState().getStream(chatId)
+          if (stream) {
+            connect(stream.cursor)
+          }
+        }
+      }, 15000)
+
       // Track markdown files we've already opened to avoid duplicates
       const openedMarkdownFiles = new Set<string>()
 
@@ -161,6 +178,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
 
       eventSource.addEventListener("complete", async (event) => {
         if (abortSignal?.aborted) return
+        clearInterval(heartbeatCheckInterval)
         try {
           const data: SSECompleteEvent = JSON.parse(event.data)
           useStreamStore.getState().stopStream(chatId)
@@ -204,6 +222,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
 
       eventSource.addEventListener("heartbeat", (event) => {
         if (abortSignal?.aborted) return
+        lastHeartbeat = Date.now()
         try {
           const data = JSON.parse(event.data)
           const store = useStreamStore.getState()
@@ -215,6 +234,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
 
       eventSource.addEventListener("error", (event) => {
         if (abortSignal?.aborted) return
+        clearInterval(heartbeatCheckInterval)
         try {
           const data = JSON.parse((event as MessageEvent).data)
           useStreamStore.getState().stopStream(chatId)
@@ -226,6 +246,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
 
       eventSource.onerror = async () => {
         if (abortSignal?.aborted) return
+        clearInterval(heartbeatCheckInterval)
         eventSource.close()
         const store = useStreamStore.getState()
         const stream = store.getStream(chatId)
