@@ -45,6 +45,14 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     description: "Claude Code only.",
   },
   {
+    id: "COPILOT_GITHUB_TOKEN",
+    provider: "github",
+    label: "GitHub PAT (Copilot)",
+    helpUrl: "https://github.com/settings/personal-access-tokens/new",
+    placeholder: "github_pat_...",
+    description: "Fine-grained PAT with Copilot Requests permission.",
+  },
+  {
     id: "OPENAI_API_KEY",
     provider: "openai",
     label: "OpenAI",

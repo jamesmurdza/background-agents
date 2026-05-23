@@ -7,19 +7,20 @@
 // Agent Types
 // =============================================================================
 
-export type Agent = "claude-code" | "opencode" | "codex" | "eliza" | "gemini" | "goose" | "kilo" | "pi"
+export type Agent = "claude-code" | "opencode" | "codex" | "copilot" | "eliza" | "gemini" | "goose" | "kilo" | "pi"
 
 /** All agent ids, in display order. */
-export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "gemini", "goose", "kilo", "pi", "eliza"]
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "copilot", "gemini", "goose", "kilo", "pi", "eliza"]
 
 /** SDK provider names (must match ProviderName from SDK) */
-export type ProviderName = "claude" | "codex" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "pi"
+export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "pi"
 
 /** Display labels for each agent */
 export const agentLabels: Record<Agent, string> = {
   "claude-code": "Claude Code",
   "opencode": "OpenCode",
   "codex": "Codex",
+  "copilot": "GitHub Copilot",
   "eliza": "Eliza",
   "gemini": "Gemini",
   "goose": "Goose",
@@ -32,6 +33,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "claude-code": "claude",
   "opencode": "opencode",
   "codex": "codex",
+  "copilot": "copilot",
   "eliza": "eliza",
   "gemini": "gemini",
   "goose": "goose",
@@ -44,7 +46,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
 // =============================================================================
 
 /** Provider an API key is associated with. */
-export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini" | "kilo"
+export type ProviderId = "anthropic" | "github" | "openai" | "opencode" | "gemini" | "kilo"
 
 /**
  * Credential identifiers. The id doubles as the env var name we inject
@@ -53,6 +55,7 @@ export type ProviderId = "anthropic" | "openai" | "opencode" | "gemini" | "kilo"
 export type CredentialId =
   | "ANTHROPIC_API_KEY"
   | "CLAUDE_CODE_CREDENTIALS"
+  | "COPILOT_GITHUB_TOKEN"
   | "OPENAI_API_KEY"
   | "OPENCODE_API_KEY"
   | "GEMINI_API_KEY"
@@ -73,6 +76,7 @@ export type Credentials = Partial<Record<CredentialId, string>>
 /** Env vars to inject for a given provider. */
 const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
   anthropic: ["ANTHROPIC_API_KEY"],
+  github: ["COPILOT_GITHUB_TOKEN"],
   openai: ["OPENAI_API_KEY"],
   opencode: ["OPENCODE_API_KEY"],
   gemini: ["GEMINI_API_KEY"],
@@ -160,6 +164,21 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-5.2", label: "GPT-5.2", requiresKey: "openai" },
     { value: "gpt-5.1", label: "GPT-5.1", requiresKey: "openai" },
   ],
+  "copilot": [
+    { value: "claude-sonnet-4.5", label: "Claude Sonnet 4.5", requiresKey: "github" },
+    { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
+    { value: "claude-opus-4.6", label: "Claude Opus 4.6", requiresKey: "github" },
+    { value: "claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "github" },
+    { value: "gpt-5.4", label: "GPT-5.4", requiresKey: "github" },
+    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "github" },
+    { value: "gpt-5-mini", label: "GPT-5 Mini", requiresKey: "github" },
+    { value: "gpt-4.1", label: "GPT-4.1", requiresKey: "github" },
+    { value: "gpt-4o", label: "GPT-4o", requiresKey: "github" },
+    { value: "o3", label: "o3 (Reasoning)", requiresKey: "github" },
+    { value: "o4-mini", label: "o4-mini (Reasoning)", requiresKey: "github" },
+    { value: "gemini-3-pro", label: "Gemini 3 Pro", requiresKey: "github" },
+    { value: "gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "github" },
+  ],
   "gemini": [
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)", requiresKey: "gemini" },
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
@@ -228,6 +247,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
   "opencode": "opencode/big-pickle", // Free model, no API key needed
   "codex": "gpt-5.4",
+  "copilot": "gpt-5-mini",
   "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
   "gemini": "gemini-2.5-flash",
   "goose": "gpt-4o",
@@ -240,6 +260,7 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
   "claude-code": true,
   "opencode": false,
   "codex": true,
+  "copilot": false,
   "eliza": false,
   "gemini": true,
   "goose": true,
