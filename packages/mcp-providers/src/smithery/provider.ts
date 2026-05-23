@@ -44,17 +44,22 @@ export function createSmitheryProvider(
 }
 
 /**
- * Deterministic connection id per (chat, qualifiedName) — safe to recreate.
+ * Deterministic connection id per (scope, qualifiedName) — safe to recreate.
  * Standalone function that doesn't require a provider instance.
+ *
+ * The `scopePrefix` distinguishes chat-scoped connections (`"chat"`) from
+ * job-scoped ones (`"job"`) so the two namespaces don't collide on Smithery's
+ * side. Defaults to `"chat"` for backward compatibility with existing rows.
  */
 export function getSmitheryConnectionId(
-  chatId: string,
-  qualifiedName: string
+  scopeId: string,
+  qualifiedName: string,
+  scopePrefix: string = "chat"
 ): string {
   // Slashes in qualifiedName (e.g. "exa/exa-search") would be parsed as path
   // segments by Smithery, so flatten them.
   const safeName = qualifiedName.replace(/\//g, "-")
-  return `chat-${chatId}-${safeName}`
+  return `${scopePrefix}-${scopeId}-${safeName}`
 }
 
 export class SmitheryProvider implements IConnectionProvider {

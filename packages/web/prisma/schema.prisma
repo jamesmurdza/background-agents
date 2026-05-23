@@ -138,9 +138,9 @@ model Chat {
   environmentVariables Json?
 
   // Relations
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages   Message[]
-  mcpServers ChatMcpServer[]
+  mcpServers McpServerConnection[]
 
   // Link back to scheduled run (if this chat belongs to one)
   scheduledJobRun ScheduledJobRun?
@@ -150,15 +150,17 @@ model Chat {
 }
 
 // =============================================================================
-// ChatMcpServer - per-chat MCP connections (via Smithery Connect)
+// McpServerConnection - per-owner MCP connections (via Smithery Connect)
 // =============================================================================
-// Each row is one connected MCP server for a specific chat. The agent in the
-// sandbox will get a config entry pointing at `mcpUrl` with `encryptedApiKey`
-// decrypted into an Authorization header.
+// One row per attached MCP server. Owners are either Chat or ScheduledJob —
+// modelled as two nullable FKs so each side keeps its own CASCADE on delete.
+// Exactly one of (chatId, scheduledJobId) is set; the CHECK constraint added
+// in the migration enforces that at the DB level since Prisma can't model it.
 
-model ChatMcpServer {
-  id     String @id @default(cuid())
-  chatId String
+model McpServerConnection {
+  id             String  @id @default(cuid())
+  chatId         String?
+  scheduledJobId String?
 
   // Identity from Smithery's registry
   qualifiedName String // e.g. "exa/exa-search" — stable handle
@@ -182,10 +184,13 @@ model ChatMcpServer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat         Chat?         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  scheduledJob ScheduledJob? @relation(fields: [scheduledJobId], references: [id], onDelete: Cascade)
 
   @@unique([chatId, qualifiedName])
+  @@unique([scheduledJobId, qualifiedName])
   @@index([chatId])
+  @@index([scheduledJobId])
 }
 
 // =============================================================================
@@ -293,6 +298,12 @@ model ScheduledJob {
   // Continue from last run
   continueFromLastRun Boolean @default(false)
 
+  // Draft state — true while the user is still in the create-job modal after
+  // materializing the row to attach MCP servers. Drafts are filtered out of
+  // the list, the cron, and the Run Now endpoint. Flipped to false on the
+  // final Create submit; DELETEd on Cancel.
+  isDraft Boolean @default(false)
+
   // Failure tracking
   consecutiveFailures Int @default(0)
 
@@ -300,8 +311,9 @@ model ScheduledJob {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  runs ScheduledJobRun[]
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs       ScheduledJobRun[]
+  mcpServers McpServerConnection[]
 
   @@index([userId])
   @@index([enabled, nextRunAt])

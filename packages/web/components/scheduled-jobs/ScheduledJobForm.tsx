@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { RepoCombobox } from "@/components/chat/RepoCombobox"
 import { BranchCombobox } from "@/components/chat/BranchCombobox"
+import { McpServersCombobox } from "@/components/chat/McpServersCombobox"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 import { agentModels, agentLabels, getModelLabel, type Agent } from "@/lib/types"
 import { AgentIcon } from "@/components/icons/agent-icons"
@@ -143,6 +144,20 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // In create mode, the form may "materialize" the job into the DB the first
+  // time the user clicks the MCP picker, so MCP server connections have a real
+  // job id to hang off of. If the user then cancels, we DELETE the row so we
+  // don't leave a half-configured job behind. On final submit this id is what
+  // we PATCH (instead of POSTing again).
+  // Materialized rows are created with enabled: false so the cron doesn't pick
+  // them up before the user finishes; the final submit flips enabled back on.
+  const [materializedJobId, setMaterializedJobId] = useState<string | null>(null)
+
+  // Once we materialize, the trigger/schedule fields lock — the PATCH endpoint
+  // doesn't accept triggerType / runAtHour / runAtDay, so allowing edits after
+  // materialize would silently drop changes. Cancelling resets via DELETE.
+  const isLocked = isEditing || !!materializedJobId
+
   // Dropdown state
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
@@ -171,6 +186,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setAutoPR(job?.autoPR ?? true)
       setContinueFromLastRun(job?.continueFromLastRun ?? false)
       setError(null)
+      setMaterializedJobId(null)
     }
   }, [open, job])
 
@@ -195,51 +211,126 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
+  /**
+   * Build the request body for create/update from current form state.
+   * Returns `null` and sets the visible error if required fields are missing.
+   */
+  function buildPayload(): Record<string, unknown> | null {
+    if (!name.trim()) {
+      setError("Name is required")
+      return null
+    }
+    if (!prompt.trim()) {
+      setError("Prompt is required")
+      return null
+    }
+    if (!repo) {
+      setError("Repository is required")
+      return null
+    }
+    const runAtHourUtc = localHourToUtc(runAtHourLocal)
+    return {
+      name: name.trim(),
+      prompt: prompt.trim(),
+      repo,
+      baseBranch,
+      agent,
+      model: model || null,
+      triggerType,
+      intervalMinutes: triggerType === "interval" ? intervalMinutes : undefined,
+      runAtHour: triggerType === "interval" && intervalMinutes >= 1440 ? runAtHourUtc : undefined,
+      runAtDay: triggerType === "interval" && intervalMinutes === 10080 ? runAtDay : undefined,
+      autoPR,
+      continueFromLastRun,
+    }
+  }
+
+  /**
+   * Materialize callback for the MCP picker — fired on the first MCP click
+   * during create mode. POSTs the job (with enabled: false so the cron won't
+   * pick it up mid-config) and returns the new id to the picker. Uses
+   * placeholders for name/prompt if the user hasn't typed them yet; the
+   * final-submit validation in handleSubmit enforces real values before the
+   * row goes live. The form stays open and continues acting like create mode
+   * until the user hits "Create" (PATCH to flip enabled on) or "Cancel"
+   * (DELETE the row).
+   *
+   * Only allowed for interval-triggered jobs — webhook jobs require a real
+   * GitHub webhook setup at create time, which can't be deferred.
+   */
+  async function materializeJob(_draftId: string): Promise<string | null> {
+    setError(null)
+    if (triggerType === "webhook") {
+      setError("Save the job first to attach MCP servers to webhook-triggered jobs.")
+      return null
+    }
+    try {
+      const res = await fetch("/api/scheduled-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // Placeholders only exist on disk while isDraft = true. They're never
+          // shown in the UI list (the GET filters drafts out) and the cron
+          // skips drafts. The final submit PATCH replaces them with real
+          // values before flipping isDraft to false.
+          name: name.trim() || "(draft)",
+          prompt: prompt.trim() || "(draft)",
+          repo: repo || "__draft__",
+          baseBranch: baseBranch || "main",
+          agent,
+          model: model || null,
+          triggerType: "interval",
+          intervalMinutes,
+          autoPR,
+          continueFromLastRun,
+          enabled: false,
+          isDraft: true,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || "Failed to save job")
+        return null
+      }
+      const created = await res.json()
+      setMaterializedJobId(created.id)
+      return created.id
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save job")
+      return null
+    }
+  }
+
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    // Validate
-    if (!name.trim()) {
-      setError("Name is required")
-      return
-    }
-    if (!prompt.trim()) {
-      setError("Prompt is required")
-      return
-    }
-    if (!repo) {
-      setError("Repository is required")
-      return
-    }
+    const payload = buildPayload()
+    if (!payload) return
 
     setLoading(true)
 
-    // Convert local hour to UTC for storage
-    const runAtHourUtc = localHourToUtc(runAtHourLocal)
-
     try {
-      const url = isEditing ? `/api/scheduled-jobs/${job.id}` : "/api/scheduled-jobs"
-      const method = isEditing ? "PATCH" : "POST"
+      const targetId = materializedJobId ?? job?.id
+      const isUpdate = !!targetId
+      const url = isUpdate
+        ? `/api/scheduled-jobs/${targetId}`
+        : "/api/scheduled-jobs"
+      const method = isUpdate ? "PATCH" : "POST"
+
+      // For materialized rows we created with enabled: false + isDraft: true;
+      // promote both on final Create. For real edits, we leave existing state
+      // alone.
+      const body =
+        materializedJobId && !isEditing
+          ? { ...payload, enabled: true, isDraft: false }
+          : payload
 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          prompt: prompt.trim(),
-          repo,
-          baseBranch,
-          agent,
-          model: model || null,
-          triggerType,
-          intervalMinutes: triggerType === "interval" ? intervalMinutes : undefined,
-          runAtHour: triggerType === "interval" && intervalMinutes >= 1440 ? runAtHourUtc : undefined,
-          runAtDay: triggerType === "interval" && intervalMinutes === 10080 ? runAtDay : undefined,
-          autoPR,
-          continueFromLastRun,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -248,12 +339,33 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       }
 
       const savedJob = await res.json()
+      // Clear the materialized marker so the close handler doesn't try to
+      // delete what we just successfully saved.
+      setMaterializedJobId(null)
       onSuccess(savedJob)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save job")
     } finally {
       setLoading(false)
     }
+  }
+
+  /**
+   * Close handler: if we materialized a job in create mode and the user is
+   * walking away without saving, drop the row so we don't leak draft jobs.
+   * Best-effort — even if cleanup fails we still close the modal.
+   */
+  const handleClose = async () => {
+    if (materializedJobId && !isEditing) {
+      const idToDelete = materializedJobId
+      setMaterializedJobId(null)
+      try {
+        await fetch(`/api/scheduled-jobs/${idToDelete}`, { method: "DELETE" })
+      } catch (err) {
+        console.error("[ScheduledJobForm] cleanup delete failed:", err)
+      }
+    }
+    onClose()
   }
 
   const handleAgentChange = (newAgent: Agent) => {
@@ -267,7 +379,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className={cn(
           "fixed inset-0 z-50 transition-opacity duration-300 bg-black/15 backdrop-blur-[1px]",
@@ -317,14 +429,14 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               <label className="block text-sm font-medium mb-2">Trigger</label>
               <div className={cn(
                 "inline-flex rounded-md bg-muted p-0.5",
-                isEditing && "opacity-50"
+                isLocked && "opacity-50"
               )}>
                 {TRIGGER_TYPES.map((t) => (
                   <button
                     key={t.value}
                     type="button"
-                    onClick={() => !isEditing && setTriggerType(t.value)}
-                    disabled={isEditing}
+                    onClick={() => !isLocked && setTriggerType(t.value)}
+                    disabled={isLocked}
                     className={cn(
                       "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
                       triggerType === t.value
@@ -396,9 +508,13 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
             {/* Prompt Field - styled like ChatInput */}
             <div>
               <label className="block text-sm font-medium mb-1">Prompt</label>
-              <div className="rounded-xl border border-border bg-card focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+              <div className={cn(
+                "relative flex flex-col border shadow-sm bg-card border-border",
+                isMobile ? "rounded-xl" : "rounded-2xl",
+                "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20"
+              )}>
                 {/* Textarea */}
-                <div className="px-3 py-2">
+                <div className={cn(isMobile ? "px-3 py-2" : "px-4 py-3")}>
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
@@ -408,31 +524,54 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                   />
                 </div>
 
-                {/* Bottom bar with selectors */}
-                <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
-                  {/* Repo selector */}
-                  <RepoCombobox
-                    value={repo || null}
-                    onChange={(newRepo, defaultBranch) => {
-                      setRepo(newRepo)
-                      setBaseBranch(defaultBranch)
-                    }}
-                    disabled={isEditing}
-                    isMobile={isMobile}
-                    showLabel
-                  />
-
-                  {/* Branch selector */}
-                  {repo && (
-                    <BranchCombobox
-                      repo={repo}
-                      value={baseBranch}
-                      onChange={setBaseBranch}
-                      defaultBranch={baseBranch}
+                {/* Bottom bar with selectors. The container wrappers mirror
+                    ChatInput so the inner pickers can reveal labels and counts
+                    at the right widths via container queries. */}
+                <div className={cn(
+                  "@container flex items-center",
+                  isMobile ? "gap-2 px-3 py-2" : "gap-3 px-4 py-2"
+                )}>
+                  {/* Left side items (repo / branch / MCP) */}
+                  <div className={cn(
+                    "flex items-center gap-2",
+                    isMobile ? "w-full @container/row1" : "flex-1"
+                  )}>
+                    {/* Repo selector */}
+                    <RepoCombobox
+                      value={repo || null}
+                      onChange={(newRepo, defaultBranch) => {
+                        setRepo(newRepo)
+                        setBaseBranch(defaultBranch)
+                      }}
+                      disabled={isEditing}
                       isMobile={isMobile}
                       showLabel
                     />
-                  )}
+
+                    {/* Branch selector */}
+                    {repo && (
+                      <BranchCombobox
+                        repo={repo}
+                        value={baseBranch}
+                        onChange={setBaseBranch}
+                        defaultBranch={baseBranch}
+                        isMobile={isMobile}
+                        showLabel
+                      />
+                    )}
+
+                    {/* MCP servers picker — inline alongside repo/branch like
+                        the chat input. In create mode the first click
+                        materializes the job so the picker has a real id;
+                        cancel cleans up. */}
+                    <McpServersCombobox
+                      entityId={materializedJobId ?? job?.id ?? "draft"}
+                      apiBase="/api/scheduled-jobs"
+                      isDraft={!isEditing && !materializedJobId}
+                      onMaterializeDraft={materializeJob}
+                      isMobile={isMobile}
+                    />
+                  </div>
 
                   {/* Spacer */}
                   <div className="flex-1" />
@@ -552,7 +691,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           <div className="flex justify-end gap-2 px-4 py-3 border-t border-border flex-shrink-0">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm rounded-md hover:bg-accent transition-colors cursor-pointer"
             >
               Cancel

@@ -19,7 +19,7 @@ import {
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedClaudeUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
-import { loadChatMcpServers } from "@/lib/mcp/agent-servers"
+import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel } from "@upstream/common"
 import { decrypt } from "@/lib/db/encryption"
@@ -477,11 +477,11 @@ export async function POST(
 
     // Fetch this chat's connected MCP servers so the agent sees them as tools.
     // Best-effort — a fetch error shouldn't block the turn.
-    let mcpServers: Awaited<ReturnType<typeof loadChatMcpServers>> = []
+    let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []
     try {
-      mcpServers = await loadChatMcpServers(chatId)
+      mcpServers = await loadMcpConnections({ kind: "chat", id: chatId })
     } catch (err) {
-      console.error("[messages] loadChatMcpServers failed:", err)
+      console.error("[messages] loadMcpConnections failed:", err)
     }
 
     // Debug: log planMode from payload

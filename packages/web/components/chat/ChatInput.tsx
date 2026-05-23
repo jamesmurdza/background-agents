@@ -397,8 +397,9 @@ export function ChatInput({
             {/* MCP servers picker */}
             {showMcpButton && (
               <McpServersCombobox
-                chatId={chat.id}
-                isDraftChat={isDraftChat}
+                entityId={chat.id}
+                apiBase="/api/chats"
+                isDraft={isDraftChat}
                 onMaterializeDraft={onMaterializeDraftForMcp}
                 open={modals.mcpServersModalOpen}
                 onOpenChange={modals.setMcpServersModalOpen}

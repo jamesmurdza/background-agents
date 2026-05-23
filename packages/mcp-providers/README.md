@@ -82,7 +82,8 @@ const smithery = createSmitheryProvider({
   namespace: process.env.SMITHERY_NAMESPACE, // optional
 })
 
-const connectionId = getSmitheryConnectionId(chatId, "exa/exa")
+// The third argument is the owner-kind prefix, e.g. "chat" or "job".
+const connectionId = getSmitheryConnectionId(chatId, "exa/exa", "chat")
 
 const result = await smithery.createConnection(
   "https://server.smithery.ai/exa/exa/mcp",

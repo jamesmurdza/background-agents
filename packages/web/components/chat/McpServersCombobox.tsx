@@ -64,9 +64,24 @@ interface RegistryServer {
 const GITHUB_QUALIFIED_NAME = "github/github"
 
 interface McpServersComboboxProps {
-  chatId: string
-  isDraftChat: boolean
-  onMaterializeDraft: (draftId: string) => Promise<string | null>
+  /** Stable id of the owning entity (chat id or scheduled job id). */
+  entityId: string
+  /**
+   * API path prefix for the owning entity, without trailing slash and without
+   * the entity id, e.g. `"/api/chats"` or `"/api/scheduled-jobs"`. The
+   * component appends `/{entityId}/mcp-servers/...` to this for all calls.
+   */
+  apiBase: string
+  /**
+   * True if `entityId` is a not-yet-persisted draft. Only the chat flow uses
+   * this; scheduled jobs are edit-only so default is false.
+   */
+  isDraft?: boolean
+  /**
+   * Called when a draft needs to be materialized before the first MCP write.
+   * Returns the real id (or null on failure). Only used when `isDraft` is true.
+   */
+  onMaterializeDraft?: (draftId: string) => Promise<string | null>
   disabled?: boolean
   isMobile?: boolean
   /** Optional controlled open state (e.g. from the command palette). */
@@ -75,8 +90,9 @@ interface McpServersComboboxProps {
 }
 
 export function McpServersCombobox({
-  chatId,
-  isDraftChat,
+  entityId,
+  apiBase,
+  isDraft: isDraftProp = false,
   onMaterializeDraft,
   disabled = false,
   isMobile = false,
@@ -93,25 +109,26 @@ export function McpServersCombobox({
     [onOpenChange]
   )
 
-  // Effective chat id used for all chat-scoped API calls. Starts as the
-  // (possibly draft) chatId and is replaced with the real id once we
-  // materialize on first commit.
-  const [effectiveChatId, setEffectiveChatId] = useState(chatId)
-  const [isDraft, setIsDraft] = useState(isDraftChat)
+  // Effective id used for all entity-scoped API calls. Starts as the
+  // (possibly draft) entityId and is replaced with the real id once we
+  // materialize on first commit (chat flow only).
+  const [effectiveId, setEffectiveId] = useState(entityId)
+  const [isDraft, setIsDraft] = useState(isDraftProp)
 
   useEffect(() => {
-    setEffectiveChatId(chatId)
-    setIsDraft(isDraftChat)
-  }, [chatId, isDraftChat])
+    setEffectiveId(entityId)
+    setIsDraft(isDraftProp)
+  }, [entityId, isDraftProp])
 
-  const resolveChatId = useCallback(async (): Promise<string | null> => {
-    if (!isDraft) return effectiveChatId
-    const realId = await onMaterializeDraft(effectiveChatId)
+  const resolveEntityId = useCallback(async (): Promise<string | null> => {
+    if (!isDraft) return effectiveId
+    if (!onMaterializeDraft) return effectiveId
+    const realId = await onMaterializeDraft(effectiveId)
     if (!realId) return null
-    setEffectiveChatId(realId)
+    setEffectiveId(realId)
     setIsDraft(false)
     return realId
-  }, [isDraft, effectiveChatId, onMaterializeDraft])
+  }, [isDraft, effectiveId, onMaterializeDraft])
 
   const [connected, setConnected] = useState<ConnectedServer[]>([])
   const [registry, setRegistry] = useState<RegistryServer[]>([])
@@ -134,7 +151,7 @@ export function McpServersCombobox({
 
   const loadConnectedFor = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/chats/${id}/mcp-servers`)
+      const res = await fetch(`${apiBase}/${id}/mcp-servers`)
       if (res.ok) {
         const data = await res.json()
         setConnected(data.servers || [])
@@ -142,15 +159,15 @@ export function McpServersCombobox({
     } catch (err) {
       console.error("[McpServersCombobox] loadConnected failed:", err)
     }
-  }, [])
+  }, [apiBase])
 
   const loadConnected = useCallback(async () => {
     if (isDraft) {
       setConnected([])
       return
     }
-    await loadConnectedFor(effectiveChatId)
-  }, [isDraft, effectiveChatId, loadConnectedFor])
+    await loadConnectedFor(effectiveId)
+  }, [isDraft, effectiveId, loadConnectedFor])
 
   const loadGithubStatus = useCallback(async () => {
     try {
@@ -220,7 +237,7 @@ export function McpServersCombobox({
     if (isDraft) return
     try {
       const res = await fetch(
-        `/api/chats/${effectiveChatId}/mcp-servers/${serverId}`,
+        `${apiBase}/${effectiveId}/mcp-servers/${serverId}`,
         { method: "DELETE" }
       )
       if (res.ok) {
@@ -231,10 +248,10 @@ export function McpServersCombobox({
     }
   }
 
-  async function addGithubToChat() {
-    const id = await resolveChatId()
+  async function addGithubToEntity() {
+    const id = await resolveEntityId()
     if (!id) return
-    const res = await fetch(`/api/chats/${id}/mcp-servers/github`, {
+    const res = await fetch(`${apiBase}/${id}/mcp-servers/github`, {
       method: "POST",
     })
     if (res.ok) await loadConnectedFor(id)
@@ -259,7 +276,7 @@ export function McpServersCombobox({
       const status = await statusRes.json()
 
       if (status.connected) {
-        await addGithubToChat()
+        await addGithubToEntity()
         return
       }
 
@@ -291,7 +308,7 @@ export function McpServersCombobox({
       const after = await fetch("/api/mcp/connect/github")
       const afterData = after.ok ? await after.json() : { connected: false }
       setGithubInstallationId(afterData.installationId ?? null)
-      if (afterData.connected) await addGithubToChat()
+      if (afterData.connected) await addGithubToEntity()
     } catch (err) {
       console.error("[McpServersCombobox] handleToggleGithub failed:", err)
     } finally {
@@ -307,7 +324,7 @@ export function McpServersCombobox({
   async function handleUninstallGithubApp() {
     if (
       !confirm(
-        "Uninstall the GitHub App for your account? This removes GitHub MCP from every chat."
+        "Uninstall the GitHub App for your account? This removes GitHub MCP from every chat and scheduled job."
       )
     ) {
       return
@@ -347,13 +364,13 @@ export function McpServersCombobox({
         if (!url) throw new Error("Server does not expose a remote URL")
       }
 
-      const id = await resolveChatId()
+      const id = await resolveEntityId()
       if (!id) {
         setBusySlug(null)
         return
       }
 
-      const res = await fetch(`/api/chats/${id}/mcp-servers`, {
+      const res = await fetch(`${apiBase}/${id}/mcp-servers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -398,7 +415,7 @@ export function McpServersCombobox({
         }
         try {
           await fetch(
-            `/api/chats/${id}/mcp-servers/${data.serverId}/smithery-finalize`,
+            `${apiBase}/${id}/mcp-servers/${data.serverId}/smithery-finalize`,
             { method: "POST" }
           )
         } catch (err) {

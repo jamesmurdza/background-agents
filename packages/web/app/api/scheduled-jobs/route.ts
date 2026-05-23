@@ -30,7 +30,7 @@ export async function GET(): Promise<Response> {
 
   try {
     const jobs = await prisma.scheduledJob.findMany({
-      where: { userId },
+      where: { userId, isDraft: false },
       include: {
         runs: {
           orderBy: { startedAt: "desc" },
@@ -61,6 +61,10 @@ interface CreateScheduledJobBody {
   intervalMinutes?: number // Required for interval trigger
   autoPR?: boolean
   continueFromLastRun?: boolean
+  /** True when materializing via the MCP picker before the form is finished. */
+  isDraft?: boolean
+  /** Lets the form-side materialize keep the row inert until final submit. */
+  enabled?: boolean
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -96,9 +100,10 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
     }
 
-    // Check job limit
+    // Check job limit (drafts don't count — they're transient until the user
+    // finishes the create flow).
     const existingCount = await prisma.scheduledJob.count({
-      where: { userId },
+      where: { userId, isDraft: false },
     })
     if (existingCount >= MAX_JOBS_PER_USER) {
       return badRequest(`Maximum ${MAX_JOBS_PER_USER} scheduled jobs allowed`)
@@ -179,6 +184,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         autoPR: body.autoPR ?? true,
         continueFromLastRun: body.continueFromLastRun ?? false,
         nextRunAt: addMinutes(now, body.intervalMinutes!),
+        isDraft: body.isDraft ?? false,
+        enabled: body.enabled ?? true,
       },
     })
 

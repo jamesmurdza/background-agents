@@ -38,6 +38,11 @@ export async function POST(
       return notFound("Scheduled job not found")
     }
 
+    // Drafts haven't been saved yet from the user's POV — refuse to start one.
+    if (job.isDraft) {
+      return badRequest("Job is a draft — finish creating it first")
+    }
+
     // Check if already running
     if (job.runs.length > 0) {
       return badRequest("Job is already running")

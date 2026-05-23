@@ -1,5 +1,5 @@
 /**
- * POST /api/chats/<chatId>/mcp-servers/<serverId>/smithery-finalize
+ * POST /api/scheduled-jobs/<id>/mcp-servers/<serverId>/smithery-finalize
  *
  * Polls Smithery after the OAuth popup closes and persists credentials.
  */
@@ -9,15 +9,15 @@ import { finalizeSmitheryResponse } from "@/lib/mcp/connections"
 
 export async function POST(
   _req: Request,
-  { params }: { params: Promise<{ chatId: string; serverId: string }> }
+  { params }: { params: Promise<{ id: string; serverId: string }> }
 ): Promise<Response> {
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
-  const { chatId, serverId } = await params
+  const { id: jobId, serverId } = await params
 
-  const owner: McpOwner = { kind: "chat", id: chatId }
+  const owner: McpOwner = { kind: "job", id: jobId }
   if (!(await requireMcpOwnerAuth(owner, auth.userId))) {
-    return notFound("Chat not found")
+    return notFound("Scheduled job not found")
   }
   return finalizeSmitheryResponse(owner, serverId)
 }

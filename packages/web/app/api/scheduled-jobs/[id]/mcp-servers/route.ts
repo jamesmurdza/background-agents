@@ -1,6 +1,6 @@
 /**
- * GET  /api/chats/<chatId>/mcp-servers     list connections on this chat
- * POST /api/chats/<chatId>/mcp-servers     start a new connection via Smithery
+ * GET  /api/scheduled-jobs/<id>/mcp-servers     list connections on this job
+ * POST /api/scheduled-jobs/<id>/mcp-servers     start a new connection via Smithery
  *
  * Thin wrappers around the owner-parameterized handlers in lib/mcp/connections.
  */
@@ -19,30 +19,30 @@ import {
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ chatId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
-  const { chatId } = await params
+  const { id: jobId } = await params
 
-  const owner: McpOwner = { kind: "chat", id: chatId }
+  const owner: McpOwner = { kind: "job", id: jobId }
   if (!(await requireMcpOwnerAuth(owner, auth.userId))) {
-    return notFound("Chat not found")
+    return notFound("Scheduled job not found")
   }
   return listConnectionsResponse(owner)
 }
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ chatId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
-  const { chatId } = await params
+  const { id: jobId } = await params
 
-  const owner: McpOwner = { kind: "chat", id: chatId }
+  const owner: McpOwner = { kind: "job", id: jobId }
   if (!(await requireMcpOwnerAuth(owner, auth.userId))) {
-    return notFound("Chat not found")
+    return notFound("Scheduled job not found")
   }
 
   let body: ConnectSmitheryBody
