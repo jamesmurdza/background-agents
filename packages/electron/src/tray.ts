@@ -12,7 +12,7 @@ export function createTray(mainWindow: BrowserWindow) {
   const iconPath = path.join(__dirname, "../assets/tray-icon.png");
 
   // Create a simple icon if the file doesn't exist
-  let icon: nativeImage;
+  let icon: Electron.NativeImage;
   try {
     icon = nativeImage.createFromPath(iconPath);
     if (icon.isEmpty()) {
