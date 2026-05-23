@@ -15,38 +15,6 @@ const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30 MB
 const MAX_FILE_COUNT = 20
 const MAX_IMAGE_DIMENSION = 8000 // 8000 x 8000 pixels
 
-const SUPPORTED_MIME_TYPES = [
-  // Images
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  // Documents
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-  'text/plain',
-  'text/csv',
-  'text/tab-separated-values',
-  'text/html',
-  'text/rtf',
-  'application/rtf',
-  'application/epub+zip',
-]
-
-const SUPPORTED_EXTENSIONS = [
-  // Images
-  'jpg', 'jpeg', 'png', 'gif', 'webp',
-  // Documents
-  'pdf', 'docx', 'txt', 'csv', 'tsv', 'html', 'htm', 'rtf', 'epub',
-  // Code & config files
-  'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'swift', 'kt', 'scala',
-  'sh', 'bash', 'zsh', 'ps1', 'sql', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
-  'json', 'jsonl', 'ndjson', 'xml', 'yaml', 'yml', 'toml', 'ini', 'conf', 'env',
-  'md', 'mdx', 'graphql', 'gql', 'prisma', 'proto',
-  'dockerfile', 'makefile', 'cmake', 'gradle', 'properties', 'plist', 'lock',
-  'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc', 'log',
-]
-
 interface UseFileUploadOptions {
   /** Callback that fires when sign-in is required before adding files */
   onRequireSignIn?: () => void
@@ -87,16 +55,14 @@ interface UseFileUploadReturn {
   getFileTypeForFile: (file: File) => ReturnType<typeof getFileType>
   /** Get a preview URL for image/PDF files */
   getFilePreviewUrl: (file: File) => string | null
-  /** Supported extensions for file input accept attribute */
-  supportedExtensions: string[]
 }
 
 /**
  * Helper to check if file type is supported
+ * All file types are now supported - we don't restrict based on MIME type or extension
  */
-function isFileTypeSupported(file: File): boolean {
-  const ext = file.name.split('.').pop()?.toLowerCase() || ''
-  return SUPPORTED_MIME_TYPES.includes(file.type) || SUPPORTED_EXTENSIONS.includes(ext)
+function isFileTypeSupported(_file: File): boolean {
+  return true
 }
 
 /**
@@ -361,6 +327,5 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
     handlePaste,
     getFileTypeForFile: getFileType,
     getFilePreviewUrl,
-    supportedExtensions: SUPPORTED_EXTENSIONS,
   }
 }

@@ -32,7 +32,6 @@ interface ChatInputProps {
   fileError: string | null
   fileInputRef: React.RefObject<HTMLInputElement | null>
   isDraggingOver: boolean
-  supportedExtensions: string[]
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
@@ -96,7 +95,6 @@ export function ChatInput({
   fileError,
   fileInputRef,
   isDraggingOver,
-  supportedExtensions,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -195,7 +193,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept={supportedExtensions.map(ext => `.${ext}`).join(',') + ',image/*,text/*,application/pdf,application/json'}
+          accept="*/*"
           className="hidden"
           onChange={(e) => {
             if (e.target.files) {

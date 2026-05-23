@@ -104,7 +104,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     handlePaste,
     getFileTypeForFile,
     getFilePreviewUrl,
-    supportedExtensions,
   } = useFileUpload({ onRequireSignIn: isAuthenticated ? undefined : () => modals.setSignInModalOpen(true) })
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -406,7 +405,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       fileError={fileError}
       fileInputRef={fileInputRef}
       isDraggingOver={isDraggingOver}
-      supportedExtensions={supportedExtensions}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
