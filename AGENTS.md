@@ -9,4 +9,11 @@ For **architecture, deployment, and production configuration**, see the root [RE
 
 ## After editing code
 
-Run `npm run typecheck` to verify there are no type errors. This is much faster than a full build (~5 seconds vs 2-3 minutes).
+Before running typecheck for the first time (or after pulling new changes), ensure dependencies are installed:
+
+```bash
+npm install
+cd packages/web && npx prisma generate
+```
+
+Then run `npm run typecheck` to verify there are no type errors. This is much faster than a full build (~5 seconds vs 2-3 minutes).
