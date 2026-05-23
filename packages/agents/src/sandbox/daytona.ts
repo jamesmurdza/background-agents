@@ -5,7 +5,7 @@
 import type { Sandbox } from "@daytonaio/sdk"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, ProviderName } from "../types/index"
 import { getPackageName, getShellInstaller } from "../utils/install"
-import { escapeShell } from "../utils/shell"
+import { escapeShell } from "@upstream/common"
 import { ELIZA_BUNDLE_B64 } from "../agents/eliza/bundle-content"
 
 // Path to ELIZA bundle (uploaded to sandbox when needed)

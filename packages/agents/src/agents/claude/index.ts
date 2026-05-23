@@ -7,7 +7,7 @@ import type { CodeAgentSandbox } from "../../types/provider"
 import type { Event } from "../../types/events"
 import { parseClaudeLine } from "./parser"
 import { CLAUDE_TOOL_MAPPINGS } from "./tools"
-import { escapeShell } from "../../utils/shell"
+import { escapeShell } from "@upstream/common"
 
 /** Claude credentials directory */
 const CLAUDE_CREDENTIALS_DIR = "/home/daytona/.claude"

@@ -11,7 +11,7 @@ import type {
 import type { Event } from "../../types/events"
 import { parseOpencodeLine } from "./parser"
 import { OPENCODE_TOOL_MAPPINGS } from "./tools"
-import { quote } from "../../utils/shell"
+import { quote } from "@upstream/common"
 
 /**
  * OpenCode CLI agent definition.
