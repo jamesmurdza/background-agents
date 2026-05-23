@@ -23,64 +23,49 @@ export const SNAPSHOT_RESOURCES = {
 } as const
 
 /**
- * Get the Goose install command, adapted for the sandbox image build.
- * Uses absolute paths since we're installing as root before the user exists.
- */
-function getGooseInstallCmd(): string {
-  const cmd = PROVIDER_SHELL_INSTALLERS.goose
-  if (!cmd) return ""
-  // Replace ~ with /home/daytona for absolute paths
-  return cmd.replace(/~/g, "/home/daytona")
-}
-
-/**
  * Builds the Daytona Image spec with all agent CLIs pre-installed.
  *
- * Pre-installed agents are sourced from PROVIDER_PACKAGES in background-agents.
- * Goose uses a binary installer from PROVIDER_SHELL_INSTALLERS.
- * Eliza is built-in to the agents package (no CLI installation needed).
+ * Automatically installs all providers from PROVIDER_PACKAGES and
+ * PROVIDER_SHELL_INSTALLERS defined in background-agents.
  */
 export function getAgentSandboxImage(): Image {
   // Get npm packages (filter out empty strings for built-in/shell-installed providers)
-  const npmPackages = Object.entries(PROVIDER_PACKAGES)
-    .filter(([_, pkg]) => pkg !== "")
-    .map(([_, pkg]) => pkg)
+  const npmPackages = Object.values(PROVIDER_PACKAGES).filter((pkg) => pkg !== "")
 
-  let image = Image.base("node:22-bookworm")
-    .runCommands(
-      // Install system dependencies (curl for Goose download, git for agents, sudo for user)
-      "apt-get update && apt-get install -y --no-install-recommends " +
-        "curl ca-certificates git bzip2 sudo " +
-        "&& rm -rf /var/lib/apt/lists/*"
-    )
+  // Get shell installers, replacing ~ with absolute path
+  const shellInstallers = Object.values(PROVIDER_SHELL_INSTALLERS)
+    .filter((cmd): cmd is string => !!cmd)
+    .map((cmd) => cmd.replace(/~/g, "/home/daytona"))
+
+  let image = Image.base("node:22-bookworm").runCommands(
+    // Install system dependencies
+    "apt-get update && apt-get install -y --no-install-recommends " +
+      "curl ca-certificates git bzip2 sudo " +
+      "&& rm -rf /var/lib/apt/lists/*"
+  )
 
   // Install each npm package separately for better error isolation
   for (const pkg of npmPackages) {
     image = image.runCommands(`npm install -g ${pkg}`)
   }
 
-  // Create daytona user (non-root) - Claude Code refuses to run as root
+  // Create daytona user (non-root) - some agents refuse to run as root
   image = image.runCommands(
     "useradd -m -s /bin/bash daytona || true && " +
       "echo 'daytona ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"
   )
 
-  // Install Goose binary
-  const gooseCmd = getGooseInstallCmd()
-  if (gooseCmd) {
-    image = image.runCommands(gooseCmd)
+  // Run shell installers (e.g., goose binary)
+  for (const cmd of shellInstallers) {
+    image = image.runCommands(cmd)
   }
 
-  // Create required directories and set up PATH for daytona user
+  // Set up daytona user environment
   image = image
-    .runCommands(
-      "mkdir -p /home/daytona/.gemini /home/daytona/.config/goose /home/daytona/project && " +
-        "chown -R daytona:daytona /home/daytona"
-    )
+    .runCommands("chown -R daytona:daytona /home/daytona")
     .runCommands(
       'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
     )
-    // Set the default user to daytona
     .dockerfileCommands(["USER daytona"])
     .workdir("/home/daytona/project")
 
