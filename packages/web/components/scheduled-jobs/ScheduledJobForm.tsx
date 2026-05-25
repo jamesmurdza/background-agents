@@ -76,10 +76,54 @@ const TRIGGER_TYPES = [
 ] as const
 
 const INTERVAL_PRESETS = [
+  { label: "10 minutes", value: 10 },
+  { label: "15 minutes", value: 15 },
+  { label: "30 minutes", value: 30 },
   { label: "Hour", value: 60 },
+  { label: "6 hours", value: 360 },
   { label: "Day", value: 1440 },
   { label: "Week", value: 10080 },
 ]
+
+const CUSTOM_INTERVAL = -1
+
+type IntervalUnit = "minutes" | "hours" | "days" | "weeks"
+
+const UNIT_MINUTES: Record<IntervalUnit, number> = {
+  minutes: 1,
+  hours: 60,
+  days: 1440,
+  weeks: 10080,
+}
+
+const INTERVAL_UNITS: { label: string; value: IntervalUnit }[] = [
+  { label: "minutes", value: "minutes" },
+  { label: "hours", value: "hours" },
+  { label: "days", value: "days" },
+  { label: "weeks", value: "weeks" },
+]
+
+/** Express a stored intervalMinutes as either a preset or a (value, unit) pair. */
+function inferIntervalMode(minutes: number): {
+  isCustom: boolean
+  intervalMinutes: number
+  customValue: number
+  customUnit: IntervalUnit
+} {
+  if (INTERVAL_PRESETS.some((p) => p.value === minutes)) {
+    return { isCustom: false, intervalMinutes: minutes, customValue: 10, customUnit: "minutes" }
+  }
+  if (minutes % 10080 === 0) {
+    return { isCustom: true, intervalMinutes: minutes, customValue: minutes / 10080, customUnit: "weeks" }
+  }
+  if (minutes % 1440 === 0) {
+    return { isCustom: true, intervalMinutes: minutes, customValue: minutes / 1440, customUnit: "days" }
+  }
+  if (minutes % 60 === 0) {
+    return { isCustom: true, intervalMinutes: minutes, customValue: minutes / 60, customUnit: "hours" }
+  }
+  return { isCustom: true, intervalMinutes: minutes, customValue: minutes, customUnit: "minutes" }
+}
 
 const DAYS_OF_WEEK = [
   { label: "Monday", value: 1 },
@@ -139,7 +183,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const [agent, setAgent] = useState<Agent>((job?.agent as Agent) ?? "opencode")
   const [model, setModel] = useState(job?.model ?? "")
   const [triggerType, setTriggerType] = useState<"interval" | "webhook">(job?.triggerType ?? "interval")
-  const [intervalMinutes, setIntervalMinutes] = useState(job?.intervalMinutes ?? 1440)
+  const initialIntervalMode = inferIntervalMode(job?.intervalMinutes ?? 1440)
+  const [intervalMinutes, setIntervalMinutes] = useState(initialIntervalMode.intervalMinutes)
+  const [isCustomInterval, setIsCustomInterval] = useState(initialIntervalMode.isCustom)
+  const [customIntervalValue, setCustomIntervalValue] = useState(initialIntervalMode.customValue)
+  const [customIntervalUnit, setCustomIntervalUnit] = useState<IntervalUnit>(initialIntervalMode.customUnit)
   const [runAtHourLocal, setRunAtHourLocal] = useState(9) // Local time, default to 9 AM
   const [runAtDay, setRunAtDay] = useState(1) // Default to Monday
   const [autoPR, setAutoPR] = useState(job?.autoPR ?? true)
@@ -172,6 +220,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   // Get timezone name for display
   const timezoneName = useMemo(() => getTimezoneName(), [])
 
+  // What we actually send to the API (preset value, or custom value × unit).
+  const effectiveIntervalMinutes = isCustomInterval
+    ? Math.max(1, Math.floor(customIntervalValue || 0) * UNIT_MINUTES[customIntervalUnit])
+    : intervalMinutes
+
   // Reset form state when job prop changes or modal opens
   useEffect(() => {
     if (open) {
@@ -184,7 +237,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setAgent(initialAgent)
       setModel(job?.model ?? initialModels[0]?.value ?? "")
       setTriggerType(job?.triggerType ?? "interval")
-      setIntervalMinutes(job?.intervalMinutes ?? 1440)
+      const mode = inferIntervalMode(job?.intervalMinutes ?? 1440)
+      setIntervalMinutes(mode.intervalMinutes)
+      setIsCustomInterval(mode.isCustom)
+      setCustomIntervalValue(mode.customValue)
+      setCustomIntervalUnit(mode.customUnit)
       setRunAtHourLocal(9)
       setRunAtDay(1)
       setAutoPR(job?.autoPR ?? true)
@@ -240,6 +297,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setError("Webhook triggers require a repository")
       return null
     }
+    if (triggerType === "interval" && effectiveIntervalMinutes < 10) {
+      setError("Interval must be at least 10 minutes")
+      return null
+    }
     const runAtHourUtc = localHourToUtc(runAtHourLocal)
     return {
       name: name.trim(),
@@ -251,9 +312,9 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       agent,
       model: model || null,
       triggerType,
-      intervalMinutes: triggerType === "interval" ? intervalMinutes : undefined,
-      runAtHour: triggerType === "interval" && intervalMinutes >= 1440 ? runAtHourUtc : undefined,
-      runAtDay: triggerType === "interval" && intervalMinutes === 10080 ? runAtDay : undefined,
+      intervalMinutes: triggerType === "interval" ? effectiveIntervalMinutes : undefined,
+      runAtHour: triggerType === "interval" && effectiveIntervalMinutes >= 1440 ? runAtHourUtc : undefined,
+      runAtDay: triggerType === "interval" && effectiveIntervalMinutes === 10080 ? runAtDay : undefined,
       // Auto-PR has nothing to push to in repo-less mode.
       autoPR: isRepoLess ? false : autoPR,
       continueFromLastRun,
@@ -297,7 +358,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           agent,
           model: model || null,
           triggerType: "interval",
-          intervalMinutes,
+          intervalMinutes: effectiveIntervalMinutes,
           autoPR,
           continueFromLastRun,
           enabled: false,
@@ -477,55 +538,105 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
 
             {/* Schedule - only for scheduled trigger */}
             {triggerType === "interval" && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Run every</span>
-                <select
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10))}
-                  className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {INTERVAL_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Run every</span>
+                  <select
+                    value={isCustomInterval ? CUSTOM_INTERVAL : intervalMinutes}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      if (val === CUSTOM_INTERVAL) {
+                        // Seed custom inputs from the current preset so the
+                        // effective interval doesn't change just by toggling
+                        // into Custom mode.
+                        const mode = inferIntervalMode(intervalMinutes)
+                        setIsCustomInterval(true)
+                        setCustomIntervalValue(mode.customValue)
+                        setCustomIntervalUnit(mode.customUnit)
+                      } else {
+                        setIsCustomInterval(false)
+                        setIntervalMinutes(val)
+                      }
+                    }}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {INTERVAL_PRESETS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                    <option value={CUSTOM_INTERVAL}>Custom…</option>
+                  </select>
 
-                {/* Day of week - only for weekly */}
-                {intervalMinutes === 10080 && (
-                  <>
-                    <span className="text-muted-foreground">on</span>
-                    <select
-                      value={runAtDay}
-                      onChange={(e) => setRunAtDay(parseInt(e.target.value, 10))}
-                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {DAYS_OF_WEEK.map((d) => (
-                        <option key={d.value} value={d.value}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
+                  {isCustomInterval && (
+                    <>
+                      <input
+                        type="number"
+                        min={customIntervalUnit === "minutes" ? 10 : 1}
+                        step={1}
+                        value={customIntervalValue}
+                        onChange={(e) => {
+                          const n = parseInt(e.target.value, 10)
+                          setCustomIntervalValue(Number.isFinite(n) ? Math.max(1, n) : 1)
+                        }}
+                        className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <select
+                        value={customIntervalUnit}
+                        onChange={(e) => setCustomIntervalUnit(e.target.value as IntervalUnit)}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {INTERVAL_UNITS.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
 
-                {/* Time of day - for daily and weekly */}
-                {intervalMinutes >= 1440 && (
-                  <>
-                    <span className="text-muted-foreground">at</span>
-                    <select
-                      value={runAtHourLocal}
-                      onChange={(e) => setRunAtHourLocal(parseInt(e.target.value, 10))}
-                      className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {TIME_OPTIONS.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-muted-foreground">{timezoneName}</span>
-                  </>
+                  {/* Day of week - only for exactly weekly */}
+                  {effectiveIntervalMinutes === 10080 && (
+                    <>
+                      <span className="text-muted-foreground">on</span>
+                      <select
+                        value={runAtDay}
+                        onChange={(e) => setRunAtDay(parseInt(e.target.value, 10))}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {DAYS_OF_WEEK.map((d) => (
+                          <option key={d.value} value={d.value}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {/* Time of day - for daily and weekly (preset or custom) */}
+                  {effectiveIntervalMinutes >= 1440 && (
+                    <>
+                      <span className="text-muted-foreground">at</span>
+                      <select
+                        value={runAtHourLocal}
+                        onChange={(e) => setRunAtHourLocal(parseInt(e.target.value, 10))}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {TIME_OPTIONS.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-muted-foreground">{timezoneName}</span>
+                    </>
+                  )}
+                </div>
+
+                {isCustomInterval && effectiveIntervalMinutes < 10 && (
+                  <p className="text-xs text-destructive">
+                    Interval must be at least 10 minutes.
+                  </p>
                 )}
               </div>
             )}
