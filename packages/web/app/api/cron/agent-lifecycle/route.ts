@@ -10,6 +10,7 @@ import { getUserCredentials } from "@/lib/db/api-helpers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { PATHS } from "@/lib/constants"
 import type { Settings } from "@/lib/types"
+import { NEW_REPOSITORY } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
 import {
@@ -316,13 +317,17 @@ async function startJobExecution(
   run: Prisma.ScheduledJobRunGetPayload<object>,
   daytona: Daytona
 ) {
-  // 1. Get GitHub token for the user
+  const isRepoLess = job.repo === NEW_REPOSITORY
+
+  // 1. Get GitHub token for the user — required for cloned repos, optional
+  //    for repo-less jobs (the sandbox never reaches out to GitHub, though
+  //    MCP servers may still want a token of their own).
   const account = await prisma.account.findFirst({
     where: { userId: job.userId, provider: "github" },
     select: { access_token: true },
   })
 
-  if (!account?.access_token) {
+  if (!isRepoLess && !account?.access_token) {
     throw new Error("GitHub account not linked")
   }
 
@@ -344,10 +349,13 @@ async function startJobExecution(
     data: { chatId: chat.id, status: "running" },
   })
 
-  // 4. Determine base branch (may be from last run if continueFromLastRun is enabled)
+  // 4. Determine base branch (may be from last run if continueFromLastRun is
+  //    enabled). Only applies to repo-backed jobs — repo-less sandboxes have
+  //    no remote, so we carry context forward via the prompt instead (see
+  //    step 8 below).
   let effectiveBaseBranch = job.baseBranch
 
-  if (job.continueFromLastRun) {
+  if (job.continueFromLastRun && !isRepoLess) {
     // Find the last successful run with commits
     const lastSuccessfulRun = await prisma.scheduledJobRun.findFirst({
       where: {
@@ -372,7 +380,7 @@ async function startJobExecution(
             `https://api.github.com/repos/${owner}/${repoName}/pulls/${lastSuccessfulRun.prNumber}`,
             {
               headers: {
-                Authorization: `Bearer ${account.access_token}`,
+                Authorization: `Bearer ${account!.access_token}`,
                 Accept: "application/vnd.github.v3+json",
               },
             }
@@ -395,14 +403,15 @@ async function startJobExecution(
     }
   }
 
-  // 5. Create fresh sandbox
+  // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
+  //    skips the clone path, so we don't need the GitHub token in that case.
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
   const { sandbox, sandboxId, previewUrlPattern } = await createSandboxForChat({
     daytona,
     repo: job.repo,
     baseBranch: effectiveBaseBranch,
     newBranch: branch,
-    githubToken: account.access_token,
+    githubToken: account?.access_token ?? undefined,
     userId: job.userId,
   })
 
@@ -457,6 +466,41 @@ async function startJobExecution(
 
   // 8. Build the prompt (augment with trigger context for webhook-triggered runs)
   let finalPrompt = job.prompt
+
+  // Repo-less continueFromLastRun: there's no remote branch to carry forward,
+  // so include the previous run's final assistant message as prompt context.
+  if (job.continueFromLastRun && isRepoLess) {
+    const lastRun = await prisma.scheduledJobRun.findFirst({
+      where: {
+        jobId: job.id,
+        status: "completed",
+        chatId: { not: null },
+        id: { not: run.id },
+      },
+      orderBy: { completedAt: "desc" },
+      select: { chatId: true },
+    })
+
+    if (lastRun?.chatId) {
+      const lastAssistantMessage = await prisma.message.findFirst({
+        where: { chatId: lastRun.chatId, role: "assistant" },
+        orderBy: { timestamp: "desc" },
+        select: { content: true },
+      })
+
+      if (lastAssistantMessage?.content?.trim()) {
+        finalPrompt = [
+          `## Context from previous run`,
+          ``,
+          lastAssistantMessage.content.trim(),
+          ``,
+          `---`,
+          ``,
+          job.prompt,
+        ].join("\n")
+      }
+    }
+  }
 
   if (run.triggerContext && job.triggerType === "webhook") {
     const ctx = run.triggerContext as {
@@ -586,6 +630,7 @@ async function finalizeScheduledRun(
   let commitCount = 0
   let prUrl: string | null = null
   let prNumber: number | null = null
+  const isRepoLess = job.repo === NEW_REPOSITORY
 
   if (run.sandboxId && run.branch) {
     try {
@@ -596,6 +641,12 @@ async function finalizeScheduledRun(
       if (run.backgroundSessionId) {
         await finalizeTurn(sandbox, run.backgroundSessionId, { repoPath })
       }
+
+      // Repo-less sandboxes have no remote to compare against and nothing to
+      // push/PR — just finalize the turn and bail out of the git workflow.
+      if (isRepoLess) {
+        // fall through to run-record update below
+      } else {
 
       // Count commits on branch vs the base branch this run was created from
       const baseForComparison = run.baseBranch || job.baseBranch
@@ -663,6 +714,7 @@ async function finalizeScheduledRun(
           await git.push(repoPath, account.access_token, pushOptions)
         }
       }
+      } // end !isRepoLess
     } catch (err) {
       console.error(`[agent-lifecycle] Error finalizing run ${run.id}:`, err)
     }

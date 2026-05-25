@@ -12,6 +12,7 @@ import {
 import { addMinutes, addYears } from "date-fns"
 import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
 import { createWebhook } from "@upstream/common"
+import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================
 // Constants
@@ -91,6 +92,13 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
     if (!body.agent?.trim()) {
       return badRequest("agent is required")
+    }
+
+    const isRepoLess = body.repo.trim() === NEW_REPOSITORY
+
+    // Webhook triggers need a real GitHub repo to attach to.
+    if (triggerType === "webhook" && isRepoLess) {
+      return badRequest("Webhook triggers require a repository")
     }
 
     // Validate trigger-specific fields

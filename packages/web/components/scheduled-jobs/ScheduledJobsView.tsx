@@ -10,6 +10,11 @@ import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { MessageBubble } from "@/components/MessageBubble"
 import { type ScheduledJob, type ScheduledJobRun, formatInterval } from "@/lib/scheduled-jobs/types"
 import type { Message } from "@/lib/types"
+import { NEW_REPOSITORY } from "@/lib/types"
+
+function getRepoLabel(repo: string): string {
+  return repo === NEW_REPOSITORY ? "No repository" : repo
+}
 
 // =============================================================================
 // Helpers
@@ -568,7 +573,7 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
                     </div>
                   </div>
                   <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                    <div className="truncate">{job.repo}</div>
+                    <div className={cn("truncate", job.repo === NEW_REPOSITORY && "italic")}>{getRepoLabel(job.repo)}</div>
                     <div className="flex items-center justify-between gap-2">
                       <span>{getTriggerDescription(job)}</span>
                       <span className={cn(
@@ -617,8 +622,11 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {job.repo}
+                      <td className={cn(
+                        "px-4 py-3 text-sm text-muted-foreground",
+                        job.repo === NEW_REPOSITORY && "italic"
+                      )}>
+                        {getRepoLabel(job.repo)}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
                         {getTriggerDescription(job)}

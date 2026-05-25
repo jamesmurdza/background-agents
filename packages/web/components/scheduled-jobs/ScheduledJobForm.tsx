@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Clock, ChevronDown } from "lucide-react"
+import { Clock, ChevronDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { RepoCombobox } from "@/components/chat/RepoCombobox"
 import { BranchCombobox } from "@/components/chat/BranchCombobox"
 import { McpServersCombobox } from "@/components/chat/McpServersCombobox"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
-import { agentModels, agentLabels, getModelLabel, type Agent } from "@/lib/types"
+import { agentModels, agentLabels, getModelLabel, type Agent, NEW_REPOSITORY } from "@/lib/types"
 import { AgentIcon } from "@/components/icons/agent-icons"
 
 // =============================================================================
@@ -130,8 +130,12 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   // Form state
   const [name, setName] = useState(job?.name ?? "")
   const [prompt, setPrompt] = useState(job?.prompt ?? "")
-  const [repo, setRepo] = useState(job?.repo ?? "")
+  // Empty string means "no repo" in form state; on submit we send NEW_REPOSITORY.
+  const [repo, setRepo] = useState(
+    job?.repo && job.repo !== NEW_REPOSITORY ? job.repo : ""
+  )
   const [baseBranch, setBaseBranch] = useState(job?.baseBranch ?? "main")
+  const isRepoLess = !repo
   const [agent, setAgent] = useState<Agent>((job?.agent as Agent) ?? "opencode")
   const [model, setModel] = useState(job?.model ?? "")
   const [triggerType, setTriggerType] = useState<"interval" | "webhook">(job?.triggerType ?? "interval")
@@ -175,7 +179,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       const initialModels = agentModels[initialAgent] ?? []
       setName(job?.name ?? "")
       setPrompt(job?.prompt ?? "")
-      setRepo(job?.repo ?? "")
+      setRepo(job?.repo && job.repo !== NEW_REPOSITORY ? job.repo : "")
       setBaseBranch(job?.baseBranch ?? "main")
       setAgent(initialAgent)
       setModel(job?.model ?? initialModels[0]?.value ?? "")
@@ -197,6 +201,14 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setModel(models[0].value)
     }
   }, [agent, model])
+
+  // Webhook triggers require a real GitHub repo — snap back to interval if the
+  // user clears the repo while webhook was selected.
+  useEffect(() => {
+    if (isRepoLess && triggerType === "webhook") {
+      setTriggerType("interval")
+    }
+  }, [isRepoLess, triggerType])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -224,15 +236,17 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setError("Prompt is required")
       return null
     }
-    if (!repo) {
-      setError("Repository is required")
+    if (isRepoLess && triggerType === "webhook") {
+      setError("Webhook triggers require a repository")
       return null
     }
     const runAtHourUtc = localHourToUtc(runAtHourLocal)
     return {
       name: name.trim(),
       prompt: prompt.trim(),
-      repo,
+      // Empty form value means repo-less; send the NEW_REPOSITORY sentinel so
+      // the backend can route through its existing no-clone sandbox path.
+      repo: repo || NEW_REPOSITORY,
       baseBranch,
       agent,
       model: model || null,
@@ -240,7 +254,8 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       intervalMinutes: triggerType === "interval" ? intervalMinutes : undefined,
       runAtHour: triggerType === "interval" && intervalMinutes >= 1440 ? runAtHourUtc : undefined,
       runAtDay: triggerType === "interval" && intervalMinutes === 10080 ? runAtDay : undefined,
-      autoPR,
+      // Auto-PR has nothing to push to in repo-less mode.
+      autoPR: isRepoLess ? false : autoPR,
       continueFromLastRun,
     }
   }
@@ -275,7 +290,9 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           // values before flipping isDraft to false.
           name: name.trim() || "(draft)",
           prompt: prompt.trim() || "(draft)",
-          repo: repo || "__draft__",
+          // Drafts default to the repo-less sentinel so the row passes the
+          // backend's repo check before the user fills the form in fully.
+          repo: repo || NEW_REPOSITORY,
           baseBranch: baseBranch || "main",
           agent,
           model: model || null,
@@ -431,22 +448,30 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 "inline-flex rounded-md bg-muted p-0.5",
                 isLocked && "opacity-50"
               )}>
-                {TRIGGER_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => !isLocked && setTriggerType(t.value)}
-                    disabled={isLocked}
-                    className={cn(
-                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
-                      triggerType === t.value
-                        ? "bg-background shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                {TRIGGER_TYPES.map((t) => {
+                  // Webhook triggers attach to a GitHub repo, so they're not
+                  // available in repo-less mode.
+                  const isWebhookDisabled = t.value === "webhook" && isRepoLess
+                  const disabled = isLocked || isWebhookDisabled
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => !disabled && setTriggerType(t.value)}
+                      disabled={disabled}
+                      title={isWebhookDisabled ? "Select a repository to use webhook triggers" : undefined}
+                      className={cn(
+                        "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
+                        triggerType === t.value
+                          ? "bg-background shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                        isWebhookDisabled && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -548,7 +573,24 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                       showLabel
                     />
 
-                    {/* Branch selector */}
+                    {/* Clear-repo X — only in create mode; edits keep the
+                        repo immutable since the sandbox/branch pipeline is
+                        already wired to it. */}
+                    {repo && !isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRepo("")
+                          setBaseBranch("main")
+                        }}
+                        className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-0.5"
+                        title="Remove repository"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+
+                    {/* Branch selector — only meaningful when a repo is set. */}
                     {repo && (
                       <BranchCombobox
                         repo={repo}
@@ -654,7 +696,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
             <div>
               <label className="block text-sm font-medium mb-2">Options</label>
               <div className="space-y-2">
-                {/* Continue from last run - only for scheduled triggers */}
+                {/* Continue from last run — same checkbox in both modes, but
+                    the backend interprets it differently: with a repo it
+                    reuses the prior branch; repo-less it prepends the prior
+                    run's final output as prompt context. */}
                 {triggerType === "interval" && (
                   <div className="flex items-center gap-2">
                     <input
@@ -665,23 +710,28 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                       className="h-4 w-4 rounded border-border"
                     />
                     <label htmlFor="continueFromLastRun" className="text-sm">
-                      Include commits from the previous run
+                      {isRepoLess
+                        ? "Include the previous run's output as context"
+                        : "Include commits from the previous run"}
                     </label>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="autoPR"
-                    checked={autoPR}
-                    onChange={(e) => setAutoPR(e.target.checked)}
-                    className="h-4 w-4 rounded border-border"
-                  />
-                  <label htmlFor="autoPR" className="text-sm">
-                    Automatically create PR when there are new commits
-                  </label>
-                </div>
+                {/* Auto-PR has no target in repo-less mode (no remote to push to). */}
+                {!isRepoLess && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="autoPR"
+                      checked={autoPR}
+                      onChange={(e) => setAutoPR(e.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <label htmlFor="autoPR" className="text-sm">
+                      Automatically create PR when there are new commits
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
