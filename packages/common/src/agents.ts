@@ -132,7 +132,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6", requiresKey: "anthropic" },
     { value: "anthropic/claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "anthropic" },
     // OpenAI direct models (requires OpenAI API key)
-    { value: "openai/codex-mini-latest", label: "Codex Mini Latest", requiresKey: "openai" },
     { value: "openai/gpt-3.5-turbo", label: "GPT-3.5 Turbo", requiresKey: "openai" },
     { value: "openai/gpt-4", label: "GPT-4", requiresKey: "openai" },
     { value: "openai/gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
