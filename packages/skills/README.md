@@ -67,6 +67,7 @@ import type {
   SkillInstallResult,
   SkillsInstallResult,
   SkillRecord,
+  DiscoveredSkill,
 } from "@upstream/skills"
 ```
 
@@ -86,6 +87,8 @@ import {
   parseSkillHandle,
   uninstallSkill,
   getSkillNameFromHandle,
+  discoverInstalledSkills,
+  type OnSkillRemove,
 } from "@upstream/skills/sandbox"
 ```
 

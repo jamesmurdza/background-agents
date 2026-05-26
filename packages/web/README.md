@@ -23,6 +23,12 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 - **Model Selection**: Choose different models for each agent based on your API keys
 
+- **Scheduled & Triggered Jobs**: Run agents automatically on a recurring interval or in response to GitHub webhook events (e.g. failed workflows), with optional auto-PR creation. Managed from the `/jobs` page.
+
+- **MCP Servers**: Attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
+
+- **Skills**: Install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
+
 - **Dark/Light Theme**: System-aware theming with manual override options
 
 ## Prerequisites
@@ -105,9 +111,17 @@ The app uses PostgreSQL to store user data, chats, and messages. This enables:
 
 ### Schema
 
+Core models (see `packages/web/prisma/schema.prisma` for the full definitions):
+
 - **User**: GitHub OAuth user with settings (JSONB) and encrypted credentials (JSONB)
 - **Chat**: Conversation tied to a repo/branch with sandbox info
 - **Message**: Individual messages with tool calls and content blocks
+- **ScheduledJob** / **ScheduledJobRun**: Recurring or webhook-triggered agent jobs and their execution history
+- **McpServerConnection**: Per-chat or per-job MCP server connections (Smithery Connect + GitHub MCP)
+- **Skill**: Repo-scoped skill manifests installed from the skills.sh marketplace
+- **CcAuthInfo**: Cached Claude Code OAuth credentials/cookies (managed by ccauth + the refresh cron)
+- **ActivityLog**: User action history for admin analytics
+- **Account** / **Session** / **VerificationToken**: NextAuth tables
 
 ### Data Flow
 

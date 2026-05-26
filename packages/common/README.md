@@ -93,6 +93,7 @@ import {
   buildSystemPrompt,
   buildContentBlocks,
   type BuildContentBlocksResult,
+  type SkillCatalogEntry,
 } from "@upstream/common"
 ```
 

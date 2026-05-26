@@ -61,7 +61,7 @@ await sandbox.delete()
 | Claude | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions -- "prompt"` |
 | Codex | `codex exec --json --skip-git-repo-check --yolo -- "prompt"` |
 | Copilot | `copilot -p "prompt" --output-format=json --silent --autopilot` |
-| Gemini | `gemini --output-format stream-json --yolo -p "prompt"` |
+| Gemini | `gemini --output-format stream-json --skip-trust --yolo -p "prompt"` |
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | Kilo | `kilo run --format json --auto -- "prompt" 2>&1` |
 | OpenCode | `opencode run --format json --variant medium -- "prompt" 2>&1` |
