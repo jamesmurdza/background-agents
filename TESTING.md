@@ -43,11 +43,11 @@ DATABASE_URL="<same as the DATABASE_URL you configured>" npx prisma db push
 
 ## Playwright end-to-end tests
 
-**Secrets:** In the **repo root** `.env`, you only need `DAYTONA_API_KEY` (`packages/web/playwright.config.ts` loads it).
+**Secrets:** Copy `packages/web/.env.test.example` to `packages/web/.env.test` and fill in `DATABASE_URL` (a **test** database) and `DAYTONA_API_KEY`. The template already sets `ENABLE_TEST_AUTH="true"` (required) and placeholder `NEXTAUTH_*`/`GITHUB_*` values. `packages/web/playwright.config.ts` loads `.env.test` first, then falls back to the repo-root `.env`.
 
 **Note:** In a sandbox environment, take the `DAYTONA_API_KEY` from the shell environment variables.
 
-**Database:** Use a database from [Database setup](#database-setup). Prefer a **separate** database from your dev DB so E2E does not overwrite local data. In `packages/web/.env.e2e`, set `DATABASE_URL`, `NEXTAUTH_SECRET`, and `ENCRYPTION_KEY`.
+**Database:** Use a **separate** database from your dev DB so E2E does not overwrite local data. The `DATABASE_URL` must contain `test`, `localhost`, or `127.0.0.1` (a safety check), or set `I_KNOW_THIS_IS_THE_TEST_DB=true` to bypass it. You do not need to apply the schema by hand—global setup runs `npx prisma migrate reset --force` before the suite.
 
 **Build:** The web app depends on `background-agents`. Build it first from the repo root:
 
