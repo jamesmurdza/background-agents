@@ -14,13 +14,7 @@ import type {
 import type { Event } from "../../types/events"
 import { parseKiloLine } from "./parser"
 import { KILO_TOOL_MAPPINGS } from "./tools"
-
-/**
- * Quote a string for bash
- */
-function quote(s: string): string {
-  return `'${s.replace(/'/g, "'\\''")}'`
-}
+import { quote } from "../../utils/shell"
 
 /**
  * Kilo CLI agent definition.
