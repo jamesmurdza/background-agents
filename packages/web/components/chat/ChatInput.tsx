@@ -355,8 +355,9 @@ export function ChatInput({
             ) : null}
           </div>
 
-          {/* Voice dictation (speech-to-text) — pinned to the top-right corner,
-              in line with the message text input. Only shown when supported. */}
+          {/* Voice dictation (speech-to-text) — anchored to the bottom-right,
+              vertically aligned with the send button even as the textarea
+              grows. Only shown when supported. */}
           {speech.isSupported && (
             <button
               type="button"
@@ -364,7 +365,7 @@ export function ChatInput({
               disabled={speech.permissionDenied}
               aria-pressed={speech.isListening}
               className={cn(
-                "shrink-0 self-start flex items-center justify-center rounded-md transition-colors",
+                "shrink-0 flex items-center justify-center rounded-md transition-colors",
                 isMobile ? "h-9 w-9" : "h-7 w-7",
                 speech.permissionDenied
                   ? "text-muted-foreground/40 cursor-not-allowed"
