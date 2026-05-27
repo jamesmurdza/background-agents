@@ -8,32 +8,21 @@
  * SSE streaming updates TanStack Query cache directly.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useEffect, useCallback, useMemo, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
-import type { Chat, ChatStatus, Message, QueuedMessage, Agent } from "@/lib/types"
-import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
+import type { Chat, ChatStatus, Message, QueuedMessage } from "@/lib/types"
+import { NEW_REPOSITORY, getDefaultModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
-import { generateBranchName } from "@/lib/utils"
 import {
-  loadLocalState,
-  setCurrentChatId as persistCurrentChatId,
-  setPreviewState,
-  loadUnseenChatIds,
-  saveUnseenChatIds,
   setQueuedMessages,
   setQueuePaused,
-  setDraft,
   clearLocalStateForChats,
   collectDescendantIds,
   DEFAULT_SETTINGS,
-  setDraftChatConfig,
-  clearDraftChatConfig,
-  migrateDraftToRealChat,
-  type DraftChatConfig,
-  type PreviewState,
 } from "@/lib/storage"
+import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import {
   useChatsQuery,
   useSettingsQuery,
@@ -49,65 +38,28 @@ import {
 import { useStreamStore } from "@/lib/stores/stream-store"
 import { fetchChat, toMessageType } from "@/lib/sync/api"
 import { useStreaming, mergeMessages } from "./useStreaming"
-
-// =============================================================================
-// API helpers
-// =============================================================================
-
-interface SendMessagePayload {
-  message: string
-  agent: string
-  model: string
-  userMessageId: string
-  assistantMessageId: string
-  newBranch?: string
-  planMode?: boolean
-}
-
-interface SendMessageResponse {
-  sandboxId: string
-  branch: string | null
-  previewUrlPattern: string | null
-  backgroundSessionId: string
-  uploadedFiles: string[]
-}
-
-/**
- * Send a message to the API, handling both JSON and FormData (for files)
- */
-async function sendMessageToApi(
-  chatId: string,
-  payload: SendMessagePayload,
-  files?: File[]
-): Promise<{ ok: true; data: SendMessageResponse } | { ok: false; error: string; isDailyLimit: boolean; resetAt?: string }> {
-  let response: Response
-
-  if (files?.length) {
-    const formData = new FormData()
-    formData.append("payload", JSON.stringify(payload))
-    files.forEach((file, i) => formData.append(`file-${i}`, file))
-    response = await fetch(`/api/chats/${chatId}/messages`, { method: "POST", body: formData })
-  } else {
-    response = await fetch(`/api/chats/${chatId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    return {
-      ok: false,
-      error: err.error || "Failed to send message",
-      isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
-      resetAt: err.resetAt,
-    }
-  }
-
-  const data = await response.json() as SendMessageResponse
-  return { ok: true, data }
-}
+import {
+  mergeLocalState,
+  computeUnseenTransitions,
+  enqueue,
+  removeFromQueue,
+  dequeue,
+  isChatReadyForQueueDispatch,
+  removeLocalChatStateFor,
+  selectFallbackNextChatId,
+} from "@/lib/chat-state"
+import {
+  sendMessageToApi,
+  resolveAgentAndModel,
+  usesSharedClaudePool,
+  newBranchForSend,
+  applyOptimisticSend,
+  removeOptimisticMessages,
+  applySendSuccess,
+  applySendError,
+  decrementClaudeUsage,
+  type SendMessagePayload,
+} from "@/lib/chat-messages"
 
 // =============================================================================
 // Hook
@@ -129,42 +81,30 @@ export function useChatWithSync() {
   const suggestNameMutation = useSuggestNameMutation()
   const sandboxDeleteMutation = useSandboxDeleteMutation()
 
-  // Local-only state
-  const [currentChatId, setCurrentChatIdState] = useState<string | null>(null)
-  const [isHydrated, setIsHydrated] = useState(false)
-  const [unseenChatIds, setUnseenChatIds] = useState<Set<string>>(new Set())
-  const [deletingChatIds, setDeletingChatIds] = useState<Set<string>>(new Set())
-  const [localChatState, setLocalChatState] = useState<{
-    previewStates: Record<string, PreviewState>
-    queuedMessages: Record<string, Chat["queuedMessages"]>
-    queuePaused: Record<string, boolean>
-    drafts: Record<string, string>
-  }>({ previewStates: {}, queuedMessages: {}, queuePaused: {}, drafts: {} })
-  const [draftChatConfig, setDraftChatConfigState] = useState<DraftChatConfig | undefined>(undefined)
-  // Ref kept in sync with draftChatConfig state. materializeDraft reads from this
-  // so it always sees the current value regardless of when its useCallback closure
-  // was created (fixes stale-closure bug on fresh page loads where React state
-  // hasn't hydrated yet but localStorage already has the config).
-  const draftChatConfigRef = useRef<DraftChatConfig | undefined>(undefined)
+  // Local-only state (owned by the chat-sync store)
+  const currentChatId = useChatSyncStore((s) => s.currentChatId)
+  const isHydrated = useChatSyncStore((s) => s.isHydrated)
+  const unseenChatIds = useChatSyncStore((s) => s.unseenChatIds)
+  const deletingChatIds = useChatSyncStore((s) => s.deletingChatIds)
+  const localChatState = useChatSyncStore((s) => s.localChatState)
+  const draftChatConfig = useChatSyncStore((s) => s.draftChatConfig)
+  const limitReachedState = useChatSyncStore((s) => s.limitReachedState)
 
+  // Store actions (stable references)
+  const selectChat = useChatSyncStore((s) => s.selectChat)
+  const updateDraftChatConfig = useChatSyncStore((s) => s.updateDraftChatConfig)
+  const setLimitReachedState = useChatSyncStore((s) => s.setLimitReachedState)
+  const dismissLimitReached = useChatSyncStore((s) => s.dismissLimitReached)
+
+  // Effect-/action-local bookkeeping. These are legitimate refs (stable, never
+  // rendered) used to coordinate in-flight async work; they have no
+  // stale-closure hazard, so they stay as refs rather than moving to the store.
   const prevStatuses = useRef<Map<string, ChatStatus>>(new Map())
   const sendInFlight = useRef<Set<string>>(new Set())
   const stopInFlight = useRef<Set<string>>(new Set())
   const queueDispatchInFlight = useRef<Set<string>>(new Set())
   const messagesLoadFailed = useRef<Set<string>>(new Set())
   const materializingDraft = useRef<boolean>(false)
-
-  // Daily limit reached state
-  const [limitReachedState, setLimitReachedState] = useState<{
-    show: boolean
-    pendingMessage?: {
-      chatId: string
-      content: string
-      files?: File[]
-      planMode?: boolean
-    }
-    resetAt?: Date
-  }>({ show: false })
 
   // Callback for conflict state changes from SSE complete events
   const onConflictStateChangeRef = useRef<((state: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] }) => void) | null>(null)
@@ -178,37 +118,16 @@ export function useChatWithSync() {
     onMarkdownFileWrite: onMarkdownFileWriteRef.current,
   })
 
-  // Hydration
+  // Hydration — load persisted local state into the store once on mount.
   useEffect(() => {
-    const localState = loadLocalState()
-    setCurrentChatIdState(localState.currentChatId)
-    setUnseenChatIds(loadUnseenChatIds())
-    setLocalChatState({
-      previewStates: localState.previewStates,
-      queuedMessages: localState.queuedMessages,
-      queuePaused: localState.queuePaused,
-      drafts: localState.drafts,
-    })
-    setDraftChatConfigState(localState.draftChatConfig)
-    draftChatConfigRef.current = localState.draftChatConfig
-    setIsHydrated(true)
+    useChatSyncStore.getState().hydrate()
   }, [])
 
   // Derived state
-  const chats = useMemo((): Chat[] => {
-    const serverChats = chatsQuery.data ?? []
-    return serverChats.map((chat) => {
-      const previewState = localChatState.previewStates[chat.id]
-      return {
-        ...chat,
-        previewItems: previewState?.items,
-        activePreviewIndex: previewState?.activeIndex,
-        previewPaneHidden: previewState?.hidden,
-        queuedMessages: localChatState.queuedMessages[chat.id],
-        queuePaused: localChatState.queuePaused[chat.id],
-      }
-    })
-  }, [chatsQuery.data, localChatState])
+  const chats = useMemo(
+    (): Chat[] => mergeLocalState(chatsQuery.data ?? [], localChatState),
+    [chatsQuery.data, localChatState]
+  )
 
   const settings = settingsQuery.data?.settings ?? DEFAULT_SETTINGS
   const credentialFlags = settingsQuery.data?.credentialFlags ?? {}
@@ -221,36 +140,19 @@ export function useChatWithSync() {
   const currentChat = useMemo(() => chats.find((c) => c.id === currentChatId) ?? null, [chats, currentChatId])
   const isLoading = chatsQuery.isLoading || settingsQuery.isLoading
 
-  // Persist unseen
-  useEffect(() => {
-    if (isHydrated) saveUnseenChatIds(unseenChatIds)
-  }, [unseenChatIds, isHydrated])
-
-  // Detect running → non-running transitions
+  // Detect running → non-running transitions and badge them as unseen.
+  // (Unseen persistence is handled inside the store's addUnseen/selectChat.)
   useEffect(() => {
     if (!isHydrated) return
-    const currentIds = new Set<string>()
-    const newlyUnseen: string[] = []
-
-    for (const chat of chats) {
-      currentIds.add(chat.id)
-      const prevStatus = prevStatuses.current.get(chat.id)
-      if (prevStatus === "running" && chat.status !== "running" && chat.id !== currentChatId) {
-        newlyUnseen.push(chat.id)
-      }
-      prevStatuses.current.set(chat.id, chat.status)
-    }
-
-    for (const id of Array.from(prevStatuses.current.keys())) {
-      if (!currentIds.has(id)) prevStatuses.current.delete(id)
-    }
+    const { newlyUnseen, nextStatuses } = computeUnseenTransitions(
+      chats,
+      prevStatuses.current,
+      currentChatId
+    )
+    prevStatuses.current = nextStatuses
 
     if (newlyUnseen.length > 0) {
-      setUnseenChatIds((prev) => {
-        const next = new Set(prev)
-        newlyUnseen.forEach((id) => next.add(id))
-        return next
-      })
+      useChatSyncStore.getState().addUnseen(newlyUnseen)
     }
   }, [chats, currentChatId, isHydrated])
 
@@ -295,41 +197,15 @@ export function useChatWithSync() {
     return chatId?.startsWith("draft-") ?? false
   }, [])
 
-  // Enter draft mode - creates a local-only chat that isn't persisted to the database
-  const enterDraftMode = useCallback((
-    repo: string = NEW_REPOSITORY,
-    baseBranch: string = "main",
-    agent: string | null = null,
-    model: string | null = null,
-  ): string => {
-    const draftId = `draft-${nanoid()}`
-    const config: DraftChatConfig = { id: draftId, repo, baseBranch, agent, model }
-    setDraftChatConfigState(config)
-    draftChatConfigRef.current = config
-    setDraftChatConfig(config)
-    setCurrentChatIdState(draftId)
-    persistCurrentChatId(draftId)
-    return draftId
-  }, [])
-
-  // Update the draft chat config (both React state and localStorage)
-  const updateDraftChatConfig = useCallback((updates: Partial<Omit<DraftChatConfig, "id">>) => {
-    if (!draftChatConfigRef.current) return
-    const newConfig: DraftChatConfig = { ...draftChatConfigRef.current, ...updates }
-    setDraftChatConfigState(newConfig)
-    draftChatConfigRef.current = newConfig
-    setDraftChatConfig(newConfig)
-  }, [])
-
   // Materialize a draft chat into a real database chat
   // Returns the full chat object so callers can use it directly without looking it up
   const materializeDraft = useCallback(async (
     draftId: string,
     options?: { status?: Chat["status"] }
   ): Promise<Chat | null> => {
-    // Read from the ref, not the closure — avoids stale-closure bug where
-    // draftChatConfig is undefined on first render before hydration completes.
-    const config = draftChatConfigRef.current
+    // Read the draft config straight from the store so we always see the current
+    // value, regardless of when this callback's closure was created.
+    const config = useChatSyncStore.getState().draftChatConfig
     if (!config || config.id !== draftId) {
       console.error("Cannot materialize: draft config not found for", draftId)
       return null
@@ -351,39 +227,10 @@ export function useChatWithSync() {
         planModeEnabled: config.planMode,
       })
 
-      // Migrate local state from draft ID to real ID
-      migrateDraftToRealChat(draftId, newChat.id)
-      setLocalChatState((prev) => {
-        const newPreviewStates = { ...prev.previewStates }
-        const newQueuedMessages = { ...prev.queuedMessages }
-        const newQueuePaused = { ...prev.queuePaused }
-        const newDrafts = { ...prev.drafts }
-
-        if (newPreviewStates[draftId]) {
-          newPreviewStates[newChat.id] = newPreviewStates[draftId]
-          delete newPreviewStates[draftId]
-        }
-        if (newQueuedMessages[draftId]) {
-          newQueuedMessages[newChat.id] = newQueuedMessages[draftId]
-          delete newQueuedMessages[draftId]
-        }
-        if (newQueuePaused[draftId] !== undefined) {
-          newQueuePaused[newChat.id] = newQueuePaused[draftId]
-          delete newQueuePaused[draftId]
-        }
-        if (newDrafts[draftId]) {
-          newDrafts[newChat.id] = newDrafts[draftId]
-          delete newDrafts[draftId]
-        }
-
-        return { previewStates: newPreviewStates, queuedMessages: newQueuedMessages, queuePaused: newQueuePaused, drafts: newDrafts }
-      })
-
-      // Clear draft config and update current chat ID
-      setDraftChatConfigState(undefined)
-      draftChatConfigRef.current = undefined
-      clearDraftChatConfig()
-      setCurrentChatIdState(newChat.id)
+      // Migrate local state from draft ID to real ID, clear the draft config,
+      // and select the real chat (without persisting the selection — matching
+      // the prior behaviour).
+      useChatSyncStore.getState().completeMaterialize(draftId, newChat.id)
 
       return newChat
     } catch (error) {
@@ -416,8 +263,7 @@ export function useChatWithSync() {
           status: initialStatus,
         })
         if (switchTo) {
-          setCurrentChatIdState(newChat.id)
-          persistCurrentChatId(newChat.id)
+          useChatSyncStore.getState().setCurrentChatId(newChat.id)
         }
         return newChat.id
       } catch (error) {
@@ -427,40 +273,20 @@ export function useChatWithSync() {
     }
 
     // For regular new chats, enter draft mode instead of creating in DB
-    const draftId = enterDraftMode(repo, baseBranch, agent, model)
-    return draftId
-  }, [createChatMutation, enterDraftMode])
-
-  const selectChat = useCallback((chatId: string | null) => {
-    if (chatId) {
-      setUnseenChatIds((prev) => {
-        if (!prev.has(chatId)) return prev
-        const next = new Set(prev)
-        next.delete(chatId)
-        return next
-      })
-    }
-    setCurrentChatIdState(chatId)
-    persistCurrentChatId(chatId)
-  }, [])
+    return useChatSyncStore.getState().enterDraftMode(repo, baseBranch, agent ?? null, model ?? null)
+  }, [createChatMutation])
 
   const removeChat = useCallback(
     async (chatId: string, getNextChatId?: (deletedIds: string[]) => string | null) => {
       const allIds = collectDescendantIds(chats, chatId)
       for (const id of allIds) useStreamStore.getState().stopStream(id)
-      setDeletingChatIds((prev) => new Set([...prev, ...allIds]))
+      useChatSyncStore.getState().addDeleting(allIds)
 
       const selectNextChat = (deletedIds: string[]) => {
-        let nextChat: string | null = null
-        if (getNextChatId) {
-          nextChat = getNextChatId(deletedIds)
-        } else {
-          // Fallback: select first remaining chat
-          const remaining = chats.filter((c) => !deletedIds.includes(c.id))
-          nextChat = remaining[0]?.id ?? null
-        }
-        setCurrentChatIdState(nextChat)
-        persistCurrentChatId(nextChat)
+        const nextChat = getNextChatId
+          ? getNextChatId(deletedIds)
+          : selectFallbackNextChatId(chats, deletedIds)
+        useChatSyncStore.getState().setCurrentChatId(nextChat)
       }
 
       // Select the next chat right away (optimistically) when the open chat is
@@ -477,16 +303,7 @@ export function useChatWithSync() {
           sandboxDeleteMutation.mutate(sandboxId)
         }
         clearLocalStateForChats(result.deletedChatIds)
-        setLocalChatState((prev) => {
-          const next = { ...prev, previewStates: { ...prev.previewStates }, queuedMessages: { ...prev.queuedMessages }, queuePaused: { ...prev.queuePaused }, drafts: { ...prev.drafts } }
-          for (const id of result.deletedChatIds) {
-            delete next.previewStates[id]
-            delete next.queuedMessages[id]
-            delete next.queuePaused[id]
-            delete next.drafts[id]
-          }
-          return next
-        })
+        useChatSyncStore.getState().setLocalChatState((prev) => removeLocalChatStateFor(prev, result.deletedChatIds))
         // Reconcile against the server's actual deleted set in case it removed
         // descendants we didn't predict locally and the open chat was among them.
         const serverDeletedExtra = result.deletedChatIds.some((id) => !allIds.includes(id))
@@ -496,11 +313,7 @@ export function useChatWithSync() {
       } catch (error) {
         console.error("Failed to delete chat:", error)
       } finally {
-        setDeletingChatIds((prev) => {
-          const next = new Set(prev)
-          for (const id of allIds) next.delete(id)
-          return next
-        })
+        useChatSyncStore.getState().removeDeleting(allIds)
       }
     },
     [chats, currentChatId, deleteChatMutation, sandboxDeleteMutation]
@@ -542,43 +355,12 @@ export function useChatWithSync() {
     }
   }, [updateSettingsMutation])
 
-  // Helper to update preview state for a chat (extracted to avoid duplication)
-  const updatePreviewStateForChat = useCallback((
-    chatId: string,
-    updates: Pick<Partial<Chat>, "previewItems" | "activePreviewIndex" | "previewPaneHidden">
-  ) => {
-    const { previewItems, activePreviewIndex, previewPaneHidden } = updates
-
-    if (!("previewItems" in updates) && !("activePreviewIndex" in updates) && !("previewPaneHidden" in updates)) {
-      return
-    }
-
-    const currentState = localChatState.previewStates[chatId]
-    const newState: PreviewState | undefined = previewItems === undefined && activePreviewIndex === undefined && previewPaneHidden === undefined
-      ? undefined
-      : {
-          items: previewItems ?? currentState?.items ?? [],
-          activeIndex: activePreviewIndex ?? currentState?.activeIndex ?? 0,
-          hidden: previewPaneHidden ?? currentState?.hidden,
-        }
-    setPreviewState(chatId, newState)
-    setLocalChatState((prev) => {
-      const newPreviewStates = { ...prev.previewStates }
-      if (newState === undefined) {
-        delete newPreviewStates[chatId]
-      } else {
-        newPreviewStates[chatId] = newState
-      }
-      return { ...prev, previewStates: newPreviewStates }
-    })
-  }, [localChatState.previewStates])
-
   const updateCurrentChat = useCallback(async (updates: Partial<Chat>) => {
     if (!currentChatId) return
     const { previewItems, activePreviewIndex, previewPaneHidden, queuedMessages, queuePaused, ...serverUpdates } = updates
 
     // Handle previewItems/activePreviewIndex/previewPaneHidden fields
-    updatePreviewStateForChat(currentChatId, { previewItems, activePreviewIndex, previewPaneHidden })
+    useChatSyncStore.getState().setPreviewStateForChat(currentChatId, { previewItems, activePreviewIndex, previewPaneHidden })
 
     if (Object.keys(serverUpdates).length > 0) {
       try {
@@ -587,13 +369,13 @@ export function useChatWithSync() {
         console.error("Failed to update chat:", error)
       }
     }
-  }, [currentChatId, updatePreviewStateForChat, updateChatMutation])
+  }, [currentChatId, updateChatMutation])
 
   const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
     const { previewItems, activePreviewIndex, previewPaneHidden, ...serverUpdates } = updates
 
     // Handle previewItems/activePreviewIndex/previewPaneHidden fields
-    updatePreviewStateForChat(chatId, { previewItems, activePreviewIndex, previewPaneHidden })
+    useChatSyncStore.getState().setPreviewStateForChat(chatId, { previewItems, activePreviewIndex, previewPaneHidden })
 
     if (Object.keys(serverUpdates).length > 0) {
       try {
@@ -602,7 +384,7 @@ export function useChatWithSync() {
         console.error("Failed to update chat:", error)
       }
     }
-  }, [updatePreviewStateForChat, updateChatMutation])
+  }, [updateChatMutation])
 
   // Send message
   const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean) => {
@@ -643,21 +425,21 @@ export function useChatWithSync() {
       if (!session) return
 
       const isFirstMessage = chat.messages.length === 0
-      const selectedAgent = (agent ?? chat.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
-      const selectedModel = model ?? chat.model ?? settings.defaultModel ?? getDefaultModelForAgent(selectedAgent, credentialFlags)
+      const { agent: selectedAgent, model: selectedModel } = resolveAgentAndModel(
+        agent,
+        model,
+        chat,
+        settings,
+        credentialFlags
+      )
 
-      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: Date.now() }
-      const assistantMessage: Message = { id: nanoid(), role: "assistant", content: "", timestamp: Date.now() + 1, toolCalls: [], contentBlocks: [] }
+      const now = Date.now()
+      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now }
+      const assistantMessage: Message = { id: nanoid(), role: "assistant", content: "", timestamp: now + 1, toolCalls: [], contentBlocks: [] }
 
       // Optimistic update
       updateChatsCache((old) => old.map((c) =>
-        c.id === chatId ? {
-          ...c,
-          messages: [...c.messages, userMessage, assistantMessage],
-          status: chat.sandboxId ? "running" : "creating",
-          lastActiveAt: Date.now(),
-          errorMessage: undefined,
-        } : c
+        c.id === chatId ? applyOptimisticSend(c, userMessage, assistantMessage, now) : c
       ))
 
       try {
@@ -667,7 +449,7 @@ export function useChatWithSync() {
           model: selectedModel,
           userMessageId: userMessage.id,
           assistantMessageId: assistantMessage.id,
-          newBranch: chat.sandboxId ? undefined : `agent/${generateBranchName()}`,
+          newBranch: newBranchForSend(chat),
           planMode: planMode || undefined,
         }
 
@@ -678,11 +460,7 @@ export function useChatWithSync() {
           if (result.isDailyLimit) {
             // Remove the optimistic messages
             updateChatsCache((old) => old.map((c) =>
-              c.id === chatId ? {
-                ...c,
-                status: "ready",
-                messages: c.messages.filter((m) => m.id !== userMessage.id && m.id !== assistantMessage.id),
-              } : c
+              c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
             ))
 
             // Show the limit reached dialog with pending message info
@@ -699,39 +477,14 @@ export function useChatWithSync() {
 
         const { data } = result
         updateChatsCache((old) => old.map((c) =>
-          c.id === chatId ? {
-            ...c,
-            sandboxId: data.sandboxId,
-            branch: data.branch,
-            previewUrlPattern: data.previewUrlPattern ?? undefined,
-            backgroundSessionId: data.backgroundSessionId,
-            agent: selectedAgent,
-            model: selectedModel,
-            status: "running",
-            messages: c.messages.map((m) =>
-              m.id === userMessage.id && data.uploadedFiles.length > 0 ? { ...m, uploadedFiles: data.uploadedFiles } : m
-            ),
-          } : c
+          c.id === chatId ? applySendSuccess(c, data, selectedAgent, selectedModel, userMessage.id) : c
         ))
 
         startStreaming(chatId, data.sandboxId, "project", data.backgroundSessionId, assistantMessage.id, data.previewUrlPattern ?? undefined, data.branch, undefined, planMode)
 
         // Optimistically update Claude usage count if using shared pool with Claude Code
-        if (selectedAgent === "claude-code") {
-          const hasOwnAnthropicKey = !!credentialFlags.ANTHROPIC_API_KEY || !!credentialFlags.CLAUDE_CODE_CREDENTIALS
-          const usesSharedPool = credentialFlags.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicKey
-          if (usesSharedPool) {
-            queryClient.setQueryData<SettingsData>(queryKeys.settings.all, (old) => {
-              if (!old || old.claudeLimitUsed === null || old.claudeLimitUsed === undefined) return old
-              return {
-                ...old,
-                claudeLimitUsed: old.claudeLimitUsed + 1,
-                claudeLimitRemaining: old.claudeLimitRemaining !== null && old.claudeLimitRemaining !== undefined
-                  ? Math.max(0, old.claudeLimitRemaining - 1)
-                  : null,
-              }
-            })
-          }
+        if (usesSharedClaudePool(selectedAgent, credentialFlags)) {
+          queryClient.setQueryData<SettingsData>(queryKeys.settings.all, decrementClaudeUsage)
         }
 
         if (isFirstMessage) {
@@ -740,14 +493,7 @@ export function useChatWithSync() {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error"
         updateChatsCache((old) => old.map((c) =>
-          c.id === chatId ? {
-            ...c,
-            status: "error",
-            errorMessage,
-            messages: c.messages.map((m) =>
-              m.id === assistantMessage.id ? { ...m, content: `Error: ${errorMessage}`, isError: true } : m
-            ),
-          } : c
+          c.id === chatId ? applySendError(c, assistantMessage.id, errorMessage) : c
         ))
       }
     } finally {
@@ -759,17 +505,17 @@ export function useChatWithSync() {
     const chat = chats.find((c) => c.id === chatId)
     const queue = queueOverride ?? localChatState.queuedMessages[chatId]
     if (!chat || !queue || queue.length === 0) return false
-    if (localChatState.queuePaused[chatId]) return false
+    // In-flight / stream locks are not pure state, so they're checked here.
     if (queueDispatchInFlight.current.has(chatId)) return false
     if (sendInFlight.current.has(chatId)) return false
     if (stopInFlight.current.has(chatId)) return false
     if (useStreamStore.getState().isStreaming(chatId)) return false
-    if (chat.status !== "ready" || !!chat.backgroundSessionId) return false
+    if (!isChatReadyForQueueDispatch(chat, queue, localChatState.queuePaused[chatId])) return false
 
-    const [first, ...rest] = queue
+    const { next: first, rest } = dequeue(queue)
     queueDispatchInFlight.current.add(chatId)
     setQueuedMessages(chatId, rest.length > 0 ? rest : undefined)
-    setLocalChatState((prev) => ({
+    useChatSyncStore.getState().setLocalChatState((prev) => ({
       ...prev,
       queuedMessages: { ...prev.queuedMessages, [chatId]: rest.length > 0 ? rest : undefined },
     }))
@@ -808,7 +554,7 @@ export function useChatWithSync() {
 
     if (hasQueue) {
       setQueuePaused(chatId, true)
-      setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [chatId]: true } }))
+      useChatSyncStore.getState().setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [chatId]: true } }))
     }
 
     // Call the stop endpoint and wait for it to complete before allowing new messages
@@ -881,11 +627,11 @@ export function useChatWithSync() {
   const enqueueMessage = useCallback((content: string, agent?: string, model?: string) => {
     if (!currentChat) return
     const queued: QueuedMessage = { id: `q-${Date.now()}`, content, agent, model }
-    const newQueue = [...(currentChat.queuedMessages ?? []), queued]
+    const newQueue = enqueue(currentChat.queuedMessages, queued)
 
     setQueuedMessages(currentChat.id, newQueue)
     setQueuePaused(currentChat.id, false)
-    setLocalChatState((prev) => ({
+    useChatSyncStore.getState().setLocalChatState((prev) => ({
       ...prev,
       queuedMessages: { ...prev.queuedMessages, [currentChat.id]: newQueue },
       queuePaused: { ...prev.queuePaused, [currentChat.id]: false },
@@ -894,38 +640,24 @@ export function useChatWithSync() {
 
   const removeQueuedMessage = useCallback((id: string) => {
     if (!currentChat) return
-    const newQueue = (currentChat.queuedMessages ?? []).filter((m) => m.id !== id)
+    const newQueue = removeFromQueue(currentChat.queuedMessages, id)
     setQueuedMessages(currentChat.id, newQueue)
-    setLocalChatState((prev) => ({ ...prev, queuedMessages: { ...prev.queuedMessages, [currentChat.id]: newQueue } }))
+    useChatSyncStore.getState().setLocalChatState((prev) => ({ ...prev, queuedMessages: { ...prev.queuedMessages, [currentChat.id]: newQueue } }))
   }, [currentChat])
 
   const resumeQueue = useCallback(() => {
     if (!currentChat?.queuePaused) return
     setQueuePaused(currentChat.id, false)
-    setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: false } }))
+    useChatSyncStore.getState().setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: false } }))
   }, [currentChat])
 
   // Draft management
   const updateDraft = useCallback((chatId: string, draft: string) => {
-    setDraft(chatId, draft)
-    setLocalChatState((prev) => {
-      const newDrafts = { ...prev.drafts }
-      if (draft === "") {
-        delete newDrafts[chatId]
-      } else {
-        newDrafts[chatId] = draft
-      }
-      return { ...prev, drafts: newDrafts }
-    })
+    useChatSyncStore.getState().setDraftText(chatId, draft)
   }, [])
 
   const clearDraft = useCallback((chatId: string) => {
-    setDraft(chatId, undefined)
-    setLocalChatState((prev) => {
-      const newDrafts = { ...prev.drafts }
-      delete newDrafts[chatId]
-      return { ...prev, drafts: newDrafts }
-    })
+    useChatSyncStore.getState().setDraftText(chatId, undefined)
   }, [])
 
   // Drain any ready, unpaused queue. The queue is client-owned, so if the
@@ -977,11 +709,6 @@ export function useChatWithSync() {
     callback: ((state: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] }) => void) | null
   ) => {
     onConflictStateChangeRef.current = callback
-  }, [])
-
-  // Dismiss the limit reached dialog
-  const dismissLimitReached = useCallback(() => {
-    setLimitReachedState({ show: false })
   }, [])
 
   // Retry the pending message with OpenCode agent
