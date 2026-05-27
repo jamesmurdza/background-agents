@@ -13,15 +13,6 @@ export { useUpdateChatMutation } from "./useUpdateChatMutation"
 export { useDeleteChatMutation } from "./useDeleteChatMutation"
 export { useUpdateSettingsMutation } from "./useUpdateSettingsMutation"
 export { useSuggestNameMutation } from "./useSuggestNameMutation"
-export {
-  useGitPushMutation,
-  useGitMergeMutation,
-  useGitRebaseMutation,
-  useGitAbortRebaseMutation,
-  useGitAbortMergeMutation,
-  useCreatePRMutation,
-  useSetupRemoteMutation,
-} from "./useGitMutations"
 export { useSandboxDeleteMutation, useDeleteMultipleSandboxes } from "./useSandboxDeleteMutation"
 
 // Admin

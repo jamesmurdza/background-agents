@@ -34,25 +34,3 @@ export function decrypt(ciphertext: string): string {
     return ciphertext
   }
 }
-
-// Encrypt all credential fields in an object
-export function encryptCredentials(credentials: Record<string, string>): Record<string, string> {
-  const encrypted: Record<string, string> = {}
-  for (const [key, value] of Object.entries(credentials)) {
-    if (value) {
-      encrypted[key] = encrypt(value)
-    }
-  }
-  return encrypted
-}
-
-// Decrypt all credential fields in an object
-export function decryptCredentials(credentials: Record<string, string>): Record<string, string> {
-  const decrypted: Record<string, string> = {}
-  for (const [key, value] of Object.entries(credentials)) {
-    if (value) {
-      decrypted[key] = decrypt(value)
-    }
-  }
-  return decrypted
-}

@@ -168,11 +168,6 @@ export function setDraftChatConfig(config: DraftChatConfig | undefined): void {
   }
 }
 
-export function getDraftChatConfig(): DraftChatConfig | undefined {
-  const state = loadLocalState()
-  return state.draftChatConfig
-}
-
 export function clearDraftChatConfig(): void {
   setDraftChatConfig(undefined)
 }

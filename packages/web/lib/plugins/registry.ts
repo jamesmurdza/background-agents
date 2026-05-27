@@ -19,10 +19,3 @@ const panelPlugins: PanelPlugin[] = [
 export function getPanelPlugin(item: PreviewItem): PanelPlugin | null {
   return panelPlugins.find((plugin) => plugin.canHandle(item)) ?? null
 }
-
-/**
- * Get all registered panel plugins.
- */
-export function getAllPanelPlugins(): PanelPlugin[] {
-  return panelPlugins
-}
