@@ -9,20 +9,9 @@ import { MobileHeader } from "@/components/MobileHeader"
 import { Sidebar } from "@/components/Sidebar"
 import { ChatPanel } from "@/components/ChatPanel"
 import { PreviewView } from "@/components/PreviewView"
-import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
-import { SettingsModal } from "@/components/modals/SettingsModal"
-import { SignInModal } from "@/components/modals/SignInModal"
-import { ReAuthModal } from "@/components/modals/ReAuthModal"
-import { HelpModal } from "@/components/modals/HelpModal"
-import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
-import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
-import { MergeDialog, RebaseDialog, PRDialog, SquashDialog, ForcePushDialog, useGitDialogs } from "@/components/modals/GitDialogs"
-import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
-import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
-import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
-import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
+import { AppModals } from "@/components/AppModals"
+import { useGitDialogs } from "@/components/modals/GitDialogs"
 import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
-import { SkillSearchView } from "@/components/skills/SkillSearchView"
 import { clearAllStorage } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
@@ -31,7 +20,9 @@ import { useMobile } from "@/lib/hooks/useMobile"
 import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
 import { usePreview } from "@/lib/hooks/usePreview"
 import { usePageTitle } from "@/lib/hooks/usePageTitle"
-import { ROUTES, matchRoute } from "@/lib/hooks/useUrlNavigation"
+import { ROUTES } from "@/lib/hooks/useUrlNavigation"
+import { useUrlSync } from "@/lib/hooks/useUrlSync"
+import { useSandboxActions } from "@/lib/hooks/useSandboxActions"
 import {
   ChatProvider,
   ModalProvider,
@@ -46,40 +37,13 @@ import {
 } from "@/lib/contexts"
 import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, type Message, type Chat } from "@/lib/types"
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
-import { PATHS } from "@upstream/common"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
-
-// Storage key for pending message (persists across OAuth redirect)
-const PENDING_MESSAGE_KEY = "simple-chat-pending-message"
-
-// Type for pending message data stored before sign-in
-interface PendingMessage {
-  message: string
-  agent: string
-  model: string
-}
-
-// Helper to save pending message to sessionStorage
-function savePendingMessage(data: PendingMessage): void {
-  if (typeof window !== "undefined") {
-    sessionStorage.setItem(PENDING_MESSAGE_KEY, JSON.stringify(data))
-  }
-}
-
-// Helper to load and clear pending message from sessionStorage
-function loadAndClearPendingMessage(): PendingMessage | null {
-  if (typeof window === "undefined") return null
-  const stored = sessionStorage.getItem(PENDING_MESSAGE_KEY)
-  if (stored) {
-    sessionStorage.removeItem(PENDING_MESSAGE_KEY)
-    try {
-      return JSON.parse(stored) as PendingMessage
-    } catch {
-      return null
-    }
-  }
-  return null
-}
+import {
+  savePendingMessage,
+  loadAndClearPendingMessage,
+  hasPendingMessage,
+} from "@/lib/pending-message"
+import { buildTreeOrderedChatIds, getNextChatIdAfterDeletion } from "@/lib/chat-tree"
 
 function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
   const { openCommand } = usePalette()
@@ -184,8 +148,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
 
   // Additional state not in contexts
-  const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
-  const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   // Track when a message send is initiated (for instant UI feedback before server responds)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
@@ -195,8 +157,28 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const [optimisticDraft, setOptimisticDraft] = useState<{ chatId: string; messages: Message[] } | null>(null)
   // Rapid fire notification: timestamp of last background task creation, 0 means no notification
   const [rapidFireNotification, setRapidFireNotification] = useState(0)
-  const [isDownloading, setIsDownloading] = useState(false)
   const [skillsModalOpen, setSkillsModalOpen] = useState(false)
+
+  // Sandbox/repo actions (env vars, download, open in VS Code/GitHub, git clipboard)
+  const {
+    isDownloading,
+    githubBranchUrl,
+    envVarsChatEnvVars,
+    envVarsRepoEnvVars,
+    handleOpenEnvVars,
+    handleSaveEnvVars,
+    handleDownloadProject,
+    handleOpenInGitHub,
+    handleCopyCloneCommand,
+    handleCopyCheckoutCommand,
+    handleOpenInVSCode,
+  } = useSandboxActions({
+    currentChat,
+    currentChatId,
+    chats,
+    isDraftChatId,
+    onOpenEnvVarsModal: () => modals.setEnvVarsModalOpen(true),
+  })
 
   // Preview state from hook
   const preview = usePreview({
@@ -339,54 +321,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   }, [isMobile, isHydrated, currentChatId, chats, selectChat])
 
 
-  // Handler for opening environment variables modal
-  const handleOpenEnvVars = useCallback(async () => {
-    if (!currentChatId || isDraftChatId(currentChatId)) return
-
-    try {
-      // Fetch chat env vars
-      const chatRes = await fetch(`/api/chats/${currentChatId}/env`)
-      const chatData = chatRes.ok ? await chatRes.json() : { environmentVariables: {} }
-
-      // Fetch repo env vars
-      const repoRes = await fetch("/api/user/repo-env")
-      const repoData = repoRes.ok ? await repoRes.json() : { repoEnvironmentVariables: {} }
-
-      const chat = chats.find((c) => c.id === currentChatId)
-      const repoName = chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
-
-      setEnvVarsChatEnvVars(chatData.environmentVariables || {})
-      setEnvVarsRepoEnvVars(repoName && repoData.repoEnvironmentVariables?.[repoName] || {})
-      modals.setEnvVarsModalOpen(true)
-    } catch (error) {
-      console.error("Failed to fetch environment variables:", error)
-    }
-  }, [currentChatId, isDraftChatId, chats, modals])
-
-  // Handler for saving environment variables
-  const handleSaveEnvVars = useCallback(async (chatEnvVars: Record<string, string>, repoEnvVars: Record<string, string>) => {
-    if (!currentChatId || isDraftChatId(currentChatId)) return
-
-    const chat = chats.find((c) => c.id === currentChatId)
-    const repoName = chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
-
-    // Save chat env vars
-    await fetch(`/api/chats/${currentChatId}/env`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmentVariables: chatEnvVars }),
-    })
-
-    // Save repo env vars if applicable
-    if (repoName) {
-      await fetch("/api/user/repo-env", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo: repoName, environmentVariables: repoEnvVars }),
-      })
-    }
-  }, [currentChatId, isDraftChatId, chats])
-
   // Materialize the draft chat when the MCP modal needs to commit a change.
   // Returns the real chatId, or null if materialization failed.
   const handleMaterializeDraftForMcp = useCallback(
@@ -404,7 +338,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // below will handle chat creation when sending the pending message.
   useEffect(() => {
     if (!isHydrated || currentChatId || !session) return
-    if (typeof window !== "undefined" && sessionStorage.getItem(PENDING_MESSAGE_KEY)) return
+    if (hasPendingMessage()) return
     // Enter draft mode instead of creating a real chat
     startNewChat()
   }, [isHydrated, currentChatId, session, startNewChat])
@@ -412,112 +346,19 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // =============================================================================
   // URL Sync (for initial load and browser back/forward only)
   // =============================================================================
-  // We use window.history.pushState for navigation to avoid Next.js remounting
-  // the component. This means we need to:
-  // 1. Handle initial page load by syncing URL → state
-  // 2. Listen for popstate events (browser back/forward) to sync URL → state
-  //
-  // The handlers (handleSelectChat, etc.) update state directly and use pushState
-  // to update the URL without triggering a navigation.
-
-  // Sync URL to state - used for initial load and browser back/forward
-  const syncUrlToState = useCallback((isInitialSync: boolean = false) => {
-    const currentPath = window.location.pathname
-    const matched = matchRoute(currentPath)
-
-    if (!matched) return
-
-    switch (matched.route) {
-      case "jobs":
-        sidebar.setViewMode("scheduled-jobs")
-        if (!isInitialSync) selectChat(null)
-        sidebar.setSelectedScheduledJob(null)
-        break
-
-      case "job":
-        sidebar.setViewMode("scheduled-jobs")
-        if (!isInitialSync) selectChat(null)
-        // Set selected job with ID (name will be updated when job data loads)
-        sidebar.setSelectedScheduledJob({ id: matched.jobId, name: matched.jobId })
-        break
-
-      case "jobRun":
-        sidebar.setViewMode("scheduled-jobs")
-        if (!isInitialSync) selectChat(null)
-        // Set selected job with ID (name will be updated when job data loads)
-        sidebar.setSelectedScheduledJob({ id: matched.jobId, name: matched.jobId })
-        // TODO: Handle run selection when runs view is implemented
-        break
-
-      case "newChat":
-        sidebar.setViewMode("chat")
-        if (!currentChatId || !isDraftChatId(currentChatId)) {
-          startNewChat()
-        }
-        break
-
-      case "chat": {
-        const urlChatId = matched.chatId
-        sidebar.setViewMode("chat")
-        if (urlChatId !== currentChatId) {
-          // Guard: if the URL contains a draft ID that no longer matches our active
-          // draftChatConfig (e.g. a stale URL from a previous session where the draft
-          // was already materialized, or a new draft was created), do NOT overwrite
-          // currentChatId with the dead draft ID. Redirect the URL instead.
-          if (isDraftChatId(urlChatId) && draftChatConfig?.id !== urlChatId) {
-            // We have a mismatched draft URL. Use whatever currentChatId localStorage
-            // already has, or fall back to /chat/new for a fresh draft.
-            const target = currentChatId
-              ? ROUTES.chat.build(currentChatId)
-              : ROUTES.newChat.build()
-            window.history.replaceState(null, "", target)
-            if (!currentChatId) startNewChat()
-            break
-          }
-          // Always select the chat - if it doesn't exist in our local cache,
-          // the chat detail fetch will handle it. We don't redirect to /chat/new
-          // because the chat might exist on the server but not be loaded yet.
-          // Also handles draft chats which aren't in the chats array.
-          selectChat(urlChatId)
-        }
-        break
-      }
-
-      case "home":
-        if (currentChatId) {
-          window.history.replaceState(null, "", ROUTES.chat.build(currentChatId))
-        } else {
-          window.history.replaceState(null, "", ROUTES.newChat.build())
-          startNewChat()
-        }
-        break
-    }
-  }, [currentChatId, isDraftChatId, draftChatConfig, selectChat, startNewChat, sidebar])
-
-  // Track if we've done initial sync
-  const initialSyncDone = useRef(false)
-
-  // Initial sync: on first hydrated render, sync URL to state
-  useEffect(() => {
-    if (!isHydrated || initialSyncDone.current) return
-    initialSyncDone.current = true
-    syncUrlToState(true)
-  }, [isHydrated, syncUrlToState])
-
-  // Store syncUrlToState in a ref so the popstate listener always has access
-  // to the latest version without needing to re-add the event listener
-  const syncUrlToStateRef = useRef(syncUrlToState)
-  useEffect(() => {
-    syncUrlToStateRef.current = syncUrlToState
-  }, [syncUrlToState])
-
-  // Listen for popstate (browser back/forward)
-  useEffect(() => {
-    if (!isHydrated) return
-    const handlePopState = () => syncUrlToStateRef.current(false)
-    window.addEventListener("popstate", handlePopState)
-    return () => window.removeEventListener("popstate", handlePopState)
-  }, [isHydrated])
+  // Handled by useUrlSync: it syncs URL → state on initial hydrated render and
+  // on popstate. Interactive handlers (handleSelectChat, etc.) update state
+  // directly and use pushState; they don't go through this hook.
+  useUrlSync({
+    isHydrated,
+    currentChatId,
+    isDraftChatId,
+    draftChatConfig,
+    selectChat,
+    startNewChat,
+    setViewMode: sidebar.setViewMode,
+    setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
+  })
 
   // =============================================================================
   // Draft Chat & Display Chat
@@ -938,40 +779,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     await createBranchAndSend({ message, agent, model })
   }, [createBranchAndSend, removeQueuedMessage])
 
-  const handleDownloadProject = useCallback(async () => {
-    if (!currentChat?.sandboxId || isDownloading) return
-
-    setIsDownloading(true)
-    try {
-      const response = await fetch("/api/sandbox/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sandboxId: currentChat.sandboxId }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Download failed" }))
-        throw new Error(error.error || "Download failed")
-      }
-
-      // Create download link from blob
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${currentChat.displayName || "project"}.zip`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("[download] Error:", error)
-      // Could add a toast/notification here in the future
-    } finally {
-      setIsDownloading(false)
-    }
-  }, [currentChat?.sandboxId, currentChat?.displayName, isDownloading])
-
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
       case "merge":
@@ -1014,37 +821,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Build the full tree-ordered id list matching the sidebar (ignoring
   // collapsed state — so Alt+Up/Down can reach every chat, expanding
   // collapsed ancestors along the way).
-  const treeOrderedChatIds = useMemo(() => {
-    // Show empty chats if they have a parentChatId (were branched)
-    // Apply the same repo filter as the Sidebar so navigation matches visual order
-    const visible = chats.filter((c) => {
-      const hasMessages = c.messages.length > 0 || (c.messageCount ?? 0) > 0
-      if (!hasMessages && !c.parentChatId) return false
-      if (sidebar.repoFilter === ALL_REPOSITORIES) return true
-      if (sidebar.repoFilter === NO_REPOSITORY) return c.repo === NEW_REPOSITORY
-      return c.repo === sidebar.repoFilter
-    })
-    visible.sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
-    const visibleIds = new Set(visible.map((c) => c.id))
-    const kids = new Map<string, Chat[]>()
-    for (const c of visible) {
-      const parent = c.parentChatId && visibleIds.has(c.parentChatId) ? c.parentChatId : null
-      if (parent) {
-        const list = kids.get(parent) ?? []
-        list.push(c)
-        kids.set(parent, list)
-      }
-    }
-    const roots = visible.filter((c) => !(c.parentChatId && visibleIds.has(c.parentChatId)))
-    const out: string[] = []
-    const walk = (c: Chat) => {
-      out.push(c.id)
-      const children = kids.get(c.id) ?? []
-      for (const child of children) walk(child)
-    }
-    for (const r of roots) walk(r)
-    return out
-  }, [chats, sidebar.repoFilter])
+  const treeOrderedChatIds = useMemo(
+    () => buildTreeOrderedChatIds(chats, sidebar.repoFilter),
+    [chats, sidebar.repoFilter]
+  )
 
   const handleRequestMergeChats = useCallback((sourceId: string, targetId?: string) => {
     const source = chats.find((c) => c.id === sourceId)
@@ -1090,68 +870,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Compute the next chat to select after deletion (following chat, or previous if last)
   const getNextChatId = useCallback(
-    (deletedIds: string[]) => {
-      const deletedSet = new Set(deletedIds)
-      const remaining = treeOrderedChatIds.filter((id) => !deletedSet.has(id))
-      if (remaining.length === 0) return null
-
-      // Find index of first deleted chat in original order
-      const firstDeletedIdx = treeOrderedChatIds.findIndex((id) => deletedSet.has(id))
-
-      // Select chat at same index (following chat) or last remaining if beyond bounds
-      const targetIdx = Math.min(firstDeletedIdx, remaining.length - 1)
-      return remaining[targetIdx] ?? null
-    },
+    (deletedIds: string[]) => getNextChatIdAfterDeletion(treeOrderedChatIds, deletedIds),
     [treeOrderedChatIds]
   )
-
-  // Open the current chat's branch on GitHub (available once the branch is pushed).
-  const githubBranchUrl =
-    currentChat?.branch && currentChat.sandboxId && currentChat.repo !== NEW_REPOSITORY
-      ? `https://github.com/${currentChat.repo}/tree/${currentChat.branch}`
-      : null
-  const handleOpenInGitHub = useCallback(() => {
-    if (githubBranchUrl) window.open(githubBranchUrl, "_blank", "noopener,noreferrer")
-  }, [githubBranchUrl])
-
-  // Copy git clone command to clipboard
-  const handleCopyCloneCommand = useCallback(() => {
-    if (currentChat?.repo && currentChat.repo !== NEW_REPOSITORY) {
-      const command = `git clone git@github.com:${currentChat.repo}.git`
-      navigator.clipboard.writeText(command)
-    }
-  }, [currentChat?.repo])
-
-  // Copy git checkout command to clipboard
-  const handleCopyCheckoutCommand = useCallback(() => {
-    if (currentChat?.branch) {
-      const command = `git fetch origin ${currentChat.branch} && git checkout ${currentChat.branch}`
-      navigator.clipboard.writeText(command)
-    }
-  }, [currentChat?.branch])
-
-  // Open the current chat's sandbox in VS Code via an SSH remote link.
-  const handleOpenInVSCode = useCallback(async () => {
-    const sandboxId = currentChat?.sandboxId
-    if (!sandboxId) return
-    try {
-      const res = await fetch("/api/sandbox/ssh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sandboxId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to open SSH")
-      const cmd: string = data.sshCommand
-      const userHost = cmd.match(/(\S+@\S+)/)?.[1]
-      const port = cmd.match(/-p\s+(\d+)/)?.[1] ?? "22"
-      if (!userHost) return
-      const host = port !== "22" ? `${userHost}:${port}` : userHost
-      window.open(`vscode://vscode-remote/ssh-remote+${host}${PATHS.PROJECT_DIR}`, "_blank")
-    } catch (err) {
-      console.error("Failed to open in VS Code:", err)
-    }
-  }, [currentChat?.sandboxId])
 
   // Don't render chats until hydrated to avoid SSR mismatch
   const displayChats = isHydrated ? chats : []
@@ -1497,176 +1218,22 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         <div className="fixed inset-0 z-[999] cursor-col-resize" />
       )}
 
-      <RepoPickerModal
-        open={modals.repoCreateOpen}
-        onClose={() => modals.setRepoCreateOpen(false)}
-        onSelect={handleRepoSelect}
+      <AppModals
         isMobile={isMobile}
-        mode="create"
-        suggestedName={currentChat?.displayName ?? null}
-      />
-
-        <SettingsModal
-          open={modals.settingsOpen}
-          onClose={modals.closeSettings}
-          settings={settings}
-          credentialFlags={credentialFlags}
-          onSave={updateSettings}
-          highlightKey={modals.settingsHighlightKey}
-          defaultSection={modals.settingsDefaultSection}
-          isMobile={isMobile}
-        />
-
-        <EnvironmentVariablesModal
-          open={modals.envVarsModalOpen}
-          onClose={() => modals.setEnvVarsModalOpen(false)}
-          chatId={displayCurrentChatId || ""}
-          repoName={displayCurrentChat?.repo !== NEW_REPOSITORY ? displayCurrentChat?.repo : undefined}
-          onSave={handleSaveEnvVars}
-          initialChatEnvVars={envVarsChatEnvVars}
-          initialRepoEnvVars={envVarsRepoEnvVars}
-          isMobile={isMobile}
-        />
-
-      {/* Skills Search Modal */}
-      {currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY && (
-        <SkillSearchView
-          open={skillsModalOpen}
-          onOpenChange={setSkillsModalOpen}
-          chatId={currentChat.id}
-          repo={currentChat.repo}
-        />
-      )}
-
-      {/* Git Dialogs - now use API calls instead of pasting git commands */}
-      <MergeDialog
-        open={gitDialogs.mergeOpen}
-        onClose={() => gitDialogs.setMergeOpen(false)}
-        gitDialogs={gitDialogs}
-        chat={displayCurrentChat}
-        isMobile={isMobile}
-      />
-      <RebaseDialog
-        open={gitDialogs.rebaseOpen}
-        onClose={() => gitDialogs.setRebaseOpen(false)}
-        gitDialogs={gitDialogs}
-        chat={displayCurrentChat}
-        isMobile={isMobile}
-      />
-      <PRDialog
-        open={gitDialogs.prOpen}
-        onClose={() => gitDialogs.setPROpen(false)}
-        gitDialogs={gitDialogs}
-        chat={displayCurrentChat}
-        isMobile={isMobile}
-      />
-      <SquashDialog
-        open={gitDialogs.squashOpen}
-        onClose={() => gitDialogs.setSquashOpen(false)}
-        gitDialogs={gitDialogs}
-        chat={displayCurrentChat}
-        isMobile={isMobile}
-      />
-      <ForcePushDialog
-        open={gitDialogs.forcePushOpen}
-        onClose={() => gitDialogs.setForcePushOpen(false)}
-        gitDialogs={gitDialogs}
-        chat={displayCurrentChat}
-        isMobile={isMobile}
-      />
-
-      {/* Sign In Modal - shown when user tries to send message without being signed in */}
-      <SignInModal
-        open={modals.signInModalOpen}
-        onClose={() => modals.setSignInModalOpen(false)}
-        isMobile={isMobile}
-      />
-
-      {/* Re-auth Modal - shown when stored GitHub token has expired or been revoked */}
-      <ReAuthModal
-        open={githubTokenInvalid}
-        onClose={() => {}}
-        isMobile={isMobile}
-      />
-
-      <HelpModal
-        open={modals.helpOpen}
-        onClose={() => modals.setHelpOpen(false)}
-        isMobile={isMobile}
-      />
-
-      {/* Scheduled Job Form */}
-      <ScheduledJobForm
-        open={modals.scheduledJobFormOpen}
-        onClose={() => modals.setScheduledJobFormOpen(false)}
-        onSuccess={() => {
-          modals.setScheduledJobFormOpen(false)
-          setScheduledJobsRefreshKey((k) => k + 1)
-        }}
-        isMobile={isMobile}
-      />
-
-      {/* Mobile Commands Menu */}
-      {isMobile && (
-        <MobileCommandsMenu
-          open={modals.mobileCommandsOpen}
-          onClose={() => modals.setMobileCommandsOpen(false)}
-          onSlashCommand={handleSlashCommand}
-          hasLinkedRepo={!!(currentChat && currentChat.repo !== NEW_REPOSITORY)}
-          inConflict={!!(gitDialogs.rebaseConflict?.inRebase || gitDialogs.rebaseConflict?.inMerge)}
-        />
-      )}
-
-      <ConfirmDialog
-        open={modals.deleteConfirmChatId !== null}
-        onClose={() => modals.setDeleteConfirmChatId(null)}
-        onConfirm={() => {
-          if (modals.deleteConfirmChatId) removeChat(modals.deleteConfirmChatId, getNextChatId)
-        }}
-        title="Delete chat"
-        description={
-          <>
-            Delete{" "}
-            <span className="font-medium text-foreground">
-              {chats.find((c) => c.id === modals.deleteConfirmChatId)?.displayName || "this chat"}
-            </span>
-            ? This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete"
-        variant="destructive"
-        isMobile={isMobile}
-      />
-
-      {/* Mobile Rename Modal */}
-      <MobileRenameModal
-        open={modals.mobileRenameChat !== null}
-        onClose={() => modals.setMobileRenameChat(null)}
-        title="Rename Chat"
-        initialValue={modals.mobileRenameChat?.name ?? ""}
-        onSave={(newName) => {
-          if (modals.mobileRenameChat) {
-            renameChat(modals.mobileRenameChat.id, newName)
-          }
-        }}
-        placeholder="Chat name"
-      />
-
-      {/* Daily Limit Reached Dialog */}
-      <LimitReachedDialog
-        open={limitReachedState.show}
-        onClose={dismissLimitReached}
+        githubTokenInvalid={githubTokenInvalid}
+        onRepoSelect={handleRepoSelect}
+        onSaveSettings={updateSettings}
+        onSaveEnvVars={handleSaveEnvVars}
+        envVarsChatEnvVars={envVarsChatEnvVars}
+        envVarsRepoEnvVars={envVarsRepoEnvVars}
+        skillsModalOpen={skillsModalOpen}
+        onSkillsModalOpenChange={setSkillsModalOpen}
+        onScheduledJobSuccess={() => setScheduledJobsRefreshKey((k) => k + 1)}
+        onSlashCommand={handleSlashCommand}
+        onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
+        limitReachedState={limitReachedState}
+        onDismissLimitReached={dismissLimitReached}
         onContinueWithOpenCode={retryWithOpenCode}
-        onAddApiKey={() => {
-          dismissLimitReached()
-          modals.openSettings("anthropic")
-        }}
-        onUpgradeToPro={() => {
-          dismissLimitReached()
-          window.open("mailto:james@jamesmurdza.com?subject=Upgrade%20to%20Pro", "_blank")
-        }}
-        resetAt={limitReachedState.resetAt}
-        isMobile={isMobile}
       />
     </div>
     </GitProvider>
