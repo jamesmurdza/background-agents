@@ -17,6 +17,18 @@ const CLAUDE_CREDENTIALS_FILE = "/home/daytona/.claude/.credentials.json"
 const CLAUDE_CODE_CREDENTIALS_ENV = "CLAUDE_CODE_CREDENTIALS"
 
 /**
+ * Default environment variables applied to every Claude CLI invocation.
+ *
+ * CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1 disables all background task
+ * functionality in the Claude Code CLI. We hardcode it on by default so
+ * background sessions never spawn detached background tasks. Callers can
+ * still override it by passing their own value via RunOptions.env.
+ */
+const CLAUDE_DEFAULT_ENV: Record<string, string> = {
+  CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
+}
+
+/**
  * Claude agent-specific setup: write credentials from environment variable.
  *
  * When CLAUDE_CODE_CREDENTIALS environment variable is set, this function
@@ -103,7 +115,9 @@ export const claudeAgent: AgentDefinition = {
     return {
       cmd: "claude",
       args,
-      env: options.env,
+      // Hardcode the background-task-disabling default, but let any
+      // caller-provided env override it.
+      env: { ...CLAUDE_DEFAULT_ENV, ...options.env },
     }
   },
 
