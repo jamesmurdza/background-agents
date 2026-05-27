@@ -89,6 +89,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
+| `npm run typecheck` | Type-check with `tsc --noEmit` |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run test:e2e:ui` | Run Playwright tests with UI |
 
