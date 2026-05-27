@@ -354,6 +354,42 @@ export function ChatInput({
               </button>
             ) : null}
           </div>
+
+          {/* Voice dictation (speech-to-text) — pinned to the top-right corner,
+              in line with the message text input. Only shown when supported. */}
+          {speech.isSupported && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              disabled={speech.permissionDenied}
+              aria-pressed={speech.isListening}
+              className={cn(
+                "shrink-0 self-start flex items-center justify-center rounded-md transition-colors",
+                isMobile ? "h-9 w-9" : "h-7 w-7",
+                speech.permissionDenied
+                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  : speech.isListening
+                  ? "text-red-500 bg-red-500/10 animate-pulse cursor-pointer"
+                  : "text-muted-foreground hover:text-foreground cursor-pointer"
+              )}
+              title={
+                speech.permissionDenied
+                  ? "Microphone access denied"
+                  : speech.isListening
+                  ? "Stop dictation"
+                  : "Dictate prompt"
+              }
+              aria-label={
+                speech.permissionDenied
+                  ? "Microphone access denied"
+                  : speech.isListening
+                  ? "Stop voice dictation"
+                  : "Start voice dictation"
+              }
+            >
+              <Mic className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            </button>
+          )}
         </div>
 
         {/* File upload error message */}
@@ -394,41 +430,6 @@ export function ChatInput({
             >
               <Paperclip className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
             </button>
-
-            {/* Voice dictation (speech-to-text) button — only when supported */}
-            {speech.isSupported && (
-              <button
-                type="button"
-                onClick={toggleListening}
-                disabled={speech.permissionDenied}
-                aria-pressed={speech.isListening}
-                className={cn(
-                  "shrink-0 flex items-center justify-center rounded-md transition-colors",
-                  isMobile ? "h-7 w-7" : "h-6 w-6",
-                  speech.permissionDenied
-                    ? "text-muted-foreground/40 cursor-not-allowed"
-                    : speech.isListening
-                    ? "text-red-500 bg-red-500/10 animate-pulse cursor-pointer"
-                    : "text-muted-foreground hover:text-foreground cursor-pointer"
-                )}
-                title={
-                  speech.permissionDenied
-                    ? "Microphone access denied"
-                    : speech.isListening
-                    ? "Stop dictation"
-                    : "Dictate prompt"
-                }
-                aria-label={
-                  speech.permissionDenied
-                    ? "Microphone access denied"
-                    : speech.isListening
-                    ? "Stop voice dictation"
-                    : "Start voice dictation"
-                }
-              >
-                <Mic className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-              </button>
-            )}
 
             {/* Repo display/selector */}
             {showRepoButton ? (
