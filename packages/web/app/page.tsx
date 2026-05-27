@@ -189,6 +189,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   // Track when a message send is initiated (for instant UI feedback before server responds)
   const [isSendingMessage, setIsSendingMessage] = useState(false)
+  // Optimistic messages shown on a draft chat the instant the user sends, so the
+  // view leaves the "new chat" welcome screen immediately instead of waiting for
+  // the draft to be materialized on the server. Keyed by the draft's chat id.
+  const [optimisticDraft, setOptimisticDraft] = useState<{ chatId: string; messages: Message[] } | null>(null)
   // Rapid fire notification: timestamp of last background task creation, 0 means no notification
   const [rapidFireNotification, setRapidFireNotification] = useState(0)
   const [isDownloading, setIsDownloading] = useState(false)
@@ -526,11 +530,17 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const draftChat: Chat | null = useMemo(() => {
     if (!isHydrated) return null
 
+    // Optimistic messages for a just-sent draft (so the conversation view shows
+    // instantly while the draft is materialized on the server).
+    const messagesFor = (id: string) =>
+      optimisticDraft && optimisticDraft.chatId === id ? optimisticDraft.messages : []
+
     // Case 1: Unauthenticated user - use local draft state
     // This applies when there's no session AND either no chat ID or the chat ID is a draft
     if (!session && (!currentChatId || isDraftChatId(currentChatId))) {
       const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
       const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
+      const messages = messagesFor(currentChatId ?? unauthDraftIdRef.current)
       return {
         id: currentChatId ?? unauthDraftIdRef.current,
         repo: NEW_REPOSITORY,
@@ -540,10 +550,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         sessionId: null,
         agent: resolvedAgent,
         model: resolvedModel,
-        messages: [],
+        messages,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        status: "pending",
+        status: messages.length > 0 ? "creating" : "pending",
         displayName: null,
       }
     }
@@ -552,6 +562,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     if (session && currentChatId && isDraftChatId(currentChatId) && draftChatConfig) {
       const resolvedAgent = (draftChatConfig.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
       const resolvedModel = draftChatConfig.model ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
+      const messages = messagesFor(currentChatId)
       return {
         id: currentChatId,
         repo: draftChatConfig.repo,
@@ -562,21 +573,30 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         agent: resolvedAgent,
         model: resolvedModel,
         planModeEnabled: draftChatConfig.planMode ?? false,
-        messages: [],
+        messages,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        status: "pending",
+        status: messages.length > 0 ? "creating" : "pending",
         displayName: null,
       }
     }
 
     return null
-  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags, isDraftChatId, draftChatConfig])
+  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags, isDraftChatId, draftChatConfig, optimisticDraft])
 
   // Unified current chat - either a real chat or a draft chat
   const displayCurrentChat = isHydrated ? (currentChat ?? draftChat) : null
   const isDraftMode = !!draftChat
   const isAuthenticatedDraft = isDraftMode && !!session
+
+  // Drop optimistic draft messages once we've navigated off that draft — e.g. the
+  // draft was materialized into a real chat (currentChatId changed) or the user
+  // switched chats. The real chat carries its own optimistic messages by then.
+  useEffect(() => {
+    if (optimisticDraft && optimisticDraft.chatId !== currentChatId) {
+      setOptimisticDraft(null)
+    }
+  }, [currentChatId, optimisticDraft])
 
   // Dynamic page title based on current view
   const pageTitle = useMemo(() => {
@@ -756,7 +776,32 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
     // Set sending state immediately for instant UI feedback
     setIsSendingMessage(true)
-    sendMessage(message, agent, model, files, undefined, planMode)
+
+    // In draft mode, optimistically render the conversation so the UI leaves the
+    // "new chat" welcome screen immediately rather than waiting for the draft to
+    // be materialized on the server. (sendMessage materializes the draft, which
+    // is a server round-trip, before it can add the real optimistic messages.)
+    const draftId = isDraftMode && currentChatId ? currentChatId : null
+    if (draftId) {
+      setOptimisticDraft({
+        chatId: draftId,
+        messages: [
+          { id: `optimistic-user-${nanoid()}`, role: "user", content: message, timestamp: Date.now() },
+          { id: `optimistic-assistant-${nanoid()}`, role: "assistant", content: "", timestamp: Date.now() + 1, toolCalls: [], contentBlocks: [] },
+        ],
+      })
+    }
+
+    const sendResult = sendMessage(message, agent, model, files, undefined, planMode)
+
+    // Once the send settles, drop the optimistic draft messages. On success the
+    // real chat is already showing (currentChatId changed, so the effect above has
+    // cleared them); on failure this reverts the view to the welcome screen.
+    if (draftId) {
+      void Promise.resolve(sendResult).finally(() => {
+        setOptimisticDraft((cur) => (cur && cur.chatId === draftId ? null : cur))
+      })
+    }
   }
 
   // Rapid fire: send as a new background chat without switching

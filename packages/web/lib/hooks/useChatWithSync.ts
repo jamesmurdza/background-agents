@@ -450,6 +450,27 @@ export function useChatWithSync() {
       for (const id of allIds) useStreamStore.getState().stopStream(id)
       setDeletingChatIds((prev) => new Set([...prev, ...allIds]))
 
+      const selectNextChat = (deletedIds: string[]) => {
+        let nextChat: string | null = null
+        if (getNextChatId) {
+          nextChat = getNextChatId(deletedIds)
+        } else {
+          // Fallback: select first remaining chat
+          const remaining = chats.filter((c) => !deletedIds.includes(c.id))
+          nextChat = remaining[0]?.id ?? null
+        }
+        setCurrentChatIdState(nextChat)
+        persistCurrentChatId(nextChat)
+      }
+
+      // Select the next chat right away (optimistically) when the open chat is
+      // being deleted, so the UI moves off it immediately instead of lingering
+      // until the server round-trip completes. The sidebar already removes the
+      // chat optimistically via the delete mutation's onMutate.
+      if (allIds.includes(currentChatId ?? "")) {
+        selectNextChat(allIds)
+      }
+
       try {
         const result = await deleteChatMutation.mutateAsync(chatId)
         for (const sandboxId of result.sandboxIdsToCleanup) {
@@ -466,17 +487,11 @@ export function useChatWithSync() {
           }
           return next
         })
-        if (result.deletedChatIds.includes(currentChatId ?? "")) {
-          let nextChat: string | null = null
-          if (getNextChatId) {
-            nextChat = getNextChatId(result.deletedChatIds)
-          } else {
-            // Fallback: select first remaining chat
-            const remaining = chats.filter((c) => !result.deletedChatIds.includes(c.id))
-            nextChat = remaining[0]?.id ?? null
-          }
-          setCurrentChatIdState(nextChat)
-          persistCurrentChatId(nextChat)
+        // Reconcile against the server's actual deleted set in case it removed
+        // descendants we didn't predict locally and the open chat was among them.
+        const serverDeletedExtra = result.deletedChatIds.some((id) => !allIds.includes(id))
+        if (serverDeletedExtra && result.deletedChatIds.includes(currentChatId ?? "")) {
+          selectNextChat(result.deletedChatIds)
         }
       } catch (error) {
         console.error("Failed to delete chat:", error)
