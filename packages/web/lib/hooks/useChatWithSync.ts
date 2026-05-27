@@ -49,6 +49,17 @@ import {
 import { useStreamStore } from "@/lib/stores/stream-store"
 import { fetchChat, toMessageType } from "@/lib/sync/api"
 import { useStreaming, mergeMessages } from "./useStreaming"
+import {
+  mergeLocalState,
+  migrateLocalChatState,
+  computeUnseenTransitions,
+  enqueue,
+  removeFromQueue,
+  dequeue,
+  isChatReadyForQueueDispatch,
+  upsertDraft,
+  type LocalChatState,
+} from "@/lib/chat-state"
 
 // =============================================================================
 // API helpers
@@ -134,12 +145,12 @@ export function useChatWithSync() {
   const [isHydrated, setIsHydrated] = useState(false)
   const [unseenChatIds, setUnseenChatIds] = useState<Set<string>>(new Set())
   const [deletingChatIds, setDeletingChatIds] = useState<Set<string>>(new Set())
-  const [localChatState, setLocalChatState] = useState<{
-    previewStates: Record<string, PreviewState>
-    queuedMessages: Record<string, Chat["queuedMessages"]>
-    queuePaused: Record<string, boolean>
-    drafts: Record<string, string>
-  }>({ previewStates: {}, queuedMessages: {}, queuePaused: {}, drafts: {} })
+  const [localChatState, setLocalChatState] = useState<LocalChatState>({
+    previewStates: {},
+    queuedMessages: {},
+    queuePaused: {},
+    drafts: {},
+  })
   const [draftChatConfig, setDraftChatConfigState] = useState<DraftChatConfig | undefined>(undefined)
   // Ref kept in sync with draftChatConfig state. materializeDraft reads from this
   // so it always sees the current value regardless of when its useCallback closure
@@ -195,20 +206,10 @@ export function useChatWithSync() {
   }, [])
 
   // Derived state
-  const chats = useMemo((): Chat[] => {
-    const serverChats = chatsQuery.data ?? []
-    return serverChats.map((chat) => {
-      const previewState = localChatState.previewStates[chat.id]
-      return {
-        ...chat,
-        previewItems: previewState?.items,
-        activePreviewIndex: previewState?.activeIndex,
-        previewPaneHidden: previewState?.hidden,
-        queuedMessages: localChatState.queuedMessages[chat.id],
-        queuePaused: localChatState.queuePaused[chat.id],
-      }
-    })
-  }, [chatsQuery.data, localChatState])
+  const chats = useMemo(
+    (): Chat[] => mergeLocalState(chatsQuery.data ?? [], localChatState),
+    [chatsQuery.data, localChatState]
+  )
 
   const settings = settingsQuery.data?.settings ?? DEFAULT_SETTINGS
   const credentialFlags = settingsQuery.data?.credentialFlags ?? {}
@@ -229,21 +230,12 @@ export function useChatWithSync() {
   // Detect running → non-running transitions
   useEffect(() => {
     if (!isHydrated) return
-    const currentIds = new Set<string>()
-    const newlyUnseen: string[] = []
-
-    for (const chat of chats) {
-      currentIds.add(chat.id)
-      const prevStatus = prevStatuses.current.get(chat.id)
-      if (prevStatus === "running" && chat.status !== "running" && chat.id !== currentChatId) {
-        newlyUnseen.push(chat.id)
-      }
-      prevStatuses.current.set(chat.id, chat.status)
-    }
-
-    for (const id of Array.from(prevStatuses.current.keys())) {
-      if (!currentIds.has(id)) prevStatuses.current.delete(id)
-    }
+    const { newlyUnseen, nextStatuses } = computeUnseenTransitions(
+      chats,
+      prevStatuses.current,
+      currentChatId
+    )
+    prevStatuses.current = nextStatuses
 
     if (newlyUnseen.length > 0) {
       setUnseenChatIds((prev) => {
@@ -353,31 +345,7 @@ export function useChatWithSync() {
 
       // Migrate local state from draft ID to real ID
       migrateDraftToRealChat(draftId, newChat.id)
-      setLocalChatState((prev) => {
-        const newPreviewStates = { ...prev.previewStates }
-        const newQueuedMessages = { ...prev.queuedMessages }
-        const newQueuePaused = { ...prev.queuePaused }
-        const newDrafts = { ...prev.drafts }
-
-        if (newPreviewStates[draftId]) {
-          newPreviewStates[newChat.id] = newPreviewStates[draftId]
-          delete newPreviewStates[draftId]
-        }
-        if (newQueuedMessages[draftId]) {
-          newQueuedMessages[newChat.id] = newQueuedMessages[draftId]
-          delete newQueuedMessages[draftId]
-        }
-        if (newQueuePaused[draftId] !== undefined) {
-          newQueuePaused[newChat.id] = newQueuePaused[draftId]
-          delete newQueuePaused[draftId]
-        }
-        if (newDrafts[draftId]) {
-          newDrafts[newChat.id] = newDrafts[draftId]
-          delete newDrafts[draftId]
-        }
-
-        return { previewStates: newPreviewStates, queuedMessages: newQueuedMessages, queuePaused: newQueuePaused, drafts: newDrafts }
-      })
+      setLocalChatState((prev) => migrateLocalChatState(prev, draftId, newChat.id))
 
       // Clear draft config and update current chat ID
       setDraftChatConfigState(undefined)
@@ -759,14 +727,14 @@ export function useChatWithSync() {
     const chat = chats.find((c) => c.id === chatId)
     const queue = queueOverride ?? localChatState.queuedMessages[chatId]
     if (!chat || !queue || queue.length === 0) return false
-    if (localChatState.queuePaused[chatId]) return false
+    // In-flight / stream locks are not pure state, so they're checked here.
     if (queueDispatchInFlight.current.has(chatId)) return false
     if (sendInFlight.current.has(chatId)) return false
     if (stopInFlight.current.has(chatId)) return false
     if (useStreamStore.getState().isStreaming(chatId)) return false
-    if (chat.status !== "ready" || !!chat.backgroundSessionId) return false
+    if (!isChatReadyForQueueDispatch(chat, queue, localChatState.queuePaused[chatId])) return false
 
-    const [first, ...rest] = queue
+    const { next: first, rest } = dequeue(queue)
     queueDispatchInFlight.current.add(chatId)
     setQueuedMessages(chatId, rest.length > 0 ? rest : undefined)
     setLocalChatState((prev) => ({
@@ -881,7 +849,7 @@ export function useChatWithSync() {
   const enqueueMessage = useCallback((content: string, agent?: string, model?: string) => {
     if (!currentChat) return
     const queued: QueuedMessage = { id: `q-${Date.now()}`, content, agent, model }
-    const newQueue = [...(currentChat.queuedMessages ?? []), queued]
+    const newQueue = enqueue(currentChat.queuedMessages, queued)
 
     setQueuedMessages(currentChat.id, newQueue)
     setQueuePaused(currentChat.id, false)
@@ -894,7 +862,7 @@ export function useChatWithSync() {
 
   const removeQueuedMessage = useCallback((id: string) => {
     if (!currentChat) return
-    const newQueue = (currentChat.queuedMessages ?? []).filter((m) => m.id !== id)
+    const newQueue = removeFromQueue(currentChat.queuedMessages, id)
     setQueuedMessages(currentChat.id, newQueue)
     setLocalChatState((prev) => ({ ...prev, queuedMessages: { ...prev.queuedMessages, [currentChat.id]: newQueue } }))
   }, [currentChat])
@@ -908,24 +876,12 @@ export function useChatWithSync() {
   // Draft management
   const updateDraft = useCallback((chatId: string, draft: string) => {
     setDraft(chatId, draft)
-    setLocalChatState((prev) => {
-      const newDrafts = { ...prev.drafts }
-      if (draft === "") {
-        delete newDrafts[chatId]
-      } else {
-        newDrafts[chatId] = draft
-      }
-      return { ...prev, drafts: newDrafts }
-    })
+    setLocalChatState((prev) => ({ ...prev, drafts: upsertDraft(prev.drafts, chatId, draft) }))
   }, [])
 
   const clearDraft = useCallback((chatId: string) => {
     setDraft(chatId, undefined)
-    setLocalChatState((prev) => {
-      const newDrafts = { ...prev.drafts }
-      delete newDrafts[chatId]
-      return { ...prev, drafts: newDrafts }
-    })
+    setLocalChatState((prev) => ({ ...prev, drafts: upsertDraft(prev.drafts, chatId, undefined) }))
   }, [])
 
   // Drain any ready, unpaused queue. The queue is client-owned, so if the
