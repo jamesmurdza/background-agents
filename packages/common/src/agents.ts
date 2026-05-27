@@ -120,6 +120,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "opencode" },
     { value: "opencode/gpt-5", label: "GPT-5", requiresKey: "opencode" },
     { value: "opencode/gpt-5-codex", label: "GPT-5 Codex", requiresKey: "opencode" },
+    { value: "opencode/gpt-5.1-codex", label: "GPT-5.1 Codex", requiresKey: "opencode" },
     { value: "opencode/gpt-5-nano", label: "GPT-5 Nano", requiresKey: "opencode" },
     { value: "opencode/gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3-pro", label: "Gemini 3 Pro", requiresKey: "opencode" },
