@@ -241,6 +241,22 @@ function summarizeEvents(
   const isCompleted = !!endEvent
 
   if (!running && !endEvent) {
+    // A snapshot with zero events carries no information. This is reachable
+    // when the session meta is transiently unreadable (getSnapshot's
+    // `!meta?.outputFile` early-return yields empty events + running:false),
+    // which is NOT a confirmed stop. Treat it as still-running so the poller
+    // keeps trying rather than declaring a false "stopped without completing"
+    // terminal. A genuinely dead agent arrives here with a synthesized
+    // agent_crashed event (handled above); a real finish carries an end event.
+    if (events.length === 0) {
+      return {
+        status: "running",
+        content,
+        toolCalls,
+        contentBlocks,
+        sessionId: sessionId || undefined,
+      }
+    }
     const hasOutput = !!content?.trim() || toolCalls.length > 0
     return {
       status: hasOutput ? "completed" : "error",
