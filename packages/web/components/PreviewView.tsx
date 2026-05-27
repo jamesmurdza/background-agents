@@ -161,7 +161,8 @@ export function PreviewView({
 
   const handleRefresh = () => {
     if (item.type === "terminal") {
-      disposeTerminalSession(sandboxId)
+      // Sessions are cached per-panel by their unique item.id.
+      disposeTerminalSession(item.id)
     }
     setRefreshKey((k) => k + 1)
   }
@@ -342,7 +343,7 @@ export function PreviewView({
         {/* Body - render the plugin component */}
         <div className="flex-1 min-h-0 overflow-hidden">
           <Component
-            key={`${plugin.id}-${refreshKey}`}
+            key={`${getItemKey(item)}-${refreshKey}`}
             item={item}
             sandboxId={sandboxId}
             scale={scale}

@@ -33,18 +33,37 @@ function notify(session: TerminalSession) {
 }
 
 /**
- * Dispose a terminal session for a given sandbox ID.
- * Exported so PreviewView can call this on refresh.
+ * Dispose a terminal session for a given session key (the panel's unique
+ * `item.id`, e.g. "<sandboxId>-1"). Exported so PreviewView can call this on
+ * refresh.
  */
-export function disposeTerminalSession(sandboxId: string | null) {
-  if (!sandboxId) return
-  const s = terminalSessions.get(sandboxId)
+export function disposeTerminalSession(sessionKey: string | null) {
+  if (!sessionKey) return
+  const s = terminalSessions.get(sessionKey)
   if (!s) return
   try { s.resizeObserver?.disconnect() } catch {}
   try { s.socket?.close() } catch {}
   try { s.term?.dispose() } catch {}
   try { s.wrapper.remove() } catch {}
-  terminalSessions.delete(sandboxId)
+  terminalSessions.delete(sessionKey)
+}
+
+/**
+ * Tear down a dead session's xterm/socket so it can be reconnected while
+ * reusing the same cached wrapper div (preserving its place in the DOM).
+ * Used when a previously-disconnected session is reopened.
+ */
+function resetSessionForReconnect(session: TerminalSession) {
+  try { session.resizeObserver?.disconnect() } catch {}
+  try { session.socket?.close() } catch {}
+  try { session.term?.dispose() } catch {}
+  session.resizeObserver = null
+  session.socket = null
+  session.term = null
+  session.fit = null
+  session.wsUrl = null
+  session.errorMessage = null
+  session.status = "connecting"
 }
 
 const TERMINAL_THEMES = {
@@ -174,18 +193,22 @@ async function connectTerminal(
   session.resizeObserver = ro
 }
 
-function TerminalComponent({ sandboxId }: PanelProps) {
+function TerminalComponent({ item, sandboxId }: PanelProps) {
   const { resolvedTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const [, setTick] = useState(0)
   const rerender = useCallback(() => setTick((t) => t + 1), [])
   const theme = resolvedTheme === "dark" ? TERMINAL_THEMES.dark : TERMINAL_THEMES.light
 
+  // Sessions are cached per-panel (item.id is unique per terminal, e.g.
+  // "<sandboxId>-1"), so multiple terminals on the same sandbox don't collide.
+  const sessionKey = item.type === "terminal" ? item.id : null
+
   useEffect(() => {
-    if (!sandboxId || !hostRef.current) return
+    if (!sessionKey || !sandboxId || !hostRef.current) return
     const host = hostRef.current
 
-    let session = terminalSessions.get(sandboxId)
+    let session = terminalSessions.get(sessionKey)
     const isNew = !session
 
     if (!session) {
@@ -203,13 +226,20 @@ function TerminalComponent({ sandboxId }: PanelProps) {
         listeners: new Set(),
         resizeObserver: null,
       }
-      terminalSessions.set(sandboxId, session)
+      terminalSessions.set(sessionKey, session)
     }
 
     session.listeners.add(rerender)
     host.appendChild(session.wrapper)
 
     if (isNew) {
+      setupAndConnect(session, sandboxId, theme)
+    } else if (session.status === "error" || session.status === "disconnected") {
+      // A previously-opened session whose socket has died. Reopening it should
+      // start a fresh connection rather than leaving the panel stuck on the
+      // stale error/disconnected state.
+      resetSessionForReconnect(session)
+      notify(session)
       setupAndConnect(session, sandboxId, theme)
     } else {
       // Refit after reattach so xterm recomputes size against the new parent,
@@ -231,16 +261,16 @@ function TerminalComponent({ sandboxId }: PanelProps) {
     // `theme` change is intentionally not a dep — see the effect below which
     // updates the existing terminal's theme without recreating the session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sandboxId, rerender])
+  }, [sessionKey, sandboxId, rerender])
 
   // Sync theme updates to the cached term without disposing it.
   useEffect(() => {
-    if (!sandboxId) return
-    const session = terminalSessions.get(sandboxId)
+    if (!sessionKey) return
+    const session = terminalSessions.get(sessionKey)
     if (session?.term) session.term.options.theme = theme
-  }, [sandboxId, theme])
+  }, [sessionKey, theme])
 
-  const session = sandboxId ? terminalSessions.get(sandboxId) : null
+  const session = sessionKey ? terminalSessions.get(sessionKey) : null
   const status = session?.status ?? "connecting"
   const errorMessage = session?.errorMessage ?? null
 
