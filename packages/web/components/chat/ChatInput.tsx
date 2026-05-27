@@ -1,9 +1,10 @@
 "use client"
 
 import { useRef, useEffect, useCallback, useState } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks, Mic } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
+import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
@@ -146,6 +147,60 @@ export function ChatInput({
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModeSheet, setShowModeSheet] = useState(false)
 
+  // -- Speech-to-text (voice dictation) -------------------------------------
+  // Keep the latest input in a ref so the recognition callback (created once
+  // per render but invoked asynchronously) always reads the current value.
+  const inputRef = useRef(input)
+  inputRef.current = input
+  // Cursor position to restore after a controlled-state update inserts text.
+  const pendingSelectionRef = useRef<number | null>(null)
+
+  const insertTranscript = useCallback((text: string) => {
+    const textarea = textareaRef.current
+    const current = inputRef.current
+    // Determine where to insert: at the caret if focused, else append.
+    const hasSelection = textarea && document.activeElement === textarea
+    const start = hasSelection ? textarea.selectionStart ?? current.length : current.length
+    const end = hasSelection ? textarea.selectionEnd ?? current.length : current.length
+
+    const before = current.slice(0, start)
+    const after = current.slice(end)
+    // Add a space between existing text and the new chunk when needed.
+    const needsLeadingSpace = before.length > 0 && !/\s$/.test(before)
+    const insertion = (needsLeadingSpace ? " " : "") + text
+    const next = before + insertion + after
+
+    pendingSelectionRef.current = start + insertion.length
+    onInputChange(next)
+  }, [onInputChange, textareaRef])
+
+  const speech = useSpeechRecognition({ onResult: insertTranscript })
+
+  // Restore the caret after a transcript insertion re-renders the textarea.
+  useEffect(() => {
+    if (pendingSelectionRef.current === null) return
+    const textarea = textareaRef.current
+    const pos = pendingSelectionRef.current
+    pendingSelectionRef.current = null
+    if (!textarea) return
+    textarea.focus()
+    textarea.setSelectionRange(pos, pos)
+  }, [input, textareaRef])
+
+  const toggleListening = useCallback(() => {
+    if (speech.isListening) {
+      speech.stop()
+    } else {
+      speech.start()
+    }
+  }, [speech])
+
+  // Stop dictation when a message is sent.
+  const handleSendWithSpeechStop = useCallback(() => {
+    if (speech.isListening) speech.stop()
+    onSend()
+  }, [speech, onSend])
+
   // Close mode dropdown when clicking outside (desktop only)
   useEffect(() => {
     if (isMobile) return
@@ -268,7 +323,7 @@ export function ChatInput({
           )}>
             {isRunning && canQueue ? (
               <button
-                onClick={onSend}
+                onClick={handleSendWithSpeechStop}
                 title="Queue message (sent after current response)"
                 className={cn(
                   "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
@@ -289,7 +344,7 @@ export function ChatInput({
               </button>
             ) : canSend ? (
               <button
-                onClick={onSend}
+                onClick={handleSendWithSpeechStop}
                 className={cn(
                   "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
                   isMobile ? "h-9 w-9" : "h-7 w-7"
@@ -339,6 +394,41 @@ export function ChatInput({
             >
               <Paperclip className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
             </button>
+
+            {/* Voice dictation (speech-to-text) button — only when supported */}
+            {speech.isSupported && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={speech.permissionDenied}
+                aria-pressed={speech.isListening}
+                className={cn(
+                  "shrink-0 flex items-center justify-center rounded-md transition-colors",
+                  isMobile ? "h-7 w-7" : "h-6 w-6",
+                  speech.permissionDenied
+                    ? "text-muted-foreground/40 cursor-not-allowed"
+                    : speech.isListening
+                    ? "text-red-500 bg-red-500/10 animate-pulse cursor-pointer"
+                    : "text-muted-foreground hover:text-foreground cursor-pointer"
+                )}
+                title={
+                  speech.permissionDenied
+                    ? "Microphone access denied"
+                    : speech.isListening
+                    ? "Stop dictation"
+                    : "Dictate prompt"
+                }
+                aria-label={
+                  speech.permissionDenied
+                    ? "Microphone access denied"
+                    : speech.isListening
+                    ? "Stop voice dictation"
+                    : "Start voice dictation"
+                }
+              >
+                <Mic className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+              </button>
+            )}
 
             {/* Repo display/selector */}
             {showRepoButton ? (
