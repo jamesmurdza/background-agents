@@ -11,6 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
+import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
 
 // Refined color palette that works in both light and dark modes
 const COLORS = [
@@ -117,16 +118,8 @@ export function MessagesByModelChart({
                 width={45}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--tooltip-bg, #fff)",
-                  border: "1px solid var(--tooltip-border, #e5e7eb)",
-                  borderRadius: "8px",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                  padding: "8px 12px",
-                }}
-                labelStyle={{ color: "var(--tooltip-text, #111)", fontWeight: 600, marginBottom: 4 }}
-                itemStyle={{ color: "var(--tooltip-text, #111)", padding: "2px 0" }}
-                cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "4 4" }}
+                {...chartTooltipProps}
+                cursor={lineTooltipCursor}
                 labelFormatter={(label) => {
                   if (isHourly) {
                     return formatHour(Number(label))
