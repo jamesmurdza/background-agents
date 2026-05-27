@@ -540,7 +540,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     if (!session && (!currentChatId || isDraftChatId(currentChatId))) {
       const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
       const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
-      const messages = messagesFor(currentChatId ?? unauthDraftIdRef.current)
       return {
         id: currentChatId ?? unauthDraftIdRef.current,
         repo: NEW_REPOSITORY,
@@ -550,10 +549,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         sessionId: null,
         agent: resolvedAgent,
         model: resolvedModel,
-        messages,
+        messages: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        status: messages.length > 0 ? "creating" : "pending",
+        status: "pending",
         displayName: null,
       }
     }
@@ -783,11 +782,13 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     // is a server round-trip, before it can add the real optimistic messages.)
     const draftId = isDraftMode && currentChatId ? currentChatId : null
     if (draftId) {
+      // Only the user message is needed to leave the welcome screen
+      // (messages.length > 0). The assistant's "thinking" state is shown by the
+      // separate `...` indicator driven by the chat's "creating" status.
       setOptimisticDraft({
         chatId: draftId,
         messages: [
           { id: `optimistic-user-${nanoid()}`, role: "user", content: message, timestamp: Date.now() },
-          { id: `optimistic-assistant-${nanoid()}`, role: "assistant", content: "", timestamp: Date.now() + 1, toolCalls: [], contentBlocks: [] },
         ],
       })
     }
