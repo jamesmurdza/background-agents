@@ -18,6 +18,12 @@ import type {
 } from "./types"
 // Re-export for convenience (BackgroundRunPhase is used via PollResult.runPhase)
 export type { BackgroundRunPhase } from "./types"
+import {
+  META_ABSENT_SENTINEL,
+  buildAtomicWriteMetaCommand,
+  buildReadMetaCommand,
+  parseSessionMeta,
+} from "./meta"
 import { debugLog } from "../debug"
 
 /** After startedAt, ignore "done but no output" briefly (race with wrapper). */
@@ -387,21 +393,25 @@ class BackgroundSessionImpl implements BackgroundSession {
   // Private helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async readMeta(): Promise<SessionMeta | null> {
+  /**
+   * Read and validate meta.json. A genuinely-absent file returns `null`
+   * immediately; an empty/partial/failed read (transient) is retried a bounded
+   * number of times before giving up, so a single flaky `cat` doesn't get
+   * misread as "no session".
+   */
+  private async readMeta(retries = 2): Promise<SessionMeta | null> {
     if (!this.sandbox.executeCommand) return null
-    const result = await this.sandbox.executeCommand(
-      `cat "${this.sessionDir}/meta.json" 2>/dev/null || true`,
-      10
-    )
-    const raw = (result.output ?? "").trim()
-    if (!raw) return null
-    try {
-      const o = JSON.parse(raw) as SessionMeta
-      if (typeof o.currentTurn !== "number" || typeof o.cursor !== "number")
-        return null
-      return o
-    } catch {
-      return null
+    const cmd = buildReadMetaCommand(this.sessionDir)
+    for (let attempt = 0; ; attempt++) {
+      const result = await this.sandbox.executeCommand(cmd, 10)
+      const raw = (result.output ?? "").trim()
+      // File genuinely absent — not transient, don't retry.
+      if (raw === META_ABSENT_SENTINEL) return null
+      const meta = parseSessionMeta(raw)
+      if (meta) return meta
+      // Empty / partial / unparseable / exec hiccup — retry briefly.
+      if (attempt >= retries) return null
+      await new Promise((r) => setTimeout(r, 100 * (attempt + 1)))
     }
   }
 
@@ -411,10 +421,9 @@ class BackgroundSessionImpl implements BackgroundSession {
         "Sandbox background mode requires a sandbox with executeCommand support"
       )
     }
-    const json = JSON.stringify(meta)
-    const b64 = Buffer.from(json, "utf8").toString("base64")
+    // Atomic write (temp file + mv) so concurrent readers never see a torn file.
     await this.sandbox.executeCommand(
-      `mkdir -p "${this.sessionDir}" && echo '${b64}' | base64 -d > "${this.sessionDir}/meta.json"`,
+      buildAtomicWriteMetaCommand(this.sessionDir, meta),
       10
     )
   }
@@ -564,22 +573,8 @@ class BackgroundSessionImpl implements BackgroundSession {
   }> {
     if (this.sandbox.pollBackgroundState) {
       const state = await this.sandbox.pollBackgroundState(this.sessionDir)
-      let meta: SessionMeta | null = null
-      if (state?.meta) {
-        try {
-          const parsed = JSON.parse(state.meta)
-          if (
-            typeof parsed.currentTurn === "number" &&
-            typeof parsed.cursor === "number"
-          ) {
-            meta = parsed
-          }
-        } catch {
-          /* invalid JSON */
-        }
-      }
       return {
-        meta,
+        meta: parseSessionMeta(state?.meta),
         outputContent: state?.output ?? null,
         stillRunning: !state?.done,
       }
@@ -797,10 +792,8 @@ export async function writeInitialSessionMeta(
     provider: agentName,
     sessionId,
   }
-  const json = JSON.stringify(meta)
-  const b64 = Buffer.from(json, "utf8").toString("base64")
   await sandbox.executeCommand(
-    `mkdir -p "${sessionDir}" && echo '${b64}' | base64 -d > "${sessionDir}/meta.json"`,
+    buildAtomicWriteMetaCommand(sessionDir, meta),
     10
   )
 }
@@ -814,18 +807,13 @@ export async function readProviderFromMeta(
 ): Promise<{ provider: string | null; sessionId: string | null } | null> {
   if (!sandbox.executeCommand) return null
   const result = await sandbox.executeCommand(
-    `cat "${sessionDir}/meta.json" 2>/dev/null || true`,
+    buildReadMetaCommand(sessionDir),
     10
   )
-  const raw = (result.output ?? "").trim()
-  if (!raw) return null
-  try {
-    const o = JSON.parse(raw) as { provider?: string; sessionId?: string | null }
-    return {
-      provider: o.provider ?? null,
-      sessionId: o.sessionId ?? null,
-    }
-  } catch {
-    return { provider: null, sessionId: null }
+  const meta = parseSessionMeta(result.output)
+  if (!meta) return null
+  return {
+    provider: meta.provider ?? null,
+    sessionId: meta.sessionId ?? null,
   }
 }
