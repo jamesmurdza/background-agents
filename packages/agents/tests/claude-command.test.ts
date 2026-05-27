@@ -83,6 +83,25 @@ describe("claudeAgent.buildCommand", () => {
     expect(args[rIdx + 1]).toBe("abc123")
   })
 
+  it("sets CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1 by default", () => {
+    const { env } = claudeAgent.buildCommand({ prompt: "hello" })
+    expect(env?.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe("1")
+  })
+
+  it("merges caller-provided env with the background-task default", () => {
+    const { env } = claudeAgent.buildCommand({ prompt: "hello", env: { FOO: "bar" } })
+    expect(env?.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe("1")
+    expect(env?.FOO).toBe("bar")
+  })
+
+  it("lets a caller override CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", () => {
+    const { env } = claudeAgent.buildCommand({
+      prompt: "hello",
+      env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "0" },
+    })
+    expect(env?.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe("0")
+  })
+
   it("-- comes after all other flags", () => {
     const { args } = claudeAgent.buildCommand({
       prompt: "hello",
