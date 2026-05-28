@@ -1,9 +1,9 @@
 /**
  * Constants for Simple Chat
- * Re-exports shared constants from @upstream/common
+ * Re-exports shared constants from @background-agents/common
  */
 
-import { PATHS as COMMON_PATHS, SANDBOX_CONFIG as COMMON_SANDBOX_CONFIG, TIMEOUTS } from "@upstream/common"
+import { PATHS as COMMON_PATHS, SANDBOX_CONFIG as COMMON_SANDBOX_CONFIG, TIMEOUTS } from "@background-agents/common"
 
 // Re-export PATHS directly (same values)
 export const PATHS = COMMON_PATHS

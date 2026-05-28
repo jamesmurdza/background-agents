@@ -1,6 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { ensureSandboxStarted } from "@/lib/sandbox"
-import { escapeShell } from "@upstream/common"
+import { escapeShell } from "@background-agents/common"
 
 export const maxDuration = 30
 

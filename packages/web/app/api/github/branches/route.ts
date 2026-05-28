@@ -1,4 +1,4 @@
-import { getRepoBranches } from "@upstream/common"
+import { getRepoBranches } from "@background-agents/common"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 
 export async function GET(req: Request) {

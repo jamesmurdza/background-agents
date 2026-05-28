@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getUser, isGitHubApiError } from "@upstream/common"
+import { getUser, isGitHubApiError } from "@background-agents/common"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 
 /**

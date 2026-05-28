@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/mcp-providers",
+  "name": "@background-agents/mcp-providers",
   "version": "0.1.0",
   "description": "MCP provider abstractions for GitHub and Smithery",
   "main": "src/index.ts",

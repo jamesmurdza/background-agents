@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/api-helpers"
 import { addMinutes, addYears } from "date-fns"
 import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
-import { createWebhook } from "@upstream/common"
+import { createWebhook } from "@background-agents/common"
 import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================

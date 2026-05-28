@@ -3,7 +3,7 @@ import {
   getAgentSandboxImage,
   SNAPSHOT_NAME,
   SNAPSHOT_RESOURCES,
-} from "@upstream/sandbox-image"
+} from "@background-agents/sandbox-image"
 
 // Building the snapshot can take several minutes
 export const maxDuration = 300

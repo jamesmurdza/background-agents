@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/agent-configuration",
+  "name": "@background-agents/agent-configuration",
   "version": "0.1.0",
   "description": "Agent configuration and policy rules for blocking dangerous operations",
   "main": "src/index.ts",

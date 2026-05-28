@@ -19,8 +19,8 @@ import {
   createGitHubMcpProvider,
   GITHUB_MCP_QUALIFIED_NAME,
   safeServerName,
-} from "@upstream/mcp-providers"
-import type { AgentMcpServer } from "@upstream/agent-configuration/mcp"
+} from "@background-agents/mcp-providers"
+import type { AgentMcpServer } from "@background-agents/agent-configuration/mcp"
 import { type McpOwner, ownerWhere } from "./owner"
 
 // Lazily-initialized GitHub provider

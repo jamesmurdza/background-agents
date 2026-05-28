@@ -12,7 +12,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
-import { SLASH_COMMANDS } from "@upstream/common"
+import { SLASH_COMMANDS } from "@background-agents/common"
 import type { SectionKey } from "@/components/modals/SettingsModal"
 import type { Theme } from "@/lib/types"
 

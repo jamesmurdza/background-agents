@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/skills",
+  "name": "@background-agents/skills",
   "version": "0.1.0",
   "description": "Skills registry client and sandbox operations for Daytona",
   "main": "src/index.ts",

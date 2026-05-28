@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { setupTerminal, stopTerminal, getTerminalStatus } from "@upstream/daytona-terminal"
+import { setupTerminal, stopTerminal, getTerminalStatus } from "@background-agents/daytona-terminal"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 
 export const maxDuration = 60

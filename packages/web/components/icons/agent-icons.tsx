@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Agent icon components - re-exported from @upstream/common
+ * Agent icon components - re-exported from @background-agents/common
  */
 export {
   ClaudeCodeIcon,
@@ -13,4 +13,4 @@ export {
   ElizaIcon,
   PiIcon,
   AgentIcon,
-} from "@upstream/common"
+} from "@background-agents/common"

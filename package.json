@@ -1,5 +1,5 @@
 {
-  "name": "upstream-monorepo",
+  "name": "background-agents-monorepo",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -8,19 +8,19 @@
     "postinstall": "npm run build:eliza -w background-agents",
     "predev": "npm run build:eliza -w background-agents && npm run prisma:generate",
     "dev": "dotenv -e .env.local -- next dev packages/web --port 4000",
-    "dev:cron": "npm run dev -w @upstream/dev-cron",
-    "dev:electron": "npm run build:eliza -w background-agents && npm run prisma:generate && dotenv -e .env.local -- next dev packages/web --port 4000 & sleep 3 && npm run build -w @upstream/electron && BACKGROUND_AGENTS_URL=http://localhost:4000 electron packages/electron/dist/main.js",
+    "dev:cron": "npm run dev -w @background-agents/dev-cron",
+    "dev:electron": "npm run build:eliza -w background-agents && npm run prisma:generate && dotenv -e .env.local -- next dev packages/web --port 4000 & sleep 3 && npm run build -w @background-agents/electron && BACKGROUND_AGENTS_URL=http://localhost:4000 electron packages/electron/dist/main.js",
     "prisma:migrate": "cd packages/web && npx prisma migrate dev",
     "prisma:migrate:deploy": "cd packages/web && npx prisma migrate deploy",
     "prisma:generate": "cd packages/web && npx prisma generate",
     "prisma:status": "cd packages/web && npx prisma migrate status",
-    "build": "npm run build -w background-agents && npm run build -w @upstream/web",
+    "build": "npm run build -w background-agents && npm run build -w @background-agents/web",
     "build:sdk": "npm run build -w background-agents",
-    "build:electron": "npm run build -w @upstream/electron",
+    "build:electron": "npm run build -w @background-agents/electron",
     "publish:sdk": "npm publish -w background-agents",
-    "build:web": "npm run build -w background-agents && npm run prisma:generate && npm run build -w @upstream/web",
+    "build:web": "npm run build -w background-agents && npm run prisma:generate && npm run build -w @background-agents/web",
     "start": "dotenv -e .env.local -- next start packages/web --port 4000",
-    "start:electron": "npm run start -w @upstream/electron",
+    "start:electron": "npm run start -w @background-agents/electron",
     "lint": "npm run lint --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"

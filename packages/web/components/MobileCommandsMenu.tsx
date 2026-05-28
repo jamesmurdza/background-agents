@@ -3,7 +3,7 @@
 import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, GitBranchPlus, XCircle } from "lucide-react"
 import { MobileBottomSheet } from "./ui/MobileBottomSheet"
 import { cn } from "@/lib/utils"
-import { SLASH_COMMANDS, ABORT_COMMAND, type SlashCommand } from "@upstream/common"
+import { SLASH_COMMANDS, ABORT_COMMAND, type SlashCommand } from "@background-agents/common"
 import type { SlashCommandType } from "./SlashCommandMenu"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {

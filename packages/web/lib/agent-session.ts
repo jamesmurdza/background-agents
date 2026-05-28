@@ -1,6 +1,6 @@
 /**
  * Agent Session utilities for Simple Chat
- * Uses shared code from @upstream/common
+ * Uses shared code from @background-agents/common
  */
 
 import {
@@ -17,16 +17,16 @@ import {
   type ContentBlock,
   type ToolCall,
   type SkillCatalogEntry,
-} from "@upstream/common"
+} from "@background-agents/common"
 import {
   setupClaudeHooks,
   setupCodexRules,
   OPENCODE_PERMISSION_ENV,
-} from "@upstream/agent-configuration/git"
+} from "@background-agents/agent-configuration/git"
 import {
   setupMcpForAgent,
   type AgentMcpServer,
-} from "@upstream/agent-configuration/mcp"
+} from "@background-agents/agent-configuration/mcp"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 // Re-export Agent type for convenience

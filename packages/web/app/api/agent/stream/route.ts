@@ -1,6 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
-import { createSandboxGit } from "@upstream/daytona-git"
+import { createSandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
 import {
   finalizeTurn,

@@ -1,4 +1,4 @@
-# @upstream/common
+# @background-agents/common
 
 Shared utilities and types for upstream-agents packages. This package provides common functionality used across the monorepo, including agent configuration, GitHub API helpers, and utility functions.
 
@@ -9,7 +9,7 @@ This is an internal workspace package. It's automatically available to other pac
 ```json
 {
   "dependencies": {
-    "@upstream/common": "*"
+    "@background-agents/common": "*"
   }
 }
 ```
@@ -43,7 +43,7 @@ import {
   getDefaultModelForAgent,
   getModelLabel,
   getEnvForModel,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### GitHub API Helpers
@@ -81,7 +81,7 @@ import {
   deleteWebhook,
   listWebhooks,
   hasWebhookPermission,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Session Utilities
@@ -94,7 +94,7 @@ import {
   buildContentBlocks,
   type BuildContentBlocksResult,
   type SkillCatalogEntry,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Content Block Types
@@ -107,7 +107,7 @@ import type {
   ToolCall,
   AgentStatus,
   AgentStatusResponse,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Branch Utilities
@@ -120,7 +120,7 @@ import {
   type BranchNameOptions,
   // Functions
   generateBranchName,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Git Operations
@@ -142,13 +142,13 @@ import {
   parseConflictedFiles,
   // Constants
   EMPTY_CONFLICT_STATE,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Sandbox Utilities
 
 ```typescript
-import { generateSandboxName } from "@upstream/common"
+import { generateSandboxName } from "@background-agents/common"
 ```
 
 ### Slash Commands
@@ -162,19 +162,19 @@ import {
   ABORT_COMMAND,
   filterSlashCommands,
   filterSlashCommandsWithConflict,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Common Utilities
 
 ```typescript
-import { cn, escapeShell, quote } from "@upstream/common"
+import { cn, escapeShell, quote } from "@background-agents/common"
 ```
 
 ### Constants
 
 ```typescript
-import { PATHS, SANDBOX_CONFIG, TIMEOUTS, ENV_VARS } from "@upstream/common"
+import { PATHS, SANDBOX_CONFIG, TIMEOUTS, ENV_VARS } from "@background-agents/common"
 ```
 
 ### Agent Icons
@@ -193,7 +193,7 @@ import {
   ElizaIcon,
   PiIcon,
   AgentIcon,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ### Search Palette
@@ -205,7 +205,7 @@ import {
   type RecentItem,
   getRecentItems,
   addRecentItem,
-} from "@upstream/common"
+} from "@background-agents/common"
 ```
 
 ## Development

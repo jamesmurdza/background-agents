@@ -1,4 +1,4 @@
-# @upstream/dev-cron
+# @background-agents/dev-cron
 
 Local development simulator for Vercel cron jobs.
 

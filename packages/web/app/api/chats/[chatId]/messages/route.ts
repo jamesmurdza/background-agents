@@ -21,7 +21,7 @@ import { checkSharedClaudeUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
-import { getEnvForModel } from "@upstream/common"
+import { getEnvForModel } from "@background-agents/common"
 import { decrypt } from "@/lib/db/encryption"
 import {
   createSandboxForChat,

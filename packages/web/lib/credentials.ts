@@ -2,7 +2,7 @@
  * Credential field metadata + storage migration shim.
  *
  * The shape itself (CredentialId / CredentialFlags / Credentials) lives in
- * @upstream/common — this module just adds simple-chat's UI metadata for
+ * @background-agents/common — this module just adds simple-chat's UI metadata for
  * each credential field and the on-read normalization for legacy DB rows.
  *
  * NOTE: This file is safe for client-side imports. Server-only logic
@@ -14,7 +14,7 @@ import {
   type CredentialFlags,
   type Credentials,
   type ProviderId,
-} from "@upstream/common"
+} from "@background-agents/common"
 
 export type { CredentialId, CredentialFlags, Credentials, ProviderId }
 

@@ -1,5 +1,5 @@
 /**
- * @upstream/agent-configuration
+ * @background-agents/agent-configuration
  *
  * Agent configuration and policy rules for blocking dangerous operations.
  *
@@ -13,7 +13,7 @@
  *   setupClaudeHooks,
  *   setupCodexRules,
  *   OPENCODE_PERMISSION_ENV,
- * } from '@upstream/agent-configuration'
+ * } from '@background-agents/agent-configuration'
  *
  * // Setup for Claude Code agent
  * await setupClaudeHooks(sandbox)

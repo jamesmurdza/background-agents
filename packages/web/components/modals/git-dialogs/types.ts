@@ -1,5 +1,5 @@
 import type { Chat, Message } from "@/lib/types"
-import { type RebaseConflictState } from "@upstream/common"
+import { type RebaseConflictState } from "@background-agents/common"
 
 // Re-export for convenience
 export type { RebaseConflictState }

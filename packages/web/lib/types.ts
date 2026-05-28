@@ -1,6 +1,6 @@
 /**
  * Types for Simple Chat
- * Re-exports shared types from @upstream/common
+ * Re-exports shared types from @background-agents/common
  */
 
 // Re-export shared types
@@ -9,12 +9,12 @@ export type {
   ToolCall,
   AgentStatus,
   AgentStatusResponse,
-} from "@upstream/common"
+} from "@background-agents/common"
 
-import type { ContentBlock } from "@upstream/common"
+import type { ContentBlock } from "@background-agents/common"
 
 // Re-export agent types
-export type { Agent, ModelOption } from "@upstream/common"
+export type { Agent, ModelOption } from "@background-agents/common"
 export {
   ALL_AGENTS,
   agentModels,
@@ -25,7 +25,7 @@ export {
   getDefaultModelForAgent,
   getModelLabel,
   hasCredentialsForModel,
-} from "@upstream/common"
+} from "@background-agents/common"
 
 // =============================================================================
 // Environment Variables
@@ -228,7 +228,7 @@ export interface AppState {
 }
 
 // Re-export GitHub types from common
-export type { GitHubRepo, GitHubBranch, GitHubUser } from "@upstream/common"
+export type { GitHubRepo, GitHubBranch, GitHubUser } from "@background-agents/common"
 
 // File upload types
 export interface PendingFile {

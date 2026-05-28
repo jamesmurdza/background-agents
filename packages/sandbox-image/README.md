@@ -1,4 +1,4 @@
-# @upstream/sandbox-image
+# @background-agents/sandbox-image
 
 Custom [Daytona](https://daytona.io) sandbox image with pre-installed AI coding agent CLIs.
 
@@ -26,7 +26,7 @@ This is an internal workspace package. It's automatically available to other pac
 ```json
 {
   "dependencies": {
-    "@upstream/sandbox-image": "*"
+    "@background-agents/sandbox-image": "*"
   }
 }
 ```
@@ -39,7 +39,7 @@ import {
   getAgentSandboxImage,
   SNAPSHOT_NAME,
   SNAPSHOT_RESOURCES,
-} from "@upstream/sandbox-image"
+} from "@background-agents/sandbox-image"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 
@@ -58,7 +58,7 @@ import {
   AGENT_PACKAGES,       // Map of agent name -> npm package
   SNAPSHOT_NAME,        // Registered snapshot name ("background-agents")
   SNAPSHOT_RESOURCES,   // { cpu, memory, disk } defaults
-} from "@upstream/sandbox-image"
+} from "@background-agents/sandbox-image"
 ```
 
 ### Default resources

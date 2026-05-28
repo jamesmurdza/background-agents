@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useState } from "react"
-import { PATHS } from "@upstream/common"
+import { PATHS } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 

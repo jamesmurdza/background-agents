@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/sandbox-image",
+  "name": "@background-agents/sandbox-image",
   "version": "0.1.0",
   "description": "Custom Daytona sandbox image with pre-installed agent CLIs",
   "main": "src/index.ts",

@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/dev-cron",
+  "name": "@background-agents/dev-cron",
   "version": "0.1.0",
   "description": "Local development simulator for Vercel cron jobs",
   "type": "module",

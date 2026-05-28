@@ -1,5 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
-import { getRepo } from "@upstream/common"
+import { getRepo } from "@background-agents/common"
 
 export async function GET(req: Request) {
   const ghAuth = await requireGitHubAuth()

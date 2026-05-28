@@ -7,7 +7,7 @@ import { useElectron } from "@/lib/hooks/useElectron"
 import { useModals, useGit } from "@/lib/contexts"
 import { Input } from "../ui/input"
 import type { Chat } from "@/lib/types"
-import type { RebaseConflictState } from "@upstream/common"
+import type { RebaseConflictState } from "@background-agents/common"
 
 // =============================================================================
 // ChatHeader - Title bar with conflict indicator and title menu

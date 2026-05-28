@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/electron",
+  "name": "@background-agents/electron",
   "version": "0.1.0",
   "description": "Electron desktop app for Background Agents",
   "main": "dist/main.js",

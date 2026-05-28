@@ -1,4 +1,4 @@
-import { createRepo, createFileCommit, type GitHubRepo } from "@upstream/common"
+import { createRepo, createFileCommit, type GitHubRepo } from "@background-agents/common"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {

@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, FolderGit2, GitBranchPlus, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
-import { filterSlashCommandsWithConflict, type SlashCommand } from "@upstream/common"
+import { filterSlashCommandsWithConflict, type SlashCommand } from "@background-agents/common"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,
