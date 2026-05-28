@@ -109,63 +109,63 @@ export function saveLocalState(state: LocalState): void {
   }
 }
 
+/**
+ * Load local state, apply a transformation, and save the result.
+ * Centralizes the load → mutate → save pattern used by every setter below.
+ */
+function updateLocalState(updater: (state: LocalState) => LocalState): void {
+  saveLocalState(updater(loadLocalState()))
+}
+
+/**
+ * Update a single keyed entry inside one of the per-chat record fields.
+ * Passing `undefined` removes the entry; otherwise it is set.
+ */
+function updateLocalStateRecord<K extends "previewStates" | "queuedMessages" | "queuePaused" | "drafts">(
+  field: K,
+  key: string,
+  value: LocalState[K][string] | undefined,
+  shouldDelete: (value: LocalState[K][string] | undefined) => boolean = (v) => v === undefined,
+): void {
+  updateLocalState((state) => {
+    const next = { ...state[field] } as LocalState[K]
+    if (shouldDelete(value)) {
+      delete next[key]
+    } else {
+      next[key] = value as LocalState[K][string]
+    }
+    return { ...state, [field]: next }
+  })
+}
+
 export function setCurrentChatId(chatId: string | null): void {
-  const state = loadLocalState()
-  saveLocalState({ ...state, currentChatId: chatId })
+  updateLocalState((state) => ({ ...state, currentChatId: chatId }))
 }
 
 export function setPreviewState(chatId: string, previewState: PreviewState | undefined): void {
-  const state = loadLocalState()
-  const newPreviewStates = { ...state.previewStates }
-  if (previewState === undefined) {
-    delete newPreviewStates[chatId]
-  } else {
-    newPreviewStates[chatId] = previewState
-  }
-  saveLocalState({
-    ...state,
-    previewStates: newPreviewStates,
-  })
+  updateLocalStateRecord("previewStates", chatId, previewState)
 }
 
 export function setQueuedMessages(chatId: string, messages: Chat["queuedMessages"]): void {
-  const state = loadLocalState()
-  saveLocalState({
-    ...state,
-    queuedMessages: { ...state.queuedMessages, [chatId]: messages },
-  })
+  updateLocalStateRecord("queuedMessages", chatId, messages, () => false)
 }
 
 export function setQueuePaused(chatId: string, paused: boolean): void {
-  const state = loadLocalState()
-  saveLocalState({
-    ...state,
-    queuePaused: { ...state.queuePaused, [chatId]: paused },
-  })
+  updateLocalStateRecord("queuePaused", chatId, paused, () => false)
 }
 
 export function setDraft(chatId: string, draft: string | undefined): void {
-  const state = loadLocalState()
-  const newDrafts = { ...state.drafts }
-  if (draft === undefined || draft === "") {
-    delete newDrafts[chatId]
-  } else {
-    newDrafts[chatId] = draft
-  }
-  saveLocalState({
-    ...state,
-    drafts: newDrafts,
-  })
+  updateLocalStateRecord("drafts", chatId, draft, (v) => v === undefined || v === "")
 }
 
 export function setDraftChatConfig(config: DraftChatConfig | undefined): void {
-  const state = loadLocalState()
-  if (config === undefined) {
-    const { draftChatConfig: _, ...rest } = state
-    saveLocalState(rest as LocalState)
-  } else {
-    saveLocalState({ ...state, draftChatConfig: config })
-  }
+  updateLocalState((state) => {
+    if (config === undefined) {
+      const { draftChatConfig: _, ...rest } = state
+      return rest as LocalState
+    }
+    return { ...state, draftChatConfig: config }
+  })
 }
 
 export function getDraftChatConfig(): DraftChatConfig | undefined {
@@ -177,69 +177,49 @@ export function clearDraftChatConfig(): void {
   setDraftChatConfig(undefined)
 }
 
+// Per-chat record fields that live inside LocalState
+const CHAT_KEYED_FIELDS = ["previewStates", "queuedMessages", "queuePaused", "drafts"] as const
+
+/**
+ * Move a single keyed entry from one id to another inside a record, if present.
+ * Returns the (possibly mutated) shallow copy.
+ */
+function renameKey<T>(record: Record<string, T>, fromId: string, toId: string): Record<string, T> {
+  if (!(fromId in record)) return record
+  const next = { ...record }
+  next[toId] = next[fromId]
+  delete next[fromId]
+  return next
+}
+
 /**
  * Migrate local state from a draft chat ID to a real chat ID
  * Used when materializing a draft into a real database chat
  */
 export function migrateDraftToRealChat(draftId: string, realId: string): void {
-  const state = loadLocalState()
-  const newPreviewStates = { ...state.previewStates }
-  const newQueuedMessages = { ...state.queuedMessages }
-  const newQueuePaused = { ...state.queuePaused }
-  const newDrafts = { ...state.drafts }
-
-  // Migrate any state from draft ID to real ID
-  if (newPreviewStates[draftId]) {
-    newPreviewStates[realId] = newPreviewStates[draftId]
-    delete newPreviewStates[draftId]
-  }
-  if (newQueuedMessages[draftId]) {
-    newQueuedMessages[realId] = newQueuedMessages[draftId]
-    delete newQueuedMessages[draftId]
-  }
-  if (newQueuePaused[draftId] !== undefined) {
-    newQueuePaused[realId] = newQueuePaused[draftId]
-    delete newQueuePaused[draftId]
-  }
-  if (newDrafts[draftId]) {
-    newDrafts[realId] = newDrafts[draftId]
-    delete newDrafts[draftId]
-  }
-
-  saveLocalState({
-    ...state,
-    currentChatId: realId,
-    previewStates: newPreviewStates,
-    queuedMessages: newQueuedMessages,
-    queuePaused: newQueuePaused,
-    drafts: newDrafts,
-    draftChatConfig: undefined, // Clear the draft config
+  updateLocalState((state) => {
+    const next: LocalState = { ...state, currentChatId: realId, draftChatConfig: undefined }
+    for (const field of CHAT_KEYED_FIELDS) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      next[field] = renameKey(state[field] as Record<string, any>, draftId, realId) as any
+    }
+    return next
   })
 }
 
 export function clearLocalStateForChats(chatIds: string[]): void {
-  const localState = loadLocalState()
-  const newPreviewStates = { ...localState.previewStates }
-  const newQueuedMessages = { ...localState.queuedMessages }
-  const newQueuePaused = { ...localState.queuePaused }
-  const newDrafts = { ...localState.drafts }
-
-  for (const id of chatIds) {
-    delete newPreviewStates[id]
-    delete newQueuedMessages[id]
-    delete newQueuePaused[id]
-    delete newDrafts[id]
-  }
-
-  saveLocalState({
-    ...localState,
-    previewStates: newPreviewStates,
-    queuedMessages: newQueuedMessages,
-    queuePaused: newQueuePaused,
-    drafts: newDrafts,
-    currentChatId: chatIds.includes(localState.currentChatId ?? "")
-      ? null
-      : localState.currentChatId,
+  updateLocalState((state) => {
+    const next: LocalState = {
+      ...state,
+      currentChatId: chatIds.includes(state.currentChatId ?? "") ? null : state.currentChatId,
+    }
+    for (const field of CHAT_KEYED_FIELDS) {
+      const copy = { ...state[field] } as Record<string, unknown>
+      for (const id of chatIds) delete copy[id]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      next[field] = copy as any
+    }
+    return next
   })
 }
 
