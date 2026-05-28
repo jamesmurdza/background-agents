@@ -58,7 +58,7 @@ interface CreateScheduledJobBody {
   baseBranch: string
   agent: string
   model?: string
-  triggerType?: "interval" | "webhook"
+  triggerType?: "interval" | "webhook" | "incoming"
   intervalMinutes?: number // Required for interval trigger
   autoPR?: boolean
   continueFromLastRun?: boolean
@@ -171,6 +171,33 @@ export async function POST(req: NextRequest): Promise<Response> {
           autoPR: body.autoPR ?? true,
           continueFromLastRun: body.continueFromLastRun ?? false,
           nextRunAt: addYears(now, 100), // Far future - webhook jobs don't use nextRunAt
+        },
+      })
+
+      return Response.json(toScheduledJobResponse(job), { status: 201 })
+    }
+
+    // Handle generic incoming-webhook trigger. Unlike the GitHub "webhook"
+    // path, we don't call out to any external API — the URL token is the
+    // entire setup. Works with or without a repo (repo-less incoming jobs
+    // are valid; auto-PR just gets forced off downstream).
+    if (triggerType === "incoming") {
+      const incomingToken = randomBytes(32).toString("hex")
+      const job = await prisma.scheduledJob.create({
+        data: {
+          userId,
+          name: body.name.trim(),
+          prompt: body.prompt.trim(),
+          repo: body.repo.trim(),
+          baseBranch: body.baseBranch.trim(),
+          agent: body.agent.trim(),
+          model: body.model?.trim() ?? null,
+          triggerType: "incoming",
+          incomingToken,
+          intervalMinutes: 0, // Not used for incoming triggers
+          autoPR: isRepoLess ? false : body.autoPR ?? true,
+          continueFromLastRun: body.continueFromLastRun ?? false,
+          nextRunAt: addYears(now, 100), // Far future — never picked up by the interval cron
         },
       })
 
