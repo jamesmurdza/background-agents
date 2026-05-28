@@ -7,6 +7,11 @@ import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, P
 import { getPackageName, getShellInstaller } from "../utils/install"
 import { escapeShell } from "../utils/shell"
 import { ELIZA_BUNDLE_B64 } from "../agents/eliza/bundle-content"
+import {
+  META_ABSENT_SENTINEL,
+  buildReadMetaCommand,
+  parseSessionMeta,
+} from "../background/meta"
 
 // Path to ELIZA bundle (uploaded to sandbox when needed)
 const ELIZA_SANDBOX_PATH = "/tmp/eliza-cli.bundle.js"
@@ -98,22 +103,31 @@ export function adaptDaytonaSandbox(
       output: string
       done: boolean
     } | null> {
-      const metaPath = `${sessionDir}/meta.json`
-      const metaResult = await sandbox.process.executeCommand(
-        `cat '${escapeShell(metaPath)}' 2>/dev/null || echo '{}'`, undefined, undefined, 10
-      )
-      const metaRaw = (metaResult.result ?? "").trim()
-      if (!metaRaw || metaRaw === "{}") return null
-
-      let outputFile: string | undefined
-      let pid: number | undefined
-      try {
-        const parsed = JSON.parse(metaRaw)
-        outputFile = parsed.outputFile
-        pid = parsed.pid
-      } catch {
-        return null
+      // Read meta with a sentinel so we can tell "absent" from "transiently
+      // unreadable", and retry only the latter. A single flaky `cat` (or a read
+      // racing a write) must not collapse the whole poll to null — that gets
+      // misread downstream as "the agent stopped".
+      let metaRaw: string | null = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const metaResult = await sandbox.process.executeCommand(
+          buildReadMetaCommand(sessionDir), undefined, undefined, 10
+        )
+        const out = (metaResult.result ?? "").trim()
+        if (out === META_ABSENT_SENTINEL) return null // genuinely no session
+        if (parseSessionMeta(out)) {
+          metaRaw = out
+          break
+        }
+        // Empty / partial / exec hiccup — brief retry.
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 100 * (attempt + 1)))
+        }
       }
+      if (!metaRaw) return null // still unreadable after retries
+
+      const meta = parseSessionMeta(metaRaw)!
+      const outputFile = meta.outputFile
+      const pid = meta.pid
       if (!outputFile) return { meta: metaRaw, output: "", done: false }
 
       // Read output file, check done status, and check process state in one command.

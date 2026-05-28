@@ -150,7 +150,18 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             const messages = [...c.messages]
             const lastIndex = messages.length - 1
             if (lastIndex >= 0) {
-              messages[lastIndex] = { ...messages[lastIndex], content: data.content, toolCalls: data.toolCalls, contentBlocks: data.contentBlocks }
+              const existing = messages[lastIndex]
+              const incomingIsEmpty =
+                !data.content && data.toolCalls.length === 0 && data.contentBlocks.length === 0
+              const existingHasContent =
+                !!existing.content ||
+                (existing.toolCalls?.length ?? 0) > 0 ||
+                (existing.contentBlocks?.length ?? 0) > 0
+              // Don't let a transient empty snapshot wipe already-rendered
+              // content (same "prefer more content" principle as mergeMessages).
+              if (!(incomingIsEmpty && existingHasContent)) {
+                messages[lastIndex] = { ...existing, content: data.content, toolCalls: data.toolCalls, contentBlocks: data.contentBlocks }
+              }
             }
             return { ...c, messages }
           }))
