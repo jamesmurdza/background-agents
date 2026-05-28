@@ -31,10 +31,11 @@ console.log(`On branch: ${status.currentBranch}`)
 
 // Remote operations
 await git.fetch(path, token)
-await git.fetch(path, token, "--prune")     // with refspec
-await git.fetch(path, token, "main")        // specific branch
+await git.fetch(path, token, "--prune")     // with extra fetch args
+await git.fetch(path, token, "main")        // specific refspec
 await git.pull(path, token)
-await git.push(path, token)
+await git.push(path, token)                 // defaults to --no-verify
+await git.push(path, token, { noVerify: false })  // run pre-push hooks
 ```
 
 ## API
@@ -48,17 +49,24 @@ await git.push(path, token)
 | `fetch(path, token?, refspec?)` | Fetch from remote |
 | `fetchBranch(path, branch, token?)` | Fetch a specific branch |
 | `pull(path, token?)` | Pull from remote |
-| `push(path, token?)` | Push to remote |
+| `push(path, token?, options?)` | Push to remote. `options.noVerify` skips pre-push hooks (default: `true`) |
 
 ## How Credentials Work
 
-Credentials are passed via git's `-c` flag:
+Credentials are passed inline via git's `-c` flag. The token is sent as HTTP Basic
+auth with a fixed username (`x-access-token`), so callers only need to supply the token:
 
 ```bash
 git -c http.extraHeader='Authorization: Basic <base64>' push
+# where <base64> = base64("x-access-token:<token>")
 ```
 
 This means:
-- No config files modified
+- No git config files are modified, and nothing is written to disk
 - No cleanup needed
-- Credential exists only for that command
+- The credential is applied only for that single command
+
+**Caveat:** because the header is part of the command string (not an environment
+variable), the `<base64>` value is briefly visible in the sandbox process list while
+the command runs. Base64 is encoding, not encryption, so it can be trivially decoded —
+treat the sandbox as a trusted environment.

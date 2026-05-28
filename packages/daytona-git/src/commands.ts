@@ -2,7 +2,10 @@
  * Git command implementations
  *
  * Each function executes git commands in the sandbox via sandbox.process.executeCommand().
- * Credentials are passed via environment variables to avoid exposure in process list.
+ * Credentials are passed inline via git's `-c http.extraHeader` flag (see auth.ts) and are
+ * never written to git config or disk. Note: because the header is part of the command
+ * string, the base64-encoded credential is briefly visible in the sandbox process list while
+ * the command runs.
  */
 
 import type { SandboxProcess, GitStatus } from "./types"
