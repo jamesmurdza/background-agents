@@ -9,7 +9,7 @@ import type {
   GitHubUser,
   GitHubRepo,
   GitHubBranch,
-} from "@upstream/common"
+} from "@background-agents/common"
 
 // Re-export types for convenience
 export type { GitHubUser, GitHubRepo, GitHubBranch }

@@ -13,7 +13,7 @@ import {
   getDefaultModelForAgent,
   hasCredentialsForModel,
   type Agent,
-} from "@upstream/common"
+} from "@background-agents/common"
 import { getEffectiveCredentialFlags } from "@/lib/server/credential-flags"
 
 // =============================================================================

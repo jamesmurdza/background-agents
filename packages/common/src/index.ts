@@ -1,5 +1,5 @@
 /**
- * @upstream/common
+ * @background-agents/common
  * Shared utilities and types for upstream-agents packages
  */
 

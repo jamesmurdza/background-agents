@@ -1,5 +1,5 @@
 /**
- * Type definitions for @upstream/daytona-git
+ * Type definitions for @background-agents/daytona-git
  */
 
 // =============================================================================

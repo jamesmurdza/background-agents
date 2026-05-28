@@ -2,13 +2,13 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   // Transpile workspace packages (source imports)
-  // NOTE: @upstream/claude-credentials removed — it imports @daytonaio/sdk which
+  // NOTE: @background-agents/claude-credentials removed — it imports @daytonaio/sdk which
   // pulls in @opentelemetry/@grpc with Node-only modules. Client code only needs
   // the string constants, which webpack can tree-shake when not transpiled.
   transpilePackages: [
     "background-agents",
-    "@upstream/agent-configuration",
-    "@upstream/common",
+    "@background-agents/agent-configuration",
+    "@background-agents/common",
   ],
   // Keep @daytonaio/sdk on the server side
   serverExternalPackages: ["@daytonaio/sdk"],

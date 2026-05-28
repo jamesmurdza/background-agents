@@ -1,4 +1,4 @@
-# @upstream/claude-credentials
+# @background-agents/claude-credentials
 
 Claude Code OAuth credential generation via [ccauth](https://github.com/synacktraa/ccauth) and Daytona.
 
@@ -9,13 +9,13 @@ This package provides automated generation of Claude Code OAuth credentials from
 ## Installation
 
 ```bash
-npm install @upstream/claude-credentials
+npm install @background-agents/claude-credentials
 ```
 
 ## Usage
 
 ```typescript
-import { generateClaudeCredentials } from "@upstream/claude-credentials"
+import { generateClaudeCredentials } from "@background-agents/claude-credentials"
 
 // Generate credentials from claude.ai cookies
 const cookies = '...' // Your claude.ai session cookies JSON
@@ -41,7 +41,7 @@ const credentials = await generateClaudeCredentials(cookies, {
 ### Types
 
 ```typescript
-import type { ClaudeOAuthCredentials } from "@upstream/claude-credentials"
+import type { ClaudeOAuthCredentials } from "@background-agents/claude-credentials"
 
 // ClaudeOAuthCredentials shape:
 // {
@@ -62,7 +62,7 @@ import type { ClaudeOAuthCredentials } from "@upstream/claude-credentials"
 import {
   CLAUDE_CREDS_KEY,   // Database row key for cached credentials
   CLAUDE_COOKIES_KEY, // Database row key for raw cookies
-} from "@upstream/claude-credentials"
+} from "@background-agents/claude-credentials"
 ```
 
 ### Functions
@@ -73,7 +73,7 @@ import {
   resolveLatestCCAuthSha,    // Get latest ccauth commit SHA
   getCCAuthImage,            // Build Daytona Image spec
   isClaudeOAuthCredentials,  // Type guard
-} from "@upstream/claude-credentials"
+} from "@background-agents/claude-credentials"
 ```
 
 ## Requirements

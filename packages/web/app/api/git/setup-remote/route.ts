@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { createSandboxGit } from "@upstream/daytona-git"
+import { createSandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"

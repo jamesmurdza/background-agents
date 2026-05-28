@@ -1,5 +1,5 @@
 /**
- * @upstream/mcp-providers
+ * @background-agents/mcp-providers
  *
  * MCP provider abstractions for GitHub and Smithery.
  *
@@ -17,7 +17,7 @@
  * import {
  *   createGitHubMcpProvider,
  *   createSmitheryProvider,
- * } from "@upstream/mcp-providers"
+ * } from "@background-agents/mcp-providers"
  *
  * // GitHub provider - mint installation tokens
  * const github = createGitHubMcpProvider({

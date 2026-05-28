@@ -1,5 +1,5 @@
 /**
- * @upstream/claude-credentials
+ * @background-agents/claude-credentials
  *
  * Claude Code OAuth credential generation via ccauth and Daytona.
  * This package contains the pure credential generation logic without

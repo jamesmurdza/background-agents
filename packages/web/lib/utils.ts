@@ -1,6 +1,6 @@
 /**
  * Utilities for Simple Chat
- * Re-exports from @upstream/common
+ * Re-exports from @background-agents/common
  */
 
-export { cn, generateBranchName } from "@upstream/common"
+export { cn, generateBranchName } from "@background-agents/common"

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
-import { hasWebhookPermission } from "@upstream/common"
+import { hasWebhookPermission } from "@background-agents/common"
 
 // =============================================================================
 // GET - Check if user has webhook management permissions on a repo

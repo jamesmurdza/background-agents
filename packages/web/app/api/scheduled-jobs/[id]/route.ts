@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/api-helpers"
 import { addMinutes } from "date-fns"
 import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
-import { deleteWebhook } from "@upstream/common"
+import { deleteWebhook } from "@background-agents/common"
 import { cleanupSmitheryConnections } from "@/lib/mcp/connections"
 
 // =============================================================================

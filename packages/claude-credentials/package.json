@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/claude-credentials",
+  "name": "@background-agents/claude-credentials",
   "version": "0.1.0",
   "description": "Claude Code OAuth credential generation via ccauth and Daytona",
   "main": "src/index.ts",

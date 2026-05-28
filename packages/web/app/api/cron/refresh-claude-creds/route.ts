@@ -3,7 +3,7 @@ import {
   generateClaudeCredentials,
   CLAUDE_CREDS_KEY,
   CLAUDE_COOKIES_KEY,
-} from "@upstream/claude-credentials"
+} from "@background-agents/claude-credentials"
 
 // Skip refresh while the live credential still has at least this much life.
 // Anthropic OAuth access tokens are 8h-lived, so 2h leaves us 6 hours of cron

@@ -17,7 +17,7 @@ import {
   isSmitheryServer,
   GITHUB_MCP_QUALIFIED_NAME,
   GITHUB_MCP_URL,
-} from "@upstream/mcp-providers"
+} from "@background-agents/mcp-providers"
 import {
   type McpOwner,
   ownerCreateData,

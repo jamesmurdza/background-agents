@@ -3,7 +3,7 @@
 import { useState, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { RefreshCw, X, ExternalLink, ChevronsUpDown, Download } from "lucide-react"
-import { PATHS } from "@upstream/common"
+import { PATHS } from "@background-agents/common"
 import { getPanelPlugin } from "@/lib/plugins/registry"
 import { disposeTerminalSession } from "@/lib/plugins/panels/terminal"
 import {

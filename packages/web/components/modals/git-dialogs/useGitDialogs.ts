@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { PATHS } from "@/lib/constants"
-import { EMPTY_CONFLICT_STATE } from "@upstream/common"
+import { EMPTY_CONFLICT_STATE } from "@background-agents/common"
 import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, RebaseConflictState } from "./types"
 
 // ============================================================================

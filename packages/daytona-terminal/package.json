@@ -1,5 +1,5 @@
 {
-  "name": "@upstream/daytona-terminal",
+  "name": "@background-agents/daytona-terminal",
   "version": "0.2.0",
   "description": "WebSocket-based PTY terminal for Daytona sandboxes",
   "main": "src/index.ts",

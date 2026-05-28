@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma"
 
-// Hard-coded constants to avoid importing @upstream/claude-credentials which
+// Hard-coded constants to avoid importing @background-agents/claude-credentials which
 // transitively pulls in @daytonaio/sdk -> @opentelemetry -> @grpc (Node-only)
 export const CLAUDE_CREDS_KEY = "claude-credentials"
 export const CLAUDE_COOKIES_KEY = "claude-cookies"

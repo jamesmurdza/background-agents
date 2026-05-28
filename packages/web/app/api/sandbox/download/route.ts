@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { PATHS } from "@upstream/common"
+import { PATHS } from "@background-agents/common"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 
 export const maxDuration = 60

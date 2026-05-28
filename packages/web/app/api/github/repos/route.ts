@@ -1,5 +1,5 @@
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
-import { getUserRepos } from "@upstream/common"
+import { getUserRepos } from "@background-agents/common"
 import { NextRequest } from "next/server"
 
 const PER_PAGE = 100

@@ -1,4 +1,4 @@
-# @upstream/daytona-git
+# @background-agents/daytona-git
 
 Git operations for Daytona sandboxes via `sandbox.process.executeCommand()`.
 
@@ -12,7 +12,7 @@ Git operations for Daytona sandboxes via `sandbox.process.executeCommand()`.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSandboxGit } from "@upstream/daytona-git"
+import { createSandboxGit } from "@background-agents/daytona-git"
 
 const daytona = new Daytona({ apiKey })
 const sandbox = await daytona.get(sandboxId)

@@ -11,7 +11,7 @@ import {
   CommandItem,
   CommandShortcut,
 } from "@/components/ui/command"
-import { addRecentItem, getRecentItems, type RecentItem } from "@upstream/common"
+import { addRecentItem, getRecentItems, type RecentItem } from "@background-agents/common"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import { NEW_REPOSITORY } from "@/lib/types"
 import type { PaletteChat } from "./types"

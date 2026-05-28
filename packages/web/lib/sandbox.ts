@@ -8,8 +8,8 @@
 
 import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
-import { createSandboxGit } from "@upstream/daytona-git"
-import { installSkills, discoverInstalledSkills } from "@upstream/skills/sandbox"
+import { createSandboxGit } from "@background-agents/daytona-git"
+import { installSkills, discoverInstalledSkills } from "@background-agents/skills/sandbox"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
