@@ -55,7 +55,9 @@ export async function installSkill(
 
   try {
     const skillFlag = skillId ? ` --skill ${skillId}` : ""
-    const installCmd = `npx -y skills add ${source}${skillFlag} --agent '*' -y`
+    // -g installs at user-level (~/.agents/skills) instead of into the repo
+    // working tree, so the repository stays clean and skills are shared.
+    const installCmd = `npx -y skills add ${source}${skillFlag} --agent '*' -g -y`
     const cmd = await sandbox.process.executeCommand(
       `cd ${repoPath} && ${installCmd} 2>&1`
     )

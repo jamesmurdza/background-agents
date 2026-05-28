@@ -1,5 +1,9 @@
 /**
- * Discover installed skills by scanning .agents/skills/ in the sandbox.
+ * Discover installed skills by scanning the global ~/.agents/skills/ directory
+ * in the sandbox.
+ *
+ * Skills are installed at user-level (`skills add -g`), so they live under the
+ * home directory rather than inside the repository working tree.
  *
  * Reads each SKILL.md file, extracts the name and description from YAML
  * frontmatter, and returns a lightweight catalog for the system prompt.
@@ -57,20 +61,24 @@ function parseFrontmatter(
 }
 
 /**
- * Scan .agents/skills/ in the sandbox and return discovered skills.
+ * Scan the global ~/.agents/skills/ directory in the sandbox and return
+ * discovered skills.
  *
  * Each skill directory must contain a SKILL.md file. Only skills with a
  * valid name and description are returned; others are silently skipped.
  *
  * @param sandbox - Daytona sandbox instance
- * @param repoPath - Absolute path to the repository in the sandbox
+ * @param _repoPath - Deprecated/ignored. Skills are installed globally at
+ *   user-level, so the repository path no longer determines their location.
+ *   Retained for backwards-compatible call sites.
  * @returns Array of discovered skills (empty if none installed)
  */
 export async function discoverInstalledSkills(
   sandbox: Sandbox,
-  repoPath: string
+  _repoPath?: string
 ): Promise<DiscoveredSkill[]> {
-  const skillsDir = `${repoPath}/.agents/skills`
+  // Global, user-level install location ($HOME expands in the sandbox shell).
+  const skillsDir = `$HOME/.agents/skills`
 
   // Find all SKILL.md files up to 3 levels deep (skill-name/SKILL.md)
   let findOutput: string

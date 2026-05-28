@@ -7,7 +7,9 @@ import type { Sandbox } from "@daytonaio/sdk"
 /**
  * Uninstall a skill from a sandbox.
  *
- * Uses `npx skills remove` with --all -y for non-interactive removal.
+ * Uses `npx skills remove` with -g (global/user-level scope) and --all -y for
+ * non-interactive removal. -g matches the global install scope used by
+ * installSkill so removals target ~/.agents/skills.
  *
  * @param sandbox - Daytona sandbox instance
  * @param repoPath - Path to the repository in the sandbox
@@ -24,7 +26,7 @@ export async function uninstallSkill(
   skillName: string
 ): Promise<void> {
   await sandbox.process.executeCommand(
-    `cd ${repoPath} && npx -y skills remove ${skillName} --all -y 2>&1`
+    `cd ${repoPath} && npx -y skills remove ${skillName} -g --all 2>&1`
   )
 }
 
