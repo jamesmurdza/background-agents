@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { FileCode2, Loader2 } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { HighlightedCode, getFileTypeFromPath, ImageFullPreview, PdfFullPreview, isMarkdownPath, MarkdownPreview } from "@/lib/file-preview"
 
-function FileViewerComponent({ item, sandboxId }: PanelProps) {
+function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
   const [content, setContent] = useState<string | null>(null)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -13,6 +13,29 @@ function FileViewerComponent({ item, sandboxId }: PanelProps) {
 
   const filePath = item.type === "file" ? item.filePath : ""
   const fileType = getFileTypeFromPath(filePath)
+
+  // Re-fetch when the agent finishes editing this file. Each completed
+  // Edit/Write tool call targeting this path (output attached = tool finished)
+  // bumps the count, which re-runs the load effect below.
+  const editSignal = useMemo(() => {
+    if (!filePath || !messages) return 0
+    let count = 0
+    for (const message of messages) {
+      for (const block of message.contentBlocks ?? []) {
+        if (block.type !== "tool_calls") continue
+        for (const tc of block.toolCalls) {
+          if (
+            (tc.tool === "Edit" || tc.tool === "Write") &&
+            tc.filePath === filePath &&
+            tc.output
+          ) {
+            count++
+          }
+        }
+      }
+    }
+    return count
+  }, [messages, filePath])
 
   useEffect(() => {
     if (!sandboxId) {
@@ -92,7 +115,7 @@ function FileViewerComponent({ item, sandboxId }: PanelProps) {
         URL.revokeObjectURL(blobUrl)
       }
     }
-  }, [sandboxId, filePath, fileType])
+  }, [sandboxId, filePath, fileType, editSignal])
 
   // Cleanup blob URL on unmount
   useEffect(() => {
