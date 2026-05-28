@@ -70,3 +70,11 @@ This means:
 variable), the `<base64>` value is briefly visible in the sandbox process list while
 the command runs. Base64 is encoding, not encryption, so it can be trivially decoded —
 treat the sandbox as a trusted environment.
+
+**Note on `clone`:** the `-c http.extraHeader=…` flag must be placed *before* the
+`clone` subcommand (as it is here). The seemingly equivalent `git clone -c <key>=<value> …`
+form is actually `clone`'s own `--config` option, which **persists** the value into the
+new repo's `.git/config` — a credential leak. Placing `-c` before `clone` makes it the
+top-level `git` flag, which is process-scoped and never written to the new repo. This
+caveat is unique to `clone` (and `submodule`); other subcommands don't accept a
+persisting `-c` form.

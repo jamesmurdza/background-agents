@@ -36,7 +36,13 @@ async function exec(
 }
 
 /**
- * Clone a repository
+ * Clone a repository.
+ *
+ * IMPORTANT: when a token is provided, `withAuth` prepends `git -c http.extraHeader=…`
+ * BEFORE the `clone` subcommand. This placement must be preserved — `git clone -c <k>=<v>`
+ * (flag after `clone`) is clone's own `--config` option, which persists the value into the
+ * new repo's `.git/config` and would leak the credential to disk. Top-level `git -c` is
+ * process-scoped only.
  */
 export async function clone(
   process: SandboxProcess,
