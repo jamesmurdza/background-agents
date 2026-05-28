@@ -45,7 +45,7 @@ export interface ScheduledJob {
   baseBranch: string
   agent: string
   model: string | null
-  triggerType: "interval" | "webhook"
+  triggerType: "interval" | "webhook" | "incoming"
   intervalMinutes: number
   enabled: boolean
   nextRunAt: number
@@ -55,6 +55,8 @@ export interface ScheduledJob {
   createdAt: number
   updatedAt: number
   lastRun: ScheduledJobLastRun | null
+  /** Present only when triggerType === "incoming". Used to build the webhook URL. */
+  incomingToken: string | null
 }
 
 // =============================================================================
@@ -110,7 +112,7 @@ export function toScheduledJobResponse(
     baseBranch: job.baseBranch,
     agent: job.agent,
     model: job.model,
-    triggerType: (job.triggerType as "interval" | "webhook") ?? "interval",
+    triggerType: (job.triggerType as "interval" | "webhook" | "incoming") ?? "interval",
     intervalMinutes: job.intervalMinutes,
     enabled: job.enabled,
     nextRunAt: job.nextRunAt.getTime(),
@@ -120,6 +122,7 @@ export function toScheduledJobResponse(
     createdAt: job.createdAt.getTime(),
     updatedAt: job.updatedAt.getTime(),
     lastRun: lastRun ? toLastRunResponse(lastRun) : null,
+    incomingToken: job.incomingToken ?? null,
   }
 }
 
