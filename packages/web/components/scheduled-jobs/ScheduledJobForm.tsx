@@ -205,11 +205,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   // them up before the user finishes; the final submit flips enabled back on.
   const [materializedJobId, setMaterializedJobId] = useState<string | null>(null)
 
-  // Once we materialize, the trigger/schedule fields lock — the PATCH endpoint
-  // doesn't accept triggerType / runAtHour / runAtDay, so allowing edits after
-  // materialize would silently drop changes. Cancelling resets via DELETE.
-  const isLocked = isEditing || !!materializedJobId
-
   // Dropdown state
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
@@ -328,15 +323,13 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
    * until the user hits "Create" (PATCH to flip enabled on) or "Cancel"
    * (DELETE the row).
    *
-   * Only allowed for interval-triggered jobs — incoming-webhook jobs need a
-   * token minted on save, which the materialize POST doesn't handle yet.
+   * Works for both interval and incoming triggers — the POST mints an
+   * incomingToken regardless, so the URL panel can render immediately for
+   * incoming-typed drafts. If the user flips the trigger pill after
+   * materialize, the final-submit PATCH carries the new triggerType.
    */
   async function materializeJob(_draftId: string): Promise<string | null> {
     setError(null)
-    if (triggerType === "incoming") {
-      setError("Save the job first to attach MCP servers to webhook-triggered jobs.")
-      return null
-    }
     try {
       const res = await fetch("/api/scheduled-jobs", {
         method: "POST",
@@ -354,8 +347,12 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           baseBranch: baseBranch || "main",
           agent,
           model: model || null,
-          triggerType: "interval",
-          intervalMinutes: effectiveIntervalMinutes,
+          triggerType,
+          // intervalMinutes is required by the POST for "interval" — pass a
+          // safe placeholder for incoming drafts so the validator doesn't
+          // reject. Final submit overrides whichever value matters.
+          intervalMinutes:
+            triggerType === "interval" ? effectiveIntervalMinutes : 10,
           autoPR,
           continueFromLastRun,
           enabled: false,
@@ -369,6 +366,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       }
       const created = await res.json()
       setMaterializedJobId(created.id)
+      // Capture the token minted by POST so the URL panel can render the
+      // moment the user flips to "Via webhook".
+      if (created.incomingToken) {
+        setIncomingToken(created.incomingToken)
+      }
       return created.id
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save job")
@@ -543,32 +545,27 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               />
             </div>
 
-            {/* Trigger Type - Segmented Control */}
+            {/* Trigger Type - Segmented Control. Always editable — PATCH
+                handles the swap for both still-open drafts and existing
+                jobs. */}
             <div>
               <label className="block text-sm font-medium mb-2">Trigger</label>
-              <div className={cn(
-                "inline-flex rounded-md bg-muted p-0.5",
-                isLocked && "opacity-50"
-              )}>
-                {TRIGGER_TYPES.map((t) => {
-                  const disabled = isLocked
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => !disabled && setTriggerType(t.value)}
-                      disabled={disabled}
-                      className={cn(
-                        "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
-                        triggerType === t.value
-                          ? "bg-background shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  )
-                })}
+              <div className="inline-flex rounded-md bg-muted p-0.5">
+                {TRIGGER_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTriggerType(t.value)}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
+                      triggerType === t.value
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
             </div>
 
