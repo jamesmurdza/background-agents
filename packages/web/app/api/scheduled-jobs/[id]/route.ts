@@ -2,16 +2,13 @@ import { NextRequest } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import {
   requireAuth,
-  requireGitHubAuth,
   isAuthError,
-  isGitHubAuthError,
   badRequest,
   notFound,
   internalError,
 } from "@/lib/db/api-helpers"
 import { addMinutes } from "date-fns"
 import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
-import { deleteWebhook } from "@background-agents/common"
 import { cleanupSmitheryConnections } from "@/lib/mcp/connections"
 
 // =============================================================================
@@ -191,32 +188,11 @@ export async function DELETE(
     const { id } = await params
     const job = await prisma.scheduledJob.findUnique({
       where: { id },
-      select: {
-        userId: true,
-        triggerType: true,
-        githubWebhookId: true,
-        repo: true,
-      },
+      select: { userId: true },
     })
 
     if (!job || job.userId !== userId) {
       return notFound("Scheduled job not found")
-    }
-
-    // Delete webhook from GitHub if this was a webhook-triggered job
-    if (job.triggerType === "webhook" && job.githubWebhookId) {
-      const ghAuth = await requireGitHubAuth()
-      if (!isGitHubAuthError(ghAuth)) {
-        const [owner, repoName] = job.repo.split("/")
-        if (owner && repoName) {
-          try {
-            await deleteWebhook(ghAuth.token, owner, repoName, job.githubWebhookId)
-          } catch (err) {
-            // Log but don't fail deletion if webhook cleanup fails
-            console.error("[scheduled-jobs] Failed to delete webhook:", err)
-          }
-        }
-      }
     }
 
     // Best-effort Smithery cleanup before we drop the DB rows. The MCP rows

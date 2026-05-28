@@ -215,33 +215,6 @@ export async function startJobExecution(
     }
   }
 
-  if (run.triggerContext && job.triggerType === "webhook") {
-    const ctx = run.triggerContext as {
-      workflowName?: string
-      workflowUrl?: string
-      branch?: string
-      commitSha?: string
-      failedAt?: string
-    }
-
-    const contextLines = [
-      `## CI/CD Failure Context`,
-      ``,
-      `A GitHub Actions workflow has failed:`,
-      ctx.workflowName ? `- **Workflow**: ${ctx.workflowName}` : null,
-      ctx.branch ? `- **Branch**: ${ctx.branch}` : null,
-      ctx.commitSha ? `- **Commit**: ${ctx.commitSha.slice(0, 7)}` : null,
-      ctx.workflowUrl ? `- **Details**: ${ctx.workflowUrl}` : null,
-      ctx.failedAt ? `- **Failed at**: ${ctx.failedAt}` : null,
-      ``,
-      `---`,
-      ``,
-      job.prompt,
-    ].filter(Boolean).join("\n")
-
-    finalPrompt = contextLines
-  }
-
   // Generic incoming webhook: any external app (Jira, Slack, Linear, curl).
   // We don't know the shape of the payload, so we hand it to the agent as a
   // fenced JSON block plus the captured event-type header, if any.

@@ -91,7 +91,7 @@ function formatDuration(startedAt: number, completedAt: number): string {
 }
 
 function getTriggerDescription(job: ScheduledJob): string {
-  if (job.triggerType === "webhook") {
+  if (job.triggerType === "incoming") {
     return "Webhook"
   }
   // Interval trigger - show human-readable schedule

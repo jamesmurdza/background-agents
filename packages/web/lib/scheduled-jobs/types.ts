@@ -45,7 +45,7 @@ export interface ScheduledJob {
   baseBranch: string
   agent: string
   model: string | null
-  triggerType: "interval" | "webhook" | "incoming"
+  triggerType: "interval" | "incoming"
   intervalMinutes: number
   enabled: boolean
   nextRunAt: number
@@ -112,7 +112,7 @@ export function toScheduledJobResponse(
     baseBranch: job.baseBranch,
     agent: job.agent,
     model: job.model,
-    triggerType: (job.triggerType as "interval" | "webhook" | "incoming") ?? "interval",
+    triggerType: (job.triggerType as "interval" | "incoming") ?? "interval",
     intervalMinutes: job.intervalMinutes,
     enabled: job.enabled,
     nextRunAt: job.nextRunAt.getTime(),
