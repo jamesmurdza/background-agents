@@ -69,14 +69,9 @@ const TRIGGER_TYPES = [
     description: "Run at regular intervals"
   },
   {
-    label: "When CI/CD fails",
-    value: "webhook",
-    description: "Triggered by GitHub Actions failure"
-  },
-  {
     label: "Via webhook",
     value: "incoming",
-    description: "Triggered by any external app (Jira, Slack, Linear, …) — paste the generated URL into the source app"
+    description: "Triggered by any external app (GitHub, Jira, Slack, Linear, …) — paste the generated URL into the source app"
   },
 ] as const
 
@@ -187,7 +182,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const isRepoLess = !repo
   const [agent, setAgent] = useState<Agent>((job?.agent as Agent) ?? "opencode")
   const [model, setModel] = useState(job?.model ?? "")
-  const [triggerType, setTriggerType] = useState<"interval" | "webhook" | "incoming">(job?.triggerType ?? "interval")
+  const [triggerType, setTriggerType] = useState<"interval" | "incoming">(job?.triggerType ?? "interval")
   const initialIntervalMode = inferIntervalMode(job?.intervalMinutes ?? 1440)
   const [intervalMinutes, setIntervalMinutes] = useState(initialIntervalMode.intervalMinutes)
   const [isCustomInterval, setIsCustomInterval] = useState(initialIntervalMode.isCustom)
@@ -273,14 +268,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     }
   }, [agent, model])
 
-  // Webhook triggers require a real GitHub repo — snap back to interval if the
-  // user clears the repo while webhook was selected.
-  useEffect(() => {
-    if (isRepoLess && triggerType === "webhook") {
-      setTriggerType("interval")
-    }
-  }, [isRepoLess, triggerType])
-
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -305,10 +292,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     }
     if (!prompt.trim()) {
       setError("Prompt is required")
-      return null
-    }
-    if (isRepoLess && triggerType === "webhook") {
-      setError("Webhook triggers require a repository")
       return null
     }
     if (triggerType === "interval" && effectiveIntervalMinutes < 10) {
@@ -345,12 +328,12 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
    * until the user hits "Create" (PATCH to flip enabled on) or "Cancel"
    * (DELETE the row).
    *
-   * Only allowed for interval-triggered jobs — webhook jobs require a real
-   * GitHub webhook setup at create time, which can't be deferred.
+   * Only allowed for interval-triggered jobs — incoming-webhook jobs need a
+   * token minted on save, which the materialize POST doesn't handle yet.
    */
   async function materializeJob(_draftId: string): Promise<string | null> {
     setError(null)
-    if (triggerType === "webhook" || triggerType === "incoming") {
+    if (triggerType === "incoming") {
       setError("Save the job first to attach MCP servers to webhook-triggered jobs.")
       return null
     }
@@ -568,23 +551,18 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 isLocked && "opacity-50"
               )}>
                 {TRIGGER_TYPES.map((t) => {
-                  // Webhook triggers attach to a GitHub repo, so they're not
-                  // available in repo-less mode.
-                  const isWebhookDisabled = t.value === "webhook" && isRepoLess
-                  const disabled = isLocked || isWebhookDisabled
+                  const disabled = isLocked
                   return (
                     <button
                       key={t.value}
                       type="button"
                       onClick={() => !disabled && setTriggerType(t.value)}
                       disabled={disabled}
-                      title={isWebhookDisabled ? "Select a repository to use webhook triggers" : undefined}
                       className={cn(
                         "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
                         triggerType === t.value
                           ? "bg-background shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
-                        isWebhookDisabled && "opacity-50 cursor-not-allowed"
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       {t.label}
