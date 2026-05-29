@@ -6,37 +6,21 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 ## Features
 
-- **Multi-Agent Support**: Choose from multiple AI coding agents:
-  - Claude Code
-  - OpenCode
-  - Codex
-  - GitHub Copilot
-  - Gemini
-  - Goose
-  - Kilo
-  - Pi
-  - Eliza (deterministic test agent)
-
-- **Sandbox Isolation**: Each chat session runs in an isolated Daytona sandbox environment
-
-- **Git Integration**: Conversations are tied to Git branches, with optional GitHub repository integration
-
-- **Model Selection**: Choose different models for each agent based on your API keys
-
-- **Scheduled & Triggered Jobs**: Run agents automatically on a recurring interval or in response to GitHub webhook events (e.g. failed workflows), with optional auto-PR creation. Managed from the `/jobs` page.
-
-- **MCP Servers**: Attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
-
-- **Skills**: Install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
-
-- **Dark/Light Theme**: System-aware theming with manual override options
+- **Multi-Agent Support**: choose from any agent supported by the [`background-agents`](../agents) SDK
+- **Sandbox Isolation**: each chat session runs in an isolated Daytona sandbox environment
+- **Git Integration**: conversations are tied to Git branches, with optional GitHub repository integration
+- **Model Selection**: choose different models for each agent based on your API keys
+- **Scheduled & Triggered Jobs**: run agents automatically on a recurring interval or in response to GitHub webhook events (e.g. failed workflows), with optional auto-PR creation. Managed from the `/jobs` page.
+- **MCP Servers**: attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
+- **Skills**: install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
+- **Dark/Light Theme**: system-aware theming with manual override options
 
 ## Architecture
 
 - **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives
 - **Authentication**: NextAuth.js with GitHub OAuth provider and Prisma adapter
 - **Database**: PostgreSQL with Prisma ORM (supports local and Neon serverless)
-- **Agent SDK**: Uses `background-agents` for agent session management
+- **Agent SDK**: Uses [`background-agents`](../agents) for agent session management
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
 
@@ -48,9 +32,11 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 4. On page load, client fetches fresh data from server and merges with cache
 5. Device-specific state (current chat, unseen notifications) stays local-only
 
-## Environment variables
+## Usage
 
 ### Development
+
+Env (`.env.local`):
 
 ```bash
 DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
@@ -67,7 +53,28 @@ GITHUB_CLIENT_ID="placeholder"
 GITHUB_CLIENT_SECRET="placeholder"
 ```
 
+Run:
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+```
+
+App is at http://localhost:4000. With `GITHUB_PAT` set you get auto-login — no GitHub OAuth app required.
+
+**Schema changes:**
+
+1. Edit `prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name my_change`
+3. Commit the new files in `prisma/migrations/`
+
+After pulling, run `npx prisma migrate dev` to apply new migrations.
+
 ### Deployment (production)
+
+Env:
 
 ```bash
 DATABASE_URL="postgresql://..."     # production database
@@ -93,14 +100,18 @@ GITHUB_APP_SLUG="..."
 GITHUB_APP_PRIVATE_KEY="..."
 ```
 
+Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to apply migrations to the production database.
+
 ### Testing (E2E)
+
+Env (`.env.test`):
 
 ```bash
 # DATABASE_URL MUST contain "test", "localhost", or "127.0.0.1" (safety check)
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
 DAYTONA_API_KEY="dtn_..."           # real key — tests create real sandboxes
 
-# Test-mode constants (also set by playwright.config.ts; documented here for `dev:test`)
+# Test-mode constants (also set by playwright.config.ts; needed here for `npm run dev:test`)
 ENABLE_TEST_AUTH=true
 NEXTAUTH_SECRET=test-secret-for-e2e-tests
 NEXTAUTH_URL=http://localhost:4000
@@ -111,31 +122,16 @@ GITHUB_CLIENT_SECRET=placeholder
 # I_KNOW_THIS_IS_THE_TEST_DB=true
 ```
 
-## Scripts
+Run:
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server on port 4000 |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run test:e2e` | Run Playwright E2E tests |
-| `npm run test:e2e:ui` | Run Playwright tests with UI |
+```bash
+npm run test:e2e
+```
 
-## Database migrations
+Each run resets the test database via `prisma migrate reset --force`.
 
-| Command | What it does |
-|---------|--------------|
-| `npx prisma migrate dev --name my_change` | Create + apply a migration |
-| `npx prisma migrate status` | Check migration status |
-| `npx prisma generate` | Regenerate Prisma client |
+To debug a failing test against the same env profile (test DB, test-auth route, placeholder OAuth):
 
-**Workflow:**
-
-1. Edit `prisma/schema.prisma`
-2. Run `npx prisma migrate dev --name my_change`
-3. Commit the new files in `prisma/migrations/`
-4. Push to git
-
-**After pulling:** Run `npx prisma migrate dev` to apply new migrations.
-
-CI/CD runs `npx prisma migrate deploy` to apply migrations to production.
+```bash
+npm run dev:test
+```
