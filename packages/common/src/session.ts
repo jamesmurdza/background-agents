@@ -95,6 +95,11 @@ ${catalog}
 ## When Finished
 - Provide a clear summary of what you did.
 
+## Asking the User Questions
+- Never use the AskUserQuestion tool.
+- When you need clarification, ask the user directly by writing a numbered list of questions in your response.
+- After asking, finish your turn so the user can respond. Do not continue working or call other tools in the same turn.
+
 ## User Slash Commands
 The user has access to the following slash commands in the chat interface:
 - /merge - Merge branches
