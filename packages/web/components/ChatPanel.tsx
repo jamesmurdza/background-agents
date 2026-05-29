@@ -695,7 +695,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
             }}
             aria-label="Scroll to bottom"
             title="Scroll to bottom"
-            className="absolute bottom-3 right-4 z-10 h-9 w-9 flex items-center justify-center rounded-full border border-border bg-background/90 backdrop-blur shadow-md text-foreground/80 hover:text-foreground hover:bg-accent transition-colors cursor-pointer animate-in fade-in slide-in-from-bottom-1 duration-150"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 h-9 w-9 flex items-center justify-center rounded-full border border-border bg-background/60 backdrop-blur shadow-md text-foreground/70 hover:text-foreground hover:bg-background/80 transition-colors cursor-pointer animate-in fade-in slide-in-from-bottom-1 duration-150"
           >
             <ArrowDown className="h-4 w-4" />
           </button>
