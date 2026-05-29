@@ -7,7 +7,6 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src --ext .ts,.tsx",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit"
   },

@@ -6,148 +6,131 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 ## Features
 
-- **Multi-Agent Support**: Choose from multiple AI coding agents:
-  - Claude Code
-  - OpenCode
-  - Codex
-  - GitHub Copilot
-  - Gemini
-  - Goose
-  - Kilo
-  - Pi
-  - Eliza (deterministic test agent)
-
-- **Sandbox Isolation**: Each chat session runs in an isolated Daytona sandbox environment
-
-- **Git Integration**: Conversations are tied to Git branches, with optional GitHub repository integration
-
-- **Model Selection**: Choose different models for each agent based on your API keys
-
-- **Scheduled & Triggered Jobs**: Run agents automatically on a recurring interval or in response to GitHub webhook events (e.g. failed workflows), with optional auto-PR creation. Managed from the `/jobs` page.
-
-- **MCP Servers**: Attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
-
-- **Skills**: Install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
-
-- **Dark/Light Theme**: System-aware theming with manual override options
-
-## Prerequisites
-
-- Node.js 18+
-- A Daytona API key (from [Daytona dashboard](https://www.daytona.io/))
-- PostgreSQL database (local or hosted, e.g., [Neon](https://neon.tech/))
-- API keys for the AI providers you want to use (Anthropic, OpenAI, Google, etc.)
-- GitHub OAuth app (optional, for GitHub repository integration)
-
-## Setup
-
-1. **Install dependencies**:
-
-   ```bash
-   npm install
-   ```
-
-2. **Configure environment variables**:
-
-   Create a `.env.local` file:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-   Required variables:
-   - `DATABASE_URL` - PostgreSQL connection string (e.g., `postgresql://user:pass@localhost:5432/background_agents`)
-   - `DAYTONA_API_KEY` - Your Daytona API key
-   - `NEXTAUTH_URL` - Your app URL (default: `http://localhost:4000`)
-   - `NEXTAUTH_SECRET` - A random secret for NextAuth session encryption
-   - `ENCRYPTION_KEY` - 64-character hex string for encrypting API credentials (generate with `openssl rand -hex 32`)
-
-   For MCP servers (Smithery registry + GitHub App MCP), see the [mcp-providers README](../mcp-providers/README.md).
-
-3. **Set up the database**:
-
-   Generate the Prisma client and run migrations:
-
-   ```bash
-   npx prisma generate
-   npx prisma migrate dev
-   ```
-
-4. **Start the development server**:
-
-   ```bash
-   npm run dev
-   ```
-
-   The app will be available at http://localhost:4000
-
-## Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server on port 4000 |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run test:e2e` | Run Playwright E2E tests |
-| `npm run test:e2e:ui` | Run Playwright tests with UI |
+- **Multi-Agent Support**: choose from any agent supported by the [`background-agents`](../agents) SDK
+- **Sandbox Isolation**: each chat session runs in an isolated Daytona sandbox environment
+- **Git Integration**: conversations are tied to Git branches, with optional GitHub repository integration
+- **Model Selection**: choose different models for each agent based on your API keys
+- **Scheduled & Triggered Jobs**: run agents automatically on a recurring interval or in response to GitHub webhook events (e.g. failed workflows), with optional auto-PR creation. Managed from the `/jobs` page.
+- **MCP Servers**: attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
+- **Skills**: install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
+- **Dark/Light Theme**: system-aware theming with manual override options
 
 ## Architecture
 
 - **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives
 - **Authentication**: NextAuth.js with GitHub OAuth provider and Prisma adapter
 - **Database**: PostgreSQL with Prisma ORM (supports local and Neon serverless)
-- **Agent SDK**: Uses `background-agents` for agent session management
+- **Agent SDK**: Uses [`background-agents`](../agents) for agent session management
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
 
-## Database
+## Usage
 
-The app uses PostgreSQL to store user data, chats, and messages. This enables:
+### Development
 
-- **Cross-device sync**: Your chats are available on any device you sign into
-- **Server-generated IDs**: All entities have server-generated IDs for consistency
-- **Encrypted credentials**: API keys are stored encrypted (AES) in the database
+Runs the web app locally against a local Postgres database. `GITHUB_PAT` enables auto-login so no GitHub OAuth app is required for dev.
 
-### Schema
+Env (`.env.local`):
 
-Core models (see `packages/web/prisma/schema.prisma` for the full definitions):
+```bash
+DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
+DAYTONA_API_KEY="dtn_your_key_here"
+NEXTAUTH_URL="http://localhost:4000"
+NEXTAUTH_SECRET="random-string-for-session-jwt"
+GITHUB_PAT="ghp_your_token_here"   # enables auto-login; bypasses real OAuth
 
-- **User**: GitHub OAuth user with settings (JSONB) and encrypted credentials (JSONB)
-- **Chat**: Conversation tied to a repo/branch with sandbox info
-- **Message**: Individual messages with tool calls and content blocks
-- **ScheduledJob** / **ScheduledJobRun**: Recurring or webhook-triggered agent jobs and their execution history
-- **McpServerConnection**: Per-chat or per-job MCP server connections (Smithery Connect + GitHub MCP)
-- **Skill**: Repo-scoped skill manifests installed from the skills.sh marketplace
-- **CcAuthInfo**: Cached Claude Code OAuth credentials/cookies (managed by ccauth + the refresh cron)
-- **ActivityLog**: User action history for admin analytics
-- **Account** / **Session** / **VerificationToken**: NextAuth tables
+# Optional: encrypts user-stored API credentials at rest. Generate with: openssl rand -hex 32
+ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000"
 
-### Data Flow
+# Required by NextAuth but unused when GITHUB_PAT is set
+GITHUB_CLIENT_ID="placeholder"
+GITHUB_CLIENT_SECRET="placeholder"
+```
 
-1. All writes go through the server first (create chat, send message, update settings)
-2. Server responds with server-generated IDs
-3. Client updates localStorage cache
-4. On page load, client fetches fresh data from server and merges with cache
-5. Device-specific state (current chat, unseen notifications) stays local-only
+Run:
 
-### Migrations
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+```
 
-Run these from the monorepo root:
+App is at http://localhost:4000. With `GITHUB_PAT` set you get auto-login — no GitHub OAuth app required.
 
-| Command | What it does |
-|---------|--------------|
-| `npm run prisma:migrate -- --name my_change` | Create + apply a migration |
-| `npm run prisma:status` | Check migration status |
-| `npm run prisma:generate` | Regenerate Prisma client |
+**Schema changes:**
 
-**Workflow:**
-
-1. Edit `packages/web/prisma/schema.prisma`
-2. Run `npm run prisma:migrate -- --name my_change`
+1. Edit `prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name my_change`
 3. Commit the new files in `prisma/migrations/`
-4. Push to git
 
-**After pulling:** Run `npm run prisma:migrate` to apply new migrations.
+After pulling, run `npx prisma migrate dev` to apply new migrations.
 
-CI/CD runs `npm run prisma:migrate:deploy` to apply migrations to production.
+### Deployment
+
+Production deployment to Vercel. Uses a real GitHub OAuth app and requires `ENCRYPTION_KEY` so user-stored API credentials are encrypted at rest.
+
+Env:
+
+```bash
+DATABASE_URL="postgresql://..."     # production database
+DAYTONA_API_KEY="dtn_..."
+NEXTAUTH_URL="https://your-domain.com"
+NEXTAUTH_SECRET="<random-secret>"
+GITHUB_CLIENT_ID="<github-oauth-app-id>"
+GITHUB_CLIENT_SECRET="<github-oauth-app-secret>"
+
+# REQUIRED in production — credential encryption refuses to run without it
+ENCRYPTION_KEY="<openssl rand -hex 32>"
+
+# Required for /api/cron/* endpoints (set in Vercel project env)
+CRON_SECRET="<random-secret>"
+
+# Optional: Smithery MCP server registry — see ../mcp-providers/README.md
+SMITHERY_API_KEY="..."
+SMITHERY_NAMESPACE=""
+
+# Optional: GitHub App MCP server — see ../mcp-providers/README.md
+GITHUB_APP_ID="..."
+GITHUB_APP_SLUG="..."
+GITHUB_APP_PRIVATE_KEY="..."
+```
+
+Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to apply migrations to the production database.
+
+### Testing
+
+End-to-end tests run against a local test database. Each run resets the database via `prisma migrate reset --force`, so the safety check refuses any non-local `DATABASE_URL`.
+
+Env (`.env.test` in this package) — overrides the dev env from `.env.local`:
+
+```bash
+# DATABASE_URL MUST contain "localhost" or "127.0.0.1" (safety check)
+DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
+
+# Test-mode constants — Playwright and `npm run dev:test` both read these
+ENABLE_TEST_AUTH=true
+NEXTAUTH_SECRET=test-secret-for-e2e-tests
+NEXTAUTH_URL=http://localhost:4000
+GITHUB_CLIENT_ID=placeholder
+GITHUB_CLIENT_SECRET=placeholder
+
+# Optional: bypass the "is this a test DB?" safety check
+# I_KNOW_THIS_IS_THE_TEST_DB=true
+```
+
+`DAYTONA_API_KEY` comes from your Development `.env.local` — tests create real sandboxes.
+
+Run:
+
+```bash
+npm run test:e2e
+```
+
+Each run resets the test database via `prisma migrate reset --force`.
+
+To debug a failing test against the same env profile (test DB, test-auth route, placeholder OAuth):
+
+```bash
+npm run dev:test
+```

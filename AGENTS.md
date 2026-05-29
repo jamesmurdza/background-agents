@@ -2,10 +2,9 @@
 
 Primary reference for coding agents working in this repo.
 
-- **Tests** (unit tests, database for E2E, Playwright): [TESTING.md](./TESTING.md)
-- **Development server** (`npm run dev`): [DEVELOPMENT.md](./DEVELOPMENT.md)
+- **Running dev / tests**: [DEVELOPMENT.md](./DEVELOPMENT.md)
 
-For **architecture, deployment, and production configuration**, see the root [README.md](./README.md).
+For **architecture, env-by-situation, and deployment**, see [`packages/web/README.md`](./packages/web/README.md).
 
 ## After editing code
 
@@ -13,7 +12,7 @@ Before running typecheck for the first time (or after pulling new changes), ensu
 
 ```bash
 npm install
-cd packages/web && npx prisma generate
+npm run prisma:generate
 ```
 
 Then run `npm run typecheck` to verify there are no type errors. This is much faster than a full build (~5 seconds vs 2-3 minutes).

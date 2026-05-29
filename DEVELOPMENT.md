@@ -1,74 +1,58 @@
-# Development server
+# Development
 
-This document describes how to run the web app locally with `npm run dev`.
+How to run the web app locally and run its tests.
 
 **Note:** PostgreSQL install commands below are for **Linux** (Debian/Ubuntu-style). Adapt for other OSes.
 
----
-
 ## Database setup
 
-You need a Postgres database for the development server below.
-
-Set up a local database by running the commands below.
+Dev and E2E use separate Postgres databases. Create both up front (or skip the test one if you won't run E2E):
 
 ```bash
 sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
 sudo service postgresql start
 sudo -u postgres psql -c "CREATE USER sandboxed WITH PASSWORD 'sandboxed123';"
 sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents OWNER sandboxed;"
+sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents_test OWNER sandboxed;"
 ```
 
-Example connection string for that local setup:
-
-```text
-DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"
-```
-
-When the schema changes, apply it by running the command below from `packages/web`:
+Apply the dev schema:
 
 ```bash
-DATABASE_URL="<same as the DATABASE_URL you configured>" npx prisma db push
+npm run prisma:migrate
 ```
 
----
+(E2E runs `prisma migrate reset --force` against its DB automatically.)
 
-## Run the development server
+## Run the dev server
 
-Prerequisites: Node.js 18+ and the Postgres database from [Database setup](#database-setup).
-
-**Secrets:** You need a GitHub [Personal Access Token](https://github.com/settings/tokens) with scopes `repo` and `read:user` (`GITHUB_PAT`), and a [Daytona](https://www.daytona.io/) API key (`DAYTONA_API_KEY`).
-
-**Note:** In a sandbox environment, take `DAYTONA_API_KEY` and `GITHUB_PAT` from the shell environment variables.
-
-**Database:** Put `DATABASE_URL` in `packages/web/.env.local` (same value as in [Database setup](#database-setup), or your provider's URL).
-
-**Minimal `packages/web/.env.local`:** Fill in the database URL, then set the rest. With `GITHUB_PAT` set, GitHub OAuth placeholders are not used; they can stay as shown.
+Put the env block from [Development](packages/web/README.md#development) in `.env.local` at the repo root — or `cp .env.example .env.local` and edit the placeholder values.
 
 ```bash
-DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"
-
-# Local dev: http://localhost:4000. Behind Daytona proxy: https://4000-{sandbox-id}.daytonaproxy01.net
-NEXTAUTH_URL="http://localhost:4000"
-NEXTAUTH_SECRET="dev-secret-not-used-in-dev-mode"
-
-GITHUB_CLIENT_ID="placeholder"
-GITHUB_CLIENT_SECRET="placeholder"
-
-ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000"
-
-GITHUB_PAT=ghp_your_token_here
-DAYTONA_API_KEY=dtn_your_key_here
-```
-
-If the app is served behind a Daytona proxy, `NEXTAUTH_URL` must be that public URL (not `http://localhost:4000`). NextAuth validates requests against this value.
-
-With `GITHUB_PAT` set you get auto-login at http://localhost:4000—no GitHub OAuth app required. The first visit creates a dev user in the database and logs a warning that dev mode is active.
-
-The first time you work in the repo, from the repo root run `npm install` and `npm run build:sdk`, then apply the schema ([Database setup](#database-setup)) if you have not already.
-
-Run the command below from the repo root.
-
-```bash
+npm install
 npm run dev
 ```
+
+## Run E2E tests
+
+Put the env block from [Testing](packages/web/README.md#testing) in `packages/web/.env.test`. Your `DAYTONA_API_KEY` from `.env.local` is reused.
+
+From `packages/web/`:
+
+```bash
+npm run test:e2e
+```
+
+### Debug a failing E2E test
+
+`dev:test` boots a dev server with the test env profile (test DB, `/api/test/auth` route enabled, placeholder OAuth) so you can manually reproduce a failure:
+
+```bash
+npm run dev:test
+```
+
+Then open http://localhost:4000.
+
+## Agent SDK tests
+
+See [packages/agents/TESTING.md](packages/agents/TESTING.md).
