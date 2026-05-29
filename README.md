@@ -29,11 +29,11 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Configuration
 
-See [packages/web/README.md](packages/web/README.md#usage) for environment setup and database configuration.
+See [Usage](packages/web/README.md#usage) for environment setup and database configuration.
 
 ## Quick start (Web)
 
-Requires Postgres + env per [`packages/web/README.md#development`](packages/web/README.md#development).
+Requires Postgres + env per [Development](packages/web/README.md#development).
 
 ```bash
 npm install
@@ -44,7 +44,7 @@ Open http://localhost:4000
 
 ## Quick start (Desktop)
 
-Requires Postgres + env per [`packages/web/README.md#development`](packages/web/README.md#development) (the desktop app loads the web app).
+Requires Postgres + env per [Development](packages/web/README.md#development) (the desktop app loads the web app).
 
 ```bash
 npm install
@@ -55,4 +55,4 @@ This starts the local web server and launches the Electron app.
 
 ## Deployment
 
-The `web` package deploys to Vercel. See [`packages/web/README.md#deployment-production`](packages/web/README.md#deployment-production) for env vars and configuration.
+The `web` package deploys to Vercel. See [Deployment (production)](packages/web/README.md#deployment-production) for env vars and configuration.

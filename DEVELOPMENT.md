@@ -26,7 +26,7 @@ npm run prisma:migrate
 
 ## Run the dev server
 
-Put the **Development** env block from [`packages/web/README.md`](packages/web/README.md#development) in `.env.local` at the repo root.
+Put the env block from [Development](packages/web/README.md#development) in `.env.local` at the repo root.
 
 ```bash
 npm install
@@ -35,7 +35,7 @@ npm run dev
 
 ## Run E2E tests
 
-Put the **Testing** env block from [`packages/web/README.md`](packages/web/README.md#testing-e2e) in `packages/web/.env.test`. Your `DAYTONA_API_KEY` from `.env.local` is reused.
+Put the env block from [Testing (E2E)](packages/web/README.md#testing-e2e) in `packages/web/.env.test`. Your `DAYTONA_API_KEY` from `.env.local` is reused.
 
 From `packages/web/`:
 
