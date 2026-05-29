@@ -1,7 +1,7 @@
 "use client"
 
 import type { ComponentProps } from "react"
-import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
+import { CreateRepoModal } from "@/components/modals/CreateRepoModal"
 import { SettingsModal } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
 import { ReAuthModal } from "@/components/modals/ReAuthModal"
@@ -39,8 +39,8 @@ interface AppModalsProps {
   /** Whether the stored GitHub token has expired/been revoked (drives ReAuthModal). */
   githubTokenInvalid: boolean
 
-  // Repo picker (create mode)
-  onRepoSelect: ComponentProps<typeof RepoPickerModal>["onSelect"]
+  // Create-repo modal — called with the newly-created repo + default branch.
+  onRepoSelect: ComponentProps<typeof CreateRepoModal>["onSelect"]
 
   // Settings
   onSaveSettings: ComponentProps<typeof SettingsModal>["onSave"]
@@ -92,12 +92,11 @@ export function AppModals({
 
   return (
     <>
-      <RepoPickerModal
+      <CreateRepoModal
         open={modals.repoCreateOpen}
         onClose={() => modals.setRepoCreateOpen(false)}
         onSelect={onRepoSelect}
         isMobile={isMobile}
-        mode="create"
         suggestedName={currentChat?.displayName ?? null}
       />
 
