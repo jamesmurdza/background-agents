@@ -643,43 +643,19 @@ export function useChatWithSync() {
     }
   }, [chats, updateChatsCache])
 
-  // Re-check a chat's status against the backend. Used by the error banner
-  // refresh action: when the SSE connection drops we mark the chat as errored,
-  // but the backend may have actually finished. Pulls the authoritative
-  // status (+ any new messages) and reconciles the local cache.
-  // Returns the resulting status so callers can show feedback.
-  const refreshChat = useCallback(async (chatId: string): Promise<ChatStatus | null> => {
-    try {
-      const chat = chats.find((c) => c.id === chatId)
-      const lastMessageId = chat?.messages[chat.messages.length - 1]?.id
-
-      const chatData = await fetchChat(chatId, lastMessageId ? { afterMessageId: lastMessageId } : undefined)
-      const incomingMessages = chatData.messages.map(toMessageType)
-      const nextStatus = chatData.status as ChatStatus
-
-      updateChatsCache((old) =>
-        old.map((c) => {
-          if (c.id !== chatId) return c
-          const messages = incomingMessages.length > 0
-            ? mergeMessages(c.messages, incomingMessages)
-            : c.messages
-          return {
-            ...c,
-            status: nextStatus,
-            // Clear the inline error banner whenever the backend says the
-            // chat is no longer in an error state.
-            errorMessage: nextStatus === "error" ? c.errorMessage : undefined,
-            backgroundSessionId: chatData.backgroundSessionId ?? undefined,
-            messages,
-          }
-        })
-      )
-
-      return nextStatus
-    } catch (err) {
-      console.error("Failed to refresh chat:", err)
-      return null
-    }
+  // Re-check a chat's status against the backend. Used by the error banner's
+  // refresh action: SSE drops mark the chat as errored even when the agent
+  // actually finished — this reconciles status (and any new messages).
+  const refreshChat = useCallback(async (chatId: string) => {
+    const chat = chats.find((c) => c.id === chatId)
+    const lastMessageId = chat?.messages[chat.messages.length - 1]?.id
+    const data = await fetchChat(chatId, lastMessageId ? { afterMessageId: lastMessageId } : undefined)
+    const incoming = data.messages.map(toMessageType)
+    updateChatsCache((old) => old.map((c) => c.id === chatId ? {
+      ...c,
+      status: data.status as ChatStatus,
+      messages: incoming.length ? mergeMessages(c.messages, incoming) : c.messages,
+    } : c))
   }, [chats, updateChatsCache])
 
   // True when messages need to be loaded for current chat (to prevent flash of empty state)

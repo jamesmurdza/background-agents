@@ -22,10 +22,7 @@ interface ChatPanelProps {
   onRemoveQueuedMessage?: (id: string) => void
   onResumeQueue?: () => void
   onStopAgent: () => void
-  /** Re-check the chat's status from the backend. Used by the error banner's
-   *  refresh action when the SSE stream dropped but the agent may have
-   *  actually finished. Resolves to the new status (or null on failure). */
-  onRefreshChat?: (chatId: string) => Promise<import("@/lib/types").ChatStatus | null>
+  onRefreshChat?: (chatId: string) => Promise<void>
   onUpdateChat?: (updates: Partial<Chat>) => void
   onSlashCommand?: (command: SlashCommandType) => void
   onOpenFile?: (filePath: string) => void
