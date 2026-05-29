@@ -17,18 +17,13 @@ export function isElectron(): boolean {
  * 4. Electron catches the deep link and sets the session cookie
  */
 export function signInWithGitHub() {
-  const electron = isElectron()
-  console.log("[signInWithGitHub] isElectron:", electron)
-
-  if (electron) {
+  if (isElectron()) {
     // Open system browser to complete OAuth
     // The browser will redirect back via deep link with the session token
     const electronApi = (window as { electron?: { openExternal: (url: string) => void } }).electron
     const authUrl = `${window.location.origin}/auth/electron-start`
-    console.log("[signInWithGitHub] Opening system browser:", authUrl)
     electronApi?.openExternal(authUrl)
   } else {
-    console.log("[signInWithGitHub] Using default sign-in")
     signIn("github")
   }
 }
