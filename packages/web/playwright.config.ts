@@ -27,24 +27,12 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
   webServer: {
+    // The webServer inherits process.env, which is already populated by
+    // the loadEnv() calls above (.env.test wins, root .env.local fills gaps).
+    // No explicit env block needed.
     command: `npm run dev`,
     port,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: {
-      // Test database (MUST be separate from production!)
-      DATABASE_URL: process.env.DATABASE_URL!,
-      // Bypass safety check if set
-      I_KNOW_THIS_IS_THE_TEST_DB: process.env.I_KNOW_THIS_IS_THE_TEST_DB || "",
-      // Daytona
-      DAYTONA_API_KEY: process.env.DAYTONA_API_KEY!,
-      // Auth
-      NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "test-secret-for-e2e-tests",
-      NEXTAUTH_URL: `http://localhost:${port}`,
-      GITHUB_CLIENT_ID: "placeholder",
-      GITHUB_CLIENT_SECRET: "placeholder",
-      // Enable test auth route
-      ENABLE_TEST_AUTH: "true",
-    },
   },
 })
