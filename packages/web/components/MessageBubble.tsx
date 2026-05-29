@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, memo } from "react"
-import { GitMerge, FileText } from "lucide-react"
+import { GitMerge, FileText, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/types"
 import {
@@ -98,8 +98,12 @@ function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpen
   const hasBlocks = message.contentBlocks && message.contentBlocks.length > 0
   const isEmpty = !hasContent && !hasToolCalls && !hasBlocks
   const isGitOperation = message.messageType === "git-operation"
+  // Error messages (e.g. a failed send/agent run) are surfaced as a system
+  // message rather than rendered as plain assistant markdown text.
+  const isErrorMessage = message.messageType === "error" || (message.isError && !isGitOperation)
 
-  if (isEmpty) {
+  // Error messages should still render even when they have no content yet.
+  if (isEmpty && !isErrorMessage) {
     if (!isStreaming) return null
     return (
       <div className="text-2xl text-muted-foreground animate-pulse">
@@ -120,6 +124,18 @@ function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpen
         linkBranch={message.linkBranch}
         metadata={message.metadata}
         onForcePush={onForcePush}
+      />
+    )
+  }
+
+  // Error messages also use the SystemMessage component, with an alert icon.
+  if (isErrorMessage) {
+    return (
+      <SystemMessage
+        icon={AlertTriangle}
+        content={message.content || "Error"}
+        variant="error"
+        isMobile={isMobile}
       />
     )
   }

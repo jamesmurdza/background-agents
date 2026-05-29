@@ -171,7 +171,9 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
     status: "error",
     errorMessage,
     messages: chat.messages.map((m) =>
-      m.id === assistantMessageId ? { ...m, content: `Error: ${errorMessage}`, isError: true } : m
+      m.id === assistantMessageId
+        ? { ...m, content: `Error: ${errorMessage}`, messageType: "error", isError: true }
+        : m
     ),
   }
 }
