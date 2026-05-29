@@ -120,33 +120,53 @@ export async function requireAdmin(): Promise<AuthResult | Response> {
   return { userId }
 }
 
+export interface ChatStreamAccessResult {
+  userId: string
+  chat: {
+    id: string
+    sandboxId: string | null
+    backgroundSessionId: string | null
+    previewUrlPattern: string | null
+  }
+}
+
 /**
- * Auth gate for streaming routes that take chatId/assistantMessageId from
- * query parameters. Verifies the caller is signed in, owns the chat, and
- * that the message lives in that chat. Returns the userId on success, or a
- * Response the caller should return verbatim on failure.
+ * Auth gate for streaming routes. Verifies the caller is signed in, owns the
+ * chat, and that the message lives in that chat. Returns the userId AND the
+ * chat row (sandboxId / backgroundSessionId / previewUrlPattern) on success.
+ *
+ * Callers MUST use these fields from the returned chat rather than from any
+ * client-supplied query params — that was the root of the pre-fix IDOR where
+ * the stream route trusted url-supplied sandboxId/backgroundSessionId.
  */
 export async function requireChatStreamAccess(
   chatId: string | null,
   assistantMessageId: string | null
-): Promise<AuthResult | Response> {
+): Promise<ChatStreamAccessResult | Response> {
   const userId = await getAuthUserId()
   if (!userId) return unauthorized()
+  if (!chatId) return badRequest("chatId is required")
 
-  if (chatId) {
-    const chat = await getChatWithAuth(chatId, userId)
-    if (!chat) return notFound("Chat not found")
+  const chat = await getChatWithAuth(chatId, userId)
+  if (!chat) return notFound("Chat not found")
 
-    if (assistantMessageId) {
-      const msg = await prisma.message.findFirst({
-        where: { id: assistantMessageId, chatId },
-        select: { id: true },
-      })
-      if (!msg) return notFound("Message not found")
-    }
+  if (assistantMessageId) {
+    const msg = await prisma.message.findFirst({
+      where: { id: assistantMessageId, chatId },
+      select: { id: true },
+    })
+    if (!msg) return notFound("Message not found")
   }
 
-  return { userId }
+  return {
+    userId,
+    chat: {
+      id: chat.id,
+      sandboxId: chat.sandboxId,
+      backgroundSessionId: chat.backgroundSessionId,
+      previewUrlPattern: chat.previewUrlPattern,
+    },
+  }
 }
 
 // =============================================================================

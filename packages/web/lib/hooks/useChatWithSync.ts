@@ -555,10 +555,21 @@ export function useChatWithSync() {
     }
   }, [currentChat, updateChatsCache, pauseQueue])
 
-  // Resume streaming for running chats
+  // Resume streaming for running chats. The key must include the last
+  // assistant message id, otherwise the effect can fire once when the
+  // chats query returns (with chat.messages still empty because the list
+  // endpoint doesn't include messages — they load via the separate
+  // loadMessages effect), find lastAssistantMsg undefined, silently
+  // skip, and never re-run once messages arrive (the rest of the key
+  // stays the same). Including the message id makes the key naturally
+  // invalidate the moment a streamable assistant placeholder appears.
   const runningChatsKey = chats
     .filter((c) => c.status === "running" && c.backgroundSessionId && c.sandboxId)
-    .map((c) => `${c.id}:${c.backgroundSessionId}:${c.sandboxId}`)
+    .map((c) => {
+      const lastAssistantId =
+        [...c.messages].reverse().find((m) => m.role === "assistant")?.id ?? ""
+      return `${c.id}:${c.backgroundSessionId}:${c.sandboxId}:${lastAssistantId}`
+    })
     .sort()
     .join("|")
 

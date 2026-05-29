@@ -103,8 +103,11 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       const currentStore = useStreamStore.getState()
       if (!currentStore.getStream(chatId)) return
 
-      const params = new URLSearchParams({ sandboxId, repoName, backgroundSessionId, chatId, assistantMessageId })
-      if (previewUrlPattern) params.set("previewUrlPattern", previewUrlPattern)
+      // IDOR fix: the server now derives sandboxId / backgroundSessionId /
+      // previewUrlPattern / repoName from the chat row (which is auth-checked
+      // for ownership), so we no longer pass them on the wire. Sending them
+      // would only be misleading — they'd be silently ignored.
+      const params = new URLSearchParams({ chatId, assistantMessageId })
       if (cursor > 0) params.set("cursor", cursor.toString())
 
       const eventSource = new EventSource(`/api/agent/stream?${params}`)
