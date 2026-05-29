@@ -22,6 +22,22 @@ The agent can follow the setup and workflow instructions in this repo on its own
 - `SMITHERY_*` — remote MCP servers from the Smithery registry.
 - `GITHUB_APP_*` — authenticated GitHub MCP server.
 
+## Running tests
+
+Before running E2E tests, check that the user has exported the required env vars in the current shell:
+
+- `DAYTONA_API_KEY` — required (reused by `.env.test`).
+
+If it is not set, stop and ask the user to export it before continuing.
+
+Once the env var is present, run the tests from `packages/web/`:
+
+```bash
+npm run test:e2e
+```
+
+For full setup (test DB, `packages/web/.env.test`, debug workflow), see [DEVELOPMENT.md](./DEVELOPMENT.md#run-e2e-tests).
+
 ## After editing code
 
 Before running typecheck for the first time (or after pulling new changes), ensure dependencies are installed:
