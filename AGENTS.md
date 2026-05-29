@@ -13,7 +13,7 @@ Before running typecheck for the first time (or after pulling new changes), ensu
 
 ```bash
 npm install
-cd packages/web && npx prisma generate
+npm run prisma:generate
 ```
 
 Then run `npm run typecheck` to verify there are no type errors. This is much faster than a full build (~5 seconds vs 2-3 minutes).

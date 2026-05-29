@@ -25,10 +25,10 @@ Example connection string for that local setup:
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"
 ```
 
-When the schema changes, apply it by running the command below from `packages/web`:
+Apply the schema (from the repo root — uses the env cascade so the URL is read from `.env.local`):
 
 ```bash
-DATABASE_URL="<same as the DATABASE_URL you configured>" npx prisma db push
+npm run prisma:migrate
 ```
 
 ---
@@ -41,9 +41,9 @@ Prerequisites: Node.js 18+ and the Postgres database from [Database setup](#data
 
 **Note:** In a sandbox environment, take `DAYTONA_API_KEY` and `GITHUB_PAT` from the shell environment variables.
 
-**Database:** Put `DATABASE_URL` in `packages/web/.env.local` (same value as in [Database setup](#database-setup), or your provider's URL).
+**Database:** Put `DATABASE_URL` in `.env.local` at the repo root (same value as in [Database setup](#database-setup), or your provider's URL). All root npm scripts read it via the env cascade.
 
-**Minimal `packages/web/.env.local`:** Fill in the database URL, then set the rest. With `GITHUB_PAT` set, GitHub OAuth placeholders are not used; they can stay as shown.
+**Minimal `.env.local` (at repo root):** Fill in the database URL, then set the rest. With `GITHUB_PAT` set, GitHub OAuth placeholders are not used; they can stay as shown.
 
 ```bash
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"

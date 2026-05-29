@@ -47,39 +47,40 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
    npm install
    ```
 
-2. **Configure environment variables**:
-
-   Create a `.env.local` file:
+2. **Configure environment variables** — create a `.env.local` file with at least:
 
    ```bash
-   cp .env.example .env.local
-   ```
+   DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
+   DAYTONA_API_KEY="dtn_your_key_here"
+   NEXTAUTH_URL="http://localhost:4000"
+   NEXTAUTH_SECRET="random-string-for-session-jwt"
+   GITHUB_PAT="ghp_your_token_here"
 
-   Required variables:
-   - `DATABASE_URL` - PostgreSQL connection string (e.g., `postgresql://user:pass@localhost:5432/background_agents`)
-   - `DAYTONA_API_KEY` - Your Daytona API key
-   - `NEXTAUTH_URL` - Your app URL (default: `http://localhost:4000`)
-   - `NEXTAUTH_SECRET` - A random secret for NextAuth session encryption
-   - `ENCRYPTION_KEY` - 64-character hex string for encrypting API credentials (generate with `openssl rand -hex 32`)
+   # Optional: encrypts user-stored API credentials at rest (recommended).
+   # Generate with: openssl rand -hex 32
+   ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+
+   # Optional: GitHub OAuth — placeholders are fine in dev when GITHUB_PAT is set.
+   GITHUB_CLIENT_ID="placeholder"
+   GITHUB_CLIENT_SECRET="placeholder"
+   ```
 
    For MCP servers (Smithery registry + GitHub App MCP), see the [mcp-providers README](../mcp-providers/README.md).
 
-3. **Set up the database**:
-
-   Generate the Prisma client and run migrations:
+3. **Set up the database** (from the repo root):
 
    ```bash
-   npx prisma generate
-   npx prisma migrate dev
+   npm run prisma:generate
+   npm run prisma:migrate
    ```
 
-4. **Start the development server**:
+4. **Start the development server** (from the repo root):
 
    ```bash
    npm run dev
    ```
 
-   The app will be available at http://localhost:4000
+   The app will be available at http://localhost:4000.
 
 ## Scripts
 
@@ -88,7 +89,6 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 | `npm run dev` | Start development server on port 4000 |
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
-| `npm run lint` | Run ESLint |
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run test:e2e:ui` | Run Playwright tests with UI |
 
