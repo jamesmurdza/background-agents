@@ -421,7 +421,7 @@ export function Sidebar({
                 <div className="space-y-0.5 animate-pulse">
                   {[75, 55, 85, 60, 70].map((width, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-md">
-                      <div className="h-4 flex-1 rounded bg-muted" style={{ width: `${width}%` }} />
+                      <div className="h-5 flex-1 rounded bg-muted" style={{ width: `${width}%` }} />
                     </div>
                   ))}
                 </div>
@@ -658,10 +658,10 @@ export function Sidebar({
             <div className="space-y-0">
               {isLoadingChats ? (
                 /* Chat list skeleton while loading */
-                <div className="space-y-0.5 animate-pulse">
+                <div className="space-y-0 animate-pulse">
                   {[70, 50, 85, 55, 75, 60].map((width, i) => (
                     <div key={i} className="flex items-center gap-2 px-2 py-[5px] rounded-md">
-                      <div className="h-3.5 flex-1 rounded bg-muted" style={{ width: `${width}%` }} />
+                      <div className="h-5 flex-1 rounded bg-muted" style={{ width: `${width}%` }} />
                     </div>
                   ))}
                 </div>
