@@ -55,4 +55,4 @@ This starts the local web server and launches the Electron app.
 
 ## Deployment
 
-The `web` package deploys to Vercel. See [packages/web/README.md](packages/web/README.md) for configuration.
+The `web` package deploys to Vercel. See [`packages/web/README.md#deployment-production`](packages/web/README.md#deployment-production) for env vars and configuration.
