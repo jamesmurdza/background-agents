@@ -104,12 +104,11 @@ Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to appl
 
 ### Testing (E2E)
 
-Env (`.env.test`):
+Env (`.env.test` in this package) — overrides the dev env from `.env.local`:
 
 ```bash
 # DATABASE_URL MUST contain "localhost" or "127.0.0.1" (safety check)
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
-DAYTONA_API_KEY="dtn_..."           # real key — tests create real sandboxes
 
 # Test-mode constants — Playwright and `npm run dev:test` both read these
 ENABLE_TEST_AUTH=true
@@ -121,6 +120,8 @@ GITHUB_CLIENT_SECRET=placeholder
 # Optional: bypass the "is this a test DB?" safety check
 # I_KNOW_THIS_IS_THE_TEST_DB=true
 ```
+
+`DAYTONA_API_KEY` comes from your Development `.env.local` — tests create real sandboxes.
 
 Run:
 

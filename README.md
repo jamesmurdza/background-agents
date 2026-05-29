@@ -29,7 +29,7 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Configuration
 
-See [packages/web/README.md](packages/web/README.md#setup) for environment setup and database configuration.
+See [packages/web/README.md](packages/web/README.md#usage) for environment setup and database configuration.
 
 ## Quick start (Web)
 
