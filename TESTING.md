@@ -1,12 +1,8 @@
-# Testing procedures
+# Testing
 
-This document describes how to run tests for the web application and agent SDK.
+## Build check (no DB)
 
-**Note:** PostgreSQL install commands below are for **Linux** (Debian/Ubuntu-style). Adapt for other OSes.
-
-## Build check (no .env required)
-
-To check for build errors without a real database:
+To verify the web app builds without setting up a database:
 
 ```bash
 npm run build:web
@@ -14,49 +10,59 @@ npm run build:web
 
 ## Agent SDK tests
 
-For unit tests and integration tests for the Agent SDK, see [packages/agents/TESTING.md](packages/agents/TESTING.md).
+For unit and integration tests of the Agent SDK, see [packages/agents/TESTING.md](packages/agents/TESTING.md).
 
-## Database setup
+## E2E tests (Playwright)
 
-You need a Postgres database for Playwright below.
+### One-time setup
 
-Set up a local database by running the commands below.
+**Build the SDK** (required after install or after pulling SDK changes):
+
+```bash
+npm run build:sdk
+```
+
+**Create a local Postgres test database.** Commands below are for Linux (Debian/Ubuntu); adapt for your OS:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
 sudo service postgresql start
 sudo -u postgres psql -c "CREATE USER sandboxed WITH PASSWORD 'sandboxed123';"
-sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents OWNER sandboxed;"
+sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents_test OWNER sandboxed;"
 ```
 
-Example connection string for that local setup:
+**Set up env files** — two files, two values:
 
-```text
-DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"
-```
+1. Root `.env.local` (shared dev secrets — cascades into all npm scripts):
 
-When the schema changes, apply it by running the command below from `packages/web`:
+   ```
+   DAYTONA_API_KEY=<your real Daytona key>
+   ```
 
-```bash
-DATABASE_URL="<same as the DATABASE_URL you configured>" npx prisma db push
-```
+2. `packages/web/.env.test` (test-mode overrides) — copy the template:
 
-## Playwright end-to-end tests
+   ```bash
+   cp packages/web/.env.test.example packages/web/.env.test
+   ```
 
-**Secrets:** In the **repo root** `.env`, you only need `DAYTONA_API_KEY` (`packages/web/playwright.config.ts` loads it).
+   Edit `DATABASE_URL` to point at your test DB. The URL **must** contain `test`, `localhost`, or `127.0.0.1`, or you must set `I_KNOW_THIS_IS_THE_TEST_DB=true`. This guards against accidents — every test run wipes the database with `prisma migrate reset --force`.
 
-**Note:** In a sandbox environment, take the `DAYTONA_API_KEY` from the shell environment variables.
+   Everything else in the example (test NextAuth secret, placeholder OAuth, `ENABLE_TEST_AUTH=true`) can stay at its default value.
 
-**Database:** Use a database from [Database setup](#database-setup). Prefer a **separate** database from your dev DB so E2E does not overwrite local data. In `packages/web/.env.e2e`, set `DATABASE_URL`, `NEXTAUTH_SECRET`, and `ENCRYPTION_KEY`.
+### Run
 
-**Build:** The web app depends on `background-agents`. Build it first from the repo root:
-
-```bash
-npm run build -w background-agents
-```
-
-Run the command below from `packages/web`.
+From `packages/web/`:
 
 ```bash
 npm run test:e2e
 ```
+
+### Debug a failing test
+
+`dev:test` boots a dev server with the same env profile as Playwright — test DB, `/api/test/auth` route enabled, placeholder OAuth — so you can manually reproduce a failure:
+
+```bash
+npm run dev:test
+```
+
+Then open `http://localhost:4000` and poke around.
