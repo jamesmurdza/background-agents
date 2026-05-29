@@ -10,10 +10,13 @@ For **architecture, env-by-situation, and deployment**, see [`packages/web/READM
 
 The agent can follow the setup and workflow instructions in this repo on its own, but the user must provide values for these env vars when required by setting them in the current environment.
 
-**Required**
+**Required for dev server and tests**
 
 - `DAYTONA_API_KEY` in `.env.local` (reused by `.env.test`).
-- Auth: either `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`, or `GITHUB_PAT` as an alternative.
+
+**Required for dev server**
+
+- Auth: either `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`, or `GITHUB_PAT` as an alternative. Not needed for E2E — `.env.test` keeps these as `placeholder` since `ENABLE_TEST_AUTH=true` bypasses OAuth.
 
 **Optional** (only if those integrations are in scope)
 
