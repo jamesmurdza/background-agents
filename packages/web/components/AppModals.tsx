@@ -1,10 +1,10 @@
 "use client"
 
 import type { ComponentProps } from "react"
-import { RepoPickerModal } from "@/components/modals/RepoPickerModal"
+import { CreateRepoModal } from "@/components/modals/CreateRepoModal"
 import { SettingsModal } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
-import { ReAuthModal } from "@/components/modals/ReAuthModal"
+import { ReAuthBanner } from "@/components/modals/ReAuthBanner"
 import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
@@ -36,11 +36,13 @@ import { NEW_REPOSITORY } from "@/lib/types"
 
 interface AppModalsProps {
   isMobile: boolean
-  /** Whether the stored GitHub token has expired/been revoked (drives ReAuthModal). */
+  /** Whether the stored GitHub token has expired/been revoked (drives ReAuthBanner). */
   githubTokenInvalid: boolean
+  /** Called when the user dismisses the re-auth banner. */
+  onDismissReAuthBanner: () => void
 
-  // Repo picker (create mode)
-  onRepoSelect: ComponentProps<typeof RepoPickerModal>["onSelect"]
+  // Create-repo modal — called with the newly-created repo + default branch.
+  onRepoSelect: ComponentProps<typeof CreateRepoModal>["onSelect"]
 
   // Settings
   onSaveSettings: ComponentProps<typeof SettingsModal>["onSave"]
@@ -72,6 +74,7 @@ interface AppModalsProps {
 export function AppModals({
   isMobile,
   githubTokenInvalid,
+  onDismissReAuthBanner,
   onRepoSelect,
   onSaveSettings,
   onSaveEnvVars,
@@ -92,12 +95,11 @@ export function AppModals({
 
   return (
     <>
-      <RepoPickerModal
+      <CreateRepoModal
         open={modals.repoCreateOpen}
         onClose={() => modals.setRepoCreateOpen(false)}
         onSelect={onRepoSelect}
         isMobile={isMobile}
-        mode="create"
         suggestedName={currentChat?.displayName ?? null}
       />
 
@@ -177,10 +179,10 @@ export function AppModals({
         isMobile={isMobile}
       />
 
-      {/* Re-auth Modal - shown when stored GitHub token has expired or been revoked */}
-      <ReAuthModal
+      {/* Re-auth banner — shown when stored GitHub token has expired or been revoked. */}
+      <ReAuthBanner
         open={githubTokenInvalid}
-        onClose={() => {}}
+        onDismiss={onDismissReAuthBanner}
         isMobile={isMobile}
       />
 

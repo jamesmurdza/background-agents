@@ -14,6 +14,41 @@ interface MarkdownPreviewProps {
   className?: string
   /** Maximum height (CSS value, e.g., "65vh") */
   maxHeight?: string
+  /**
+   * Absolute sandbox path of the file being previewed. When set, relative
+   * links inside the markdown (e.g. `./DEVELOPMENT.md`) are resolved against
+   * this file's directory and routed to the preview panel via an
+   * `"open-preview-file"` window CustomEvent. External links (http(s), mailto,
+   * etc.) and `#anchor` links keep their default behavior.
+   */
+  currentFilePath?: string
+}
+
+/** True if href looks external (has a scheme like `http:`, `mailto:`, or starts with `//`). */
+function isExternalHref(href: string): boolean {
+  return /^([a-z][a-z0-9+.-]*:|\/\/)/i.test(href)
+}
+
+/**
+ * Resolve an href relative to the directory of `currentFilePath`.
+ * Strips any `?query` / `#fragment`, joins, and normalizes `.` / `..` segments.
+ * Returns an absolute sandbox path.
+ */
+function resolveRelativePath(currentFilePath: string, href: string): string {
+  // Drop query/fragment — we only care about the file path part.
+  const cleanHref = href.replace(/[?#].*$/, "")
+  const dir = currentFilePath.replace(/\/[^/]*$/, "") // dirname
+  const joined = cleanHref.startsWith("/") ? cleanHref : `${dir}/${cleanHref}`
+  const segments: string[] = []
+  for (const seg of joined.split("/")) {
+    if (seg === "" || seg === ".") continue
+    if (seg === "..") {
+      segments.pop()
+      continue
+    }
+    segments.push(seg)
+  }
+  return "/" + segments.join("/")
 }
 
 /**
@@ -27,6 +62,7 @@ export function MarkdownPreview({
   content,
   className = "",
   maxHeight,
+  currentFilePath,
 }: MarkdownPreviewProps) {
   return (
     <div
@@ -38,17 +74,46 @@ export function MarkdownPreview({
           remarkPlugins={[remarkGfm]}
           components={{
             // Links
-            a: ({ children, href, ...props }) => (
-              <a
-                {...props}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#0969da] dark:text-[#58a6ff] hover:underline"
-              >
-                {children}
-              </a>
-            ),
+            a: ({ children, href, ...props }) => {
+              // Relative file links resolve against the current file's directory
+              // and open inside the same preview panel via a window CustomEvent.
+              // External links and `#anchor` links keep target="_blank" behavior.
+              const isRelativeFileLink =
+                !!href &&
+                !!currentFilePath &&
+                !href.startsWith("#") &&
+                !isExternalHref(href)
+
+              if (isRelativeFileLink) {
+                return (
+                  <a
+                    href={href}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      const filePath = resolveRelativePath(currentFilePath!, href!)
+                      window.dispatchEvent(
+                        new CustomEvent("open-preview-file", { detail: { filePath } })
+                      )
+                    }}
+                    className="text-[#0969da] dark:text-[#58a6ff] hover:underline cursor-pointer"
+                  >
+                    {children}
+                  </a>
+                )
+              }
+
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#0969da] dark:text-[#58a6ff] hover:underline"
+                >
+                  {children}
+                </a>
+              )
+            },
 
             // Paragraphs
             p: ({ children }) => (

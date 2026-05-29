@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, type ReactNode } from "react"
+import { useState, useCallback, isValidElement, cloneElement, type ReactNode, type ReactElement } from "react"
 import { BaseDialog } from "@/components/modals/BaseDialog"
 import {
   DialogLabel,
@@ -64,9 +64,11 @@ export function GitBranchDialog({
       onClose={onClose}
       title={config.title}
       icon={
-        <span className={dialogIconClass(isMobile)}>
-          {config.icon}
-        </span>
+        isValidElement(config.icon)
+          ? cloneElement(config.icon as ReactElement<{ className?: string }>, {
+              className: cn(dialogIconClass(isMobile), (config.icon.props as { className?: string }).className),
+            })
+          : config.icon
       }
       isMobile={isMobile}
       allowOverflow={dropdownOpen}

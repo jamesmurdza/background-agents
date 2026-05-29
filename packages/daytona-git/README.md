@@ -30,9 +30,9 @@ const status = await git.status(path)
 console.log(`On branch: ${status.currentBranch}`)
 
 // Remote operations
-await git.fetch(path, token)
-await git.fetch(path, token, "--prune")     // with extra fetch args
-await git.fetch(path, token, "main")        // specific refspec
+await git.fetch(path, token)                // fetch from origin
+await git.fetch(path, token, "main")        // fetch a specific refspec
+await git.fetchBranch(path, "main", token)  // fetch a branch + create remote tracking ref
 await git.pull(path, token)
 await git.push(path, token)                 // defaults to --no-verify
 await git.push(path, token, { noVerify: false })  // run pre-push hooks

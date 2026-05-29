@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@background-agents/daytona-git"
@@ -86,22 +87,32 @@ const jsonResponse = (status: number, body: object) =>
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const sandboxId = url.searchParams.get("sandboxId")
-  const repoName = url.searchParams.get("repoName")
-  const previewUrlPattern = url.searchParams.get("previewUrlPattern")
-  const backgroundSessionId = url.searchParams.get("backgroundSessionId")
   const cursorParam = url.searchParams.get("cursor")
   const chatId = url.searchParams.get("chatId")
   const assistantMessageId = url.searchParams.get("assistantMessageId")
 
-  if (!sandboxId || !repoName || !backgroundSessionId) {
-    return jsonResponse(400, {
-      error: "Missing required fields: sandboxId, repoName, backgroundSessionId",
-    })
-  }
-
   const auth = await requireChatStreamAccess(chatId, assistantMessageId)
   if (isAuthError(auth)) return auth
+
+  // IDOR fix: derive sandbox/session/preview from the *chat row* we just
+  // authorized, NOT from query params. Previously the route used
+  // url.searchParams.get("sandboxId" / "backgroundSessionId" / ...) which any
+  // authenticated user could overwrite with another user's sandbox id —
+  // Daytona uses one app-wide API key (single org) so daytona.get(foreignId)
+  // would succeed. See packages/web/e2e tests for reproduction.
+  const { chat } = auth
+  const sandboxId = chat.sandboxId
+  const backgroundSessionId = chat.backgroundSessionId
+  const previewUrlPattern = chat.previewUrlPattern
+  // The sandbox clone directory is fixed per app convention; the client
+  // always passed "project" anyway, so the value lives here now.
+  const repoName = "project"
+
+  if (!sandboxId || !backgroundSessionId) {
+    return jsonResponse(400, {
+      error: "Chat has no active sandbox or background session",
+    })
+  }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
@@ -209,7 +220,22 @@ export async function GET(req: Request) {
             sessionOpts
           )
 
-          const sig = `${lastSnap.status}|${lastSnap.content.length}|${lastSnap.toolCalls.length}|${lastSnap.contentBlocks.length}|${lastSnap.error ?? ""}`
+          // Hash the full wire payload so any mutation that would change
+          // what we'd send (including in-place tool_end output attachment,
+          // see buildContentBlocks) changes the signature. The previous
+          // length-tuple version skipped tool_end updates because tool
+          // output is attached in place without changing any array length.
+          const sig = createHash("sha1")
+            .update(
+              JSON.stringify({
+                status: lastSnap.status,
+                content: lastSnap.content,
+                toolCalls: lastSnap.toolCalls,
+                contentBlocks: lastSnap.contentBlocks,
+                error: lastSnap.error ?? "",
+              })
+            )
+            .digest("hex")
           if (sig !== lastSentSig) {
             lastSentSig = sig
             cursor += 1

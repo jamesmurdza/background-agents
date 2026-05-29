@@ -12,12 +12,10 @@ import { useEffect, useCallback, useMemo, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import { nanoid } from "nanoid"
-import type { Chat, ChatStatus, Message, QueuedMessage } from "@/lib/types"
+import type { Chat, ChatStatus, Message } from "@/lib/types"
 import { NEW_REPOSITORY, getDefaultModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
 import {
-  setQueuedMessages,
-  setQueuePaused,
   clearLocalStateForChats,
   collectDescendantIds,
   DEFAULT_SETTINGS,
@@ -38,13 +36,10 @@ import {
 import { useStreamStore } from "@/lib/stores/stream-store"
 import { fetchChat, toMessageType } from "@/lib/sync/api"
 import { useStreaming, mergeMessages } from "./useStreaming"
+import { useQueueDispatch } from "./useQueueDispatch"
 import {
   mergeLocalState,
   computeUnseenTransitions,
-  enqueue,
-  removeFromQueue,
-  dequeue,
-  isChatReadyForQueueDispatch,
   removeLocalChatStateFor,
   selectFallbackNextChatId,
 } from "@/lib/chat-state"
@@ -102,7 +97,6 @@ export function useChatWithSync() {
   const prevStatuses = useRef<Map<string, ChatStatus>>(new Map())
   const sendInFlight = useRef<Set<string>>(new Set())
   const stopInFlight = useRef<Set<string>>(new Set())
-  const queueDispatchInFlight = useRef<Set<string>>(new Set())
   const messagesLoadFailed = useRef<Set<string>>(new Set())
   const materializingDraft = useRef<boolean>(false)
 
@@ -198,10 +192,12 @@ export function useChatWithSync() {
   }, [])
 
   // Materialize a draft chat into a real database chat
-  // Returns the full chat object so callers can use it directly without looking it up
+  // Returns the full chat object so callers can use it directly without looking it up.
+  // `activate: false` skips the currentChatId switch so the caller can batch it
+  // with its own cache update (see sendMessage); defaults to true.
   const materializeDraft = useCallback(async (
     draftId: string,
-    options?: { status?: Chat["status"] }
+    options?: { status?: Chat["status"]; activate?: boolean }
   ): Promise<Chat | null> => {
     // Read the draft config straight from the store so we always see the current
     // value, regardless of when this callback's closure was created.
@@ -230,7 +226,9 @@ export function useChatWithSync() {
       // Migrate local state from draft ID to real ID, clear the draft config,
       // and select the real chat (without persisting the selection — matching
       // the prior behaviour).
-      useChatSyncStore.getState().completeMaterialize(draftId, newChat.id)
+      if (options?.activate !== false) {
+        useChatSyncStore.getState().completeMaterialize(draftId, newChat.id)
+      }
 
       return newChat
     } catch (error) {
@@ -355,27 +353,18 @@ export function useChatWithSync() {
     }
   }, [updateSettingsMutation])
 
-  const updateCurrentChat = useCallback(async (updates: Partial<Chat>) => {
-    if (!currentChatId) return
+  // Split a Partial<Chat> into the local-only preview fields (handled by the
+  // sync store) and the server-bound fields (sent through the mutation). The
+  // `in`-check matters: destructuring would produce `undefined` whether the
+  // key was present or absent, and an all-undefined preview update is the
+  // store's "clear it" sentinel — so an unrelated update like { planModeEnabled:
+  // false } would otherwise wipe the preview pane.
+  const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
     const { previewItems, activePreviewIndex, previewPaneHidden, queuedMessages, queuePaused, ...serverUpdates } = updates
 
-    // Handle previewItems/activePreviewIndex/previewPaneHidden fields
-    useChatSyncStore.getState().setPreviewStateForChat(currentChatId, { previewItems, activePreviewIndex, previewPaneHidden })
-
-    if (Object.keys(serverUpdates).length > 0) {
-      try {
-        await updateChatMutation.mutateAsync({ chatId: currentChatId, data: serverUpdates as Parameters<typeof updateChatMutation.mutateAsync>[0]["data"] })
-      } catch (error) {
-        console.error("Failed to update chat:", error)
-      }
+    if ("previewItems" in updates || "activePreviewIndex" in updates || "previewPaneHidden" in updates) {
+      useChatSyncStore.getState().setPreviewStateForChat(chatId, { previewItems, activePreviewIndex, previewPaneHidden })
     }
-  }, [currentChatId, updateChatMutation])
-
-  const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
-    const { previewItems, activePreviewIndex, previewPaneHidden, ...serverUpdates } = updates
-
-    // Handle previewItems/activePreviewIndex/previewPaneHidden fields
-    useChatSyncStore.getState().setPreviewStateForChat(chatId, { previewItems, activePreviewIndex, previewPaneHidden })
 
     if (Object.keys(serverUpdates).length > 0) {
       try {
@@ -386,6 +375,11 @@ export function useChatWithSync() {
     }
   }, [updateChatMutation])
 
+  const updateCurrentChat = useCallback(async (updates: Partial<Chat>) => {
+    if (!currentChatId) return
+    await updateChatById(currentChatId, updates)
+  }, [currentChatId, updateChatById])
+
   // Send message
   const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean) => {
     let chatId = targetChatId || currentChatId
@@ -393,9 +387,14 @@ export function useChatWithSync() {
 
     let chat: Chat | undefined
 
-    // If this is a draft chat, materialize it first
-    if (isDraftChatId(chatId)) {
-      const materializedChat = await materializeDraft(chatId)
+    const draftIdToActivate = isDraftChatId(chatId) ? chatId : null
+
+    // If this is a draft chat, materialize it first. `activate: false` defers the
+    // currentChatId switch until the optimistic messages are in the cache (below),
+    // so the real chat isn't shown empty for one render — which flashed the "new
+    // chat" welcome screen. The draft stays selected until then.
+    if (draftIdToActivate) {
+      const materializedChat = await materializeDraft(chatId, { activate: false })
       if (!materializedChat) {
         console.error("Failed to materialize draft chat before sending message")
         return
@@ -441,6 +440,12 @@ export function useChatWithSync() {
       updateChatsCache((old) => old.map((c) =>
         c.id === chatId ? applyOptimisticSend(c, userMessage, assistantMessage, now) : c
       ))
+
+      // Switch to the real chat in the same synchronous block as the optimistic
+      // update above, so both commit in one render (no empty-chat flash).
+      if (draftIdToActivate) {
+        useChatSyncStore.getState().completeMaterialize(draftIdToActivate, chatId)
+      }
 
       try {
         const payload: SendMessagePayload = {
@@ -501,32 +506,23 @@ export function useChatWithSync() {
     }
   }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, localChatState.previewStates, updateChatById, queryClient])
 
-  const dispatchNextQueuedMessage = useCallback((chatId: string, queueOverride?: QueuedMessage[]) => {
-    const chat = chats.find((c) => c.id === chatId)
-    const queue = queueOverride ?? localChatState.queuedMessages[chatId]
-    if (!chat || !queue || queue.length === 0) return false
-    // In-flight / stream locks are not pure state, so they're checked here.
-    if (queueDispatchInFlight.current.has(chatId)) return false
-    if (sendInFlight.current.has(chatId)) return false
-    if (stopInFlight.current.has(chatId)) return false
-    if (useStreamStore.getState().isStreaming(chatId)) return false
-    if (!isChatReadyForQueueDispatch(chat, queue, localChatState.queuePaused[chatId])) return false
+  // Predicates so useQueueDispatch can check the parent-owned in-flight refs
+  // without holding them directly.
+  const isSendInFlight = useCallback((chatId: string) => sendInFlight.current.has(chatId), [])
+  const isStopInFlight = useCallback((chatId: string) => stopInFlight.current.has(chatId), [])
 
-    const { next: first, rest } = dequeue(queue)
-    queueDispatchInFlight.current.add(chatId)
-    setQueuedMessages(chatId, rest.length > 0 ? rest : undefined)
-    useChatSyncStore.getState().setLocalChatState((prev) => ({
-      ...prev,
-      queuedMessages: { ...prev.queuedMessages, [chatId]: rest.length > 0 ? rest : undefined },
-    }))
-
-    void sendMessage(first.content, first.agent, first.model, undefined, chatId)
-      .finally(() => {
-        queueDispatchInFlight.current.delete(chatId)
-      })
-
-    return true
-  }, [chats, localChatState.queuedMessages, localChatState.queuePaused, sendMessage])
+  // Queue management — owns enqueue/remove/resume/pause + the auto-drain
+  // effect that dispatches the next queued message whenever a chat is idle.
+  const { enqueueMessage, removeQueuedMessage, resumeQueue, pauseQueue } = useQueueDispatch({
+    isHydrated,
+    chats,
+    currentChat,
+    queuedMessages: localChatState.queuedMessages,
+    queuePaused: localChatState.queuePaused,
+    sendMessage,
+    isSendInFlight,
+    isStopInFlight,
+  })
 
   const stopAgent = useCallback(async () => {
     if (!currentChat) return
@@ -553,8 +549,7 @@ export function useChatWithSync() {
     ))
 
     if (hasQueue) {
-      setQueuePaused(chatId, true)
-      useChatSyncStore.getState().setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [chatId]: true } }))
+      pauseQueue(chatId)
     }
 
     // Call the stop endpoint and wait for it to complete before allowing new messages
@@ -569,12 +564,24 @@ export function useChatWithSync() {
     } finally {
       stopInFlight.current.delete(chatId)
     }
-  }, [currentChat, updateChatsCache])
+  }, [currentChat, updateChatsCache, pauseQueue])
 
-  // Resume streaming for running chats
+  // Resume streaming for running chats. The key must include the last
+  // assistant message id, otherwise the effect can fire once when the
+  // chats query returns (with chat.messages still empty because the list
+  // endpoint doesn't include messages — they load via the separate
+  // loadMessages effect), find lastAssistantMsg undefined, silently
+  // skip, and never re-run once messages arrive (the rest of the key
+  // stays the same). Including the message id makes the key naturally
+  // invalidate the moment a streamable assistant placeholder appears.
   const runningChatsKey = chats
     .filter((c) => c.status === "running" && c.backgroundSessionId && c.sandboxId)
-    .map((c) => `${c.id}:${c.backgroundSessionId}:${c.sandboxId}`)
+    .map((c) => {
+      // Id of the most recent assistant message, or "" if none yet.
+      const lastAssistantId =
+        [...c.messages].reverse().find((m) => m.role === "assistant")?.id ?? ""
+      return `${c.id}:${c.backgroundSessionId}:${c.sandboxId}:${lastAssistantId}`
+    })
     .sort()
     .join("|")
 
@@ -619,37 +626,11 @@ export function useChatWithSync() {
     }
   }, [localChatState.previewStates, updateChatById])
 
-  // Queue management
+  // Append a message into the cached chat without going through the server.
+  // Used by callers that have already produced a system message client-side.
   const addMessageToChat = useCallback((chatId: string, message: Message) => {
     updateChatsCache((old) => old.map((c) => c.id === chatId ? { ...c, messages: [...c.messages, message] } : c))
   }, [updateChatsCache])
-
-  const enqueueMessage = useCallback((content: string, agent?: string, model?: string) => {
-    if (!currentChat) return
-    const queued: QueuedMessage = { id: `q-${Date.now()}`, content, agent, model }
-    const newQueue = enqueue(currentChat.queuedMessages, queued)
-
-    setQueuedMessages(currentChat.id, newQueue)
-    setQueuePaused(currentChat.id, false)
-    useChatSyncStore.getState().setLocalChatState((prev) => ({
-      ...prev,
-      queuedMessages: { ...prev.queuedMessages, [currentChat.id]: newQueue },
-      queuePaused: { ...prev.queuePaused, [currentChat.id]: false },
-    }))
-  }, [currentChat])
-
-  const removeQueuedMessage = useCallback((id: string) => {
-    if (!currentChat) return
-    const newQueue = removeFromQueue(currentChat.queuedMessages, id)
-    setQueuedMessages(currentChat.id, newQueue)
-    useChatSyncStore.getState().setLocalChatState((prev) => ({ ...prev, queuedMessages: { ...prev.queuedMessages, [currentChat.id]: newQueue } }))
-  }, [currentChat])
-
-  const resumeQueue = useCallback(() => {
-    if (!currentChat?.queuePaused) return
-    setQueuePaused(currentChat.id, false)
-    useChatSyncStore.getState().setLocalChatState((prev) => ({ ...prev, queuePaused: { ...prev.queuePaused, [currentChat.id]: false } }))
-  }, [currentChat])
 
   // Draft management
   const updateDraft = useCallback((chatId: string, draft: string) => {
@@ -659,19 +640,6 @@ export function useChatWithSync() {
   const clearDraft = useCallback((chatId: string) => {
     useChatSyncStore.getState().setDraftText(chatId, undefined)
   }, [])
-
-  // Drain any ready, unpaused queue. The queue is client-owned, so if the
-  // browser sees a ready chat with queued prompts, it should continue dispatching.
-  useEffect(() => {
-    if (!isHydrated) return
-
-    for (const chat of chats) {
-      const queue = localChatState.queuedMessages[chat.id]
-      const paused = localChatState.queuePaused[chat.id]
-      if (!queue || queue.length === 0 || paused) continue
-      dispatchNextQueuedMessage(chat.id, queue)
-    }
-  }, [chats, dispatchNextQueuedMessage, isHydrated, localChatState.queuedMessages, localChatState.queuePaused])
 
   // Refetch messages for a specific chat (used after git operations add messages on backend)
   // Uses delta sync - only fetches messages after the last known message ID

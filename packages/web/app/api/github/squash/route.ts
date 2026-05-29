@@ -202,7 +202,10 @@ export async function POST(req: Request) {
       if (chatId) {
         await createGitOperationMessage(
           chatId,
-          `Squashed ${compareData.ahead_by} commits into one on ${head}.`
+          `Squashed ${compareData.ahead_by} commits on ${head}.`,
+          false,
+          undefined,
+          head
         )
       }
 
@@ -232,7 +235,7 @@ export async function POST(req: Request) {
     const status = isGitHubApiError(error) ? error.status : 500
 
     if (chatId) {
-      await createGitOperationMessage(chatId, `Squash failed: ${message}`, true)
+      await createGitOperationMessage(chatId, `Squash failed: ${message}.`, true)
     }
 
     return Response.json({ error: message }, { status })

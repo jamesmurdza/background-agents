@@ -13,6 +13,15 @@ import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
  * force re-auth during outages.
  */
 export async function GET() {
+  // Test mode: playwright sessions are minted by `/api/test/auth` without a
+  // real GitHub OAuth token, so the regular check would always return
+  // invalid and surface the re-auth banner. Short-circuit so the banner
+  // never appears in tests. Guarded by the same env flag that gates
+  // `/api/test/auth`, so this is inert in production.
+  if (process.env.ENABLE_TEST_AUTH === "true") {
+    return NextResponse.json({ valid: true })
+  }
+
   const ghAuth = await requireGitHubAuth()
   if (isGitHubAuthError(ghAuth)) {
     return NextResponse.json({ valid: false })

@@ -137,54 +137,6 @@ export async function getUserRepos(
 }
 
 /**
- * Get ALL of the authenticated user's repositories with pagination.
- * Calls onPage callback after each page is fetched for progressive loading.
- */
-export async function getAllUserRepos(
-  token: string,
-  options: {
-    sort?: string
-    perPage?: number
-    affiliation?: string
-    onPage?: (repos: GitHubRepo[], page: number, isComplete: boolean) => void
-  } = {}
-): Promise<GitHubRepo[]> {
-  const {
-    sort = "updated",
-    perPage = 100,
-    affiliation = "owner,collaborator,organization_member",
-    onPage,
-  } = options
-
-  const allRepos: GitHubRepo[] = []
-  let page = 1
-
-  while (true) {
-    const repos = await githubFetch<GitHubRepo[]>(
-      `/user/repos?sort=${sort}&per_page=${perPage}&page=${page}&affiliation=${affiliation}`,
-      token
-    )
-
-    if (!Array.isArray(repos) || repos.length === 0) {
-      // No more repos, signal completion
-      onPage?.(allRepos, page, true)
-      break
-    }
-
-    allRepos.push(...repos)
-
-    // Check if this is the last page
-    const isComplete = repos.length < perPage
-    onPage?.(allRepos, page, isComplete)
-
-    if (isComplete) break
-    page++
-  }
-
-  return allRepos
-}
-
-/**
  * Get a specific repository
  */
 export async function getRepo(token: string, owner: string, repo: string): Promise<GitHubRepo> {

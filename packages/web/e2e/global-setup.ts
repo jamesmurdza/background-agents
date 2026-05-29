@@ -8,13 +8,9 @@
 
 import { execSync } from "child_process"
 import path from "path"
-import { config as loadEnv } from "dotenv"
 
 export default async function globalSetup() {
-  // Load test environment
-  loadEnv({ path: path.resolve(__dirname, "../.env.test") })
-  loadEnv({ path: path.resolve(__dirname, "../../../.env") })
-
+  // Env is already loaded by playwright.config.ts before this runs.
   const dbUrl = process.env.DATABASE_URL || ""
 
   // Safety check: refuse to run on production database
@@ -24,22 +20,23 @@ export default async function globalSetup() {
     )
   }
 
-  // Check that this looks like a test database
+  // Check that this looks like a local database
   // Can be bypassed with I_KNOW_THIS_IS_THE_TEST_DB=true
   const isTestDb =
     process.env.I_KNOW_THIS_IS_THE_TEST_DB === "true" ||
-    dbUrl.includes("test") ||
     dbUrl.includes("localhost") ||
-    dbUrl.includes("127.0.0.1") ||
-    dbUrl.includes("_test")
+    dbUrl.includes("127.0.0.1")
 
   if (!isTestDb) {
     throw new Error(
-      `Refusing to run tests on non-test database!\n` +
-        `DATABASE_URL must contain 'test', 'localhost', or '127.0.0.1'.\n` +
-        `Or set I_KNOW_THIS_IS_THE_TEST_DB=true to bypass.\n` +
-        `Current: ${dbUrl.replace(/:[^:@]+@/, ":****@")}\n\n` +
-        `Create a separate test database and set it in .env.test`
+      `\nRefusing to wipe a non-local database.\n\n` +
+        `Every E2E test run resets the database with \`prisma migrate reset --force\`,\n` +
+        `which drops every table. To guard against accidentally targeting a real DB,\n` +
+        `the DATABASE_URL must contain "localhost" or "127.0.0.1".\n\n` +
+        `Current DATABASE_URL: ${dbUrl.replace(/:[^:@]+@/, ":****@")}\n\n` +
+        `Fix one of:\n` +
+        `  - Point DATABASE_URL at a local test DB (set it in packages/web/.env.test).\n` +
+        `  - Set I_KNOW_THIS_IS_THE_TEST_DB=true if you genuinely want to wipe this one.\n`
     )
   }
 

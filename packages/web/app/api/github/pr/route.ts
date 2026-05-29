@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     if (chatId) {
       await createGitOperationMessage(
         chatId,
-        `Pull request created: #${prData.number} - ${prData.title}`,
+        `Pull request created: #${prData.number} - ${prData.title}.`,
         false,
         { action: "view-pr", prUrl: prData.html_url, prNumber: prData.number }
       )
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     const status = isGitHubApiError(error) ? error.status : 500
 
     if (chatId) {
-      await createGitOperationMessage(chatId, `PR creation failed: ${message}`, true)
+      await createGitOperationMessage(chatId, `PR creation failed: ${message}.`, true)
     }
 
     return Response.json({ error: message }, { status })

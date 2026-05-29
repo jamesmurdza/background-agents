@@ -142,19 +142,13 @@ export async function createBackgroundAgentSession(
 
   // For OpenCode in non-plan mode, inject default permission rules via environment variable
   // (Plan mode permissions are handled by the agent's buildCommand)
-  // Debug: log planMode from options
-  console.log(`[agent-session] options.planMode=${options.planMode}`)
-
   const env = { ...options.env }
   if (agent === "opencode" && !options.planMode) {
     env.OPENCODE_PERMISSION = OPENCODE_PERMISSION_ENV
   }
 
-  // Debug: log the full assembled system prompt before sending to the LLM
-  console.log("[agent-session] System prompt:\n" + systemPrompt)
-
   const bgSession = await createSession(provider, {
-    sandbox: sandbox as any,
+    sandbox,
     systemPrompt,
     sessionId: options.sessionId,
     cwd: options.repoPath,
@@ -282,7 +276,7 @@ export async function finalizeTurn(
       options.skills
     )
     const bgSession = await getSession(backgroundSessionId, {
-      sandbox: sandbox as any,
+      sandbox,
       systemPrompt,
     })
     await bgSession.getEvents()
@@ -308,7 +302,7 @@ export async function cancelBackgroundAgent(
     )
 
     const bgSession = await getSession(backgroundSessionId, {
-      sandbox: sandbox as any,
+      sandbox,
       systemPrompt,
     })
 
@@ -337,7 +331,7 @@ export async function snapshotBackgroundAgent(
     )
 
     const bgSession = await getSession(backgroundSessionId, {
-      sandbox: sandbox as any,
+      sandbox,
       systemPrompt,
     })
 

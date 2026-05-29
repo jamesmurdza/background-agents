@@ -18,7 +18,6 @@ export type {
 export {
   buildSystemPrompt,
   buildContentBlocks,
-  type BuildContentBlocksResult,
   type SkillCatalogEntry,
 } from "./session"
 
@@ -51,21 +50,17 @@ export {
 export {
   // Types
   type GitHubApiError,
-  type GitHubFetchOptions,
   type GitHubUser,
   type GitHubRepo,
   type GitHubBranch,
   type GitHubCompareResult,
   type GitHubPullRequest,
-  type GitHubWebhookConfig,
-  type GitHubWebhook,
   // Core helpers
   githubFetch,
   isGitHubApiError,
   // High-level API methods
   getUser,
   getUserRepos,
-  getAllUserRepos,
   getRepo,
   getRepoBranches,
   compareBranches,
@@ -76,17 +71,11 @@ export {
   // Webhook management
   createWebhook,
   deleteWebhook,
-  listWebhooks,
   hasWebhookPermission,
 } from "./github"
 
 // Branch utilities
-export {
-  // Types
-  type BranchNameOptions,
-  // Functions
-  generateBranchName,
-} from "./branch"
+export { generateBranchName } from "./branch"
 
 // Sandbox utilities
 export { generateSandboxName } from "./sandbox"
@@ -107,15 +96,9 @@ export {
 export {
   // Types
   type RebaseConflictState,
-  type GitStatusResult,
-  type MergeResult,
-  type RebaseResult,
-  type GitOperationContext,
   // Functions
   formatPRTitleFromBranch,
   formatPRBodyFromCommits,
-  isGitNothingToCommitMessage,
-  parseConflictedFiles,
   // Constants
   EMPTY_CONFLICT_STATE,
 } from "./git-operations"

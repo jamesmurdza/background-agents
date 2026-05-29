@@ -63,7 +63,7 @@ export async function finalizeInteractiveChat(
             // Create error message with force-push action (same as SSE stream)
             await createGitOperationMessage(
               chat.id,
-              `Push failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+              `Push failed: ${err instanceof Error ? err.message : "Unknown error"}. You can force push to overwrite the remote history.`,
               true,
               { action: "force-push" }
             )

@@ -3,30 +3,31 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Eye, EyeOff, Key, Sun, Moon, Monitor, Bot, Settings as SettingsIcon, Copy, Check, GitBranch, FlaskConical, RefreshCw } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { useElectron, type LicenseDetectResult } from "@/lib/hooks/useElectron"
-import type { Settings, Theme, Agent, ModelOption, Credentials, CredentialFlags } from "@/lib/types"
-import { agentModels, agentLabels, hasCredentialsForModel, ALL_AGENTS, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
+import type { Settings, Theme, Agent, Credentials, CredentialFlags } from "@/lib/types"
+import { agentModels, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
 import {
   CREDENTIAL_KEYS,
   type CredentialId,
-  type ProviderId,
 } from "@/lib/credentials"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  GeneralSection,
+  ApiKeysSection,
+  GitSection,
+  AppearanceSection,
+  ExperimentalSection,
+  initialCredValues,
+  MASK,
+  type HighlightKey,
+} from "./settings"
 
-/** Which provider's API key field to highlight */
-export type HighlightKey = ProviderId | null
+// Re-export so existing callers keep working.
+export type { HighlightKey }
+
 /** Settings modal section identifier */
 export type SectionKey = "general" | "api-keys" | "git" | "appearance" | "experimental"
 
@@ -46,13 +47,6 @@ interface SettingsModalProps {
   isMobile?: boolean
 }
 
-const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "system", label: "Auto", icon: Monitor },
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-]
-
-
 const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
   { key: "general", label: "General", icon: SettingsIcon },
   { key: "api-keys", label: "API Keys", icon: Key },
@@ -60,117 +54,6 @@ const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "experimental", label: "Experimental", icon: FlaskConical },
 ]
-
-const MASK = "***"
-
-/** Initial input values: "***" for credentials the server already has, "" otherwise. */
-function initialCredValues(flags: CredentialFlags): Record<CredentialId, string> {
-  const out = {} as Record<CredentialId, string>
-  for (const { id } of CREDENTIAL_KEYS) {
-    out[id] = flags[id] ? MASK : ""
-  }
-  return out
-}
-
-// A single settings row: label + optional description on the left, control on the right.
-// Pass `stacked` when the control is tall (e.g. textarea) — then the control goes below.
-function SettingsRow({
-  label,
-  description,
-  children,
-  stacked = false,
-}: {
-  label: React.ReactNode
-  description?: React.ReactNode
-  children?: React.ReactNode
-  stacked?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "flex gap-4 py-3 border-b border-border/30 last:border-b-0",
-        stacked ? "flex-col" : "items-center justify-between"
-      )}
-    >
-      <div className={cn("flex flex-col min-w-0", !stacked && "flex-1")}>
-        <div className="text-sm font-medium truncate">{label}</div>
-        {description && (
-          <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
-        )}
-      </div>
-      {children !== undefined && (
-        <div className={cn("flex-shrink-0", stacked ? "w-full" : "")}>
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Compact password input with show/hide toggle, sized for a SettingsRow control.
-function PasswordInput({
-  value,
-  onChange,
-  placeholder,
-  highlight,
-  inputRef,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  highlight?: boolean
-  inputRef?: (el: HTMLInputElement | null) => void
-}) {
-  const [show, setShow] = useState(false)
-  return (
-    <div className="relative w-56">
-      <Input
-        ref={inputRef}
-        type={show ? "text" : "password"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        data-lpignore="true"
-        data-1p-ignore="true"
-        data-bwignore="true"
-        data-form-type="other"
-        className={cn(
-          "pr-8 font-mono",
-          highlight && "border-red-500 focus:border-red-500 focus:ring-red-500/30"
-        )}
-      />
-      <button
-        type="button"
-        onClick={() => setShow(!show)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-        aria-label={show ? "Hide value" : "Show value"}
-      >
-        {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </button>
-    </div>
-  )
-}
-
-
-// Inline clickable <code> that copies to clipboard and shows a brief check.
-function CopyCode({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <code
-      onClick={() => {
-        navigator.clipboard.writeText(text).catch(() => {})
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      }}
-      className="cursor-pointer inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] hover:bg-accent"
-    >
-      {copied ? <Check className="h-2.5 w-2.5 text-green-500" /> : <Copy className="h-2.5 w-2.5" />}
-      {text}
-    </code>
-  )
-}
 
 export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, defaultSection = "general", isMobile = false }: SettingsModalProps) {
   const { setTheme } = useTheme()
@@ -232,11 +115,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     return out
   }, [credValues])
 
-  // Get available models for the selected agent
-  const availableModels = useMemo(() => {
-    return agentModels[defaultAgent] ?? []
-  }, [defaultAgent])
-
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
@@ -250,6 +128,18 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     }
   }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
 
+  // Refresh license detection
+  const refreshLicenseDetect = useCallback(async () => {
+    if (!isDesktopApp) return
+    setLicenseDetectLoading(true)
+    try {
+      const result = await getClaudeLicenseAutoDetect()
+      setLicenseDetectResult(result)
+    } finally {
+      setLicenseDetectLoading(false)
+    }
+  }, [isDesktopApp, getClaudeLicenseAutoDetect])
+
   // Load license auto-detect settings and check for credentials (desktop only)
   useEffect(() => {
     if (open && isDesktopApp) {
@@ -262,19 +152,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       // Check for auto-detected credentials
       refreshLicenseDetect()
     }
-  }, [open, isDesktopApp, getLicenseDetectSettings])
-
-  // Refresh license detection
-  const refreshLicenseDetect = useCallback(async () => {
-    if (!isDesktopApp) return
-    setLicenseDetectLoading(true)
-    try {
-      const result = await getClaudeLicenseAutoDetect()
-      setLicenseDetectResult(result)
-    } finally {
-      setLicenseDetectLoading(false)
-    }
-  }, [isDesktopApp, getClaudeLicenseAutoDetect])
+  }, [open, isDesktopApp, getLicenseDetectSettings, refreshLicenseDetect])
 
   // Handle auto-detect toggle change
   const handleAutoDetectToggle = useCallback(async (enabled: boolean) => {
@@ -313,7 +191,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   useEffect(() => {
     const models = agentModels[defaultAgent] ?? []
     // If current model isn't valid for the new agent, select the first available
-    const isValidModel = models.some(m => m.value === defaultModel)
+    const isValidModel = models.some((m) => m.value === defaultModel)
     if (!isValidModel && models.length > 0) {
       setDefaultModel(models[0].value)
     }
@@ -426,336 +304,62 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     }
   }
 
-  // Section content blocks (reused across desktop and mobile layouts)
-  const generalSection = (
-    <div>
-      {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
-          <SettingsIcon className="h-5 w-5" />
-          General
-        </h3>
-      )}
-      <SettingsRow label="Agent">
-        <Select value={defaultAgent} onValueChange={(v) => setDefaultAgent(v as Agent)}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Select agent" />
-          </SelectTrigger>
-          <SelectContent>
-            {ALL_AGENTS.map((agent) => (
-              <SelectItem key={agent} value={agent}>
-                {agentLabels[agent]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </SettingsRow>
-      <SettingsRow label="Model">
-        <Select value={defaultModel} onValueChange={setDefaultModel}>
-          <SelectTrigger className="w-56">
-            <SelectValue placeholder="Select model" />
-          </SelectTrigger>
-          <SelectContent>
-            {availableModels.map((model: ModelOption) => {
-              const hasCredentials = hasCredentialsForModel(model, liveFlags, defaultAgent)
-              return (
-                <SelectItem key={model.value} value={model.value}>
-                  {model.label}
-                  {!hasCredentials && model.requiresKey !== "none" ? " (needs API key)" : ""}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
-      </SettingsRow>
-    </div>
-  )
-
-  const gitSection = (
-    <div>
-      {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
-          <GitBranch className="h-5 w-5" />
-          Git
-        </h3>
-      )}
-      <SettingsRow
-        label="Enable pre-push hooks"
-        description="Run pre-push hooks during autopush. When disabled, autopush uses --no-verify."
-      >
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enablePrepushHooks}
-          onClick={() => setEnablePrepushHooks(!enablePrepushHooks)}
-          className={cn(
-            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            enablePrepushHooks ? "bg-primary" : "bg-input"
-          )}
-        >
-          <span
-            className={cn(
-              "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform duration-200 ease-in-out",
-              enablePrepushHooks ? "translate-x-4" : "translate-x-0"
-            )}
-          />
-        </button>
-      </SettingsRow>
-    </div>
-  )
-
-  const experimentalSection = (
-    <div>
-      {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
-          <FlaskConical className="h-5 w-5" />
-          Experimental
-        </h3>
-      )}
-      <SettingsRow
-        label="Rapid fire mode"
-        description="Send tasks without switching to them. The input clears so you can quickly delegate multiple tasks."
-      >
-        <button
-          type="button"
-          role="switch"
-          aria-checked={rapidFireMode}
-          onClick={() => setRapidFireMode(!rapidFireMode)}
-          className={cn(
-            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            rapidFireMode ? "bg-primary" : "bg-input"
-          )}
-        >
-          <span
-            className={cn(
-              "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform duration-200 ease-in-out",
-              rapidFireMode ? "translate-x-4" : "translate-x-0"
-            )}
-          />
-        </button>
-      </SettingsRow>
-    </div>
-  )
-
-  const renderHelpLink = (href: string, text = "Get key") => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-primary hover:underline"
-    >
-      {text}
-    </a>
-  )
-
-  const apiKeysSection = (
-    <div>
-      {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
-          <Key className="h-5 w-5" />
-          API Keys
-        </h3>
-      )}
-      {CREDENTIAL_KEYS.map((field) => {
-        const isHighlighted =
-          highlightKey === field.provider &&
-          // Highlight only the first field for the matching provider.
-          CREDENTIAL_KEYS.find((c) => c.provider === field.provider)?.id === field.id
-        const value = credValues[field.id]
-        const description = field.description ? (
-          field.helpUrl ? (
-            <>
-              {field.description} {renderHelpLink(field.helpUrl, "Get one →")}
-            </>
-          ) : (
-            field.description
-          )
-        ) : field.helpUrl ? (
-          renderHelpLink(field.helpUrl)
-        ) : undefined
-
-        if (field.multiline) {
-          // Special handling for CLAUDE_CODE_CREDENTIALS with auto-detect (desktop only)
-          if (field.id === "CLAUDE_CODE_CREDENTIALS" && isDesktopApp) {
-            const autoDetectActive = licenseAutoDetectEnabled && licenseDetectResult?.found
-            const sourceLabel = licenseDetectResult?.source === "keychain"
-              ? "macOS Keychain"
-              : licenseDetectResult?.source === "file"
-              ? "credentials file"
-              : null
-
-            return (
-              <SettingsRow key={field.id} label={field.label} description={description} stacked>
-                {/* Auto-detect toggle and status */}
-                <div className="mb-3 p-3 rounded-md bg-muted/50 border border-border/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={licenseAutoDetectEnabled}
-                        onClick={() => handleAutoDetectToggle(!licenseAutoDetectEnabled)}
-                        className={cn(
-                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                          licenseAutoDetectEnabled ? "bg-primary" : "bg-input"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform duration-200 ease-in-out",
-                            licenseAutoDetectEnabled ? "translate-x-4" : "translate-x-0"
-                          )}
-                        />
-                      </button>
-                      <span className="text-sm font-medium">Auto-detect from Claude Code</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => refreshLicenseDetect()}
-                      disabled={licenseDetectLoading || !licenseAutoDetectEnabled}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <RefreshCw className={cn("h-3 w-3", licenseDetectLoading && "animate-spin")} />
-                      Refresh
-                    </button>
-                  </div>
-
-                  {/* Status indicator */}
-                  {licenseAutoDetectEnabled && (
-                    <div className="text-xs">
-                      {licenseDetectLoading ? (
-                        <span className="text-muted-foreground">Checking for credentials...</span>
-                      ) : licenseDetectResult?.found ? (
-                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                          <Check className="h-3 w-3" />
-                          Detected from {sourceLabel}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {licenseDetectResult?.error || "Not found - enter manually below"}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {!licenseAutoDetectEnabled && (
-                    <p className="text-xs text-muted-foreground">
-                      Enable to automatically use credentials from your local Claude Code installation.
-                    </p>
-                  )}
-                </div>
-
-                {/* Manual input - shown when auto-detect is off OR credentials not found */}
-                {(!licenseAutoDetectEnabled || !licenseDetectResult?.found) && (
-                  <>
-                    <Textarea
-                      ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
-                      value={value}
-                      onChange={(e) => setCredValue(field.id, e.target.value)}
-                      placeholder={field.placeholder}
-                      rows={3}
-                      autoComplete="off"
-                      spellCheck={false}
-                      data-lpignore="true"
-                      data-1p-ignore="true"
-                      data-bwignore="true"
-                      data-form-type="other"
-                      className="font-mono text-xs"
-                    />
-                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-                      <p>Leave empty to use the shared pool.</p>
-                      <p>
-                        Or sign in with <CopyCode text="claude auth login" />
-                      </p>
-                      <p>
-                        Then paste the output of{" "}
-                        <CopyCode text={'security find-generic-password -s "Claude Code-credentials" -w'} />
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {/* Show indication when auto-detected credentials are being used */}
-                {autoDetectActive && (
-                  <p className="text-xs text-muted-foreground">
-                    Using auto-detected credentials. Toggle off to enter manually.
-                  </p>
-                )}
-              </SettingsRow>
-            )
-          }
-
-          // Default multiline handling (non-CLAUDE_CODE_CREDENTIALS or web app)
-          return (
-            <SettingsRow key={field.id} label={field.label} description={description} stacked>
-              <Textarea
-                ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
-                value={value}
-                onChange={(e) => setCredValue(field.id, e.target.value)}
-                placeholder={field.placeholder}
-                rows={3}
-                autoComplete="off"
-                spellCheck={false}
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                className="font-mono text-xs"
-              />
-              {field.id === "CLAUDE_CODE_CREDENTIALS" && (
-                <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-                  <p>Leave empty to use the shared pool.</p>
-                  <p>
-                    Or sign in with <CopyCode text="claude auth login" />
-                  </p>
-                  <p>
-                    Then paste the output of{" "}
-                    <CopyCode text={'security find-generic-password -s "Claude Code-credentials" -w'} />
-                  </p>
-                </div>
-              )}
-            </SettingsRow>
-          )
-        }
-
+  // Section renderers — kept inline so the form state stays in this component.
+  const renderSection = (key: SectionKey) => {
+    switch (key) {
+      case "general":
         return (
-          <SettingsRow key={field.id} label={field.label} description={description}>
-            <PasswordInput
-              value={value}
-              onChange={(v) => setCredValue(field.id, v)}
-              placeholder={field.placeholder}
-              highlight={isHighlighted}
-              inputRef={setInputRef(field.id) as (el: HTMLInputElement | null) => void}
-            />
-          </SettingsRow>
+          <GeneralSection
+            isMobile={isMobile}
+            defaultAgent={defaultAgent}
+            setDefaultAgent={setDefaultAgent}
+            defaultModel={defaultModel}
+            setDefaultModel={setDefaultModel}
+            liveFlags={liveFlags}
+          />
         )
-      })}
-    </div>
-  )
-
-  const appearanceSection = (
-    <div>
-      {isMobile && (
-        <h3 className="flex items-center gap-2 font-semibold text-base mb-2">
-          <Sun className="h-5 w-5" />
-          Appearance
-        </h3>
-      )}
-      <SettingsRow label="Theme">
-        <Select value={selectedTheme} onValueChange={(v) => handleThemeChange(v as Theme)}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Select theme" />
-          </SelectTrigger>
-          <SelectContent>
-            {themeOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </SettingsRow>
-    </div>
-  )
+      case "api-keys":
+        return (
+          <ApiKeysSection
+            isMobile={isMobile}
+            credValues={credValues}
+            setCredValue={setCredValue}
+            highlightKey={highlightKey}
+            setInputRef={setInputRef}
+            isDesktopApp={isDesktopApp}
+            licenseAutoDetectEnabled={licenseAutoDetectEnabled}
+            onAutoDetectToggle={handleAutoDetectToggle}
+            refreshLicenseDetect={refreshLicenseDetect}
+            licenseDetectLoading={licenseDetectLoading}
+            licenseDetectResult={licenseDetectResult}
+          />
+        )
+      case "git":
+        return (
+          <GitSection
+            isMobile={isMobile}
+            enablePrepushHooks={enablePrepushHooks}
+            setEnablePrepushHooks={setEnablePrepushHooks}
+          />
+        )
+      case "appearance":
+        return (
+          <AppearanceSection
+            isMobile={isMobile}
+            selectedTheme={selectedTheme}
+            onThemeChange={handleThemeChange}
+          />
+        )
+      case "experimental":
+        return (
+          <ExperimentalSection
+            isMobile={isMobile}
+            rapidFireMode={rapidFireMode}
+            setRapidFireMode={setRapidFireMode}
+          />
+        )
+    }
+  }
 
   const activeTitle = sections.find((s) => s.key === activeSection)?.label ?? "Settings"
 
@@ -808,11 +412,9 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
                 ref={contentRef}
                 className="flex-1 overflow-y-auto mobile-scroll p-4 space-y-8"
               >
-                {generalSection}
-                {apiKeysSection}
-                {gitSection}
-                {appearanceSection}
-                {experimentalSection}
+                {sections.map((s) => (
+                  <div key={s.key}>{renderSection(s.key)}</div>
+                ))}
               </div>
 
               {/* Footer */}
@@ -880,11 +482,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
                   <Dialog.Title className="text-xl font-medium pb-4 mb-5 border-b border-border">
                     {activeTitle}
                   </Dialog.Title>
-                  {activeSection === "general" && generalSection}
-                  {activeSection === "api-keys" && apiKeysSection}
-                  {activeSection === "git" && gitSection}
-                  {activeSection === "appearance" && appearanceSection}
-                  {activeSection === "experimental" && experimentalSection}
+                  {renderSection(activeSection)}
                 </div>
 
                 <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3">

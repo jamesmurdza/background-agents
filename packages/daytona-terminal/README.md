@@ -53,7 +53,7 @@ const result = await setupTerminal(sandbox, {
 
 // Result:
 // {
-//   status: "running" | "stopped" | "error",
+//   status: "running" | "starting" | "stopped" | "error",
 //   websocketUrl?: string,  // wss:// URL for terminal connection
 //   httpsUrl?: string,      // https:// URL for health checks
 //   port: number,

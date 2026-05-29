@@ -49,7 +49,7 @@ export interface EnvironmentVariables {
 // =============================================================================
 
 /** Message type for distinguishing system messages from regular chat */
-export type MessageType = "chat" | "git-operation"
+export type MessageType = "chat" | "git-operation" | "error"
 
 /** Action types for git-operation messages */
 export type MessageAction = "force-push" | "view-pr" | "view-branch"

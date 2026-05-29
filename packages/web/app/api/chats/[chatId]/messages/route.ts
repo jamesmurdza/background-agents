@@ -484,9 +484,6 @@ export async function POST(
       console.error("[messages] loadMcpConnections failed:", err)
     }
 
-    // Debug: log planMode from payload
-    console.log(`[messages route] payload.planMode=${payload.planMode}`)
-
     // ── Stage 3b: discover installed skills ───────────────────────────────
     // Scan .agents/skills/ to build the skill catalog for the system prompt.
     // Runs on every message so the catalog stays current (e.g. skills added

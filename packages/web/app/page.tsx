@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { usePathname } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
-import { signInWithGitHub } from "@/lib/auth-utils"
-import { nanoid } from "nanoid"
+import { useSession } from "next-auth/react"
 import { MobileHeader } from "@/components/MobileHeader"
 import { Sidebar } from "@/components/Sidebar"
 import { ChatPanel } from "@/components/ChatPanel"
@@ -12,7 +10,6 @@ import { PreviewView } from "@/components/PreviewView"
 import { AppModals } from "@/components/AppModals"
 import { useGitDialogs } from "@/components/modals/GitDialogs"
 import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
-import { clearAllStorage } from "@/lib/storage"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
@@ -23,6 +20,11 @@ import { usePageTitle } from "@/lib/hooks/usePageTitle"
 import { ROUTES } from "@/lib/hooks/useUrlNavigation"
 import { useUrlSync } from "@/lib/hooks/useUrlSync"
 import { useSandboxActions } from "@/lib/hooks/useSandboxActions"
+import { useDraftChat } from "@/lib/hooks/useDraftChat"
+import { usePendingMessageReplay } from "@/lib/hooks/usePendingMessageReplay"
+import { usePaletteProps } from "@/lib/hooks/usePaletteProps"
+import { useSendMessage } from "@/lib/hooks/useSendMessage"
+import { useBranching } from "@/lib/hooks/useBranching"
 import {
   ChatProvider,
   ModalProvider,
@@ -35,14 +37,10 @@ import {
   type ChatContextValue,
   type GitContextValue,
 } from "@/lib/contexts"
-import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, type Message, type Chat } from "@/lib/types"
+import { NEW_REPOSITORY, type Message, type Chat } from "@/lib/types"
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
-import {
-  savePendingMessage,
-  loadAndClearPendingMessage,
-  hasPendingMessage,
-} from "@/lib/pending-message"
+import { hasPendingMessage } from "@/lib/pending-message"
 import { buildTreeOrderedChatIds, getNextChatIdAfterDeletion } from "@/lib/chat-tree"
 
 function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
@@ -87,7 +85,7 @@ interface HomePageContentProps {
 function HomePageContent({ isMobile }: HomePageContentProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const { githubTokenInvalid } = useGitHubTokenCheck()
+  const { githubTokenInvalid, dismissReAuthBanner } = useGitHubTokenCheck()
   const modals = useModals()
   const sidebar = useSidebar()
 
@@ -114,6 +112,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     claudeIsPro,
     claudeIsWeekly,
     isHydrated,
+    isLoading,
     isLoadingMessages,
     deletingChatIds,
     unseenChatIds,
@@ -149,15 +148,15 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Additional state not in contexts
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
-  // Track when a message send is initiated (for instant UI feedback before server responds)
-  const [isSendingMessage, setIsSendingMessage] = useState(false)
-  // Optimistic messages shown on a draft chat the instant the user sends, so the
-  // view leaves the "new chat" welcome screen immediately instead of waiting for
-  // the draft to be materialized on the server. Keyed by the draft's chat id.
-  const [optimisticDraft, setOptimisticDraft] = useState<{ chatId: string; messages: Message[] } | null>(null)
-  // Rapid fire notification: timestamp of last background task creation, 0 means no notification
-  const [rapidFireNotification, setRapidFireNotification] = useState(0)
   const [skillsModalOpen, setSkillsModalOpen] = useState(false)
+  // Transient error toast (e.g. setup-remote failure). Auto-dismisses after 5s.
+  const [errorBanner, setErrorBanner] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!errorBanner) return
+    const id = setTimeout(() => setErrorBanner(null), 5000)
+    return () => clearTimeout(id)
+  }, [errorBanner])
 
   // Sandbox/repo actions (env vars, download, open in VS Code/GitHub, git clipboard)
   const {
@@ -180,16 +179,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     onOpenEnvVarsModal: () => modals.setEnvVarsModalOpen(true),
   })
 
-  // Preview state from hook
-  const preview = usePreview({
-    currentChat,
-    updateCurrentChat,
-  })
-
-  // Track ports we've already auto-opened in each sandbox so the preview pane
-  // only pops open the *first* time a new server appears — not every poll.
-  const autoOpenedServersRef = useRef<Map<string, Set<number>>>(new Map())
-
   // Use TanStack Query for server polling
   const serversQuery = useServersQuery(
     currentChat?.sandboxId,
@@ -197,18 +186,13 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   )
   const availableServers = serversQuery.data ?? []
 
-  // Track if we've already processed a pending message (to avoid double-sending)
-  const pendingMessageProcessed = useRef(false)
-
-  // Draft chat agent/model — only used when an unauthenticated user is
-  // composing a message before any real chat exists. Stored locally because
-  // the chat row that would normally hold these doesn't exist yet.
-  const [draftAgent, setDraftAgent] = useState<string | null>(null)
-  const [draftModel, setDraftModel] = useState<string | null>(null)
-
-  // Per-chat draft message text (stored in localStorage via useChatWithSync)
-  // For unauthenticated users (draft mode), we use local component state instead.
-  const [draftModeInput, setDraftModeInput] = useState("")
+  // Preview state from hook — also handles auto-opening the first new server
+  // that appears in the current sandbox.
+  const preview = usePreview({
+    currentChat,
+    updateCurrentChat,
+    availableServers,
+  })
 
   // Use TanStack Query for repos and branches
   const reposQuery = useReposQuery()
@@ -222,27 +206,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   )
   const branches = branchesQuery.data ?? []
 
-  // Auto-open the first *new* server we see in this sandbox
-  useEffect(() => {
-    const sandboxId = currentChat?.sandboxId
-    const chatId = currentChat?.id
-    if (!sandboxId || availableServers.length === 0) return
-
-    let seen = autoOpenedServersRef.current.get(sandboxId)
-    if (!seen) {
-      seen = new Set()
-      autoOpenedServersRef.current.set(sandboxId, seen)
-    }
-
-    const newServer = availableServers.find((s) => !seen!.has(s.port))
-    if (newServer) {
-      availableServers.forEach((s) => seen!.add(s.port))
-      if (chatId === currentChat?.id) {
-        preview.openPreview({ type: "server", port: newServer.port, url: newServer.url })
-      }
-    }
-  }, [availableServers, currentChat?.sandboxId, currentChat?.id, preview.openPreview])
-
   // Handler for adding messages to current chat
   const handleAddMessage = useCallback((message: Message) => {
     if (currentChatId) {
@@ -250,54 +213,18 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
   }, [currentChatId, addMessage])
 
-  // Git dialogs state - backend creates messages directly in DB
+  // Git dialogs state — the hook does its own target-chat lookups internally
+  // (finding the chat that owns a branch in this repo) given `chats` and
+  // `updateChatById`, and subscribes to SSE conflict updates via
+  // setOnConflictStateChange so the warning icon refreshes live. Backend
+  // creates messages directly in DB; refetchMessages pulls them down.
   const gitDialogs = useGitDialogs({
     chat: currentChat ?? null,
-    resolveChatName: (branch) => {
-      if (!currentChat) return null
-      const target = chats.find(
-        (c) => c.repo === currentChat.repo && c.branch === branch
-      )
-      return target?.displayName ?? null
-    },
-    getTargetSandboxId: (branch) => {
-      if (!currentChat) return null
-      const target = chats.find(
-        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
-      )
-      return target?.sandboxId ?? null
-    },
-    getTargetChatStatus: (branch) => {
-      if (!currentChat) return null
-      const target = chats.find(
-        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
-      )
-      return target?.status ?? null
-    },
-    onMarkBranchNeedsSync: (branch) => {
-      if (!currentChat) return
-      const target = chats.find(
-        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
-      )
-      if (target) {
-        updateChatById(target.id, { needsSync: true })
-      }
-    },
-    onSetBaseBranch: (branch) => {
-      if (!currentChat) return
-      updateChatById(currentChat.id, { baseBranch: branch })
-    },
+    chats,
+    updateChatById,
     refetchMessages,
+    setOnConflictStateChange,
   })
-
-  // Connect conflict state updates from SSE to gitDialogs
-  // This ensures the warning icon updates after agent resolves conflicts
-  useEffect(() => {
-    setOnConflictStateChange((state) => {
-      gitDialogs.setRebaseConflict(state)
-    })
-    return () => setOnConflictStateChange(null)
-  }, [setOnConflictStateChange, gitDialogs.setRebaseConflict])
 
   // Close mobile sidebar when switching to desktop
   useEffect(() => {
@@ -321,16 +248,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   }, [isMobile, isHydrated, currentChatId, chats, selectChat])
 
 
-  // Materialize the draft chat when the MCP modal needs to commit a change.
-  // Returns the real chatId, or null if materialization failed.
-  const handleMaterializeDraftForMcp = useCallback(
-    async (draftId: string): Promise<string | null> => {
-      const materialized = await materializeDraft(draftId)
-      return materialized?.id ?? null
-    },
-    [materializeDraft]
-  )
-
   // Auto-enter draft mode if user is authenticated but has no chat selected.
   // This replaces the old auto-create behavior - now we just enter draft mode
   // which doesn't create a database record until the first message is sent.
@@ -353,90 +270,71 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isHydrated,
     currentChatId,
     isDraftChatId,
-    draftChatConfig,
     selectChat,
     startNewChat,
     setViewMode: sidebar.setViewMode,
     setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
   })
 
+  // When a draft is materialized into a real chat (e.g. after sending the first
+  // message), the draft id is replaced by a real one. Drafts live at the home
+  // page URL, so promote the URL to /chat/{realId} once it becomes a real chat.
+  const prevChatIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prevId = prevChatIdRef.current
+    prevChatIdRef.current = currentChatId
+    if (!isHydrated || sidebar.viewMode !== "chat") return
+    if (currentChatId && !isDraftChatId(currentChatId) && prevId && isDraftChatId(prevId)) {
+      const target = ROUTES.chat.build(currentChatId)
+      if (window.location.pathname !== target) {
+        window.history.replaceState(null, "", target)
+      }
+    }
+  }, [isHydrated, currentChatId, isDraftChatId, sidebar.viewMode])
+
+  // If the URL points at a chat that doesn't exist (bad/stale link), redirect to
+  // a fresh draft on the home page. We only do this once the chat list has
+  // finished loading — until then we can't tell "missing" from "not loaded yet".
+  useEffect(() => {
+    if (!isHydrated || isLoading) return
+    if (sidebar.viewMode !== "chat") return
+    if (!currentChatId || isDraftChatId(currentChatId)) return
+    if (chats.some((c) => c.id === currentChatId)) return
+    // Unknown chat id — drop it and let the auto-draft effect enter draft mode.
+    selectChat(null)
+    window.history.replaceState(null, "", ROUTES.home.build())
+  }, [isHydrated, isLoading, currentChatId, chats, isDraftChatId, sidebar.viewMode, selectChat])
+
   // =============================================================================
   // Draft Chat & Display Chat
   // =============================================================================
-  // For users without a real chat (either unauthenticated or authenticated
-  // with a draft chat ID), create a synthetic "draft" chat so the UI is
-  // interactive. This must be defined before handlers so they can use
-  // displayCurrentChat instead of checking isDraftChatId everywhere.
-  const unauthDraftIdRef = useRef<string>(`draft-${nanoid()}`)
-  const draftChat: Chat | null = useMemo(() => {
-    if (!isHydrated) return null
-
-    // Optimistic messages for a just-sent draft (so the conversation view shows
-    // instantly while the draft is materialized on the server).
-    const messagesFor = (id: string) =>
-      optimisticDraft && optimisticDraft.chatId === id ? optimisticDraft.messages : []
-
-    // Case 1: Unauthenticated user - use local draft state
-    // This applies when there's no session AND either no chat ID or the chat ID is a draft
-    if (!session && (!currentChatId || isDraftChatId(currentChatId))) {
-      const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
-      const resolvedModel = draftModel ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
-      return {
-        id: currentChatId ?? unauthDraftIdRef.current,
-        repo: NEW_REPOSITORY,
-        baseBranch: "main",
-        branch: null,
-        sandboxId: null,
-        sessionId: null,
-        agent: resolvedAgent,
-        model: resolvedModel,
-        messages: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        status: "pending",
-        displayName: null,
-      }
-    }
-
-    // Case 2: Authenticated user with a draft chat ID - use draftChatConfig
-    if (session && currentChatId && isDraftChatId(currentChatId) && draftChatConfig) {
-      const resolvedAgent = (draftChatConfig.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
-      const resolvedModel = draftChatConfig.model ?? settings.defaultModel ?? getDefaultModelForAgent(resolvedAgent, credentialFlags)
-      const messages = messagesFor(currentChatId)
-      return {
-        id: currentChatId,
-        repo: draftChatConfig.repo,
-        baseBranch: draftChatConfig.baseBranch,
-        branch: null,
-        sandboxId: null,
-        sessionId: null,
-        agent: resolvedAgent,
-        model: resolvedModel,
-        planModeEnabled: draftChatConfig.planMode ?? false,
-        messages,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        status: messages.length > 0 ? "creating" : "pending",
-        displayName: null,
-      }
-    }
-
-    return null
-  }, [isHydrated, session, currentChatId, draftAgent, draftModel, settings.defaultAgent, settings.defaultModel, credentialFlags, isDraftChatId, draftChatConfig, optimisticDraft])
-
-  // Unified current chat - either a real chat or a draft chat
-  const displayCurrentChat = isHydrated ? (currentChat ?? draftChat) : null
-  const isDraftMode = !!draftChat
-  const isAuthenticatedDraft = isDraftMode && !!session
-
-  // Drop optimistic draft messages once we've navigated off that draft — e.g. the
-  // draft was materialized into a real chat (currentChatId changed) or the user
-  // switched chats. The real chat carries its own optimistic messages by then.
-  useEffect(() => {
-    if (optimisticDraft && optimisticDraft.chatId !== currentChatId) {
-      setOptimisticDraft(null)
-    }
-  }, [currentChatId, optimisticDraft])
+  // For users without a real chat (either unauthenticated or authenticated with
+  // a draft chat ID), useDraftChat synthesizes a "draft" chat so the UI is
+  // interactive. It also owns the draft-input state, the agent/model routing
+  // for unauth/auth drafts, and the optimistic-message bookkeeping shown the
+  // instant a draft is sent.
+  const {
+    displayCurrentChat,
+    isDraftMode,
+    handleUpdateChatProp,
+    currentDraft,
+    handleDraftChange,
+    setOptimisticDraft,
+    handleMaterializeDraftForMcp,
+  } = useDraftChat({
+    isHydrated,
+    currentChat,
+    currentChatId,
+    settings,
+    credentialFlags,
+    draftChatConfig,
+    isDraftChatId,
+    updateDraftChatConfig,
+    updateCurrentChat,
+    materializeDraft,
+    drafts,
+    updateDraft,
+  })
 
   // Dynamic page title based on current view
   const pageTitle = useMemo(() => {
@@ -454,18 +352,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   usePageTitle(pageTitle)
 
-  // Clear isSendingMessage once the chat status changes (server responded with optimistic update)
-  // or when the user switches to a different chat
-  useEffect(() => {
-    if (displayCurrentChat?.status === "creating" || displayCurrentChat?.status === "running") {
-      setIsSendingMessage(false)
-    }
-  }, [displayCurrentChat?.status])
-
-  useEffect(() => {
-    // Reset sending state when switching chats
-    setIsSendingMessage(false)
-  }, [displayCurrentChat?.id])
+  // "User clicked send" flow — owns handleSendMessage, handleRapidFireSend,
+  // the isSendingMessage flag (with its auto-reset effects), and the
+  // rapidFireNotification timestamp.
+  const { handleSendMessage, isSendingMessage, rapidFireNotification } = useSendMessage({
+    rapidFireMode: settings.rapidFireMode,
+    sidebar,
+    displayCurrentChat,
+    currentChatId,
+    isDraftMode,
+    sendMessage,
+    startNewChat,
+    setOptimisticDraft,
+    openSignInModal: modals.setSignInModalOpen,
+  })
 
   // =============================================================================
   // Handlers
@@ -495,10 +395,11 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       // Default to NEW_REPOSITORY (no repo)
       newChatId = await startNewChat()
     }
-    // Navigate to the new chat URL
+    // New chats are drafts — they don't get their own URL. Show the home page
+    // (backgrounder.dev) instead of putting the draft id in the URL. Pushing a
+    // history entry keeps the back button working (returns to the prior chat).
     if (newChatId) {
-      // Update URL without triggering Next.js navigation
-      window.history.pushState(null, "", ROUTES.chat.build(newChatId))
+      window.history.pushState(null, "", ROUTES.home.build())
     }
   }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat])
 
@@ -570,13 +471,16 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         })
 
         if (!response.ok) {
-          const error = await response.json()
-          console.error("Failed to set up remote:", error)
-          // TODO: Show error to user
+          const errJson = await response.json().catch(() => ({}))
+          const detail = typeof errJson?.error === "string" ? errJson.error : `HTTP ${response.status}`
+          console.error("Failed to set up remote:", errJson)
+          setErrorBanner(`Couldn't set up remote for ${repo}: ${detail}`)
           return
         }
       } catch (error) {
+        const detail = error instanceof Error ? error.message : "Unknown error"
         console.error("Failed to set up remote:", error)
+        setErrorBanner(`Couldn't set up remote for ${repo}: ${detail}`)
         return
       }
     }
@@ -584,200 +488,33 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     updateChatRepo(displayCurrentChat.id, repo, branch)
   }
 
-  // Handler for sending message
-  const handleSendMessage = (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => {
-    // Always require sign-in to send messages
-    if (!session) {
-      // Store the pending message in sessionStorage (persists across OAuth redirect)
-      // Note: files cannot be persisted, so we warn the user if they have attachments
-      savePendingMessage({ message, agent, model })
-      modals.setSignInModalOpen(true)
-      return
-    }
+  // After sign-in, replay any pending message saved before the OAuth redirect.
+  // The hook handles the two-effect coordination (create chat → stage send →
+  // send once the chat appears in `chats`) and the once-per-session guard.
+  usePendingMessageReplay({
+    isHydrated,
+    chats,
+    currentChatId,
+    startNewChat,
+    sendMessage,
+    updateChatById,
+    onReplayBegin: () => modals.setSignInModalOpen(false),
+  })
 
-    // Rapid fire mode: send as background task without switching
-    if (settings.rapidFireMode) {
-      handleRapidFireSend(message, agent, model, files, planMode)
-      return
-    }
-
-    // Update filter to match the chat's repo if this is the first message and repo differs from filter
-    // This ensures the filter follows the user's choice when starting a chat
-    if (displayCurrentChat && displayCurrentChat.messages.length === 0 &&
-        sidebar.repoFilter !== ALL_REPOSITORIES && sidebar.repoFilter !== displayCurrentChat.repo) {
-      // If chat has no repo, switch to "No repository" filter
-      // Otherwise, switch to the chat's repo
-      if (displayCurrentChat.repo === NEW_REPOSITORY) {
-        sidebar.setRepoFilter(NO_REPOSITORY)
-      } else {
-        sidebar.setRepoFilter(displayCurrentChat.repo)
-      }
-    }
-
-    // Set sending state immediately for instant UI feedback
-    setIsSendingMessage(true)
-
-    // In draft mode, optimistically render the conversation so the UI leaves the
-    // "new chat" welcome screen immediately rather than waiting for the draft to
-    // be materialized on the server. (sendMessage materializes the draft, which
-    // is a server round-trip, before it can add the real optimistic messages.)
-    const draftId = isDraftMode && currentChatId ? currentChatId : null
-    if (draftId) {
-      // Only the user message is needed to leave the welcome screen
-      // (messages.length > 0). The assistant's "thinking" state is shown by the
-      // separate `...` indicator driven by the chat's "creating" status.
-      setOptimisticDraft({
-        chatId: draftId,
-        messages: [
-          { id: `optimistic-user-${nanoid()}`, role: "user", content: message, timestamp: Date.now() },
-        ],
-      })
-    }
-
-    const sendResult = sendMessage(message, agent, model, files, undefined, planMode)
-
-    // Once the send settles, drop the optimistic draft messages. On success the
-    // real chat is already showing (currentChatId changed, so the effect above has
-    // cleared them); on failure this reverts the view to the welcome screen.
-    if (draftId) {
-      void Promise.resolve(sendResult).finally(() => {
-        setOptimisticDraft((cur) => (cur && cur.chatId === draftId ? null : cur))
-      })
-    }
-  }
-
-  // Rapid fire: send as a new background chat without switching
-  const handleRapidFireSend = useCallback(async (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => {
-    if (!session) {
-      savePendingMessage({ message, agent, model })
-      modals.setSignInModalOpen(true)
-      return
-    }
-
-    const repo = displayCurrentChat?.repo ?? NEW_REPOSITORY
-    const baseBranch = displayCurrentChat?.baseBranch ?? "main"
-
-    const chatId = await startNewChat(repo, baseBranch, undefined, false, "pending", agent, model)
-    if (!chatId) return
-
-    sendMessage(message, agent, model, files, chatId, planMode)
-    setRapidFireNotification(Date.now())
-  }, [session, displayCurrentChat, startNewChat, sendMessage, modals, setRapidFireNotification])
-
-  // After sign-in, replay any pending message saved before the OAuth
-  // redirect. Two effects work together to avoid a stale-closure race:
-  //   (a) pending-replay: creates the chat, then stages a "pending send"
-  //       referencing the new chat ID.
-  //   (b) pending-send: fires once `chats` actually contains the new
-  //       chat (so sendMessage's state.chats is fresh enough to locate
-  //       it). Calls sendMessage and clears the staging state.
-  const [pendingSend, setPendingSend] = useState<
-    { chatId: string; message: string; agent: string; model: string } | null
-  >(null)
-
-  useEffect(() => {
-    if (!session || !isHydrated || pendingMessageProcessed.current) return
-
-    const pending = loadAndClearPendingMessage()
-    if (!pending) return
-
-    pendingMessageProcessed.current = true
-    modals.setSignInModalOpen(false)
-
-    void (async () => {
-      let chatId = currentChatId
-      if (!chatId) {
-        chatId = await startNewChat()
-        if (!chatId) return
-      }
-      // Persist the agent/model picked in draft mode so subsequent
-      // messages on this chat use them too. Best-effort.
-      updateChatById(chatId, {
-        agent: pending.agent,
-        model: pending.model,
-      }).catch(() => {})
-      setPendingSend({
-        chatId,
-        message: pending.message,
-        agent: pending.agent,
-        model: pending.model,
-      })
-    })()
-  }, [session, isHydrated, startNewChat, updateChatById, currentChatId, modals])
-
-  useEffect(() => {
-    if (!pendingSend) return
-    if (!chats.some((c) => c.id === pendingSend.chatId)) return
-    const { message, agent, model, chatId } = pendingSend
-    setPendingSend(null)
-    sendMessage(message, agent, model, undefined, chatId)
-  }, [pendingSend, chats, sendMessage])
-
-
-  // Handler for slash commands - open the corresponding git dialog
-  // Start a new chat off the current chat's branch. Defined before
-  // handleSlashCommand so "/branch" can call it.
-  // Use branch if available (sandbox created), otherwise baseBranch (before first message)
-  const branchForNewChat = currentChat?.branch || currentChat?.baseBranch
-  const canBranch = !!(branchForNewChat && currentChat?.repo !== NEW_REPOSITORY)
-
-  // Shared helper for creating a background branch and optionally sending a message.
-  // Returns false if branch creation is not possible or was aborted.
-  const createBranchAndSend = useCallback(async (options?: {
-    message?: string
-    agent?: string
-    model?: string
-    /** If true, save the message for retry after sign-in */
-    savePendingOnAuth?: boolean
-  }): Promise<boolean> => {
-    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return false
-    if (!session) {
-      if (options?.savePendingOnAuth && options.message && options.agent && options.model) {
-        savePendingMessage({ message: options.message, agent: options.agent, model: options.model })
-      }
-      modals.setSignInModalOpen(true)
-      return false
-    }
-    // When no message is provided, navigate to the new chat
-    const navigateToChat = !options?.message
-    // Use provided agent/model or inherit from current chat
-    const agentToUse = options?.agent ?? currentChat?.agent
-    const modelToUse = options?.model ?? currentChat?.model
-    // Create new chat in "pending" state (allows sendMessage) without switching to it
-    const chatId = await startNewChat(
-      currentChat.repo,
-      branchForNewChat,
-      currentChat.id,
-      navigateToChat,
-      navigateToChat ? undefined : "pending",
-      agentToUse,
-      modelToUse
-    )
-    if (!chatId) return false
-    // Send message to the new chat if provided (it runs in background)
-    if (options?.message) {
-      sendMessage(options.message, options.agent, options.model, undefined, chatId)
-    }
-    return true
-  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, modals])
-
-  const handleBranchChat = useCallback(() => {
-    createBranchAndSend()
-  }, [createBranchAndSend])
-
-  // Branch and send a message to the new chat (Option+Enter)
-  // The new chat starts in the background - we stay on the current chat
-  const handleBranchWithMessage = useCallback(async (message: string, agent: string, model: string) => {
-    await createBranchAndSend({ message, agent, model, savePendingOnAuth: true })
-  }, [createBranchAndSend])
-
-  // Branch a queued message to a new chat (removes from queue)
-  // The new chat starts in the background - we stay on the current chat
-  const handleBranchQueuedMessage = useCallback(async (id: string, message: string, agent?: string, model?: string) => {
-    // Remove from queue first
-    removeQueuedMessage(id)
-    await createBranchAndSend({ message, agent, model })
-  }, [createBranchAndSend, removeQueuedMessage])
+  // "Branch this chat" family — owns canBranch + the three branch handlers
+  // (bare / with-message / from-queue). All flow through one shared helper.
+  const {
+    canBranch,
+    handleBranchChat,
+    handleBranchWithMessage,
+    handleBranchQueuedMessage,
+  } = useBranching({
+    currentChat,
+    startNewChat,
+    sendMessage,
+    removeQueuedMessage,
+    openSignInModal: modals.setSignInModalOpen,
+  })
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
@@ -878,48 +615,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const displayChats = isHydrated ? chats : []
   const displayCurrentChatId = isHydrated ? currentChatId : null
 
-  // When in draft mode, agent/model dropdowns route to local draft state
-  // because no real chat row exists to PATCH yet.
-  const handleUpdateChatProp = useCallback(
-    (updates: Partial<Chat>) => {
-      if (isDraftMode) {
-        if (isAuthenticatedDraft) {
-          // Authenticated draft - update via hook (updates both React state and localStorage)
-          // Only include defined values to avoid overwriting existing config fields
-          const draftUpdates: { agent?: string | null; model?: string | null; repo?: string; baseBranch?: string; planMode?: boolean } = {}
-          if (updates.agent !== undefined) draftUpdates.agent = updates.agent
-          if (updates.model !== undefined) draftUpdates.model = updates.model
-          if (updates.repo !== undefined) draftUpdates.repo = updates.repo
-          if (updates.baseBranch !== undefined) draftUpdates.baseBranch = updates.baseBranch
-          if (updates.planModeEnabled !== undefined) draftUpdates.planMode = updates.planModeEnabled
-          updateDraftChatConfig(draftUpdates)
-        } else {
-          // Unauthenticated draft - use local component state
-          if (updates.agent !== undefined) setDraftAgent(updates.agent)
-          if (updates.model !== undefined) setDraftModel(updates.model)
-        }
-        return
-      }
-      updateCurrentChat(updates)
-    },
-    [isDraftMode, isAuthenticatedDraft, updateDraftChatConfig, updateCurrentChat]
-  )
-
-  // Per-chat draft handling: in draft mode use local state, otherwise use
-  // localStorage-backed drafts keyed by chatId.
-  const currentDraft = isDraftMode
-    ? draftModeInput
-    : (currentChatId ? (drafts[currentChatId] ?? "") : "")
-
-  const handleDraftChange = useCallback((draft: string) => {
-    if (isDraftMode) {
-      setDraftModeInput(draft)
-      return
-    }
-    if (!currentChatId) return
-    updateDraft(currentChatId, draft)
-  }, [isDraftMode, currentChatId, updateDraft])
-
   // Build context values for child components
   const chatContextValue: ChatContextValue = useMemo(() => ({
     currentChat: displayCurrentChat,
@@ -979,151 +674,88 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isWeekly: claudeIsWeekly,
   }), [claudeLimitUsed, claudeLimitRemaining, claudeLimitTotal, claudeIsPro, claudeLimitResetAt, claudeIsWeekly])
 
+  // Assemble the (large) PaletteProvider props object — see usePaletteProps
+  // for the conditional-action wiring (terminal open/toggle, sign-in/out,
+  // git-command gating, etc.).
+  const paletteProps = usePaletteProps({
+    isMobile,
+    repos,
+    branches,
+    displayChats,
+    displayCurrentChatId,
+    currentChat,
+    availableServers,
+    canBranch,
+    rapidFireMode: settings.rapidFireMode,
+    githubBranchUrl,
+    isDownloading,
+    handleOpenInGitHub,
+    handleOpenInVSCode,
+    handleDownloadProject,
+    handleCopyCloneCommand,
+    handleCopyCheckoutCommand,
+    handleOpenEnvVars,
+    handlePaletteSelectRepo,
+    handlePaletteSelectBranch,
+    handleRunCommand,
+    handleNewChat,
+    handleBranchChat,
+    handleCreateRepo,
+    handleNavigateChat,
+    handleSelectChat,
+    modals,
+    sidebar,
+    preview,
+    onToggleRapidFire: () =>
+      updateSettings({ settings: { rapidFireMode: !settings.rapidFireMode } }),
+    onToggleSkillsModal: () => setSkillsModalOpen((prev) => !prev),
+  })
+
   return (
-    <PaletteProvider
-      repos={repos}
-      currentRepo={currentChat?.repo !== NEW_REPOSITORY ? currentChat?.repo ?? null : null}
-      branches={branches}
-      chats={displayChats.filter((c) => c.displayName !== null).map((c) => ({ id: c.id, displayName: c.displayName, repo: c.repo }))}
-      onSelectRepo={handlePaletteSelectRepo}
-      onSelectBranch={handlePaletteSelectBranch}
-      onRunCommand={handleRunCommand}
-      onNewChat={handleNewChat}
-      onBranchChat={canBranch ? handleBranchChat : undefined}
-      onCreateRepo={currentChat?.repo === NEW_REPOSITORY ? handleCreateRepo : undefined}
-      showGitCommands={!!currentChat && currentChat.repo !== NEW_REPOSITORY}
-      onOpenInGitHub={githubBranchUrl ? handleOpenInGitHub : undefined}
-      onOpenSettings={modals.openSettingsSection}
-      onToggleSidebar={!isMobile ? () => sidebar.toggleCollapse() : undefined}
-      onSignIn={!session ? () => signInWithGitHub() : undefined}
-      onSignOut={session ? () => {
-            clearAllStorage()
-            signOut()
-          } : undefined}
-      onDeleteChat={displayCurrentChatId ? () => modals.setDeleteConfirmChatId(displayCurrentChatId) : undefined}
-      onOpenInVSCode={currentChat?.sandboxId ? handleOpenInVSCode : undefined}
-      onOpenTerminal={
-        currentChat?.sandboxId
-          ? () => {
-              // Generate a unique terminal ID by finding the next available number
-              const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
-              const terminalNumbers = existingTerminals.map((t) => {
-                if (t.type !== "terminal") return 0
-                const match = t.id.match(/-(\d+)$/)
-                return match ? parseInt(match[1], 10) : 1
-              })
-              const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
-              preview.openPreview({ type: "terminal", id: `${currentChat.sandboxId}-${nextNumber}` })
-            }
-          : undefined
-      }
-      onToggleTerminal={
-        currentChat?.sandboxId
-          ? () => {
-              const existingTerminal = preview.previewItems.find((i) => i.type === "terminal")
-              if (existingTerminal) {
-                // Terminal exists — toggle pane visibility
-                if (preview.previewOpen) {
-                  preview.closePreview()
-                } else {
-                  preview.openPreview(existingTerminal)
-                }
-              } else {
-                // No terminal yet — create one and show it
-                preview.openPreview({ type: "terminal", id: `${currentChat.sandboxId}-1` })
-              }
-            }
-          : undefined
-      }
-      servers={availableServers}
-      onOpenServer={(port, url) => preview.openPreview({ type: "server", port, url })}
-      onClosePreview={preview.previewOpen ? preview.closePreview : undefined}
-      onShowPreview={preview.previewPaneHidden && preview.previewItems.length > 0 ? preview.showPreview : undefined}
-      onDownloadProject={currentChat?.sandboxId ? handleDownloadProject : undefined}
-      isDownloading={isDownloading}
-      onCopyCloneCommand={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? handleCopyCloneCommand : undefined}
-      onCopyCheckoutCommand={currentChat?.branch ? handleCopyCheckoutCommand : undefined}
-      onOpenEnvVars={currentChat ? handleOpenEnvVars : undefined}
-      onOpenMcpServers={displayCurrentChatId && session ? () => modals.setMcpServersModalOpen(true) : undefined}
-      onOpenSkills={
-        currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY
-          ? () => setSkillsModalOpen((prev) => !prev)
-          : undefined
-      }
-      chatIds={displayChats.map((c) => c.id)}
-      onNavigateChat={handleNavigateChat}
-      currentChatId={displayCurrentChatId}
-      onSelectChat={handleSelectChat}
-      rapidFireMode={settings.rapidFireMode}
-      onToggleRapidFire={() => updateSettings({ settings: { rapidFireMode: !settings.rapidFireMode } })}
-    >
+    <PaletteProvider {...paletteProps}>
     <ChatProvider value={chatContextValue}>
     <GitProvider value={gitContextValue}>
     <div className={`flex overflow-hidden ${isMobile ? 'h-screen-mobile' : 'h-screen'}`}>
-      {/* Desktop Sidebar */}
-      {!isMobile && (
-        <Sidebar
-          chats={displayChats}
-          currentChatId={displayCurrentChatId}
-          deletingChatIds={deletingChatIds}
-          unseenChatIds={unseenChatIds}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleNewChat}
-          onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
-          onRenameChat={renameChat}
-          collapsed={sidebar.collapsed}
-          onToggleCollapse={() => sidebar.toggleCollapse()}
-          width={sidebar.width}
-          onWidthChange={sidebar.setWidth}
-          isMobile={false}
-          repoFilter={sidebar.repoFilter}
-          onRepoFilterChange={sidebar.setRepoFilter}
-          collapsedChatIds={sidebar.collapsedChatIds}
-          onToggleChatCollapsed={sidebar.toggleChatCollapsed}
-          onRequestMergeChats={handleRequestMergeChats}
-          onRequestRebaseChat={handleRequestRebaseChat}
-          onOpenScheduledJobs={handleOpenScheduledJobs}
-          scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
-          selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
-          isLoadingChats={!isHydrated}
-          claudeUsage={claudeUsage}
-        />
-      )}
-
-      {/* Mobile Sidebar (Drawer) */}
-      {isMobile && (
-        <Sidebar
-          chats={displayChats}
-          currentChatId={displayCurrentChatId}
-          deletingChatIds={deletingChatIds}
-          unseenChatIds={unseenChatIds}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleNewChat}
-          onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
-          onRenameChat={renameChat}
-          collapsed={false}
-          onToggleCollapse={() => {}}
-          width={280}
-          onWidthChange={() => {}}
-          isMobile={true}
-          mobileOpen={sidebar.mobileSidebarOpen}
-          onMobileClose={() => sidebar.setMobileSidebarOpen(false)}
-          repoFilter={sidebar.repoFilter}
-          onRepoFilterChange={sidebar.setRepoFilter}
-          collapsedChatIds={sidebar.collapsedChatIds}
-          onToggleChatCollapsed={sidebar.toggleChatCollapsed}
-          onRequestMergeChats={handleRequestMergeChats}
-          onRequestRebaseChat={handleRequestRebaseChat}
-          onOpenScheduledJobs={() => {
-            handleOpenScheduledJobs()
-            sidebar.setMobileSidebarOpen(false)
-          }}
-          scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
-          selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
-          isLoadingChats={!isHydrated}
-          claudeUsage={claudeUsage}
-        />
-      )}
+      {/* Sidebar — desktop renders inline, mobile renders as a drawer.
+          The Sidebar component branches on isMobile internally, so the only
+          props that actually differ are the collapse/width controls (no-op on
+          mobile), the drawer-specific mobileOpen/onMobileClose, and the
+          scheduled-jobs handler (which also closes the drawer on mobile). */}
+      <Sidebar
+        chats={displayChats}
+        currentChatId={displayCurrentChatId}
+        deletingChatIds={deletingChatIds}
+        unseenChatIds={unseenChatIds}
+        onSelectChat={handleSelectChat}
+        onNewChat={handleNewChat}
+        onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
+        onRenameChat={renameChat}
+        isMobile={isMobile}
+        collapsed={isMobile ? false : sidebar.collapsed}
+        onToggleCollapse={isMobile ? () => {} : () => sidebar.toggleCollapse()}
+        width={isMobile ? 280 : sidebar.width}
+        onWidthChange={isMobile ? () => {} : sidebar.setWidth}
+        mobileOpen={isMobile ? sidebar.mobileSidebarOpen : undefined}
+        onMobileClose={isMobile ? () => sidebar.setMobileSidebarOpen(false) : undefined}
+        repoFilter={sidebar.repoFilter}
+        onRepoFilterChange={sidebar.setRepoFilter}
+        collapsedChatIds={sidebar.collapsedChatIds}
+        onToggleChatCollapsed={sidebar.toggleChatCollapsed}
+        onRequestMergeChats={handleRequestMergeChats}
+        onRequestRebaseChat={handleRequestRebaseChat}
+        onOpenScheduledJobs={
+          isMobile
+            ? () => {
+                handleOpenScheduledJobs()
+                sidebar.setMobileSidebarOpen(false)
+              }
+            : handleOpenScheduledJobs
+        }
+        scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
+        selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
+        isLoadingChats={!isHydrated || (isLoading && displayChats.length === 0)}
+        claudeUsage={claudeUsage}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -1218,9 +850,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         <div className="fixed inset-0 z-[999] cursor-col-resize" />
       )}
 
+      {/* Transient error toast — auto-dismisses 5s after errorBanner is set. */}
+      {errorBanner && (
+        <div
+          role="alert"
+          className="fixed top-4 right-4 z-[1000] max-w-md bg-destructive text-destructive-foreground px-4 py-3 rounded-md shadow-lg text-sm animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          {errorBanner}
+        </div>
+      )}
+
       <AppModals
         isMobile={isMobile}
         githubTokenInvalid={githubTokenInvalid}
+        onDismissReAuthBanner={dismissReAuthBanner}
         onRepoSelect={handleRepoSelect}
         onSaveSettings={updateSettings}
         onSaveEnvVars={handleSaveEnvVars}

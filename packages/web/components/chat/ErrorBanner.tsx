@@ -7,11 +7,15 @@ import { cn } from "@/lib/utils"
 interface ErrorBannerProps {
   message: string
   isMobile?: boolean
+  /** Resend the last user message. The banner unmounts on its own when the
+   *  parent sees `chat.status !== "error"`. */
+  onRetry?: () => Promise<void> | void
 }
 
-export function ErrorBanner({ message, isMobile }: ErrorBannerProps) {
+export function ErrorBanner({ message, isMobile, onRetry }: ErrorBannerProps) {
   const [expanded, setExpanded] = useState(false)
   const [overflow, setOverflow] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -19,6 +23,12 @@ export function ErrorBanner({ message, isMobile }: ErrorBannerProps) {
     if (!el) return
     setOverflow(el.scrollHeight > el.clientHeight + 1)
   }, [message, expanded])
+
+  const handleRetry = async () => {
+    if (!onRetry || isRetrying) return
+    setIsRetrying(true)
+    try { await onRetry() } finally { setIsRetrying(false) }
+  }
 
   return (
     <div
@@ -44,15 +54,28 @@ export function ErrorBanner({ message, isMobile }: ErrorBannerProps) {
         >
           {message}
         </div>
-        {(overflow || expanded) && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="mt-1 underline underline-offset-2 hover:no-underline cursor-pointer"
-          >
-            {expanded ? "Show less" : "Show more"}
-          </button>
-        )}
+        <div className="mt-1 flex items-center gap-3">
+          {(overflow || expanded) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="underline underline-offset-2 hover:no-underline cursor-pointer"
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
+          {onRetry && (
+            <button
+              type="button"
+              data-testid="chat-error-retry"
+              onClick={handleRetry}
+              disabled={isRetrying}
+              className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:cursor-default disabled:no-underline disabled:opacity-70"
+            >
+              {isRetrying ? "Retrying…" : "Retry"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

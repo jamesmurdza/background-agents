@@ -92,14 +92,13 @@ ${catalog}
 - Always start web servers using nohup to ensure they run in the background and persist.
 - Example: nohup npm start > server.log 2>&1 &
 
-## Running Long Commands
-- For any command that may take more than a few minutes (builds, dependency installs, full test suites, data migrations), run it in the background with nohup and redirect output to a log file instead of blocking on it in the foreground.
-- Example: nohup npm run build > ${PATHS.LOGS_DIR}/build.log 2>&1 &
-- Poll the log file to follow progress (e.g. tail -n 20 ${PATHS.LOGS_DIR}/build.log) and check whether the process is still running before moving on.
-- Backgrounding keeps your turn responsive and prevents a single long-blocking command from being interrupted.
-
 ## When Finished
 - Provide a clear summary of what you did.
+
+## Asking the User Questions
+- Never use the AskUserQuestion tool.
+- When you need clarification, ask the user directly by writing a numbered list of questions in your response.
+- After asking, finish your turn so the user can respond.
 
 ## User Slash Commands
 The user has access to the following slash commands in the chat interface:

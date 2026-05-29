@@ -33,13 +33,22 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
   // Link for view-pr action
   const prUrl = metadata?.action === "view-pr" && metadata?.prUrl ? metadata.prUrl : null
 
-  // Parse "Merged X into Y" / "Squash merged X into Y" to bold the two names,
-  // whether they're branch names or chat titles.
-  const parseMergeMessage = (text: string) => {
-    const mergeMatch = text.match(/^((?:Squash )?[Mm]erged )(.+?)( into )(.+?)([.]?)$/)
-    if (mergeMatch) {
-      const [, prefix, source, mid, target, suffix] = mergeMatch
-      return { prefix, source, mid, target, suffix }
+  // Parse git-operation messages to bold the branch/chat names.
+  // Two-name patterns: "Merged X into Y", "Squash merged X into Y", "Rebased X onto Y"
+  // One-name patterns: "Force pushed X", "Squashed N commits on B"
+  const parseOperationMessage = (text: string):
+    | { type: "two"; prefix: string; source: string; mid: string; target: string; suffix: string }
+    | { type: "one"; prefix: string; name: string; suffix: string }
+    | null => {
+    const twoMatch = text.match(/^((?:Squash )?[Mm]erged |Rebased )(.+?)( (?:into|onto) )(.+?)(\.?)$/)
+    if (twoMatch) {
+      const [, prefix, source, mid, target, suffix] = twoMatch
+      return { type: "two", prefix, source, mid, target, suffix }
+    }
+    const oneMatch = text.match(/^(Force pushed |Squashed .+? on )(.+?)(\.?)$/)
+    if (oneMatch) {
+      const [, prefix, name, suffix] = oneMatch
+      return { type: "one", prefix, name, suffix }
     }
     return null
   }
@@ -52,7 +61,7 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
   const forcePushIdx = hasForcePushAction ? content.toLowerCase().indexOf(FORCE_PUSH_TEXT) : -1
   const hasForcePushLink = forcePushIdx !== -1
 
-  const parsed = parseMergeMessage(content)
+  const parsed = parseOperationMessage(content)
 
   const renderContent = () => {
     if (hasForcePushLink && onForcePush) {
@@ -73,12 +82,21 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
       )
     }
     if (!parsed) return content
+    if (parsed.type === "two") {
+      return (
+        <>
+          {parsed.prefix}
+          <span className="font-semibold">{parsed.source}</span>
+          {parsed.mid}
+          <span className="font-semibold">{parsed.target}</span>
+          {parsed.suffix}
+        </>
+      )
+    }
     return (
       <>
         {parsed.prefix}
-        <span className="font-semibold">{parsed.source}</span>
-        {parsed.mid}
-        <span className="font-semibold">{parsed.target}</span>
+        <span className="font-semibold">{parsed.name}</span>
         {parsed.suffix}
       </>
     )

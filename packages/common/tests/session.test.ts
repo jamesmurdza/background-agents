@@ -99,4 +99,12 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt(repoPath)
     expect(prompt).toContain("## Logs Directory")
   })
+
+  it("instructs the agent not to use AskUserQuestion and to ask inline instead", () => {
+    const prompt = buildSystemPrompt(repoPath)
+    expect(prompt).toContain("## Asking the User Questions")
+    expect(prompt).toContain("Never use the AskUserQuestion tool")
+    expect(prompt).toContain("numbered list of questions")
+    expect(prompt).toContain("finish your turn")
+  })
 })

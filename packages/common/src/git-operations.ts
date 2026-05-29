@@ -87,32 +87,6 @@ export function formatPRBodyFromCommits(commits: string[]): string {
   return commits.map((c) => `- ${c}`).join("\n")
 }
 
-// =============================================================================
-// Git Command Helpers
-// =============================================================================
-
-/**
- * Check if a git message indicates nothing to commit
- */
-export function isGitNothingToCommitMessage(message: string): boolean {
-  const lowerMessage = message.toLowerCase()
-  return (
-    lowerMessage.includes("nothing to commit") ||
-    lowerMessage.includes("no changes added to commit") ||
-    lowerMessage.includes("working tree clean")
-  )
-}
-
-/**
- * Parse conflicted files from git diff output
- */
-export function parseConflictedFiles(diffOutput: string): string[] {
-  return diffOutput
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-}
-
 /**
  * Default empty conflict state
  */
