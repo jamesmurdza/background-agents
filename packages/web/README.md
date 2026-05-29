@@ -107,7 +107,7 @@ Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to appl
 Env (`.env.test`):
 
 ```bash
-# DATABASE_URL MUST contain "test", "localhost", or "127.0.0.1" (safety check)
+# DATABASE_URL MUST contain "localhost" or "127.0.0.1" (safety check)
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
 DAYTONA_API_KEY="dtn_..."           # real key — tests create real sandboxes
 

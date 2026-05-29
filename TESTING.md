@@ -33,7 +33,7 @@ sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents_test OWNER sandboxed;
 
 **Env setup** — put the **Testing** env block from [`packages/web/README.md`](packages/web/README.md#testing-e2e) in `packages/web/.env.test`, and put `DAYTONA_API_KEY` in root `.env.local`.
 
-The `DATABASE_URL` must contain `test`, `localhost`, or `127.0.0.1`, or you must set `I_KNOW_THIS_IS_THE_TEST_DB=true`. This guards against accidents — every test run wipes the database with `prisma migrate reset --force`.
+The `DATABASE_URL` must contain `localhost` or `127.0.0.1`, or you must set `I_KNOW_THIS_IS_THE_TEST_DB=true`. This guards against accidents — every test run wipes the database with `prisma migrate reset --force`.
 
 ### Run
 

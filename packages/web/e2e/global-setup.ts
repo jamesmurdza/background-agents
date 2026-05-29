@@ -20,19 +20,17 @@ export default async function globalSetup() {
     )
   }
 
-  // Check that this looks like a test database
+  // Check that this looks like a local database
   // Can be bypassed with I_KNOW_THIS_IS_THE_TEST_DB=true
   const isTestDb =
     process.env.I_KNOW_THIS_IS_THE_TEST_DB === "true" ||
-    dbUrl.includes("test") ||
     dbUrl.includes("localhost") ||
-    dbUrl.includes("127.0.0.1") ||
-    dbUrl.includes("_test")
+    dbUrl.includes("127.0.0.1")
 
   if (!isTestDb) {
     throw new Error(
-      `Refusing to run tests on non-test database!\n` +
-        `DATABASE_URL must contain 'test', 'localhost', or '127.0.0.1'.\n` +
+      `Refusing to run tests on non-local database!\n` +
+        `DATABASE_URL must contain 'localhost' or '127.0.0.1'.\n` +
         `Or set I_KNOW_THIS_IS_THE_TEST_DB=true to bypass.\n` +
         `Current: ${dbUrl.replace(/:[^:@]+@/, ":****@")}\n\n` +
         `Create a separate test database and set it in .env.test`
