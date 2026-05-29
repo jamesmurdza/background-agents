@@ -5,6 +5,7 @@ import { PATHS } from "@/lib/constants"
 import { EMPTY_CONFLICT_STATE } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
 import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, RebaseConflictState } from "./types"
+import { callSandboxGit } from "./api"
 
 // ============================================================================
 // useGitDialogs Hook
@@ -165,28 +166,27 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     const targetName = resolveChatName(selectedBranch) || selectedBranch
 
     try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "merge",
-          targetBranch: selectedBranch,
-          currentBranch: branchName,
-          squash: squashMerge,
-          repoOwner,
-          repoApiName,
-          targetSandboxId: targetChat?.sandboxId ?? null,
-          chatId,
-          sourceName,
-          targetName,
-        }),
+      const { ok, status, data } = await callSandboxGit<{
+        conflict?: boolean
+        inMerge?: boolean
+        conflictedFiles?: string[]
+        needsSync?: boolean
+      }>({
+        sandboxId,
+        repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+        action: "merge",
+        targetBranch: selectedBranch,
+        currentBranch: branchName,
+        squash: squashMerge,
+        repoOwner,
+        repoApiName,
+        targetSandboxId: targetChat?.sandboxId ?? null,
+        chatId,
+        sourceName,
+        targetName,
       })
 
-      const data = await res.json()
-
-      if (res.status === 409 && data.conflict && data.inMerge) {
+      if (status === 409 && data.conflict && data.inMerge) {
         setRebaseConflict({
           inRebase: false,
           inMerge: true,
@@ -198,7 +198,7 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
         return
       }
 
-      if (!res.ok) {
+      if (!ok) {
         // Error message created by backend - refetch to show it
         await refetchMessages?.(chatId)
         setMergeOpen(false)
@@ -235,24 +235,21 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     setActionLoading(true)
 
     try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "rebase",
-          targetBranch: selectedBranch,
-          currentBranch: branchName,
-          repoOwner,
-          repoApiName,
-          chatId,
-        }),
+      const { ok, status, data } = await callSandboxGit<{
+        conflict?: boolean
+        conflictedFiles?: string[]
+      }>({
+        sandboxId,
+        repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+        action: "rebase",
+        targetBranch: selectedBranch,
+        currentBranch: branchName,
+        repoOwner,
+        repoApiName,
+        chatId,
       })
 
-      const data = await res.json()
-
-      if (res.status === 409 && data.conflict) {
+      if (status === 409 && data.conflict) {
         setRebaseConflict({
           inRebase: true,
           inMerge: false,
@@ -264,7 +261,7 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
         return
       }
 
-      if (!res.ok) {
+      if (!ok) {
         // Error message created by backend - refetch to show it
         await refetchMessages?.(chatId)
         setRebaseOpen(false)
@@ -321,18 +318,14 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     setActionLoading(true)
 
     try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "force-push",
-          currentBranch: branchName,
-          repoOwner,
-          repoApiName,
-          chatId,
-        }),
+      await callSandboxGit({
+        sandboxId,
+        repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+        action: "force-push",
+        currentBranch: branchName,
+        repoOwner,
+        repoApiName,
+        chatId,
       })
 
       // Message created by backend (success or error) - refetch to show it
@@ -354,19 +347,14 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     setActionLoading(true)
 
     try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: isMerge ? "abort-merge" : "abort-rebase",
-          chatId,
-        }),
+      const { ok } = await callSandboxGit({
+        sandboxId,
+        repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+        action: isMerge ? "abort-merge" : "abort-rebase",
+        chatId,
       })
 
-      const data = await res.json()
-      if (!res.ok) {
+      if (!ok) {
         // Error message created by backend - refetch to show it
         await refetchMessages?.(chatId)
         return
@@ -457,18 +445,17 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     if (!sandboxId) return
 
     try {
-      const res = await fetch("/api/sandbox/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sandboxId,
-          repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
-          action: "check-rebase-status",
-        }),
+      const { ok, data } = await callSandboxGit<{
+        inRebase?: boolean
+        inMerge?: boolean
+        conflictedFiles?: string[]
+      }>({
+        sandboxId,
+        repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
+        action: "check-rebase-status",
       })
 
-      const data = await res.json()
-      if (res.ok) {
+      if (ok) {
         setRebaseConflict({
           inRebase: data.inRebase || false,
           inMerge: data.inMerge || false,
