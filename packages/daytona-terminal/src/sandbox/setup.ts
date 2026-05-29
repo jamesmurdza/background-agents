@@ -212,21 +212,55 @@ export async function setupTerminal(
     }
   }
 
-  // Start the PTY server
-  const startResult = await sandbox.process.executeCommand(
-    `cd /tmp && nohup node websocket-pty-server.js > /tmp/pty-server.log 2>&1 &`,
-    undefined,
-    undefined,
-    10
-  )
+  // Start the PTY server.
+  //
+  // We need this command to launch a long-lived process and return
+  // immediately. `executeCommand("... &")` is *not* fit for purpose: it
+  // synchronously waits for the wrapping shell to exit, and on some
+  // sandbox images (notably the production `background-agents` snapshot)
+  // the shell sits there until the per-request timeout fires — yielding
+  // an HTTP 408 from setup.ts even though the server itself started fine.
+  // Variants with `setsid`, `< /dev/null`, `disown`, etc. did not fix it
+  // reliably. The intended Daytona primitive for fire-and-forget commands
+  // is a session with `runAsync: true`, which is what we use here.
+  const sessionId = `pty-server-bootstrap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  try {
+    await sandbox.process.createSession(sessionId)
+  } catch (err) {
+    console.error("[terminal] Failed to create bootstrap session:", err)
+    return {
+      status: "error",
+      port,
+      error: "Failed to create bootstrap session",
+      details: err instanceof Error ? err.message : String(err),
+    }
+  }
 
-  if (startResult.exitCode !== 0) {
-    console.error("[terminal] Failed to start server:", startResult.result)
+  try {
+    // `runAsync: true` tells Daytona to launch this command and return
+    // immediately, without waiting for it to exit. We deliberately do
+    // *not* add `&` here — that combination caused the server to be
+    // reaped on a previous attempt. We also don't delete the session;
+    // the PTY server is the session's main command, and tearing the
+    // session down would kill it. The session is tiny (just metadata)
+    // and `stopTerminal` removes the node process directly via pkill,
+    // so leaving the session entry behind is harmless.
+    await sandbox.process.executeSessionCommand(
+      sessionId,
+      {
+        command:
+          "cd /tmp && node websocket-pty-server.js > /tmp/pty-server.log 2>&1 < /dev/null",
+        runAsync: true,
+      },
+      30
+    )
+  } catch (err) {
+    console.error("[terminal] Failed to start server:", err)
     return {
       status: "error",
       port,
       error: "Failed to start terminal server",
-      details: startResult.result,
+      details: err instanceof Error ? err.message : String(err),
     }
   }
 
