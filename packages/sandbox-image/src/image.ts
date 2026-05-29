@@ -105,6 +105,17 @@ export function getAgentSandboxImage(): Image {
         "mkdir -p /home/daytona/.gemini /home/daytona/.config/goose /home/daytona/project && " +
           "chown -R daytona:daytona /home/daytona"
       )
+      // Pre-install ws + node-pty for @background-agents/daytona-terminal so
+      // setupTerminal() finds them already present at /opt/pty-server and
+      // skips its runtime install step. Path and versions must match what
+      // daytona-terminal/src/sandbox/setup.ts and
+      // daytona-terminal/src/server/pty-server.ts expect.
+      .runCommands(
+        "mkdir -p /opt/pty-server && " +
+          "cd /opt/pty-server && " +
+          "npm install --prefix /opt/pty-server ws@^8.18.0 node-pty@^1.0.0 && " +
+          "chown -R daytona:daytona /opt/pty-server"
+      )
       .runCommands(
         'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
       )

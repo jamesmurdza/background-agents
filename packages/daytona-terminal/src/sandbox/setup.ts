@@ -39,6 +39,17 @@ export interface TerminalSetupOptions {
 const PROCESS_NAME = "websocket-pty-server"
 
 /**
+ * Where the PTY server's files live inside the sandbox. The
+ * `background-agents` snapshot pre-creates this directory and pre-installs
+ * `ws` + `node-pty` here at image build time, so `setupTerminal` skips the
+ * install step on first terminal open. On other images the install runs
+ * once into this directory and is cached for subsequent calls.
+ */
+const INSTALL_DIR = "/opt/pty-server"
+const LOG_FILE = `${INSTALL_DIR}/server.log`
+const INSTALL_LOCK = `${INSTALL_DIR}/.install.lock`
+
+/**
  * Check if the PTY server process is running in the sandbox
  */
 async function isServerRunning(sandbox: Sandbox): Promise<boolean> {
@@ -129,13 +140,13 @@ export async function setupTerminal(
     const wsUrl = signedUrl.url.replace("https://", "wss://")
 
     const logTail = await sandbox.process.executeCommand(
-      `tail -30 /tmp/pty-server.log 2>/dev/null || echo "(no log)"`,
+      `tail -30 ${LOG_FILE} 2>/dev/null || echo "(no log)"`,
       undefined,
       undefined,
       10
     )
     console.log(
-      `[terminal] reusing existing server\n  wsUrl=${wsUrl}\n  pty-server.log tail:\n${logTail.result}`
+      `[terminal] reusing existing server\n  wsUrl=${wsUrl}\n  ${LOG_FILE} tail:\n${logTail.result}`
     )
 
     return {
@@ -146,17 +157,27 @@ export async function setupTerminal(
     }
   }
 
+  // Ensure the install directory exists and is writable. On the
+  // `background-agents` snapshot this is a no-op (the image pre-creates
+  // it owned by daytona); on other images it's the first-time setup.
+  await sandbox.process.executeCommand(
+    `mkdir -p ${INSTALL_DIR} 2>/dev/null || sudo mkdir -p ${INSTALL_DIR} && sudo chown -R $(id -u):$(id -g) ${INSTALL_DIR}`,
+    undefined,
+    undefined,
+    10
+  )
+
   // Upload server files to sandbox
   const serverCode = getPtyServerCode()
   const packageJson = getPtyServerPackageJson()
 
   await sandbox.fs.uploadFile(
     Buffer.from(serverCode),
-    "/tmp/websocket-pty-server.js"
+    `${INSTALL_DIR}/websocket-pty-server.js`
   )
   await sandbox.fs.uploadFile(
     Buffer.from(packageJson),
-    "/tmp/pty-package.json"
+    `${INSTALL_DIR}/package.json`
   )
 
   // Install dependencies
@@ -168,15 +189,16 @@ export async function setupTerminal(
   //      node-pty versions even after successfully producing pty.node, so we
   //      verify the artifact on disk rather than trusting npm's exit code.
   // flock serialises installs across processes inside the sandbox, and the
-  // inner check makes the locked section a no-op if pty.node is already there.
+  // inner check makes the locked section a no-op if pty.node is already there
+  // (which is the fast path when the snapshot pre-installed the deps).
   const installResult = await sandbox.process.executeCommand(
-    `flock -w 120 /tmp/.node-pty-install.lock bash -c '
-      if [ -f /tmp/node_modules/node-pty/build/Release/pty.node ] && [ -d /tmp/node_modules/ws ]; then
+    `flock -w 120 ${INSTALL_LOCK} bash -c '
+      if [ -f ${INSTALL_DIR}/node_modules/node-pty/build/Release/pty.node ] && [ -d ${INSTALL_DIR}/node_modules/ws ]; then
         echo "[install] already present, skipping"
         exit 0
       fi
-      rm -rf /tmp/node_modules/node-pty
-      cd /tmp && npm install --prefix /tmp ws node-pty 2>&1
+      rm -rf ${INSTALL_DIR}/node_modules/node-pty
+      cd ${INSTALL_DIR} && npm install --prefix ${INSTALL_DIR} ws node-pty 2>&1
     '`,
     undefined,
     undefined,
@@ -185,7 +207,7 @@ export async function setupTerminal(
 
   // Verify installation succeeded
   const ptyArtifactCheck = await sandbox.process.executeCommand(
-    `test -f /tmp/node_modules/node-pty/build/Release/pty.node && test -d /tmp/node_modules/ws && echo ok || echo missing`,
+    `test -f ${INSTALL_DIR}/node_modules/node-pty/build/Release/pty.node && test -d ${INSTALL_DIR}/node_modules/ws && echo ok || echo missing`,
     undefined,
     undefined,
     10
@@ -193,7 +215,7 @@ export async function setupTerminal(
 
   if (ptyArtifactCheck.result?.trim() !== "ok") {
     const dirListing = await sandbox.process.executeCommand(
-      `ls -la /tmp/node_modules/node-pty/build/Release/ 2>&1; echo ---; ls -la /tmp/node_modules/node-pty/ 2>&1; echo ---; ls /tmp/node_modules/ 2>&1`,
+      `ls -la ${INSTALL_DIR}/node_modules/node-pty/build/Release/ 2>&1; echo ---; ls -la ${INSTALL_DIR}/node_modules/node-pty/ 2>&1; echo ---; ls ${INSTALL_DIR}/node_modules/ 2>&1`,
       undefined,
       undefined,
       10
@@ -221,8 +243,7 @@ export async function setupTerminal(
     await sandbox.process.executeSessionCommand(
       sessionId,
       {
-        command:
-          "cd /tmp && node websocket-pty-server.js > /tmp/pty-server.log 2>&1 < /dev/null",
+        command: `cd ${INSTALL_DIR} && node websocket-pty-server.js > ${LOG_FILE} 2>&1 < /dev/null`,
         runAsync: true,
       },
       30
@@ -243,7 +264,7 @@ export async function setupTerminal(
   // Verify server is running
   if (!(await isServerRunning(sandbox))) {
     const logResult = await sandbox.process.executeCommand(
-      `cat /tmp/pty-server.log 2>/dev/null | tail -20`,
+      `cat ${LOG_FILE} 2>/dev/null | tail -20`,
       undefined,
       undefined,
       10
@@ -263,13 +284,13 @@ export async function setupTerminal(
   const wsUrl = signedUrl.url.replace("https://", "wss://")
 
   const logTail = await sandbox.process.executeCommand(
-    `tail -30 /tmp/pty-server.log 2>/dev/null || echo "(no log)"`,
+    `tail -30 ${LOG_FILE} 2>/dev/null || echo "(no log)"`,
     undefined,
     undefined,
     10
   )
   console.log(
-    `[terminal] started new server\n  wsUrl=${wsUrl}\n  pty-server.log tail:\n${logTail.result}`
+    `[terminal] started new server\n  wsUrl=${wsUrl}\n  ${LOG_FILE} tail:\n${logTail.result}`
   )
 
   return {
