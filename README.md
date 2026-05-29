@@ -33,6 +33,8 @@ See [packages/web/README.md](packages/web/README.md#usage) for environment setup
 
 ## Quick start (Web)
 
+Requires Postgres + env per [`packages/web/README.md#development`](packages/web/README.md#development).
+
 ```bash
 npm install
 npm run dev
@@ -41,6 +43,8 @@ npm run dev
 Open http://localhost:4000
 
 ## Quick start (Desktop)
+
+Requires Postgres + env per [`packages/web/README.md#development`](packages/web/README.md#development) (the desktop app loads the web app).
 
 ```bash
 npm install
