@@ -192,10 +192,12 @@ export function useChatWithSync() {
   }, [])
 
   // Materialize a draft chat into a real database chat
-  // Returns the full chat object so callers can use it directly without looking it up
+  // Returns the full chat object so callers can use it directly without looking it up.
+  // `activate: false` skips the currentChatId switch so the caller can batch it
+  // with its own cache update (see sendMessage); defaults to true.
   const materializeDraft = useCallback(async (
     draftId: string,
-    options?: { status?: Chat["status"] }
+    options?: { status?: Chat["status"]; activate?: boolean }
   ): Promise<Chat | null> => {
     // Read the draft config straight from the store so we always see the current
     // value, regardless of when this callback's closure was created.
@@ -224,7 +226,9 @@ export function useChatWithSync() {
       // Migrate local state from draft ID to real ID, clear the draft config,
       // and select the real chat (without persisting the selection — matching
       // the prior behaviour).
-      useChatSyncStore.getState().completeMaterialize(draftId, newChat.id)
+      if (options?.activate !== false) {
+        useChatSyncStore.getState().completeMaterialize(draftId, newChat.id)
+      }
 
       return newChat
     } catch (error) {
@@ -383,9 +387,14 @@ export function useChatWithSync() {
 
     let chat: Chat | undefined
 
-    // If this is a draft chat, materialize it first
-    if (isDraftChatId(chatId)) {
-      const materializedChat = await materializeDraft(chatId)
+    const draftIdToActivate = isDraftChatId(chatId) ? chatId : null
+
+    // If this is a draft chat, materialize it first. `activate: false` defers the
+    // currentChatId switch until the optimistic messages are in the cache (below),
+    // so the real chat isn't shown empty for one render — which flashed the "new
+    // chat" welcome screen. The draft stays selected until then.
+    if (draftIdToActivate) {
+      const materializedChat = await materializeDraft(chatId, { activate: false })
       if (!materializedChat) {
         console.error("Failed to materialize draft chat before sending message")
         return
@@ -431,6 +440,12 @@ export function useChatWithSync() {
       updateChatsCache((old) => old.map((c) =>
         c.id === chatId ? applyOptimisticSend(c, userMessage, assistantMessage, now) : c
       ))
+
+      // Switch to the real chat in the same synchronous block as the optimistic
+      // update above, so both commit in one render (no empty-chat flash).
+      if (draftIdToActivate) {
+        useChatSyncStore.getState().completeMaterialize(draftIdToActivate, chatId)
+      }
 
       try {
         const payload: SendMessagePayload = {
