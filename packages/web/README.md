@@ -123,11 +123,7 @@ GITHUB_CLIENT_ID=placeholder
 GITHUB_CLIENT_SECRET=placeholder
 ```
 
-To bypass the safety check (lets E2E run against a `DATABASE_URL` that isn't localhost — only do this if you know what you're doing):
-
-```bash
-I_KNOW_THIS_IS_THE_TEST_DB=true
-```
+Set `I_KNOW_THIS_IS_THE_TEST_DB=true` to bypass the safety check and let E2E run against a `DATABASE_URL` that isn't localhost — only do this if you know what you're doing.
 
 `DAYTONA_API_KEY` comes from your Development `.env.local` — tests create real sandboxes.
 
