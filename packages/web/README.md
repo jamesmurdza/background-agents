@@ -123,7 +123,7 @@ Env (`packages/web/.env.test`) — overrides the dev env from `.env.local`:
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
 
 # Test-mode constants — Playwright and `npm run dev:test` both read these
-ENABLE_TEST_AUTH=true
+ENABLE_TEST_AUTH=true  # exposes /api/test/auth so tests can sign in without GitHub OAuth
 NEXTAUTH_SECRET=test-secret-for-e2e-tests
 NEXTAUTH_URL=http://localhost:4000
 GITHUB_CLIENT_ID=placeholder
