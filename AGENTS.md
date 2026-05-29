@@ -8,6 +8,8 @@ Primary reference for coding agents working in this repo.
 
 The agent can follow the setup and workflow instructions in this repo on its own. The user provides values for these env vars by exporting them in the current shell environment.
 
+> **Note for agents:** check whether these env vars are set by running the `env` command (e.g. `env | grep DAYTONA_API_KEY`). Do not assume they are unset — they are exported in the shell, not stored in a tracked file.
+
 **Required for dev server and tests**
 
 - `DAYTONA_API_KEY` — exported in the shell (reused by `.env.test`).
