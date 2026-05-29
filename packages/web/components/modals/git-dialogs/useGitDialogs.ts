@@ -3,18 +3,46 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { PATHS } from "@/lib/constants"
 import { EMPTY_CONFLICT_STATE } from "@background-agents/common"
+import type { Chat } from "@/lib/types"
 import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, RebaseConflictState } from "./types"
 
 // ============================================================================
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, onSetBaseBranch, refetchMessages }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, chats, updateChatById, refetchMessages }: UseGitDialogsOptions): UseGitDialogsResult {
   const chatId = chat?.id ?? ""
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
   const sandboxId = chat?.sandboxId ?? ""
   const repo = chat?.repo ?? ""
+
+  // Helpers to look up another chat on the same repo by branch. We use this
+  // both for friendly display names ("merged into <chatname>" rather than the
+  // branch name) and to coordinate post-merge updates with whichever other
+  // chat owns the target branch.
+  const findChatOnBranch = useCallback(
+    (branch: string): Chat | null => {
+      if (!chat) return null
+      return chats.find((c) => c.repo === chat.repo && c.branch === branch) ?? null
+    },
+    [chat, chats]
+  )
+  const findOtherChatOnBranch = useCallback(
+    (branch: string): Chat | null => {
+      if (!chat) return null
+      return (
+        chats.find(
+          (c) => c.id !== chat.id && c.repo === chat.repo && c.branch === branch
+        ) ?? null
+      )
+    },
+    [chat, chats]
+  )
+  const resolveChatName = useCallback(
+    (branch: string): string | null => findChatOnBranch(branch)?.displayName ?? null,
+    [findChatOnBranch]
+  )
 
   // Parse owner/repo from repo string
   const [repoOwner, repoApiName] = repo.includes("/") ? repo.split("/") : ["", ""]
@@ -110,9 +138,13 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
   const handleMerge = useCallback(async () => {
     if (!selectedBranch || !branchName || !sandboxId || !chatId) return
 
+    // Look up the *other* chat that owns the target branch in this repo (if any).
+    // We use it both pre-merge (to block merging into a running chat) and
+    // post-merge (to pull changes into its sandbox / mark it needs-sync).
+    const targetChat = findOtherChatOnBranch(selectedBranch)
+
     // Block merge into a running branch (frontend check only - backend creates the message)
-    const targetStatus = getTargetChatStatus?.(selectedBranch)
-    if (targetStatus === "running") {
+    if (targetChat?.status === "running") {
       // The API will create the error message
       setMergeOpen(false)
       return
@@ -120,12 +152,9 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
 
     setActionLoading(true)
 
-    // Get the target sandbox ID so we can pull the merged changes there
-    const targetSandboxId = getTargetSandboxId?.(selectedBranch) ?? null
-
     // Resolve names for the success message
     const sourceName = chat?.displayName || branchName
-    const targetName = resolveChatName?.(selectedBranch) || selectedBranch
+    const targetName = resolveChatName(selectedBranch) || selectedBranch
 
     try {
       const res = await fetch("/api/sandbox/git", {
@@ -140,7 +169,7 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
           squash: squashMerge,
           repoOwner,
           repoApiName,
-          targetSandboxId,
+          targetSandboxId: targetChat?.sandboxId ?? null,
           chatId,
           sourceName,
           targetName,
@@ -168,14 +197,16 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
         return
       }
 
-      // If sandbox was stopped, mark branch for sync on next wake
-      if (data.needsSync && onMarkBranchNeedsSync) {
-        onMarkBranchNeedsSync(selectedBranch)
+      // If sandbox was stopped, mark the target chat's branch as needing sync
+      // so it pulls the merged changes on next wake.
+      if (data.needsSync && targetChat) {
+        void updateChatById(targetChat.id, { needsSync: true })
       }
 
-      // If this chat has no parent chat, update base branch to the merge target
-      if (!chat?.parentChatId && onSetBaseBranch) {
-        onSetBaseBranch(selectedBranch)
+      // If this chat has no parent chat, advance its base branch to the merge
+      // target so subsequent rebases/squashes use the right reference.
+      if (!chat?.parentChatId && chat) {
+        void updateChatById(chat.id, { baseBranch: selectedBranch })
       }
 
       // Success message created by backend - refetch to show it
@@ -188,7 +219,7 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
     } finally {
       setActionLoading(false)
     }
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, getTargetSandboxId, getTargetChatStatus, onMarkBranchNeedsSync, chat?.parentChatId, chat?.displayName, onSetBaseBranch, resolveChatName, refetchMessages])
+  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, findOtherChatOnBranch, chat, resolveChatName, updateChatById, refetchMessages])
 
   // Handle rebase
   const handleRebase = useCallback(async () => {
@@ -470,7 +501,7 @@ export function useGitDialogs({ chat, resolveChatName, getTargetSandboxId, getTa
     commitsLoading,
     baseBranch,
     branchName,
-    branchLabel: (branch: string) => resolveChatName?.(branch) || branch,
+    branchLabel: (branch: string) => resolveChatName(branch) || branch,
     handleMerge,
     handleRebase,
     handleCreatePR,

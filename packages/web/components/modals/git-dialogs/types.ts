@@ -1,4 +1,4 @@
-import type { Chat, Message } from "@/lib/types"
+import type { Chat } from "@/lib/types"
 import { type RebaseConflictState } from "@background-agents/common"
 
 // Re-export for convenience
@@ -9,20 +9,21 @@ export type { RebaseConflictState }
 // ============================================================================
 
 export interface UseGitDialogsOptions {
+  /** The chat the dialogs are operating on (the source side of merge/rebase/PR). */
   chat: Chat | null
-  /** When merging into a branch, the parent can route a mirrored system
-   *  message to whichever chat owns that branch in the same repo. */
-  onAddMessageToBranch?: (branch: string, message: Message) => void
-  /** Resolve a branch name to a chat display name for friendlier messages. */
-  resolveChatName?: (branch: string) => string | null
-  /** Get the sandbox ID for a target branch (used to pull changes after merge). */
-  getTargetSandboxId?: (branch: string) => string | null
-  /** Get the status of a target branch (used to block merge into running branch). */
-  getTargetChatStatus?: (branch: string) => string | null
-  /** Mark a branch as needing sync (used when merge succeeds but sandbox was stopped). */
-  onMarkBranchNeedsSync?: (branch: string) => void
-  /** Update base branch after successful merge (only if chat has no parent chat). */
-  onSetBaseBranch?: (targetBranch: string) => void
+  /**
+   * The full chat list. The hook uses it to find the *target* chat for a
+   * branch in the same repo — to resolve display names, pull the target
+   * sandbox ID after a merge, check the target's status, and mark it
+   * needs-sync when the target sandbox is stopped.
+   */
+  chats: Chat[]
+  /**
+   * Persist a chat update. The hook uses this to mark the target branch's
+   * chat as needing sync after a merge, and to advance the *source* chat's
+   * base branch after merging into a new base.
+   */
+  updateChatById: (chatId: string, updates: Partial<Chat>) => Promise<void> | void
   /** Refetch messages for a chat (called after git operations add messages on backend). */
   refetchMessages?: (chatId: string) => Promise<void>
 }

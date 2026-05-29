@@ -24,6 +24,7 @@ import { useDraftChat } from "@/lib/hooks/useDraftChat"
 import { usePendingMessageReplay } from "@/lib/hooks/usePendingMessageReplay"
 import { usePaletteProps } from "@/lib/hooks/usePaletteProps"
 import { useSendMessage } from "@/lib/hooks/useSendMessage"
+import { useBranching } from "@/lib/hooks/useBranching"
 import {
   ChatProvider,
   ModalProvider,
@@ -39,10 +40,7 @@ import {
 import { NEW_REPOSITORY, type Message, type Chat } from "@/lib/types"
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
-import {
-  savePendingMessage,
-  hasPendingMessage,
-} from "@/lib/pending-message"
+import { hasPendingMessage } from "@/lib/pending-message"
 import { buildTreeOrderedChatIds, getNextChatIdAfterDeletion } from "@/lib/chat-tree"
 
 function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
@@ -206,43 +204,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
   }, [currentChatId, addMessage])
 
-  // Git dialogs state - backend creates messages directly in DB
+  // Git dialogs state — the hook does its own target-chat lookups internally
+  // (finding the chat that owns a branch in this repo) given `chats` and
+  // `updateChatById`. Backend creates messages directly in DB; refetchMessages
+  // pulls them down.
   const gitDialogs = useGitDialogs({
     chat: currentChat ?? null,
-    resolveChatName: (branch) => {
-      if (!currentChat) return null
-      const target = chats.find(
-        (c) => c.repo === currentChat.repo && c.branch === branch
-      )
-      return target?.displayName ?? null
-    },
-    getTargetSandboxId: (branch) => {
-      if (!currentChat) return null
-      const target = chats.find(
-        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
-      )
-      return target?.sandboxId ?? null
-    },
-    getTargetChatStatus: (branch) => {
-      if (!currentChat) return null
-      const target = chats.find(
-        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
-      )
-      return target?.status ?? null
-    },
-    onMarkBranchNeedsSync: (branch) => {
-      if (!currentChat) return
-      const target = chats.find(
-        (c) => c.id !== currentChat.id && c.repo === currentChat.repo && c.branch === branch
-      )
-      if (target) {
-        updateChatById(target.id, { needsSync: true })
-      }
-    },
-    onSetBaseBranch: (branch) => {
-      if (!currentChat) return
-      updateChatById(currentChat.id, { baseBranch: branch })
-    },
+    chats,
+    updateChatById,
     refetchMessages,
   })
 
@@ -506,70 +475,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     onReplayBegin: () => modals.setSignInModalOpen(false),
   })
 
-  // Handler for slash commands - open the corresponding git dialog
-  // Start a new chat off the current chat's branch. Defined before
-  // handleSlashCommand so "/branch" can call it.
-  // Use branch if available (sandbox created), otherwise baseBranch (before first message)
-  const branchForNewChat = currentChat?.branch || currentChat?.baseBranch
-  const canBranch = !!(branchForNewChat && currentChat?.repo !== NEW_REPOSITORY)
-
-  // Shared helper for creating a background branch and optionally sending a message.
-  // Returns false if branch creation is not possible or was aborted.
-  const createBranchAndSend = useCallback(async (options?: {
-    message?: string
-    agent?: string
-    model?: string
-    /** If true, save the message for retry after sign-in */
-    savePendingOnAuth?: boolean
-  }): Promise<boolean> => {
-    if (!branchForNewChat || currentChat?.repo === NEW_REPOSITORY) return false
-    if (!session) {
-      if (options?.savePendingOnAuth && options.message && options.agent && options.model) {
-        savePendingMessage({ message: options.message, agent: options.agent, model: options.model })
-      }
-      modals.setSignInModalOpen(true)
-      return false
-    }
-    // When no message is provided, navigate to the new chat
-    const navigateToChat = !options?.message
-    // Use provided agent/model or inherit from current chat
-    const agentToUse = options?.agent ?? currentChat?.agent
-    const modelToUse = options?.model ?? currentChat?.model
-    // Create new chat in "pending" state (allows sendMessage) without switching to it
-    const chatId = await startNewChat(
-      currentChat.repo,
-      branchForNewChat,
-      currentChat.id,
-      navigateToChat,
-      navigateToChat ? undefined : "pending",
-      agentToUse,
-      modelToUse
-    )
-    if (!chatId) return false
-    // Send message to the new chat if provided (it runs in background)
-    if (options?.message) {
-      sendMessage(options.message, options.agent, options.model, undefined, chatId)
-    }
-    return true
-  }, [currentChat, branchForNewChat, startNewChat, sendMessage, session, modals])
-
-  const handleBranchChat = useCallback(() => {
-    createBranchAndSend()
-  }, [createBranchAndSend])
-
-  // Branch and send a message to the new chat (Option+Enter)
-  // The new chat starts in the background - we stay on the current chat
-  const handleBranchWithMessage = useCallback(async (message: string, agent: string, model: string) => {
-    await createBranchAndSend({ message, agent, model, savePendingOnAuth: true })
-  }, [createBranchAndSend])
-
-  // Branch a queued message to a new chat (removes from queue)
-  // The new chat starts in the background - we stay on the current chat
-  const handleBranchQueuedMessage = useCallback(async (id: string, message: string, agent?: string, model?: string) => {
-    // Remove from queue first
-    removeQueuedMessage(id)
-    await createBranchAndSend({ message, agent, model })
-  }, [createBranchAndSend, removeQueuedMessage])
+  // "Branch this chat" family — owns canBranch + the three branch handlers
+  // (bare / with-message / from-queue). All flow through one shared helper.
+  const {
+    canBranch,
+    handleBranchChat,
+    handleBranchWithMessage,
+    handleBranchQueuedMessage,
+  } = useBranching({
+    currentChat,
+    startNewChat,
+    sendMessage,
+    removeQueuedMessage,
+    openSignInModal: modals.setSignInModalOpen,
+  })
 
   const handleSlashCommand = useCallback((command: SlashCommandType) => {
     switch (command) {
