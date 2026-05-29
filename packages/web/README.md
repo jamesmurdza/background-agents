@@ -98,7 +98,7 @@ SMITHERY_API_KEY="..."
 SMITHERY_NAMESPACE=""
 ```
 
-To enable an authenticated GitHub MCP server (issues, pull requests, code search) for chats and scheduled jobs, set:
+To enable an authenticated GitHub MCP server, set:
 
 ```bash
 GITHUB_APP_ID="..."
