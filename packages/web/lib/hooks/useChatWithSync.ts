@@ -566,6 +566,7 @@ export function useChatWithSync() {
   const runningChatsKey = chats
     .filter((c) => c.status === "running" && c.backgroundSessionId && c.sandboxId)
     .map((c) => {
+      // Id of the most recent assistant message, or "" if none yet.
       const lastAssistantId =
         [...c.messages].reverse().find((m) => m.role === "assistant")?.id ?? ""
       return `${c.id}:${c.backgroundSessionId}:${c.sandboxId}:${lastAssistantId}`
