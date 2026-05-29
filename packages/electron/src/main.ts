@@ -19,9 +19,12 @@ import { setupLicenseDetect } from "./license-detect.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Backend URL - configurable via environment
-const BACKEND_URL =
-  process.env.BACKGROUND_AGENTS_URL || "https://backgrounder.dev";
+// Backend URL - defaults based on whether we're packaged (prod) or running
+// from source (dev). Override with BACKGROUND_AGENTS_URL at runtime.
+const DEFAULT_BACKEND_URL = app.isPackaged
+  ? "https://backgrounder.dev"
+  : "http://localhost:4000";
+const BACKEND_URL = process.env.BACKGROUND_AGENTS_URL || DEFAULT_BACKEND_URL;
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;

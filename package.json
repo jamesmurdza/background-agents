@@ -9,7 +9,7 @@
     "predev": "npm run build:eliza -w background-agents && npm run prisma:generate",
     "dev": "dotenv -e packages/web/.env -e .env -c -- npm run dev -w @background-agents/web",
     "dev:cron": "dotenv -e packages/dev-cron/.env -e .env -c -- npm run dev -w @background-agents/dev-cron",
-    "dev:electron": "npm run build:eliza -w background-agents && npm run prisma:generate && dotenv -e packages/electron/.env -e packages/web/.env -e .env -c -- npm run dev -w @background-agents/web & sleep 3 && npm run build -w @background-agents/electron && BACKGROUND_AGENTS_URL=http://localhost:4000 electron packages/electron/dist/main.js",
+    "dev:electron": "npm run build:eliza -w background-agents && npm run prisma:generate && dotenv -e packages/electron/.env -e packages/web/.env -e .env -c -- npm run dev -w @background-agents/web & sleep 3 && npm run build -w @background-agents/electron && electron packages/electron/dist/main.js",
     "prisma:migrate": "dotenv -e packages/web/.env -e .env -c -- sh -c 'cd packages/web && npx prisma migrate dev'",
     "prisma:migrate:deploy": "dotenv -e packages/web/.env -e .env -c -- sh -c 'cd packages/web && npx prisma migrate deploy'",
     "prisma:generate": "dotenv -e packages/web/.env -e .env -c -- sh -c 'cd packages/web && npx prisma generate'",
