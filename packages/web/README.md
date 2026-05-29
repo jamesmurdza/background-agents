@@ -140,8 +140,10 @@ Run:
 npm run test:e2e
 ```
 
-To debug a failing test, start a dev server using the same env profile as Playwright (test DB, test-auth route, placeholder OAuth) so you can reproduce the failure manually in your browser:
+To start a dev server using the same env profile as the end-to-end tests:
 
 ```bash
 npm run dev:test
 ```
+
+This way, you can reproduce a failing test manually in your browser.
