@@ -86,18 +86,24 @@ ENCRYPTION_KEY="<openssl rand -hex 32>"
 
 # Required for /api/cron/* endpoints (set in Vercel project env)
 CRON_SECRET="<random-secret>"
+```
 
-# Optional: Smithery MCP server registry — see ../mcp-providers/README.md
+Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to apply migrations to the production database.
+
+**Smithery MCP server registry** — lets users browse and connect remote MCP servers from the [Smithery](https://smithery.ai) registry inside chats. Setup details in [../mcp-providers/README.md](../mcp-providers/README.md).
+
+```bash
 SMITHERY_API_KEY="..."
 SMITHERY_NAMESPACE=""
+```
 
-# Optional: GitHub App MCP server — see ../mcp-providers/README.md
+**GitHub App MCP server** — gives chats and scheduled jobs an authenticated GitHub MCP server scoped to the user's installations (issues, PRs, code search). Setup details in [../mcp-providers/README.md](../mcp-providers/README.md).
+
+```bash
 GITHUB_APP_ID="..."
 GITHUB_APP_SLUG="..."
 GITHUB_APP_PRIVATE_KEY="..."
 ```
-
-Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to apply migrations to the production database.
 
 ### Testing
 
