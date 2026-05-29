@@ -28,6 +28,8 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 ### Development
 
+Runs the web app locally against a local Postgres database. `GITHUB_PAT` enables auto-login so no GitHub OAuth app is required for dev.
+
 Env (`.env.local`):
 
 ```bash
@@ -66,6 +68,8 @@ After pulling, run `npx prisma migrate dev` to apply new migrations.
 
 ### Deployment
 
+Production deployment to Vercel. Uses a real GitHub OAuth app and requires `ENCRYPTION_KEY` so user-stored API credentials are encrypted at rest.
+
 Env:
 
 ```bash
@@ -95,6 +99,8 @@ GITHUB_APP_PRIVATE_KEY="..."
 Deploys to Vercel via `vercel.json`. CI runs `npx prisma migrate deploy` to apply migrations to the production database.
 
 ### Testing
+
+End-to-end tests run against a local test database. Each run resets the database via `prisma migrate reset --force`, so the safety check refuses any non-local `DATABASE_URL`.
 
 Env (`.env.test` in this package) — overrides the dev env from `.env.local`:
 
