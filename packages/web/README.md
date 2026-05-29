@@ -46,7 +46,8 @@ GITHUB_PAT="ghp_your_token_here"
 
 Option 1 uses the standard GitHub OAuth sign-in flow and requires a real OAuth app. Option 2 skips OAuth entirely — the app auto-logs you in as the owner of the PAT on first visit, so no OAuth app is needed.
 
-`ENCRYPTION_KEY` encrypts user-stored API credentials and defaults to a built-in dev key. To use a real one, set it to the output of `openssl rand -hex 32`.
+> [!IMPORTANT]
+> `ENCRYPTION_KEY` defaults to a built-in dev key, which is not a secret — it's baked into source. Override it with a real value (`openssl rand -hex 32`) before deploying or sharing a build.
 
 Run:
 
@@ -110,7 +111,10 @@ See [`mcp-providers`](../mcp-providers/README.md) for setup.
 
 ### Testing
 
-End-to-end tests run against a local test database. Each run resets the database via `prisma migrate reset --force`. Because that's destructive, the safety check refuses any non-local `DATABASE_URL`.
+End-to-end tests run against a local test database.
+
+> [!WARNING]
+> Each E2E run wipes the test database with `prisma migrate reset --force`. The safety check refuses to run unless `DATABASE_URL` contains `localhost` or `127.0.0.1`.
 
 Env (`packages/web/.env.test`) — overrides the dev env from `.env.local`:
 
@@ -126,7 +130,8 @@ GITHUB_CLIENT_ID=placeholder
 GITHUB_CLIENT_SECRET=placeholder
 ```
 
-Set `I_KNOW_THIS_IS_THE_TEST_DB=true` to bypass the safety check and run against a non-localhost database.
+> [!CAUTION]
+> Setting `I_KNOW_THIS_IS_THE_TEST_DB=true` bypasses the safety check. The test setup will wipe whatever `DATABASE_URL` points at — only use this on a DB you're certain is throwaway.
 
 Tests create real sandboxes, so `DAYTONA_API_KEY` is inherited from your Development `.env.local`.
 
