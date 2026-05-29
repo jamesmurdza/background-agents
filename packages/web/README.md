@@ -123,12 +123,14 @@ Env (`packages/web/.env.test`) — overrides the dev env from `.env.local`:
 DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
 
 # Test-mode constants — Playwright and `npm run dev:test` both read these
-ENABLE_TEST_AUTH=true  # exposes /api/test/auth so tests can sign in without GitHub OAuth
+ENABLE_TEST_AUTH=true
 NEXTAUTH_SECRET=test-secret-for-e2e-tests
 NEXTAUTH_URL=http://localhost:4000
 GITHUB_CLIENT_ID=placeholder
 GITHUB_CLIENT_SECRET=placeholder
 ```
+
+`ENABLE_TEST_AUTH=true` exposes `/api/test/auth`, an endpoint that creates a NextAuth session cookie for a fake test user. Playwright POSTs to it once at the start of a test, then proceeds with the user already "signed in" — no real GitHub OAuth involved.
 
 Tests create real sandboxes, so `DAYTONA_API_KEY` is inherited from your Development `.env.local`.
 
