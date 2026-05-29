@@ -168,6 +168,20 @@ export function usePreview({ currentChat, updateCurrentChat, availableServers }:
     }
   }, [])
 
+  // Relative file links inside MarkdownPreview dispatch this CustomEvent to
+  // ask us to open the linked file. Keeps the markdown component decoupled
+  // from this hook — it doesn't need a callback prop threaded down to it.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const filePath = (e as CustomEvent<{ filePath: string }>).detail?.filePath
+      if (!filePath) return
+      const filename = filePath.split("/").pop() || filePath
+      openPreview({ type: "file", filePath, filename })
+    }
+    window.addEventListener("open-preview-file", handler)
+    return () => window.removeEventListener("open-preview-file", handler)
+  }, [openPreview])
+
   // Track ports we've already auto-opened in each sandbox so the preview pane
   // only pops open the *first* time a new server appears — not every poll.
   const autoOpenedServersRef = useRef<Map<string, Set<number>>>(new Map())
