@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSession } from "next-auth/react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Search, GitBranch, Loader2, Lock, Globe, ChevronDown, ChevronLeft, Plus } from "lucide-react"
+import { Search, Loader2, Lock, Globe, ChevronLeft, Plus } from "lucide-react"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { fetchAllRepos, fetchBranches, createRepository, fetchRepo, forkRepository, parseGitHubUrl } from "@/lib/github"
 import type { GitHubRepo, GitHubBranch } from "@/lib/types"
 import { GitFork } from "lucide-react"
+import { BranchPickerStep } from "./repo-picker/BranchPickerStep"
 
 interface RepoPickerModalProps {
   open: boolean
@@ -57,14 +58,12 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [branches, setBranches] = useState<GitHubBranch[]>([])
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null)
-  const [selectedBranch, setSelectedBranch] = useState<string>("")
-  const [showBranchDropdown, setShowBranchDropdown] = useState(false)
+  const [branchPickerAutoOpen, setBranchPickerAutoOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false) // Background loading additional pages
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [branchSearch, setBranchSearch] = useState("")
 
   // Debounce search for smoother typing
   useEffect(() => {
@@ -131,11 +130,13 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
 
   const contentRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const branchSearchInputRef = useRef<HTMLInputElement>(null)
 
   // Selection index for keyboard navigation
   const [selectedRepoIndex, setSelectedRepoIndex] = useState(0)
-  const [selectedBranchIndex, setSelectedBranchIndex] = useState(0)
+
+  // Mirrors BranchPickerStep's internal dropdown-open state — needed by the
+  // parent only to widen the dialog's overflow so the dropdown isn't clipped.
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false)
 
   // Drag to dismiss (mobile only)
   const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
@@ -153,23 +154,10 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
     }
   }, [open, step, activeTab])
 
-  // Focus branch search when dropdown opens
-  useEffect(() => {
-    if (showBranchDropdown && branchSearchInputRef.current) {
-      setTimeout(() => {
-        branchSearchInputRef.current?.focus()
-      }, 50)
-    }
-  }, [showBranchDropdown])
-
   // Reset selection index when filtered results change
   useEffect(() => {
     setSelectedRepoIndex(0)
   }, [search])
-
-  useEffect(() => {
-    setSelectedBranchIndex(0)
-  }, [branchSearch])
 
   // Fetch repos on open — only when the select tab is available; otherwise we
   // never show the repo list and the loading spinner would flash for nothing.
@@ -218,12 +206,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       setStep("repo")
       setActiveTab(allowSelect ? "select" : "create")
       setSelectedRepo(null)
-      setSelectedBranch("")
       setBranches([])
       setSearch("")
       setDebouncedSearch("")
-      setBranchSearch("")
-      setShowBranchDropdown(false)
+      setIsBranchDropdownOpen(false)
+      setBranchPickerAutoOpen(false)
       setError(null)
       setLoadingMore(false)
       // Reset create form
@@ -243,11 +230,11 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
   useEffect(() => {
     if (open && isBranchOnly && preselectedRepo && session) {
       setSelectedRepo(preselectedRepo)
-      setSelectedBranch(preselectedRepo.default_branch)
       setStep("branch")
       setLoading(true)
       setError(null)
-      setShowBranchDropdown(true)
+      // Pre-expand the branch dropdown so the user lands directly in the picker.
+      setBranchPickerAutoOpen(true)
 
       fetchBranches(preselectedRepo.owner.login, preselectedRepo.name)
         .then(setBranches)
@@ -286,17 +273,10 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
     }
   }
 
-  // Handle branch selection from dropdown
-  const handleSelectBranchFromDropdown = (branch: GitHubBranch) => {
-    setSelectedBranch(branch.name)
-    setShowBranchDropdown(false)
-    setBranchSearch("")
-  }
-
-  // Handle OK button click
-  const handleConfirm = () => {
-    if (!selectedRepo || !selectedBranch) return
-    onSelect(selectedRepo.full_name, selectedBranch)
+  // Handle OK button click from BranchPickerStep (branch comes from the child).
+  const handleConfirm = (branch: string) => {
+    if (!selectedRepo || !branch) return
+    onSelect(selectedRepo.full_name, branch)
     onClose()
   }
 
@@ -351,16 +331,6 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
       repo.description?.toLowerCase().includes(searchLower)
     )
   }, [repos, debouncedSearch])
-  const filteredBranches = branches
-    .filter((branch) => branch.name.toLowerCase().includes(branchSearch.toLowerCase()))
-    .sort((a, b) => {
-      // Default branch always comes first
-      const defaultBranchName = selectedRepo?.default_branch
-      if (a.name === defaultBranchName) return -1
-      if (b.name === defaultBranchName) return 1
-      return 0
-    })
-
   // Handle keyboard navigation for repo list
   const handleRepoKeyDown = (e: React.KeyboardEvent) => {
     if (filteredRepos.length === 0) return
@@ -374,41 +344,12 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
         e.preventDefault()
         setSelectedRepoIndex((prev) => Math.max(prev - 1, 0))
         break
-      case "Enter":
+      case "Enter": {
         e.preventDefault()
-        const selectedRepo = filteredRepos[selectedRepoIndex]
-        if (selectedRepo) {
-          handleSelectRepo(selectedRepo)
-        }
+        const next = filteredRepos[selectedRepoIndex]
+        if (next) handleSelectRepo(next)
         break
-    }
-  }
-
-  // Handle keyboard navigation for branch dropdown
-  const handleBranchKeyDown = (e: React.KeyboardEvent) => {
-    if (filteredBranches.length === 0) return
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault()
-        setSelectedBranchIndex((prev) => Math.min(prev + 1, filteredBranches.length - 1))
-        break
-      case "ArrowUp":
-        e.preventDefault()
-        setSelectedBranchIndex((prev) => Math.max(prev - 1, 0))
-        break
-      case "Enter":
-        e.preventDefault()
-        const selectedBranchItem = filteredBranches[selectedBranchIndex]
-        if (selectedBranchItem) {
-          handleSelectBranchFromDropdown(selectedBranchItem)
-        }
-        break
-      case "Escape":
-        e.preventDefault()
-        setShowBranchDropdown(false)
-        setBranchSearch("")
-        break
+      }
     }
   }
 
@@ -432,8 +373,8 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
                 input?.focus()
                 input?.select()
               } else if (mode === "branch-only") {
-                // Branch-only mode: focus the branch search input
-                branchSearchInputRef.current?.focus()
+                // Branch-only mode: BranchPickerStep auto-opens its dropdown
+                // and focuses its own search input on mount.
               } else {
                 searchInputRef.current?.focus()
               }
@@ -442,7 +383,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
           className={cn(
             "fixed z-50 bg-popover flex flex-col",
             // Allow overflow when branch dropdown is open so it's not clipped
-            showBranchDropdown ? "overflow-visible" : "overflow-hidden",
+            isBranchDropdownOpen ? "overflow-visible" : "overflow-hidden",
             isMobile
               ? "inset-x-0 bottom-0 top-0 rounded-none"
               : "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md border border-border rounded-lg shadow-xl",
@@ -537,7 +478,7 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
               "flex-1 mobile-scroll",
               isMobile ? "max-h-none" : "max-h-80",
               // Allow overflow when branch dropdown is open so it's not clipped
-              showBranchDropdown ? "overflow-visible" : "overflow-y-auto"
+              isBranchDropdownOpen ? "overflow-visible" : "overflow-y-auto"
             )}
           >
             {error && activeTab !== "create" && (
@@ -806,111 +747,18 @@ export function RepoPickerModal({ open, onClose, onSelect, isMobile = false, mod
               </div>
             )}
 
-            {!loading && !error && step === "branch" && (
-              <div className={cn(isMobile ? "p-4" : "p-4")}>
-                <div className={cn(isMobile ? "mb-6" : "mb-4")}>
-                  <label className={cn(
-                    "block font-medium mb-2",
-                    isMobile ? "text-base" : "text-sm"
-                  )}>
-                    Base Branch
-                  </label>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-                      className={cn(
-                        "flex items-center justify-between w-full border border-border rounded-md hover:bg-accent/50 active:bg-accent transition-colors",
-                        isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        <GitBranch className={cn(
-                          "text-muted-foreground",
-                          isMobile ? "h-5 w-5" : "h-4 w-4"
-                        )} />
-                        {selectedBranch}
-                      </span>
-                      <ChevronDown className={cn(
-                        "text-muted-foreground",
-                        isMobile ? "h-5 w-5" : "h-4 w-4"
-                      )} />
-                    </button>
-
-                    {showBranchDropdown && (
-                      <div className={cn(
-                        "absolute left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-[200] overflow-hidden flex flex-col",
-                        isMobile ? "max-h-72" : "max-h-60"
-                      )}>
-                        {/* Branch search input */}
-                        <div className="p-2 border-b border-border">
-                          <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                            <Input
-                              ref={branchSearchInputRef}
-                              type="text"
-                              value={branchSearch}
-                              onChange={(e) => setBranchSearch(e.target.value)}
-                              onKeyDown={handleBranchKeyDown}
-                              placeholder="Search branches..."
-                              className="pl-8 h-8 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div className="overflow-y-auto flex-1">
-                          {filteredBranches.length === 0 ? (
-                            <div className={cn(
-                              "text-muted-foreground text-center",
-                              isMobile ? "p-4 text-base" : "p-2 text-sm"
-                            )}>
-                              No branches found
-                            </div>
-                          ) : (
-                            filteredBranches.map((branch, index) => (
-                              <button
-                                key={branch.name}
-                                onClick={() => handleSelectBranchFromDropdown(branch)}
-                                className={cn(
-                                  "flex items-center gap-2 w-full text-left hover:bg-accent active:bg-accent transition-colors touch-target",
-                                  isMobile ? "px-4 py-3 text-base" : "px-3 py-2 text-sm",
-                                  (index === selectedBranchIndex || branch.name === selectedBranch) && "bg-accent"
-                                )}
-                              >
-                                <GitBranch className={cn(
-                                  "text-muted-foreground",
-                                  isMobile ? "h-4 w-4" : "h-3 w-3"
-                                )} />
-                                {branch.name}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => isBranchOnly ? onClose() : setStep("repo")}
-                    className={cn(
-                      "rounded-md hover:bg-accent active:bg-accent transition-colors touch-target",
-                      isMobile ? "px-6 py-3 text-base" : "px-4 py-2 text-sm"
-                    )}
-                  >
-                    {isBranchOnly ? "Cancel" : "Back"}
-                  </button>
-                  <button
-                    onClick={handleConfirm}
-                    disabled={!selectedBranch}
-                    className={cn(
-                      "bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-50 touch-target",
-                      isMobile ? "px-6 py-3 text-base" : "px-4 py-2 text-sm"
-                    )}
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
+            {!loading && !error && step === "branch" && selectedRepo && (
+              <BranchPickerStep
+                isMobile={isMobile}
+                isBranchOnly={isBranchOnly}
+                branches={branches}
+                defaultBranchName={selectedRepo.default_branch}
+                initialBranch={selectedRepo.default_branch}
+                autoOpenDropdown={branchPickerAutoOpen}
+                onDropdownOpenChange={setIsBranchDropdownOpen}
+                onConfirm={handleConfirm}
+                onBack={() => (isBranchOnly ? onClose() : setStep("repo"))}
+              />
             )}
           </div>
         </Dialog.Content>
