@@ -1293,70 +1293,46 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     <ChatProvider value={chatContextValue}>
     <GitProvider value={gitContextValue}>
     <div className={`flex overflow-hidden ${isMobile ? 'h-screen-mobile' : 'h-screen'}`}>
-      {/* Desktop Sidebar */}
-      {!isMobile && (
-        <Sidebar
-          chats={displayChats}
-          currentChatId={displayCurrentChatId}
-          deletingChatIds={deletingChatIds}
-          unseenChatIds={unseenChatIds}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleNewChat}
-          onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
-          onRenameChat={renameChat}
-          collapsed={sidebar.collapsed}
-          onToggleCollapse={() => sidebar.toggleCollapse()}
-          width={sidebar.width}
-          onWidthChange={sidebar.setWidth}
-          isMobile={false}
-          repoFilter={sidebar.repoFilter}
-          onRepoFilterChange={sidebar.setRepoFilter}
-          collapsedChatIds={sidebar.collapsedChatIds}
-          onToggleChatCollapsed={sidebar.toggleChatCollapsed}
-          onRequestMergeChats={handleRequestMergeChats}
-          onRequestRebaseChat={handleRequestRebaseChat}
-          onOpenScheduledJobs={handleOpenScheduledJobs}
-          scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
-          selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
-          isLoadingChats={!isHydrated}
-          claudeUsage={claudeUsage}
-        />
-      )}
-
-      {/* Mobile Sidebar (Drawer) */}
-      {isMobile && (
-        <Sidebar
-          chats={displayChats}
-          currentChatId={displayCurrentChatId}
-          deletingChatIds={deletingChatIds}
-          unseenChatIds={unseenChatIds}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleNewChat}
-          onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
-          onRenameChat={renameChat}
-          collapsed={false}
-          onToggleCollapse={() => {}}
-          width={280}
-          onWidthChange={() => {}}
-          isMobile={true}
-          mobileOpen={sidebar.mobileSidebarOpen}
-          onMobileClose={() => sidebar.setMobileSidebarOpen(false)}
-          repoFilter={sidebar.repoFilter}
-          onRepoFilterChange={sidebar.setRepoFilter}
-          collapsedChatIds={sidebar.collapsedChatIds}
-          onToggleChatCollapsed={sidebar.toggleChatCollapsed}
-          onRequestMergeChats={handleRequestMergeChats}
-          onRequestRebaseChat={handleRequestRebaseChat}
-          onOpenScheduledJobs={() => {
-            handleOpenScheduledJobs()
-            sidebar.setMobileSidebarOpen(false)
-          }}
-          scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
-          selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
-          isLoadingChats={!isHydrated}
-          claudeUsage={claudeUsage}
-        />
-      )}
+      {/* Sidebar — desktop renders inline, mobile renders as a drawer.
+          The Sidebar component branches on isMobile internally, so the only
+          props that actually differ are the collapse/width controls (no-op on
+          mobile), the drawer-specific mobileOpen/onMobileClose, and the
+          scheduled-jobs handler (which also closes the drawer on mobile). */}
+      <Sidebar
+        chats={displayChats}
+        currentChatId={displayCurrentChatId}
+        deletingChatIds={deletingChatIds}
+        unseenChatIds={unseenChatIds}
+        onSelectChat={handleSelectChat}
+        onNewChat={handleNewChat}
+        onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
+        onRenameChat={renameChat}
+        isMobile={isMobile}
+        collapsed={isMobile ? false : sidebar.collapsed}
+        onToggleCollapse={isMobile ? () => {} : () => sidebar.toggleCollapse()}
+        width={isMobile ? 280 : sidebar.width}
+        onWidthChange={isMobile ? () => {} : sidebar.setWidth}
+        mobileOpen={isMobile ? sidebar.mobileSidebarOpen : undefined}
+        onMobileClose={isMobile ? () => sidebar.setMobileSidebarOpen(false) : undefined}
+        repoFilter={sidebar.repoFilter}
+        onRepoFilterChange={sidebar.setRepoFilter}
+        collapsedChatIds={sidebar.collapsedChatIds}
+        onToggleChatCollapsed={sidebar.toggleChatCollapsed}
+        onRequestMergeChats={handleRequestMergeChats}
+        onRequestRebaseChat={handleRequestRebaseChat}
+        onOpenScheduledJobs={
+          isMobile
+            ? () => {
+                handleOpenScheduledJobs()
+                sidebar.setMobileSidebarOpen(false)
+              }
+            : handleOpenScheduledJobs
+        }
+        scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
+        selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
+        isLoadingChats={!isHydrated}
+        claudeUsage={claudeUsage}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
