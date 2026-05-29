@@ -54,21 +54,17 @@ Type-safe GitHub API client utilities.
 import {
   // Types
   type GitHubApiError,
-  type GitHubFetchOptions,
   type GitHubUser,
   type GitHubRepo,
   type GitHubBranch,
   type GitHubCompareResult,
   type GitHubPullRequest,
-  type GitHubWebhookConfig,
-  type GitHubWebhook,
   // Core helpers
   githubFetch,
   isGitHubApiError,
   // High-level API methods
   getUser,
   getUserRepos,
-  getAllUserRepos,
   getRepo,
   getRepoBranches,
   compareBranches,
@@ -79,7 +75,6 @@ import {
   // Webhook management
   createWebhook,
   deleteWebhook,
-  listWebhooks,
   hasWebhookPermission,
 } from "@background-agents/common"
 ```
@@ -92,7 +87,6 @@ Helpers for building agent sessions and content blocks.
 import {
   buildSystemPrompt,
   buildContentBlocks,
-  type BuildContentBlocksResult,
   type SkillCatalogEntry,
 } from "@background-agents/common"
 ```
@@ -115,12 +109,7 @@ import type {
 Generate Git branch names.
 
 ```typescript
-import {
-  // Types
-  type BranchNameOptions,
-  // Functions
-  generateBranchName,
-} from "@background-agents/common"
+import { generateBranchName } from "@background-agents/common"
 ```
 
 ### Git Operations
@@ -131,15 +120,9 @@ Helpers for common Git operations.
 import {
   // Types
   type RebaseConflictState,
-  type GitStatusResult,
-  type MergeResult,
-  type RebaseResult,
-  type GitOperationContext,
   // Functions
   formatPRTitleFromBranch,
   formatPRBodyFromCommits,
-  isGitNothingToCommitMessage,
-  parseConflictedFiles,
   // Constants
   EMPTY_CONFLICT_STATE,
 } from "@background-agents/common"
