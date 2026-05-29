@@ -85,7 +85,7 @@ interface HomePageContentProps {
 function HomePageContent({ isMobile }: HomePageContentProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const { githubTokenInvalid } = useGitHubTokenCheck()
+  const { githubTokenInvalid, dismissReAuthBanner } = useGitHubTokenCheck()
   const modals = useModals()
   const sidebar = useSidebar()
 
@@ -833,6 +833,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       <AppModals
         isMobile={isMobile}
         githubTokenInvalid={githubTokenInvalid}
+        onDismissReAuthBanner={dismissReAuthBanner}
         onRepoSelect={handleRepoSelect}
         onSaveSettings={updateSettings}
         onSaveEnvVars={handleSaveEnvVars}
