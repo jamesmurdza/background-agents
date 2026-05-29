@@ -212,12 +212,24 @@ export async function setupTerminal(
     }
   }
 
-  // Start the PTY server
+  // Start the PTY server.
+  //
+  // The `&` alone is not enough to make Daytona's executeCommand return:
+  // without `< /dev/null` the backgrounded node process inherits stdin from
+  // the parent shell, and `disown` only removes it from the shell's job
+  // table — not from any pipes the shell created. On Daytona's default
+  // image something further up the stack closes the inherited FDs for us,
+  // so the naive `&` happens to return. On custom sandbox images that
+  // close path isn't there, the shell sits waiting on the inherited FDs,
+  // and the call times out (HTTP 408 from Daytona's command API) even
+  // though the server itself started fine. `setsid` puts the child in its
+  // own session and process group, which guarantees the parent shell exits
+  // immediately.
   const startResult = await sandbox.process.executeCommand(
-    `cd /tmp && nohup node websocket-pty-server.js > /tmp/pty-server.log 2>&1 &`,
+    `cd /tmp && setsid nohup node websocket-pty-server.js > /tmp/pty-server.log 2>&1 < /dev/null &`,
     undefined,
     undefined,
-    10
+    30
   )
 
   if (startResult.exitCode !== 0) {
