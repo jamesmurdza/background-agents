@@ -16,13 +16,13 @@ For unit and integration tests of the Agent SDK, see [packages/agents/TESTING.md
 
 ### One-time setup
 
-**Build the SDK** (required after install or after pulling SDK changes):
+**Build the SDK** (after install or after pulling SDK changes):
 
 ```bash
 npm run build:sdk
 ```
 
-**Create a local Postgres test database.** Commands below are for Linux (Debian/Ubuntu); adapt for your OS:
+**Create a local Postgres test database** (commands below are for Linux; adapt for your OS):
 
 ```bash
 sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
@@ -31,23 +31,9 @@ sudo -u postgres psql -c "CREATE USER sandboxed WITH PASSWORD 'sandboxed123';"
 sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents_test OWNER sandboxed;"
 ```
 
-**Set up env files** — two files, two values:
+**Env setup** — put the **Testing** env block from [`packages/web/README.md`](packages/web/README.md#testing-e2e) in `packages/web/.env.test`, and put `DAYTONA_API_KEY` in root `.env.local`.
 
-1. Root `.env.local` (shared dev secrets — cascades into all npm scripts):
-
-   ```
-   DAYTONA_API_KEY=<your real Daytona key>
-   ```
-
-2. `packages/web/.env.test` (test-mode overrides) — copy the template:
-
-   ```bash
-   cp packages/web/.env.test.example packages/web/.env.test
-   ```
-
-   Edit `DATABASE_URL` to point at your test DB. The URL **must** contain `test`, `localhost`, or `127.0.0.1`, or you must set `I_KNOW_THIS_IS_THE_TEST_DB=true`. This guards against accidents — every test run wipes the database with `prisma migrate reset --force`.
-
-   Everything else in the example (test NextAuth secret, placeholder OAuth, `ENABLE_TEST_AUTH=true`) can stay at its default value.
+The `DATABASE_URL` must contain `test`, `localhost`, or `127.0.0.1`, or you must set `I_KNOW_THIS_IS_THE_TEST_DB=true`. This guards against accidents — every test run wipes the database with `prisma migrate reset --force`.
 
 ### Run
 

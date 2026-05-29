@@ -31,56 +31,85 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 - **Dark/Light Theme**: System-aware theming with manual override options
 
-## Prerequisites
+## Architecture
 
-- Node.js 18+
-- A Daytona API key (from [Daytona dashboard](https://www.daytona.io/))
-- PostgreSQL database (local or hosted, e.g., [Neon](https://neon.tech/))
-- API keys for the AI providers you want to use (Anthropic, OpenAI, Google, etc.)
-- GitHub OAuth app (optional, for GitHub repository integration)
+- **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives
+- **Authentication**: NextAuth.js with GitHub OAuth provider and Prisma adapter
+- **Database**: PostgreSQL with Prisma ORM (supports local and Neon serverless)
+- **Agent SDK**: Uses `background-agents` for agent session management
+- **Sandbox**: Daytona SDK for isolated development environments
+- **State Management**: Server-first with localStorage as read cache for cross-device sync
 
-## Setup
+### Data flow
 
-1. **Install dependencies**:
+1. All writes go through the server first (create chat, send message, update settings)
+2. Server responds with server-generated IDs
+3. Client updates localStorage cache
+4. On page load, client fetches fresh data from server and merges with cache
+5. Device-specific state (current chat, unseen notifications) stays local-only
 
-   ```bash
-   npm install
-   ```
+## Environment variables
 
-2. **Configure environment variables** — create a `.env.local` file with at least:
+### Development
 
-   ```bash
-   DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
-   DAYTONA_API_KEY="dtn_your_key_here"
-   NEXTAUTH_URL="http://localhost:4000"
-   NEXTAUTH_SECRET="random-string-for-session-jwt"
-   GITHUB_PAT="ghp_your_token_here"
+```bash
+DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
+DAYTONA_API_KEY="dtn_your_key_here"
+NEXTAUTH_URL="http://localhost:4000"
+NEXTAUTH_SECRET="random-string-for-session-jwt"
+GITHUB_PAT="ghp_your_token_here"   # enables auto-login; bypasses real OAuth
 
-   # Optional: encrypts user-stored API credentials at rest (recommended).
-   # Generate with: openssl rand -hex 32
-   ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+# Optional: encrypts user-stored API credentials at rest. Generate with: openssl rand -hex 32
+ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000"
 
-   # Optional: GitHub OAuth — placeholders are fine in dev when GITHUB_PAT is set.
-   GITHUB_CLIENT_ID="placeholder"
-   GITHUB_CLIENT_SECRET="placeholder"
-   ```
+# Required by NextAuth but unused when GITHUB_PAT is set
+GITHUB_CLIENT_ID="placeholder"
+GITHUB_CLIENT_SECRET="placeholder"
+```
 
-   For MCP servers (Smithery registry + GitHub App MCP), see the [mcp-providers README](../mcp-providers/README.md).
+### Deployment (production)
 
-3. **Set up the database**:
+```bash
+DATABASE_URL="postgresql://..."     # production database
+DAYTONA_API_KEY="dtn_..."
+NEXTAUTH_URL="https://your-domain.com"
+NEXTAUTH_SECRET="<random-secret>"
+GITHUB_CLIENT_ID="<github-oauth-app-id>"
+GITHUB_CLIENT_SECRET="<github-oauth-app-secret>"
 
-   ```bash
-   npx prisma generate
-   npx prisma migrate dev
-   ```
+# REQUIRED in production — credential encryption refuses to run without it
+ENCRYPTION_KEY="<openssl rand -hex 32>"
 
-4. **Start the development server**:
+# Required for /api/cron/* endpoints (set in Vercel project env)
+CRON_SECRET="<random-secret>"
 
-   ```bash
-   npm run dev
-   ```
+# Optional: Smithery MCP server registry — see ../mcp-providers/README.md
+SMITHERY_API_KEY="..."
+SMITHERY_NAMESPACE=""
 
-   The app will be available at http://localhost:4000.
+# Optional: GitHub App MCP server — see ../mcp-providers/README.md
+GITHUB_APP_ID="..."
+GITHUB_APP_SLUG="..."
+GITHUB_APP_PRIVATE_KEY="..."
+```
+
+### Testing (E2E)
+
+```bash
+# DATABASE_URL MUST contain "test", "localhost", or "127.0.0.1" (safety check)
+DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents_test"
+DAYTONA_API_KEY="dtn_..."           # real key — tests create real sandboxes
+
+# Test-mode constants (also set by playwright.config.ts; documented here for `dev:test`)
+ENABLE_TEST_AUTH=true
+NEXTAUTH_SECRET=test-secret-for-e2e-tests
+NEXTAUTH_URL=http://localhost:4000
+GITHUB_CLIENT_ID=placeholder
+GITHUB_CLIENT_SECRET=placeholder
+
+# Optional: bypass the "is this a test DB?" safety check
+# I_KNOW_THIS_IS_THE_TEST_DB=true
+```
 
 ## Scripts
 
@@ -92,46 +121,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 | `npm run test:e2e` | Run Playwright E2E tests |
 | `npm run test:e2e:ui` | Run Playwright tests with UI |
 
-## Architecture
-
-- **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives
-- **Authentication**: NextAuth.js with GitHub OAuth provider and Prisma adapter
-- **Database**: PostgreSQL with Prisma ORM (supports local and Neon serverless)
-- **Agent SDK**: Uses `background-agents` for agent session management
-- **Sandbox**: Daytona SDK for isolated development environments
-- **State Management**: Server-first with localStorage as read cache for cross-device sync
-
-## Database
-
-The app uses PostgreSQL to store user data, chats, and messages. This enables:
-
-- **Cross-device sync**: Your chats are available on any device you sign into
-- **Server-generated IDs**: All entities have server-generated IDs for consistency
-- **Encrypted credentials**: API keys are stored encrypted (AES) in the database
-
-### Schema
-
-Core models (see `packages/web/prisma/schema.prisma` for the full definitions):
-
-- **User**: GitHub OAuth user with settings (JSONB) and encrypted credentials (JSONB)
-- **Chat**: Conversation tied to a repo/branch with sandbox info
-- **Message**: Individual messages with tool calls and content blocks
-- **ScheduledJob** / **ScheduledJobRun**: Recurring or webhook-triggered agent jobs and their execution history
-- **McpServerConnection**: Per-chat or per-job MCP server connections (Smithery Connect + GitHub MCP)
-- **Skill**: Repo-scoped skill manifests installed from the skills.sh marketplace
-- **CcAuthInfo**: Cached Claude Code OAuth credentials/cookies (managed by ccauth + the refresh cron)
-- **ActivityLog**: User action history for admin analytics
-- **Account** / **Session** / **VerificationToken**: NextAuth tables
-
-### Data Flow
-
-1. All writes go through the server first (create chat, send message, update settings)
-2. Server responds with server-generated IDs
-3. Client updates localStorage cache
-4. On page load, client fetches fresh data from server and merges with cache
-5. Device-specific state (current chat, unseen notifications) stays local-only
-
-### Migrations
+## Database migrations
 
 | Command | What it does |
 |---------|--------------|
