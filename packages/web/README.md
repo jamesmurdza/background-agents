@@ -44,7 +44,7 @@ GITHUB_CLIENT_SECRET="placeholder"
 GITHUB_PAT="ghp_your_token_here"
 ```
 
-Setting `GITHUB_PAT` enables auto-login so no GitHub OAuth app is required for dev.
+Option 1 uses the standard GitHub OAuth sign-in flow and requires a real OAuth app. Option 2 skips OAuth entirely — the app auto-logs you in as the owner of the PAT on first visit, so no OAuth app is needed.
 
 `ENCRYPTION_KEY` (encrypts user-stored API credentials at rest) defaults to a built-in dev key. To override, set it to a real value — generate with `openssl rand -hex 32`.
 
