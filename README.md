@@ -29,18 +29,18 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Quick start (Web)
 
-Requires Postgres + env per [Development](packages/web/README.md#development).
+You will need a running local Postgres database and a `.env.local` file populated with the variables described in the [Development](packages/web/README.md#development) section of the web package README.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:4000
+Open http://localhost:4000.
 
 ## Quick start (Desktop)
 
-Requires Postgres + env per [Development](packages/web/README.md#development) (the desktop app loads the web app).
+The desktop app loads the web app, so it has the same prerequisites as the Web quick start above: a running local Postgres database and a `.env.local` file populated with the variables described in the [Development](packages/web/README.md#development) section of the web package README.
 
 ```bash
 npm install
