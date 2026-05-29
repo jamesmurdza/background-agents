@@ -130,7 +130,7 @@ GITHUB_CLIENT_ID=placeholder
 GITHUB_CLIENT_SECRET=placeholder
 ```
 
-`ENABLE_TEST_AUTH=true` exposes `/api/test/auth`, an endpoint that creates a NextAuth session cookie for a fake test user. Playwright POSTs to it once at the start of a test, then proceeds with the user already "signed in" — no real GitHub OAuth involved.
+`ENABLE_TEST_AUTH=true` lets Playwright skip GitHub OAuth and sign in as a test user.
 
 Tests create real sandboxes, so `DAYTONA_API_KEY` is inherited from your Development `.env.local`.
 
