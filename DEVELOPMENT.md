@@ -50,7 +50,7 @@ DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agent
 
 # Local dev: http://localhost:4000. Behind Daytona proxy: https://4000-{sandbox-id}.daytonaproxy01.net
 NEXTAUTH_URL="http://localhost:4000"
-NEXTAUTH_SECRET="dev-secret-not-used-in-dev-mode"
+NEXTAUTH_SECRET="random-string-for-session-jwt"
 
 GITHUB_CLIENT_ID="placeholder"
 GITHUB_CLIENT_SECRET="placeholder"
