@@ -171,6 +171,7 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
       <MarkdownPreview
         content={content ?? ""}
         className="h-full"
+        currentFilePath={filePath}
       />
     )
   }

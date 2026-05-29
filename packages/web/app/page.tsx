@@ -193,6 +193,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     availableServers,
   })
 
+  // Relative file links in MarkdownPreview dispatch this CustomEvent to ask
+  // the page to open the linked file in the preview panel. Keeps the
+  // markdown component decoupled from the preview hook.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const filePath = (e as CustomEvent<{ filePath: string }>).detail?.filePath
+      if (!filePath) return
+      const filename = filePath.split("/").pop() || filePath
+      preview.openPreview({ type: "file", filePath, filename })
+    }
+    window.addEventListener("open-preview-file", handler)
+    return () => window.removeEventListener("open-preview-file", handler)
+  }, [preview])
+
   // Use TanStack Query for repos and branches
   const reposQuery = useReposQuery()
   const repos = reposQuery.data ?? []
