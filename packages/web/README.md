@@ -37,11 +37,20 @@ DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
 DAYTONA_API_KEY="dtn_your_key_here"
 NEXTAUTH_URL="http://localhost:4000"
 NEXTAUTH_SECRET="random-string-for-session-jwt"
-GITHUB_PAT="ghp_your_token_here"   # enables auto-login; bypasses real OAuth
 
-# Required by NextAuth but unused when GITHUB_PAT is set
+# Option 1: GitHub OAuth
 GITHUB_CLIENT_ID="placeholder"
 GITHUB_CLIENT_SECRET="placeholder"
+
+# Option 2: GitHub PAT
+GITHUB_PAT="ghp_your_token_here"   # enables auto-login; bypasses real OAuth
+```
+
+To override the dev default encryption key (defaults to a built-in dev key otherwise):
+
+```bash
+# Optional: encrypts user-stored API credentials at rest. Generate with: openssl rand -hex 32
+ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000"
 ```
 
 Run:
