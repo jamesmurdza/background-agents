@@ -130,9 +130,6 @@ GITHUB_CLIENT_ID=placeholder
 GITHUB_CLIENT_SECRET=placeholder
 ```
 
-> [!CAUTION]
-> Whatever `DATABASE_URL` points at will be wiped.
-
 Tests create real sandboxes, so `DAYTONA_API_KEY` is inherited from your Development `.env.local`.
 
 Run:
