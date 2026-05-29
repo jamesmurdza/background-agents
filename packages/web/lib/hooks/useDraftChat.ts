@@ -46,6 +46,11 @@ interface UseDraftChatOptions {
   isDraftChatId: (chatId: string) => boolean
   updateDraftChatConfig: (updates: DraftChatConfigUpdates) => void
   updateCurrentChat: (updates: Partial<Chat>) => void
+  /** Promote a draft chat to a real DB-backed chat. */
+  materializeDraft: (
+    draftId: string,
+    options?: { status?: Chat["status"] }
+  ) => Promise<Chat | null>
   /** Per-chat draft input text (real chats only — keyed by chatId). */
   drafts: Record<string, string>
   updateDraft: (chatId: string, draft: string) => void
@@ -67,6 +72,11 @@ interface UseDraftChatResult {
   /** Optimistic message bubble shown on a just-sent draft so the welcome screen leaves instantly. */
   optimisticDraft: OptimisticDraft | null
   setOptimisticDraft: React.Dispatch<React.SetStateAction<OptimisticDraft | null>>
+  /**
+   * Materialize the draft chat for the MCP modal (it can't persist changes
+   * against a non-existent chat row). Returns the real chatId or null on failure.
+   */
+  handleMaterializeDraftForMcp: (draftId: string) => Promise<string | null>
 }
 
 /**
@@ -92,6 +102,7 @@ export function useDraftChat({
   isDraftChatId,
   updateDraftChatConfig,
   updateCurrentChat,
+  materializeDraft,
   drafts,
   updateDraft,
 }: UseDraftChatOptions): UseDraftChatResult {
@@ -228,6 +239,16 @@ export function useDraftChat({
     updateDraft(currentChatId, draft)
   }, [isDraftMode, currentChatId, updateDraft])
 
+  // Materialize the draft chat when the MCP modal needs to commit a change.
+  // Returns the real chatId, or null if materialization failed.
+  const handleMaterializeDraftForMcp = useCallback(
+    async (draftId: string): Promise<string | null> => {
+      const materialized = await materializeDraft(draftId)
+      return materialized?.id ?? null
+    },
+    [materializeDraft]
+  )
+
   return {
     displayCurrentChat,
     isDraftMode,
@@ -237,5 +258,6 @@ export function useDraftChat({
     handleDraftChange,
     optimisticDraft,
     setOptimisticDraft,
+    handleMaterializeDraftForMcp,
   }
 }

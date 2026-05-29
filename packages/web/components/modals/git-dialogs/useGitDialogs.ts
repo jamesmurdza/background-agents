@@ -10,7 +10,7 @@ import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, Reba
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, chats, updateChatById, refetchMessages }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, setOnConflictStateChange }: UseGitDialogsOptions): UseGitDialogsResult {
   const chatId = chat?.id ?? ""
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
@@ -84,6 +84,14 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages }: 
 
   // Conflict state
   const [rebaseConflict, setRebaseConflict] = useState<RebaseConflictState>(EMPTY_CONFLICT_STATE)
+
+  // Subscribe to SSE conflict-state updates so the warning icon refreshes live
+  // after the agent resolves a rebase conflict server-side.
+  useEffect(() => {
+    if (!setOnConflictStateChange) return
+    setOnConflictStateChange((state) => setRebaseConflict(state))
+    return () => setOnConflictStateChange(null)
+  }, [setOnConflictStateChange])
 
   // Always use "project" as the directory name - sandbox/create always uses this
   const repoName = "project"

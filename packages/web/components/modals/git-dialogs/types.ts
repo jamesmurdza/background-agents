@@ -26,6 +26,15 @@ export interface UseGitDialogsOptions {
   updateChatById: (chatId: string, updates: Partial<Chat>) => Promise<void> | void
   /** Refetch messages for a chat (called after git operations add messages on backend). */
   refetchMessages?: (chatId: string) => Promise<void>
+  /**
+   * Register a listener for conflict-state updates coming in via SSE
+   * (the agent emits these when it resolves a rebase conflict). Passing
+   * null clears the listener. The hook wires this to its own
+   * setRebaseConflict so the warning icon updates live.
+   */
+  setOnConflictStateChange?: (
+    callback: ((state: RebaseConflictState) => void) | null
+  ) => void
 }
 
 /** PR description format options */

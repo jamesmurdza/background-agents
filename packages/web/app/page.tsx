@@ -148,6 +148,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Additional state not in contexts
   const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   const [skillsModalOpen, setSkillsModalOpen] = useState(false)
+  // Transient error toast (e.g. setup-remote failure). Auto-dismisses after 5s.
+  const [errorBanner, setErrorBanner] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!errorBanner) return
+    const id = setTimeout(() => setErrorBanner(null), 5000)
+    return () => clearTimeout(id)
+  }, [errorBanner])
 
   // Sandbox/repo actions (env vars, download, open in VS Code/GitHub, git clipboard)
   const {
@@ -206,23 +214,16 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Git dialogs state — the hook does its own target-chat lookups internally
   // (finding the chat that owns a branch in this repo) given `chats` and
-  // `updateChatById`. Backend creates messages directly in DB; refetchMessages
-  // pulls them down.
+  // `updateChatById`, and subscribes to SSE conflict updates via
+  // setOnConflictStateChange so the warning icon refreshes live. Backend
+  // creates messages directly in DB; refetchMessages pulls them down.
   const gitDialogs = useGitDialogs({
     chat: currentChat ?? null,
     chats,
     updateChatById,
     refetchMessages,
+    setOnConflictStateChange,
   })
-
-  // Connect conflict state updates from SSE to gitDialogs
-  // This ensures the warning icon updates after agent resolves conflicts
-  useEffect(() => {
-    setOnConflictStateChange((state) => {
-      gitDialogs.setRebaseConflict(state)
-    })
-    return () => setOnConflictStateChange(null)
-  }, [setOnConflictStateChange, gitDialogs.setRebaseConflict])
 
   // Close mobile sidebar when switching to desktop
   useEffect(() => {
@@ -245,16 +246,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
   }, [isMobile, isHydrated, currentChatId, chats, selectChat])
 
-
-  // Materialize the draft chat when the MCP modal needs to commit a change.
-  // Returns the real chatId, or null if materialization failed.
-  const handleMaterializeDraftForMcp = useCallback(
-    async (draftId: string): Promise<string | null> => {
-      const materialized = await materializeDraft(draftId)
-      return materialized?.id ?? null
-    },
-    [materializeDraft]
-  )
 
   // Auto-enter draft mode if user is authenticated but has no chat selected.
   // This replaces the old auto-create behavior - now we just enter draft mode
@@ -300,6 +291,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     currentDraft,
     handleDraftChange,
     setOptimisticDraft,
+    handleMaterializeDraftForMcp,
   } = useDraftChat({
     isHydrated,
     currentChat,
@@ -310,6 +302,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isDraftChatId,
     updateDraftChatConfig,
     updateCurrentChat,
+    materializeDraft,
     drafts,
     updateDraft,
   })
@@ -448,13 +441,16 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         })
 
         if (!response.ok) {
-          const error = await response.json()
-          console.error("Failed to set up remote:", error)
-          // TODO: Show error to user
+          const errJson = await response.json().catch(() => ({}))
+          const detail = typeof errJson?.error === "string" ? errJson.error : `HTTP ${response.status}`
+          console.error("Failed to set up remote:", errJson)
+          setErrorBanner(`Couldn't set up remote for ${repo}: ${detail}`)
           return
         }
       } catch (error) {
+        const detail = error instanceof Error ? error.message : "Unknown error"
         console.error("Failed to set up remote:", error)
+        setErrorBanner(`Couldn't set up remote for ${repo}: ${detail}`)
         return
       }
     }
@@ -822,6 +818,16 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           swallowed by iframes or other child elements. */}
       {preview.isResizingPreview && (
         <div className="fixed inset-0 z-[999] cursor-col-resize" />
+      )}
+
+      {/* Transient error toast — auto-dismisses 5s after errorBanner is set. */}
+      {errorBanner && (
+        <div
+          role="alert"
+          className="fixed top-4 right-4 z-[1000] max-w-md bg-destructive text-destructive-foreground px-4 py-3 rounded-md shadow-lg text-sm animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          {errorBanner}
+        </div>
       )}
 
       <AppModals
