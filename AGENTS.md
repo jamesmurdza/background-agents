@@ -7,11 +7,11 @@ Primary reference for coding agents working in this repo.
 
 ## What the user has to provide
 
-The agent can follow the setup and workflow instructions in this repo on its own, but the user must provide values for these env vars when required by setting them in the current environment.
+The agent can follow the setup and workflow instructions in this repo on its own. The user provides values for these env vars by exporting them in the current shell environment.
 
 **Required for dev server and tests**
 
-- `DAYTONA_API_KEY` in `.env.local` (reused by `.env.test`).
+- `DAYTONA_API_KEY` — exported in the shell (reused by `.env.test`).
 
 **Required for dev server**
 
