@@ -7,11 +7,15 @@ import { cn } from "@/lib/utils"
 interface ErrorBannerProps {
   message: string
   isMobile?: boolean
+  /** Re-check chat status from the backend. The banner unmounts on its own
+   *  when the parent sees `chat.status !== "error"`. */
+  onRefresh?: () => Promise<void> | void
 }
 
-export function ErrorBanner({ message, isMobile }: ErrorBannerProps) {
+export function ErrorBanner({ message, isMobile, onRefresh }: ErrorBannerProps) {
   const [expanded, setExpanded] = useState(false)
   const [overflow, setOverflow] = useState(false)
+  const [isChecking, setIsChecking] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -19,6 +23,12 @@ export function ErrorBanner({ message, isMobile }: ErrorBannerProps) {
     if (!el) return
     setOverflow(el.scrollHeight > el.clientHeight + 1)
   }, [message, expanded])
+
+  const handleRefresh = async () => {
+    if (!onRefresh || isChecking) return
+    setIsChecking(true)
+    try { await onRefresh() } finally { setIsChecking(false) }
+  }
 
   return (
     <div
@@ -44,15 +54,28 @@ export function ErrorBanner({ message, isMobile }: ErrorBannerProps) {
         >
           {message}
         </div>
-        {(overflow || expanded) && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="mt-1 underline underline-offset-2 hover:no-underline cursor-pointer"
-          >
-            {expanded ? "Show less" : "Show more"}
-          </button>
-        )}
+        <div className="mt-1 flex items-center gap-3">
+          {(overflow || expanded) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="underline underline-offset-2 hover:no-underline cursor-pointer"
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
+          {onRefresh && (
+            <button
+              type="button"
+              data-testid="chat-error-refresh"
+              onClick={handleRefresh}
+              disabled={isChecking}
+              className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:cursor-default disabled:no-underline disabled:opacity-70"
+            >
+              {isChecking ? "Checking…" : "Refresh"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

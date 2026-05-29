@@ -130,6 +130,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     resumeQueue,
     updateChatById,
     refetchMessages,
+    refreshChat,
     drafts,
     updateDraft,
     clearDraft,
@@ -766,6 +767,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onRemoveQueuedMessage={removeQueuedMessage}
                   onResumeQueue={resumeQueue}
                   onStopAgent={stopAgent}
+                  onRefreshChat={refreshChat}
                   onUpdateChat={handleUpdateChatProp}
                   onSlashCommand={handleSlashCommand}
                   onOpenFile={(filePath) => {

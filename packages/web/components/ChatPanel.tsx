@@ -22,6 +22,7 @@ interface ChatPanelProps {
   onRemoveQueuedMessage?: (id: string) => void
   onResumeQueue?: () => void
   onStopAgent: () => void
+  onRefreshChat?: (chatId: string) => Promise<void>
   onUpdateChat?: (updates: Partial<Chat>) => void
   onSlashCommand?: (command: SlashCommandType) => void
   onOpenFile?: (filePath: string) => void
@@ -50,7 +51,7 @@ interface ChatPanelProps {
   rapidFireNotification?: number
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, rapidFireMode = false, rapidFireNotification = 0 }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onRefreshChat, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, rapidFireMode = false, rapidFireNotification = 0 }: ChatPanelProps) {
   // Get modal and git state from contexts
   const modals = useModals()
   const git = useGit()
@@ -643,6 +644,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
               key={chat.id}
               message={chat.errorMessage}
               isMobile={isMobile}
+              onRefresh={onRefreshChat ? () => onRefreshChat(chat.id) : undefined}
             />
           )}
           {/* Queue shelf — lives at the bottom of the scroll area so it

@@ -654,6 +654,21 @@ export function useChatWithSync() {
     }
   }, [chats, updateChatsCache])
 
+  // Re-check a chat's status against the backend. Used by the error banner's
+  // refresh action: SSE drops mark the chat as errored even when the agent
+  // actually finished — this reconciles status (and any new messages).
+  const refreshChat = useCallback(async (chatId: string) => {
+    const chat = chats.find((c) => c.id === chatId)
+    const lastMessageId = chat?.messages[chat.messages.length - 1]?.id
+    const data = await fetchChat(chatId, lastMessageId ? { afterMessageId: lastMessageId } : undefined)
+    const incoming = data.messages.map(toMessageType)
+    updateChatsCache((old) => old.map((c) => c.id === chatId ? {
+      ...c,
+      status: data.status as ChatStatus,
+      messages: incoming.length ? mergeMessages(c.messages, incoming) : c.messages,
+    } : c))
+  }, [chats, updateChatsCache])
+
   // True when messages need to be loaded for current chat (to prevent flash of empty state)
   // A chat needs loading if: has no messages locally, but server says it has messages (messageCount > 0)
   const isLoadingMessages = currentChat
@@ -721,6 +736,7 @@ export function useChatWithSync() {
     removeQueuedMessage,
     resumeQueue,
     refetchMessages,
+    refreshChat,
     drafts: localChatState.drafts,
     updateDraft,
     clearDraft,
