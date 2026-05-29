@@ -70,7 +70,7 @@ This creates a new migration file in `prisma/migrations/` (commit it) and applie
 
 ### Deployment
 
-Production deployment to Vercel. Uses a real GitHub OAuth app and requires `ENCRYPTION_KEY` so user-stored API credentials are encrypted at rest.
+Deploy the app to Vercel. Uses a real GitHub OAuth app and requires `ENCRYPTION_KEY` for at-rest encryption of user-stored API credentials.
 
 Env:
 
@@ -108,7 +108,7 @@ GITHUB_APP_PRIVATE_KEY="..."
 
 ### Testing
 
-End-to-end tests run against a local test database. Each run resets the database via `prisma migrate reset --force`, so the safety check refuses any non-local `DATABASE_URL`.
+End-to-end tests run against a local test database. Each run resets the database via `prisma migrate reset --force`. Because that's destructive, the safety check refuses any non-local `DATABASE_URL`.
 
 Env (`.env.test` in this package) — overrides the dev env from `.env.local`:
 
@@ -126,15 +126,13 @@ GITHUB_CLIENT_SECRET=placeholder
 
 Set `I_KNOW_THIS_IS_THE_TEST_DB=true` to bypass the safety check and run against a non-localhost database.
 
-`DAYTONA_API_KEY` is inherited from your Development `.env.local` — tests create real sandboxes.
+Tests create real sandboxes, so `DAYTONA_API_KEY` is inherited from your Development `.env.local`.
 
 Run:
 
 ```bash
 npm run test:e2e
 ```
-
-Each run resets the test database via `prisma migrate reset --force`.
 
 To debug a failing test, start a dev server using the same env profile as Playwright (test DB, test-auth route, placeholder OAuth) so you can reproduce the failure manually in your browser:
 
