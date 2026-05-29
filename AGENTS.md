@@ -7,9 +7,7 @@ Primary reference for coding agents working in this repo.
 
 ## What the user has to provide
 
-The agent can follow the setup and workflow instructions in this repo on its own. When the user asks how to run or set up something, lead with what the user must provide; the agent handles the rest.
-
-The user provides values for these env vars by exporting them in the current shell environment.
+The agent can follow the setup and workflow instructions in this repo on its own. The user provides values for these env vars by exporting them in the current shell environment.
 
 **Required for dev server and tests**
 
