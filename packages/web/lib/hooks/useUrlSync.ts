@@ -19,7 +19,6 @@ interface UseUrlSyncOptions {
   isHydrated: boolean
   currentChatId: string | null
   isDraftChatId: (chatId: string | null) => boolean
-  draftChatConfig: { id: string } | null | undefined
   selectChat: (chatId: string | null) => void
   startNewChat: () => Promise<string | null> | void
   setViewMode: (mode: "chat" | "scheduled-jobs") => void
@@ -30,7 +29,6 @@ export function useUrlSync({
   isHydrated,
   currentChatId,
   isDraftChatId,
-  draftChatConfig,
   selectChat,
   startNewChat,
   setViewMode,
@@ -67,50 +65,54 @@ export function useUrlSync({
           break
 
         case "newChat":
+          // Drafts (new chats) don't get their own URL — show the home page
+          // (backgrounder.dev) instead. Enter draft mode if we aren't already in
+          // one, then rewrite the URL to "/".
           setViewMode("chat")
           if (!currentChatId || !isDraftChatId(currentChatId)) {
             startNewChat()
           }
+          window.history.replaceState(null, "", ROUTES.home.build())
           break
 
         case "chat": {
           const urlChatId = matched.chatId
           setViewMode("chat")
-          if (urlChatId !== currentChatId) {
-            // Guard: if the URL contains a draft ID that no longer matches our active
-            // draftChatConfig (e.g. a stale URL from a previous session where the draft
-            // was already materialized, or a new draft was created), do NOT overwrite
-            // currentChatId with the dead draft ID. Redirect the URL instead.
-            if (isDraftChatId(urlChatId) && draftChatConfig?.id !== urlChatId) {
-              // We have a mismatched draft URL. Use whatever currentChatId localStorage
-              // already has, or fall back to /chat/new for a fresh draft.
-              const target = currentChatId
-                ? ROUTES.chat.build(currentChatId)
-                : ROUTES.newChat.build()
-              window.history.replaceState(null, "", target)
-              if (!currentChatId) startNewChat()
-              break
+          // A draft id in the URL (stale link, or an old session's draft) should
+          // never stay there. Show the home page and ensure we're in draft mode.
+          if (isDraftChatId(urlChatId)) {
+            if (!currentChatId || !isDraftChatId(currentChatId)) {
+              startNewChat()
             }
-            // Always select the chat - if it doesn't exist in our local cache,
-            // the chat detail fetch will handle it. We don't redirect to /chat/new
-            // because the chat might exist on the server but not be loaded yet.
-            // Also handles draft chats which aren't in the chats array.
+            window.history.replaceState(null, "", ROUTES.home.build())
+            break
+          }
+          if (urlChatId !== currentChatId) {
+            // Select the chat. If the id is unknown (bad URL), the page-level
+            // redirect effect sends the user to a fresh draft once the chat list
+            // has loaded. We don't redirect here because the chat might exist on
+            // the server but not be loaded yet.
             selectChat(urlChatId)
           }
           break
         }
 
         case "home":
-          if (currentChatId) {
+          setViewMode("chat")
+          // A real chat selected at "/" gets promoted to its own URL. Drafts (or
+          // no selection) stay on the home page; the auto-draft effect handles
+          // entering draft mode when nothing is selected.
+          if (currentChatId && !isDraftChatId(currentChatId)) {
             window.history.replaceState(null, "", ROUTES.chat.build(currentChatId))
-          } else {
-            window.history.replaceState(null, "", ROUTES.newChat.build())
-            startNewChat()
+          } else if (!isInitialSync) {
+            // Back/forward navigation to "/" should drop any open chat and show
+            // the home page (a fresh draft), not silently keep the chat.
+            selectChat(null)
           }
           break
       }
     },
-    [currentChatId, isDraftChatId, draftChatConfig, selectChat, startNewChat, setViewMode, setSelectedScheduledJob]
+    [currentChatId, isDraftChatId, selectChat, startNewChat, setViewMode, setSelectedScheduledJob]
   )
 
   // Track if we've done initial sync

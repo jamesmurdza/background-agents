@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { MobileHeader } from "@/components/MobileHeader"
@@ -112,6 +112,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     claudeIsPro,
     claudeIsWeekly,
     isHydrated,
+    isLoading,
     isLoadingMessages,
     deletingChatIds,
     unseenChatIds,
@@ -269,12 +270,40 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isHydrated,
     currentChatId,
     isDraftChatId,
-    draftChatConfig,
     selectChat,
     startNewChat,
     setViewMode: sidebar.setViewMode,
     setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
   })
+
+  // When a draft is materialized into a real chat (e.g. after sending the first
+  // message), the draft id is replaced by a real one. Drafts live at the home
+  // page URL, so promote the URL to /chat/{realId} once it becomes a real chat.
+  const prevChatIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prevId = prevChatIdRef.current
+    prevChatIdRef.current = currentChatId
+    if (!isHydrated || sidebar.viewMode !== "chat") return
+    if (currentChatId && !isDraftChatId(currentChatId) && prevId && isDraftChatId(prevId)) {
+      const target = ROUTES.chat.build(currentChatId)
+      if (window.location.pathname !== target) {
+        window.history.replaceState(null, "", target)
+      }
+    }
+  }, [isHydrated, currentChatId, isDraftChatId, sidebar.viewMode])
+
+  // If the URL points at a chat that doesn't exist (bad/stale link), redirect to
+  // a fresh draft on the home page. We only do this once the chat list has
+  // finished loading — until then we can't tell "missing" from "not loaded yet".
+  useEffect(() => {
+    if (!isHydrated || isLoading) return
+    if (sidebar.viewMode !== "chat") return
+    if (!currentChatId || isDraftChatId(currentChatId)) return
+    if (chats.some((c) => c.id === currentChatId)) return
+    // Unknown chat id — drop it and let the auto-draft effect enter draft mode.
+    selectChat(null)
+    window.history.replaceState(null, "", ROUTES.home.build())
+  }, [isHydrated, isLoading, currentChatId, chats, isDraftChatId, sidebar.viewMode, selectChat])
 
   // =============================================================================
   // Draft Chat & Display Chat
@@ -366,10 +395,11 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       // Default to NEW_REPOSITORY (no repo)
       newChatId = await startNewChat()
     }
-    // Navigate to the new chat URL
+    // New chats are drafts — they don't get their own URL. Show the home page
+    // (backgrounder.dev) instead of putting the draft id in the URL. Pushing a
+    // history entry keeps the back button working (returns to the prior chat).
     if (newChatId) {
-      // Update URL without triggering Next.js navigation
-      window.history.pushState(null, "", ROUTES.chat.build(newChatId))
+      window.history.pushState(null, "", ROUTES.home.build())
     }
   }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat])
 
@@ -723,7 +753,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         }
         scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
         selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
-        isLoadingChats={!isHydrated}
+        isLoadingChats={!isHydrated || (isLoading && displayChats.length === 0)}
         claudeUsage={claudeUsage}
       />
 
