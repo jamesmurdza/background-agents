@@ -79,7 +79,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
       // that the session can still complete normally despite the short timeout setting.
       it("handles timeout in background mode", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 5, // Very short timeout (not currently enforced)
         })
 
@@ -105,7 +105,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
         try {
           const session = await createSession("claude", {
-            sandbox: sandboxBadKey as any,
+            sandbox: sandboxBadKey,
             timeout: 30,
           })
 
@@ -138,7 +138,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
         try {
           const session = await createSession("claude", {
-            sandbox: sandboxNoKey as any,
+            sandbox: sandboxNoKey,
             timeout: 30,
           })
 
@@ -162,7 +162,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("malformed events", () => {
       it("handles non-JSON output gracefully", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -180,7 +180,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("network failures", () => {
       it("handles sandbox connection issues gracefully", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -195,7 +195,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("empty and edge case prompts", () => {
       it("handles empty prompt", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 60,
         })
 
@@ -218,7 +218,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles whitespace-only prompt", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 60,
         })
 
@@ -239,7 +239,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles special characters in prompt", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -252,7 +252,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles newlines and escape sequences in prompt", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -266,7 +266,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles very long prompt (>10K chars)", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -283,7 +283,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("rapid operations", () => {
       it("handles rapid getEvents calls without crashing", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -309,7 +309,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles rapid isRunning calls", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -336,7 +336,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("session lifecycle edge cases", () => {
       it("handles getEvents before starting any turn", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -350,7 +350,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles isRunning before starting any turn", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -360,7 +360,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles getPid before starting any turn", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -370,7 +370,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles multiple cancel calls", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -392,7 +392,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
       // that the session completes (either successfully with default, or with error).
       it("handles invalid model name gracefully", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
           model: "invalid-model-name-xyz",
         })
@@ -411,12 +411,12 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("concurrent sessions", () => {
       it("handles multiple sessions without interference", async () => {
         const session1 = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
         const session2 = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 

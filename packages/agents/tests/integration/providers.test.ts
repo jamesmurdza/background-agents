@@ -138,7 +138,7 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
           ? { [agent.apiKeyEnvVar]: agent.apiKey! }
           : {}
         const session = await createSession(agent.name, {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
           model: agent.model,
           env,
@@ -162,7 +162,7 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
           ? { [agent.apiKeyEnvVar]: agent.apiKey! }
           : {}
         const session = await createSession(agent.name, {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
           model: agent.model,
           env,
@@ -187,7 +187,7 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
           ? { [agent.apiKeyEnvVar]: agent.apiKey! }
           : {}
         const session = await createSession(agent.name, {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
           model: agent.model,
           env,
@@ -208,7 +208,7 @@ describe.skipIf(!DAYTONA_API_KEY)("agent integration tests", () => {
           ? { [agent.apiKeyEnvVar]: agent.apiKey! }
           : {}
         const session = await createSession(agent.name, {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
           model: agent.model,
           env,

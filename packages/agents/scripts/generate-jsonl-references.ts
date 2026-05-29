@@ -174,7 +174,7 @@ async function generateReferenceForProvider(
     // Create background session
     console.log(`  Creating background session...`)
     const bg = await createSession(config.name, {
-      sandbox: sandbox as any,
+      sandbox,
       timeout: 180,
       model: config.model,
       env: { [config.apiKeyEnvVar]: config.apiKey },

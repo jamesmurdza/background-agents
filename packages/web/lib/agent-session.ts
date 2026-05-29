@@ -148,7 +148,7 @@ export async function createBackgroundAgentSession(
   }
 
   const bgSession = await createSession(provider, {
-    sandbox: sandbox as any,
+    sandbox,
     systemPrompt,
     sessionId: options.sessionId,
     cwd: options.repoPath,
@@ -276,7 +276,7 @@ export async function finalizeTurn(
       options.skills
     )
     const bgSession = await getSession(backgroundSessionId, {
-      sandbox: sandbox as any,
+      sandbox,
       systemPrompt,
     })
     await bgSession.getEvents()
@@ -302,7 +302,7 @@ export async function cancelBackgroundAgent(
     )
 
     const bgSession = await getSession(backgroundSessionId, {
-      sandbox: sandbox as any,
+      sandbox,
       systemPrompt,
     })
 
@@ -331,7 +331,7 @@ export async function snapshotBackgroundAgent(
     )
 
     const bgSession = await getSession(backgroundSessionId, {
-      sandbox: sandbox as any,
+      sandbox,
       systemPrompt,
     })
 

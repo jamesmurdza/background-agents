@@ -84,7 +84,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
       it("can reattach to existing background session", async () => {
         // Create initial session
         const session1 = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -97,7 +97,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
         // Reattach using the same session ID
         const session2 = await getSession(sessionId, {
-          sandbox: sandbox as any,
+          sandbox,
         })
 
         expect(session2.id).toBe(sessionId)
@@ -110,7 +110,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("reattached session preserves agent info", async () => {
         const session1 = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -119,7 +119,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
         // Reattach without specifying agent (should read from meta)
         const session2 = await getSession(sessionId, {
-          sandbox: sandbox as any,
+          sandbox,
         })
 
         expect(session2.agent.name).toBe("claude")
@@ -130,7 +130,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
       it("throws error when reattaching to non-existent session", async () => {
         await expect(
           getSession("non-existent-id-12345", {
-            sandbox: sandbox as any,
+            sandbox,
           })
         ).rejects.toThrow(/meta not found/)
       }, 30_000)
@@ -139,7 +139,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("multiple turns", () => {
       it("handles multiple sequential prompts correctly", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -166,7 +166,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("cursor advances correctly between turns", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -196,7 +196,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("cancellation", () => {
       it("can cancel a running background process", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -225,7 +225,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("cancel is safe when nothing is running", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -237,7 +237,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("can start new turn after cancellation", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -257,7 +257,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("crash detection", () => {
       it("detects when process crashes unexpectedly", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -291,7 +291,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("concurrent polling", () => {
       it("multiple getEvents calls return consistent results", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -314,7 +314,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("getEvents from reattached session sees same state", async () => {
         const session1 = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -326,7 +326,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
         // Reattach
         const session2 = await getSession(sessionId, {
-          sandbox: sandbox as any,
+          sandbox,
         })
 
         // Both should see the process as running
@@ -344,7 +344,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("process lifecycle", () => {
       it("isRunning is false before start, true during, false after", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -369,7 +369,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("getPid returns null before start and after completion", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -392,7 +392,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("events are cumulative across getEvents calls", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -424,7 +424,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
     describe("edge cases", () => {
       it("handles empty prompt gracefully", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
@@ -441,7 +441,7 @@ describe.skipIf(!DAYTONA_API_KEY || !ANTHROPIC_API_KEY)(
 
       it("handles very long prompt", async () => {
         const session = await createSession("claude", {
-          sandbox: sandbox as any,
+          sandbox,
           timeout: 120,
         })
 
