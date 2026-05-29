@@ -1,37 +1,16 @@
 # Testing
 
-## Build check (no DB)
-
-To verify the web app builds without setting up a database:
-
-```bash
-npm run build:web
-```
-
 ## Agent SDK tests
 
-For unit and integration tests of the Agent SDK, see [packages/agents/TESTING.md](packages/agents/TESTING.md).
+See [packages/agents/TESTING.md](packages/agents/TESTING.md).
 
 ## E2E tests (Playwright)
 
 ### One-time setup
 
-**Build the SDK** (after install or after pulling SDK changes):
+Set up Postgres as in [DEVELOPMENT.md](DEVELOPMENT.md#database-setup), but name the database `sandboxed_agents_test` instead of `sandboxed_agents`.
 
-```bash
-npm run build:sdk
-```
-
-**Create a local Postgres test database** (commands below are for Linux; adapt for your OS):
-
-```bash
-sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
-sudo service postgresql start
-sudo -u postgres psql -c "CREATE USER sandboxed WITH PASSWORD 'sandboxed123';"
-sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents_test OWNER sandboxed;"
-```
-
-**Env setup** — put the **Testing** env block from [`packages/web/README.md`](packages/web/README.md#testing-e2e) in `packages/web/.env.test`, and put `DAYTONA_API_KEY` in root `.env.local`.
+Put the **Testing** env block from [`packages/web/README.md`](packages/web/README.md#testing-e2e) in `packages/web/.env.test`. Your `DAYTONA_API_KEY` from `.env.local` is reused.
 
 ### Run
 
@@ -43,10 +22,10 @@ npm run test:e2e
 
 ### Debug a failing test
 
-`dev:test` boots a dev server with the same env profile as Playwright — test DB, `/api/test/auth` route enabled, placeholder OAuth — so you can manually reproduce a failure:
+`dev:test` boots a dev server with the test env profile (test DB, `/api/test/auth` route enabled, placeholder OAuth) so you can manually reproduce a failure:
 
 ```bash
 npm run dev:test
 ```
 
-Then open `http://localhost:4000` and poke around.
+Then open http://localhost:4000.
