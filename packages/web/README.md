@@ -67,14 +67,14 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
    For MCP servers (Smithery registry + GitHub App MCP), see the [mcp-providers README](../mcp-providers/README.md).
 
-3. **Set up the database** (from the repo root):
+3. **Set up the database**:
 
    ```bash
-   npm run prisma:generate
-   npm run prisma:migrate
+   npx prisma generate
+   npx prisma migrate dev
    ```
 
-4. **Start the development server** (from the repo root):
+4. **Start the development server**:
 
    ```bash
    npm run dev
@@ -133,21 +133,19 @@ Core models (see `packages/web/prisma/schema.prisma` for the full definitions):
 
 ### Migrations
 
-Run these from the monorepo root:
-
 | Command | What it does |
 |---------|--------------|
-| `npm run prisma:migrate -- --name my_change` | Create + apply a migration |
-| `npm run prisma:status` | Check migration status |
-| `npm run prisma:generate` | Regenerate Prisma client |
+| `npx prisma migrate dev --name my_change` | Create + apply a migration |
+| `npx prisma migrate status` | Check migration status |
+| `npx prisma generate` | Regenerate Prisma client |
 
 **Workflow:**
 
-1. Edit `packages/web/prisma/schema.prisma`
-2. Run `npm run prisma:migrate -- --name my_change`
+1. Edit `prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name my_change`
 3. Commit the new files in `prisma/migrations/`
 4. Push to git
 
-**After pulling:** Run `npm run prisma:migrate` to apply new migrations.
+**After pulling:** Run `npx prisma migrate dev` to apply new migrations.
 
-CI/CD runs `npm run prisma:migrate:deploy` to apply migrations to production.
+CI/CD runs `npx prisma migrate deploy` to apply migrations to production.

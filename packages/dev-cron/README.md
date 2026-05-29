@@ -6,17 +6,11 @@ Reads cron configuration from `vercel.json` and runs the endpoints locally on th
 
 ## Usage
 
-From the package directory:
-
 ```bash
 npm run dev
 ```
 
-Or from the repo root:
-
-```bash
-npm run dev:cron
-```
+All environment variables (below) are optional — sensible defaults are used.
 
 ## Environment Variables
 
