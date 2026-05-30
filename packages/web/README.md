@@ -28,7 +28,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 ### Development
 
-Run the web app locally against a local Postgres database. Set the following in `.env.local`:
+Run the web app locally against a local Postgres database. Set the following in `.env.local` **at the repo root** (the `npm` scripts below are root scripts that load it):
 
 ```bash
 DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
@@ -36,24 +36,19 @@ DAYTONA_API_KEY="dtn_your_key_here"
 NEXTAUTH_URL="http://localhost:4000"
 NEXTAUTH_SECRET="random-string-for-session-jwt"
 
-# Option 1: GitHub OAuth
+# GitHub OAuth (standard sign-in flow; requires a real OAuth app)
 GITHUB_CLIENT_ID="placeholder"
 GITHUB_CLIENT_SECRET="placeholder"
-
-# Option 2: GitHub PAT
-GITHUB_PAT="ghp_your_token_here"
 ```
-
-Option 1 uses the standard GitHub OAuth sign-in flow and requires a real OAuth app. Option 2 skips OAuth entirely — the app auto-logs you in as the owner of the PAT on first visit, so no OAuth app is needed.
 
 > [!IMPORTANT]
 > `ENCRYPTION_KEY` defaults to a non-secret dev key. Override with `openssl rand -hex 32` before deploying.
 
-Run:
+Run from the repo root:
 
 ```bash
 npm install
-npx prisma migrate dev
+npm run prisma:migrate
 npm run dev
 ```
 
@@ -61,10 +56,10 @@ App is at http://localhost:4000.
 
 ### Database migration
 
-After editing `prisma/schema.prisma`, run:
+After editing `prisma/schema.prisma`, run from the repo root:
 
 ```bash
-npx prisma migrate dev
+npm run prisma:migrate
 ```
 
 This creates a new migration file in `prisma/migrations/` (commit it) and applies it to your local DB. Run the same command after pulling to apply migrations others have added.
@@ -134,13 +129,13 @@ GITHUB_CLIENT_SECRET=placeholder
 
 Tests create real sandboxes, so `DAYTONA_API_KEY` is inherited from your Development `.env.local`.
 
-Run:
+Run from `packages/web/`:
 
 ```bash
 npm run test:e2e
 ```
 
-To start a dev server using the same env profile as the end-to-end tests:
+To start a dev server using the same env profile as the end-to-end tests, run from the repo root:
 
 ```bash
 npm run dev:test

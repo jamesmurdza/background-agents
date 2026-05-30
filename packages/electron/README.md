@@ -53,11 +53,11 @@ Output goes to `release/`.
 
 ## Automated releases (GitHub Actions)
 
-The workflow at `.github/release-workflow.yml.disabled` builds for macOS, Windows,
+The workflow at `.github/release-workflow.yml` builds for macOS, Windows,
 and Linux and publishes the installers to a GitHub Release. (It lives outside
 `.github/workflows/` because pushing there needs the GitHub `workflow` OAuth
-scope — add it via the GitHub web UI, or move it back once your token has that
-scope.)
+scope — move it into `.github/workflows/` once your token has that scope, or
+add it via the GitHub web UI.)
 
 Trigger a release by pushing a version tag:
 

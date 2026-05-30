@@ -45,8 +45,8 @@ import { installSkill, uninstallSkill, listAvailableSkills } from "@background-a
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create()
 
-// List available skills in a repository
-const skills = await listAvailableSkills(sandbox, "/home/daytona/project")
+// List the skills a source repo offers (returns a Set<string> of skill names, or null)
+const available = await listAvailableSkills(sandbox, "/home/daytona/project", "owner/repo")
 
 // Install a skill
 const result = await installSkill(sandbox, "/home/daytona/project", "owner/repo", "skill-id")

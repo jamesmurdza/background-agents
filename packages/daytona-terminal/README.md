@@ -145,9 +145,6 @@ Messages are JSON-encoded:
 
 // Resize terminal
 { type: 'resize', cols: 80, rows: 24 }
-
-// Health check
-{ type: 'ping' }
 ```
 
 ### Server -> Client
@@ -158,12 +155,6 @@ Messages are JSON-encoded:
 
 // Connection ready
 { type: 'ready', pid: 12345 }
-
-// Process exited
-{ type: 'exit', exitCode: 0, signal: null }
-
-// Health check response
-{ type: 'pong', timestamp: 1234567890 }
 ```
 
 ## Architecture
