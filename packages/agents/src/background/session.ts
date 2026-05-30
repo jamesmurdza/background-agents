@@ -7,10 +7,9 @@
 
 import { randomUUID } from "node:crypto"
 import type { AgentDefinition, ParseContext, RunOptions } from "../core/agent"
-import type { AgentCrashedEvent, Event } from "../types/events"
+import type { Event } from "../types/events"
 import type { CodeAgentSandbox } from "../types/provider"
 import type {
-  HistoryMessage,
   PollResult,
   SessionMeta,
   StartOptions,
@@ -19,38 +18,22 @@ import type {
 // Re-export for convenience (BackgroundRunPhase is used via PollResult.runPhase)
 export type { BackgroundRunPhase } from "./types"
 import { debugLog } from "../debug"
+import { buildFullCommand } from "./command-string"
+import { synthesizeCrashEvent } from "./crash"
+import { formatHistory } from "./history"
+import {
+  withinStartupGrace,
+  hasObservableBackgroundProgress,
+} from "./progress"
+import {
+  readMeta as readSessionMeta,
+  writeMeta as writeSessionMeta,
+  metaUnchanged,
+} from "./meta-store"
 
-/** After startedAt, ignore "done but no output" briefly (race with wrapper). */
-const BACKGROUND_STARTUP_GRACE_MS = 4000
-
-function withinStartupGrace(meta: { startedAt?: string }): boolean {
-  if (!meta.startedAt) return false
-  const t = Date.parse(meta.startedAt)
-  if (Number.isNaN(t)) return false
-  return Date.now() - t < BACKGROUND_STARTUP_GRACE_MS
-}
-
-function hasObservableBackgroundProgress(result: {
-  events: Event[]
-  rawOutput?: string
-}): boolean {
-  for (const e of result.events) {
-    if (
-      e.type === "token" ||
-      e.type === "tool_start" ||
-      e.type === "tool_end" ||
-      e.type === "end"
-    ) {
-      return true
-    }
-  }
-  const raw = (result.rawOutput ?? "").trim()
-  const nonJsonLines = raw.split("\n").filter((l) => {
-    const t = l.trim()
-    return t && !(t.startsWith("{") && t.endsWith("}"))
-  })
-  return nonJsonLines.some((l) => l.trim().length > 0)
-}
+// Re-export meta helpers so existing importers (background/index.ts) keep
+// resolving them from this module.
+export { writeInitialSessionMeta, readProviderFromMeta } from "./meta-store"
 
 /**
  * Background session interface
@@ -127,7 +110,7 @@ class BackgroundSessionImpl implements BackgroundSession {
 
     // Prepend conversation history to prompt when injecting context
     if (options.history?.length) {
-      opts.prompt = this.formatHistory(options.history) + "\n\n" + (opts.prompt ?? "")
+      opts.prompt = formatHistory(options.history) + "\n\n" + (opts.prompt ?? "")
     }
 
     // Handle system prompt for agents without native support
@@ -181,7 +164,7 @@ class BackgroundSessionImpl implements BackgroundSession {
     }
 
     // Build full command string
-    const fullCommand = this.buildFullCommand(commandSpec)
+    const fullCommand = buildFullCommand(commandSpec)
 
     if (typeof this.sandbox.executeBackground !== "function") {
       throw new Error(
@@ -324,7 +307,7 @@ class BackgroundSessionImpl implements BackgroundSession {
 
     const events = stillRunning || sawEnd
       ? result.events
-      : [...result.events, this.synthesizeCrashEvent(result.rawOutput ?? "")]
+      : [...result.events, synthesizeCrashEvent(result.rawOutput ?? "")]
 
     const active = stillRunning && !sawEnd
     return {
@@ -387,56 +370,19 @@ class BackgroundSessionImpl implements BackgroundSession {
   // Private helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async readMeta(): Promise<SessionMeta | null> {
-    if (!this.sandbox.executeCommand) return null
-    const result = await this.sandbox.executeCommand(
-      `cat "${this.sessionDir}/meta.json" 2>/dev/null || true`,
-      10
-    )
-    const raw = (result.output ?? "").trim()
-    if (!raw) return null
-    try {
-      const o = JSON.parse(raw) as SessionMeta
-      if (typeof o.currentTurn !== "number" || typeof o.cursor !== "number")
-        return null
-      return o
-    } catch {
-      return null
-    }
+  private readMeta(): Promise<SessionMeta | null> {
+    return readSessionMeta(this.sandbox, this.sessionDir)
   }
 
-  private async writeMeta(meta: SessionMeta): Promise<void> {
-    if (!this.sandbox.executeCommand) {
-      throw new Error(
-        "Sandbox background mode requires a sandbox with executeCommand support"
-      )
-    }
-    const json = JSON.stringify(meta)
-    const b64 = Buffer.from(json, "utf8").toString("base64")
-    await this.sandbox.executeCommand(
-      `mkdir -p "${this.sessionDir}" && echo '${b64}' | base64 -d > "${this.sessionDir}/meta.json"`,
-      10
-    )
+  private writeMeta(meta: SessionMeta): Promise<void> {
+    return writeSessionMeta(this.sandbox, this.sessionDir, meta)
   }
 
   private async writeMetaIfChanged(
     next: SessionMeta,
     prev?: SessionMeta | null
   ): Promise<void> {
-    if (prev) {
-      const unchanged =
-        prev.currentTurn === next.currentTurn &&
-        prev.cursor === next.cursor &&
-        (prev.rawCursor ?? 0) === (next.rawCursor ?? 0) &&
-        prev.pid === next.pid &&
-        prev.runId === next.runId &&
-        prev.outputFile === next.outputFile &&
-        (prev.sawEnd ?? false) === (next.sawEnd ?? false) &&
-        prev.startedAt === next.startedAt &&
-        prev.provider === next.provider &&
-        (prev.sessionId ?? null) === (next.sessionId ?? null)
-      if (unchanged) return
-    }
+    if (prev && metaUnchanged(prev, next)) return
     await this.writeMeta(next)
   }
 
@@ -591,39 +537,6 @@ class BackgroundSessionImpl implements BackgroundSession {
     return { meta, outputContent: null, stillRunning }
   }
 
-  private synthesizeCrashEvent(rawOutput: string): AgentCrashedEvent {
-    const trimmed = rawOutput.trim()
-    const nonJsonLines = trimmed.split("\n").filter((l) => {
-      const t = l.trim()
-      return t && !(t.startsWith("{") && t.endsWith("}"))
-    })
-    const nonJsonOutput = nonJsonLines.join("\n").trim()
-
-    // ── Model not available ─────────────────────────────────────────────────
-    // The Copilot CLI writes this to stderr (non-JSON) when the --model flag
-    // names a model the account can't access:
-    //   Error: Model "claude-sonnet-4.5" from --model flag is not available.
-    const modelNotAvailableMatch = nonJsonOutput.match(
-      /Model\s+"([^"]+)"\s+(?:from --model flag\s+)?is not available/i
-    )
-    if (modelNotAvailableMatch) {
-      return {
-        type: "agent_crashed",
-        message:
-          `Model "${modelNotAvailableMatch[1]}" is not available on your GitHub Copilot plan. ` +
-          `Select a different model (e.g. gpt-5-mini, gpt-4o, claude-haiku-4.5).`,
-      }
-    }
-
-    // ── Generic crash fallback ──────────────────────────────────────────────
-    const output = nonJsonOutput.slice(-4096) || undefined
-    return {
-      type: "agent_crashed",
-      message: "Agent process exited without completing (crashed or killed)",
-      output,
-    }
-  }
-
   private async handlePollResult(
     meta: SessionMeta,
     result: Awaited<ReturnType<typeof this.pollOutput>>,
@@ -694,7 +607,7 @@ class BackgroundSessionImpl implements BackgroundSession {
 
     // Crashed: process exited without end event
     if (!stillRunning && !sawEnd) {
-      const crashEvent = this.synthesizeCrashEvent(result.rawOutput ?? "")
+      const crashEvent = synthesizeCrashEvent(result.rawOutput ?? "")
       debugLog(
         "session end",
         this.parseContext.sessionId ?? meta.sessionId,
@@ -703,7 +616,9 @@ class BackgroundSessionImpl implements BackgroundSession {
       )
       // Always log the full raw output so the real failure reason is visible
       // in server logs even when the CLI only emits JSON (which synthesizeCrashEvent
-      // strips out, leaving crashEvent.output undefined).
+      // strips out, leaving crashEvent.output undefined). This stays on
+      // unconditionally (not debugLog) — it is the only production-visible
+      // record of a JSON-only crash.
       const rawTail = (result.rawOutput ?? "").trim().slice(-8192)
       console.error(
         `[background-session] agent=${this.agent.name} CRASHED\n` +
@@ -737,95 +652,4 @@ class BackgroundSessionImpl implements BackgroundSession {
     }
   }
 
-  private buildFullCommand(spec: { cmd: string; args: string[]; cwd?: string; env?: Record<string, string> }): string {
-    const quotedArgs = spec.args.map((arg) => this.quoteArg(arg))
-    const command = [spec.cmd, ...quotedArgs].join(" ")
-
-    // Inline env vars as KEY='value' prefix so they are guaranteed to reach
-    // the spawned process regardless of how executeBackground handles the
-    // sandbox's persistent env (setEnvVars may not be inherited).
-    const envPrefix = spec.env
-      ? Object.entries(spec.env)
-          .map(([k, v]) => `${k}=${this.quoteArg(v)}`)
-          .join(" ") + " "
-      : ""
-
-    // If cwd is specified, prepend a cd command
-    if (spec.cwd) {
-      const safeCwd = spec.cwd.replace(/'/g, "'\\''")
-      return `cd '${safeCwd}' && ${envPrefix}${command}`
-    }
-    return `${envPrefix}${command}`
-  }
-
-  private quoteArg(arg: string): string {
-    return `'${arg.replace(/'/g, "'\\''")}'`
-  }
-
-  /**
-   * Format conversation history into a preamble for prompt injection.
-   *
-   * Produces a structured block that precedes the user's actual prompt,
-   * giving the agent context from a previous session.
-   */
-  private formatHistory(history: readonly HistoryMessage[]): string {
-    const lines = history.map(
-      (m) => `[${m.role === "user" ? "User" : "Assistant"}]: ${m.content}`
-    )
-    return (
-      "## Conversation History\n" +
-      "The following is the conversation history from a previous session. " +
-      "Use it as context for the current request.\n\n" +
-      lines.join("\n\n")
-    )
-  }
-}
-
-/**
- * Write initial session metadata for reattachment.
- */
-export async function writeInitialSessionMeta(
-  sandbox: CodeAgentSandbox,
-  sessionDir: string,
-  agentName: string,
-  sessionId: string | null
-): Promise<void> {
-  if (!sandbox.executeCommand) return
-  const meta: SessionMeta = {
-    currentTurn: 0,
-    cursor: 0,
-    provider: agentName,
-    sessionId,
-  }
-  const json = JSON.stringify(meta)
-  const b64 = Buffer.from(json, "utf8").toString("base64")
-  await sandbox.executeCommand(
-    `mkdir -p "${sessionDir}" && echo '${b64}' | base64 -d > "${sessionDir}/meta.json"`,
-    10
-  )
-}
-
-/**
- * Read provider name from session metadata.
- */
-export async function readProviderFromMeta(
-  sandbox: CodeAgentSandbox,
-  sessionDir: string
-): Promise<{ provider: string | null; sessionId: string | null } | null> {
-  if (!sandbox.executeCommand) return null
-  const result = await sandbox.executeCommand(
-    `cat "${sessionDir}/meta.json" 2>/dev/null || true`,
-    10
-  )
-  const raw = (result.output ?? "").trim()
-  if (!raw) return null
-  try {
-    const o = JSON.parse(raw) as { provider?: string; sessionId?: string | null }
-    return {
-      provider: o.provider ?? null,
-      sessionId: o.sessionId ?? null,
-    }
-  } catch {
-    return { provider: null, sessionId: null }
-  }
 }
