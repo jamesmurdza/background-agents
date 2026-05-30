@@ -16,7 +16,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   return (
     <div
       role="status"
-      className="pointer-events-auto flex w-80 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-3 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 dark:border-neutral-700 dark:bg-neutral-900"
+      className="pointer-events-auto flex w-80 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 dark:border-neutral-700 dark:bg-neutral-900"
     >
       <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
       <div className="min-w-0 flex-1">
@@ -47,7 +47,7 @@ export function Toaster() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="pointer-events-none fixed top-4 right-4 z-50 flex flex-col gap-2">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} />
       ))}
