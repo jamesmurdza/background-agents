@@ -1,0 +1,57 @@
+name: Release Electron App
+
+# Builds the desktop app on macOS, Windows, and Linux and uploads the
+# installers to a GitHub Release. Triggered by pushing a version tag
+# (e.g. `git tag v0.1.1 && git push origin v0.1.1`), or manually from
+# the Actions tab via "Run workflow".
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      # Required so electron-builder can create/upload the GitHub Release.
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Electron main + preload
+        run: npm run build:electron
+
+      - name: Package and publish
+        working-directory: packages/electron
+        env:
+          # electron-builder reads this to create the GitHub Release and
+          # upload artifacts. GITHUB_TOKEN is provided automatically.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip macOS code signing (no certificate available in CI).
+          # Remove this and add signing secrets to ship a signed/notarized build.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --${{ matrix.platform }} --publish always

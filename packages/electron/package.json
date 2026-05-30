@@ -33,6 +33,11 @@
     "directories": {
       "output": "release"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "jamesmurdza",
+      "repo": "background-agents"
+    },
     "files": [
       "dist/**/*",
       "assets/**/*"
