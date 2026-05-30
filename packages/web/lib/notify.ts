@@ -61,7 +61,6 @@ export function notify({ title, body, chatId, sound }: NotifyOptions): void {
   if (sound) playNotificationSound()
 
   const electron = getElectronAPI()
-  console.log("[notify] dispatching:", { title, body, chatId, sound, channel: electron ? "electron" : "toast" })
 
   if (electron) {
     // Native local notification in the desktop app
