@@ -17,6 +17,7 @@ import type {
   RunOptions,
 } from "../../core/agent"
 import type { Event } from "../../types/events"
+import { buildAgentCommand } from "../../core/command"
 import { parseCopilotLine } from "./parser"
 import { COPILOT_TOOL_MAPPINGS } from "./tools"
 
@@ -35,37 +36,19 @@ export const copilotAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const args: string[] = []
-
-    // Prompt — must come right after -p
-    if (options.prompt) {
-      args.push("-p", options.prompt)
-    }
-
-    // Machine-readable JSONL output
-    args.push("--output-format=json")
-
-    // Suppress interactive chrome
-    args.push("--silent")
-
-    // Full autopilot — no permission prompts
-    args.push("--autopilot")
-
-    // Model selection
-    if (options.model) {
-      args.push("--model", options.model)
-    }
-
-    // Session resume — --continue resumes the last session
-    if (options.sessionId) {
-      args.push("--continue")
-    }
-
-    return {
-      cmd: "copilot",
-      args,
-      env: options.env,
-    }
+    return buildAgentCommand(
+      {
+        bin: "copilot",
+        // Prompt must come right after -p, before the other flags.
+        prompt: { style: { kind: "flag", flag: "-p" }, position: "first" },
+        // JSONL output, suppress interactive chrome, full autopilot.
+        baseFlags: ["--output-format=json", "--silent", "--autopilot"],
+        model: { flag: "--model" },
+        // --continue resumes the last session.
+        resume: { flag: "--continue" },
+      },
+      options
+    )
   },
 
   parse(line: string, context: ParseContext): Event | Event[] | null {

@@ -12,6 +12,7 @@ import type {
   RunOptions,
 } from "../../core/agent"
 import type { Event } from "../../types/events"
+import { buildAgentCommand } from "../../core/command"
 import { parsePiLine } from "./parser"
 import { PI_TOOL_MAPPINGS } from "./tools"
 
@@ -31,39 +32,20 @@ export const piAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const args: string[] = []
-
-    // Use JSON mode for structured output
-    args.push("--mode", "json")
-
-    // Apply system prompt via native CLI flag when provided
-    if (options.systemPrompt) {
-      args.push("--system-prompt", options.systemPrompt)
-    }
-
-    // Add model if specified (e.g., "sonnet", "gpt-4o", "claude-sonnet-4-5-20250929")
-    // Pi supports provider/model format like "openai/gpt-4o" or model patterns
-    if (options.model) {
-      args.push("--model", options.model)
-    }
-
-    // Continue the most recent session in the current directory
-    // Pi's --continue flag resumes the last session in cwd
-    if (options.sessionId) {
-      args.push("--continue")
-    }
-
-    // Add the prompt if provided
-    if (options.prompt) {
-      args.push("-p")
-      args.push(options.prompt)
-    }
-
-    return {
-      cmd: "pi",
-      args,
-      env: options.env,
-    }
+    return buildAgentCommand(
+      {
+        bin: "pi",
+        // JSON mode for structured output.
+        baseFlags: ["--mode", "json"],
+        systemPromptFlag: "--system-prompt",
+        // Pi supports provider/model format like "openai/gpt-4o".
+        model: { flag: "--model" },
+        // --continue resumes the last session in cwd.
+        resume: { flag: "--continue" },
+        prompt: { style: { kind: "flag", flag: "-p" } },
+      },
+      options
+    )
   },
 
   parse(line: string, context: ParseContext): Event | Event[] | null {

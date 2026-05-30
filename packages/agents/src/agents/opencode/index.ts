@@ -9,9 +9,9 @@ import type {
   RunOptions,
 } from "../../core/agent"
 import type { Event } from "../../types/events"
+import { buildAgentCommand } from "../../core/command"
 import { parseOpencodeLine } from "./parser"
 import { OPENCODE_TOOL_MAPPINGS } from "./tools"
-import { quote } from "../../utils/shell"
 
 /**
  * OpenCode CLI agent definition.
@@ -30,36 +30,20 @@ export const opencodeAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    // OpenCode sometimes writes JSON events to stderr; run under bash and redirect 2>&1
-    const parts: string[] = ["opencode", "run", "--format", "json", "--variant", "medium"]
-
-    if (options.model) {
-      parts.push("-m", quote(options.model))
-    }
-
-    if (options.sessionId) {
-      parts.push("-s", quote(options.sessionId))
-    }
-
-    // The "--" sentinel signals end-of-options to the OpenCode's argument parser
-    if (options.prompt) {
-      parts.push("--")
-      parts.push(quote(options.prompt))
-    }
-
-    const command = `${parts.join(" ")} 2>&1`
-
-    // Build environment variables
-    const env: Record<string, string> = {
-      ...options.env,
-    }
-
-    return {
-      cmd: "bash",
-      args: ["-lc", command],
-      env,
-      wrapInBash: false, // Already wrapped
-    }
+    return buildAgentCommand(
+      {
+        bin: "opencode",
+        subcommand: ["run"],
+        baseFlags: ["--format", "json", "--variant", "medium"],
+        model: { flag: "-m" },
+        resume: { flag: "-s", takesValue: true },
+        // The "--" sentinel signals end-of-options to OpenCode's argument parser.
+        prompt: { style: { kind: "sentinel" } },
+        // OpenCode sometimes writes JSON events to stderr; run under bash with 2>&1.
+        bashWrap: { shellArgs: ["-lc"], redirectStderr: true },
+      },
+      options
+    )
   },
 
   parse(line: string, context: ParseContext): Event | Event[] | null {

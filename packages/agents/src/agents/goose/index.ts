@@ -4,6 +4,7 @@
 
 import type { AgentDefinition, CommandSpec, ParseContext, RunOptions } from "../../core/agent"
 import type { Event } from "../../types/events"
+import { buildAgentCommand } from "../../core/command"
 import { parseGooseLine } from "./parser"
 import { GOOSE_TOOL_MAPPINGS } from "./tools"
 
@@ -38,50 +39,34 @@ export const gooseAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const gooseArgs: string[] = []
-
-    // Use run subcommand for non-interactive execution
-    gooseArgs.push("run")
-
-    // Enable JSON streaming output for machine-readable events
-    gooseArgs.push("--output-format", "stream-json")
-
-    // Only set provider and model flags if a model is explicitly requested
-    if (options.model) {
-      const provider = getGooseProvider(options.model)
-      gooseArgs.push("--provider", provider)
-      gooseArgs.push("--model", options.model)
-    }
-
-    // Add prompt as text input (prepend /plan command for plan mode)
-    if (options.prompt) {
-      const prompt = options.planMode ? `/plan ${options.prompt}` : options.prompt
-      gooseArgs.push("--text", prompt)
-    }
-
-    // Apply system prompt via --system flag when provided
-    if (options.systemPrompt) {
-      gooseArgs.push("--system", options.systemPrompt)
-    }
-
-    // Session handling: goose resumes the most recent session when --resume is used
-    // First message (no sessionId): creates new session
-    // Subsequent messages (has sessionId): resumes most recent session
-    if (options.sessionId) {
-      gooseArgs.push("--resume")
-    }
-
-    // Build the goose command string (will be passed to bash -c)
-    const gooseCmd = ["goose", ...gooseArgs].map(arg => {
-      return `'${arg.replace(/'/g, "'\\''")}'`
-    }).join(" ")
-
-    // Wrap in bash to ensure PATH includes ~/.local/bin where goose installs
-    return {
-      cmd: "bash",
-      args: ["-c", `export PATH="$HOME/.local/bin:$PATH" && ${gooseCmd}`],
-      env: options.env,
-    }
+    return buildAgentCommand(
+      {
+        bin: "goose",
+        // run = non-interactive; stream-json = machine-readable events.
+        subcommand: ["run"],
+        baseFlags: ["--output-format", "stream-json"],
+        // Plan mode prepends "/plan " to the prompt rather than adding a flag.
+        planMode: { promptPrefix: "/plan " },
+        // Goose pairs a derived provider with the model flag.
+        model: {
+          flag: "--model",
+          providerFlag: "--provider",
+          deriveProvider: getGooseProvider,
+        },
+        // Goose resumes the most recent session when --resume is passed.
+        resume: { flag: "--resume" },
+        // Prompt is text input; system prompt follows it via --system.
+        prompt: { style: { kind: "flag", flag: "--text" } },
+        systemPromptFlag: "--system",
+        systemPromptAfterPrompt: true,
+        // Wrap in bash so PATH includes ~/.local/bin where goose installs.
+        bashWrap: {
+          shellArgs: ["-c"],
+          prefix: `export PATH="$HOME/.local/bin:$PATH" && `,
+        },
+      },
+      options
+    )
   },
 
   parse(line: string, context: ParseContext): Event | Event[] | null {

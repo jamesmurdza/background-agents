@@ -10,6 +10,7 @@ import type {
 } from "../../core/agent"
 import type { Event } from "../../types/events"
 import type { CodeAgentSandbox } from "../../types/provider"
+import { buildAgentCommand } from "../../core/command"
 import { parseCodexLine } from "./parser"
 import { CODEX_TOOL_MAPPINGS } from "./tools"
 
@@ -47,46 +48,23 @@ export const codexAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const args: string[] = []
-
-    // Use exec subcommand for non-interactive mode with JSON output
-    args.push("exec")
-
-    // JSON output for streaming events
-    args.push("--json")
-
-    // Skip git repo check for sandbox environments
-    args.push("--skip-git-repo-check")
-
-    if (options.planMode) {
-      // Enable CLI-enforced plan mode (read-only)
-      args.push("--sandbox", "read-only")
-    } else {
-      // Skip permission prompts when already running in a sandbox
-      args.push("--yolo")
-    }
-
-    // Add model if specified (e.g., "gpt-4o", "o1", "o3")
-    if (options.model) {
-      args.push("--model", options.model)
-    }
-
-    // Resume session if provided
-    if (options.sessionId) {
-      args.push("resume", options.sessionId)
-    }
-
-    // The "--" sentinel signals end-of-options to the Codex CLI's argument parser
-    if (options.prompt) {
-      args.push("--")
-      args.push(options.prompt)
-    }
-
-    return {
-      cmd: "codex",
-      args,
-      env: options.env,
-    }
+    return buildAgentCommand(
+      {
+        bin: "codex",
+        // exec = non-interactive mode; --json = streaming events;
+        // --skip-git-repo-check for sandbox environments.
+        subcommand: ["exec"],
+        baseFlags: ["--json", "--skip-git-repo-check"],
+        // Plan mode runs read-only; otherwise skip permission prompts.
+        planMode: { flags: ["--sandbox", "read-only"], defaultFlags: ["--yolo"] },
+        model: { flag: "--model" },
+        // Codex resumes via the positional `resume <sessionId>` form.
+        resume: { flag: "resume", takesValue: true },
+        // The "--" sentinel signals end-of-options to the Codex CLI.
+        prompt: { style: { kind: "sentinel" } },
+      },
+      options
+    )
   },
 
   parse(line: string, _context: ParseContext): Event | Event[] | null {

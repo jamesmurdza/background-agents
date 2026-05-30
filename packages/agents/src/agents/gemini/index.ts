@@ -9,6 +9,7 @@ import type {
   RunOptions,
 } from "../../core/agent"
 import type { Event } from "../../types/events"
+import { buildAgentCommand } from "../../core/command"
 import { parseGeminiLine } from "./parser"
 import { GEMINI_TOOL_MAPPINGS } from "./tools"
 
@@ -29,43 +30,19 @@ export const geminiAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const args: string[] = []
-
-    // Stream JSON for event parsing
-    args.push("--output-format", "stream-json")
-
-    // Skip trust checks since we're in a controlled environment
-    args.push("--skip-trust")
-
-    if (options.planMode) {
-      // Enable CLI-enforced plan mode (read-only)
-      args.push("--approval-mode", "plan")
-    } else {
-      // Enable full tool access (shell, file writes, etc.) - safe in sandbox environment
-      args.push("--yolo")
-    }             
-                                      
-
-    // Add model if specified (e.g., "gemini-2.0-flash", "gemini-1.5-pro")
-    if (options.model) {
-      args.push("--model", options.model)
-    }
-
-    // Resume session if provided
-    if (options.sessionId) {
-      args.push("--resume", options.sessionId)
-    }
-
-    // Add prompt with -p flag if provided
-    if (options.prompt) {
-      args.push("-p", options.prompt)
-    }
-
-    return {
-      cmd: "gemini",
-      args,
-      env: options.env,
-    }
+    return buildAgentCommand(
+      {
+        bin: "gemini",
+        // Stream JSON for event parsing; skip trust checks (controlled env).
+        baseFlags: ["--output-format", "stream-json", "--skip-trust"],
+        // Plan mode is read-only; otherwise full tool access (safe in sandbox).
+        planMode: { flags: ["--approval-mode", "plan"], defaultFlags: ["--yolo"] },
+        model: { flag: "--model" },
+        resume: { flag: "--resume", takesValue: true },
+        prompt: { style: { kind: "flag", flag: "-p" } },
+      },
+      options
+    )
   },
 
   parse(line: string, context: ParseContext): Event | Event[] | null {
