@@ -312,9 +312,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   } = useChatNavigation({
     isHydrated,
     isLoading,
-    session,
-    modals,
-    sidebar,
     chats,
     currentChatId,
     displayCurrentChat,

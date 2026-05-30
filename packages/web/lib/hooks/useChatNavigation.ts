@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import type { Session } from "next-auth"
+import { useSession } from "next-auth/react"
 import { ROUTES } from "@/lib/hooks/useUrlNavigation"
 import {
   ALL_REPOSITORIES,
   NO_REPOSITORY,
-  type SidebarContextValue,
+  useModals,
+  useSidebar,
 } from "@/lib/contexts"
 import { NEW_REPOSITORY, type Chat, type ChatStatus } from "@/lib/types"
 import type { GitHubRepo } from "@/lib/github"
@@ -22,9 +23,6 @@ interface GitDialogControls {
 interface UseChatNavigationOptions {
   isHydrated: boolean
   isLoading: boolean
-  session: Session | null
-  modals: { setSignInModalOpen: (open: boolean) => void }
-  sidebar: SidebarContextValue
   chats: Chat[]
   currentChatId: string | null
   displayCurrentChat: Chat | null
@@ -67,9 +65,6 @@ interface UseChatNavigationResult {
 export function useChatNavigation({
   isHydrated,
   isLoading,
-  session,
-  modals,
-  sidebar,
   chats,
   currentChatId,
   displayCurrentChat,
@@ -79,6 +74,12 @@ export function useChatNavigation({
   startNewChat,
   gitDialogs,
 }: UseChatNavigationOptions): UseChatNavigationResult {
+  // These come from providers that wrap HomePageContent, so the hook reads them
+  // directly rather than receiving them as params.
+  const { data: session } = useSession()
+  const modals = useModals()
+  const sidebar = useSidebar()
+
   // Handler for selecting a chat - switch to chat view and update URL
   const handleSelectChat = useCallback(
     (chatId: string) => {
