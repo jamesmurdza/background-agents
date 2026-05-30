@@ -61,7 +61,7 @@ import {
 // =============================================================================
 
 export function useChatWithSync() {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const queryClient = useQueryClient()
 
   // TanStack Query
@@ -132,7 +132,15 @@ export function useChatWithSync() {
   const claudeIsPro = settingsQuery.data?.claudeIsPro ?? false
   const claudeIsWeekly = settingsQuery.data?.claudeIsWeekly ?? false
   const currentChat = useMemo(() => chats.find((c) => c.id === currentChatId) ?? null, [chats, currentChatId])
-  const isLoading = chatsQuery.isLoading || settingsQuery.isLoading
+  // While NextAuth is still resolving the session, the chats/settings queries
+  // are disabled (enabled: isAuthenticated). A disabled React Query reports
+  // isLoading === false with data === undefined, which would make `chats` look
+  // like an empty (but loaded) list. Consumers such as the stale-chat redirect
+  // would then treat a valid chat URL as "not found" and bounce it to home.
+  // Treat the session-loading window as loading so we never act on empty data
+  // before the queries have had a chance to run.
+  const isLoading =
+    sessionStatus === "loading" || chatsQuery.isLoading || settingsQuery.isLoading
 
   // Detect running → non-running transitions and badge them as unseen.
   // (Unseen persistence is handled inside the store's addUnseen/selectChat.)
