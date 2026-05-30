@@ -166,36 +166,34 @@ async function currentBranch(dir: string): Promise<string | undefined> {
   return (await git.currentBranch({ fs, dir, fullname: false })) || undefined;
 }
 
+function isNotFound(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === "NotFoundError";
+}
+
+/** The oid of a branch on origin, or null if origin has no such branch. */
+async function remoteOid(dir: string, branch: string): Promise<string | null> {
+  try {
+    return await git.resolveRef({ fs, dir, ref: `refs/remotes/origin/${branch}` });
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Fetch one branch and reconcile the local branch ref with the remote.
+ * Reconcile a local branch ref with an already-fetched remote oid.
  *
- * - Updates the local branch ref to match the remote (fast-forward or, for a
- *   force-push, reset) — this never touches the working tree unless the branch
- *   is the one currently checked out (or `checkout` is requested).
+ * - Moves the local branch ref to `target` (fast-forward or, for a force-push,
+ *   reset). This never touches the working tree unless the branch is the one
+ *   currently checked out, or `checkout` is requested.
  * - When the working tree WOULD be overwritten (checked-out branch or an
- *   explicit checkout) and it is dirty, throws DivergenceError instead.
+ *   explicit checkout) and a tracked file is modified, throws DivergenceError.
  */
-async function syncOneBranch(
+async function reconcileBranch(
   dir: string,
-  url: string,
-  token: string,
   branch: string,
+  target: string,
   checkout: boolean
 ): Promise<void> {
-  const onAuth = authCallback(token);
-
-  const { fetchHead } = await git.fetch({
-    fs,
-    http,
-    dir,
-    url,
-    ref: branch,
-    singleBranch: true,
-    tags: false,
-    onAuth,
-  });
-  if (!fetchHead) throw new Error(`Remote branch "${branch}" not found`);
-
   let local: string | null = null;
   try {
     local = await git.resolveRef({ fs, dir, ref: `refs/heads/${branch}` });
@@ -208,32 +206,52 @@ async function syncOneBranch(
   // move the ref of the branch that is currently checked out.
   const touchesWorkingTree = checkout || checkedOut;
 
-  if (local === fetchHead) {
+  if (local === target) {
     if (checkout && !checkedOut) await safeCheckout(dir, branch);
     return;
   }
 
-  if (!local) {
-    await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: fetchHead, force: true });
-    if (checkout) await safeCheckout(dir, branch);
-    return;
-  }
-
-  const isFastForward = await git
-    .isDescendent({ fs, dir, oid: fetchHead, ancestor: local, depth: -1 })
-    .catch(() => false);
-
-  // Either a clean fast-forward or a force-push reset. Both move the local ref
-  // to the remote oid; the difference is only whether we must guard the tree.
   if (touchesWorkingTree && !(await isWorkingTreeClean(dir))) {
     throw new DivergenceError(branch);
   }
 
-  await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: fetchHead, force: true });
+  await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: target, force: true });
   if (touchesWorkingTree) {
     await git.checkout({ fs, dir, ref: branch, force: true });
   }
-  void isFastForward; // distinction is logged-only; behaviour is identical here
+}
+
+/**
+ * Fetch a single branch from origin and reconcile the local ref. Returns false
+ * if the branch doesn't exist on origin (e.g. a chat that never pushed).
+ */
+async function fetchAndReconcile(
+  dir: string,
+  url: string,
+  token: string,
+  branch: string,
+  checkout: boolean
+): Promise<boolean> {
+  let fetchHead: string | null = null;
+  try {
+    const res = await git.fetch({
+      fs,
+      http,
+      dir,
+      url,
+      ref: branch,
+      singleBranch: true,
+      tags: false,
+      onAuth: authCallback(token),
+    });
+    fetchHead = res.fetchHead ?? null;
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+  if (!fetchHead) return false;
+  await reconcileBranch(dir, branch, fetchHead, checkout);
+  return true;
 }
 
 /** Check out a branch, refusing to clobber a dirty working tree. */
@@ -265,23 +283,31 @@ async function doOpenRepoFolder(
   if (!isCloned(repo)) {
     emitStatus(repo, "cloning");
     fs.mkdirSync(dir, { recursive: true });
+    // singleBranch:false fetches every remote branch in one shot.
     await git.clone({ fs, http, dir, url, singleBranch: false, onAuth });
+  } else {
+    // One fetch-all updates every remote-tracking ref (no per-branch round trips).
+    emitStatus(repo, "syncing");
+    await git.fetch({ fs, http, dir, url, singleBranch: false, prune: true, tags: false, onAuth });
   }
 
   emitStatus(repo, "syncing");
 
-  // Update every known agent branch's ref; check out only the active one.
+  // Create/update a local ref for every agent branch that exists on origin,
+  // straight from the remote-tracking refs the clone/fetch just populated — no
+  // extra network calls. Check out only the active one. Branches that never
+  // pushed simply have no remote-tracking ref and are skipped quietly.
   const wanted = Array.from(new Set(branches.filter(Boolean)));
   for (const branch of wanted) {
-    const checkout = branch === activeBranch;
+    const target = await remoteOid(dir, branch);
+    if (!target) continue; // not on origin yet (chat hasn't pushed)
     try {
-      await syncOneBranch(dir, url, token, branch, checkout);
+      await reconcileBranch(dir, branch, target, branch === activeBranch);
     } catch (error) {
       if (error instanceof DivergenceError) {
         emitError(repo, branch, error.message);
       } else {
-        // Branch may not exist on the remote yet (chat hasn't pushed) — skip it.
-        console.warn(`[git-sync] Skipped branch "${branch}" for ${repo}:`, error);
+        console.warn(`[git-sync] Could not update branch "${branch}" for ${repo}:`, error);
       }
     }
   }
@@ -299,7 +325,7 @@ async function doSetActiveChat(repo: string, branch: string | null): Promise<voi
   emitStatus(repo, "syncing");
   try {
     const token = await getToken();
-    await syncOneBranch(dir, url, token, branch, true);
+    await fetchAndReconcile(dir, url, token, branch, true);
     emitStatus(repo, "ready");
   } catch (error) {
     handleOpError(repo, branch, error);
@@ -314,7 +340,7 @@ async function doSyncBranch(repo: string, branch: string): Promise<void> {
   try {
     const token = await getToken();
     // Update this branch's ref; materialize only if it's the checked-out branch.
-    await syncOneBranch(dir, url, token, branch, false);
+    await fetchAndReconcile(dir, url, token, branch, false);
     emitStatus(repo, "ready");
   } catch (error) {
     handleOpError(repo, branch, error);
