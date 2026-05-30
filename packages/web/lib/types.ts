@@ -225,6 +225,10 @@ export interface Settings {
   rapidFireMode: boolean
   /** When true, run pre-push hooks during autopush (removes --no-verify flag) */
   enablePrepushHooks: boolean
+  /** Notify (toast on web, native notification on desktop) when an agent turn finishes */
+  notifyOnAgentFinished: boolean
+  /** Notify when an agent's auto-push delivers new commits */
+  notifyOnAgentCommitted: boolean
 }
 
 export type { CredentialId, Credentials, CredentialFlags } from "./credentials"

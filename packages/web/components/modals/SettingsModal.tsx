@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown, Bell } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -18,6 +18,7 @@ import {
   GeneralSection,
   ApiKeysSection,
   GitSection,
+  NotificationsSection,
   LocalSyncSection,
   AppearanceSection,
   ExperimentalSection,
@@ -30,7 +31,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "git" | "local-sync" | "appearance" | "experimental"
+export type SectionKey = "general" | "api-keys" | "git" | "notifications" | "local-sync" | "appearance" | "experimental"
 
 interface SettingsModalProps {
   open: boolean
@@ -55,6 +56,7 @@ const baseSections: SectionDef[] = [
   { key: "api-keys", label: "API Keys", icon: Key },
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "git", label: "Git", icon: GitBranch },
+  { key: "notifications", label: "Notifications", icon: Bell },
   { key: "experimental", label: "Experimental", icon: FlaskConical },
 ]
 
@@ -114,6 +116,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
   const [rapidFireMode, setRapidFireMode] = useState(settings.rapidFireMode)
   const [enablePrepushHooks, setEnablePrepushHooks] = useState(settings.enablePrepushHooks)
+  const [notifyOnAgentFinished, setNotifyOnAgentFinished] = useState(settings.notifyOnAgentFinished)
+  const [notifyOnAgentCommitted, setNotifyOnAgentCommitted] = useState(settings.notifyOnAgentCommitted)
   const [activeSection, setActiveSection] = useState<SectionKey>(defaultSection)
 
   // Drag to dismiss (mobile only)
@@ -141,6 +145,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setSelectedTheme(settings.theme)
       setRapidFireMode(settings.rapidFireMode)
       setEnablePrepushHooks(settings.enablePrepushHooks)
+      setNotifyOnAgentFinished(settings.notifyOnAgentFinished)
+      setNotifyOnAgentCommitted(settings.notifyOnAgentCommitted)
       setActiveSection(defaultSection)
     }
   }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
@@ -242,7 +248,9 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     defaultModel !== initialDefaultModel ||
     selectedTheme !== settings.theme ||
     rapidFireMode !== settings.rapidFireMode ||
-    enablePrepushHooks !== settings.enablePrepushHooks
+    enablePrepushHooks !== settings.enablePrepushHooks ||
+    notifyOnAgentFinished !== settings.notifyOnAgentFinished ||
+    notifyOnAgentCommitted !== settings.notifyOnAgentCommitted
 
   // Check if auto-detected credentials should be saved (desktop only)
   const autoDetectHasNewCredentials = isDesktopApp &&
@@ -262,6 +270,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (selectedTheme !== settings.theme) settingsPatch.theme = selectedTheme
     if (rapidFireMode !== settings.rapidFireMode) settingsPatch.rapidFireMode = rapidFireMode
     if (enablePrepushHooks !== settings.enablePrepushHooks) settingsPatch.enablePrepushHooks = enablePrepushHooks
+    if (notifyOnAgentFinished !== settings.notifyOnAgentFinished) settingsPatch.notifyOnAgentFinished = notifyOnAgentFinished
+    if (notifyOnAgentCommitted !== settings.notifyOnAgentCommitted) settingsPatch.notifyOnAgentCommitted = notifyOnAgentCommitted
 
     // Only send credential fields the user actually changed. Sending the
     // mask back ("***") would otherwise overwrite the real key.
@@ -357,6 +367,16 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             isMobile={isMobile}
             enablePrepushHooks={enablePrepushHooks}
             setEnablePrepushHooks={setEnablePrepushHooks}
+          />
+        )
+      case "notifications":
+        return (
+          <NotificationsSection
+            isMobile={isMobile}
+            notifyOnAgentFinished={notifyOnAgentFinished}
+            setNotifyOnAgentFinished={setNotifyOnAgentFinished}
+            notifyOnAgentCommitted={notifyOnAgentCommitted}
+            setNotifyOnAgentCommitted={setNotifyOnAgentCommitted}
           />
         )
       case "local-sync":

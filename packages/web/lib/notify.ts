@@ -35,6 +35,26 @@ export function notify({ title, body, chatId }: NotifyOptions): void {
 /**
  * Convenience helper for "a new push that contains commits" notifications.
  */
+/**
+ * Convenience helper for "an agent turn finished" notifications.
+ */
+export function notifyAgentFinished(info: {
+  chatName?: string
+  status: "completed" | "error"
+  chatId?: string
+}): void {
+  const { chatName, status, chatId } = info
+  const label = chatName ? `"${chatName}"` : "Your agent"
+  notify({
+    title: status === "error" ? "Agent failed" : "Agent finished",
+    body:
+      status === "error"
+        ? `${label} stopped with an error.`
+        : `${label} finished its turn.`,
+    chatId,
+  })
+}
+
 export function notifyPush(info: {
   repo?: string
   branch: string
