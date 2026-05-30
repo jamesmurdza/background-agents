@@ -1,6 +1,7 @@
 export { GeneralSection } from "./GeneralSection"
 export { ApiKeysSection, type HighlightKey } from "./ApiKeysSection"
 export { GitSection } from "./GitSection"
+export { LocalSyncSection } from "./LocalSyncSection"
 export { AppearanceSection } from "./AppearanceSection"
 export { ExperimentalSection } from "./ExperimentalSection"
 export { initialCredValues, MASK } from "./shared"

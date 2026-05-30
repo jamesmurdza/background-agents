@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderSync } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -18,6 +18,7 @@ import {
   GeneralSection,
   ApiKeysSection,
   GitSection,
+  LocalSyncSection,
   AppearanceSection,
   ExperimentalSection,
   initialCredValues,
@@ -29,7 +30,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "git" | "appearance" | "experimental"
+export type SectionKey = "general" | "api-keys" | "git" | "local-sync" | "appearance" | "experimental"
 
 interface SettingsModalProps {
   open: boolean
@@ -47,7 +48,9 @@ interface SettingsModalProps {
   isMobile?: boolean
 }
 
-const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
+type SectionDef = { key: SectionKey; label: string; icon: typeof Bot }
+
+const baseSections: SectionDef[] = [
   { key: "general", label: "General", icon: SettingsIcon },
   { key: "api-keys", label: "API Keys", icon: Key },
   { key: "git", label: "Git", icon: GitBranch },
@@ -55,9 +58,23 @@ const sections: { key: SectionKey; label: string; icon: typeof Bot }[] = [
   { key: "experimental", label: "Experimental", icon: FlaskConical },
 ]
 
+const localSyncSection: SectionDef = { key: "local-sync", label: "Local Sync", icon: FolderSync }
+
+/** The "Local Sync" tab is desktop-only; the web app never shows it. */
+function getSections(isDesktopApp: boolean): SectionDef[] {
+  if (!isDesktopApp) return baseSections
+  const out = [...baseSections]
+  const gitIndex = out.findIndex((s) => s.key === "git")
+  out.splice(gitIndex + 1, 0, localSyncSection)
+  return out
+}
+
 export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, defaultSection = "general", isMobile = false }: SettingsModalProps) {
   const { setTheme } = useTheme()
   const { isDesktopApp, getClaudeLicenseAutoDetect, getLicenseDetectSettings, setLicenseDetectSettings } = useElectron()
+
+  // The "Local Sync" tab only exists in the desktop app.
+  const sections = useMemo(() => getSections(isDesktopApp), [isDesktopApp])
 
   // License auto-detect state (desktop only)
   const [licenseAutoDetectEnabled, setLicenseAutoDetectEnabled] = useState(true)
@@ -342,6 +359,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             setEnablePrepushHooks={setEnablePrepushHooks}
           />
         )
+      case "local-sync":
+        return <LocalSyncSection isMobile={isMobile} />
       case "appearance":
         return (
           <AppearanceSection
