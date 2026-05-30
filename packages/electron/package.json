@@ -33,27 +33,34 @@
     "directories": {
       "output": "release"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "jamesmurdza",
+      "repo": "background-agents"
+    },
     "files": [
       "dist/**/*",
       "assets/**/*"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.icns",
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true
     },
     "win": {
-      "icon": "assets/icon.ico",
       "target": [
         "nsis",
         "portable"
       ]
     },
     "linux": {
-      "icon": "assets/icon.png",
       "target": [
         "AppImage",
         "deb"

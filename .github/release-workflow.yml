@@ -1,0 +1,74 @@
+name: Release Electron App
+
+# Builds the desktop app on macOS, Windows, and Linux and uploads the
+# installers to a GitHub Release. Triggered by pushing a version tag
+# (e.g. `git tag v0.1.1 && git push origin v0.1.1`), or manually from
+# the Actions tab via "Run workflow".
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      # Required so electron-builder can create/upload the GitHub Release.
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Electron main + preload
+        run: npm run build:electron
+
+      - name: Package and publish
+        working-directory: packages/electron
+        env:
+          # electron-builder reads this to create the GitHub Release and
+          # upload artifacts. GITHUB_TOKEN is provided automatically.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # --- macOS code signing + notarization (macOS runner only) ---
+          # These are read by electron-builder when present. Until the repo
+          # secrets are set they resolve to empty strings, so electron-builder
+          # produces an UNSIGNED macOS build (Windows/Linux are unaffected and
+          # auto-update there works regardless).
+          #
+          # To enable signed + notarized macOS builds, add these repo secrets
+          # (Settings -> Secrets and variables -> Actions):
+          #   MAC_CSC_LINK              base64 of your "Developer ID Application" .p12
+          #                             (base64 -i cert.p12 | pbcopy)
+          #   MAC_CSC_KEY_PASSWORD      the password you set when exporting the .p12
+          #   APPLE_ID                  Apple Developer account email
+          #   APPLE_APP_SPECIFIC_PASSWORD  app-specific password (appleid.apple.com)
+          #   APPLE_TEAM_ID             10-char Team ID from developer.apple.com
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --${{ matrix.platform }} --publish always
