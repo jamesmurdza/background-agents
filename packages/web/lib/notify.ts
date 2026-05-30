@@ -72,46 +72,58 @@ export function notify({ title, body, chatId, sound }: NotifyOptions): void {
   useToastStore.getState().addToast({ title, body, chatId })
 }
 
-/**
- * Convenience helper for "an agent turn finished" notifications.
- */
-export function notifyAgentFinished(info: {
-  chatName?: string
-  status: "completed" | "error"
-  chatId?: string
-  sound?: boolean
-}): void {
-  const { chatName, status, chatId, sound } = info
-  const label = chatName ? `"${chatName}"` : "Your agent"
-  notify({
-    title: status === "error" ? "Agent failed" : "Agent finished",
-    body:
-      status === "error"
-        ? `${label} stopped with an error.`
-        : `${label} finished its turn.`,
-    chatId,
-    sound,
-  })
-}
-
-export function notifyPush(info: {
+/** Format the "N commits pushed to repo@branch (sha)" fragment. */
+function formatPush(push: {
   repo?: string
   branch: string
   commits: number
   commitSha?: string
+}): string {
+  const target = push.repo ? `${push.repo}@${push.branch}` : push.branch
+  const shaSuffix = push.commitSha ? ` (${push.commitSha})` : ""
+  // `commits` is best-effort; show the count when known, otherwise a generic
+  // message (the push itself is confirmed by the git output).
+  const lead =
+    push.commits > 0
+      ? `${push.commits} ${push.commits === 1 ? "commit" : "commits"} pushed`
+      : "Changes pushed"
+  return `${lead} to ${target}${shaSuffix}`
+}
+
+/**
+ * Notify about an agent completion. Both the "finished" and "committed" facts
+ * are delivered as a SINGLE notification when both apply — firing two separate
+ * OS notifications in the same tick causes macOS to coalesce them (the second
+ * silently replaces the first).
+ */
+export function notifyCompletion(info: {
+  chatName?: string
+  status: "completed" | "error"
+  /** Whether the "agent finished" message should be included */
+  finished: boolean
+  /** Present when a push delivered changes and the user wants commit alerts */
+  push?: { repo?: string; branch: string; commits: number; commitSha?: string }
   chatId?: string
   sound?: boolean
 }): void {
-  const { repo, branch, commits, commitSha, chatId, sound } = info
-  const target = repo ? `${repo}@${branch}` : branch
-  const shaSuffix = commitSha ? ` (${commitSha})` : ""
-  // `commits` is best-effort; show the count when known, otherwise a generic
-  // message (the push itself is confirmed by the git output).
-  const lead = commits > 0 ? `${commits} ${commits === 1 ? "commit" : "commits"} pushed` : "Changes pushed"
-  notify({
-    title: "New push",
-    body: `${lead} to ${target}${shaSuffix}`,
-    chatId,
-    sound,
-  })
+  const { chatName, status, finished, push, chatId, sound } = info
+  const label = chatName ? `"${chatName}"` : "Your agent"
+
+  const parts: string[] = []
+  let title: string
+  if (status === "error") {
+    // A failure dominates the headline; a push won't have happened on error.
+    title = "Agent failed"
+    parts.push(`${label} stopped with an error.`)
+  } else if (finished) {
+    title = "Agent finished"
+    parts.push(`${label} finished its turn.`)
+  } else {
+    // Only the commit notification was requested.
+    title = "New push"
+  }
+
+  if (push) parts.push(formatPush(push))
+
+  notify({ title, body: parts.join(" · "), chatId, sound })
 }

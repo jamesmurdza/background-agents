@@ -13,7 +13,7 @@ import type { Chat, Message, SSEUpdateEvent, SSECompleteEvent } from "@/lib/type
 import { useStreamStore } from "@/lib/stores/stream-store"
 import { queryKeys } from "@/lib/query"
 import { fetchChat, toMessageType } from "@/lib/sync/api"
-import { notifyPush, notifyAgentFinished } from "@/lib/notify"
+import { notifyCompletion } from "@/lib/notify"
 import type { SettingsData } from "@/lib/query/hooks/useSettingsQuery"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 
@@ -195,34 +195,33 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           const chatsCache = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())
           const notifyChat = chatsCache?.find((c) => c.id === chatId)
 
-          // Play the chime at most once per completion, even if both
-          // notifications fire. Each notify() consumes the flag.
-          let soundPending = settings.notificationSound
-
-          // "Agent committed changes": the push advanced the remote. Gated on
-          // the push having happened, not on the (best-effort) commit count.
-          if (settings.notifyOnAgentCommitted && data.push) {
-            const repo = notifyChat?.repo
-            notifyPush({
-              repo: repo && repo !== "__new__" ? repo : "",
-              branch: data.push.branch,
-              commits: data.push.commits,
-              commitSha: data.push.commitSha,
-              chatId,
-              sound: soundPending,
-            })
-            soundPending = false
-          }
-
+          // "Agent committed changes": the push advanced the remote (gated on
+          // the push having happened, not the best-effort commit count).
+          const committed = settings.notifyOnAgentCommitted && !!data.push
           // "Agent finished": the turn ended (completed or error).
-          if (settings.notifyOnAgentFinished) {
-            notifyAgentFinished({
+          const finished = settings.notifyOnAgentFinished
+
+          // Emit a SINGLE notification covering both facts. Firing two separate
+          // OS notifications in the same tick makes macOS coalesce them, so the
+          // second would silently replace the first.
+          if (committed || finished) {
+            const repo = notifyChat?.repo
+            notifyCompletion({
               chatName: notifyChat?.displayName ?? undefined,
               status: data.status === "error" ? "error" : "completed",
+              finished,
+              push:
+                committed && data.push
+                  ? {
+                      repo: repo && repo !== "__new__" ? repo : "",
+                      branch: data.push.branch,
+                      commits: data.push.commits,
+                      commitSha: data.push.commitSha,
+                    }
+                  : undefined,
               chatId,
-              sound: soundPending,
+              sound: settings.notificationSound,
             })
-            soundPending = false
           }
 
           // Fetch any new messages created by the backend (delta sync)
