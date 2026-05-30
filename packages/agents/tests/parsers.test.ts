@@ -1710,7 +1710,9 @@ describe("parseCopilotLine", () => {
       ctx
     )
     expect(event).toBeNull()
-    expect(ctx.state["copilot_in_autopilot_continuation"]).toBe(true)
+    expect(
+      (ctx.state.copilot as { inAutopilotContinuation?: boolean }).inAutopilotContinuation
+    ).toBe(true)
   })
 
   it("session.info with other infoType does not set continuation flag", () => {
@@ -1723,7 +1725,9 @@ describe("parseCopilotLine", () => {
       mappings,
       ctx
     )
-    expect(ctx.state["copilot_in_autopilot_continuation"]).toBeUndefined()
+    // No autopilot-continuation event fired, so the parser never created its
+    // state slot.
+    expect(ctx.state.copilot).toBeUndefined()
   })
 
   // ─── Fixture-driven integration tests ────────────────────────────────────

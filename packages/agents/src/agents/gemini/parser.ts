@@ -22,7 +22,25 @@
 import type { Event } from "../../types/events"
 import type { ParseContext } from "../../core/agent"
 import { createToolStartEvent, normalizeToolName } from "../../core/tools"
+import { getParserState } from "../../core/parse-state"
 import { safeJsonParse } from "../../utils/json"
+
+/**
+ * Stateful tracking the Gemini parser threads through a turn.
+ *
+ * Stored on `ParseContext.state.gemini` via {@link geminiState}; this replaces
+ * the loose `pendingToolIds` / `toolOutputBuffer` keys that required casts.
+ */
+class GeminiParseState {
+  /** tool_id → normalized tool name, awaiting the paired tool_result. */
+  pendingToolIds: Record<string, string> = {}
+  /** Accumulates legacy streaming tool output between tool.start and tool.end. */
+  toolOutputBuffer = ""
+}
+
+function geminiState(context: ParseContext): GeminiParseState {
+  return getParserState(context, "gemini", () => new GeminiParseState())
+}
 
 /**
  * Raw event types from Gemini's JSON stream
@@ -100,9 +118,9 @@ type GeminiEvent =
 /**
  * Parse a line of Gemini CLI output into event(s).
  *
- * Uses context.state for stateful tracking:
- *   - pendingToolIds: Map<tool_id, true> — tracks tool_use events awaiting their tool_result
- *   - toolOutputBuffer: string — legacy streaming buffer
+ * Uses a typed {@link GeminiParseState} (via {@link geminiState}) for stateful
+ * tracking: `pendingToolIds` pairs tool_use events with their tool_result, and
+ * `toolOutputBuffer` accumulates the legacy streaming tool output.
  */
 export function parseGeminiLine(
   line: string,
@@ -144,12 +162,9 @@ export function parseGeminiLine(
   // We emit tool_start immediately, and stash the tool_id so we can pair the output.
   if (json.type === "tool_use") {
     const name = normalizeToolName(json.tool_name.toLowerCase(), toolMappings)
-    // Track pending tool_id → tool event pairing in parse context
-    if (!context.state.pendingToolIds) {
-      context.state.pendingToolIds = {}
-    }
-    // Store the normalized name so tool_result can reference it (not strictly needed but aids debugging)
-    ;(context.state.pendingToolIds as Record<string, string>)[json.tool_id] = name
+    // Track pending tool_id → tool event pairing in parse context.
+    // Store the normalized name so tool_result can reference it (aids debugging).
+    geminiState(context).pendingToolIds[json.tool_id] = name
     return createToolStartEvent(name, json.parameters, toolMappings)
   }
 
@@ -157,9 +172,7 @@ export function parseGeminiLine(
   // We pair it with the most recently started tool_use via tool_id.
   if (json.type === "tool_result") {
     // Clean up the tracked tool_id
-    if (context.state.pendingToolIds) {
-      delete (context.state.pendingToolIds as Record<string, string>)[json.tool_id]
-    }
+    delete geminiState(context).pendingToolIds[json.tool_id]
     const output = typeof json.output === "string" && json.output.trim()
       ? json.output.trim()
       : undefined
@@ -170,23 +183,23 @@ export function parseGeminiLine(
 
   // Tool start (legacy)
   if (json.type === "tool.start") {
-    context.state.toolOutputBuffer = ""
+    geminiState(context).toolOutputBuffer = ""
     const name = normalizeToolName(json.name.toLowerCase(), toolMappings)
     return createToolStartEvent(name, json.input, toolMappings)
   }
 
   // Tool delta (streaming tool input or output)
   if (json.type === "tool.delta") {
-    const buffer = (context.state.toolOutputBuffer as string) ?? ""
-    context.state.toolOutputBuffer = buffer + json.text
+    const state = geminiState(context)
+    state.toolOutputBuffer += json.text
     return { type: "tool_delta", text: json.text }
   }
 
   // Tool end
   if (json.type === "tool.end") {
-    const output =
-      ((context.state.toolOutputBuffer as string) ?? "").trim() || undefined
-    context.state.toolOutputBuffer = ""
+    const state = geminiState(context)
+    const output = state.toolOutputBuffer.trim() || undefined
+    state.toolOutputBuffer = ""
     return { type: "tool_end", output }
   }
 

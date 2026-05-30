@@ -23,6 +23,7 @@
 import type { ParseContext } from "../../core/agent"
 import type { Event } from "../../types/events"
 import { createToolStartEvent } from "../../core/tools"
+import { getParserState } from "../../core/parse-state"
 import { safeJsonParse } from "../../utils/json"
 
 /**
@@ -148,36 +149,42 @@ const COPILOT_INTERNAL_TOOLS = new Set([
 ])
 
 /**
- * Key used to store suppressed tool call IDs in ParseContext.state.
- * Paired with AUTOPILOT_CONTINUATION_KEY to track the current turn phase.
+ * Stateful tracking the Copilot parser threads through a turn.
+ *
+ * Stored on `ParseContext.state.copilot` via {@link copilotState}; this
+ * replaces the four loose string keys that previously required casts.
  */
-const SUPPRESSED_IDS_KEY = "copilot_suppressed_tool_call_ids"
+class CopilotParseState {
+  /**
+   * Tool-call IDs for suppressed internal autopilot tools. Recorded on the
+   * tool.execution_start so the paired tool.execution_complete is suppressed
+   * too (prevents orphan tool_end events).
+   */
+  suppressedToolIds = new Set<string>()
 
-/**
- * Set to true in context.state once `session.info { infoType: "autopilot_continuation" }`
- * fires. Everything from that point until session.task_complete is an internal
- * autopilot workflow turn — model narration, tool bookkeeping — not user-visible output.
- */
-const AUTOPILOT_CONTINUATION_KEY = "copilot_in_autopilot_continuation"
+  /**
+   * messageIds whose delta tokens have already been streamed. When
+   * assistant.message fires for the same id, its full content would duplicate
+   * what the deltas emitted, so it is suppressed.
+   */
+  streamedMessageIds = new Set<string>()
 
-/**
- * Set of messageIds for which delta tokens have already been streamed.
- * When assistant.message fires for the same messageId, the full content
- * would duplicate what the deltas already emitted — suppress it.
- */
-const STREAMED_MESSAGE_IDS_KEY = "copilot_streamed_message_ids"
+  /**
+   * True once `session.info { infoType: "autopilot_continuation" }` fires.
+   * From that point until session.task_complete, events are internal autopilot
+   * workflow (narration, bookkeeping) and are suppressed.
+   */
+  inAutopilotContinuation = false
 
-/**
- * Set to true when session.task_complete fires. The subsequent `result`
- * event also emits end — suppress the duplicate.
- */
-const TASK_COMPLETE_KEY = "copilot_task_complete"
+  /**
+   * True once session.task_complete fires. The subsequent `result` event also
+   * maps to end — this flag suppresses the duplicate.
+   */
+  taskComplete = false
+}
 
-function getSuppressedIds(context: ParseContext): Set<string> {
-  if (!context.state[SUPPRESSED_IDS_KEY]) {
-    context.state[SUPPRESSED_IDS_KEY] = new Set<string>()
-  }
-  return context.state[SUPPRESSED_IDS_KEY] as Set<string>
+function copilotState(context: ParseContext): CopilotParseState {
+  return getParserState(context, "copilot", () => new CopilotParseState())
 }
 
 /**
@@ -212,17 +219,14 @@ export function parseCopilotLine(
   // forward-compat; it has no ephemeral flag so the continuation guard is
   // the only filter applied.
   if (json.type === "message.delta" || json.type === "assistant.message_delta") {
-    if (context?.state[AUTOPILOT_CONTINUATION_KEY]) return null
+    if (context && copilotState(context).inAutopilotContinuation) return null
     const ev = json as CopilotMessageDelta
     const text = ev.data?.deltaContent ?? ev.content ?? ev.deltaContent ?? ""
     if (!text) return null
     // Record the messageId so the paired assistant.message is suppressed.
     const messageId = ev.data?.messageId
     if (messageId && context) {
-      if (!context.state[STREAMED_MESSAGE_IDS_KEY]) {
-        context.state[STREAMED_MESSAGE_IDS_KEY] = new Set<string>()
-      }
-      ;(context.state[STREAMED_MESSAGE_IDS_KEY] as Set<string>).add(messageId)
+      copilotState(context).streamedMessageIds.add(messageId)
     }
     return { type: "token", text }
   }
@@ -236,7 +240,7 @@ export function parseCopilotLine(
   //   - We are in an autopilot continuation turn (internal narration/bookkeeping)
   //   - The message has tool requests (it's a prelude to a tool call, not a response)
   if (json.type === "assistant.message") {
-    if (context?.state[AUTOPILOT_CONTINUATION_KEY]) return null
+    if (context && copilotState(context).inAutopilotContinuation) return null
     const ev = json as CopilotMessage
     const toolRequests = ev.data?.toolRequests
     const hasToolCalls = Array.isArray(toolRequests) && toolRequests.length > 0
@@ -246,8 +250,8 @@ export function parseCopilotLine(
     const messageId = ev.data?.messageId
     if (
       messageId &&
-      context?.state[STREAMED_MESSAGE_IDS_KEY] &&
-      (context.state[STREAMED_MESSAGE_IDS_KEY] as Set<string>).has(messageId)
+      context &&
+      copilotState(context).streamedMessageIds.has(messageId)
     ) {
       return null
     }
@@ -272,7 +276,7 @@ export function parseCopilotLine(
       // Record the tool call ID so the paired tool.execution_complete is
       // also suppressed (prevents orphan tool_end events).
       const callId = ev.data?.toolCallId ?? ev.callId
-      if (callId && context) getSuppressedIds(context).add(callId)
+      if (callId && context) copilotState(context).suppressedToolIds.add(callId)
       return null
     }
     const args = ev.data?.arguments ?? ev.arguments
@@ -289,8 +293,8 @@ export function parseCopilotLine(
     const ev = json as CopilotToolExecutionComplete
     // Suppress tool_end for suppressed internal tool calls.
     const callId = ev.data?.toolCallId ?? ev.callId
-    if (callId && context && getSuppressedIds(context).has(callId)) {
-      getSuppressedIds(context).delete(callId) // clean up
+    if (callId && context && copilotState(context).suppressedToolIds.has(callId)) {
+      copilotState(context).suppressedToolIds.delete(callId) // clean up
       return null
     }
     const output = ev.data?.result?.content ?? ev.result ?? ev.output
@@ -323,7 +327,7 @@ export function parseCopilotLine(
   if (json.type === "session.info") {
     const ev = json as CopilotSessionInfo
     if (ev.data?.infoType === "autopilot_continuation" && context) {
-      context.state[AUTOPILOT_CONTINUATION_KEY] = true
+      copilotState(context).inAutopilotContinuation = true
     }
     return null
   }
@@ -334,7 +338,7 @@ export function parseCopilotLine(
   if (json.type === "session.task_complete") {
     const ev = json as CopilotTaskComplete
     if (context) {
-      context.state[TASK_COMPLETE_KEY] = true
+      copilotState(context).taskComplete = true
       // Capture the session ID so the next turn can resume with --continue.
       if (ev.sessionId) context.sessionId = ev.sessionId
     }
@@ -350,7 +354,7 @@ export function parseCopilotLine(
     // Always capture the session ID regardless of exit code — it's needed
     // so the next turn can pass --continue to resume the session.
     if (context && ev.sessionId) context.sessionId = ev.sessionId
-    if (context?.state[TASK_COMPLETE_KEY]) return null
+    if (context && copilotState(context).taskComplete) return null
     const error = ev.exitCode !== 0 ? `Process exited with code ${ev.exitCode}` : undefined
     return { type: "end", error }
   }
