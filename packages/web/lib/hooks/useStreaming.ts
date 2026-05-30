@@ -195,15 +195,6 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           const chatsCache = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())
           const notifyChat = chatsCache?.find((c) => c.id === chatId)
 
-          console.log("[notify] complete event received:", {
-            chatId,
-            status: data.status,
-            push: data.push,
-            notifyOnAgentCommitted: settings.notifyOnAgentCommitted,
-            notifyOnAgentFinished: settings.notifyOnAgentFinished,
-            notificationSound: settings.notificationSound,
-          })
-
           // Play the chime at most once per completion, even if both
           // notifications fire. Each notify() consumes the flag.
           let soundPending = settings.notificationSound
@@ -211,7 +202,6 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           // "Agent committed changes": the push advanced the remote. Gated on
           // the push having happened, not on the (best-effort) commit count.
           if (settings.notifyOnAgentCommitted && data.push) {
-            console.log("[notify] firing committed notification")
             const repo = notifyChat?.repo
             notifyPush({
               repo: repo && repo !== "__new__" ? repo : "",
