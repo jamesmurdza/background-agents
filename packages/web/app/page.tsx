@@ -26,6 +26,7 @@ import { useSendMessage } from "@/lib/hooks/useSendMessage"
 import { useBranching } from "@/lib/hooks/useBranching"
 import { useChatNavigation } from "@/lib/hooks/useChatNavigation"
 import { useRepoSelectHandler } from "@/lib/hooks/useRepoSelectHandler"
+import { LocalSyncManager } from "@/lib/hooks/useLocalSync"
 import {
   ChatProvider,
   ModalProvider,
@@ -548,6 +549,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     <PaletteProvider {...paletteProps}>
     <ChatProvider value={chatContextValue}>
     <GitProvider value={gitContextValue}>
+    <LocalSyncManager />
     <div className={`flex overflow-hidden ${isMobile ? 'h-screen-mobile' : 'h-screen'}`}>
       {/* Sidebar — desktop renders inline, mobile renders as a drawer.
           The Sidebar component branches on isMobile internally, so the only

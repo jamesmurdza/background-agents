@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
-    "simple-git": "^3.27.0"
+    "isomorphic-git": "^1.38.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.21",
@@ -40,20 +40,31 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.icns",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
       "icon": "assets/icon.ico",
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
       "icon": "assets/icon.png",
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Development"
     },
     "protocols": {
       "name": "Background Agents",
-      "schemes": ["background-agents"]
+      "schemes": [
+        "background-agents"
+      ]
     }
   }
 }

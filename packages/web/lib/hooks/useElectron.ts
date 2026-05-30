@@ -17,6 +17,25 @@ export interface LicenseDetectSettings {
   autoDetectEnabled: boolean
 }
 
+// Local repo sync (Backgrounder folder) types
+export interface GitSyncSettings {
+  rootDirectory: string
+}
+
+export type RepoSyncState = "idle" | "cloning" | "syncing" | "ready" | "error"
+
+export interface SyncStatusEvent {
+  repo: string
+  status: RepoSyncState
+  message?: string
+}
+
+export interface SyncErrorEvent {
+  repo: string
+  branch?: string
+  message: string
+}
+
 // Type definitions for Electron IPC bridge
 interface ElectronAPI {
   platform: string
@@ -29,10 +48,20 @@ interface ElectronAPI {
   getClaudeLicenseAutoDetect: () => Promise<LicenseDetectResult>
   getLicenseDetectSettings: () => Promise<LicenseDetectSettings>
   setLicenseDetectSettings: (settings: LicenseDetectSettings) => Promise<boolean>
+  // Local repo sync (Backgrounder folder)
+  getGitSyncSettings: () => Promise<GitSyncSettings>
+  setGitSyncSettings: (settings: GitSyncSettings) => Promise<GitSyncSettings>
+  pickSyncDirectory: () => Promise<string | null>
+  getRepoSyncState: (repo: string) => Promise<{ cloned: boolean }>
+  openRepoFolder: (data: { repo: string; branches: string[]; activeBranch: string | null }) => Promise<{ success: boolean; error?: string }>
+  setActiveChat: (data: { repo: string; branch: string | null }) => Promise<{ success: boolean }>
+  syncBranch: (data: { repo: string; branch: string }) => Promise<{ success: boolean }>
   onDeepLink: (callback: (data: { action: string; params: Record<string, string> }) => void) => () => void
   onNavigateToChat: (callback: (chatId: string) => void) => () => void
   onGitPushed: (callback: (data: { repo: string; branch: string; commitSha: string }) => void) => () => void
   onShortcut: (callback: (action: string) => void) => () => void
+  onSyncStatus: (callback: (data: SyncStatusEvent) => void) => () => void
+  onSyncError: (callback: (data: SyncErrorEvent) => void) => () => void
 }
 
 declare global {

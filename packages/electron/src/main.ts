@@ -189,7 +189,7 @@ app.whenReady().then(async () => {
   createTray(window);
   registerShortcuts(window);
   setupDeepLinks(handleDeepLink);
-  setupGitSync();
+  setupGitSync({ getWindow: () => mainWindow, backendUrl: BACKEND_URL });
   setupAutoUpdater(window);
   setupLicenseDetect();
 

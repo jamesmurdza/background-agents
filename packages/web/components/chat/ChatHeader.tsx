@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command } from "lucide-react"
+import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, Folder, FolderOpen } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useElectron } from "@/lib/hooks/useElectron"
+import { useRepoFolderButton } from "@/lib/hooks/useLocalSync"
 import { useModals, useGit } from "@/lib/contexts"
 import { Input } from "../ui/input"
 import type { Chat } from "@/lib/types"
@@ -189,6 +191,7 @@ export function ChatHeader({
         className="flex items-center gap-1"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
+        <FolderSyncButton repo={chat.repo} />
         {onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
@@ -201,6 +204,48 @@ export function ChatHeader({
         )}
       </div>
     </div>
+  )
+}
+
+// =============================================================================
+// FolderSyncButton - Desktop-only: clone/open the repo locally (Backgrounder folder)
+// =============================================================================
+
+function FolderSyncButton({ repo }: { repo: string }) {
+  const { visible, status, error, busy, onClick } = useRepoFolderButton(repo)
+  if (!visible) return null
+
+  const title = error
+    ? error
+    : status === "cloning"
+      ? "Cloning locally…"
+      : status === "syncing"
+        ? "Syncing locally…"
+        : status === "ready"
+          ? "Open repository folder"
+          : "Clone & open repository locally"
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={status === "cloning"}
+      className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer disabled:cursor-default",
+        error
+          ? "text-amber-500 hover:bg-amber-500/10"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      )}
+      title={title}
+      aria-label={title}
+    >
+      {busy ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : status === "ready" ? (
+        <FolderOpen className="h-4 w-4" />
+      ) : (
+        <Folder className="h-4 w-4" />
+      )}
+    </button>
   )
 }
 
