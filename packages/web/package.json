@@ -9,6 +9,8 @@
     "clean": "rm -rf .next",
     "start": "next start --port 4000",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:ccauth": "tsx scripts/run-ccauth.ts",
@@ -70,15 +72,20 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.2.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^22",
     "@types/pg": "^8.15.4",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "jsdom": "^25.0.1",
     "postcss": "^8.5",
     "prisma": "^7.0.0",
     "tailwindcss": "^4.2.0",
     "tsx": "^4.21.0",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^1.0.0"
   }
 }
