@@ -54,7 +54,7 @@ async function autoPush(
   sandbox: Awaited<ReturnType<Daytona["get"]>>,
   repoPath: string,
   githubToken: string,
-  options?: { noVerify?: boolean; baseBranch?: string }
+  options?: { noVerify?: boolean }
 ): Promise<{
   success: boolean
   error?: string
@@ -77,12 +77,16 @@ async function autoPush(
     )
     const branch = branchRes.result.trim()
 
-    // Remote-tracking SHA *before* the push (empty if the branch isn't on the
-    // remote yet). `git push -u` advances this ref, so it must be read first.
-    const remoteBeforeRes = await sandbox.process.executeCommand(
-      `cd ${repoPath} && git rev-parse refs/remotes/origin/${branch} 2>/dev/null || echo ""`
+    // Count commits this push will deliver, measured BEFORE pushing.
+    // `HEAD --not --remotes=origin` = commits reachable from HEAD that are not
+    // yet on ANY origin remote-tracking branch — i.e. exactly what the push
+    // adds, regardless of branch name, new-vs-existing branch, or base branch.
+    // This must run before the push (the push advances origin/<branch>, which
+    // would then make the count 0).
+    const countRes = await sandbox.process.executeCommand(
+      `cd ${repoPath} && git rev-list --count HEAD --not --remotes=origin 2>/dev/null || echo 0`
     )
-    const remoteBefore = remoteBeforeRes.result.trim()
+    const pushedCommits = parseInt(countRes.result.trim() || "0", 10) || 0
 
     const git = createSandboxGit(sandbox)
     await git.push(repoPath, githubToken, { noVerify: options?.noVerify })
@@ -91,24 +95,6 @@ async function autoPush(
       `cd ${repoPath} && git rev-parse --short HEAD 2>/dev/null || echo ""`
     )
     const commitSha = headRes.result.trim()
-
-    // Count the commits this push delivered. For an existing remote branch
-    // that's everything since the pre-push remote tip; for a brand-new branch
-    // it's everything since the base branch it was created from.
-    let range: string | null = null
-    if (remoteBefore) {
-      range = `${remoteBefore}..HEAD`
-    } else if (options?.baseBranch) {
-      range = `origin/${options.baseBranch}..HEAD`
-    }
-
-    let pushedCommits = 0
-    if (range) {
-      const countRes = await sandbox.process.executeCommand(
-        `cd ${repoPath} && git rev-list --count ${range} 2>/dev/null || echo 0`
-      )
-      pushedCommits = parseInt(countRes.result.trim() || "0", 10) || 0
-    }
 
     return { success: true, pushedCommits, branch, commitSha }
   } catch (error) {
@@ -307,7 +293,7 @@ export async function GET(req: Request) {
             if (lastSnap.status === "completed" && chatId) {
               const chat = await prisma.chat.findUnique({
                 where: { id: chatId },
-                select: { branch: true, repo: true, baseBranch: true, userId: true },
+                select: { branch: true, repo: true, userId: true },
               })
 
               if (chat?.branch && chat.repo && chat.repo !== "__new__") {
@@ -333,7 +319,7 @@ export async function GET(req: Request) {
                     sandbox,
                     sessionOpts.repoPath,
                     account.access_token,
-                    { noVerify: !enablePrepushHooks, baseBranch: chat.baseBranch ?? undefined }
+                    { noVerify: !enablePrepushHooks }
                   )
 
                   if (!pushResult.success) {
