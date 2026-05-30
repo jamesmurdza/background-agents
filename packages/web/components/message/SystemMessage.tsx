@@ -27,6 +27,12 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
     isMobile ? "h-4 w-4" : "h-3.5 w-3.5"
   )
 
+  // Match the text colour to the (red) error icon; other variants keep the
+  // muted treatment.
+  const textClasses = variant === "error"
+    ? "text-red-500 dark:text-red-400"
+    : "text-muted-foreground"
+
   // Link the merge message to the target branch on GitHub, if we know it.
   const branchUrl = repo && linkBranch ? `https://github.com/${repo}/tree/${linkBranch}` : null
 
@@ -116,12 +122,12 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
           href={linkUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className={cn(textClasses, "hover:text-foreground transition-colors")}
         >
           {renderContent()}
         </a>
       ) : (
-        <span className="text-muted-foreground">{renderContent()}</span>
+        <span className={textClasses}>{renderContent()}</span>
       )}
     </div>
   )
