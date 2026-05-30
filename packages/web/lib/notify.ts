@@ -17,9 +17,49 @@ export interface NotifyOptions {
   body?: string
   /** Chat to focus/navigate to when the notification is clicked */
   chatId?: string
+  /** Play a short notification sound */
+  sound?: boolean
 }
 
-export function notify({ title, body, chatId }: NotifyOptions): void {
+/**
+ * Play a short notification chime using the Web Audio API, so we don't need
+ * to ship an audio asset. Best-effort: silently no-ops if audio is
+ * unavailable or blocked (e.g. before the user has interacted with the page).
+ */
+function playNotificationSound(): void {
+  if (typeof window === "undefined") return
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const now = ctx.currentTime
+
+    const gain = ctx.createGain()
+    gain.connect(ctx.destination)
+    // Quick fade in/out to avoid clicks.
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(0.15, now + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35)
+
+    const osc = ctx.createOscillator()
+    osc.type = "sine"
+    // Two-note rising chime.
+    osc.frequency.setValueAtTime(660, now)
+    osc.frequency.setValueAtTime(880, now + 0.12)
+    osc.connect(gain)
+    osc.start(now)
+    osc.stop(now + 0.36)
+    osc.onended = () => ctx.close().catch(() => {})
+  } catch {
+    // Ignore — sound is a nice-to-have.
+  }
+}
+
+export function notify({ title, body, chatId, sound }: NotifyOptions): void {
+  if (sound) playNotificationSound()
+
   const electron = getElectronAPI()
 
   if (electron) {
@@ -42,8 +82,9 @@ export function notifyAgentFinished(info: {
   chatName?: string
   status: "completed" | "error"
   chatId?: string
+  sound?: boolean
 }): void {
-  const { chatName, status, chatId } = info
+  const { chatName, status, chatId, sound } = info
   const label = chatName ? `"${chatName}"` : "Your agent"
   notify({
     title: status === "error" ? "Agent failed" : "Agent finished",
@@ -52,6 +93,7 @@ export function notifyAgentFinished(info: {
         ? `${label} stopped with an error.`
         : `${label} finished its turn.`,
     chatId,
+    sound,
   })
 }
 
@@ -61,8 +103,9 @@ export function notifyPush(info: {
   commits: number
   commitSha?: string
   chatId?: string
+  sound?: boolean
 }): void {
-  const { repo, branch, commits, commitSha, chatId } = info
+  const { repo, branch, commits, commitSha, chatId, sound } = info
   const plural = commits === 1 ? "commit" : "commits"
   const target = repo ? `${repo}@${branch}` : branch
   const shaSuffix = commitSha ? ` (${commitSha})` : ""
@@ -70,5 +113,6 @@ export function notifyPush(info: {
     title: "New push",
     body: `${commits} ${plural} pushed to ${target}${shaSuffix}`,
     chatId,
+    sound,
   })
 }

@@ -195,6 +195,10 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           const chatsCache = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())
           const notifyChat = chatsCache?.find((c) => c.id === chatId)
 
+          // Play the chime at most once per completion, even if both
+          // notifications fire. Each notify() consumes the flag.
+          let soundPending = settings.notificationSound
+
           // "Agent committed changes": a push delivered new commits.
           if (settings.notifyOnAgentCommitted && data.push && data.push.commits > 0) {
             const repo = notifyChat?.repo
@@ -204,7 +208,9 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               commits: data.push.commits,
               commitSha: data.push.commitSha,
               chatId,
+              sound: soundPending,
             })
+            soundPending = false
           }
 
           // "Agent finished": the turn ended (completed or error).
@@ -213,7 +219,9 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               chatName: notifyChat?.displayName ?? undefined,
               status: data.status === "error" ? "error" : "completed",
               chatId,
+              sound: soundPending,
             })
+            soundPending = false
           }
 
           // Fetch any new messages created by the backend (delta sync)

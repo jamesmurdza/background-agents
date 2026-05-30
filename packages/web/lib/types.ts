@@ -218,6 +218,8 @@ export interface Settings {
   notifyOnAgentFinished: boolean
   /** Notify when an agent's auto-push delivers new commits */
   notifyOnAgentCommitted: boolean
+  /** Play a sound when a notification is shown */
+  notificationSound: boolean
 }
 
 export type { CredentialId, Credentials, CredentialFlags } from "./credentials"

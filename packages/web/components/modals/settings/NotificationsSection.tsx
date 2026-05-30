@@ -9,6 +9,8 @@ interface NotificationsSectionProps {
   setNotifyOnAgentFinished: (next: boolean) => void
   notifyOnAgentCommitted: boolean
   setNotifyOnAgentCommitted: (next: boolean) => void
+  notificationSound: boolean
+  setNotificationSound: (next: boolean) => void
 }
 
 /**
@@ -21,6 +23,8 @@ export function NotificationsSection({
   setNotifyOnAgentFinished,
   notifyOnAgentCommitted,
   setNotifyOnAgentCommitted,
+  notificationSound,
+  setNotificationSound,
 }: NotificationsSectionProps) {
   return (
     <div>
@@ -36,6 +40,12 @@ export function NotificationsSection({
         description="Notify me when an agent pushes new commits."
       >
         <ToggleSwitch checked={notifyOnAgentCommitted} onChange={setNotifyOnAgentCommitted} />
+      </SettingsRow>
+      <SettingsRow
+        label="Play a sound"
+        description="Play a sound when a notification is shown."
+      >
+        <ToggleSwitch checked={notificationSound} onChange={setNotificationSound} />
       </SettingsRow>
     </div>
   )

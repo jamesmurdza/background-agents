@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enablePrepushHooks: false,
   notifyOnAgentFinished: true,
   notifyOnAgentCommitted: true,
+  notificationSound: true,
 }
 
 const DEFAULT_LOCAL_STATE: LocalState = {

@@ -118,6 +118,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [enablePrepushHooks, setEnablePrepushHooks] = useState(settings.enablePrepushHooks)
   const [notifyOnAgentFinished, setNotifyOnAgentFinished] = useState(settings.notifyOnAgentFinished)
   const [notifyOnAgentCommitted, setNotifyOnAgentCommitted] = useState(settings.notifyOnAgentCommitted)
+  const [notificationSound, setNotificationSound] = useState(settings.notificationSound)
   const [activeSection, setActiveSection] = useState<SectionKey>(defaultSection)
 
   // Drag to dismiss (mobile only)
@@ -147,6 +148,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setEnablePrepushHooks(settings.enablePrepushHooks)
       setNotifyOnAgentFinished(settings.notifyOnAgentFinished)
       setNotifyOnAgentCommitted(settings.notifyOnAgentCommitted)
+      setNotificationSound(settings.notificationSound)
       setActiveSection(defaultSection)
     }
   }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
@@ -250,7 +252,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     rapidFireMode !== settings.rapidFireMode ||
     enablePrepushHooks !== settings.enablePrepushHooks ||
     notifyOnAgentFinished !== settings.notifyOnAgentFinished ||
-    notifyOnAgentCommitted !== settings.notifyOnAgentCommitted
+    notifyOnAgentCommitted !== settings.notifyOnAgentCommitted ||
+    notificationSound !== settings.notificationSound
 
   // Check if auto-detected credentials should be saved (desktop only)
   const autoDetectHasNewCredentials = isDesktopApp &&
@@ -272,6 +275,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (enablePrepushHooks !== settings.enablePrepushHooks) settingsPatch.enablePrepushHooks = enablePrepushHooks
     if (notifyOnAgentFinished !== settings.notifyOnAgentFinished) settingsPatch.notifyOnAgentFinished = notifyOnAgentFinished
     if (notifyOnAgentCommitted !== settings.notifyOnAgentCommitted) settingsPatch.notifyOnAgentCommitted = notifyOnAgentCommitted
+    if (notificationSound !== settings.notificationSound) settingsPatch.notificationSound = notificationSound
 
     // Only send credential fields the user actually changed. Sending the
     // mask back ("***") would otherwise overwrite the real key.
@@ -377,6 +381,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             setNotifyOnAgentFinished={setNotifyOnAgentFinished}
             notifyOnAgentCommitted={notifyOnAgentCommitted}
             setNotifyOnAgentCommitted={setNotifyOnAgentCommitted}
+            notificationSound={notificationSound}
+            setNotificationSound={setNotificationSound}
           />
         )
       case "local-sync":
