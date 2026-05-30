@@ -44,7 +44,6 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.icns",
       "target": [
         "dmg",
         "zip"
@@ -56,14 +55,12 @@
       "notarize": true
     },
     "win": {
-      "icon": "assets/icon.ico",
       "target": [
         "nsis",
         "portable"
       ]
     },
     "linux": {
-      "icon": "assets/icon.png",
       "target": [
         "AppImage",
         "deb"
