@@ -83,6 +83,13 @@ async function autoPush(
     // The push result is the source of truth for "did anything get pushed":
     // `--porcelain` reports whether the remote ref advanced or was up-to-date.
     const pushResult = await git.push(repoPath, githubToken, { noVerify: options?.noVerify })
+    console.log("[autoPush] push result:", {
+      branch,
+      updated: pushResult.updated,
+      newBranch: pushResult.newBranch,
+      range: pushResult.range,
+      rawOutput: pushResult.output,
+    })
 
     const headRes = await sandbox.process.executeCommand(
       `cd ${repoPath} && git rev-parse --short HEAD 2>/dev/null || echo ""`
@@ -102,9 +109,11 @@ async function autoPush(
       pushedCommits = parseInt(countRes.result.trim() || "0", 10) || 0
     }
 
+    console.log("[autoPush] returning:", { pushed: pushResult.updated, pushedCommits, branch, commitSha })
     return { success: true, pushed: pushResult.updated, pushedCommits, branch, commitSha }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"
+    console.error("[autoPush] error:", message)
     return { success: false, error: message }
   }
 }
@@ -302,12 +311,22 @@ export async function GET(req: Request) {
                 select: { branch: true, repo: true, userId: true },
               })
 
+              console.log("[stream] auto-push check:", { chatId, branch: chat?.branch, repo: chat?.repo })
+
+              if (!chat?.branch || !chat.repo || chat.repo === "__new__") {
+                console.log("[stream] auto-push skipped: chat has no branch/repo")
+              }
+
               if (chat?.branch && chat.repo && chat.repo !== "__new__") {
                 // Get GitHub token from user's account
                 const account = await prisma.account.findFirst({
                   where: { userId: chat.userId, provider: "github" },
                   select: { access_token: true },
                 })
+
+                if (!account?.access_token) {
+                  console.log("[stream] auto-push skipped: no GitHub access token for user")
+                }
 
                 if (account?.access_token) {
                   // Get user settings for push options
@@ -343,6 +362,9 @@ export async function GET(req: Request) {
                       commits: pushResult.pushedCommits ?? 0,
                       commitSha: pushResult.commitSha,
                     }
+                    console.log("[stream] pushInfo set, will send on complete event:", pushInfo)
+                  } else {
+                    console.log("[stream] push succeeded but remote did not advance (nothing to notify)")
                   }
                 }
               }
@@ -375,6 +397,7 @@ export async function GET(req: Request) {
               // Best effort - don't fail the complete event if we can't check conflict state
             }
 
+            console.log("[stream] sending complete event:", { status: lastSnap.status, push: pushInfo })
             sendEvent("complete", {
               status: lastSnap.status,
               sessionId: lastSnap.sessionId,
