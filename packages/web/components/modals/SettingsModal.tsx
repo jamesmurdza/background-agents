@@ -53,8 +53,8 @@ type SectionDef = { key: SectionKey; label: string; icon: typeof Bot }
 const baseSections: SectionDef[] = [
   { key: "general", label: "General", icon: SettingsIcon },
   { key: "api-keys", label: "API Keys", icon: Key },
-  { key: "git", label: "Git", icon: GitBranch },
   { key: "appearance", label: "Appearance", icon: Sun },
+  { key: "git", label: "Git", icon: GitBranch },
   { key: "experimental", label: "Experimental", icon: FlaskConical },
 ]
 
