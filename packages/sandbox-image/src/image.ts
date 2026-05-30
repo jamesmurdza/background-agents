@@ -25,6 +25,8 @@ export const SNAPSHOT_RESOURCES = {
 export const AGENT_PACKAGES = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
+  copilot: "@github/copilot",
+  kilo: "@kilocode/cli",
   opencode: "opencode-ai",
   gemini: "@google/gemini-cli",
   pi: "@mariozechner/pi-coding-agent",
@@ -85,6 +87,14 @@ export function getAgentSandboxImage(): Image {
       .runCommands(
         // Install Pi CLI
         "npm install -g @mariozechner/pi-coding-agent"
+      )
+      .runCommands(
+        // Install GitHub Copilot CLI
+        "npm install -g @github/copilot"
+      )
+      .runCommands(
+        // Install Kilo CLI
+        "npm install -g @kilocode/cli"
       )
       // Create daytona user (non-root) - Claude Code refuses to run as root
       .runCommands(
