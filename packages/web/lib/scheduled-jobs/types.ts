@@ -5,6 +5,14 @@ import type { ScheduledJob as PrismaScheduledJob, ScheduledJobRun as PrismaSched
 // =============================================================================
 
 /**
+ * Matches any RFC-4122 UUID. The form mints incoming-webhook tokens with
+ * crypto.randomUUID() (v4); the create/update routes validate against this
+ * before persisting a client-supplied token.
+ */
+export const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
  * Subset of run fields included in lastRun
  */
 export interface ScheduledJobLastRun {

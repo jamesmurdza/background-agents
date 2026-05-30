@@ -8,7 +8,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { addMinutes, addYears } from "date-fns"
-import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
+import { toScheduledJobResponse, UUID_RE } from "@/lib/scheduled-jobs/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================
@@ -47,10 +47,6 @@ export async function GET(): Promise<Response> {
 // =============================================================================
 // POST - Create a new scheduled job
 // =============================================================================
-
-/** Matches any RFC-4122 UUID (the form sends crypto.randomUUID() v4 values). */
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface CreateScheduledJobBody {
   name: string

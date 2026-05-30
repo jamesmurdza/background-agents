@@ -9,7 +9,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { addMinutes, addYears } from "date-fns"
-import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
+import { toScheduledJobResponse, UUID_RE } from "@/lib/scheduled-jobs/types"
 import { cleanupSmitheryConnections } from "@/lib/mcp/connections"
 
 // =============================================================================
@@ -73,6 +73,8 @@ interface UpdateScheduledJobBody {
   model?: string | null
   /** Swap a job (or still-open draft) between trigger types. */
   triggerType?: "interval" | "incoming"
+  /** Client-minted token persisted on a draft's final submit (incl. pre-save rotate). */
+  incomingToken?: string
   intervalMinutes?: number
   autoPR?: boolean
   continueFromLastRun?: boolean
@@ -156,6 +158,13 @@ export async function PATCH(
         const minutes = body.intervalMinutes ?? job.intervalMinutes
         updateData.nextRunAt = addMinutes(new Date(), Math.max(minutes, 1))
       }
+    }
+    // Honor a client-supplied token (the form mints one before save and can
+    // rotate it client-side while still in create mode; the final submit sends
+    // the current value). Only well-formed UUIDs are accepted, and this wins
+    // over the legacy pre-mint in the triggerType branch above.
+    if (typeof body.incomingToken === "string" && UUID_RE.test(body.incomingToken)) {
+      updateData.incomingToken = body.incomingToken
     }
     if (body.intervalMinutes !== undefined) {
       updateData.intervalMinutes = body.intervalMinutes

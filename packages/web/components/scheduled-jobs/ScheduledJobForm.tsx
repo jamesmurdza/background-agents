@@ -417,12 +417,12 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       // For materialized rows we created with enabled: false + isDraft: true;
       // promote both on final Create. For real edits, we leave existing state
       // alone.
-      // On a pure create POST, send the client-minted token so the saved URL
-      // matches the one already shown in the panel. Materialized rows already
-      // persisted their token at materialize time, and edits leave it alone.
+      // Persist the client-minted token on every create path so the saved URL
+      // matches what the panel shows — including after a pre-save rotate. Edits
+      // leave the token alone (rotation there goes through the server endpoint).
       const body =
         materializedJobId && !isEditing
-          ? { ...payload, enabled: true, isDraft: false }
+          ? { ...payload, enabled: true, isDraft: false, incomingToken: incomingToken ?? undefined }
           : isUpdate
             ? payload
             : { ...payload, incomingToken: incomingToken ?? undefined }
@@ -490,6 +490,15 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   }
 
   const handleRotateToken = async () => {
+    // Create mode: the URL hasn't been handed out anywhere yet, so "rotate" is
+    // just minting a fresh client-side UUID. No server round-trip, no confirm —
+    // the new token is persisted on save (create POST / final PATCH carry it).
+    if (!isEditing) {
+      setIncomingToken(crypto.randomUUID())
+      return
+    }
+    // Edit mode: the URL is live (the user may have wired it into an external
+    // app), so rotate server-side to invalidate the old one immediately.
     const targetId = job?.id
     if (!targetId) return
     if (!confirm("Rotating will invalidate the existing webhook URL. Continue?")) return
