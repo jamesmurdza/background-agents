@@ -5,6 +5,14 @@ import type { ScheduledJob as PrismaScheduledJob, ScheduledJobRun as PrismaSched
 // =============================================================================
 
 /**
+ * Matches any RFC-4122 UUID. The form mints incoming-webhook tokens with
+ * crypto.randomUUID() (v4); the create/update routes validate against this
+ * before persisting a client-supplied token.
+ */
+export const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
  * Subset of run fields included in lastRun
  */
 export interface ScheduledJobLastRun {
@@ -45,7 +53,7 @@ export interface ScheduledJob {
   baseBranch: string
   agent: string
   model: string | null
-  triggerType: "interval" | "webhook"
+  triggerType: "interval" | "incoming"
   intervalMinutes: number
   enabled: boolean
   nextRunAt: number
@@ -55,6 +63,8 @@ export interface ScheduledJob {
   createdAt: number
   updatedAt: number
   lastRun: ScheduledJobLastRun | null
+  /** Present only when triggerType === "incoming". Used to build the webhook URL. */
+  incomingToken: string | null
 }
 
 // =============================================================================
@@ -110,7 +120,7 @@ export function toScheduledJobResponse(
     baseBranch: job.baseBranch,
     agent: job.agent,
     model: job.model,
-    triggerType: (job.triggerType as "interval" | "webhook") ?? "interval",
+    triggerType: (job.triggerType as "interval" | "incoming") ?? "interval",
     intervalMinutes: job.intervalMinutes,
     enabled: job.enabled,
     nextRunAt: job.nextRunAt.getTime(),
@@ -120,6 +130,7 @@ export function toScheduledJobResponse(
     createdAt: job.createdAt.getTime(),
     updatedAt: job.updatedAt.getTime(),
     lastRun: lastRun ? toLastRunResponse(lastRun) : null,
+    incomingToken: job.incomingToken ?? null,
   }
 }
 

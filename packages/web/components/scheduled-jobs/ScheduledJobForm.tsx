@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Clock, ChevronDown, X } from "lucide-react"
+import { Clock, ChevronDown, X, Copy, RefreshCw, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { RepoCombobox } from "@/components/chat/RepoCombobox"
@@ -69,9 +69,9 @@ const TRIGGER_TYPES = [
     description: "Run at regular intervals"
   },
   {
-    label: "When CI/CD fails",
-    value: "webhook",
-    description: "Triggered by GitHub Actions failure"
+    label: "Via webhook",
+    value: "incoming",
+    description: "Triggered by any external app (GitHub, Jira, Slack, Linear, …) — paste the generated URL into the source app"
   },
 ] as const
 
@@ -182,7 +182,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const isRepoLess = !repo
   const [agent, setAgent] = useState<Agent>((job?.agent as Agent) ?? "opencode")
   const [model, setModel] = useState(job?.model ?? "")
-  const [triggerType, setTriggerType] = useState<"interval" | "webhook">(job?.triggerType ?? "interval")
+  const [triggerType, setTriggerType] = useState<"interval" | "incoming">(job?.triggerType ?? "interval")
   const initialIntervalMode = inferIntervalMode(job?.intervalMinutes ?? 1440)
   const [intervalMinutes, setIntervalMinutes] = useState(initialIntervalMode.intervalMinutes)
   const [isCustomInterval, setIsCustomInterval] = useState(initialIntervalMode.isCustom)
@@ -205,14 +205,15 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   // them up before the user finishes; the final submit flips enabled back on.
   const [materializedJobId, setMaterializedJobId] = useState<string | null>(null)
 
-  // Once we materialize, the trigger/schedule fields lock — the PATCH endpoint
-  // doesn't accept triggerType / runAtHour / runAtDay, so allowing edits after
-  // materialize would silently drop changes. Cancelling resets via DELETE.
-  const isLocked = isEditing || !!materializedJobId
-
   // Dropdown state
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
+
+  // Incoming-webhook URL state. The token comes from the saved job and can be
+  // swapped out via the rotate-token endpoint without closing the modal.
+  const [incomingToken, setIncomingToken] = useState<string | null>(job?.incomingToken ?? null)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [rotating, setRotating] = useState(false)
 
   // Get available models for selected agent
   const availableModels = agentModels[agent] ?? []
@@ -224,6 +225,14 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
   const effectiveIntervalMinutes = isCustomInterval
     ? Math.max(1, Math.floor(customIntervalValue || 0) * UNIT_MINUTES[customIntervalUnit])
     : intervalMinutes
+
+  // Which Options-section toggles apply. The "continue" toggle is interval-only;
+  // auto-PR needs a repo to push to. The section header renders only when at
+  // least one applies — these same flags gate both the header and the toggles
+  // so they can't drift apart.
+  const showContinueOption = triggerType === "interval"
+  const showAutoPROption = !isRepoLess
+  const hasOptions = showContinueOption || showAutoPROption
 
   // Reset form state when job prop changes or modal opens
   useEffect(() => {
@@ -248,6 +257,9 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       setContinueFromLastRun(job?.continueFromLastRun ?? false)
       setError(null)
       setMaterializedJobId(null)
+      setIncomingToken(job?.incomingToken ?? null)
+      setCopiedUrl(false)
+      setRotating(false)
     }
   }, [open, job])
 
@@ -259,13 +271,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     }
   }, [agent, model])
 
-  // Webhook triggers require a real GitHub repo — snap back to interval if the
-  // user clears the repo while webhook was selected.
   useEffect(() => {
-    if (isRepoLess && triggerType === "webhook") {
-      setTriggerType("interval")
+    if (triggerType === "incoming" && !incomingToken) {
+      setIncomingToken(crypto.randomUUID())
     }
-  }, [isRepoLess, triggerType])
+  }, [triggerType, incomingToken])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -291,10 +301,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     }
     if (!prompt.trim()) {
       setError("Prompt is required")
-      return null
-    }
-    if (isRepoLess && triggerType === "webhook") {
-      setError("Webhook triggers require a repository")
       return null
     }
     if (triggerType === "interval" && effectiveIntervalMinutes < 10) {
@@ -331,15 +337,13 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
    * until the user hits "Create" (PATCH to flip enabled on) or "Cancel"
    * (DELETE the row).
    *
-   * Only allowed for interval-triggered jobs — webhook jobs require a real
-   * GitHub webhook setup at create time, which can't be deferred.
+   * Works for both interval and incoming triggers — the POST mints an
+   * incomingToken regardless, so the URL panel can render immediately for
+   * incoming-typed drafts. If the user flips the trigger pill after
+   * materialize, the final-submit PATCH carries the new triggerType.
    */
   async function materializeJob(_draftId: string): Promise<string | null> {
     setError(null)
-    if (triggerType === "webhook") {
-      setError("Save the job first to attach MCP servers to webhook-triggered jobs.")
-      return null
-    }
     try {
       const res = await fetch("/api/scheduled-jobs", {
         method: "POST",
@@ -357,8 +361,16 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           baseBranch: baseBranch || "main",
           agent,
           model: model || null,
-          triggerType: "interval",
-          intervalMinutes: effectiveIntervalMinutes,
+          triggerType,
+          // Carry the client-minted token (if any) so the persisted URL matches
+          // what the panel is already showing. Null on interval drafts — the
+          // server mints a dormant one.
+          incomingToken: incomingToken ?? undefined,
+          // intervalMinutes is required by the POST for "interval" — pass a
+          // safe placeholder for incoming drafts so the validator doesn't
+          // reject. Final submit overrides whichever value matters.
+          intervalMinutes:
+            triggerType === "interval" ? effectiveIntervalMinutes : 10,
           autoPR,
           continueFromLastRun,
           enabled: false,
@@ -372,6 +384,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       }
       const created = await res.json()
       setMaterializedJobId(created.id)
+      // Capture the token minted by POST so the URL panel can render the
+      // moment the user flips to "Via webhook".
+      if (created.incomingToken) {
+        setIncomingToken(created.incomingToken)
+      }
       return created.id
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save job")
@@ -400,10 +417,15 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       // For materialized rows we created with enabled: false + isDraft: true;
       // promote both on final Create. For real edits, we leave existing state
       // alone.
+      // Persist the client-minted token on every create path so the saved URL
+      // matches what the panel shows — including after a pre-save rotate. Edits
+      // leave the token alone (rotation there goes through the server endpoint).
       const body =
         materializedJobId && !isEditing
-          ? { ...payload, enabled: true, isDraft: false }
-          : payload
+          ? { ...payload, enabled: true, isDraft: false, incomingToken: incomingToken ?? undefined }
+          : isUpdate
+            ? payload
+            : { ...payload, incomingToken: incomingToken ?? undefined }
 
       const res = await fetch(url, {
         method,
@@ -444,6 +466,59 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
       }
     }
     onClose()
+  }
+
+  /**
+   * Build the URL the user pastes into their external app. Browser-only —
+   * SSR returns an empty string and the panel hides the value until hydration.
+   */
+  const incomingWebhookUrl = useMemo(() => {
+    if (!incomingToken) return ""
+    if (typeof window === "undefined") return ""
+    return `${window.location.origin}/wh/${incomingToken}`
+  }, [incomingToken])
+
+  const handleCopyUrl = async () => {
+    if (!incomingWebhookUrl) return
+    try {
+      await navigator.clipboard.writeText(incomingWebhookUrl)
+      setCopiedUrl(true)
+      setTimeout(() => setCopiedUrl(false), 1500)
+    } catch (err) {
+      console.error("[ScheduledJobForm] copy failed:", err)
+    }
+  }
+
+  const handleRotateToken = async () => {
+    // Create mode: the URL hasn't been handed out anywhere yet, so "rotate" is
+    // just minting a fresh client-side UUID. No server round-trip, no confirm —
+    // the new token is persisted on save (create POST / final PATCH carry it).
+    if (!isEditing) {
+      setIncomingToken(crypto.randomUUID())
+      return
+    }
+    // Edit mode: the URL is live (the user may have wired it into an external
+    // app), so rotate server-side to invalidate the old one immediately.
+    const targetId = job?.id
+    if (!targetId) return
+    if (!confirm("Rotating will invalidate the existing webhook URL. Continue?")) return
+    setRotating(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/scheduled-jobs/${targetId}/rotate-token`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to rotate token")
+      }
+      const updated = await res.json()
+      setIncomingToken(updated.incomingToken ?? null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rotate token")
+    } finally {
+      setRotating(false)
+    }
   }
 
   const handleAgentChange = (newAgent: Agent) => {
@@ -502,37 +577,27 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               />
             </div>
 
-            {/* Trigger Type - Segmented Control */}
+            {/* Trigger Type - Segmented Control. Always editable — PATCH
+                handles the swap for both still-open drafts and existing
+                jobs. */}
             <div>
               <label className="block text-sm font-medium mb-2">Trigger</label>
-              <div className={cn(
-                "inline-flex rounded-md bg-muted p-0.5",
-                isLocked && "opacity-50"
-              )}>
-                {TRIGGER_TYPES.map((t) => {
-                  // Webhook triggers attach to a GitHub repo, so they're not
-                  // available in repo-less mode.
-                  const isWebhookDisabled = t.value === "webhook" && isRepoLess
-                  const disabled = isLocked || isWebhookDisabled
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => !disabled && setTriggerType(t.value)}
-                      disabled={disabled}
-                      title={isWebhookDisabled ? "Select a repository to use webhook triggers" : undefined}
-                      className={cn(
-                        "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
-                        triggerType === t.value
-                          ? "bg-background shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
-                        isWebhookDisabled && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  )
-                })}
+              <div className="inline-flex rounded-md bg-muted p-0.5">
+                {TRIGGER_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTriggerType(t.value)}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
+                      triggerType === t.value
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -636,6 +701,55 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 {isCustomInterval && effectiveIntervalMinutes < 10 && (
                   <p className="text-xs text-destructive">
                     Interval must be at least 10 minutes.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Incoming webhook URL panel — shown only for incoming triggers.
+                The token is minted client-side as soon as the trigger is
+                picked, so the URL (with copy + rotate) renders immediately,
+                even before the job is saved. The fallback below only shows for
+                the brief moment before the mint effect runs. */}
+            {triggerType === "incoming" && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Webhook URL</label>
+
+                {incomingToken ? (
+                  <>
+                    <div className="flex items-stretch gap-1">
+                      <input
+                        type="text"
+                        readOnly
+                        value={incomingWebhookUrl}
+                        onFocus={(e) => e.currentTarget.select()}
+                        className="flex-1 min-w-0 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyUrl}
+                        className="inline-flex items-center justify-center rounded-md border border-border bg-background px-2 hover:bg-accent transition-colors cursor-pointer"
+                        title={copiedUrl ? "Copied" : "Copy URL"}
+                      >
+                        {copiedUrl ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRotateToken}
+                        disabled={rotating}
+                        className="inline-flex items-center justify-center rounded-md border border-border bg-background px-2 hover:bg-accent transition-colors cursor-pointer disabled:opacity-50"
+                        title="Generate a new URL and invalidate the existing one"
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", rotating && "animate-spin")} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Anyone with this URL can fire this agent — rotate it if it leaks.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Preparing your webhook URL…
                   </p>
                 )}
               </div>
@@ -803,7 +917,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               </div>
             </div>
 
-            {/* Options Section */}
+            {/* Options Section — hidden when neither option applies (e.g. an
+                incoming, repo-less job has neither the interval-only
+                "continue" toggle nor the repo-only auto-PR toggle). */}
+            {hasOptions && (
             <div>
               <label className="block text-sm font-medium mb-2">Options</label>
               <div className="space-y-2">
@@ -811,7 +928,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                     the backend interprets it differently: with a repo it
                     reuses the prior branch; repo-less it prepends the prior
                     run's final output as prompt context. */}
-                {triggerType === "interval" && (
+                {showContinueOption && (
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -829,7 +946,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 )}
 
                 {/* Auto-PR has no target in repo-less mode (no remote to push to). */}
-                {!isRepoLess && (
+                {showAutoPROption && (
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -845,6 +962,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 )}
               </div>
             </div>
+            )}
 
           </form>
 

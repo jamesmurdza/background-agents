@@ -215,31 +215,51 @@ export async function startJobExecution(
     }
   }
 
-  if (run.triggerContext && job.triggerType === "webhook") {
+  // Generic incoming webhook: any external app (Jira, Slack, Linear, curl).
+  // We don't know the shape of the payload, so we hand it to the agent as a
+  // fenced JSON block plus the captured event-type header, if any.
+  if (run.triggerContext && job.triggerType === "incoming") {
     const ctx = run.triggerContext as {
-      workflowName?: string
-      workflowUrl?: string
-      branch?: string
-      commitSha?: string
-      failedAt?: string
+      source?: string
+      receivedAt?: string
+      headers?: Record<string, string>
+      payload?: unknown
     }
 
-    const contextLines = [
-      `## CI/CD Failure Context`,
+    const eventType =
+      ctx.headers?.["x-github-event"] ??
+      ctx.headers?.["x-gitlab-event"] ??
+      ctx.headers?.["x-event-key"] ??
+      null
+    const userAgent = ctx.headers?.["user-agent"] ?? null
+
+    // JSON.stringify won't throw on cyclic structures coming from Prisma's
+    // JSONB column (it's already serialized), so this is safe.
+    let payloadJson = "{}"
+    try {
+      payloadJson = JSON.stringify(ctx.payload ?? {}, null, 2)
+    } catch {
+      payloadJson = String(ctx.payload)
+    }
+
+    finalPrompt = [
+      `## Incoming Webhook Event`,
       ``,
-      `A GitHub Actions workflow has failed:`,
-      ctx.workflowName ? `- **Workflow**: ${ctx.workflowName}` : null,
-      ctx.branch ? `- **Branch**: ${ctx.branch}` : null,
-      ctx.commitSha ? `- **Commit**: ${ctx.commitSha.slice(0, 7)}` : null,
-      ctx.workflowUrl ? `- **Details**: ${ctx.workflowUrl}` : null,
-      ctx.failedAt ? `- **Failed at**: ${ctx.failedAt}` : null,
+      `An external service triggered this agent run.`,
+      eventType ? `- **Event**: ${eventType}` : null,
+      userAgent ? `- **Source**: ${userAgent}` : null,
+      ctx.receivedAt ? `- **Received at**: ${ctx.receivedAt}` : null,
+      ``,
+      `### Payload`,
+      ``,
+      "```json",
+      payloadJson,
+      "```",
       ``,
       `---`,
       ``,
       job.prompt,
     ].filter(Boolean).join("\n")
-
-    finalPrompt = contextLines
   }
 
   // 9. Create user message for the prompt

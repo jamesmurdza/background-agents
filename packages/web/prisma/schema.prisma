@@ -283,9 +283,10 @@ model ScheduledJob {
   model      String?
 
   // Trigger configuration
-  triggerType     String  @default("interval") // "interval" | "webhook"
-  githubWebhookId Int?    // GitHub's webhook ID (for cleanup on delete)
-  webhookSecret   String? // HMAC secret for verifying webhook payloads
+  triggerType     String  @default("interval") // "interval" | "incoming"
+  // URL-embedded token for triggerType "incoming" — anyone POSTing to
+  // /api/webhooks/in/<token> fires this job. Rotateable from the form.
+  incomingToken   String? @unique
 
   // Schedule (used when triggerType = "interval")
   intervalMinutes Int // e.g., 360 = every 6 hours
