@@ -38,7 +38,6 @@ import {
   defaultAgentModel,
   agentSupportsPlanMode,
   // Functions
-  getDefaultAgent,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
