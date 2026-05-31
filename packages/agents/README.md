@@ -187,7 +187,7 @@ const session = await createSession("claude", {
 Starts a background task. Returns immediately with process info.
 
 ```typescript
-const { sessionId, pid, logPath } = await session.start("Your task here")
+const { pid, outputFile } = await session.start("Your task here")
 ```
 
 ### `session.getEvents()`
@@ -225,21 +225,21 @@ const session = await getSession(
 
 | Event | Description | Fields |
 |-------|-------------|--------|
-| `session` | Session started | `sessionId: string` |
+| `session` | Session started | `id: string` |
 | `token` | Streamed text | `text: string` |
-| `tool_start` | Tool invoked | `id?: string`, `name: string`, `input?: unknown` |
-| `tool_delta` | Tool streaming | `id?: string`, `delta: string` |
-| `tool_end` | Tool finished | `id?: string`, `output?: string`, `isError?: boolean` |
+| `tool_start` | Tool invoked | `name: string`, `input?: unknown` |
+| `tool_delta` | Tool streaming | `text: string` |
+| `tool_end` | Tool finished | `output?: string` |
 | `end` | Task complete | `error?: string` |
 | `agent_crashed` | Process crashed | `message?: string`, `output?: string` |
 
 ```typescript
 type Event =
-  | { type: "session"; sessionId: string }
+  | { type: "session"; id: string }
   | { type: "token"; text: string }
-  | { type: "tool_start"; id?: string; name: string; input?: unknown }
-  | { type: "tool_delta"; id?: string; delta: string }
-  | { type: "tool_end"; id?: string; output?: string; isError?: boolean }
+  | { type: "tool_start"; name: string; input?: unknown }
+  | { type: "tool_delta"; text: string }
+  | { type: "tool_end"; output?: string }
   | { type: "end"; error?: string }
   | { type: "agent_crashed"; message?: string; output?: string }
 ```
