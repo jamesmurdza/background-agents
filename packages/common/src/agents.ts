@@ -322,18 +322,9 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
 // =============================================================================
 
 /**
- * Get the default agent based on user credentials.
- * If user has Anthropic credentials, default to Claude Code.
- * Otherwise, default to OpenCode (which has free models).
+ * Get the default agent. Always defaults to OpenCode.
  */
 export function getDefaultAgent(flags: CredentialFlags | null | undefined): Agent {
-  // If daily limit exceeded on shared Claude, skip to opencode
-  if (flags?.CLAUDE_DAILY_LIMIT_EXCEEDED) {
-    return "opencode"
-  }
-  if (flags?.ANTHROPIC_API_KEY || flags?.CLAUDE_CODE_CREDENTIALS || flags?.CLAUDE_SHARED_POOL_AVAILABLE) {
-    return "claude-code"
-  }
   return "opencode"
 }
 
