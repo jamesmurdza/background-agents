@@ -34,15 +34,6 @@ export async function fetchReposPage(page: number = 1): Promise<FetchReposPageRe
 }
 
 /**
- * Fetch repositories for the authenticated user (first page only, for backward compatibility).
- * Calls GET /api/github/repos which reads the token from DB server-side.
- */
-export async function fetchRepos(): Promise<GitHubRepo[]> {
-  const { repos } = await fetchReposPage(1)
-  return repos
-}
-
-/**
  * Fetch ALL repositories for the authenticated user with progressive loading.
  * Calls onProgress callback after each page is fetched.
  *
@@ -102,28 +93,6 @@ export async function fetchBranches(
   }
   const data = await res.json()
   return data.branches
-}
-
-/**
- * Push commits to remote (simple-chat specific - calls local API)
- */
-export async function pushToRemote(
-  sandboxId: string,
-  repoName: string,
-  branch: string
-): Promise<void> {
-  const response = await fetch("/api/git/push", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ sandboxId, repoName, branch }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to push to remote")
-  }
 }
 
 /**
