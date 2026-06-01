@@ -129,6 +129,18 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "opencode" },
     { value: "opencode/kimi-k2.5", label: "Kimi K2.5", requiresKey: "opencode" },
+    // Additional paid OpenCode models enabled only when OPENCODE_API_KEY is present
+    { value: "opencode/glm-5", label: "GLM-5", requiresKey: "opencode" },
+    { value: "opencode/glm-5.1", label: "GLM-5.1", requiresKey: "opencode" },
+    { value: "opencode/kimi-k2.6", label: "Kimi K2.6", requiresKey: "opencode" },
+    { value: "opencode/mimo-v2.5-pro", label: "MiMo v2.5 Pro", requiresKey: "opencode" },
+    { value: "opencode/minimax-m2.5", label: "MiniMax M2.5", requiresKey: "opencode" },
+    { value: "opencode/minimax-m2.7", label: "MiniMax M2.7", requiresKey: "opencode" },
+    { value: "opencode/minimax-m3", label: "MiniMax M3", requiresKey: "opencode" },
+    { value: "opencode/qwen3-6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode" },
+    { value: "opencode/qwen3-7-max", label: "Qwen3.7 Max", requiresKey: "opencode" },
+    { value: "opencode/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode" },
+    { value: "opencode/deepseek-v4-flash", label: "DeepSeek V4 Flash", requiresKey: "opencode" },
     // Anthropic direct models (requires Anthropic API key)
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", requiresKey: "anthropic" },
