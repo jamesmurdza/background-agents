@@ -295,7 +295,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 /** Default model per agent */
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "default",
-  "opencode": "opencode-go/mimo-v2.5",
+  "opencode": "opencode-go/mimo-v2.5-pro",
   "codex": "gpt-5.5",
   "copilot": "gpt-5-mini",
   "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
