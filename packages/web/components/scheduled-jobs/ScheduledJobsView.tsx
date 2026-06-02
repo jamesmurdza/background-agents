@@ -2,110 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { Clock, Plus, MoreHorizontal, Play, Pencil, Trash2, AlertCircle, Check, X, ArrowLeft, ChevronDown, ExternalLink, GitPullRequest, CheckCircle2, XCircle, Circle, RefreshCw } from "lucide-react"
-import { format, formatDistanceToNow } from "date-fns"
-import { cn } from "@/lib/utils"
+import { Clock, Plus } from "lucide-react"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
-import { MessageBubble } from "@/components/MessageBubble"
-import { type ScheduledJob, type ScheduledJobRun, formatInterval } from "@/lib/scheduled-jobs/types"
+import { JobsList } from "@/components/scheduled-jobs/JobsList"
+import { JobRunDetail } from "@/components/scheduled-jobs/JobRunDetail"
+import { type ScheduledJob, type ScheduledJobRun } from "@/lib/scheduled-jobs/types"
 import type { Message } from "@/lib/types"
-import { NEW_REPOSITORY } from "@/lib/types"
-
-function getRepoLabel(repo: string): string {
-  return repo === NEW_REPOSITORY ? "No repository" : repo
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function getJobStatusIcon(job: ScheduledJob) {
-  if (!job.enabled) {
-    return <X className="h-3.5 w-3.5 text-muted-foreground" />
-  }
-  if (job.lastRun?.status === "error") {
-    return <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-  }
-  if (job.lastRun?.status === "completed") {
-    return <Check className="h-3.5 w-3.5 text-green-500" />
-  }
-  if (job.lastRun?.status === "running") {
-    return <Clock className="h-3.5 w-3.5 text-blue-500 animate-pulse" />
-  }
-  return <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-}
-
-function getRunStatusIcon(status: string) {
-  switch (status) {
-    case "completed":
-      return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-    case "error":
-      return <XCircle className="h-3.5 w-3.5 text-destructive" />
-    case "running":
-      return <RefreshCw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
-    default:
-      return <Circle className="h-3.5 w-3.5 text-muted-foreground" />
-  }
-}
-
-function getLastRunText(job: ScheduledJob): string {
-  if (!job.lastRun) return "Never run"
-
-  const timeAgo = formatDistanceToNow(job.lastRun.startedAt, { addSuffix: true })
-
-  if (job.lastRun.status === "running") {
-    return `Running ${timeAgo}`
-  }
-  if (job.lastRun.status === "error") {
-    return `Failed ${timeAgo}`
-  }
-  if (job.lastRun.prUrl) {
-    return `PR #${job.lastRun.prNumber} ${timeAgo}`
-  }
-  if (job.lastRun.status === "completed") {
-    return `No changes ${timeAgo}`
-  }
-  return timeAgo
-}
-
-function formatRunLabel(run: ScheduledJobRun): string {
-  return format(run.startedAt, "MMM d, h:mm a")
-}
-
-function formatDuration(startedAt: number, completedAt: number): string {
-  const durationMs = completedAt - startedAt
-  const seconds = Math.floor(durationMs / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-
-  if (hours > 0) {
-    const remainingMinutes = minutes % 60
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
-  }
-  if (minutes > 0) {
-    const remainingSeconds = seconds % 60
-    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
-  }
-  return `${seconds}s`
-}
-
-function getTriggerDescription(job: ScheduledJob): string {
-  if (job.triggerType === "incoming") {
-    return "Webhook"
-  }
-  // Interval trigger - show human-readable schedule
-  const minutes = job.intervalMinutes
-  if (minutes < 60) {
-    return `Every ${minutes} minute${minutes === 1 ? "" : "s"}`
-  }
-  const hours = Math.round(minutes / 60)
-  if (minutes < 1440) {
-    return `Every ${hours} hour${hours === 1 ? "" : "s"}`
-  }
-  const days = Math.round(minutes / 1440)
-  return `Every ${days} day${days === 1 ? "" : "s"}`
-}
 
 // =============================================================================
 // Props
@@ -145,14 +48,12 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
   const [formOpen, setFormOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null)
   const [deleteJob, setDeleteJob] = useState<ScheduledJob | null>(null)
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
   // Detail view state
   const [selectedJob, setSelectedJob] = useState<ScheduledJob | null>(null)
   const [runs, setRuns] = useState<ScheduledJobRun[]>([])
   const [selectedRun, setSelectedRun] = useState<ScheduledJobRun | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [dropdownOpen, setDropdownOpen] = useState(false)
 
   // Reset detail state when returning to list view
   // Note: Don't call setSelectedJobId here - URL changes should drive navigation
@@ -263,7 +164,6 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
   const handleEdit = (job: ScheduledJob) => {
     setEditingJob(job)
     setFormOpen(true)
-    setMenuOpenId(null)
   }
 
   const handleDelete = async () => {
@@ -286,7 +186,6 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
   }
 
   const handleRunNow = async (job: ScheduledJob) => {
-    setMenuOpenId(null)
     try {
       const res = await fetch(`/api/scheduled-jobs/${job.id}/run`, {
         method: "POST",
@@ -323,136 +222,13 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
   // Detail view
   if (selectedJobId && selectedJob) {
     return (
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Detail Header - styled like chat header */}
-        <div className="flex items-center justify-between pt-3 shrink-0" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
-          <div className="flex items-center gap-2">
-            {/* Title - styled like chat title */}
-            <span className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-md hover:bg-accent transition-colors cursor-default">
-              {selectedJob.name}
-            </span>
-          </div>
-
-          {/* Run selector dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-accent transition-colors cursor-pointer"
-            >
-              {selectedRun ? (
-                <>
-                  {getRunStatusIcon(selectedRun.status)}
-                  <span className="text-sm">{formatRunLabel(selectedRun)}</span>
-                </>
-              ) : (
-                <span className="text-sm text-muted-foreground">No runs yet</span>
-              )}
-              <ChevronDown className={cn("h-4 w-4 transition-transform", dropdownOpen && "rotate-180")} />
-            </button>
-
-            {dropdownOpen && runs.length > 0 && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setDropdownOpen(false)}
-                />
-                <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg py-1">
-                  {runs.map((run) => (
-                    <button
-                      key={run.id}
-                      onClick={() => {
-                        setSelectedRun(run)
-                        setDropdownOpen(false)
-                      }}
-                      className={cn(
-                        "flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left",
-                        run.id === selectedRun?.id && "bg-accent"
-                      )}
-                    >
-                      {getRunStatusIcon(run.status)}
-                      <span className="flex-1">{formatRunLabel(run)}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Detail Content */}
-        <main className="flex-1 overflow-auto">
-          {selectedRun ? (
-            <div className="max-w-4xl mx-auto p-6">
-              {/* Error display */}
-              {selectedRun.error && (
-                <div className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  <div className="font-medium mb-1">Run failed</div>
-                  <div className="whitespace-pre-wrap">{selectedRun.error}</div>
-                </div>
-              )}
-
-              {/* Messages */}
-              <div className="space-y-4">
-                {messages.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    {selectedRun.status === "running" ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <Clock className="h-4 w-4 animate-pulse" />
-                        Agent is running...
-                      </div>
-                    ) : (
-                      "No messages for this run"
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {messages.map((message, index) => (
-                      <MessageBubble
-                        key={message.id || index}
-                        message={message}
-                        isStreaming={selectedRun.status === "running" && index === messages.length - 1}
-                      />
-                    ))}
-
-                    {/* Completion summary - styled like system messages */}
-                    {selectedRun.status === "completed" && selectedRun.completedAt && (
-                      <div className="flex items-start gap-2 text-sm">
-                        <Check className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
-                        <span className="text-muted-foreground">
-                          Agent finished after {formatDuration(selectedRun.startedAt, selectedRun.completedAt)}.
-                        </span>
-                      </div>
-                    )}
-
-                    {/* PR created message */}
-                    {selectedRun.status === "completed" && selectedRun.prUrl && (
-                      <div className="flex items-start gap-2 text-sm">
-                        <GitPullRequest className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
-                        <a
-                          href={selectedRun.prUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Created PR #{selectedRun.prNumber}.
-                        </a>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Clock className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h2 className="text-lg font-medium mb-2">No runs yet</h2>
-              <p className="text-muted-foreground">
-                This job will run {formatDistanceToNow(selectedJob.nextRunAt, { addSuffix: true })}
-              </p>
-            </div>
-          )}
-        </main>
-      </div>
+      <JobRunDetail
+        job={selectedJob}
+        runs={runs}
+        selectedRun={selectedRun}
+        onSelectRun={setSelectedRun}
+        messages={messages}
+      />
     )
   }
 
@@ -491,217 +267,13 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
             </p>
           </div>
         ) : (
-          <>
-            {/* Mobile Card Layout */}
-            <div className="space-y-3 md:hidden">
-              {jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="rounded-lg border border-border bg-white/50 dark:bg-white/5 p-4 cursor-pointer"
-                  onClick={() => setSelectedJobId(job.id, job.name)}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {getJobStatusIcon(job)}
-                      <span className={cn(
-                        "text-sm font-medium truncate",
-                        !job.enabled && "text-muted-foreground"
-                      )}>
-                        {job.name}
-                      </span>
-                      {!job.enabled && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                          Disabled
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setMenuOpenId(menuOpenId === job.id ? null : job.id)
-                        }}
-                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-
-                      {menuOpenId === job.id && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setMenuOpenId(null)
-                            }}
-                          />
-                          <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-md border border-border bg-popover py-1 shadow-lg">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEdit(job)
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRunNow(job)
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-                            >
-                              <Play className="h-3.5 w-3.5" />
-                              Run Now
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setMenuOpenId(null)
-                                setDeleteJob(job)
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-accent"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                    <div className={cn("truncate", job.repo === NEW_REPOSITORY && "italic")}>{getRepoLabel(job.repo)}</div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span>{getTriggerDescription(job)}</span>
-                      <span className={cn(
-                        job.lastRun?.status === "error" && "text-destructive"
-                      )}>
-                        {getLastRunText(job)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop Table Layout */}
-            <div className="hidden md:block rounded-lg border border-border bg-background">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border bg-muted/50">
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Name</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Repository</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Schedule</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Last run</th>
-                    <th className="px-4 py-2.5 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {jobs.map((job) => (
-                    <tr
-                      key={job.id}
-                      className="bg-white/50 dark:bg-white/5 cursor-pointer"
-                      onClick={() => setSelectedJobId(job.id, job.name)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {getJobStatusIcon(job)}
-                          <span className={cn(
-                            "text-sm font-medium",
-                            !job.enabled && "text-muted-foreground"
-                          )}>
-                            {job.name}
-                          </span>
-                          {!job.enabled && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                              Disabled
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className={cn(
-                        "px-4 py-3 text-sm text-muted-foreground",
-                        job.repo === NEW_REPOSITORY && "italic"
-                      )}>
-                        {getRepoLabel(job.repo)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {getTriggerDescription(job)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">
-                        <span className={cn(
-                          job.lastRun?.status === "error" && "text-destructive"
-                        )}>
-                          {getLastRunText(job)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="relative inline-block">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setMenuOpenId(menuOpenId === job.id ? null : job.id)
-                            }}
-                            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-
-                          {menuOpenId === job.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-40"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setMenuOpenId(null)
-                                }}
-                              />
-                              <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-md border border-border bg-popover py-1 shadow-lg">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleEdit(job)
-                                  }}
-                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleRunNow(job)
-                                  }}
-                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-                                >
-                                  <Play className="h-3.5 w-3.5" />
-                                  Run Now
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setMenuOpenId(null)
-                                    setDeleteJob(job)
-                                  }}
-                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-accent"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  Delete
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <JobsList
+            jobs={jobs}
+            onSelect={setSelectedJobId}
+            onEdit={handleEdit}
+            onRunNow={handleRunNow}
+            onRequestDelete={setDeleteJob}
+          />
         )}
       </main>
 
