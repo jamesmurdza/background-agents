@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, ReactNode } from "react"
-import type { UseGitDialogsResult } from "@/components/modals/GitDialogs"
+import type { UseGitDialogsResult } from "@/components/modals/git-dialogs"
 
 // =============================================================================
 // GitContext - Provides git dialog state and operations
