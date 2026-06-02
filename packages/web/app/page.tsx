@@ -48,38 +48,7 @@ import { NEW_REPOSITORY, getDefaultAgent, getDefaultModelForAgent, type Agent, t
 import { useReposQuery, useBranchesQuery, useServersQuery } from "@/lib/query"
 import { PATHS } from "@upstream/common"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
-
-// Storage key for pending message (persists across OAuth redirect)
-const PENDING_MESSAGE_KEY = "simple-chat-pending-message"
-
-// Type for pending message data stored before sign-in
-interface PendingMessage {
-  message: string
-  agent: string
-  model: string
-}
-
-// Helper to save pending message to sessionStorage
-function savePendingMessage(data: PendingMessage): void {
-  if (typeof window !== "undefined") {
-    sessionStorage.setItem(PENDING_MESSAGE_KEY, JSON.stringify(data))
-  }
-}
-
-// Helper to load and clear pending message from sessionStorage
-function loadAndClearPendingMessage(): PendingMessage | null {
-  if (typeof window === "undefined") return null
-  const stored = sessionStorage.getItem(PENDING_MESSAGE_KEY)
-  if (stored) {
-    sessionStorage.removeItem(PENDING_MESSAGE_KEY)
-    try {
-      return JSON.parse(stored) as PendingMessage
-    } catch {
-      return null
-    }
-  }
-  return null
-}
+import { savePendingMessage, loadAndClearPendingMessage, hasPendingMessage } from "@/lib/pending-message"
 
 function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
   const { openCommand } = usePalette()
@@ -400,7 +369,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // below will handle chat creation when sending the pending message.
   useEffect(() => {
     if (!isHydrated || currentChatId || !session) return
-    if (typeof window !== "undefined" && sessionStorage.getItem(PENDING_MESSAGE_KEY)) return
+    if (hasPendingMessage()) return
     // Enter draft mode instead of creating a real chat
     startNewChat()
   }, [isHydrated, currentChatId, session, startNewChat])
