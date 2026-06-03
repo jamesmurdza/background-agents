@@ -1,11 +1,8 @@
 import { signIn } from "next-auth/react"
+import { isElectron } from "@/lib/hooks/useElectron"
 
-/**
- * Check if running in Electron (must be called at runtime, not module load)
- */
-export function isElectron(): boolean {
-  return typeof window !== "undefined" && !!(window as { electron?: unknown }).electron
-}
+// Re-exported for backwards compatibility; the canonical definition lives in useElectron.
+export { isElectron }
 
 /**
  * Sign in with GitHub, handling Electron's special OAuth flow
