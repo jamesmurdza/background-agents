@@ -65,7 +65,6 @@ export {
   // High-level API methods
   getUser,
   getUserRepos,
-  getAllUserRepos,
   getRepo,
   getRepoBranches,
   compareBranches,
@@ -114,8 +113,6 @@ export {
   // Functions
   formatPRTitleFromBranch,
   formatPRBodyFromCommits,
-  isGitNothingToCommitMessage,
-  parseConflictedFiles,
   // Constants
   EMPTY_CONFLICT_STATE,
 } from "./git-operations"
