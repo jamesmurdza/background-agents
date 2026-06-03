@@ -187,7 +187,7 @@ const session = await createSession("claude", {
 Starts a background task. Returns immediately with process info.
 
 ```typescript
-const { pid, outputFile } = await session.start("Your task here")
+const { executionId, pid, outputFile } = await session.start("Your task here")
 ```
 
 ### `session.getEvents()`

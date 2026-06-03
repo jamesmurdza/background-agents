@@ -1,6 +1,6 @@
 # @background-agents/common
 
-Shared utilities and types for upstream-agents packages. This package provides common functionality used across the monorepo, including agent configuration, GitHub API helpers, and utility functions.
+Shared utilities and types for the `@background-agents` packages. This package provides common functionality used across the monorepo, including agent configuration, GitHub API helpers, and utility functions.
 
 ## Installation
 
