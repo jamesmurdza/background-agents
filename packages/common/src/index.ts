@@ -88,7 +88,6 @@ export {
   type SlashCommand,
   SLASH_COMMANDS,
   ABORT_COMMAND,
-  filterSlashCommands,
   filterSlashCommandsWithConflict,
 } from "./slash-commands"
 
