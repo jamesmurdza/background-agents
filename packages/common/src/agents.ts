@@ -187,7 +187,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   "gemini": [
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)", requiresKey: "gemini" },
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
-    { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
+    { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
     { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini" },
   ],
   "goose": [
