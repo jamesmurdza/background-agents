@@ -304,6 +304,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   }, [isMobile, isHydrated, currentChatId, chats, selectChat])
 
 
+  // Resolve the linked repo name for a chat, or undefined when it has no repo.
+  const getLinkedRepoName = useCallback((chatId: string) => {
+    const chat = chats.find((c) => c.id === chatId)
+    return chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
+  }, [chats])
+
   // Handler for opening environment variables modal
   const handleOpenEnvVars = useCallback(async () => {
     if (!currentChatId || isDraftChatId(currentChatId)) return
@@ -317,8 +323,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       const repoRes = await fetch("/api/user/repo-env")
       const repoData = repoRes.ok ? await repoRes.json() : { repoEnvironmentVariables: {} }
 
-      const chat = chats.find((c) => c.id === currentChatId)
-      const repoName = chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
+      const repoName = getLinkedRepoName(currentChatId)
 
       setEnvVarsChatEnvVars(chatData.environmentVariables || {})
       setEnvVarsRepoEnvVars(repoName && repoData.repoEnvironmentVariables?.[repoName] || {})
@@ -326,14 +331,13 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     } catch (error) {
       console.error("Failed to fetch environment variables:", error)
     }
-  }, [currentChatId, isDraftChatId, chats, modals])
+  }, [currentChatId, isDraftChatId, getLinkedRepoName, modals])
 
   // Handler for saving environment variables
   const handleSaveEnvVars = useCallback(async (chatEnvVars: Record<string, string>, repoEnvVars: Record<string, string>) => {
     if (!currentChatId || isDraftChatId(currentChatId)) return
 
-    const chat = chats.find((c) => c.id === currentChatId)
-    const repoName = chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
+    const repoName = getLinkedRepoName(currentChatId)
 
     // Save chat env vars
     await fetch(`/api/chats/${currentChatId}/env`, {
@@ -350,7 +354,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         body: JSON.stringify({ repo: repoName, environmentVariables: repoEnvVars }),
       })
     }
-  }, [currentChatId, isDraftChatId, chats])
+  }, [currentChatId, isDraftChatId, getLinkedRepoName])
 
   // Materialize the draft chat when the MCP modal needs to commit a change.
   // Returns the real chatId, or null if materialization failed.
