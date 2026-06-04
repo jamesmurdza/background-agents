@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (required by Next.js 16)
 
 ## Quick start (Web)
 
@@ -33,6 +33,7 @@ Set up a local Postgres database and a `.env.local` file with the variables list
 
 ```bash
 npm install
+npm run prisma:migrate
 npm run dev
 ```
 
