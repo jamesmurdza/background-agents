@@ -8,6 +8,7 @@
 import type { Event } from "../../types/events"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { resolveAgentError } from "../../utils/errors"
 
 /**
  * Raw event types from Claude CLI's stream-json output
@@ -148,13 +149,15 @@ export function parseClaudeLine(
 
   // Result event marks end of interaction (success or CLI error)
   if (json.type === "result") {
-    const err =
+    const isError =
       (json as ClaudeResult).subtype === "error_during_execution" ||
       (json as ClaudeResult).subtype === "error"
-        ? ((json as ClaudeResult).error ??
-          (json as ClaudeResult).result ??
-          "Unknown error")
-        : undefined
+    const err = isError
+      ? resolveAgentError(
+          (json as ClaudeResult).error ?? (json as ClaudeResult).result ?? json,
+          "claude"
+        )
+      : undefined
     return { type: "end", ...(err ? { error: err } : {}) }
   }
 

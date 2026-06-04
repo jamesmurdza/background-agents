@@ -24,6 +24,7 @@ import type { ParseContext } from "../../core/agent"
 import type { Event } from "../../types/events"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { classifyAgentError } from "../../utils/errors"
 
 /**
  * Raw event shapes from the Copilot CLI JSONL stream.
@@ -351,7 +352,10 @@ export function parseCopilotLine(
     // so the next turn can pass --continue to resume the session.
     if (context && ev.sessionId) context.sessionId = ev.sessionId
     if (context?.state[TASK_COMPLETE_KEY]) return null
-    const error = ev.exitCode !== 0 ? `Process exited with code ${ev.exitCode}` : undefined
+    const error =
+      ev.exitCode !== 0
+        ? classifyAgentError(`Process exited with code ${ev.exitCode}`).message
+        : undefined
     return { type: "end", error }
   }
 
@@ -370,6 +374,7 @@ export function parseCopilotLine(
       } else {
         error = `Turn ended with status: ${ev.status}`
       }
+      error = classifyAgentError(error).message
     }
     return { type: "end", error }
   }
