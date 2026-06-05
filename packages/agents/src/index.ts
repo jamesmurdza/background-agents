@@ -155,7 +155,11 @@ export {
   ensureCliInstalled,
   getPackageName,
   getInstallationStatus,
+  extractErrorMessage,
+  classifyAgentError,
+  resolveAgentError,
 } from "./utils/index"
+export type { AgentErrorCategory, ClassifiedError } from "./utils/index"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
 export { isDebugEnabled, debugLog } from "./debug"

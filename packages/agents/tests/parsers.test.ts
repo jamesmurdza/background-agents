@@ -170,7 +170,10 @@ describe("parseCodexLine", () => {
       '{"type": "turn.failed", "error": {"message": "API rate limit exceeded"}}',
       mappings
     )
-    expect(event).toEqual({ type: "end", error: "API rate limit exceeded" })
+    expect(event).toEqual({
+      type: "end",
+      error: "API rate limit exceeded — wait a moment and retry",
+    })
   })
 
   it("parses error event with message", () => {
@@ -178,7 +181,10 @@ describe("parseCodexLine", () => {
       '{"type": "error", "message": "unexpected status 401 Unauthorized"}',
       mappings
     )
-    expect(event).toEqual({ type: "end", error: "unexpected status 401 Unauthorized" })
+    expect(event).toEqual({
+      type: "end",
+      error: "unexpected status 401 Unauthorized — check the API key for this model in Settings",
+    })
   })
 
   it("returns null for unknown event types", () => {
@@ -438,7 +444,10 @@ describe("parseOpencodeLine", () => {
       mappings,
       ctx
     )
-    expect(event).toEqual({ type: "end", error: "Rate limit exceeded" })
+    expect(event).toEqual({
+      type: "end",
+      error: "Rate limit exceeded — wait a moment and retry",
+    })
   })
 
   it("parses error event falling back to error name", () => {
@@ -449,6 +458,24 @@ describe("parseOpencodeLine", () => {
       ctx
     )
     expect(event).toEqual({ type: "end", error: "APIError" })
+  })
+
+  it("surfaces the raw payload (not 'Unknown error') when the error has no message or name", () => {
+    // Regression: an OpenCode error event whose payload has neither
+    // error.data.message nor error.name used to collapse to the useless string
+    // "Unknown error". Now the raw fields survive — here a 402 status, which is
+    // additionally classified as a balance problem.
+    const ctx = createContext()
+    const event = parseOpencodeLine(
+      '{"type": "error", "sessionID": "ses_xyz123", "error": {"statusCode": 402, "providerID": "opencode"}}',
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({
+      type: "end",
+      error:
+        '{"statusCode":402,"providerID":"opencode"} — switch to a free model or add credits / an API key',
+    })
   })
 
   it("returns null for unknown event types", () => {
@@ -715,7 +742,10 @@ describe("parseGooseLine", () => {
       mappings,
       ctx
     )
-    expect(event).toEqual({ type: "end", error: "API rate limit exceeded" })
+    expect(event).toEqual({
+      type: "end",
+      error: "API rate limit exceeded — wait a moment and retry",
+    })
   })
 
   it("parses error event with object error", () => {
@@ -728,7 +758,10 @@ describe("parseGooseLine", () => {
       mappings,
       ctx
     )
-    expect(event).toEqual({ type: "end", error: "Authentication failed" })
+    expect(event).toEqual({
+      type: "end",
+      error: "Authentication failed — check the API key for this model in Settings",
+    })
   })
 
   it("returns null for unknown event types", () => {
@@ -1011,7 +1044,10 @@ describe("parsePiLine", () => {
       mappings,
       ctx
     )
-    expect(event).toEqual({ type: "end", error: "Rate limit exceeded" })
+    expect(event).toEqual({
+      type: "end",
+      error: "Rate limit exceeded — wait a moment and retry",
+    })
   })
 
   it("parses error event with message field", () => {
@@ -1024,7 +1060,10 @@ describe("parsePiLine", () => {
       mappings,
       ctx
     )
-    expect(event).toEqual({ type: "end", error: "Connection failed" })
+    expect(event).toEqual({
+      type: "end",
+      error: "Connection failed — check connectivity and retry",
+    })
   })
 
   it("parses auto_retry_end failure event", () => {
@@ -1421,7 +1460,10 @@ describe("parseCopilotLine", () => {
       }),
       mappings
     )
-    expect(event).toEqual({ type: "end", error: "Rate limit exceeded" })
+    expect(event).toEqual({
+      type: "end",
+      error: "Rate limit exceeded — wait a moment and retry",
+    })
   })
 
   it("parses turn.end with error status (object error)", () => {
@@ -1971,7 +2013,10 @@ describe("parseKiloLine", () => {
       mappings,
       ctx
     )
-    expect(event).toEqual({ type: "end", error: "Rate limit exceeded" })
+    expect(event).toEqual({
+      type: "end",
+      error: "Rate limit exceeded — wait a moment and retry",
+    })
   })
 
   it("parses error event falling back to error name", () => {

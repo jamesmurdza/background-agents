@@ -9,6 +9,7 @@ import type { Event } from "../../types/events"
 import type { ShellToolInput, WriteToolInput } from "../../types/events"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { resolveAgentError } from "../../utils/errors"
 import { normalizeCodexToolName } from "./tools"
 
 /**
@@ -203,12 +204,12 @@ export function parseCodexLine(
 
   // Turn failed - emit end event with error
   if (json.type === "turn.failed") {
-    return { type: "end", error: json.error?.message }
+    return { type: "end", error: resolveAgentError(json.error ?? json, "codex") }
   }
 
   // Error event - emit as end with error
   if (json.type === "error") {
-    return { type: "end", error: json.message }
+    return { type: "end", error: resolveAgentError(json.message ?? json, "codex") }
   }
 
   return null

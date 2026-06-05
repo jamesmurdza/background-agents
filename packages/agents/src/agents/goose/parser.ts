@@ -15,6 +15,7 @@ import type { Event } from "../../types/events"
 import type { ParseContext } from "../../core/agent"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { resolveAgentError } from "../../utils/errors"
 
 /**
  * Content block types within a message
@@ -160,9 +161,7 @@ export function parseGooseLine(
 
   // Error event
   if (json.type === "error") {
-    const errorMsg =
-      typeof json.error === "string" ? json.error : json.error?.message
-    return { type: "end", error: errorMsg }
+    return { type: "end", error: resolveAgentError(json.error ?? json, "goose") }
   }
 
   return null
