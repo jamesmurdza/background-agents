@@ -129,18 +129,3 @@ export function ensureCliInstalled(
   console.log(`Successfully installed ${name} CLI`)
   return true
 }
-
-/**
- * Check installation status of all providers
- */
-export function getInstallationStatus(): Record<ProviderName, boolean> {
-  const providers: ProviderName[] = ["claude", "codex", "copilot", "eliza", "goose", "kilo", "opencode", "gemini", "pi"]
-  const status: Record<string, boolean> = {}
-
-  for (const provider of providers) {
-    // Built-in providers are always "installed"
-    status[provider] = isBuiltInProvider(provider) || isCliInstalled(provider)
-  }
-
-  return status as Record<ProviderName, boolean>
-}

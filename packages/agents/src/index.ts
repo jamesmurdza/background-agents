@@ -152,7 +152,6 @@ export {
   safeJsonParse,
   ensureCliInstalled,
   getPackageName,
-  getInstallationStatus,
   extractErrorMessage,
   classifyAgentError,
   resolveAgentError,
