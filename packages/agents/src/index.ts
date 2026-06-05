@@ -152,7 +152,6 @@ export {
   safeJsonParse,
   ensureCliInstalled,
   getPackageName,
-  getInstallationStatus,
 } from "./utils/index"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
