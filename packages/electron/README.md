@@ -30,6 +30,17 @@ From the repo root, this starts the local web dev server and launches the deskto
 npm run dev:electron
 ```
 
+### Standalone against production
+
+From the repo root, this launches the desktop app pointing at the production
+backend (`https://backgrounder.dev`):
+
+```bash
+npm run start:electron
+```
+
+Override the target with `BACKGROUND_AGENTS_URL` if needed.
+
 ### Standalone (from `packages/electron/`)
 
 Requires a backend already running at `http://localhost:4000` (or override `BACKGROUND_AGENTS_URL`):

@@ -24,7 +24,7 @@
     "start": "dotenv -e packages/web/.env -e .env -c -- npm run start -w @background-agents/web",
     "test:ccauth": "dotenv -e packages/web/.env -e .env -c -- npm run test:ccauth -w @background-agents/web",
     "seed:ccauth": "dotenv -e packages/web/.env -e .env -c -- npm run seed:ccauth -w @background-agents/web",
-    "start:electron": "dotenv -e packages/electron/.env -e packages/web/.env -e .env -c -- npm run start -w @background-agents/electron",
+    "start:electron": "dotenv -e packages/electron/.env -e packages/web/.env -e .env -c -- sh -c 'BACKGROUND_AGENTS_URL=\"${BACKGROUND_AGENTS_URL:-https://backgrounder.dev}\" npm run start -w @background-agents/electron'",
     "clean": "npm run clean --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
