@@ -12,6 +12,7 @@ import type { Event } from "../../types/events"
 import type { ParseContext } from "../../core/agent"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { resolveAgentError } from "../../utils/errors"
 
 /**
  * Raw event types from Pi CLI's --mode json output
@@ -236,13 +237,12 @@ export function parsePiLine(
 
   // Error events
   if (json.type === "error") {
-    const errorMsg = json.error ?? json.message ?? "Unknown error"
-    return { type: "end", error: errorMsg }
+    return { type: "end", error: resolveAgentError(json.error ?? json.message ?? json, "pi") }
   }
 
   // Auto retry end with failure
   if (json.type === "auto_retry_end" && !json.success) {
-    return { type: "end", error: json.finalError ?? "Auto retry failed" }
+    return { type: "end", error: resolveAgentError(json.finalError ?? "Auto retry failed", "pi") }
   }
 
   // These events are informational, we can ignore them:

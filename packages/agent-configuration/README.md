@@ -58,7 +58,7 @@ const env = {
 
 ## Blocked Operations
 
-All agents block the same set of dangerous operations:
+All agents block the same core set of dangerous operations:
 
 | Category | Commands | Reason |
 |----------|----------|--------|
@@ -70,6 +70,11 @@ All agents block the same set of dangerous operations:
 | Branch Renaming | `git branch -m/-M` | Prevents branch manipulation |
 | Branch Creation | `git checkout -b`, `git switch -c` | Agents should stay on assigned branch |
 | Branch Switching | `git checkout <branch>`, `git switch <branch>` | Agents should stay on assigned branch |
+
+**Per-agent differences in how `checkout`/`switch` are matched:**
+
+- **Claude Code** blocks only the branch-creation and branch-switching forms above. File-level operations stay allowed (`git checkout .`, `git checkout -- <file>`, `git checkout HEAD`), and rebase conflict resolution is permitted (`git rebase --continue/--abort/--skip`).
+- **Codex** and **OpenCode** block `git checkout` and `git switch` entirely — use `git restore` for file operations.
 
 ## MCP Setup
 

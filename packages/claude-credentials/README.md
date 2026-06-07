@@ -69,10 +69,11 @@ import {
 
 ```typescript
 import {
-  generateClaudeCredentials, // Main entry point
-  resolveLatestCCAuthSha,    // Get latest ccauth commit SHA
-  getCCAuthImage,            // Build Daytona Image spec
-  isClaudeOAuthCredentials,  // Type guard
+  generateClaudeCredentials,        // Main entry point
+  resolveLatestCCAuthSha,           // Get latest ccauth commit SHA
+  getCCAuthImage,                   // Build Daytona Image spec
+  isClaudeOAuthCredentials,         // Type guard
+  type GenerateCredentialsOptions,  // Options for generateClaudeCredentials
 } from "@background-agents/claude-credentials"
 ```
 

@@ -13,6 +13,7 @@ import type { Event } from "../../types/events"
 import type { ParseContext } from "../../core/agent"
 import { createToolStartEvent, normalizeToolName } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { resolveAgentError } from "../../utils/errors"
 
 /**
  * Raw event types from Kilo's JSON stream
@@ -183,9 +184,7 @@ export function parseKiloLine(
 
   // Error event - emit as end with error
   if (json.type === "error") {
-    const errorMsg =
-      json.error?.data?.message || json.error?.name || "Unknown error"
-    return { type: "end", error: errorMsg }
+    return { type: "end", error: resolveAgentError(json.error ?? json, "kilo") }
   }
 
   return null
