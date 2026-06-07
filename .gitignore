@@ -41,3 +41,6 @@ next-env.d.ts
 __v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
+
+# macOS screenshots dropped into the repo root (uploaded in chat, not project files)
+Screenshot*.png
