@@ -1,6 +1,6 @@
 {
   "name": "background-agents",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Launch the Background Agents desktop app with one command — npx background-agents. Always runs the latest published version.",
   "type": "commonjs",
   "bin": {

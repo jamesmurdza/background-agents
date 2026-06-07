@@ -6,7 +6,7 @@
 // and can be run manually with `npm run bundle`.
 
 import { execSync } from "node:child_process";
-import { cpSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { cpSync, rmSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -48,5 +48,19 @@ mkdirSync(appDir, { recursive: true });
 //   app/dist/main.js   →  loads ./preload.cjs  and  ../assets/icon.png
 cpSync(distDir, path.join(appDir, "dist"), { recursive: true });
 cpSync(assetsDir, path.join(appDir, "assets"), { recursive: true });
+
+// CRITICAL: main.js is built as ESM (tsup --format esm), but the launcher
+// package is "type": "commonjs". Without this, Electron loads main.js as
+// CommonJS and throws "Cannot use import statement outside a module".
+// Mirror packages/electron (which is "type": "module") by giving the bundled
+// app its own ESM scope. preload.cjs stays CommonJS via its .cjs extension.
+writeFileSync(
+  path.join(appDir, "package.json"),
+  JSON.stringify(
+    { name: "background-agents-app", version: "0.0.0", private: true, type: "module" },
+    null,
+    2
+  ) + "\n"
+);
 
 log(`Done. Bundled into ${path.relative(repoRoot, appDir)}`);
