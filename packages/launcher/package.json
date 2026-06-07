@@ -1,6 +1,6 @@
 {
   "name": "background-agents",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Launch the Background Agents desktop app with one command — npx background-agents. Always runs the latest published version.",
   "type": "commonjs",
   "bin": {
@@ -22,7 +22,9 @@
     "typecheck": "node --check bin/background-agents.js && node --check lib/ui.js"
   },
   "dependencies": {
-    "electron": "^33.2.1"
+    "electron": "^33.2.1",
+    "electron-updater": "^6.3.9",
+    "isomorphic-git": "^1.38.3"
   },
   "keywords": [
     "background-agents",

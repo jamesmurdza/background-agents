@@ -6,7 +6,7 @@
 // and can be run manually with `npm run bundle`.
 
 import { execSync } from "node:child_process";
-import { cpSync, rmSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
+import { cpSync, rmSync, mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -62,5 +62,24 @@ writeFileSync(
     2
   ) + "\n"
 );
+
+// tsup leaves the Electron app's `dependencies` unbundled, so main.js imports
+// them at runtime (e.g. isomorphic-git, electron-updater). The launcher must
+// declare those same deps or the published package crashes with
+// ERR_MODULE_NOT_FOUND. Verify that here so a new Electron dep can't silently
+// break the launcher.
+const electronDeps = JSON.parse(
+  readFileSync(path.join(electronDir, "package.json"), "utf8")
+).dependencies || {};
+const launcherPkgPath = path.join(launcherDir, "package.json");
+const launcherDeps = JSON.parse(readFileSync(launcherPkgPath, "utf8")).dependencies || {};
+const missing = Object.keys(electronDeps).filter((d) => !(d in launcherDeps));
+if (missing.length > 0) {
+  throw new Error(
+    `launcher/package.json is missing runtime deps required by the bundled app: ` +
+      `${missing.join(", ")}. Add them to packages/launcher/package.json "dependencies" ` +
+      `(match the versions in packages/electron/package.json).`
+  );
+}
 
 log(`Done. Bundled into ${path.relative(repoRoot, appDir)}`);
