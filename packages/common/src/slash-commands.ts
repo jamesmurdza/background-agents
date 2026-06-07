@@ -79,22 +79,6 @@ function fuzzyMatch(filter: string, target: string): boolean {
 }
 
 /**
- * Filter slash commands based on user input
- * @param input - The current input (with or without leading slash)
- * @returns Filtered list of matching commands
- */
-export function filterSlashCommands(input: string): SlashCommand[] {
-  // Remove leading slash if present
-  const filter = input.startsWith("/") ? input.slice(1) : input
-
-  if (!filter) {
-    return SLASH_COMMANDS
-  }
-
-  return SLASH_COMMANDS.filter((cmd) => fuzzyMatch(filter, cmd.name))
-}
-
-/**
  * Commands to hide during an active conflict
  */
 const CONFLICT_BLOCKED_COMMANDS = ["merge", "rebase", "pr"]

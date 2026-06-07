@@ -2,16 +2,7 @@
 
 import hljs from "highlight.js/lib/common"
 import { detectLang } from "./detect"
-
-/**
- * Escape HTML entities for safe rendering
- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-}
+import { escapeHtml } from "./escape-html"
 
 interface HighlightedCodeProps {
   /** The code content to highlight */

@@ -21,15 +21,34 @@ interface FetchReposPageResult {
 }
 
 /**
+ * Throw an Error built from a failed proxy response's JSON `error` field,
+ * falling back to a generic message when the body is missing or not JSON.
+ */
+async function throwResponseError(res: Response, fallback: string): Promise<never> {
+  const data = await res.json().catch(() => ({}))
+  throw new Error((data as { error?: string }).error || fallback)
+}
+
+/**
+ * POST a JSON body to a local proxy route and return the parsed JSON response.
+ */
+async function postJson<T>(url: string, body: unknown, errorFallback: string): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) await throwResponseError(res, errorFallback)
+  return res.json()
+}
+
+/**
  * Fetch a single page of repositories for the authenticated user.
  * Calls GET /api/github/repos which reads the token from DB server-side.
  */
 async function fetchReposPage(page: number = 1): Promise<FetchReposPageResult> {
   const res = await fetch(`/api/github/repos?page=${page}`)
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error((data as { error?: string }).error || "Failed to fetch repos")
-  }
+  if (!res.ok) await throwResponseError(res, "Failed to fetch repos")
   return res.json()
 }
 
@@ -70,10 +89,7 @@ export async function fetchRepo(
   repo: string
 ): Promise<GitHubRepo> {
   const res = await fetch(`/api/github/repo?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`)
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error((data as { error?: string }).error || "Failed to fetch repo")
-  }
+  if (!res.ok) await throwResponseError(res, "Failed to fetch repo")
   const data = await res.json()
   return data.repo
 }
@@ -87,10 +103,7 @@ export async function fetchBranches(
   repo: string
 ): Promise<GitHubBranch[]> {
   const res = await fetch(`/api/github/branches?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`)
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error((data as { error?: string }).error || "Failed to fetch branches")
-  }
+  if (!res.ok) await throwResponseError(res, "Failed to fetch branches")
   const data = await res.json()
   return data.branches
 }
@@ -103,19 +116,5 @@ export async function createRepository(options: {
   description?: string
   isPrivate?: boolean
 }): Promise<GitHubRepo> {
-  const response = await fetch("/api/github/create-repo", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(options),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || "Failed to create repository")
-  }
-
-  return response.json()
+  return postJson<GitHubRepo>("/api/github/create-repo", options, "Failed to create repository")
 }
-

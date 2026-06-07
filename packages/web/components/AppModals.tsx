@@ -14,7 +14,7 @@ import {
   PRDialog,
   SquashDialog,
   ForcePushDialog,
-} from "@/components/modals/GitDialogs"
+} from "@/components/modals/git-dialogs"
 import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
