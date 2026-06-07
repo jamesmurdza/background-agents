@@ -1,7 +1,10 @@
 {
-  "name": "background-agents",
+  "name": "@background-agents/sdk",
   "version": "0.1.2",
   "description": "A TypeScript SDK for interacting with various AI coding agents (Claude, Codex, Goose, OpenCode, Gemini, Pi)",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "type": "module",

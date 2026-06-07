@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // pulls in @opentelemetry/@grpc with Node-only modules. Client code only needs
   // the string constants, which webpack can tree-shake when not transpiled.
   transpilePackages: [
-    "background-agents",
+    "@background-agents/sdk",
     "@background-agents/agent-configuration",
     "@background-agents/common",
   ],

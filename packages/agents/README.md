@@ -4,7 +4,7 @@ A TypeScript SDK for running AI coding agents (Claude, Codex, Copilot, Gemini, G
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSession } from "background-agents"
+import { createSession } from "@background-agents/sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create()
@@ -83,7 +83,7 @@ export DAYTONA_API_KEY=dtn_your_api_key
 ## Installation
 
 ```bash
-npm install background-agents @daytonaio/sdk
+npm install @background-agents/sdk @daytonaio/sdk
 ```
 
 ---
@@ -92,7 +92,7 @@ npm install background-agents @daytonaio/sdk
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSession } from "background-agents"
+import { createSession } from "@background-agents/sdk"
 
 // 1. Create sandbox
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
@@ -132,7 +132,7 @@ The SDK is designed for long-running tasks that may outlive your server process.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import { createSession, getSession } from "background-agents"
+import { createSession, getSession } from "@background-agents/sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
 const sandbox = await daytona.create()

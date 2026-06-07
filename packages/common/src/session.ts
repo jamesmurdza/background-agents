@@ -8,7 +8,7 @@ import type {
   TokenEvent,
   ToolStartEvent,
   ToolEndEvent,
-} from "background-agents"
+} from "@background-agents/sdk"
 import type { ContentBlock, ToolCall } from "./types"
 import { PATHS, SANDBOX_CONFIG } from "./constants"
 

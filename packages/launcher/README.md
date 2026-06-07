@@ -1,20 +1,20 @@
-# background-agents-desktop
+# background-agents
 
 Launch the **Background Agents** desktop app with a single command — no install, always the latest version:
 
 ```bash
-npx background-agents-desktop@latest
+npx background-agents@latest
 ```
 
 That's it. The first run downloads the Electron runtime (~once, then cached); every run loads the production app at <https://backgrounder.dev>.
 
-> **Naming note:** the plain `background-agents` npm name is taken by the Background Agents **SDK** (`packages/agents`). This desktop launcher therefore publishes as `background-agents-desktop`.
+> **Naming:** the TypeScript SDK previously published as `background-agents` now lives at [`@background-agents/sdk`](../agents), which freed the `background-agents` name for this desktop launcher.
 
 ## How it works
 
-This is a thin launcher published to npm as [`background-agents-desktop`](https://www.npmjs.com/package/background-agents-desktop):
+This is a thin launcher published to npm as [`background-agents`](https://www.npmjs.com/package/background-agents):
 
-1. `npx background-agents-desktop@latest` resolves the **latest published version** of this package from the npm registry.
+1. `npx background-agents@latest` resolves the **latest published version** of this package from the npm registry.
 2. npm installs it and its one dependency, **Electron**, downloading the platform binary on first run (cached for later runs).
 3. The launcher spawns the bundled Electron app (`app/`) pointed at the production backend, showing a small terminal UI while it starts.
 
@@ -23,7 +23,7 @@ Because every launch pulls the latest npm version, **publishing a new version is
 ## Usage
 
 ```bash
-npx background-agents-desktop [options]
+npx background-agents [options]
 ```
 
 | Option | Description |
@@ -36,12 +36,13 @@ npx background-agents-desktop [options]
 
 Environment variable `BACKGROUND_AGENTS_URL` does the same as `--url` (the flag wins).
 
-> Tip: plain `npx background-agents-desktop` may reuse an npx-cached copy. Use `npx background-agents-desktop@latest` to force the newest version.
+> Tip: plain `npx background-agents` may reuse an npx-cached copy. Use `npx background-agents@latest` to force the newest version.
 
 ## Caveats
 
 - **First run downloads Electron** (~100–150 MB) via npm; it's cached afterward and re-downloaded only when a new version ships a different Electron.
 - The app runs **unpackaged**, so it relies on programmatic `background-agents://` deep-link registration for the OAuth round-trip (same code path as running the app from source). For a fully signed/notarized native install, use the packaged builds from GitHub Releases instead.
+- This package was **0.1.1 / 0.1.2 as the SDK**; the launcher is published from **1.0.0** onward, so `latest` cleanly points at the desktop app.
 
 ## Development
 
@@ -49,8 +50,8 @@ This package lives in the monorepo at `packages/launcher`. Its `app/` directory 
 
 ```bash
 # From the repo root:
-npm run bundle -w background-agents-desktop   # build the Electron app + copy it into app/
-npm start -w background-agents-desktop        # run the launcher locally (after bundling)
+npm run bundle -w background-agents   # build the Electron app + copy it into app/
+npm start -w background-agents        # run the launcher locally (after bundling)
 
 # Verify the published tarball contents:
 cd packages/launcher && npm pack --dry-run
@@ -67,7 +68,7 @@ Two ways:
 Pushing a `v*` tag runs the publish workflow, which sets the package version from the tag and publishes to npm (requires the `NPM_TOKEN` repo secret).
 
 ```bash
-git tag v0.1.1 && git push origin v0.1.1
+git tag v1.0.1 && git push origin v1.0.1
 ```
 
 > The workflow ships as `.github/npm-publish-workflow.yml` (outside `.github/workflows/`, mirroring `release-workflow.yml`, because pushing into `.github/workflows/` needs the GitHub `workflow` OAuth scope). **Move it into `.github/workflows/` to activate it.** Note the same `v*` tag also triggers `release-workflow.yml` (the Electron installers), so the desktop installers and the npm launcher publish together.
@@ -75,8 +76,8 @@ git tag v0.1.1 && git push origin v0.1.1
 ### Manual
 
 ```bash
-npm ci                                              # from the repo root
-npm publish -w background-agents-desktop --access public
+npm ci                                   # from the repo root
+npm publish -w background-agents --access public
 ```
 
-You must be logged in (`npm login`) with publish rights to the `background-agents-desktop` package.
+You must be logged in (`npm login`) with publish rights to the `background-agents` package. The first launcher publish must be version **≥ 1.0.0** (0.1.1 / 0.1.2 already exist from the SDK era).

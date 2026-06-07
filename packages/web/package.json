@@ -38,7 +38,7 @@
     "@tanstack/react-query-devtools": "^5.100.5",
     "@tanstack/react-virtual": "^3.13.24",
     "ai": "^4.3.16",
-    "background-agents": "*",
+    "@background-agents/sdk": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
