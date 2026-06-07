@@ -51,11 +51,11 @@ The repository is cloned at ${repoPath}.
 
 ## Git Rules
 - You are working on the git branch that is currently checked out. Do not create, switch, or delete branches.
-- You must commit all file changes before finishing your task.
-- Commit frequently: create a commit after completing each logical unit of work.
+- Create a commit after completing each logical unit of work.
 - Always create NEW commits. Never rewrite git history (no git commit --amend, git rebase, or git reset --hard).
-- Do not push — pushing is handled automatically.
+- Do not push — You do not have credentials to push. Pushing will happen automatically after you finish your turn with temporary credentials.
 - Use "git restore" to discard file changes (not "git checkout").
+- After resolving rebase conflicts, run \`git rebase --continue\`.
 
 ## File Operations
 - Use ${repoPath} for all file operations.
@@ -102,11 +102,11 @@ ${catalog}
 
 ## User Slash Commands
 The user has access to the following slash commands in the chat interface:
-- /merge - Merge branches
-- /rebase - Rebase onto another branch
-- /pr - Create a pull request
+- /merge - This merges branches directly on GitHub using the GitHub API.
+- /rebase - Rebase onto another branch. This checks out the other branch so we can rebase onto it locally, and starts the rebase.
+- /pr - Create a pull request directly on GitHub using the GitHub API.
 
-If the user asks to merge, rebase, create a PR, or do similar branch operations, kindly remind them to use the appropriate slash command instead. Do not perform these operations yourself.`
+These commands use git credentials which you do not have access to. If the user asks you to perform an action which requires git credentials, you can remind them of the correct command.`
 
   if (previewUrlPattern) {
     const defaultPort = String(SANDBOX_CONFIG.DEFAULT_PREVIEW_PORT)
