@@ -7,8 +7,6 @@
 export type {
   ContentBlock,
   ToolCall,
-  AgentStatus,
-  AgentStatusResponse,
 } from "@upstream/common"
 
 import type { ContentBlock } from "@upstream/common"
@@ -19,7 +17,6 @@ export {
   ALL_AGENTS,
   agentModels,
   agentLabels,
-  defaultAgentModel,
   agentSupportsPlanMode,
   getDefaultAgent,
   getDefaultModelForAgent,
@@ -218,15 +215,6 @@ export interface Settings {
 
 export type { CredentialId, Credentials, CredentialFlags } from "./credentials"
 
-import type { CredentialFlags } from "./credentials"
-
-export interface AppState {
-  currentChatId: string | null
-  chats: Chat[]
-  settings: Settings
-  credentialFlags: CredentialFlags
-}
-
 // Re-export GitHub types from common
 export type { GitHubRepo, GitHubBranch, GitHubUser } from "@upstream/common"
 
@@ -271,14 +259,4 @@ export interface SSECompleteEvent {
     inMerge: boolean
     conflictedFiles: string[]
   }
-}
-
-export interface SSEHeartbeatEvent {
-  cursor: number
-  timestamp: number
-}
-
-export interface SSEErrorEvent {
-  error: string
-  cursor: number
 }
