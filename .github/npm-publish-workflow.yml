@@ -1,0 +1,47 @@
+name: Publish desktop launcher to npm
+
+# Publishes the `background-agents-desktop` npx launcher (packages/launcher) to
+# the npm registry whenever a version tag is pushed. The published version is
+# taken from the tag (e.g. tag "v0.1.1" -> npm version 0.1.1).
+#
+# Requires an `NPM_TOKEN` repository secret (an npm automation/publish token with
+# rights to the `background-agents-desktop` package).
+#
+# NOTE: Like release-workflow.yml, this lives outside `.github/workflows/`
+# because pushing there needs the GitHub `workflow` OAuth scope. Move it into
+# `.github/workflows/` (once your token has that scope, or via the GitHub web UI)
+# to activate it.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set package version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Publishing background-agents-desktop@${VERSION}"
+          npm version "${VERSION}" --no-git-tag-version -w background-agents-desktop
+
+      - name: Publish to npm
+        run: npm publish -w background-agents-desktop --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -55,6 +55,10 @@ function createWindow() {
   // Show window when ready
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+    // Signal to the npx launcher (packages/launcher) that the window is up so it
+    // can flip its terminal spinner from "Launching…" to "running". Harmless in
+    // packaged builds where nothing is listening on stdout.
+    console.log("background-agents:ready");
   });
 
   // Handle external links - open in system browser

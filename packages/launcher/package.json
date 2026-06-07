@@ -1,0 +1,42 @@
+{
+  "name": "background-agents-desktop",
+  "version": "0.1.0",
+  "description": "Launch the Background Agents desktop app with one command — npx background-agents-desktop. Always runs the latest published version.",
+  "type": "commonjs",
+  "bin": {
+    "background-agents-desktop": "bin/background-agents.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "app",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "bundle": "node scripts/bundle-app.mjs",
+    "prepack": "node scripts/bundle-app.mjs",
+    "start": "node bin/background-agents.js",
+    "typecheck": "node --check bin/background-agents.js && node --check lib/ui.js"
+  },
+  "dependencies": {
+    "electron": "^33.2.1"
+  },
+  "keywords": [
+    "background-agents",
+    "electron",
+    "launcher",
+    "npx",
+    "desktop"
+  ],
+  "license": "MIT",
+  "author": "James Murdza",
+  "homepage": "https://backgrounder.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesmurdza/background-agents.git",
+    "directory": "packages/launcher"
+  }
+}

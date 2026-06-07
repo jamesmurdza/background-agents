@@ -1,0 +1,5 @@
+# Presence of this file makes npm ignore .gitignore when packing, so the
+# generated `app/` bundle (gitignored, built by prepack) is still published.
+# The package.json "files" allowlist controls what actually ships.
+scripts/
+*.tgz
