@@ -17,8 +17,6 @@ Pre-installed agents:
 - **Pi** (`@mariozechner/pi-coding-agent`)
 - **Goose** (binary from GitHub releases)
 
-> Note: Eliza is built into the `background-agents` package and does not need to be installed in the sandbox. Copilot (`@github/copilot`) and Kilo (`@kilocode/cli`) are not baked into the image — the SDK installs them on demand the first time a session uses them.
-
 The image is based on `node:22-bookworm` and runs as a non-root `daytona` user (Claude Code refuses to run as root).
 
 ## Installation
