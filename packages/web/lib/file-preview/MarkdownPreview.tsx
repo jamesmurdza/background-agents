@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm"
 import hljs from "highlight.js/lib/common"
 import { Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { escapeHtml } from "./escape-html"
 
 interface MarkdownPreviewProps {
   /** The markdown content to render */
@@ -278,14 +279,4 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
       </button>
     </div>
   )
-}
-
-/**
- * Escape HTML entities for safe rendering
- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
 }
