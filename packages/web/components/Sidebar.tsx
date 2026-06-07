@@ -565,7 +565,10 @@ export function Sidebar({
       <div
         className={cn(
           "flex items-center p-3",
-          collapsed ? "justify-center" : "justify-between"
+          collapsed ? "justify-center" : "justify-between",
+          // On desktop, when collapsed, push the icons down so they don't sit
+          // under the macOS traffic-light / window control buttons.
+          isDesktopApp && collapsed && "mt-[30px]"
         )}
         style={isDesktopApp ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}
       >
