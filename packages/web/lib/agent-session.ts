@@ -181,6 +181,12 @@ export interface AgentSnapshot {
   toolCalls: ToolCall[]
   contentBlocks: ContentBlock[]
   error?: string
+  /** When status is "error", classifies the failure so the UI can pick the
+   *  right recovery action. "crash" = the agent process exited without
+   *  completing (often transient, and any partial turn may have been persisted
+   *  server-side) → the UI may offer Reload instead of Retry. Specific failures
+   *  that carry their own guidance (e.g. model-not-available) stay undefined. */
+  errorKind?: "crash"
   sessionId?: string
 }
 
@@ -207,12 +213,20 @@ function summarizeEvents(
     const error = crashEvent.output
       ? `${baseMsg}\n\n${crashEvent.output}`
       : baseMsg
+    // A bare process crash ("exited without completing") is often transient and
+    // its partial turn may already be persisted, so tag it "crash" → the UI can
+    // offer Reload. Synthesized crashes with a specific cause (e.g.
+    // model-not-available) get a tailored message and stay a plain error → Retry.
+    const errorKind = /exited without completing/i.test(baseMsg)
+      ? ("crash" as const)
+      : undefined
     return {
       status: "error",
       content,
       toolCalls,
       contentBlocks,
       error,
+      errorKind,
       sessionId: sessionId || undefined,
     }
   }

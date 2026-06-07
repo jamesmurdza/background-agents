@@ -379,6 +379,7 @@ export async function GET(req: Request) {
               status: lastSnap.status,
               sessionId: lastSnap.sessionId,
               error: lastSnap.error,
+              errorKind: lastSnap.errorKind,
               cursor,
               conflictState,
               push: pushInfo,

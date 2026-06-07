@@ -179,6 +179,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               status: data.status === "error" ? "error" : "ready",
               lastActiveAt: Date.now(),
               errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
+              errorKind: data.status === "error" ? data.errorKind : undefined,
               sessionId: data.sessionId ?? c.sessionId,
             } : c
           ))

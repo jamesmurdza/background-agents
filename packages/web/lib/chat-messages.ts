@@ -128,6 +128,7 @@ export function applyOptimisticSend(
     status: chat.sandboxId ? "running" : "creating",
     lastActiveAt: now,
     errorMessage: undefined,
+    errorKind: undefined,
   }
 }
 

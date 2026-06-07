@@ -662,7 +662,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           )}
           {chat.status === "error" && chat.errorMessage && (() => {
             const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
-            const onRetry = lastUserMessage
+            const resend = lastUserMessage
               ? () => onSendMessage(
                   lastUserMessage.content,
                   (lastUserMessage.agent ?? currentAgent) as string,
@@ -671,12 +671,25 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                   planModeEnabled,
                 )
               : undefined
+
+            // A generic process crash is often transient. If the failed turn
+            // already streamed some output, the fuller copy is likely persisted
+            // server-side, so offer Reload (refresh history) instead of Retry
+            // (which resends and duplicates the turn). With nothing to recover —
+            // the agent crashed before producing anything — fall back to Retry.
+            const lastAssistant = [...chat.messages].reverse().find((m) => m.role === "assistant")
+            const recoveredOutput =
+              !!lastAssistant?.content?.trim() || (lastAssistant?.toolCalls?.length ?? 0) > 0
+            const useReload = chat.errorKind === "crash" && recoveredOutput && !!onReload
+
             return (
               <ErrorBanner
                 key={chat.id}
                 message={chat.errorMessage}
                 isMobile={isMobile}
-                onRetry={onRetry}
+                onRetry={useReload ? () => onReload!(chat.id) : resend}
+                actionLabel={useReload ? "Reload" : "Retry"}
+                actionPendingLabel={useReload ? "Reloading…" : "Retrying…"}
               />
             )
           })()}
