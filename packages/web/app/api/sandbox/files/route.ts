@@ -4,6 +4,23 @@ import { escapeShell } from "@background-agents/common"
 
 export const maxDuration = 30
 
+const BINARY_CONTENT_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  ico: "image/x-icon",
+  bmp: "image/bmp",
+  pdf: "application/pdf",
+}
+
+function getBinaryContentType(filePath: string): string {
+  const ext = filePath.split("/").pop()?.toLowerCase().split(".").pop() ?? ""
+  return BINARY_CONTENT_TYPES[ext] ?? "application/octet-stream"
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as {
     sandboxId?: string
@@ -72,6 +89,38 @@ export async function POST(req: Request) {
           modifiedAt: mtime * 1000,
           size,
           truncated,
+        })
+      }
+
+      case "read-file-binary": {
+        if (!filePath) return Response.json({ error: "Missing filePath" }, { status: 400 })
+        const safe = escapeShell(filePath)
+
+        const statResult = await sandbox.process.executeCommand(
+          `stat --format='%Y|%s' '${safe}' 2>/dev/null || echo 'error'`
+        )
+        if (statResult.result?.trim() === "error" || statResult.exitCode !== 0) {
+          return Response.json({ error: "File not found" }, { status: 404 })
+        }
+        const [, sizeStr] = statResult.result.trim().split("|")
+        const size = parseInt(sizeStr, 10)
+
+        // 10 MB cap for binary previews (images/PDFs).
+        if (size > 10 * 1024 * 1024) {
+          return Response.json(
+            { error: "File too large", path: filePath, size },
+            { status: 413 }
+          )
+        }
+
+        const buffer = await sandbox.fs.downloadFile(filePath)
+
+        return new Response(new Uint8Array(buffer), {
+          status: 200,
+          headers: {
+            "Content-Type": getBinaryContentType(filePath),
+            "Content-Length": buffer.length.toString(),
+          },
         })
       }
 
