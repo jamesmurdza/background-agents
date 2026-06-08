@@ -408,20 +408,16 @@ export async function GET(req: Request) {
           await persistSnapshot(lastSnap, false)
         }
       } catch (error) {
+        // This catch only fires when the stream/poll loop itself throws (normal
+        // completion returns earlier; genuine agent errors persist via
+        // persistSnapshot). The background agent is likely still running, so we
+        // do NOT mark the chat "error" or clear backgroundSessionId — doing so
+        // would defeat the client's reconnect/reload recovery (it checks
+        // status === "running" && backgroundSessionId to resume). We just tell
+        // the client the stream dropped; it surfaces a recoverable "Reload"
+        // banner and re-attaches to the still-running agent.
         console.error("[agent/stream] Error:", error)
         const message = formatAgentError(error)
-
-        if (chatId) {
-          try {
-            await prisma.chat.update({
-              where: { id: chatId },
-              data: { status: "error", backgroundSessionId: null },
-            })
-          } catch {
-            /* best effort */
-          }
-        }
-
         sendEvent("error", { error: message, cursor })
         closeStream()
       }
