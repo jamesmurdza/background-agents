@@ -165,17 +165,15 @@ export function applySendSuccess(
   }
 }
 
-/** Mark the chat errored and surface the error on the assistant placeholder message. */
+/** Mark the chat errored. The failure is surfaced once by the ErrorBanner
+ *  (driven by status/errorMessage); the empty assistant placeholder is dropped
+ *  so the same text isn't also rendered as an inline error message. */
 export function applySendError(chat: Chat, assistantMessageId: string, errorMessage: string): Chat {
   return {
     ...chat,
     status: "error",
     errorMessage,
-    messages: chat.messages.map((m) =>
-      m.id === assistantMessageId
-        ? { ...m, content: `Error: ${errorMessage}`, messageType: "error", isError: true }
-        : m
-    ),
+    messages: chat.messages.filter((m) => m.id !== assistantMessageId),
   }
 }
 
