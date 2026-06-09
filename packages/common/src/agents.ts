@@ -97,6 +97,7 @@ export interface ModelOption {
 export const agentModels: Record<Agent, ModelOption[]> = {
   "claude-code": [
     { value: "default", label: "Default", requiresKey: "anthropic" },
+    { value: "fable", label: "Fable", requiresKey: "anthropic" },
     { value: "sonnet", label: "Sonnet", requiresKey: "anthropic" },
     { value: "opus", label: "Opus", requiresKey: "anthropic" },
     { value: "haiku", label: "Haiku", requiresKey: "anthropic" },
