@@ -33,7 +33,7 @@ const PROVIDER_SHELL_INSTALLERS: Partial<Record<ProviderName, string>> = {
 /**
  * Check if a CLI command is available in PATH
  */
-export function isCliInstalled(name: ProviderName): boolean {
+function isCliInstalled(name: ProviderName): boolean {
   try {
     const result = spawnSync("which", [name], {
       encoding: "utf8",
@@ -65,7 +65,7 @@ export function getShellInstaller(name: ProviderName): string | undefined {
  * Install a provider CLI globally via npm
  * @returns true if installation succeeded
  */
-export function installProvider(name: ProviderName): boolean {
+function installProvider(name: ProviderName): boolean {
   const packageName = PROVIDER_PACKAGES[name]
 
   try {
@@ -82,7 +82,7 @@ export function installProvider(name: ProviderName): boolean {
 /**
  * Check if a provider is built-in and doesn't need installation.
  */
-export function isBuiltInProvider(name: ProviderName): boolean {
+function isBuiltInProvider(name: ProviderName): boolean {
   // ELIZA is built-in: runs via node within the agents package
   return name === "eliza"
 }
