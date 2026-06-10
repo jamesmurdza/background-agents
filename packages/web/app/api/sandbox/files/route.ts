@@ -138,18 +138,30 @@ export async function POST(req: Request) {
       }
 
       case "list-servers": {
-        const ss = await sandbox.process.executeCommand(
-          `ss -tlnp 2>/dev/null | grep -E 'LISTEN.*:(3[0-9]{3}|4[0-9]{3}|5[0-9]{3}|6[0-9]{3}|7[0-9]{3}|8[0-9]{3}|9[0-9]{3})' | awk '{print $4}' | sed 's/.*://' | sort -n | uniq || true`,
+        // Read listening TCP sockets straight from the kernel via /proc, which
+        // is always present on Linux. We intentionally do NOT use `ss`/`netstat`
+        // here: those come from iproute2/net-tools, which are not installed in
+        // the sandbox image, so a previous `ss`-based implementation silently
+        // returned nothing and the preview never opened.
+        const proc = await sandbox.process.executeCommand(
+          `cat /proc/net/tcp /proc/net/tcp6 2>/dev/null || true`,
           undefined,
           undefined,
           10
         )
-        const ports: number[] = []
-        for (const line of (ss.result || "").trim().split("\n").filter(Boolean)) {
-          const port = parseInt(line.trim(), 10)
-          if (!isNaN(port) && port >= 3000 && port <= 9999) ports.push(port)
+        const ports = new Set<number>()
+        for (const line of (proc.result || "").split("\n")) {
+          // Columns: "sl local_address rem_address st ...". Skip the header
+          // (starts with "sl") and any blank lines.
+          const cols = line.trim().split(/\s+/)
+          if (cols.length < 4 || cols[0] === "sl") continue
+          // st === "0A" is TCP_LISTEN. local_address is "HEXIP:HEXPORT".
+          if (cols[3] !== "0A") continue
+          const hexPort = cols[1].split(":")[1]
+          const port = parseInt(hexPort, 16)
+          if (!isNaN(port) && port >= 3000 && port <= 9999) ports.add(port)
         }
-        return Response.json({ ports })
+        return Response.json({ ports: [...ports].sort((a, b) => a - b) })
       }
 
       default:
