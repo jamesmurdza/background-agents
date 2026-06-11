@@ -79,18 +79,6 @@ import {
 } from "@background-agents/common"
 ```
 
-### Session Utilities
-
-Helpers for building agent sessions and content blocks.
-
-```typescript
-import {
-  buildSystemPrompt,
-  buildContentBlocks,
-  type SkillCatalogEntry,
-} from "@background-agents/common"
-```
-
 ### Content Block Types
 
 Types for structured agent responses.
@@ -128,12 +116,6 @@ import {
 } from "@background-agents/common"
 ```
 
-### Sandbox Utilities
-
-```typescript
-import { generateSandboxName } from "@background-agents/common"
-```
-
 ### Slash Commands
 
 Command definitions and filtering.
@@ -150,7 +132,7 @@ import {
 ### Common Utilities
 
 ```typescript
-import { cn, escapeShell, quote } from "@background-agents/common"
+import { cn } from "@background-agents/common"
 ```
 
 ### Constants
