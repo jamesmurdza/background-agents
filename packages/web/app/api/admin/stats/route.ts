@@ -30,6 +30,28 @@ function getRangeDays(range: TimeRange): number {
   }
 }
 
+// Bucket granularity used for time-series charts. Long ranges (i.e. "all")
+// are down-sampled so the charts stay readable instead of rendering thousands
+// of daily points.
+type Bucket = "day" | "week" | "month"
+
+function getBucket(days: number): Bucket {
+  if (days <= 90) return "day"
+  if (days <= 730) return "week"
+  return "month"
+}
+
+function getBucketStep(bucket: Bucket): string {
+  switch (bucket) {
+    case "week":
+      return "1 week"
+    case "month":
+      return "1 month"
+    default:
+      return "1 day"
+  }
+}
+
 /**
  * For the "all" range there is no fixed window, so derive the interval/days
  * dynamically from the earliest ActivityLog entry. Falls back to 1 day when
@@ -52,7 +74,11 @@ async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
  * GET /api/admin/stats
  * Returns platform-wide statistics for the admin dashboard
  * Query params:
- *   - range: "24h" | "7d" | "30d" (default: "7d")
+ *   - range: "24h" | "7d" | "30d" | "all" (default: "7d")
+ *
+ * Time-series charts are bucketed by day for ranges up to ~90 days, by week up
+ * to ~2 years, and by month beyond that. This keeps the long "all" range
+ * readable instead of plotting thousands of daily points.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin()
@@ -65,6 +91,11 @@ export async function GET(request: NextRequest) {
     range === "all"
       ? await getAllTimeWindow()
       : { interval: getRangeInterval(range), days: getRangeDays(range) }
+
+  // Time-series granularity (only used for the non-hourly ranges). For 7d/30d
+  // this resolves to "day" so existing behavior is unchanged.
+  const bucket = getBucket(days)
+  const bucketStep = getBucketStep(bucket)
 
   // Run all queries in parallel for performance
   const [
@@ -79,9 +110,9 @@ export async function GET(request: NextRequest) {
       SELECT d.date, COUNT(DISTINCT a."userId")::bigint as count
       FROM (
         SELECT generate_series(
-          (NOW() - ${interval}::interval)::date,
-          NOW()::date,
-          '1 day'::interval
+          date_trunc(${bucket}, NOW() - ${interval}::interval),
+          date_trunc(${bucket}, NOW()),
+          ${bucketStep}::interval
         )::date as date
       ) d
       LEFT JOIN "ActivityLog" a ON a."createdAt" >= d.date - INTERVAL '6 days' AND a."createdAt" < d.date + INTERVAL '1 day'
@@ -157,22 +188,22 @@ export async function GET(request: NextRequest) {
             COALESCE(c.count, 0)::bigint as chats
           FROM (
             SELECT generate_series(
-              (NOW() - ${interval}::interval)::date,
-              NOW()::date,
-              '1 day'::interval
+              date_trunc(${bucket}, NOW() - ${interval}::interval),
+              date_trunc(${bucket}, NOW()),
+              ${bucketStep}::interval
             )::date as date
           ) d
           LEFT JOIN (
-            SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
+            SELECT date_trunc(${bucket}, "createdAt")::date as date, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
-            GROUP BY DATE("createdAt")
+            GROUP BY date_trunc(${bucket}, "createdAt")::date
           ) m ON m.date = d.date
           LEFT JOIN (
-            SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
+            SELECT date_trunc(${bucket}, "createdAt")::date as date, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'chat_created'
-            GROUP BY DATE("createdAt")
+            GROUP BY date_trunc(${bucket}, "createdAt")::date
           ) c ON c.date = d.date
           ORDER BY d.date ASC
         `,
@@ -194,15 +225,15 @@ export async function GET(request: NextRequest) {
         `
       : prisma.$queryRaw<Array<{ date: Date; agent: string | null; model: string | null; count: bigint }>>`
           SELECT
-            DATE("createdAt") as date,
+            date_trunc(${bucket}, "createdAt")::date as date,
             metadata->>'agent' as agent,
             metadata->>'model' as model,
             COUNT(*)::bigint as count
           FROM "ActivityLog"
           WHERE "createdAt" >= NOW() - ${interval}::interval
             AND action = 'message_sent'
-          GROUP BY date, metadata->>'agent', metadata->>'model'
-          ORDER BY date ASC
+          GROUP BY date_trunc(${bucket}, "createdAt")::date, metadata->>'agent', metadata->>'model'
+          ORDER BY date_trunc(${bucket}, "createdAt")::date ASC
         `,
   ])
 
@@ -239,9 +270,13 @@ export async function GET(request: NextRequest) {
         chats: Number(item.chats),
       }))
 
-  // Helper function to format messages by agent/model (hourly or daily)
+  // Helper function to format messages by agent/model (hourly or bucketed).
+  // `timeKeys` is the canonical, gap-free list of time slots for the non-hourly
+  // case (derived from the bucketed messagesChats series), so the fill below
+  // lines up exactly with the chosen day/week/month buckets.
   function formatMessagesByAgentModel(
-    rawData: Array<{ hour?: number; date?: Date; agent: string | null; model: string | null; count: bigint }>
+    rawData: Array<{ hour?: number; date?: Date; agent: string | null; model: string | null; count: bigint }>,
+    timeKeys: string[]
   ) {
     const byAgentMap: Record<string, Record<string, number | string>> = {}
     const byModelMap: Record<string, Record<string, number | string>> = {}
@@ -295,13 +330,8 @@ export async function GET(request: NextRequest) {
         }
       }
     } else {
-      // Fill in missing days
-      const today = new Date()
-      for (let i = days - 1; i >= 0; i--) {
-        const d = new Date(today)
-        d.setDate(d.getDate() - i)
-        const timeKey = d.toISOString().split("T")[0]
-
+      // Fill in missing buckets using the canonical time slots
+      for (const timeKey of timeKeys) {
         if (!byAgentMap[timeKey]) {
           byAgentMap[timeKey] = { time: timeKey }
         }
@@ -334,7 +364,10 @@ export async function GET(request: NextRequest) {
     return { byAgent, byModel }
   }
 
-  const messagesByAgentModel = formatMessagesByAgentModel(messagesByAgentModelRaw as Array<{ hour?: number; date?: Date; agent: string | null; model: string | null; count: bigint }>)
+  const messagesByAgentModel = formatMessagesByAgentModel(
+    messagesByAgentModelRaw as Array<{ hour?: number; date?: Date; agent: string | null; model: string | null; count: bigint }>,
+    messagesChats.map((d) => d.time)
+  )
 
   return NextResponse.json({
     range,
