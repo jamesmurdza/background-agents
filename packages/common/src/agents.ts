@@ -125,6 +125,7 @@ const SHARED_OPENCODE_ALLOWED = new Set<string>([
 export const agentModels: Record<Agent, ModelOption[]> = {
   "claude-code": [
     { value: "default", label: "Default", requiresKey: "anthropic" },
+    { value: "fable", label: "Fable", requiresKey: "anthropic" },
     { value: "sonnet", label: "Sonnet", requiresKey: "anthropic" },
     { value: "opus", label: "Opus", requiresKey: "anthropic" },
     { value: "haiku", label: "Haiku", requiresKey: "anthropic" },
@@ -135,7 +136,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   "opencode": [
     // Free models (opencode/) - no API key needed
     { value: "opencode/big-pickle", label: "Big Pickle (Free)", requiresKey: "none" },
-    { value: "opencode/nemotron-3-super-free", label: "Nemotron 3 Super (Free)", requiresKey: "none" },
+    { value: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra (Free)", requiresKey: "none" },
     { value: "opencode/deepseek-v4-flash-free", label: "DeepSeek V4 Flash (Free)", requiresKey: "none" },
     { value: "opencode/mimo-v2.5-free", label: "MiMo v2.5 (Free)", requiresKey: "none" },
     // Curated OpenCode Go models (opencode-go/ prefix), runnable on the
