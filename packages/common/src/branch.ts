@@ -96,21 +96,3 @@ export function generateBranchName(options: BranchNameOptions = {}): string {
 
   return words.join("-")
 }
-
-// =============================================================================
-// Branch Name Validation
-// =============================================================================
-
-/**
- * Validation errors for branch names (used internally by validateBranchName)
- */
-const BRANCH_NAME_ERRORS = {
-  HAS_SPACES: "Branch name cannot contain spaces",
-  INVALID_CHARACTERS: "Branch name contains invalid characters",
-  INVALID_FORMAT: "Invalid branch name format",
-  INVALID_SEQUENCE: "Branch name contains invalid sequence",
-  ALREADY_EXISTS: "A branch with this name already exists",
-  ALREADY_EXISTS_REMOTE: "A branch with this name already exists on GitHub",
-} as const
-
-type BranchNameError = (typeof BRANCH_NAME_ERRORS)[keyof typeof BRANCH_NAME_ERRORS]
