@@ -130,6 +130,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "opencode" },
     { value: "opencode/kimi-k2.5", label: "Kimi K2.5", requiresKey: "opencode" },
+    { value: "opencode/minimax-m2.1", label: "Minimax M2.1", requiresKey: "opencode" },
     // Anthropic direct models (requires Anthropic API key)
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", requiresKey: "anthropic" },
