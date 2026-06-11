@@ -32,6 +32,39 @@ One job = one process = one directory:
 - **Cold reconnect.** Everything needed to reattach is the serializable
   `JobHandle` + an integer cursor, or just the job id via `attach()`.
 
+## Why not Daytona's session API (`executeSessionCommand`)?
+
+Daytona ships a native way to run a detached command: `createSession` +
+`executeSessionCommand({ runAsync: true })`, then `getSessionCommand` /
+`getSessionCommandLogs`. It looks like it should replace this package — the
+daemon supervises the process and even returns a real exit code. We evaluated
+it directly; for the **cold-serverless-poller** use case (a function that starts
+a job, dies, and reconnects later to stream output into a DB) the file approach
+wins on the things that actually bite:
+
+| | This package (files) | `executeSessionCommand` |
+|---|---|---|
+| **Incremental reads** | byte-offset `tail` → only new bytes, **O(n)** over a run | `getSessionCommandLogs` has **no offset param**: full-dump every poll (**O(n²)**), *or* a streaming callback that forces a held-open connection |
+| **Connectionless polling** | any cold caller reads the filesystem; nothing to keep alive | the streaming variant needs a live socket; the dump variant re-sends everything |
+| **Output fidelity** | `output.log` is **byte-exact**, so a byte cursor is reliable | the log stream is wrapped in control-byte framing (e.g. `\x01` markers) — not byte-exact, which breaks offset cursors |
+| **Cancellation** | `kill -- -<pgid>` reaps the exact process group | no documented kill for an async session command — you shell out to `pkill` anyway |
+| **Lifecycle to manage** | none — a dead process just leaves files; cleanup is `rm -rf <dir>` | a **session** outlives the command and must be torn down; deleting a live session reaps the process (a real footgun), and sessions accumulate |
+| **Isolation** | each job is its own process, dir, and cursor | a session is a **stateful shell** — env/cwd bleed across commands |
+| **Full-transcript retention** | the whole log until the disk fills | the daemon's log buffer may be capped (undocumented), which would break replay-from-zero |
+| **Backend surface** | only needs `executeCommand` — the most basic primitive | tied to the full session/command API |
+
+Note one thing it does **not** beat the session API on: exit codes.
+`getSessionCommand` returns a real `exitCode` too. The exit-code win here is over
+the older `nohup` + `.done`-sentinel approach this package replaces, not over the
+session API.
+
+**When the session API is the better choice:** when you *want* Daytona to own
+process supervision (server-side observability), or when you have a long-lived
+server holding a socket and want live push rather than polling — e.g. an
+interactive terminal/PTY. That's a different shape than "reliably get every line
+and the exit code into a database from an intermittent caller," which is what
+this package is for.
+
 ## Usage
 
 ```ts
