@@ -259,7 +259,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold md:text-xl">Overview</h2>
                 <div className="flex gap-1 rounded-lg bg-muted p-1">
-                  {(["24h", "7d", "30d"] as const).map((range) => (
+                  {(["24h", "7d", "30d", "all"] as const).map((range) => (
                     <button
                       key={range}
                       onClick={() => setGlobalTimeRange(range)}
@@ -270,7 +270,7 @@ export default function AdminDashboard() {
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {range === "24h" ? "24h" : range === "7d" ? "7d" : "30d"}
+                      {range === "all" ? "All" : range}
                     </button>
                   ))}
                 </div>

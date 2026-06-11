@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
 
-export type StatsTimeRange = "24h" | "7d" | "30d"
+export type StatsTimeRange = "24h" | "7d" | "30d" | "all"
 
 interface AdminStats {
   range: StatsTimeRange
