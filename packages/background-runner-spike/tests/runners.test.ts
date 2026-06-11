@@ -1,17 +1,24 @@
 /**
- * Integration tests for both background-runner strategies.
+ * Fast integration test for both background-runner strategies.
  *
- * Each test creates its OWN fresh sandbox (and deletes it afterward), then
- * proves the strategy can:
- *   - launch a long-running command,
- *   - reconnect repeatedly from cold and read incrementally (no dup/no gap),
- *   - replay the full log from zero on yet another cold connection,
- *   - report the real exit code.
+ * The slow, hang-prone way to test this is one fresh sandbox per strategy plus
+ * an unbounded poll loop. Instead we:
+ *   - create ONE sandbox shared by every assertion (sandbox spin-up dominates
+ *     wall-clock, so we pay it once),
+ *   - launch and observe both strategies CONCURRENTLY (they use isolated files /
+ *     sessions, so they never interfere),
+ *   - bound the reconnect loop with a hard deadline so a stuck run fails fast
+ *     instead of hanging.
+ *
+ * Each strategy still has to prove the real contract: launch a long-running
+ * command, reconnect repeatedly from cold and read incrementally (no dup / no
+ * gap), replay the whole log from zero on a fresh connection, and surface the
+ * true exit code.
  *
  * Requires DAYTONA_API_KEY in the environment.
  */
 import "dotenv/config"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { Daytona, type Sandbox } from "@daytonaio/sdk"
 import { FileRunner } from "../src/file-runner.js"
 import { SessionRunner } from "../src/session-runner.js"
@@ -20,9 +27,10 @@ import type { BackgroundRunner } from "../src/types.js"
 
 const API_KEY = process.env.DAYTONA_API_KEY
 
-// ~8 ticks at 1s each ≈ 8s. Polling every 1.2s forces several cold reconnects
-// while the command is still producing output.
-const TICKS = 8
+// 6 ticks at 1s each ≈ 6s. Polling every 1s forces several cold reconnects
+// while the command is still producing output — enough to prove incremental
+// stitching without dragging the test out.
+const TICKS = 6
 const COMMAND = `for i in $(seq 1 ${TICKS}); do echo "tick $i"; sleep 1; done`
 const EXPECTED = Array.from({ length: TICKS }, (_, i) => `tick ${i + 1}`)
 
@@ -32,61 +40,62 @@ const STRATEGIES: Array<{ label: string; make: (s: Sandbox) => BackgroundRunner 
 ]
 
 describe.skipIf(!API_KEY)("background runner strategies", () => {
-  let sandbox: Sandbox | undefined
+  const daytona = new Daytona({ apiKey: API_KEY! })
+  let sandbox: Sandbox
 
-  afterEach(async () => {
-    if (sandbox) {
-      await sandbox.delete().catch(() => {})
-      sandbox = undefined
-    }
+  beforeAll(async () => {
+    sandbox = await daytona.create()
   })
 
-  for (const { label, make } of STRATEGIES) {
-    it(`${label}: reconnects, reads incrementally, replays, and reports exit code`, async () => {
-      const daytona = new Daytona({ apiKey: API_KEY! })
-      sandbox = await daytona.create()
+  afterAll(async () => {
+    await sandbox?.delete().catch(() => {})
+  })
 
-      const runner = make(sandbox)
-      const handle = await runner.start(COMMAND)
+  it("both strategies reconnect, read incrementally, replay, and report exit code", async () => {
+    // Run both strategies at once against the shared sandbox.
+    await Promise.all(
+      STRATEGIES.map(async ({ make }) => {
+        const runner = make(sandbox)
+        const handle = await runner.start(COMMAND)
 
-      // The handle must be JSON-serializable (the cold-reconnect contract).
-      expect(JSON.parse(JSON.stringify(handle))).toEqual(handle)
+        // The handle must be JSON-serializable (the cold-reconnect contract).
+        expect(JSON.parse(JSON.stringify(handle))).toEqual(handle)
 
-      const report = await observeByReconnecting({
-        daytona,
-        sandboxId: sandbox.id,
-        makeRunner: make,
-        handle,
-        pollMs: 1200,
+        const report = await observeByReconnecting({
+          daytona,
+          sandboxId: sandbox.id,
+          makeRunner: make,
+          handle,
+          pollMs: 1000,
+          deadlineMs: 45_000,
+        })
+
+        // Reconnected from cold multiple times while the command was running.
+        expect(report.reconnects, runner.name).toBeGreaterThanOrEqual(2)
+
+        // Incremental reads, stitched across reconnects, reproduce every line
+        // exactly once and in order — no duplicates, no gaps.
+        expect(report.lines, runner.name).toEqual(EXPECTED)
+
+        // An independent replay-from-zero on a fresh connection agrees.
+        expect(report.replayLines, runner.name).toEqual(EXPECTED)
+
+        // Real exit code surfaced (not a heuristic).
+        expect(report.exitCode, runner.name).toBe(0)
       })
+    )
+  })
 
-      // Reconnected from cold multiple times while the command was running.
-      expect(report.reconnects).toBeGreaterThanOrEqual(2)
-
-      // Incremental reads, stitched across reconnects, reproduce every line
-      // exactly once and in order — no duplicates, no gaps.
-      expect(report.lines).toEqual(EXPECTED)
-
-      // An independent replay-from-zero on a fresh connection agrees.
-      expect(report.replayLines).toEqual(EXPECTED)
-
-      // Real exit code surfaced (not a heuristic).
-      expect(report.exitCode).toBe(0)
-    })
-  }
-
-  it.skipIf(!API_KEY)("FileRunner stop() terminates the command", async () => {
-    const daytona = new Daytona({ apiKey: API_KEY! })
-    sandbox = await daytona.create()
-
+  it("FileRunner stop() terminates the command and its children", async () => {
     const runner = new FileRunner(sandbox)
     const handle = await runner.start(`for i in $(seq 1 100); do echo "n $i"; sleep 1; done`)
+
     await new Promise((r) => setTimeout(r, 2500))
     await runner.stop(handle)
     await new Promise((r) => setTimeout(r, 1500))
 
-    // After stop, the command is finished (no longer producing) — a follow-up
-    // read should report it as done or simply stop advancing.
+    // After stop the command is dead, so output stops advancing and it never
+    // reaches its 100th tick.
     const a = await runner.readAll(handle)
     await new Promise((r) => setTimeout(r, 2000))
     const b = await runner.readAll(handle)

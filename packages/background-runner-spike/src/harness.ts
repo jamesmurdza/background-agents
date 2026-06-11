@@ -35,6 +35,12 @@ export interface ObserveOptions {
   readonly handle: RunHandle
   readonly pollMs?: number
   readonly maxReads?: number
+  /**
+   * Hard wall-clock bound. If the command hasn't reported `done` within this
+   * window the harness gives up and throws, instead of polling forever. This is
+   * what guarantees a stuck run fails fast rather than hanging the test.
+   */
+  readonly deadlineMs?: number
   readonly onTick?: (message: string) => void
 }
 
@@ -47,6 +53,7 @@ export async function observeByReconnecting(opts: ObserveOptions): Promise<Recon
   const { daytona, sandboxId, makeRunner, handle } = opts
   const pollMs = opts.pollMs ?? 2000
   const maxReads = opts.maxReads ?? 200
+  const deadlineMs = opts.deadlineMs ?? 60_000
   const log = opts.onTick ?? (() => {})
 
   let cursor = 0
@@ -57,7 +64,15 @@ export async function observeByReconnecting(opts: ObserveOptions): Promise<Recon
   const lines: string[] = []
   const perReadBytes: number[] = []
 
+  const deadline = Date.now() + deadlineMs
+
   while (!done && reconnects < maxReads) {
+    if (Date.now() > deadline) {
+      throw new Error(
+        `observeByReconnecting: command did not finish within ${deadlineMs}ms ` +
+          `(${reconnects} reconnects, ${lines.length} lines so far). Failing fast instead of hanging.`
+      )
+    }
     await sleep(pollMs)
 
     // ── COLD START ──────────────────────────────────────────────────────────
