@@ -10,14 +10,16 @@ import {
   type EndEvent,
 } from "@background-agents/sdk"
 import {
-  buildSystemPrompt,
-  buildContentBlocks,
   agentToProvider,
   type Agent,
   type ContentBlock,
   type ToolCall,
-  type SkillCatalogEntry,
 } from "@background-agents/common"
+import {
+  buildSystemPrompt,
+  buildContentBlocks,
+  type SkillCatalogEntry,
+} from "./session"
 import {
   setupClaudeHooks,
   setupCodexRules,

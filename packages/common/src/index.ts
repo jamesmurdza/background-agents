@@ -14,13 +14,6 @@ export type {
   AgentStatusResponse,
 } from "./types"
 
-// Session utilities
-export {
-  buildSystemPrompt,
-  buildContentBlocks,
-  type SkillCatalogEntry,
-} from "./session"
-
 // Agent configuration
 export {
   // Types
@@ -77,11 +70,8 @@ export {
 // Branch utilities
 export { generateBranchName } from "./branch"
 
-// Sandbox utilities
-export { generateSandboxName } from "./sandbox"
-
 // Common utilities
-export { cn, escapeShell, quote } from "./utils"
+export { cn } from "./utils"
 
 // Slash commands
 export {

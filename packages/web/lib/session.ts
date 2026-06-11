@@ -1,6 +1,12 @@
 /**
- * Agent session utilities
- * Shared between web and simple-chat packages
+ * Agent session builders: system-prompt construction and SDK-event →
+ * UI-ContentBlock mapping.
+ *
+ * This is server-side glue that adapts the SDK's agent event stream into the
+ * shapes the web UI stores/renders. It lives in the web package (not in
+ * @background-agents/common) because it depends on the SDK's event types and
+ * is only consumed by web server code — keeping it out of `common` ensures
+ * that browser-shared package never transitively pulls in the SDK.
  */
 
 import type {

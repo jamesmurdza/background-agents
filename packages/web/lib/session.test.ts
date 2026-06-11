@@ -4,8 +4,8 @@
  * Pure function — no mocks needed.
  */
 import { describe, it, expect } from "vitest"
-import { buildSystemPrompt } from "../src/session"
-import type { SkillCatalogEntry } from "../src/session"
+import { buildSystemPrompt } from "./session"
+import type { SkillCatalogEntry } from "./session"
 
 describe("buildSystemPrompt", () => {
   const repoPath = "/home/daytona/project"
