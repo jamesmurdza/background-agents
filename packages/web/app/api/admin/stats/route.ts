@@ -206,14 +206,14 @@ export async function GET(request: NextRequest) {
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
               AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
-            GROUP BY date_trunc(${bucket}, "createdAt")::date
+            GROUP BY 1
           ) m ON m.date = d.date
           LEFT JOIN (
             SELECT date_trunc(${bucket}, "createdAt")::date as date, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'chat_created'
               AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
-            GROUP BY date_trunc(${bucket}, "createdAt")::date
+            GROUP BY 1
           ) c ON c.date = d.date
           ORDER BY d.date ASC
         `,
@@ -244,8 +244,8 @@ export async function GET(request: NextRequest) {
           WHERE "createdAt" >= NOW() - ${interval}::interval
             AND action = 'message_sent'
             AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
-          GROUP BY date_trunc(${bucket}, "createdAt")::date, metadata->>'agent', metadata->>'model'
-          ORDER BY date_trunc(${bucket}, "createdAt")::date ASC
+          GROUP BY 1, metadata->>'agent', metadata->>'model'
+          ORDER BY 1 ASC
         `,
   ])
 
