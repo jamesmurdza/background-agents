@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
 
-type TimeRange = "24h" | "7d" | "30d"
+type TimeRange = "24h" | "7d" | "30d" | "all"
 
 function getRangeInterval(range: TimeRange): string {
   switch (range) {
@@ -31,6 +31,24 @@ function getRangeDays(range: TimeRange): number {
 }
 
 /**
+ * For the "all" range there is no fixed window, so derive the interval/days
+ * dynamically from the earliest ActivityLog entry. Falls back to 1 day when
+ * there is no activity yet.
+ */
+async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
+  const earliest = await prisma.$queryRaw<Array<{ min: Date | null }>>`
+    SELECT MIN("createdAt") as min FROM "ActivityLog"
+  `
+  const minDate = earliest[0]?.min
+  if (!minDate) {
+    return { interval: "1 day", days: 1 }
+  }
+  const diffMs = Date.now() - new Date(minDate).getTime()
+  const days = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
+  return { interval: `${days} days`, days }
+}
+
+/**
  * GET /api/admin/stats
  * Returns platform-wide statistics for the admin dashboard
  * Query params:
@@ -43,8 +61,10 @@ export async function GET(request: NextRequest) {
   // Parse query parameters
   const { searchParams } = new URL(request.url)
   const range = (searchParams.get("range") as TimeRange) || "7d"
-  const interval = getRangeInterval(range)
-  const days = getRangeDays(range)
+  const { interval, days } =
+    range === "all"
+      ? await getAllTimeWindow()
+      : { interval: getRangeInterval(range), days: getRangeDays(range) }
 
   // Run all queries in parallel for performance
   const [
