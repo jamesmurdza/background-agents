@@ -65,9 +65,11 @@ export default function AdminDashboard() {
 
   // Global time range state (affects all charts)
   const [globalTimeRange, setGlobalTimeRange] = useState<StatsTimeRange>("7d")
+  // Exclude admin users' activity from the overview stats (default on)
+  const [excludeAdmins, setExcludeAdmins] = useState(true)
 
   // Queries - pass globalTimeRange to stats query
-  const statsQuery = useAdminStatsQuery(globalTimeRange)
+  const statsQuery = useAdminStatsQuery(globalTimeRange, excludeAdmins)
   const activityQuery = useAdminActivityQuery({
     page: activityPage,
     limit: 20,
@@ -256,23 +258,54 @@ export default function AdminDashboard() {
           {activeSection === "overview" && (
             <>
               {/* Global Time Range Selector */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold md:text-xl">Overview</h2>
-                <div className="flex gap-1 rounded-lg bg-muted p-1">
-                  {(["24h", "7d", "30d", "all"] as const).map((range) => (
-                    <button
-                      key={range}
-                      onClick={() => setGlobalTimeRange(range)}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  {/* Exclude admins toggle */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={excludeAdmins}
+                    onClick={() => setExcludeAdmins((v) => !v)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
+                      excludeAdmins
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span
                       className={cn(
-                        "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                        globalTimeRange === range
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
+                        "relative h-4 w-7 rounded-full transition-colors",
+                        excludeAdmins ? "bg-primary" : "bg-muted-foreground/30"
                       )}
                     >
-                      {range === "all" ? "All" : range}
-                    </button>
-                  ))}
+                      <span
+                        className={cn(
+                          "absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform",
+                          excludeAdmins ? "translate-x-3.5" : "translate-x-0.5"
+                        )}
+                      />
+                    </span>
+                    Exclude admins
+                  </button>
+                  {/* Time range buttons */}
+                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                    {(["24h", "7d", "30d", "all"] as const).map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setGlobalTimeRange(range)}
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
+                          globalTimeRange === range
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {range === "all" ? "All" : range}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

@@ -32,8 +32,13 @@ interface AdminStats {
   messagesByModel: Array<Record<string, number | string>>
 }
 
-async function fetchAdminStats(range: StatsTimeRange): Promise<AdminStats> {
-  const response = await fetch(`/api/admin/stats?range=${range}`)
+async function fetchAdminStats(
+  range: StatsTimeRange,
+  excludeAdmins: boolean
+): Promise<AdminStats> {
+  const response = await fetch(
+    `/api/admin/stats?range=${range}&excludeAdmins=${excludeAdmins}`
+  )
   if (!response.ok) {
     if (response.status === 403) {
       throw new Error("Forbidden: Admin access required")
@@ -43,13 +48,16 @@ async function fetchAdminStats(range: StatsTimeRange): Promise<AdminStats> {
   return response.json()
 }
 
-export function useAdminStatsQuery(range: StatsTimeRange = "7d") {
+export function useAdminStatsQuery(
+  range: StatsTimeRange = "7d",
+  excludeAdmins = true
+) {
   const { status } = useSession()
   const isAuthenticated = status === "authenticated"
 
   return useQuery({
-    queryKey: queryKeys.admin.stats(range),
-    queryFn: () => fetchAdminStats(range),
+    queryKey: queryKeys.admin.stats(range, excludeAdmins),
+    queryFn: () => fetchAdminStats(range, excludeAdmins),
     enabled: isAuthenticated,
     staleTime: 30 * 1000, // 30 seconds
     retry: (failureCount, error) => {

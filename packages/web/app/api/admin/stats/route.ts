@@ -87,6 +87,9 @@ export async function GET(request: NextRequest) {
   // Parse query parameters
   const { searchParams } = new URL(request.url)
   const range = (searchParams.get("range") as TimeRange) || "7d"
+  // Exclude admin users' activity from the overview stats by default; callers
+  // opt back in with ?excludeAdmins=false.
+  const excludeAdmins = searchParams.get("excludeAdmins") !== "false"
   const { interval, days } =
     range === "all"
       ? await getAllTimeWindow()
@@ -116,6 +119,7 @@ export async function GET(request: NextRequest) {
         )::date as date
       ) d
       LEFT JOIN "ActivityLog" a ON a."createdAt" >= d.date - INTERVAL '6 days' AND a."createdAt" < d.date + INTERVAL '1 day'
+        AND (${excludeAdmins} = false OR a."userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
       GROUP BY d.date
       ORDER BY d.date ASC
     `,
@@ -142,6 +146,7 @@ export async function GET(request: NextRequest) {
         GROUP BY "userId"
       ) c ON c."userId" = u.id
       WHERE COALESCE(m.count, 0) > 0
+        AND (${excludeAdmins} = false OR u."isAdmin" = false)
       ORDER BY "messageCount" DESC
       LIMIT 10
     `,
@@ -153,6 +158,7 @@ export async function GET(request: NextRequest) {
         COUNT(*)::bigint as count
       FROM "ActivityLog"
       WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
+        AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
       GROUP BY hour
       ORDER BY hour ASC
     `,
@@ -171,12 +177,14 @@ export async function GET(request: NextRequest) {
             SELECT EXTRACT(HOUR FROM "createdAt")::int as hour, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - '24 hours'::interval AND action = 'message_sent'
+              AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
             GROUP BY EXTRACT(HOUR FROM "createdAt")::int
           ) m ON m.hour = h.hour
           LEFT JOIN (
             SELECT EXTRACT(HOUR FROM "createdAt")::int as hour, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - '24 hours'::interval AND action = 'chat_created'
+              AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
             GROUP BY EXTRACT(HOUR FROM "createdAt")::int
           ) c ON c.hour = h.hour
           ORDER BY h.hour ASC
@@ -197,12 +205,14 @@ export async function GET(request: NextRequest) {
             SELECT date_trunc(${bucket}, "createdAt")::date as date, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'message_sent'
+              AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
             GROUP BY date_trunc(${bucket}, "createdAt")::date
           ) m ON m.date = d.date
           LEFT JOIN (
             SELECT date_trunc(${bucket}, "createdAt")::date as date, COUNT(*)::bigint as count
             FROM "ActivityLog"
             WHERE "createdAt" >= NOW() - ${interval}::interval AND action = 'chat_created'
+              AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
             GROUP BY date_trunc(${bucket}, "createdAt")::date
           ) c ON c.date = d.date
           ORDER BY d.date ASC
@@ -220,6 +230,7 @@ export async function GET(request: NextRequest) {
           FROM "ActivityLog"
           WHERE "createdAt" >= NOW() - '24 hours'::interval
             AND action = 'message_sent'
+            AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
           GROUP BY hour, metadata->>'agent', metadata->>'model'
           ORDER BY hour ASC
         `
@@ -232,6 +243,7 @@ export async function GET(request: NextRequest) {
           FROM "ActivityLog"
           WHERE "createdAt" >= NOW() - ${interval}::interval
             AND action = 'message_sent'
+            AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
           GROUP BY date_trunc(${bucket}, "createdAt")::date, metadata->>'agent', metadata->>'model'
           ORDER BY date_trunc(${bucket}, "createdAt")::date ASC
         `,
