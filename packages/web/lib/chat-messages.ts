@@ -61,10 +61,24 @@ export async function sendMessageToApi(
   }
 
   if (!response.ok) {
+    // Vercel serverless functions reject request bodies over 4.5 MB with a 413
+    // *before* the route runs, so the body is a non-JSON edge error page. Map it
+    // to a clear message (the client-side guard in useFileUpload should catch
+    // this first, but this covers any edge case that slips through).
+    if (response.status === 413) {
+      return {
+        ok: false,
+        error: "Attachments are too large to upload (max ~4 MB total). Remove or shrink files and try again.",
+        isDailyLimit: false,
+      }
+    }
     const err = await response.json().catch(() => ({}))
     return {
       ok: false,
-      error: err.error || "Failed to send message",
+      // Surface the HTTP status when the server didn't return a JSON error
+      // message, so failures like 500/502/504 are identifiable instead of
+      // collapsing into a bare "Failed to send message".
+      error: err.error || `Failed to send message (HTTP ${response.status})`,
       isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
       resetAt: err.resetAt,
     }

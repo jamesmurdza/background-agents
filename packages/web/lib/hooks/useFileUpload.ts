@@ -11,7 +11,15 @@ import { getFileType } from "@/lib/file-preview"
 import type { PendingFile } from "@/lib/types"
 
 // File upload constraints
-const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30 MB
+//
+// Vercel serverless functions (the production deployment) reject any request
+// body larger than 4.5 MB with a 413 "Content Too Large" — a hard platform
+// limit that can't be raised. Attachments are sent as multipart/form-data
+// alongside a JSON payload, so we cap the *combined* size of all attachments
+// below that, leaving margin for the payload and multipart boundaries. This
+// makes oversized uploads fail fast with a clear message instead of an opaque
+// 413 in production.
+const MAX_TOTAL_UPLOAD_SIZE = 4 * 1024 * 1024 // 4 MB across all attachments
 const MAX_FILE_COUNT = 20
 const MAX_IMAGE_DIMENSION = 8000 // 8000 x 8000 pixels
 
@@ -151,11 +159,18 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       fileArray.splice(availableSlots) // Only process files that fit
     }
 
+    // Attachments are sent together in a single request, so enforce the budget
+    // against the running total (files already pending + everything added now).
+    let runningTotal = pendingFiles.reduce((sum, pf) => sum + pf.size, 0)
+    const limitMb = (MAX_TOTAL_UPLOAD_SIZE / (1024 * 1024)).toFixed(1)
+
     // Validate each file
     for (const file of fileArray) {
-      // Check file size
-      if (file.size > MAX_FILE_SIZE) {
-        errors.push(`"${file.name}" exceeds 30 MB limit`)
+      // Enforce the combined request-body budget (server upload limit).
+      if (runningTotal + file.size > MAX_TOTAL_UPLOAD_SIZE) {
+        errors.push(
+          `"${file.name}" can't be added — attachments must total under ${limitMb} MB (server upload limit)`
+        )
         continue
       }
 
@@ -175,6 +190,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       }
 
       validFiles.push(file)
+      runningTotal += file.size
     }
 
     // Show errors if any
