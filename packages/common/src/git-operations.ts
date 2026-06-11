@@ -16,52 +16,6 @@ export interface RebaseConflictState {
   conflictedFiles: string[]
 }
 
-/**
- * Result of checking rebase/merge status
- */
-export interface GitStatusResult {
-  inRebase: boolean
-  inMerge: boolean
-  conflictedFiles: string[]
-}
-
-/**
- * Result of a merge operation
- */
-export interface MergeResult {
-  success: boolean
-  conflict?: boolean
-  inMerge?: boolean
-  conflictedFiles?: string[]
-  targetBranch?: string
-  currentBranch?: string
-  message?: string
-  error?: string
-}
-
-/**
- * Result of a rebase operation
- */
-export interface RebaseResult {
-  success: boolean
-  conflict?: boolean
-  conflictedFiles?: string[]
-  targetBranch?: string
-  message?: string
-  error?: string
-}
-
-/**
- * Options for git operations that need sandbox access
- */
-export interface GitOperationContext {
-  sandboxId: string
-  repoPath: string
-  repoOwner: string
-  repoApiName: string
-  githubToken: string
-}
-
 // =============================================================================
 // PR Generation Utilities
 // =============================================================================
