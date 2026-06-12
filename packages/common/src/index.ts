@@ -68,10 +68,6 @@ export {
   createPullRequest,
   createFileCommit,
   forkRepo,
-  // Webhook management
-  createWebhook,
-  deleteWebhook,
-  hasWebhookPermission,
 } from "./github"
 
 // Branch utilities
