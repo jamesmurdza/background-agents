@@ -90,7 +90,6 @@ export type {
 
 export type {
   CodeAgentSandbox,
-  ExecuteBackgroundOptions,
   AdaptSandboxOptions,
 } from "./types/provider"
 

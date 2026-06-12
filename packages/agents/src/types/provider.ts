@@ -2,25 +2,13 @@
  * Sandbox and Provider Types
  */
 
+import type { SandboxJobs } from "@background-agents/sandbox-jobs"
+
 /**
  * Supported agent names.
  * Used by ensureProvider() to install the correct CLI.
  */
 export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "goose" | "kilo" | "opencode" | "gemini" | "pi"
-
-/**
- * Options for starting a background command that writes to a log file.
- */
-export interface ExecuteBackgroundOptions {
-  /** Full command line to run (stdout/stderr should be appended to outputFile). */
-  command: string
-  /** Path in sandbox to append output to (e.g. /tmp/codeagent-<id>/0.jsonl). */
-  outputFile: string
-  /** Unique run id (used for logging; PID is returned from executeBackground). */
-  runId: string
-  /** Timeout in minutes */
-  timeout?: number
-}
 
 /**
  * Sandbox interface required by the SDK.
@@ -51,20 +39,12 @@ export interface CodeAgentSandbox {
   ): Promise<{ exitCode: number; output: string }>
 
   /**
-   * Start a command in the background and return its PID immediately.
-   * The sandbox must run the command with stdout/stderr >> outputFile.
+   * Long-running-process runner. Background sessions launch one job per turn
+   * and observe it via the sandbox filesystem. The Daytona adapter wires this
+   * to @background-agents/sandbox-jobs (with session env injected); custom
+   * sandboxes may provide their own implementation.
    */
-  executeBackground?(options: ExecuteBackgroundOptions): Promise<{ pid: number }>
-
-  /** Kill a background process by PID */
-  killBackgroundProcess?(pid: number, processName?: string): Promise<void>
-
-  /** Optimized poll: reads meta, output, and done status in fewer commands */
-  pollBackgroundState?(sessionDir: string): Promise<{
-    meta: string | null
-    output: string
-    done: boolean
-  } | null>
+  jobs?: SandboxJobs
 }
 
 /**

@@ -30,19 +30,26 @@ export interface PollResult {
 }
 
 /**
- * Session metadata stored in sandbox
+ * Conversation metadata stored at `<sessionDir>/meta.json`.
+ *
+ * This is the durable, cold-reconnect state for the *conversation* (turns,
+ * agent session id, provider). Per-process state (output, exit code, pid) lives
+ * in the job directory and is owned by @background-agents/sandbox-jobs — not
+ * duplicated here.
  */
 export interface SessionMeta {
+  /** Monotonic turn counter (cosmetic; each turn is an independent job). */
   currentTurn: number
-  cursor: number
-  rawCursor?: number
-  pid?: number
-  runId?: string
-  outputFile?: string
-  sawEnd?: boolean
-  startedAt?: string
+  /** Agent name, so a cold caller can reattach without knowing it. */
   provider?: string
+  /** Agent's own session id (for resume), captured from the event stream. */
   sessionId?: string | null
+  /** Current turn's job id — the key to reattach to its process. */
+  jobId?: string
+  /** Current turn's start time (ISO); used for the startup grace window. */
+  startedAt?: string
+  /** The current turn was user-cancelled (suppresses crash synthesis). */
+  cancelled?: boolean
 }
 
 /**
