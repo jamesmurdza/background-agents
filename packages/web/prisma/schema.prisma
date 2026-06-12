@@ -50,6 +50,7 @@ model User {
   activityLogs  ActivityLog[]
   scheduledJobs ScheduledJob[]
   skills        Skill[]
+  tokenUsages   TokenUsage[]
 }
 
 // =============================================================================
@@ -202,7 +203,7 @@ model Message {
   chatId String
 
   role      String // "user" | "assistant"
-  content   String  @db.Text
+  content   String @db.Text
   timestamp BigInt // Unix timestamp in milliseconds
 
   // Which agent/model produced this message (nullable for old messages)
@@ -267,6 +268,57 @@ model ActivityLog {
 }
 
 // =============================================================================
+// TokenUsage - per-turn token + cost ledger for rate limiting & analytics
+// =============================================================================
+// One row per (assistant turn × model). Values are the DELTA for that turn,
+// computed by diffing tokscale's cumulative-per-session totals against the
+// previous capture for the same (sessionId, model). The cumulative snapshot is
+// stored alongside the delta so the next turn knows what to diff against.
+//
+// `pool` distinguishes shared-credential usage ("shared") from a user's own key
+// ("user") — the dimension tokscale cannot know, stamped by the app at run time.
+// `provider` is our internal agent id (claude | gemini | opencode | ...);
+// `model` is the model id as reported by tokscale (e.g. "claude-opus-4-8").
+
+model TokenUsage {
+  id        String  @id @default(cuid())
+  userId    String
+  chatId    String?
+  messageId String? // assistant Message this delta is attributed to
+
+  provider String // internal agent id: "claude" | "gemini" | "opencode" | ...
+  model    String? // model id reported by tokscale
+  pool     String // "shared" | "user"
+
+  // Per-turn delta (diff of tokscale cumulative session totals)
+  inputTokens      Int   @default(0)
+  outputTokens     Int   @default(0)
+  cacheReadTokens  Int   @default(0)
+  cacheWriteTokens Int   @default(0)
+  reasoningTokens  Int   @default(0)
+  totalTokens      Int   @default(0)
+  costUsd          Float @default(0)
+
+  // tokscale's self-reported attribution quality (0..1); low = under-counted turn.
+  coverage Float?
+
+  // Diff cursor: the agent session id (tokscale groupBy=session) and the
+  // cumulative totals at capture time, so the next turn computes its delta.
+  sessionId       String
+  cumulativeTotal Int    @default(0)
+  cumulativeCost  Float  @default(0)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, provider, pool, createdAt]) // limiter aggregation
+  @@index([userId, createdAt])
+  @@index([provider, createdAt]) // admin per-provider rollups
+  @@index([sessionId, model, createdAt]) // diff-cursor lookup
+}
+
+// =============================================================================
 // ScheduledJob - Automated agent runs on a schedule
 // =============================================================================
 
@@ -283,10 +335,10 @@ model ScheduledJob {
   model      String?
 
   // Trigger configuration
-  triggerType     String  @default("interval") // "interval" | "incoming"
+  triggerType   String  @default("interval") // "interval" | "incoming"
   // URL-embedded token for triggerType "incoming" — anyone POSTing to
   // /api/webhooks/in/<token> fires this job. Rotateable from the form.
-  incomingToken   String? @unique
+  incomingToken String? @unique
 
   // Schedule (used when triggerType = "interval")
   intervalMinutes Int // e.g., 360 = every 6 hours
@@ -362,17 +414,17 @@ model ScheduledJobRun {
 // =============================================================================
 
 model Skill {
-  id        String   @id @default(cuid())
-  userId    String
-  repo      String   // "owner/repo" — which repo this skill belongs to
+  id     String @id @default(cuid())
+  userId String
+  repo   String // "owner/repo" — which repo this skill belongs to
 
   // Skill identity
-  publisher  String  // e.g. "anthropic", "vercel"
-  name       String  // e.g. "code-review"
-  fullHandle String  // "publisher/name" — the install handle
+  publisher  String // e.g. "anthropic", "vercel"
+  name       String // e.g. "code-review"
+  fullHandle String // "publisher/name" — the install handle
 
   // Source
-  url        String? // Source URL (skills.sh link)
+  url String? // Source URL (skills.sh link)
 
   // Timestamps
   createdAt DateTime @default(now())

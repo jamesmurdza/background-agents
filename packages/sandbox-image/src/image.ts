@@ -113,8 +113,7 @@ export function getAgentSandboxImage(): Image {
         "npm install -g @kilocode/cli"
       )
       .runCommands(
-        // Install t
-        // okscale (token/cost metering). Binary embeds at build time
+        // Install tokscale (token/cost metering). Binary embeds at build time
         // via @tokscale/cli's platform optionalDependency — no runtime download.
         `npm install -g tokscale@${TOKSCALE_VERSION}`
       )
