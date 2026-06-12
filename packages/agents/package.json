@@ -66,6 +66,7 @@
     "./next.config": "./next.config.codeagentsdk.cjs"
   },
   "dependencies": {
+    "@background-agents/sandbox-jobs": "*",
     "@daytonaio/sdk": "^0.170.0",
     "dotenv": "^17.3.1"
   }
