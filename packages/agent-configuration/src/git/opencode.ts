@@ -56,7 +56,7 @@ export const OPENCODE_PERMISSIONS = {
     "*": "allow",
   },
   external_directory: {
-    "/home/daytona/uploads/*": "allow",
+    "*": "allow",
   },
 } as const
 
