@@ -73,9 +73,6 @@ export {
 // Branch utilities
 export { generateBranchName } from "./branch"
 
-// Sandbox utilities
-export { generateSandboxName } from "./sandbox"
-
 // Common utilities
 export { cn, escapeShell, quote } from "./utils"
 
