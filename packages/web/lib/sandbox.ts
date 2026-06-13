@@ -55,8 +55,10 @@ async function ensureTokscaleInstalled(sandbox: Sandbox): Promise<void> {
     `[sandbox] tokscale missing in ${id ?? "?"}; installing tokscale@${TOKSCALE_VERSION}`
   )
   try {
+    // Global installs land in root-owned /usr/local/lib; the sandbox runs as the
+    // non-root `daytona` user, so we need sudo (granted NOPASSWD in the image).
     const install = await sandbox.process.executeCommand(
-      `npm install -g tokscale@${TOKSCALE_VERSION}`,
+      `sudo npm install -g tokscale@${TOKSCALE_VERSION}`,
       undefined,
       undefined,
       180
