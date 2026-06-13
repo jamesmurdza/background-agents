@@ -10,9 +10,69 @@ import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { installSkills, discoverInstalledSkills } from "@background-agents/skills/sandbox"
+import { TOKSCALE_VERSION } from "@background-agents/sandbox-image"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
+
+/**
+ * Sandbox ids we've already confirmed have tokscale this process lifetime, so
+ * we skip the `which`/install probe on subsequent bring-ups of the same
+ * sandbox. Best-effort: a cold serverless invocation just re-probes (cheap).
+ */
+const tokscaleReady = new Set<string>()
+
+/**
+ * Ensure tokscale (post-turn token/cost metering CLI) is on PATH in the
+ * sandbox, installing it on demand.
+ *
+ * The snapshot pre-installs tokscale (see TOKSCALE_VERSION in
+ * @background-agents/sandbox-image), but sandboxes created BEFORE that snapshot
+ * bump won't have it. We probe once per sandbox at bring-up and `npm install
+ * -g` it if missing, so metering works on long-lived pre-existing sandboxes
+ * too. Best-effort: never throws — a failure just means that turn isn't metered.
+ */
+async function ensureTokscaleInstalled(sandbox: Sandbox): Promise<void> {
+  const id = sandbox.id
+  if (id && tokscaleReady.has(id)) return
+
+  try {
+    const probe = await sandbox.process.executeCommand(
+      "which tokscale",
+      undefined,
+      undefined,
+      15
+    )
+    if ((probe.exitCode ?? 1) === 0) {
+      if (id) tokscaleReady.add(id)
+      return
+    }
+  } catch {
+    // fall through to install attempt
+  }
+
+  console.log(
+    `[sandbox] tokscale missing in ${id ?? "?"}; installing tokscale@${TOKSCALE_VERSION}`
+  )
+  try {
+    const install = await sandbox.process.executeCommand(
+      `npm install -g tokscale@${TOKSCALE_VERSION}`,
+      undefined,
+      undefined,
+      180
+    )
+    if ((install.exitCode ?? 1) !== 0) {
+      console.warn(
+        `[sandbox] tokscale install failed in ${id ?? "?"}:`,
+        (install.result ?? "").slice(0, 300)
+      )
+      return
+    }
+    if (id) tokscaleReady.add(id)
+  } catch (err) {
+    console.warn(`[sandbox] tokscale install threw in ${id ?? "?"}:`, err)
+  }
+}
 
 /**
  * Ensure a sandbox is in the "started" state, handling the race condition
@@ -25,7 +85,12 @@ export async function ensureSandboxStarted(
   sandbox: Sandbox,
   timeoutSeconds = 120
 ): Promise<void> {
-  if (sandbox.state === "started") return
+  if (sandbox.state === "started") {
+    // Already warm — still make sure tokscale is present (covers sandboxes
+    // created before tokscale was added to the snapshot). Cached per sandbox.
+    await ensureTokscaleInstalled(sandbox)
+    return
+  }
 
   const maxAttempts = 5
   const baseDelayMs = 500
@@ -33,6 +98,7 @@ export async function ensureSandboxStarted(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       await sandbox.start(timeoutSeconds)
+      await ensureTokscaleInstalled(sandbox)
       return
     } catch (err: unknown) {
       // Handle race condition: another request is already starting this sandbox
