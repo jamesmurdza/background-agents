@@ -4,7 +4,7 @@
  */
 
 // Constants
-export { PATHS, SANDBOX_CONFIG, TIMEOUTS } from "./constants"
+export { PATHS, SANDBOX_CONFIG } from "./constants"
 
 // Types
 export type {

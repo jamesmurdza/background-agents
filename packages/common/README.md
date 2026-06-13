@@ -156,7 +156,7 @@ import { cn, escapeShell, quote } from "@background-agents/common"
 ### Constants
 
 ```typescript
-import { PATHS, SANDBOX_CONFIG, TIMEOUTS } from "@background-agents/common"
+import { PATHS, SANDBOX_CONFIG } from "@background-agents/common"
 ```
 
 ### Agent Icons
