@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@background-agents/daytona-git"
+import { agentToProvider, type Agent } from "@background-agents/common"
 import { PATHS } from "@/lib/constants"
 import {
   finalizeTurn,
@@ -12,6 +13,8 @@ import {
 import { prisma } from "@/lib/db/prisma"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
+import { meterTurnUsage } from "@/lib/server/token-metering"
+import { readUsageMeta } from "@/lib/server/shared-pool"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 
@@ -290,6 +293,40 @@ export async function GET(req: Request) {
           if (lastSnap.status === "completed" || lastSnap.status === "error") {
             await persistSnapshot(lastSnap, true)
             await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
+
+            // Meter token/cost usage via tokscale while the sandbox is still
+            // alive (best-effort). This is the live-stream completion path; the
+            // agent-lifecycle cron only meters turns that finish without a
+            // connected stream. Attribution comes from the assistant message
+            // stamped at send time.
+            if (chatId && assistantMessageId && lastSnap.sessionId) {
+              try {
+                const [chatRow, asstMsg] = await Promise.all([
+                  prisma.chat.findUnique({
+                    where: { id: chatId },
+                    select: { userId: true, agent: true },
+                  }),
+                  prisma.message.findUnique({
+                    where: { id: assistantMessageId },
+                    select: { metadata: true },
+                  }),
+                ])
+                if (chatRow) {
+                  const usageMeta = readUsageMeta(asstMsg?.metadata)
+                  await meterTurnUsage(sandbox, {
+                    userId: chatRow.userId,
+                    chatId,
+                    messageId: assistantMessageId,
+                    provider:
+                      usageMeta?.provider ?? agentToProvider[chatRow.agent as Agent],
+                    pool: usageMeta?.pool ?? "user",
+                    sessionId: lastSnap.sessionId,
+                  })
+                }
+              } catch (err) {
+                console.error("[agent/stream] meterTurnUsage failed:", err)
+              }
+            }
 
             // Populated when the auto-push below delivers new commits, so the
             // client can raise a "new push" notification.
