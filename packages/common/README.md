@@ -72,10 +72,6 @@ import {
   createPullRequest,
   createFileCommit,
   forkRepo,
-  // Webhook management
-  createWebhook,
-  deleteWebhook,
-  hasWebhookPermission,
 } from "@background-agents/common"
 ```
 
