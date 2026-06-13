@@ -35,7 +35,17 @@ export interface SendMessageResponse {
 
 export type SendMessageResult =
   | { ok: true; data: SendMessageResponse }
-  | { ok: false; error: string; isDailyLimit: boolean; resetAt?: string }
+  | {
+      ok: false
+      error: string
+      isDailyLimit: boolean
+      resetAt?: string
+      /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
+      provider?: string
+      /** Tokens used / daily budget for that provider, from the 429 body. */
+      used?: number
+      limit?: number
+    }
 
 /**
  * Send a message to the API, handling both JSON and FormData (for files).
@@ -81,6 +91,9 @@ export async function sendMessageToApi(
       error: err.error || `Failed to send message (HTTP ${response.status})`,
       isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
       resetAt: err.resetAt,
+      provider: err.provider,
+      used: err.used,
+      limit: err.limit,
     }
   }
 

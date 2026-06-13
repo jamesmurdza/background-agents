@@ -13,9 +13,26 @@ interface LimitReachedDialogProps {
   onContinueWithOpenCode: () => void
   onAddApiKey: () => void
   onUpgradeToPro: () => void
-  remaining?: number
+  /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
+  provider?: string
+  /** Tokens used / daily budget for that provider. */
+  used?: number | null
+  limit?: number | null
   resetAt?: Date
   isMobile?: boolean
+}
+
+const PROVIDER_LABEL: Record<string, string> = {
+  claude: "Claude",
+  gemini: "Gemini",
+  opencode: "OpenCode",
+}
+
+/** Compact token count: 12_345 → "12K", 1_200_000 → "1.2M". */
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1000) return `${Math.round(n / 1000)}K`
+  return String(n)
 }
 
 export function LimitReachedDialog({
@@ -24,10 +41,15 @@ export function LimitReachedDialog({
   onContinueWithOpenCode,
   onAddApiKey,
   onUpgradeToPro,
-  remaining = 0,
+  provider,
+  used,
+  limit,
   resetAt,
   isMobile = false,
 }: LimitReachedDialogProps) {
+  const providerLabel = PROVIDER_LABEL[provider ?? ""] ?? "shared model"
+  // Don't offer "switch to OpenCode" when OpenCode itself is the limited pool.
+  const canSwitchToOpenCode = provider !== "opencode"
   const primaryButtonRef = useRef<HTMLButtonElement>(null)
 
   // Focus the primary button when modal opens
@@ -93,37 +115,46 @@ export function LimitReachedDialog({
           <ModalHeader title="Daily Limit Reached" />
           <div className="px-4 pt-3 pb-4 space-y-4">
             <div className="text-sm text-muted-foreground">
-              You've used your {10} free Claude Code messages for today. Your limit resets at{" "}
+              You've reached your daily{" "}
+              <span className="font-medium text-foreground">{providerLabel}</span> limit
+              {typeof limit === "number" ? ` of ${fmtTokens(limit)} tokens` : ""}
+              {typeof used === "number" && typeof limit === "number"
+                ? ` (${fmtTokens(used)} used)`
+                : ""}
+              . It resets at{" "}
               <span className="font-medium text-foreground">{resetTimeString}</span>.
             </div>
 
             <div className="space-y-2">
-              {/* Primary option: Continue with OpenCode */}
-              <button
-                ref={primaryButtonRef}
-                onClick={handleContinueWithOpenCode}
-                className={cn(
-                  "w-full flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors p-3 text-left cursor-pointer",
-                  "focus:outline-none focus:ring-2 focus:ring-primary/50"
-                )}
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <AgentIcon agent="opencode" className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-foreground">
-                    Continue with OpenCode
+              {/* Primary option: Continue with OpenCode (hidden when OpenCode is
+                  the pool that hit its limit). */}
+              {canSwitchToOpenCode && (
+                <button
+                  ref={primaryButtonRef}
+                  onClick={handleContinueWithOpenCode}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors p-3 text-left cursor-pointer",
+                    "focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  )}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <AgentIcon agent="opencode" className="h-5 w-5" />
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Free and unlimited - powered by open source models
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground">
+                      Continue with OpenCode
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Free models - powered by open source
+                    </div>
                   </div>
-                </div>
-                <div className="shrink-0 text-xs font-medium text-primary px-2 py-0.5 rounded bg-primary/10">
-                  Free
-                </div>
-              </button>
+                  <div className="shrink-0 text-xs font-medium text-primary px-2 py-0.5 rounded bg-primary/10">
+                    Free
+                  </div>
+                </button>
+              )}
 
-              {/* Option 2: Add API Key */}
+              {/* Option 2: Add API Key for the limited provider */}
               <button
                 onClick={handleAddApiKey}
                 className={cn(
@@ -136,10 +167,10 @@ export function LimitReachedDialog({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-foreground">
-                    Add your Claude API key
+                    Add your {providerLabel} API key
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Use your own Anthropic API key for unlimited Claude usage
+                    Use your own {providerLabel} key for unlimited usage
                   </div>
                 </div>
               </button>
@@ -160,7 +191,7 @@ export function LimitReachedDialog({
                     Upgrade to Pro
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Unlimited Claude Code messages and priority support
+                    Unlimited usage on all shared pools and priority support
                   </div>
                 </div>
                 <div className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded bg-amber-500/10">

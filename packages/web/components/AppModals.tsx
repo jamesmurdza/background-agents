@@ -66,7 +66,7 @@ interface AppModalsProps {
   onDeleteChat: (chatId: string) => void
 
   // Daily limit reached dialog
-  limitReachedState: { show: boolean; resetAt?: Date }
+  limitReachedState: { show: boolean; resetAt?: Date; provider?: string; used?: number | null; limit?: number | null }
   onDismissLimitReached: () => void
   onContinueWithOpenCode: () => void
 }
@@ -253,10 +253,19 @@ export function AppModals({
       <LimitReachedDialog
         open={limitReachedState.show}
         onClose={onDismissLimitReached}
+        provider={limitReachedState.provider}
+        used={limitReachedState.used}
+        limit={limitReachedState.limit}
         onContinueWithOpenCode={onContinueWithOpenCode}
         onAddApiKey={() => {
           onDismissLimitReached()
-          modals.openSettings("anthropic")
+          const key =
+            limitReachedState.provider === "gemini"
+              ? "gemini"
+              : limitReachedState.provider === "opencode"
+                ? "opencode"
+                : "anthropic"
+          modals.openSettings(key)
         }}
         onUpgradeToPro={() => {
           onDismissLimitReached()

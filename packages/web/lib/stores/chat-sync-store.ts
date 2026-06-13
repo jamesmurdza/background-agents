@@ -44,6 +44,11 @@ export interface LimitReachedState {
     files?: File[]
     planMode?: boolean
   }
+  /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
+  provider?: string
+  /** Tokens used / daily budget for that provider. */
+  used?: number | null
+  limit?: number | null
   resetAt?: Date
 }
 
