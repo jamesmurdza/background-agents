@@ -11,6 +11,8 @@ loadEnv({ path: path.join(configDir, ".env.local"), override: true })
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    url: process.env.DATABASE_URL || "",
+    // Migrations run over a direct/session connection (DIRECT_URL); fall back to
+    // DATABASE_URL for local/legacy setups that don't define one.
+    url: process.env.DIRECT_URL || process.env.DATABASE_URL || "",
   },
 })
