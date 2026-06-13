@@ -26,19 +26,6 @@ export const PATHS = {
 } as const
 
 // =============================================================================
-// Environment Variables
-// =============================================================================
-
-export const ENV_VARS = {
-  /**
-   * Environment variable for Claude Code credentials.
-   * When set, the Agent SDK will automatically write this to ~/.claude/.credentials.json
-   * Value should be the JSON content of the credentials file (e.g., {"claudeAiOauth":{"accessToken":"..."}})
-   */
-  CLAUDE_CODE_CREDENTIALS: "CLAUDE_CODE_CREDENTIALS",
-} as const
-
-// =============================================================================
 // Sandbox Configuration
 // =============================================================================
 
@@ -51,23 +38,4 @@ export const SANDBOX_CONFIG = {
   DEFAULT_PREVIEW_PORT: 3000,
   /** Timeout in seconds for starting sandbox */
   START_TIMEOUT_SECONDS: 120,
-} as const
-
-// =============================================================================
-// Timeouts
-// =============================================================================
-
-export const TIMEOUTS = {
-  /** Agent query timeout - 5 minutes */
-  AGENT_QUERY: 300_000,
-  /** Sandbox creation timeout - 5 minutes */
-  SANDBOX_CREATE: 300_000,
-  /** Agent execution timeout - 1 minute */
-  AGENT_EXECUTE: 60_000,
-  /** Git operation timeout - 1 minute */
-  GIT_OPERATION: 60_000,
-  /** Default API timeout - 2 minutes */
-  DEFAULT_API: 120_000,
-  /** Polling interval for status checks - 1 second */
-  POLLING_INTERVAL: 1_000,
 } as const

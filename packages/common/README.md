@@ -138,7 +138,7 @@ import { cn } from "@background-agents/common"
 ### Constants
 
 ```typescript
-import { PATHS, SANDBOX_CONFIG, TIMEOUTS, ENV_VARS } from "@background-agents/common"
+import { PATHS, SANDBOX_CONFIG } from "@background-agents/common"
 ```
 
 ### Agent Icons
