@@ -16,9 +16,9 @@ import type { ProviderName } from "@background-agents/common"
 /** Free-tier daily limited-token budget per shared-pool provider. */
 export const FREE_DAILY_TOKEN_BUDGETS: Partial<Record<ProviderName, number>> = {
   // TODO(token-budgets): replace placeholders with tuned values.
-  claude: 200_000,
-  gemini: 500_000,
-  opencode: 300_000,
+  claude: 100_000,
+  gemini: 300_000,
+  opencode: 250_000,
 }
 
 /** Daily token budget for a provider, or null when unlimited. */
