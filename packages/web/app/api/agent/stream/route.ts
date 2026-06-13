@@ -2,7 +2,6 @@ import { createHash } from "node:crypto"
 import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@background-agents/daytona-git"
-import { agentToProvider, type Agent } from "@background-agents/common"
 import { PATHS } from "@/lib/constants"
 import {
   finalizeTurn,
@@ -13,8 +12,7 @@ import {
 import { prisma } from "@/lib/db/prisma"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { meterTurnUsage } from "@/lib/server/token-metering"
-import { readUsageMeta } from "@/lib/server/shared-pool"
+import { meterAssistantTurn } from "@/lib/server/token-metering"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 
@@ -312,19 +310,17 @@ export async function GET(req: Request) {
                   }),
                 ])
                 if (chatRow) {
-                  const usageMeta = readUsageMeta(asstMsg?.metadata)
-                  await meterTurnUsage(sandbox, {
+                  await meterAssistantTurn(sandbox, {
                     userId: chatRow.userId,
                     chatId,
                     messageId: assistantMessageId,
-                    provider:
-                      usageMeta?.provider ?? agentToProvider[chatRow.agent as Agent],
-                    pool: usageMeta?.pool ?? "user",
+                    messageMetadata: asstMsg?.metadata,
+                    agent: chatRow.agent,
                     sessionId: lastSnap.sessionId,
                   })
                 }
               } catch (err) {
-                console.error("[agent/stream] meterTurnUsage failed:", err)
+                console.error("[agent/stream] meterAssistantTurn failed:", err)
               }
             }
 

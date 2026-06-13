@@ -16,6 +16,8 @@
 
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
+import { agentToProvider, type Agent } from "@background-agents/common"
+
 import {
   getSessionCumulatives,
   insertTokenUsageRows,
@@ -24,6 +26,7 @@ import {
   type UsagePool,
 } from "@/lib/db/token-usage"
 import { isFreeModel } from "@/lib/server/usage-budgets"
+import { readUsageMeta } from "@/lib/server/shared-pool"
 
 /** `tokscale models --json --group-by session,model` entry shape (subset). */
 interface TokscaleEntry {
@@ -202,4 +205,35 @@ export async function meterTurnUsage(
   }
 
   return rows.length
+}
+
+/**
+ * Meter a finished assistant turn: resolve provider/pool from the message's
+ * stamped usage metadata (falling back to the chat's agent), then run tokscale.
+ * Shared by the SSE stream route and the lifecycle cron finalizers — no-ops when
+ * there's no session id.
+ */
+export async function meterAssistantTurn(
+  sandbox: DaytonaSandbox,
+  params: {
+    userId: string
+    chatId: string
+    messageId: string | null
+    /** The assistant Message.metadata (carries the stamped pool/provider). */
+    messageMetadata: unknown
+    /** chat.agent / job.agent — fallback when metadata is missing. */
+    agent: string
+    sessionId: string | null | undefined
+  }
+): Promise<number> {
+  if (!params.sessionId) return 0
+  const meta = readUsageMeta(params.messageMetadata)
+  return meterTurnUsage(sandbox, {
+    userId: params.userId,
+    chatId: params.chatId,
+    messageId: params.messageId,
+    provider: meta?.provider ?? agentToProvider[params.agent as Agent],
+    pool: meta?.pool ?? "user",
+    sessionId: params.sessionId,
+  })
 }

@@ -180,8 +180,7 @@ export async function sumSharedUsage(params: {
       provider,
       pool,
       createdAt: { gte: since },
-      // Free models are excluded from shared-pool budgets (they still count in
-      // overall totals — see sumTotalUsage).
+      // Free models are excluded from shared-pool budgets.
       ...(pool === "shared" ? { freeModel: false } : {}),
     },
     _sum: {
@@ -193,60 +192,4 @@ export async function sumSharedUsage(params: {
     },
   })
   return toTotals(agg._sum)
-}
-
-/**
- * Overall usage for a user since `since`, across BOTH pools and INCLUDING free
- * models — the "total tokens used" figure. Optionally scope to one provider.
- */
-export async function sumTotalUsage(params: {
-  userId: string
-  since: Date
-  provider?: string
-}): Promise<UsageTotals> {
-  const { userId, since, provider } = params
-  const agg = await prisma.tokenUsage.aggregate({
-    where: { userId, createdAt: { gte: since }, ...(provider ? { provider } : {}) },
-    _sum: {
-      inputTokens: true,
-      outputTokens: true,
-      reasoningTokens: true,
-      totalTokens: true,
-      costUsd: true,
-    },
-  })
-  return toTotals(agg._sum)
-}
-
-/**
- * Per-provider usage breakdown for a user from one pool since `since`.
- * Used by the usage UI to show all three shared pools at once.
- */
-export async function sumUsageByProvider(params: {
-  userId: string
-  since: Date
-  pool?: UsagePool
-}): Promise<Record<string, UsageTotals>> {
-  const { userId, since, pool = "shared" } = params
-  const grouped = await prisma.tokenUsage.groupBy({
-    by: ["provider"],
-    where: {
-      userId,
-      pool,
-      createdAt: { gte: since },
-      ...(pool === "shared" ? { freeModel: false } : {}),
-    },
-    _sum: {
-      inputTokens: true,
-      outputTokens: true,
-      reasoningTokens: true,
-      totalTokens: true,
-      costUsd: true,
-    },
-  })
-  const out: Record<string, UsageTotals> = {}
-  for (const g of grouped) {
-    out[g.provider] = toTotals(g._sum)
-  }
-  return out
 }

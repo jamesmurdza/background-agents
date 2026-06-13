@@ -2,14 +2,11 @@ import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@background-agents/daytona-git"
 
-import { agentToProvider, type Agent } from "@background-agents/common"
-
 import { prisma } from "@/lib/db/prisma"
 import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { meterTurnUsage } from "@/lib/server/token-metering"
-import { readUsageMeta } from "@/lib/server/shared-pool"
+import { meterAssistantTurn } from "@/lib/server/token-metering"
 
 import { getUserPushOptions } from "./push-options"
 import type { ChatWithMessages } from "./types"
@@ -54,17 +51,14 @@ export async function finalizeInteractiveChat(
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
       // Runs while the sandbox is still alive; attribution (pool/provider) is
       // read from the assistant message stamped at send time.
-      if (snapshot.sessionId) {
-        const meta = readUsageMeta(assistantMessage?.metadata)
-        await meterTurnUsage(sandbox, {
-          userId: chat.userId,
-          chatId: chat.id,
-          messageId: assistantMessage?.id ?? null,
-          provider: meta?.provider ?? agentToProvider[chat.agent as Agent],
-          pool: meta?.pool ?? "user",
-          sessionId: snapshot.sessionId,
-        })
-      }
+      await meterAssistantTurn(sandbox, {
+        userId: chat.userId,
+        chatId: chat.id,
+        messageId: assistantMessage?.id ?? null,
+        messageMetadata: assistantMessage?.metadata,
+        agent: chat.agent,
+        sessionId: snapshot.sessionId,
+      })
 
       // 3. Auto-push if chat has a branch (reuse existing logic from SSE stream)
       if (chat.branch && chat.repo && chat.repo !== "__new__") {

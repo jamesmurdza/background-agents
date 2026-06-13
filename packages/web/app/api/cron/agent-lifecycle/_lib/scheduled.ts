@@ -3,13 +3,13 @@ import { Prisma } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { format } from "date-fns"
 import { createSandboxGit } from "@background-agents/daytona-git"
-import { agentToProvider, getEnvForModel, type Agent } from "@background-agents/common"
+import { getEnvForModel, type Agent } from "@background-agents/common"
 
 import { prisma } from "@/lib/db/prisma"
 import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
-import { meterTurnUsage } from "@/lib/server/token-metering"
-import { buildUsageMeta, readUsageMeta } from "@/lib/server/shared-pool"
+import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
@@ -398,13 +398,12 @@ export async function finalizeScheduledRun(
           orderBy: { timestamp: "desc" },
           select: { id: true, metadata: true },
         })
-        const meta = readUsageMeta(assistantMessage?.metadata)
-        await meterTurnUsage(sandbox, {
+        await meterAssistantTurn(sandbox, {
           userId: job.userId,
           chatId: run.chatId,
           messageId: assistantMessage?.id ?? null,
-          provider: meta?.provider ?? agentToProvider[job.agent as Agent],
-          pool: meta?.pool ?? "user",
+          messageMetadata: assistantMessage?.metadata,
+          agent: job.agent,
           sessionId: snapshot.sessionId,
         })
       }
