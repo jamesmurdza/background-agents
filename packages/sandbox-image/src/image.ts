@@ -33,6 +33,20 @@ export const AGENT_PACKAGES = {
 } as const
 
 /**
+ * tokscale CLI version, pinned for reproducible snapshots and a stable
+ * `tokscale models --json` output shape. Used for post-turn token/cost
+ * metering — it reads each agent's native session files in the sandbox and
+ * reports token counts + cost per session/model (pricing bundled in the
+ * binary, so the web app owns no pricing code).
+ *
+ * The npm `tokscale` package is a thin alias for `@tokscale/cli`, whose binary
+ * ships via platform optionalDependencies (`@tokscale/cli-linux-x64-gnu` on
+ * this glibc/x64 image). A plain `npm install -g` therefore fully embeds the
+ * binary at build time — no runtime download.
+ */
+export const TOKSCALE_VERSION = "3.1.2"
+
+/**
  * Shell command to install Goose binary (not available via npm).
  */
 const GOOSE_INSTALL_CMD = `
@@ -56,6 +70,8 @@ const GOOSE_INSTALL_CMD = `
  * - Gemini (@google/gemini-cli)
  * - Pi (@mariozechner/pi-coding-agent)
  * - Goose (binary from GitHub releases)
+ *
+ * Also pre-installs tokscale (token/cost metering CLI; see TOKSCALE_VERSION).
  *
  * Note: Eliza is built-in to the agents package (no CLI installation needed).
  */
@@ -95,6 +111,11 @@ export function getAgentSandboxImage(): Image {
       .runCommands(
         // Install Kilo CLI
         "npm install -g @kilocode/cli"
+      )
+      .runCommands(
+        // Install tokscale (token/cost metering). Binary embeds at build time
+        // via @tokscale/cli's platform optionalDependency — no runtime download.
+        `npm install -g tokscale@${TOKSCALE_VERSION}`
       )
       // Create daytona user (non-root) - Claude Code refuses to run as root
       .runCommands(

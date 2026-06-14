@@ -5,17 +5,25 @@
 
 import { prisma } from "@/lib/db/prisma"
 import { isSharedPoolAvailable } from "@/lib/claude-credentials"
-import { hasExceededClaudeLimit, getDailyClaudeCodeLimit } from "@/lib/db/usage-limit"
+import { sumSharedUsage } from "@/lib/db/token-usage"
 import { decryptUserCredentials } from "@/lib/db/api-helpers"
+import {
+  getDailyTokenBudget,
+  getStartOfUtcDay,
+  getNextUtcDayReset,
+  getStartOfUtcWeek,
+  getNextUtcWeekReset,
+} from "@/lib/server/usage-budgets"
 import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags } from "@/lib/credentials"
 
 export interface EffectiveFlags {
   flags: CredentialFlags
   limitResetAt: Date | null
+  /** Remaining limited tokens (cache-excluded) for free users; null = unlimited. */
   limitRemaining: number | null
-  /** Number of shared Claude messages used in current period (daily for free, weekly for pro) */
+  /** Limited tokens used by the shared Claude pool this period (daily free / weekly pro). */
   limitUsed: number | null
-  /** Daily limit (10 for free users, null for pro/unlimited) */
+  /** Daily token budget for free users; null for pro/unlimited. */
   limitTotal: number | null
   /** Whether usage is tracked weekly (pro) vs daily (free) */
   isWeekly: boolean
@@ -66,6 +74,12 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // Preserve the conventional boolean presence flag for callers that expect it
   flags.OPENCODE_API_KEY = opencodeFromDb || opencodeFromEnv
 
+  // Same for GEMINI_API_KEY: a server env key (shared pool) should make Gemini
+  // show as available in the UI, not prompt for a key. Pool origin (shared vs
+  // user) is still resolved separately from stored creds, so flagging the env
+  // key here doesn't make it count as user-owned.
+  flags.GEMINI_API_KEY = !!storedCreds.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY
+
   if (await isSharedPoolAvailable()) {
     flags.CLAUDE_SHARED_POOL_AVAILABLE = true
   }
@@ -83,55 +97,34 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   let isWeekly = false
 
   if (usesSharedPool) {
-    const now = new Date()
-
+    // Limited tokens (cache-excluded) consumed from the shared Claude pool.
     if (isPro) {
-      // Pro users: track weekly usage (week starts Monday 00:00 UTC)
+      // Pro users: weekly usage for display only — no cap.
       isWeekly = true
-      const dayOfWeek = now.getUTCDay() // 0 = Sunday, 1 = Monday, ...
-      const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      const startOfWeek = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() - daysSinceMonday
-      ))
-
-      const weekCount = await prisma.activityLog.count({
-        where: {
-          userId,
-          action: "message_sent",
-          createdAt: { gte: startOfWeek },
-          metadata: { path: ["useSharedClaude"], equals: true },
-        },
+      const { limitedTokens } = await sumSharedUsage({
+        userId,
+        provider: "claude",
+        since: getStartOfUtcWeek(),
       })
-
-      limitUsed = weekCount
-      // Reset at next Monday 00:00 UTC
-      limitResetAt = new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000)
-      // Pro users: limitTotal and limitRemaining stay null (unlimited)
+      limitUsed = limitedTokens
+      limitResetAt = getNextUtcWeekReset()
+      // limitTotal / limitRemaining stay null (unlimited)
     } else {
-      // Free users: track daily usage
-      const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-
-      const todayCount = await prisma.activityLog.count({
-        where: {
-          userId,
-          action: "message_sent",
-          createdAt: { gte: startOfDay },
-          metadata: { path: ["useSharedClaude"], equals: true },
-        },
+      // Free users: daily token budget.
+      const { limitedTokens } = await sumSharedUsage({
+        userId,
+        provider: "claude",
+        since: getStartOfUtcDay(),
       })
+      limitUsed = limitedTokens
+      limitResetAt = getNextUtcDayReset()
 
-      limitUsed = todayCount
-      limitResetAt = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000)
-
-      // Free users have a daily limit
-      const dailyLimit = getDailyClaudeCodeLimit()
-      limitTotal = dailyLimit
-      limitRemaining = Math.max(0, dailyLimit - todayCount)
-
-      const exceeded = todayCount >= dailyLimit
-      flags.CLAUDE_DAILY_LIMIT_EXCEEDED = exceeded
+      const budget = getDailyTokenBudget("claude")
+      if (budget != null) {
+        limitTotal = budget
+        limitRemaining = Math.max(0, budget - limitedTokens)
+        flags.CLAUDE_DAILY_LIMIT_EXCEEDED = limitedTokens >= budget
+      }
     }
   }
 

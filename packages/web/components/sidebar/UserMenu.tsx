@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils"
 import { clearAllStorage } from "@/lib/storage"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useModals } from "@/lib/contexts"
-import { ClaudeUsageIndicator } from "./ClaudeUsageIndicator"
 
 interface UserMenuProps {
   user: {
@@ -17,18 +16,9 @@ interface UserMenuProps {
     isAdmin?: boolean
   }
   collapsed: boolean
-  /** Claude usage data */
-  claudeUsage?: {
-    used: number | null
-    remaining: number | null
-    total: number | null
-    isPro: boolean
-    resetAt: string | null
-    isWeekly: boolean
-  }
 }
 
-export function UserMenu({ user, collapsed, claudeUsage }: UserMenuProps) {
+export function UserMenu({ user, collapsed }: UserMenuProps) {
   const modals = useModals()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -77,19 +67,6 @@ export function UserMenu({ user, collapsed, claudeUsage }: UserMenuProps) {
           )}
           role="menu"
         >
-          {/* Claude usage indicator */}
-          {claudeUsage && claudeUsage.used !== null && (
-            <div className="px-3 py-2 border-b border-border">
-              <ClaudeUsageIndicator
-                used={claudeUsage.used}
-                remaining={claudeUsage.remaining}
-                total={claudeUsage.total}
-                isPro={claudeUsage.isPro}
-                resetAt={claudeUsage.resetAt}
-                isWeekly={claudeUsage.isWeekly}
-              />
-            </div>
-          )}
           {user.isAdmin && (
             <a
               href="/admin"

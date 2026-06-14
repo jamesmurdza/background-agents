@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/prisma"
 import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
+import { meterAssistantTurn } from "@/lib/server/token-metering"
 
 import { getUserPushOptions } from "./push-options"
 import type { ChatWithMessages } from "./types"
@@ -45,6 +46,18 @@ export async function finalizeInteractiveChat(
       const sandbox = await daytona.get(chat.sandboxId)
       await finalizeTurn(sandbox, chat.backgroundSessionId, {
         repoPath: `${PATHS.SANDBOX_HOME}/project`,
+      })
+
+      // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
+      // Runs while the sandbox is still alive; attribution (pool/provider) is
+      // read from the assistant message stamped at send time.
+      await meterAssistantTurn(sandbox, {
+        userId: chat.userId,
+        chatId: chat.id,
+        messageId: assistantMessage?.id ?? null,
+        messageMetadata: assistantMessage?.metadata,
+        agent: chat.agent,
+        sessionId: snapshot.sessionId,
       })
 
       // 3. Auto-push if chat has a branch (reuse existing logic from SSE stream)

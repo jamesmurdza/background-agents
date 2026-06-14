@@ -6,8 +6,10 @@ import { createSandboxGit } from "@background-agents/daytona-git"
 import { getEnvForModel, type Agent } from "@background-agents/common"
 
 import { prisma } from "@/lib/db/prisma"
-import { getUserCredentials } from "@/lib/db/api-helpers"
+import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
@@ -267,6 +269,17 @@ export async function startJobExecution(
   const assistantMessageId = randomUUID()
   const timestamp = BigInt(Date.now())
 
+  // Stamp the credential pool/provider so the run finalizer can attribute token
+  // usage. Resolve from DB-stored creds only (env keys read as shared).
+  const storedUser = await prisma.user.findUnique({
+    where: { id: job.userId },
+    select: { credentials: true },
+  })
+  const usageMeta = buildUsageMeta(
+    job.agent as Agent,
+    decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null)
+  )
+
   await prisma.message.createMany({
     data: [
       {
@@ -286,6 +299,7 @@ export async function startJobExecution(
         timestamp: timestamp + BigInt(1),
         agent: job.agent,
         model: job.model,
+        metadata: { usage: usageMeta } as unknown as Prisma.InputJsonValue,
       },
     ],
   })
@@ -373,6 +387,25 @@ export async function finalizeScheduledRun(
       // Finalize the agent turn
       if (run.backgroundSessionId) {
         await finalizeTurn(sandbox, run.backgroundSessionId, { repoPath })
+      }
+
+      // Meter token/cost usage via tokscale before the sandbox is deleted
+      // below (best-effort). Attribution comes from the assistant message
+      // stamped at run start.
+      if (run.chatId && snapshot.sessionId) {
+        const assistantMessage = await prisma.message.findFirst({
+          where: { chatId: run.chatId, role: "assistant" },
+          orderBy: { timestamp: "desc" },
+          select: { id: true, metadata: true },
+        })
+        await meterAssistantTurn(sandbox, {
+          userId: job.userId,
+          chatId: run.chatId,
+          messageId: assistantMessage?.id ?? null,
+          messageMetadata: assistantMessage?.metadata,
+          agent: job.agent,
+          sessionId: snapshot.sessionId,
+        })
       }
 
       // Repo-less sandboxes have no remote to compare against and nothing to

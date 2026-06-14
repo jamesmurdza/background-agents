@@ -147,6 +147,9 @@ export function usePaletteProps({
     onCreateRepo: currentChat?.repo === NEW_REPOSITORY ? handleCreateRepo : undefined,
     showGitCommands: hasRepo,
     onOpenInGitHub: githubBranchUrl ? handleOpenInGitHub : undefined,
+    onOpenChatUsage: displayCurrentChatId
+      ? () => modals.openChatUsage(displayCurrentChatId)
+      : undefined,
     onOpenSettings: modals.openSettingsSection,
     onToggleSidebar: !isMobile ? () => sidebar.toggleCollapse() : undefined,
     onSignIn: !session ? () => signInWithGitHub() : undefined,

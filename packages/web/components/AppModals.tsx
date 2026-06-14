@@ -8,6 +8,7 @@ import { ReAuthBanner } from "@/components/modals/ReAuthBanner"
 import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
+import { ChatUsageModal } from "@/components/modals/ChatUsageModal"
 import {
   MergeDialog,
   RebaseDialog,
@@ -66,7 +67,7 @@ interface AppModalsProps {
   onDeleteChat: (chatId: string) => void
 
   // Daily limit reached dialog
-  limitReachedState: { show: boolean; resetAt?: Date }
+  limitReachedState: { show: boolean; resetAt?: Date; provider?: string; used?: number | null; limit?: number | null }
   onDismissLimitReached: () => void
   onContinueWithOpenCode: () => void
 }
@@ -253,16 +254,32 @@ export function AppModals({
       <LimitReachedDialog
         open={limitReachedState.show}
         onClose={onDismissLimitReached}
+        provider={limitReachedState.provider}
+        used={limitReachedState.used}
+        limit={limitReachedState.limit}
         onContinueWithOpenCode={onContinueWithOpenCode}
         onAddApiKey={() => {
           onDismissLimitReached()
-          modals.openSettings("anthropic")
+          const key =
+            limitReachedState.provider === "gemini"
+              ? "gemini"
+              : limitReachedState.provider === "opencode"
+                ? "opencode"
+                : "anthropic"
+          modals.openSettings(key)
         }}
         onUpgradeToPro={() => {
           onDismissLimitReached()
           window.open("mailto:james@jamesmurdza.com?subject=Upgrade%20to%20Pro", "_blank")
         }}
         resetAt={limitReachedState.resetAt}
+        isMobile={isMobile}
+      />
+
+      {/* Per-chat token usage (opened from the command palette) */}
+      <ChatUsageModal
+        chatId={modals.chatUsageChatId}
+        onClose={modals.closeChatUsage}
         isMobile={isMobile}
       />
     </>

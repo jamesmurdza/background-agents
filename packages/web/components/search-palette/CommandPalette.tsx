@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor, Zap, Plug } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor, Zap, Plug, Gauge } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -52,6 +52,8 @@ interface CommandPaletteProps {
   showGitCommands?: boolean
   /** Omitted when the current chat has no pushed branch on GitHub. */
   onOpenInGitHub?: () => void
+  /** Show this chat's per-provider token usage. Omitted when no chat is active. */
+  onOpenChatUsage?: () => void
   onOpenSettings: (section?: SectionKey) => void
   onToggleSidebar?: () => void
   onSignIn?: () => void
@@ -100,6 +102,7 @@ export function CommandPalette({
   onCreateRepo,
   showGitCommands = true,
   onOpenInGitHub,
+  onOpenChatUsage,
   onOpenSettings,
   onToggleSidebar,
   onSignIn,
@@ -186,6 +189,12 @@ export function CommandPalette({
             <CommandItem value="open in github" onSelect={() => run(onOpenInGitHub)}>
               <Github className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Open in GitHub</span>
+            </CommandItem>
+          )}
+          {onOpenChatUsage && (
+            <CommandItem value="chat token usage tokens" onSelect={() => run(onOpenChatUsage)}>
+              <Gauge className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>Chat token usage</span>
             </CommandItem>
           )}
           {onCopyCloneCommand && (

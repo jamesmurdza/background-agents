@@ -480,6 +480,9 @@ export function useChatWithSync() {
             setLimitReachedState({
               show: true,
               pendingMessage: { chatId, content, files, planMode },
+              provider: result.provider,
+              used: result.used,
+              limit: result.limit,
               resetAt: result.resetAt ? new Date(result.resetAt) : undefined,
             })
             return

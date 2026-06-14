@@ -7,6 +7,7 @@ import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import {
   badRequest,
+  decryptUserCredentials,
   getChatWithAuth,
   getGitHubToken,
   getUserCredentials,
@@ -16,8 +17,9 @@ import {
   requireAuth,
   serverConfigError,
 } from "@/lib/db/api-helpers"
+import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { logActivityAsync } from "@/lib/db/activity-log"
-import { checkSharedClaudeUsage } from "@/lib/db/usage-limit"
+import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
@@ -158,35 +160,41 @@ export async function POST(
 
   let credentials = await getUserCredentials(userId)
 
-  // Shared-pool fallback: when Claude Code is selected and the user hasn't
-  // stored their own subscription token, inject the rotating credential blob
-  // written by /api/cron/refresh-claude-creds.
+  // Enforce the per-provider daily token budget on shared pools (free users
+  // only). Returns allowed=true for own-key runs, Pro users, and agents without
+  // a shared pool — so this is safe to call unconditionally.
+  const usageCheck = await checkSharedPoolUsage(userId, payload.agent as Agent)
+  if (!usageCheck.allowed) {
+    logActivityAsync(userId, "daily_limit_reached", {
+      provider: usageCheck.provider,
+      used: usageCheck.used,
+      limit: usageCheck.limit,
+      resetAt: usageCheck.resetAt.toISOString(),
+    })
+
+    return Response.json(
+      {
+        error: "DAILY_LIMIT_EXCEEDED",
+        message: usageCheck.error,
+        provider: usageCheck.provider,
+        used: usageCheck.used,
+        remaining: usageCheck.remaining,
+        limit: usageCheck.limit,
+        resetAt: usageCheck.resetAt.toISOString(),
+      },
+      { status: 429 }
+    )
+  }
+
+  // Shared-pool fallback for Claude Code: when the user hasn't stored their own
+  // subscription token, inject the rotating credential blob written by
+  // /api/cron/refresh-claude-creds. (Gemini/OpenCode shared keys come from
+  // process.env via getUserCredentials, so they need no injection here.)
   let useSharedClaude = false
   if (
     payload.agent === "claude-code" &&
     !credentials.CLAUDE_CODE_CREDENTIALS
   ) {
-    // Check daily usage limit for non-pro users
-    const usageCheck = await checkSharedClaudeUsage(userId)
-    if (!usageCheck.allowed) {
-      // Log that the user hit their daily limit
-      logActivityAsync(userId, "daily_limit_reached", {
-        limit: usageCheck.limit,
-        resetAt: usageCheck.resetAt.toISOString(),
-      })
-
-      return Response.json(
-        {
-          error: "DAILY_LIMIT_EXCEEDED",
-          message: usageCheck.error,
-          remaining: usageCheck.remaining,
-          limit: usageCheck.limit,
-          resetAt: usageCheck.resetAt.toISOString(),
-        },
-        { status: 429 }
-      )
-    }
-
     try {
       credentials = {
         ...credentials,
@@ -506,6 +514,18 @@ export async function POST(
       skills: discoveredSkills.length > 0 ? discoveredSkills : undefined,
     })
 
+    // Resolve the credential pool for this run (shared vs the user's own key)
+    // from DB-stored creds only — process.env keys must read as shared. Stamped
+    // on the assistant message so the turn finalizer (cron) can attribute usage.
+    const storedUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { credentials: true },
+    })
+    const usageMeta = buildUsageMeta(
+      payload.agent as Agent,
+      decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null)
+    )
+
     // ── Stage 5: persist messages + chat status (transactional) ────────────
     const now = Date.now()
     await prisma.$transaction(async (tx) => {
@@ -559,8 +579,11 @@ export async function POST(
           model: payload.model,
           toolCalls: [],
           contentBlocks: [],
+          metadata: { usage: usageMeta } as unknown as Prisma.InputJsonValue,
         },
-        update: {},
+        update: {
+          metadata: { usage: usageMeta } as unknown as Prisma.InputJsonValue,
+        },
       })
 
       await tx.chat.update({
