@@ -11,7 +11,7 @@ interface AgentIconProps {
 
 // Claude Code icon - Official Anthropic Claude AI logo
 // Source: https://github.com/simple-icons/simple-icons
-export function ClaudeCodeIcon({ className }: AgentIconProps) {
+function ClaudeCodeIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -29,7 +29,7 @@ export function ClaudeCodeIcon({ className }: AgentIconProps) {
 
 // Codex icon - Official OpenAI logo
 // Source: https://www.svgrepo.com/show/306500/openai.svg
-export function CodexIcon({ className }: AgentIconProps) {
+function CodexIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -47,7 +47,7 @@ export function CodexIcon({ className }: AgentIconProps) {
 
 // Copilot icon - GitHub Copilot logo
 // Source: https://github.com/simple-icons/simple-icons (GitHub Copilot)
-export function CopilotIcon({ className }: AgentIconProps) {
+function CopilotIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -66,7 +66,7 @@ export function CopilotIcon({ className }: AgentIconProps) {
 // OpenCode icon - Official OpenCode logo
 // Source: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/opencode.svg
 // Centered within square viewBox, background removed
-export function OpenCodeIcon({ className }: AgentIconProps) {
+function OpenCodeIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -96,7 +96,7 @@ export function OpenCodeIcon({ className }: AgentIconProps) {
 
 // Gemini icon - Google Gemini logo (stylized star)
 // Source: https://github.com/simple-icons/simple-icons
-export function GeminiIcon({ className }: AgentIconProps) {
+function GeminiIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -114,7 +114,7 @@ export function GeminiIcon({ className }: AgentIconProps) {
 
 // Goose icon - Official Goose AI agent logo by Block/AAIF
 // Source: https://github.com/aaif-goose/goose (glyph.svg)
-export function GooseIcon({ className }: AgentIconProps) {
+function GooseIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 600 600"
@@ -132,7 +132,7 @@ export function GooseIcon({ className }: AgentIconProps) {
 
 // ELIZA icon - Robot face with a friendly smile
 // Represents the classic ELIZA chatbot as a friendly robot therapist
-export function ElizaIcon({ className }: AgentIconProps) {
+function ElizaIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -179,7 +179,7 @@ export function ElizaIcon({ className }: AgentIconProps) {
 
 // Kilo icon - Official Kilo Code logo
 // Source: https://github.com/Kilo-Org/kilocode (kilo-v1.svg)
-export function KiloIcon({ className }: AgentIconProps) {
+function KiloIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 50 50"
@@ -197,7 +197,7 @@ export function KiloIcon({ className }: AgentIconProps) {
 
 // Pi icon - Official Pi Coding Agent logo
 // Source: https://shittycodingagent.ai/logo.svg
-export function PiIcon({ className }: AgentIconProps) {
+function PiIcon({ className }: AgentIconProps) {
   return (
     <svg
       viewBox="0 0 800 800"

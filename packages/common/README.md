@@ -161,21 +161,10 @@ import { PATHS, SANDBOX_CONFIG } from "@background-agents/common"
 
 ### Agent Icons
 
-React components for displaying agent icons.
+A React component for displaying an agent's icon by agent type.
 
 ```typescript
-import {
-  ClaudeCodeIcon,
-  CodexIcon,
-  CopilotIcon,
-  OpenCodeIcon,
-  GeminiIcon,
-  GooseIcon,
-  KiloIcon,
-  ElizaIcon,
-  PiIcon,
-  AgentIcon,
-} from "@background-agents/common"
+import { AgentIcon } from "@background-agents/common"
 ```
 
 ### Search Palette

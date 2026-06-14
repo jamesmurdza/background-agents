@@ -96,18 +96,7 @@ export {
 } from "./git-operations"
 
 // Agent icons
-export {
-  ClaudeCodeIcon,
-  CodexIcon,
-  CopilotIcon,
-  OpenCodeIcon,
-  GeminiIcon,
-  GooseIcon,
-  KiloIcon,
-  ElizaIcon,
-  PiIcon,
-  AgentIcon,
-} from "./agent-icons"
+export { AgentIcon } from "./agent-icons"
 
 // Search palette
 export {
