@@ -169,13 +169,11 @@ function getToolDetail(toolName: string, input: unknown): ToolDetailResult {
 /** Maximum characters to store/display for a single multi-line tool output. */
 const TOOL_OUTPUT_MAX_CHARS = 4000
 
-export interface BuildContentBlocksResult {
+export function buildContentBlocks(events: Event[]): {
   content: string
   toolCalls: ToolCall[]
   contentBlocks: ContentBlock[]
-}
-
-export function buildContentBlocks(events: Event[]): BuildContentBlocksResult {
+} {
   const blocks: ContentBlock[] = []
   let pendingText = ""
   let pendingToolCalls: ToolCall[] = []
