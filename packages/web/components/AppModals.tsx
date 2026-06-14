@@ -8,6 +8,7 @@ import { ReAuthBanner } from "@/components/modals/ReAuthBanner"
 import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
+import { ChatUsageModal } from "@/components/modals/ChatUsageModal"
 import {
   MergeDialog,
   RebaseDialog,
@@ -272,6 +273,13 @@ export function AppModals({
           window.open("mailto:james@jamesmurdza.com?subject=Upgrade%20to%20Pro", "_blank")
         }}
         resetAt={limitReachedState.resetAt}
+        isMobile={isMobile}
+      />
+
+      {/* Per-chat token usage (opened from the command palette) */}
+      <ChatUsageModal
+        chatId={modals.chatUsageChatId}
+        onClose={modals.closeChatUsage}
         isMobile={isMobile}
       />
     </>

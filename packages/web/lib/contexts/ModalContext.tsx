@@ -54,6 +54,12 @@ export interface ModalContextValue {
   // Re-auth modal
   reAuthModalOpen: boolean
   setReAuthModalOpen: (open: boolean) => void
+
+  // Per-chat token usage modal (opened from the command palette). Holds the
+  // chat id to show usage for; null when closed.
+  chatUsageChatId: string | null
+  openChatUsage: (chatId: string) => void
+  closeChatUsage: () => void
 }
 
 interface ModalProviderProps {
@@ -96,6 +102,11 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
 
   // Re-auth modal
   const [reAuthModalOpen, setReAuthModalOpen] = useState(false)
+
+  // Per-chat token usage modal
+  const [chatUsageChatId, setChatUsageChatId] = useState<string | null>(null)
+  const openChatUsage = useCallback((chatId: string) => setChatUsageChatId(chatId), [])
+  const closeChatUsage = useCallback(() => setChatUsageChatId(null), [])
 
   // Handler for opening settings (optionally with a highlighted API key field)
   const openSettings = useCallback((highlightKey?: HighlightKey) => {
@@ -171,6 +182,11 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
     // Re-auth modal
     reAuthModalOpen,
     setReAuthModalOpen,
+
+    // Per-chat token usage modal
+    chatUsageChatId,
+    openChatUsage,
+    closeChatUsage,
   }
 
   return <ModalContext.Provider value={value}>{children}</ModalContext.Provider>

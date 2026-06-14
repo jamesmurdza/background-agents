@@ -38,6 +38,7 @@ interface PaletteProviderProps {
   onCreateRepo?: () => void
   showGitCommands?: boolean
   onOpenInGitHub?: () => void
+  onOpenChatUsage?: () => void
   onOpenSettings: (section?: SectionKey) => void
   onToggleSidebar?: () => void
   onSignIn?: () => void
@@ -85,6 +86,7 @@ export function PaletteProvider({
   onCreateRepo,
   showGitCommands,
   onOpenInGitHub,
+  onOpenChatUsage,
   onOpenSettings,
   onToggleSidebar,
   onSignIn,
@@ -246,6 +248,7 @@ export function PaletteProvider({
         onCreateRepo={onCreateRepo}
         showGitCommands={showGitCommands}
         onOpenInGitHub={onOpenInGitHub}
+        onOpenChatUsage={onOpenChatUsage}
         onOpenSettings={onOpenSettings}
         onToggleSidebar={onToggleSidebar}
         onSignIn={onSignIn}

@@ -162,6 +162,36 @@ function toTotals(sum: {
   }
 }
 
+/** Per-provider token total for a single chat. */
+export interface ChatProviderUsage {
+  provider: string
+  totalTokens: number
+  costUsd: number
+}
+
+/**
+ * Total tokens/cost recorded for one chat, grouped by provider (all pools,
+ * including cache and free models — this is a usage view, not a budget check).
+ * Sorted by token count descending; providers with no usage are omitted.
+ */
+export async function sumChatUsageByProvider(
+  chatId: string
+): Promise<ChatProviderUsage[]> {
+  const grouped = await prisma.tokenUsage.groupBy({
+    by: ["provider"],
+    where: { chatId },
+    _sum: { totalTokens: true, costUsd: true },
+  })
+  return grouped
+    .map((g) => ({
+      provider: g.provider,
+      totalTokens: g._sum.totalTokens ?? 0,
+      costUsd: g._sum.costUsd ?? 0,
+    }))
+    .filter((p) => p.totalTokens > 0)
+    .sort((a, b) => b.totalTokens - a.totalTokens)
+}
+
 /**
  * Sum a user's usage from one pool for a given provider since `since`.
  * This is the limiter's aggregation query (indexed by
