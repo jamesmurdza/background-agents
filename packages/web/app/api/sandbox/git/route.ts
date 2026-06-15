@@ -1,11 +1,136 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/daytona-git"
+import type { SandboxLike, SandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
+
+/**
+ * Push the sandbox's current HEAD to its remote branch via a throwaway temp branch.
+ *
+ * GitHub's update-ref API requires the SHA to already exist on GitHub, and the
+ * sandbox token can't force-push directly. So we push HEAD to a temp branch first
+ * (a non-force push, always allowed) to ship the objects, then PATCH the real
+ * branch ref to that SHA, then delete the temp remote branch.
+ *
+ * Shared by the "rebase" and "force-push" actions, which differ only in the
+ * user-facing labels and the success message.
+ */
+async function syncHeadToRemoteBranch(opts: {
+  sandbox: SandboxLike
+  git: SandboxGit
+  repoPath: string
+  currentBranch: string
+  githubToken: string
+  userId: string
+  repoOwner: string
+  repoApiName: string
+  chatId?: string
+  /** Prefixes failure messages, e.g. "Rebase" or "Force push". */
+  label: string
+  /** Describes the push step in errors, e.g. "push rebased commits". */
+  pushAction: string
+  /** Distinguishes temp branch names, e.g. "rebase" or "force-push". */
+  tempBranchPrefix: string
+  /** Chat message shown on success. */
+  successMessage: string
+}): Promise<Response> {
+  const {
+    sandbox, git, repoPath, currentBranch, githubToken, userId,
+    repoOwner, repoApiName, chatId, label, pushAction, tempBranchPrefix, successMessage,
+  } = opts
+
+  const shaResult = await sandbox.process.executeCommand(
+    `cd ${repoPath} && git rev-parse HEAD 2>&1`
+  )
+  if (shaResult.exitCode !== 0) {
+    if (chatId) {
+      await createGitOperationMessage(chatId, `${label} failed: could not read HEAD.`, true)
+    }
+    return Response.json({ error: "Failed to get HEAD: " + shaResult.result }, { status: 500 })
+  }
+  const sha = shaResult.result.trim()
+
+  const tempBranch = `_cleanup/${tempBranchPrefix}-${Date.now()}`
+  const createBranchResult = await sandbox.process.executeCommand(
+    `cd ${repoPath} && git checkout -b ${tempBranch} 2>&1`
+  )
+  if (createBranchResult.exitCode !== 0) {
+    if (chatId) {
+      await createGitOperationMessage(chatId, `${label} failed: could not create temp branch (${createBranchResult.result.trim()}).`, true)
+    }
+    return Response.json({ error: "Failed to create temp branch: " + createBranchResult.result }, { status: 500 })
+  }
+
+  try {
+    let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    })
+    if (user?.settings) {
+      const s = user.settings as Partial<Settings>
+      enablePrepushHooks = s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks
+    }
+    await git.push(repoPath, githubToken, { noVerify: !enablePrepushHooks })
+  } catch (pushErr) {
+    await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
+    await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
+    const errMsg = pushErr instanceof Error ? pushErr.message : String(pushErr)
+    if (chatId) {
+      await createGitOperationMessage(chatId, `${label} failed: could not ${pushAction} (${errMsg}).`, true)
+    }
+    return Response.json({ error: `Failed to ${pushAction}: ` + errMsg }, { status: 500 })
+  }
+
+  await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
+  await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
+
+  const refRes = await fetch(
+    `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify({ sha, force: true }),
+    }
+  )
+
+  for (let i = 0; i < 3; i++) {
+    const deleteRes = await fetch(
+      `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${tempBranch}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      }
+    )
+    if (deleteRes.ok || deleteRes.status === 404) break
+    if (i < 2) await new Promise(r => setTimeout(r, 500 * (i + 1)))
+  }
+
+  if (!refRes.ok) {
+    const refData = await refRes.json().catch(() => ({}))
+    const errMsg = (refData as { message?: string }).message || String(refRes.status)
+    if (chatId) {
+      await createGitOperationMessage(chatId, `${label} failed: ${errMsg}.`, true)
+    }
+    return Response.json({ error: `${label} failed: ` + errMsg }, { status: 500 })
+  }
+
+  if (chatId) {
+    await createGitOperationMessage(chatId, successMessage, false, undefined, currentBranch)
+  }
+
+  return Response.json({ success: true })
+}
 
 export async function POST(req: Request) {
   const ghAuth = await requireGitHubAuth()
@@ -273,107 +398,15 @@ export async function POST(req: Request) {
           return Response.json({ error: "Rebase failed: " + rebaseResult.result }, { status: 500 })
         }
 
-        // Update the remote branch.
-        //
-        // GitHub's update-ref API requires the SHA to already exist on GitHub,
-        // but the sandbox token can't force-push directly. So we push the
-        // rebased commits to a temp branch first (non-force push, always
-        // allowed) to ship the objects, then PATCH the real branch ref to
-        // that SHA, then delete the temp remote branch.
-        const shaResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git rev-parse HEAD 2>&1`
-        )
-        if (shaResult.exitCode !== 0) {
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Rebase failed: could not read HEAD.`, true)
-          }
-          return Response.json({ error: "Failed to get HEAD: " + shaResult.result }, { status: 500 })
-        }
-        const sha = shaResult.result.trim()
-
-        const tempBranch = `_cleanup/rebase-${Date.now()}`
-        const createBranchResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git checkout -b ${tempBranch} 2>&1`
-        )
-        if (createBranchResult.exitCode !== 0) {
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Rebase failed: could not create temp branch (${createBranchResult.result.trim()}).`, true)
-          }
-          return Response.json({ error: "Failed to create temp branch: " + createBranchResult.result }, { status: 500 })
-        }
-
-        try {
-          let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { settings: true },
-          })
-          if (user?.settings) {
-            const s = user.settings as Partial<Settings>
-            enablePrepushHooks = s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks
-          }
-          await git.push(repoPath, githubToken, { noVerify: !enablePrepushHooks })
-        } catch (pushErr) {
-          await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
-          await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
-          const errMsg = pushErr instanceof Error ? pushErr.message : String(pushErr)
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Rebase failed: could not push rebased commits (${errMsg}).`, true)
-          }
-          return Response.json({ error: "Failed to push rebased commits: " + errMsg }, { status: 500 })
-        }
-
-        await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
-        await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
-
-        const refRes = await fetch(
-          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${githubToken}`,
-              Accept: "application/vnd.github.v3+json",
-            },
-            body: JSON.stringify({ sha, force: true }),
-          }
-        )
-
-        for (let i = 0; i < 3; i++) {
-          const deleteRes = await fetch(
-            `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${tempBranch}`,
-            {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${githubToken}`,
-                Accept: "application/vnd.github.v3+json",
-              },
-            }
-          )
-          if (deleteRes.ok || deleteRes.status === 404) break
-          if (i < 2) await new Promise(r => setTimeout(r, 500 * (i + 1)))
-        }
-
-        if (!refRes.ok) {
-          const refData = await refRes.json().catch(() => ({}))
-          const errMsg = (refData as { message?: string }).message || String(refRes.status)
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Rebase failed: ${errMsg}.`, true)
-          }
-          return Response.json({ error: "Rebase failed: " + errMsg }, { status: 500 })
-        }
-
-        // Success
-        if (chatId) {
-          await createGitOperationMessage(
-            chatId,
-            `Rebased ${currentBranch} onto ${targetBranch}.`,
-            false,
-            undefined,
-            currentBranch
-          )
-        }
-
-        return Response.json({ success: true })
+        // Ship the rebased history to the remote branch.
+        return await syncHeadToRemoteBranch({
+          sandbox, git, repoPath, currentBranch, githubToken, userId,
+          repoOwner, repoApiName, chatId,
+          label: "Rebase",
+          pushAction: "push rebased commits",
+          tempBranchPrefix: "rebase",
+          successMessage: `Rebased ${currentBranch} onto ${targetBranch}.`,
+        })
       }
 
       case "abort-rebase": {
@@ -432,112 +465,18 @@ export async function POST(req: Request) {
 
       case "force-push": {
         // Force-push to sync diverged history while preserving PRs.
-        // GitHub's update-ref API requires the SHA to already exist on GitHub,
-        // so we push to a temp branch first to ship the objects, then PATCH the
-        // real branch ref to that SHA, then delete the temp remote branch.
         if (!currentBranch || !repoOwner || !repoApiName) {
           return Response.json({ error: "Missing required fields for force-push" }, { status: 400 })
         }
 
-        const shaResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git rev-parse HEAD 2>&1`
-        )
-        if (shaResult.exitCode !== 0) {
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Force push failed: could not read HEAD.`, true)
-          }
-          return Response.json({ error: "Failed to get HEAD: " + shaResult.result }, { status: 500 })
-        }
-        const sha = shaResult.result.trim()
-
-        const tempBranch = `_cleanup/force-push-${Date.now()}`
-        const createBranchResult = await sandbox.process.executeCommand(
-          `cd ${repoPath} && git checkout -b ${tempBranch} 2>&1`
-        )
-        if (createBranchResult.exitCode !== 0) {
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Force push failed: could not create temp branch (${createBranchResult.result.trim()}).`, true)
-          }
-          return Response.json({ error: "Failed to create temp branch: " + createBranchResult.result }, { status: 500 })
-        }
-
-        try {
-          // Get user settings for push options
-          let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { settings: true },
-          })
-          if (user?.settings) {
-            const s = user.settings as Partial<Settings>
-            enablePrepushHooks = s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks
-          }
-          await git.push(repoPath, githubToken, { noVerify: !enablePrepushHooks })
-        } catch (pushErr) {
-          await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
-          await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
-          const errMsg = pushErr instanceof Error ? pushErr.message : String(pushErr)
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Force push failed: could not push temp branch (${errMsg}).`, true)
-          }
-          return Response.json({
-            error: "Failed to push temp branch: " + errMsg
-          }, { status: 500 })
-        }
-
-        await sandbox.process.executeCommand(`cd ${repoPath} && git checkout ${currentBranch} 2>&1`)
-        await sandbox.process.executeCommand(`cd ${repoPath} && git branch -D ${tempBranch} 2>&1`)
-
-        const refRes = await fetch(
-          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${githubToken}`,
-              Accept: "application/vnd.github.v3+json",
-            },
-            body: JSON.stringify({ sha, force: true }),
-          }
-        )
-
-        for (let i = 0; i < 3; i++) {
-          const deleteRes = await fetch(
-            `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${tempBranch}`,
-            {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${githubToken}`,
-                Accept: "application/vnd.github.v3+json",
-              },
-            }
-          )
-          if (deleteRes.ok || deleteRes.status === 404) break
-          if (i < 2) await new Promise(r => setTimeout(r, 500 * (i + 1)))
-        }
-
-        if (!refRes.ok) {
-          const refData = await refRes.json().catch(() => ({}))
-          const errMsg = (refData as { message?: string }).message || String(refRes.status)
-          if (chatId) {
-            await createGitOperationMessage(chatId, `Force push failed: ${errMsg}.`, true)
-          }
-          return Response.json({
-            error: "Force push failed: " + errMsg
-          }, { status: 500 })
-        }
-
-        // Success
-        if (chatId) {
-          await createGitOperationMessage(
-            chatId,
-            `Force pushed ${currentBranch}.`,
-            false,
-            undefined,
-            currentBranch
-          )
-        }
-
-        return Response.json({ success: true })
+        return await syncHeadToRemoteBranch({
+          sandbox, git, repoPath, currentBranch, githubToken, userId,
+          repoOwner, repoApiName, chatId,
+          label: "Force push",
+          pushAction: "push temp branch",
+          tempBranchPrefix: "force-push",
+          successMessage: `Force pushed ${currentBranch}.`,
+        })
       }
 
       case "delete-remote-branch": {
