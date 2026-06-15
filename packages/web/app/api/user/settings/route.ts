@@ -17,6 +17,7 @@ import {
 } from "@/lib/credentials"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
+import type { EffectiveFlags } from "@/lib/server/credential-flags"
 
 interface SettingsResponse {
   settings: Settings
@@ -33,6 +34,20 @@ interface SettingsResponse {
   claudeIsPro: boolean
   /** Whether usage is tracked weekly (pro) vs daily (free) */
   claudeIsWeekly: boolean
+}
+
+/** Combine resolved settings with effective credential flags into the API response. */
+function buildSettingsResponse(settings: Settings, effective: EffectiveFlags): SettingsResponse {
+  return {
+    settings,
+    credentialFlags: effective.flags,
+    claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
+    claudeLimitRemaining: effective.limitRemaining,
+    claudeLimitUsed: effective.limitUsed,
+    claudeLimitTotal: effective.limitTotal,
+    claudeIsPro: effective.isPro,
+    claudeIsWeekly: effective.isWeekly,
+  }
 }
 
 function readSettings(raw: unknown): Settings {
@@ -66,17 +81,7 @@ export async function GET(): Promise<Response> {
 
     const effective = await (await import("@/lib/server/credential-flags")).getEffectiveCredentialFlags(userId)
 
-    const response: SettingsResponse = {
-      settings: readSettings(user?.settings),
-      credentialFlags: effective.flags,
-      claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
-      claudeLimitRemaining: effective.limitRemaining,
-      claudeLimitUsed: effective.limitUsed,
-      claudeLimitTotal: effective.limitTotal,
-      claudeIsPro: effective.isPro,
-      claudeIsWeekly: effective.isWeekly,
-    }
-    return Response.json(response)
+    return Response.json(buildSettingsResponse(readSettings(user?.settings), effective))
   } catch (error) {
     return internalError(error)
   }
@@ -143,17 +148,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     // After updating credentials, recompute effective flags
     const effective = await (await import("@/lib/server/credential-flags")).getEffectiveCredentialFlags(userId)
 
-    const response: SettingsResponse = {
-      settings: newSettings,
-      credentialFlags: effective.flags,
-      claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
-      claudeLimitRemaining: effective.limitRemaining,
-      claudeLimitUsed: effective.limitUsed,
-      claudeLimitTotal: effective.limitTotal,
-      claudeIsPro: effective.isPro,
-      claudeIsWeekly: effective.isWeekly,
-    }
-    return Response.json(response)
+    return Response.json(buildSettingsResponse(newSettings, effective))
   } catch (error) {
     return internalError(error)
   }
