@@ -18,6 +18,7 @@ import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 import { agentToProvider, type Agent } from "@background-agents/common"
 
+import { prisma } from "@/lib/db/prisma"
 import {
   getSessionCumulatives,
   insertTokenUsageRows,
@@ -145,6 +146,24 @@ export async function meterTurnUsage(
   }
 
   const prior = await getSessionCumulatives(sessionId)
+
+  // First-ever capture of a session. If the chat already has assistant turns
+  // that predate metering, tokscale's cumulative covers that whole backlog —
+  // charging it as this turn's delta would bill the entire history against
+  // today's budget and lock the user out. Detect that case and backdate the
+  // baseline rows: they still advance the diff cursor (getSessionCumulatives
+  // has no date filter) but fall outside every budget window (sumSharedUsage
+  // filters createdAt >= start of day). Only turns after the baseline charge.
+  let baselineAt: Date | undefined
+  if (prior.size === 0) {
+    const assistantTurns = await prisma.message.count({
+      where: { chatId, role: "assistant" },
+    })
+    // >1 ⇒ turns existed before this one (and before metering) ⇒ pre-existing
+    // chat. Exactly 1 ⇒ this is the chat's first turn ⇒ charge normally.
+    if (assistantTurns > 1) baselineAt = new Date(0)
+  }
+
   const rows: TokenUsageInsert[] = []
 
   for (const e of entries) {
@@ -192,6 +211,7 @@ export async function meterTurnUsage(
       sessionId,
       cumulativeTotal: Math.round(cumulativeTokens),
       cumulativeCost: e.cost,
+      createdAt: baselineAt,
     })
   }
 

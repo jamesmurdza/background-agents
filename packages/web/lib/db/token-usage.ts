@@ -38,6 +38,12 @@ export interface TokenUsageInsert {
   /** Cumulative session+model totals at capture time (the next diff cursor). */
   cumulativeTotal: number
   cumulativeCost: number
+  /**
+   * Override the row timestamp. Used to backdate baseline rows (the first
+   * capture of a session that predates metering) so they advance the diff
+   * cursor but fall outside every daily/weekly budget window. Defaults to now.
+   */
+  createdAt?: Date
 }
 
 /** Prior cumulative totals for one (session, model) pair, per component. */
@@ -131,6 +137,7 @@ export async function insertTokenUsageRows(
       sessionId: r.sessionId,
       cumulativeTotal: r.cumulativeTotal,
       cumulativeCost: r.cumulativeCost,
+      ...(r.createdAt ? { createdAt: r.createdAt } : {}),
     })),
   })
 }
