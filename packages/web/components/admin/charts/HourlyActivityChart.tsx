@@ -11,6 +11,7 @@ import {
   Cell,
 } from "recharts"
 import { chartTooltipProps, barTooltipCursor } from "./chartTooltip"
+import { formatHour } from "./chartFormatters"
 
 interface HourlyActivityData {
   hour: number
@@ -47,13 +48,6 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
     const lightness = 75 - intensity * 30
     const saturation = 40 + intensity * 40
     return `hsl(262, ${saturation}%, ${lightness}%)`
-  }
-
-  const formatHour = (hour: number) => {
-    if (hour === 0) return "12a"
-    if (hour === 12) return "12p"
-    if (hour < 12) return `${hour}a`
-    return `${hour - 12}p`
   }
 
   return (

@@ -133,16 +133,3 @@ export function toScheduledJobResponse(
     incomingToken: job.incomingToken ?? null,
   }
 }
-
-// =============================================================================
-// Formatting helpers
-// =============================================================================
-
-/**
- * Format interval in minutes to human-readable string
- */
-export function formatInterval(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  if (minutes < 1440) return `${Math.round(minutes / 60)}h`
-  return `${Math.round(minutes / 1440)}d`
-}
