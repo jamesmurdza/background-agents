@@ -114,7 +114,7 @@ import { WebSocketTerminal } from '@background-agents/daytona-terminal'
 | `onError` | `(error: Error) => void` | - | Called on error |
 | `theme` | `object` | - | Terminal color theme |
 | `fontSize` | `number` | `13` | Font size in pixels |
-| `fontFamily` | `string` | `'Menlo, Monaco, ...'` | Font family |
+| `fontFamily` | `string` | `'Menlo, Monaco, "Courier New", monospace'` | Font family |
 
 ### Server Code (Advanced)
 

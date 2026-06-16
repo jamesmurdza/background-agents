@@ -17,6 +17,8 @@ Pre-installed agents:
 - **Pi** (`@mariozechner/pi-coding-agent`)
 - **Goose** (binary from GitHub releases)
 
+The image also pre-installs [`tokscale`](https://www.npmjs.com/package/tokscale) (pinned via `TOKSCALE_VERSION`) for post-turn token/cost metering.
+
 The image is based on `node:22-bookworm` and runs as a non-root `daytona` user (Claude Code refuses to run as root).
 
 ## Installation
@@ -56,6 +58,7 @@ const sandbox = await daytona.create({
 import {
   getAgentSandboxImage, // Builds the Daytona Image spec
   AGENT_PACKAGES,       // Map of agent name -> npm package
+  TOKSCALE_VERSION,     // Pinned tokscale (token/cost metering) CLI version
   SNAPSHOT_NAME,        // Registered snapshot name ("background-agents")
   SNAPSHOT_RESOURCES,   // { cpu, memory, disk } defaults
 } from "@background-agents/sandbox-image"
