@@ -60,6 +60,13 @@ export type CredentialId =
   | "OPENCODE_API_KEY"
   | "GEMINI_API_KEY"
   | "KILO_API_KEY"
+  // Custom Anthropic-compatible endpoint ("Custom model" tab). Stored encrypted
+  // like every other credential; mapped to the standard ANTHROPIC_* env vars at
+  // injection time (see getEnvForModel / buildCustomModelEnv). Auth (API key or
+  // bearer token) is supplied through CUSTOM_MODEL_HEADERS, not a dedicated field.
+  | "CUSTOM_MODEL_BASE_URL"
+  | "CUSTOM_MODEL_HEADERS"
+  | "CUSTOM_MODEL_NAME"
 
 export type CredentialFlags = Partial<Record<CredentialId, boolean>> & {
   // Server has a shared Claude credential pool (e.g. the rotating row written
@@ -94,9 +101,20 @@ const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
 export interface ModelOption {
   value: string
   label: string
-  /** Which provider's API key is required for this model. "none" means no key needed. */
-  requiresKey?: ProviderId | "none"
+  /**
+   * Which provider's API key is required for this model. "none" means no key
+   * needed. "custom" means the user-configured custom Anthropic endpoint (see
+   * the CUSTOM_MODEL_* credentials).
+   */
+  requiresKey?: ProviderId | "none" | "custom"
 }
+
+/**
+ * Sentinel model value for the user-configured custom Anthropic endpoint.
+ * When selected (claude-code only), the stored CUSTOM_MODEL_* credentials are
+ * injected as ANTHROPIC_* env vars instead of the shared pool / API key.
+ */
+export const CUSTOM_MODEL_VALUE = "custom"
 
 /**
  * Models allowed to run on the server-shared OpenCode API key.
@@ -129,6 +147,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "sonnet", label: "Sonnet", requiresKey: "anthropic" },
     { value: "opus", label: "Opus", requiresKey: "anthropic" },
     { value: "haiku", label: "Haiku", requiresKey: "anthropic" },
+    { value: CUSTOM_MODEL_VALUE, label: "Custom model", requiresKey: "custom" },
   ],
   "eliza": [
     { value: "eliza-classic-1.0", label: "Eliza Classic", requiresKey: "none" },
@@ -337,6 +356,12 @@ export function hasCredentialsForModel(
   agent?: Agent
 ): boolean {
   if (!model.requiresKey || model.requiresKey === "none") return true
+  if (model.requiresKey === "custom") {
+    // Custom endpoint is usable once a base URL is configured. Auth, if the
+    // endpoint needs it, is supplied via custom headers (x-api-key /
+    // Authorization) — see buildCustomModelEnv — so it isn't required here.
+    return !!flags?.CUSTOM_MODEL_BASE_URL
+  }
   if (model.requiresKey === "anthropic") {
     // OpenCode and Pi require an API key — they can't drive a subscription session.
     if (agent === "opencode" || agent === "pi") return !!flags?.ANTHROPIC_API_KEY
@@ -391,6 +416,12 @@ export function getEnvForModel(
   agent: Agent | undefined,
   credentials: Credentials
 ): Record<string, string> {
+  // Custom Anthropic endpoint wins over everything (incl. the shared pool /
+  // subscription token) when the user explicitly selects the custom model.
+  if ((!agent || agent === "claude-code") && model === CUSTOM_MODEL_VALUE) {
+    return buildCustomModelEnv(credentials)
+  }
+
   // Claude Code: subscription token wins over API key.
   if ((!agent || agent === "claude-code") && credentials.CLAUDE_CODE_CREDENTIALS) {
     return { CLAUDE_CODE_CREDENTIALS: credentials.CLAUDE_CODE_CREDENTIALS }
@@ -398,6 +429,7 @@ export function getEnvForModel(
 
   const opt = agent ? (agentModels[agent] ?? []).find((m) => m.value === model) : undefined
   if (!opt?.requiresKey || opt.requiresKey === "none") return {}
+  if (opt.requiresKey === "custom") return buildCustomModelEnv(credentials)
 
   const env: Record<string, string> = {}
   for (const id of PROVIDER_ENV[opt.requiresKey]) {
@@ -406,6 +438,86 @@ export function getEnvForModel(
   }
   if (env.GEMINI_API_KEY) env.GOOGLE_API_KEY = env.GEMINI_API_KEY
   return env
+}
+
+export interface ParsedCustomHeaders {
+  /** Value of an `x-api-key:` line, mapped to ANTHROPIC_API_KEY. */
+  apiKey?: string
+  /** Value of an `Authorization:` line (any `Bearer ` prefix stripped), mapped to ANTHROPIC_AUTH_TOKEN. */
+  authToken?: string
+  /** The remaining (non-auth) headers as a cleaned blob, or undefined if none. */
+  headers?: string
+}
+
+/**
+ * Parse a user-supplied custom-headers blob (newline-separated `Name: Value`
+ * pairs). Auth headers are promoted to the canonical env vars the Claude CLI
+ * understands so the run actually authenticates (and the CLI starts):
+ *   `x-api-key: …`      → apiKey   (→ ANTHROPIC_API_KEY)
+ *   `Authorization: …`  → authToken (→ ANTHROPIC_AUTH_TOKEN, `Bearer ` stripped)
+ * `anthropic-version` is dropped (the CLI manages it). Everything else passes
+ * through as additional request headers. Malformed/empty lines are ignored.
+ */
+export function parseCustomHeaders(raw: string): ParsedCustomHeaders {
+  let apiKey: string | undefined
+  let authToken: string | undefined
+  const kept: string[] = []
+  for (const line of raw.split("\n").map((l) => l.trim())) {
+    if (!line) continue
+    const idx = line.indexOf(":")
+    if (idx <= 0) continue // no name, or no colon
+    const name = line.slice(0, idx).trim().toLowerCase()
+    const value = line.slice(idx + 1).trim()
+    if (!value) continue
+    if (name === "x-api-key") {
+      apiKey = value
+    } else if (name === "authorization") {
+      authToken = value.replace(/^Bearer\s+/i, "")
+    } else if (name === "anthropic-version") {
+      // Managed by the CLI — ignore.
+    } else {
+      kept.push(`${line.slice(0, idx).trim()}: ${value}`)
+    }
+  }
+  return { apiKey, authToken, headers: kept.length > 0 ? kept.join("\n") : undefined }
+}
+
+/**
+ * Map the stored CUSTOM_MODEL_* credentials to the standard Anthropic env vars
+ * the Claude CLI understands:
+ *   CUSTOM_MODEL_BASE_URL → ANTHROPIC_BASE_URL
+ *   CUSTOM_MODEL_HEADERS  → ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN (auth headers,
+ *                           promoted) + ANTHROPIC_CUSTOM_HEADERS (the rest)
+ * The model NAME is applied separately as the CLI --model arg (resolveCliModel).
+ * Deliberately never includes CLAUDE_CODE_CREDENTIALS, so a custom run can never
+ * leak the shared-pool token.
+ */
+export function buildCustomModelEnv(credentials: Credentials): Record<string, string> {
+  const env: Record<string, string> = {}
+  if (credentials.CUSTOM_MODEL_BASE_URL) env.ANTHROPIC_BASE_URL = credentials.CUSTOM_MODEL_BASE_URL
+  if (credentials.CUSTOM_MODEL_HEADERS) {
+    const { apiKey, authToken, headers } = parseCustomHeaders(credentials.CUSTOM_MODEL_HEADERS)
+    if (apiKey) env.ANTHROPIC_API_KEY = apiKey
+    if (authToken) env.ANTHROPIC_AUTH_TOKEN = authToken
+    if (headers) env.ANTHROPIC_CUSTOM_HEADERS = headers
+  }
+  return env
+}
+
+/**
+ * Resolve the model string passed to the CLI's --model flag. For the custom
+ * endpoint the dropdown value is the "custom" sentinel, so translate it to the
+ * user's configured model name (or undefined → endpoint default). All other
+ * models pass through unchanged.
+ */
+export function resolveCliModel(
+  model: string | undefined,
+  credentials: Credentials
+): string | undefined {
+  if (model === CUSTOM_MODEL_VALUE) {
+    return credentials.CUSTOM_MODEL_NAME || undefined
+  }
+  return model
 }
 
 /**

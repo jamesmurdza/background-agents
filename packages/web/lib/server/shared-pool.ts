@@ -16,6 +16,7 @@
 
 import {
   agentToProvider,
+  CUSTOM_MODEL_VALUE,
   type Agent,
   type Credentials,
   type ProviderName,
@@ -41,10 +42,19 @@ export function providerForAgent(agent: Agent): ProviderName {
  * `storedCreds` MUST be the user's DB-stored credentials WITHOUT process.env
  * fallback, so server env keys correctly read as shared rather than user-owned.
  * Non-shared-pool agents are always "user".
+ *
+ * `model` lets a per-run custom-endpoint selection read as "user" even when the
+ * account has no stored Claude token (the run uses the user's own endpoint, not
+ * the shared pool). Omit it for account-level checks.
  */
-export function resolvePool(agent: Agent, storedCreds: Credentials): UsagePool {
+export function resolvePool(
+  agent: Agent,
+  storedCreds: Credentials,
+  model?: string
+): UsagePool {
   switch (agent) {
     case "claude-code":
+      if (model === CUSTOM_MODEL_VALUE) return "user"
       return storedCreds.CLAUDE_CODE_CREDENTIALS ? "user" : "shared"
     case "gemini":
       return storedCreds.GEMINI_API_KEY ? "user" : "shared"
@@ -66,8 +76,12 @@ export interface UsageMeta {
 }
 
 /** Build the metadata blob to stamp on the assistant message. */
-export function buildUsageMeta(agent: Agent, storedCreds: Credentials): UsageMeta {
-  return { pool: resolvePool(agent, storedCreds), provider: providerForAgent(agent) }
+export function buildUsageMeta(
+  agent: Agent,
+  storedCreds: Credentials,
+  model?: string
+): UsageMeta {
+  return { pool: resolvePool(agent, storedCreds, model), provider: providerForAgent(agent) }
 }
 
 /**

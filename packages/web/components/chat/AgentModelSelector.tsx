@@ -97,7 +97,9 @@ export function AgentModelSelector({
       if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, agent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
-        if (requiredKey && requiredKey !== "none") {
+        if (requiredKey === "custom") {
+          modals.openSettingsSection("custom-model")
+        } else if (requiredKey && requiredKey !== "none") {
           modals.openSettings(requiredKey as HighlightKey)
         }
       }
@@ -115,7 +117,9 @@ export function AgentModelSelector({
       if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, currentAgent)) {
         // Open settings with the required key highlighted
         const requiredKey = newModelConfig.requiresKey
-        if (requiredKey && requiredKey !== "none") {
+        if (requiredKey === "custom") {
+          modals.openSettingsSection("custom-model")
+        } else if (requiredKey && requiredKey !== "none") {
           modals.openSettings(requiredKey as HighlightKey)
         }
       }

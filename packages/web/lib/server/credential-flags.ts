@@ -15,10 +15,15 @@ import {
   getNextUtcWeekReset,
   type Plan,
 } from "@/lib/server/usage-budgets"
-import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags } from "@/lib/credentials"
+import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags, type CredentialId } from "@/lib/credentials"
 
 export interface EffectiveFlags {
   flags: CredentialFlags
+  /**
+   * Plaintext values for the custom-model fields the UI shows unmasked and
+   * editable (Base URL / Model ID / Headers). Other credentials stay masked.
+   */
+  credentialValues: Partial<Record<CredentialId, string>>
   limitResetAt: Date | null
   /** Remaining limited tokens (cache-excluded) for free users; null = unlimited. */
   limitRemaining: number | null
@@ -67,6 +72,17 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // Build flags from the stored (user-provided) credentials so we can
   // distinguish between user-owned keys and server-shared env keys.
   const flags = flagsFromCredentials(storedCreds)
+
+  // Echo back plaintext for all custom-model fields (Base URL, Model ID, and the
+  // Headers blob) so the UI can show them unmasked and editable. The Headers
+  // field can carry auth, so its contents are returned to the authenticated
+  // owner's own client — an accepted trade-off for editability.
+  const credentialValues: Partial<Record<CredentialId, string>> = {}
+  for (const f of CREDENTIAL_KEYS) {
+    if (f.group === "custom-model" && storedCreds[f.id]) {
+      credentialValues[f.id] = storedCreds[f.id]
+    }
+  }
 
   // Special-case: mark whether OPENCODE_API_KEY comes from the user's stored
   // credentials (user-owned) or only from the server environment (shared).
@@ -132,5 +148,5 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
     }
   }
 
-  return { flags, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro, isWeekly, plan }
+  return { flags, credentialValues, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro, isWeekly, plan }
 }

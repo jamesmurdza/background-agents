@@ -7,7 +7,7 @@
  */
 
 import type { Chat, Message, Settings } from "@/lib/types"
-import type { Credentials, CredentialFlags } from "@/lib/credentials"
+import type { Credentials, CredentialFlags, CredentialId } from "@/lib/credentials"
 
 // =============================================================================
 // Types
@@ -60,6 +60,7 @@ export interface ChatWithMessagesResponse extends ChatResponse {
 export interface SettingsResponse {
   settings: Settings
   credentialFlags: CredentialFlags
+  credentialValues?: Partial<Record<CredentialId, string>>
   claudeLimitResetAt?: string | null
   claudeLimitRemaining?: number | null
   claudeLimitUsed?: number | null

@@ -50,7 +50,8 @@ export interface UsageLimitResult {
  */
 export async function checkSharedPoolUsage(
   userId: string,
-  agent: Agent
+  agent: Agent,
+  model?: string
 ): Promise<UsageLimitResult> {
   const provider = providerForAgent(agent)
   const resetAt = getNextUtcDayReset()
@@ -64,7 +65,9 @@ export async function checkSharedPoolUsage(
   const storedCreds = decryptUserCredentials(
     user?.credentials as Record<string, unknown> | null
   )
-  const pool = resolvePool(agent, storedCreds)
+  // A custom-endpoint run uses the user's own endpoint, not the shared pool, so
+  // it should never be rate-limited as shared.
+  const pool = resolvePool(agent, storedCreds, model)
 
   const budget = getProviderBudget(provider, plan)
 

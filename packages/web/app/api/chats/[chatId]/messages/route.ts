@@ -23,7 +23,7 @@ import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
-import { getEnvForModel } from "@background-agents/common"
+import { getEnvForModel, resolveCliModel, CUSTOM_MODEL_VALUE } from "@background-agents/common"
 import { decrypt } from "@/lib/db/encryption"
 import {
   createSandboxForChat,
@@ -163,7 +163,7 @@ export async function POST(
   // Enforce the per-provider daily token budget on shared pools (free users
   // only). Returns allowed=true for own-key runs, Pro users, and agents without
   // a shared pool — so this is safe to call unconditionally.
-  const usageCheck = await checkSharedPoolUsage(userId, payload.agent as Agent)
+  const usageCheck = await checkSharedPoolUsage(userId, payload.agent as Agent, payload.model)
   if (!usageCheck.allowed) {
     logActivityAsync(userId, "daily_limit_reached", {
       provider: usageCheck.provider,
@@ -193,6 +193,7 @@ export async function POST(
   let useSharedClaude = false
   if (
     payload.agent === "claude-code" &&
+    payload.model !== CUSTOM_MODEL_VALUE &&
     !credentials.CLAUDE_CODE_CREDENTIALS
   ) {
     try {
@@ -507,7 +508,7 @@ export async function POST(
       // On agent switch, don't pass the old agent's sessionId — it would crash the new CLI
       sessionId: isAgentSwitch ? undefined : (chat.sessionId ?? undefined),
       agent: payload.agent as Agent,
-      model: payload.model,
+      model: resolveCliModel(payload.model, credentials),
       env: Object.keys(env).length > 0 ? env : undefined,
       planMode: payload.planMode,
       mcpServers,
@@ -523,7 +524,8 @@ export async function POST(
     })
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,
-      decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null)
+      decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
+      payload.model
     )
 
     // ── Stage 5: persist messages + chat status (transactional) ────────────

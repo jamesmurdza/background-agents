@@ -21,6 +21,7 @@ export {
   type ProviderName,
   type ProviderId,
   type ModelOption,
+  type ParsedCustomHeaders,
   type CredentialId,
   type CredentialFlags,
   type Credentials,
@@ -31,12 +32,16 @@ export {
   agentModels,
   defaultAgentModel,
   agentSupportsPlanMode,
+  CUSTOM_MODEL_VALUE,
   // Functions
   getDefaultAgent,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
   getEnvForModel,
+  buildCustomModelEnv,
+  parseCustomHeaders,
+  resolveCliModel,
 } from "./agents"
 
 // GitHub client utilities

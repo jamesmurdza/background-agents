@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown, Bell, Gauge } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown, Bell, Gauge, Server } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -14,9 +14,11 @@ import {
   CREDENTIAL_KEYS,
   type CredentialId,
 } from "@/lib/credentials"
+import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import {
   GeneralSection,
   ApiKeysSection,
+  CustomModelSection,
   UsageSection,
   GitSection,
   NotificationsSection,
@@ -32,7 +34,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "usage" | "git" | "notifications" | "local-sync" | "appearance" | "experimental"
+export type SectionKey = "general" | "api-keys" | "custom-model" | "usage" | "git" | "notifications" | "local-sync" | "appearance" | "experimental"
 
 interface SettingsModalProps {
   open: boolean
@@ -55,6 +57,7 @@ type SectionDef = { key: SectionKey; label: string; icon: typeof Bot }
 const baseSections: SectionDef[] = [
   { key: "general", label: "General", icon: SettingsIcon },
   { key: "api-keys", label: "API Keys", icon: Key },
+  { key: "custom-model", label: "Custom model", icon: Server },
   { key: "usage", label: "Usage", icon: Gauge },
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "git", label: "Git", icon: GitBranch },
@@ -77,6 +80,11 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const { setTheme } = useTheme()
   const { isDesktopApp, getClaudeLicenseAutoDetect, getLicenseDetectSettings, setLicenseDetectSettings } = useElectron()
 
+  // Plaintext values for the custom-model fields (Base URL / Model ID / Headers)
+  // so they render unmasked and editable. Read from the shared settings query cache.
+  const { data: settingsData } = useSettingsQuery()
+  const credentialValues = settingsData?.credentialValues
+
   // The "Local Sync" tab only exists in the desktop app.
   const sections = useMemo(() => getSections(isDesktopApp), [isDesktopApp])
 
@@ -97,9 +105,12 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
 
   // Form state
   const [credValues, setCredValues] = useState<Record<CredentialId, string>>(() =>
-    initialCredValues(credentialFlags)
+    initialCredValues(credentialFlags, credentialValues)
   )
-  const initialCreds = useMemo(() => initialCredValues(credentialFlags), [credentialFlags])
+  const initialCreds = useMemo(
+    () => initialCredValues(credentialFlags, credentialValues),
+    [credentialFlags, credentialValues]
+  )
 
   // Resolve null preference against current credential flags so the dropdown
   // shows whatever new chats would actually use. Snapshotted off saved flags
@@ -142,7 +153,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      setCredValues(initialCredValues(credentialFlags))
+      setCredValues(initialCredValues(credentialFlags, credentialValues))
       setDefaultAgent(initialDefaultAgent)
       setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
@@ -153,7 +164,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setNotificationSound(settings.notificationSound)
       setActiveSection(defaultSection)
     }
-  }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
+  }, [open, settings, credentialFlags, credentialValues, initialDefaultAgent, initialDefaultModel, defaultSection])
 
   // Refresh license detection
   const refreshLicenseDetect = useCallback(async () => {
@@ -365,6 +376,14 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             refreshLicenseDetect={refreshLicenseDetect}
             licenseDetectLoading={licenseDetectLoading}
             licenseDetectResult={licenseDetectResult}
+          />
+        )
+      case "custom-model":
+        return (
+          <CustomModelSection
+            isMobile={isMobile}
+            credValues={credValues}
+            setCredValue={setCredValue}
           />
         )
       case "usage":

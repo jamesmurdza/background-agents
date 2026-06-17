@@ -11,11 +11,18 @@ import type { CredentialFlags } from "@/lib/types"
 /** Placeholder shown in API-key fields for credentials the server already has. */
 export const MASK = "***"
 
-/** Initial input values: "***" for credentials the server already has, "" otherwise. */
-export function initialCredValues(flags: CredentialFlags): Record<CredentialId, string> {
+/**
+ * Initial input values: a real plaintext value when the server returns one (the
+ * custom-model fields, which are editable), otherwise "***" for credentials the
+ * server has but won't echo back, or "" when unset.
+ */
+export function initialCredValues(
+  flags: CredentialFlags,
+  values?: Partial<Record<CredentialId, string>>
+): Record<CredentialId, string> {
   const out = {} as Record<CredentialId, string>
   for (const { id } of CREDENTIAL_KEYS) {
-    out[id] = flags[id] ? MASK : ""
+    out[id] = values?.[id] ?? (flags[id] ? MASK : "")
   }
   return out
 }
