@@ -11,18 +11,19 @@ import {
   Cell,
 } from "recharts"
 import { chartTooltipProps, barTooltipCursor } from "./chartTooltip"
-import { formatHour } from "./chartFormatters"
+import { formatHour, formatMetricValue, metricLabel, type StatsMetric } from "./chartFormatters"
 
 interface HourlyActivityData {
   hour: number
-  count: number
+  value: number
 }
 
 interface HourlyActivityChartProps {
   data: HourlyActivityData[]
+  metric: StatsMetric
 }
 
-export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
+export function HourlyActivityChart({ data, metric }: HourlyActivityChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
@@ -35,10 +36,10 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
   const fullData: HourlyActivityData[] = []
   for (let i = 0; i < 24; i++) {
     const existing = data.find((d) => d.hour === i)
-    fullData.push(existing || { hour: i, count: 0 })
+    fullData.push(existing || { hour: i, value: 0 })
   }
 
-  const maxCount = Math.max(...fullData.map((d) => d.count))
+  const maxCount = Math.max(...fullData.map((d) => d.value))
 
   // Color intensity based on activity level - using primary color
   const getColor = (count: number) => {
@@ -70,7 +71,8 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             axisLine={{ stroke: "hsl(var(--border))" }}
             tickLine={{ stroke: "hsl(var(--border))" }}
-            width={45}
+            width={50}
+            tickFormatter={(value) => formatMetricValue(metric, Number(value))}
           />
           <Tooltip
             {...chartTooltipProps}
@@ -82,11 +84,11 @@ export function HourlyActivityChart({ data }: HourlyActivityChartProps) {
               if (h < 12) return `${h}:00 AM - ${h + 1}:00 AM`
               return `${h - 12}:00 PM - ${h - 11}:00 PM`
             }}
-            formatter={(value) => [value, "Messages"]}
+            formatter={(value) => [formatMetricValue(metric, Number(value)), metricLabel(metric)]}
           />
-          <Bar dataKey="count" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="value" radius={[3, 3, 0, 0]} isAnimationActive={false}>
             {fullData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={getColor(entry.count)} />
+              <Cell key={`cell-${index}`} fill={getColor(entry.value)} />
             ))}
           </Bar>
         </BarChart>
