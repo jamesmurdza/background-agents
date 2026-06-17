@@ -3,41 +3,49 @@
 import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
+import type { StatsMetric } from "@/components/admin/charts/chartFormatters"
 
 export type StatsTimeRange = "24h" | "7d" | "30d" | "all"
+export type { StatsMetric }
 
 interface AdminStats {
   range: StatsTimeRange
+  metric: StatsMetric
   weeklyActiveUsers: Array<{
     date: string
     count: number
   }>
+  // Top users by the selected metric. `primary` is the metric value;
+  // `secondary` is the conversation count for the "messages" metric, else null.
   topUsers: Array<{
     name: string
     image?: string | null
-    messageCount: number
-    chatCount: number
+    primary: number
+    secondary: number | null
   }>
-  hourlyActivity: Array<{
+  // By-hour distribution, valued by the selected metric.
+  hourly: Array<{
     hour: number
-    count: number
+    value: number
   }>
-  // Messages and chats over time (hourly for 24h, daily for 7d/30d)
-  messagesChats: Array<{
+  // Over-time series (hourly for 24h, bucketed otherwise). `value` is the
+  // selected metric; `value2` is the conversation count for "messages", else null.
+  series: Array<{
     time: string
-    messages: number
-    chats: number
+    value: number
+    value2: number | null
   }>
-  messagesByAgent: Array<Record<string, number | string>>
-  messagesByModel: Array<Record<string, number | string>>
+  byAgent: Array<Record<string, number | string>>
+  byModel: Array<Record<string, number | string>>
 }
 
 async function fetchAdminStats(
   range: StatsTimeRange,
-  excludeAdmins: boolean
+  excludeAdmins: boolean,
+  metric: StatsMetric
 ): Promise<AdminStats> {
   const response = await fetch(
-    `/api/admin/stats?range=${range}&excludeAdmins=${excludeAdmins}`
+    `/api/admin/stats?range=${range}&excludeAdmins=${excludeAdmins}&metric=${metric}`
   )
   if (!response.ok) {
     if (response.status === 403) {
@@ -50,14 +58,15 @@ async function fetchAdminStats(
 
 export function useAdminStatsQuery(
   range: StatsTimeRange = "7d",
-  excludeAdmins = true
+  excludeAdmins = true,
+  metric: StatsMetric = "tokens"
 ) {
   const { status } = useSession()
   const isAuthenticated = status === "authenticated"
 
   return useQuery({
-    queryKey: queryKeys.admin.stats(range, excludeAdmins),
-    queryFn: () => fetchAdminStats(range, excludeAdmins),
+    queryKey: queryKeys.admin.stats(range, excludeAdmins, metric),
+    queryFn: () => fetchAdminStats(range, excludeAdmins, metric),
     enabled: isAuthenticated,
     staleTime: 30 * 1000, // 30 seconds
     retry: (failureCount, error) => {

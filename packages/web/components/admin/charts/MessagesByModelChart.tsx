@@ -12,7 +12,13 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
-import { formatAxisDate, formatTooltipDate, formatHour } from "./chartFormatters"
+import {
+  formatAxisDate,
+  formatTooltipDate,
+  formatHour,
+  formatMetricValue,
+  type StatsMetric,
+} from "./chartFormatters"
 
 // Refined color palette that works in both light and dark modes
 const COLORS = [
@@ -31,12 +37,14 @@ type ViewMode = "agents" | "models"
 interface MessagesByModelChartProps {
   agentData: Array<Record<string, number | string>>
   modelData: Array<Record<string, number | string>>
+  metric: StatsMetric
   isHourly?: boolean
 }
 
 export function MessagesByModelChart({
   agentData,
   modelData,
+  metric,
   isHourly = false,
 }: MessagesByModelChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("agents")
@@ -105,7 +113,8 @@ export function MessagesByModelChart({
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 axisLine={{ stroke: "hsl(var(--border))" }}
                 tickLine={{ stroke: "hsl(var(--border))" }}
-                width={45}
+                width={50}
+                tickFormatter={(value) => formatMetricValue(metric, Number(value))}
               />
               <Tooltip
                 {...chartTooltipProps}
@@ -113,6 +122,7 @@ export function MessagesByModelChart({
                 labelFormatter={(label) =>
                   isHourly ? formatHour(Number(label)) : formatTooltipDate(label)
                 }
+                formatter={(value) => formatMetricValue(metric, Number(value))}
                 isAnimationActive={false}
               />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />

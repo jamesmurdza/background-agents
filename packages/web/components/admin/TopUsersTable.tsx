@@ -1,18 +1,25 @@
 "use client"
 
+import { formatMetricValue, metricLabel, type StatsMetric } from "./charts/chartFormatters"
+
 interface TopUserData {
   name: string
   image?: string | null
-  messageCount: number
-  chatCount: number
+  primary: number
+  secondary: number | null
 }
 
 interface TopUsersTableProps {
   data: TopUserData[]
+  metric: StatsMetric
   isLoading?: boolean
 }
 
-export function TopUsersTable({ data, isLoading }: TopUsersTableProps) {
+export function TopUsersTable({ data, metric, isLoading }: TopUsersTableProps) {
+  // Conversations column only applies to the "messages" metric.
+  const showSecondary = metric === "messages"
+  const primaryHeader = metricLabel(metric)
+
   if (isLoading) {
     return (
       <div className="overflow-x-auto">
@@ -20,14 +27,13 @@ export function TopUsersTable({ data, isLoading }: TopUsersTableProps) {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-2 py-2 text-left font-medium sm:px-4 sm:py-3">User</th>
-              <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">
-                <span className="sm:hidden">Msgs</span>
-                <span className="hidden sm:inline">Messages</span>
-              </th>
-              <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">
-                <span className="sm:hidden">Chats</span>
-                <span className="hidden sm:inline">Conversations</span>
-              </th>
+              <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">{primaryHeader}</th>
+              {showSecondary && (
+                <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">
+                  <span className="sm:hidden">Chats</span>
+                  <span className="hidden sm:inline">Conversations</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -42,9 +48,11 @@ export function TopUsersTable({ data, isLoading }: TopUsersTableProps) {
                 <td className="px-2 py-2 text-right sm:px-4 sm:py-3">
                   <div className="ml-auto h-4 w-8 sm:w-12 rounded bg-muted animate-pulse" />
                 </td>
-                <td className="px-2 py-2 text-right sm:px-4 sm:py-3">
-                  <div className="ml-auto h-4 w-8 sm:w-12 rounded bg-muted animate-pulse" />
-                </td>
+                {showSecondary && (
+                  <td className="px-2 py-2 text-right sm:px-4 sm:py-3">
+                    <div className="ml-auto h-4 w-8 sm:w-12 rounded bg-muted animate-pulse" />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -67,14 +75,13 @@ export function TopUsersTable({ data, isLoading }: TopUsersTableProps) {
         <thead>
           <tr className="border-b bg-muted/50">
             <th className="px-2 py-2 text-left font-medium sm:px-4 sm:py-3">User</th>
-            <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">
-              <span className="sm:hidden">Msgs</span>
-              <span className="hidden sm:inline">Messages</span>
-            </th>
-            <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">
-              <span className="sm:hidden">Chats</span>
-              <span className="hidden sm:inline">Conversations</span>
-            </th>
+            <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">{primaryHeader}</th>
+            {showSecondary && (
+              <th className="px-2 py-2 text-right font-medium sm:px-4 sm:py-3">
+                <span className="sm:hidden">Chats</span>
+                <span className="hidden sm:inline">Conversations</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -96,8 +103,14 @@ export function TopUsersTable({ data, isLoading }: TopUsersTableProps) {
                   <span className="font-medium text-xs sm:text-sm truncate max-w-[80px] sm:max-w-none">{user.name}</span>
                 </div>
               </td>
-              <td className="px-2 py-2 text-right tabular-nums text-xs sm:text-sm sm:px-4 sm:py-3">{user.messageCount.toLocaleString()}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-xs sm:text-sm sm:px-4 sm:py-3">{user.chatCount.toLocaleString()}</td>
+              <td className="px-2 py-2 text-right tabular-nums text-xs sm:text-sm sm:px-4 sm:py-3">
+                {formatMetricValue(metric, user.primary)}
+              </td>
+              {showSecondary && (
+                <td className="px-2 py-2 text-right tabular-nums text-xs sm:text-sm sm:px-4 sm:py-3">
+                  {(user.secondary ?? 0).toLocaleString()}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

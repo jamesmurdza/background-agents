@@ -29,7 +29,14 @@ import {
   useUpdateUserMutation,
   type StatsTimeRange,
 } from "@/lib/query/hooks"
+import { metricLabel, type StatsMetric } from "@/components/admin/charts/chartFormatters"
 import { cn } from "@/lib/utils"
+
+const METRIC_OPTIONS: { key: StatsMetric; label: string }[] = [
+  { key: "tokens", label: "Tokens" },
+  { key: "cost", label: "Cost" },
+  { key: "messages", label: "Messages" },
+]
 
 type SectionKey = "overview" | "users" | "activity"
 
@@ -65,11 +72,13 @@ export default function AdminDashboard() {
 
   // Global time range state (affects all charts)
   const [globalTimeRange, setGlobalTimeRange] = useState<StatsTimeRange>("7d")
-  // Exclude admin users' activity from the overview stats (default on)
-  const [excludeAdmins, setExcludeAdmins] = useState(true)
+  // Include admin users' activity in the overview stats (default off)
+  const [includeAdmins, setIncludeAdmins] = useState(false)
+  // Primary metric the overview charts are weighted by (default tokens)
+  const [metric, setMetric] = useState<StatsMetric>("tokens")
 
   // Queries - pass globalTimeRange to stats query
-  const statsQuery = useAdminStatsQuery(globalTimeRange, excludeAdmins)
+  const statsQuery = useAdminStatsQuery(globalTimeRange, !includeAdmins, metric)
   const activityQuery = useAdminActivityQuery({
     page: activityPage,
     limit: 20,
@@ -163,11 +172,12 @@ export default function AdminDashboard() {
 
   const weeklyActiveUsers = statsQuery.data?.weeklyActiveUsers ?? []
   const topUsers = statsQuery.data?.topUsers ?? []
-  const hourlyActivity = statsQuery.data?.hourlyActivity ?? []
-  const messagesChats = statsQuery.data?.messagesChats ?? []
-  const messagesByAgent = statsQuery.data?.messagesByAgent ?? []
-  const messagesByModel = statsQuery.data?.messagesByModel ?? []
+  const hourly = statsQuery.data?.hourly ?? []
+  const series = statsQuery.data?.series ?? []
+  const byAgent = statsQuery.data?.byAgent ?? []
+  const byModel = statsQuery.data?.byModel ?? []
   const isHourly = globalTimeRange === "24h"
+  const metricName = metricLabel(metric)
 
   // Handle section change with mobile menu close
   const handleSectionChange = (section: SectionKey) => {
@@ -261,34 +271,51 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold md:text-xl">Overview</h2>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  {/* Exclude admins toggle */}
+                  {/* Include admins toggle */}
                   <button
                     type="button"
                     role="switch"
-                    aria-checked={excludeAdmins}
-                    onClick={() => setExcludeAdmins((v) => !v)}
+                    aria-checked={includeAdmins}
+                    onClick={() => setIncludeAdmins((v) => !v)}
                     className={cn(
                       "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
-                      excludeAdmins
+                      includeAdmins
                         ? "border-primary/30 bg-primary/10 text-primary"
                         : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <span
                       className={cn(
-                        "relative h-4 w-7 rounded-full transition-colors",
-                        excludeAdmins ? "bg-primary" : "bg-muted-foreground/30"
+                        "flex h-4 w-7 items-center rounded-full p-0.5 transition-colors",
+                        includeAdmins ? "bg-primary" : "bg-muted-foreground/30"
                       )}
                     >
                       <span
                         className={cn(
-                          "absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform",
-                          excludeAdmins ? "translate-x-3.5" : "translate-x-0.5"
+                          "h-3 w-3 rounded-full bg-background transition-transform",
+                          includeAdmins ? "translate-x-3" : "translate-x-0"
                         )}
                       />
                     </span>
-                    Exclude admins
+                    Include admins
                   </button>
+                  {/* Metric selector */}
+                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                    {METRIC_OPTIONS.map((option) => (
+                      <button
+                        key={option.key}
+                        onClick={() => setMetric(option.key)}
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
+                          metric === option.key
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                   {/* Time range buttons */}
                   <div className="flex gap-1 rounded-lg bg-muted p-1">
                     {(["24h", "7d", "30d", "all"] as const).map((range) => (
@@ -311,28 +338,33 @@ export default function AdminDashboard() {
 
               {/* Charts Grid */}
               <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
-                {/* Daily Messages & Conversations */}
+                {/* Metric over time */}
                 <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
                       <MessageSquare className="h-4 w-4 text-purple-500" />
                     </div>
-                    <h3 className="font-medium">{isHourly ? "Hourly" : "Daily"} Messages & Conversations</h3>
+                    <h3 className="font-medium">
+                      {metric === "messages"
+                        ? `${isHourly ? "Hourly" : "Daily"} Messages & Conversations`
+                        : `${metricName} over time`}
+                    </h3>
                   </div>
-                  <DailyMessagesChatsChart data={messagesChats} isHourly={isHourly} />
+                  <DailyMessagesChatsChart data={series} metric={metric} isHourly={isHourly} />
                 </div>
 
-                {/* Messages by Agent/Model */}
+                {/* Metric by Agent/Model */}
                 <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
                       <TrendingUp className="h-4 w-4 text-blue-500" />
                     </div>
-                    <h3 className="font-medium">Messages by Agent/Model</h3>
+                    <h3 className="font-medium">{metricName} by Agent/Model</h3>
                   </div>
                   <MessagesByModelChart
-                    agentData={messagesByAgent}
-                    modelData={messagesByModel}
+                    agentData={byAgent}
+                    modelData={byModel}
+                    metric={metric}
                     isHourly={isHourly}
                   />
                 </div>
@@ -354,10 +386,11 @@ export default function AdminDashboard() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
                       <Trophy className="h-4 w-4 text-amber-500" />
                     </div>
-                    <h3 className="font-medium">Top Active Users</h3>
+                    <h3 className="font-medium">Top Users by {metricName}</h3>
                   </div>
                   <TopUsersTable
                     data={topUsers}
+                    metric={metric}
                     isLoading={statsQuery.isFetching}
                   />
                 </div>
@@ -368,9 +401,11 @@ export default function AdminDashboard() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-500/10">
                       <Clock className="h-4 w-4 text-pink-500" />
                     </div>
-                    <h3 className="font-medium">Peak Activity Hours</h3>
+                    <h3 className="font-medium">
+                      {metric === "messages" ? "Peak Activity Hours" : `${metricName} by Hour`}
+                    </h3>
                   </div>
-                  <HourlyActivityChart data={hourlyActivity} />
+                  <HourlyActivityChart data={hourly} metric={metric} />
                 </div>
               </section>
             </>

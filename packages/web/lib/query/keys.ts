@@ -40,8 +40,8 @@ export const queryKeys = {
   // Admin
   admin: {
     all: ["admin"] as const,
-    stats: (range?: string, excludeAdmins?: boolean) =>
-      [...queryKeys.admin.all, "stats", range, excludeAdmins] as const,
+    stats: (range?: string, excludeAdmins?: boolean, metric?: string) =>
+      [...queryKeys.admin.all, "stats", range, excludeAdmins, metric] as const,
     activity: (page: number, filters?: {
       action?: string
       userId?: string
