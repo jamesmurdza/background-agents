@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 Run the web app locally against a local Postgres database. Set the following in `.env.local` **at the repo root** (the `npm` scripts below are root scripts that load it):
 
 ```bash
-DATABASE_URL="postgresql://user:pass@localhost:5432/background_agents"
+DATABASE_URL="postgresql://sandboxed:sandboxed123@localhost:5432/sandboxed_agents"
 DAYTONA_API_KEY="dtn_your_key_here"
 NEXTAUTH_URL="http://localhost:4000"
 NEXTAUTH_SECRET="random-string-for-session-jwt"

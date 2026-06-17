@@ -16,7 +16,7 @@ The agent can follow the setup and workflow instructions in this repo on its own
 
 **Required for dev server**
 
-- Auth: either `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`, or `GITHUB_PAT` as an alternative.
+- Auth: `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` (a GitHub OAuth app).
 
 **Optional** (only if those integrations are in scope)
 
