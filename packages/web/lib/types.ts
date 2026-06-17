@@ -18,6 +18,7 @@ export {
   agentModels,
   agentLabels,
   agentSupportsPlanMode,
+  CUSTOM_MODEL_VALUE,
   getDefaultAgent,
   getDefaultModelForAgent,
   getModelLabel,

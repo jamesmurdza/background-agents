@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { format } from "date-fns"
 import { createSandboxGit } from "@background-agents/daytona-git"
-import { getEnvForModel, type Agent } from "@background-agents/common"
+import { getEnvForModel, resolveCliModel, CUSTOM_MODEL_VALUE, type Agent } from "@background-agents/common"
 
 import { prisma } from "@/lib/db/prisma"
 import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers"
@@ -143,8 +143,13 @@ export async function startJobExecution(
   // 6. Get user credentials
   let credentials = await getUserCredentials(job.userId)
 
-  // Shared-pool fallback for Claude Code
-  if (job.agent === "claude-code" && !credentials.CLAUDE_CODE_CREDENTIALS) {
+  // Shared-pool fallback for Claude Code (skipped for custom-endpoint runs,
+  // which use the user's own endpoint rather than the shared pool).
+  if (
+    job.agent === "claude-code" &&
+    job.model !== CUSTOM_MODEL_VALUE &&
+    !credentials.CLAUDE_CODE_CREDENTIALS
+  ) {
     try {
       credentials = {
         ...credentials,
@@ -174,7 +179,7 @@ export async function startJobExecution(
     repoPath,
     previewUrlPattern: previewUrlPattern ?? undefined,
     agent: job.agent as Agent,
-    model: job.model ?? undefined,
+    model: resolveCliModel(job.model ?? undefined, credentials),
     env: Object.keys(env).length > 0 ? env : undefined,
     mcpServers,
   })
@@ -277,7 +282,8 @@ export async function startJobExecution(
   })
   const usageMeta = buildUsageMeta(
     job.agent as Agent,
-    decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null)
+    decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
+    job.model ?? undefined
   )
 
   await prisma.message.createMany({

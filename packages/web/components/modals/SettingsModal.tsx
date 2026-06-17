@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown, Bell, Gauge } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown, Bell, Gauge, Server } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -17,6 +17,7 @@ import {
 import {
   GeneralSection,
   ApiKeysSection,
+  CustomModelSection,
   UsageSection,
   GitSection,
   NotificationsSection,
@@ -32,7 +33,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "usage" | "git" | "notifications" | "local-sync" | "appearance" | "experimental"
+export type SectionKey = "general" | "api-keys" | "custom-model" | "usage" | "git" | "notifications" | "local-sync" | "appearance" | "experimental"
 
 interface SettingsModalProps {
   open: boolean
@@ -55,6 +56,7 @@ type SectionDef = { key: SectionKey; label: string; icon: typeof Bot }
 const baseSections: SectionDef[] = [
   { key: "general", label: "General", icon: SettingsIcon },
   { key: "api-keys", label: "API Keys", icon: Key },
+  { key: "custom-model", label: "Custom model", icon: Server },
   { key: "usage", label: "Usage", icon: Gauge },
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "git", label: "Git", icon: GitBranch },
@@ -365,6 +367,14 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             refreshLicenseDetect={refreshLicenseDetect}
             licenseDetectLoading={licenseDetectLoading}
             licenseDetectResult={licenseDetectResult}
+          />
+        )
+      case "custom-model":
+        return (
+          <CustomModelSection
+            isMobile={isMobile}
+            credValues={credValues}
+            setCredValue={setCredValue}
           />
         )
       case "usage":

@@ -26,6 +26,12 @@ export interface CredentialField {
   placeholder?: string
   multiline?: boolean
   description?: string
+  /**
+   * Which settings tab renders this field. Defaults to "api-keys". Fields in
+   * the "custom-model" group are rendered on the dedicated Custom model tab and
+   * filtered out of the API Keys tab.
+   */
+  group?: "api-keys" | "custom-model"
 }
 
 export const CREDENTIAL_KEYS: readonly CredentialField[] = [
@@ -77,6 +83,43 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     provider: "gemini",
     label: "Google AI (Gemini)",
     helpUrl: "https://aistudio.google.com/apikey",
+  },
+  // Custom Anthropic-compatible endpoint — rendered on the "Custom model" tab.
+  {
+    id: "CUSTOM_MODEL_BASE_URL",
+    provider: "anthropic",
+    label: "Base URL",
+    placeholder: "https://api.anthropic.com",
+    group: "custom-model",
+  },
+  {
+    id: "CUSTOM_MODEL_API_KEY",
+    provider: "anthropic",
+    label: "API key",
+    placeholder: "sk-ant-… (sent as x-api-key)",
+    group: "custom-model",
+  },
+  {
+    id: "CUSTOM_MODEL_AUTH_TOKEN",
+    provider: "anthropic",
+    label: "Auth token",
+    placeholder: "sent as Authorization: Bearer",
+    group: "custom-model",
+  },
+  {
+    id: "CUSTOM_MODEL_NAME",
+    provider: "anthropic",
+    label: "Model name",
+    placeholder: "Custom model",
+    group: "custom-model",
+  },
+  {
+    id: "CUSTOM_MODEL_HEADERS",
+    provider: "anthropic",
+    label: "Custom headers",
+    multiline: true,
+    placeholder: "One per line — Header-Name: value",
+    group: "custom-model",
   },
 ] as const
 

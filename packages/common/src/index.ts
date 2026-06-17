@@ -31,12 +31,16 @@ export {
   agentModels,
   defaultAgentModel,
   agentSupportsPlanMode,
+  CUSTOM_MODEL_VALUE,
   // Functions
   getDefaultAgent,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
   getEnvForModel,
+  buildCustomModelEnv,
+  sanitizeCustomHeaders,
+  resolveCliModel,
 } from "./agents"
 
 // GitHub client utilities
