@@ -43,9 +43,6 @@
   "bugs": {
     "url": "https://github.com/jamesmurdza/upstream-agents/issues"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "esbuild": "^0.20.0",
