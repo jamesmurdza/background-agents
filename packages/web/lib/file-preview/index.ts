@@ -16,8 +16,6 @@ export {
   detectLang,
   getFileType,
   getFileTypeFromPath,
-  isTextBasedFile,
-  isTextBasedPath,
   isMarkdownFile,
   isMarkdownPath,
 } from './detect'
