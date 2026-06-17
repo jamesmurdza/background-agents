@@ -13,7 +13,7 @@
  *   DAYTONA_API_KEY=... npm test -w @background-agents/daytona-terminal -- tests/integration/terminal.test.ts
  *
  * The TEST_DAYTONA_API_KEY env var takes precedence over DAYTONA_API_KEY,
- * mirroring the convention used by packages/agents.
+ * mirroring the convention used by packages/sdk.
  */
 import "dotenv/config"
 import { describe, it, expect, beforeAll, afterAll } from "vitest"

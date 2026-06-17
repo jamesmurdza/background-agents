@@ -37,9 +37,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jamesmurdza/upstream-agents.git",
-    "directory": "packages/agents"
+    "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/jamesmurdza/upstream-agents/tree/main/packages/agents",
+  "homepage": "https://github.com/jamesmurdza/upstream-agents/tree/main/packages/sdk",
   "bugs": {
     "url": "https://github.com/jamesmurdza/upstream-agents/issues"
   },

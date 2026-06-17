@@ -6,7 +6,7 @@ This document describes how to run unit tests and integration tests for the Agen
 
 ## JSONL reference files
 
-Raw JSONL output from each provider CLI is captured in `packages/agents/tests/fixtures/jsonl-reference/`. To regenerate:
+Raw JSONL output from each provider CLI is captured in `packages/sdk/tests/fixtures/jsonl-reference/`. To regenerate:
 
 ```bash
 npm run generate:jsonl-refs -w @background-agents/sdk

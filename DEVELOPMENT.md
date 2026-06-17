@@ -55,4 +55,4 @@ Then open http://localhost:4000.
 
 ## Agent SDK tests
 
-See [packages/agents/TESTING.md](packages/agents/TESTING.md).
+See [packages/sdk/TESTING.md](packages/sdk/TESTING.md).

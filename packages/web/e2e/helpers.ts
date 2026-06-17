@@ -4,7 +4,7 @@
  * Convention: e2e tests should pin the default agent to Eliza so they don't
  * depend on API keys, upstream model availability, or daily-limit windows.
  * Eliza is a local fake agent (regex-based, no LLM) that streams realistic
- * Claude-shaped JSONL. See packages/agents/src/agents/eliza.
+ * Claude-shaped JSONL. See packages/sdk/src/agents/eliza.
  */
 
 import type { Page, BrowserContext } from "@playwright/test"
