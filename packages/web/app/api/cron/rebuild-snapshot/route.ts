@@ -1,9 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import {
-  getAgentSandboxImage,
-  SNAPSHOT_NAME,
-  SNAPSHOT_RESOURCES,
-} from "@background-agents/sandbox-image"
+import { rebuildSnapshot } from "@background-agents/sandbox-image"
 
 // Building the snapshot can take several minutes
 export const maxDuration = 300
@@ -29,11 +25,7 @@ export async function GET(req: Request) {
   const daytona = new Daytona({ apiKey })
 
   try {
-    const snapshot = await daytona.snapshot.create({
-      name: SNAPSHOT_NAME,
-      image: getAgentSandboxImage(),
-      resources: SNAPSHOT_RESOURCES,
-    })
+    const snapshot = await rebuildSnapshot(daytona)
 
     return Response.json({
       success: true,
