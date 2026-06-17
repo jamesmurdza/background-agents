@@ -16,13 +16,17 @@ One job = one process = one directory:
 
 ```
 <root>/<jobId>/
-  meta.json     { jobId, pgid, outputFile, exitFile, createdAt, version }
+  meta.json     { jobId, pgid, outputFile, exitFile, cgroup, createdAt, version }
   output.log    combined stdout+stderr, byte-exact, append-only
   exit          integer $?, present ONLY once the process finishes
 ```
 
-- **Detached + reapable.** Launched with `setsid` in its own process group, so
-  `cancel()` reaps the command *and* its children.
+- **Detached + fully reapable.** Launched with `setsid` and placed in its own
+  cgroup-v2. `cancel()` writes the cgroup's `cgroup.kill`, which SIGKILLs
+  *every* descendant — including a child that re-sessions itself with `setsid()`
+  (e.g. a daemonized MCP server) and so escapes the process group. A
+  process-group kill alone misses those and leaks them. Requires cgroup-v2 and
+  privilege to create a cgroup (the sandbox image grants this via `sudo`).
 - **Real exit codes.** The wrapper records the true `$?`; completion is never
   guessed. A process killed before it could write `$?` (SIGKILL/OOM) is detected
   as `crashed` via process-group liveness.
@@ -47,7 +51,7 @@ wins on the things that actually bite:
 | **Incremental reads** | byte-offset `tail` → only new bytes, **O(n)** over a run | `getSessionCommandLogs` has **no offset param**: full-dump every poll (**O(n²)**), *or* a streaming callback that forces a held-open connection |
 | **Connectionless polling** | any cold caller reads the filesystem; nothing to keep alive | the streaming variant needs a live socket; the dump variant re-sends everything |
 | **Output fidelity** | `output.log` is **byte-exact**, so a byte cursor is reliable | the log stream is wrapped in control-byte framing (e.g. `\x01` markers) — not byte-exact, which breaks offset cursors |
-| **Cancellation** | `kill -- -<pgid>` reaps the exact process group | no documented kill for an async session command — you shell out to `pkill` anyway |
+| **Cancellation** | `cgroup.kill` reaps the whole job cgroup, incl. `setsid()` escapees | no documented kill for an async session command — you shell out to `pkill` anyway |
 | **Lifecycle to manage** | none — a dead process just leaves files; cleanup is `rm -rf <dir>` | a **session** outlives the command and must be torn down; deleting a live session reaps the process (a real footgun), and sessions accumulate |
 | **Isolation** | each job is its own process, dir, and cursor | a session is a **stateful shell** — env/cwd bleed across commands |
 | **Full-transcript retention** | the whole log until the disk fills | the daemon's log buffer may be capped (undocumented), which would break replay-from-zero |

@@ -13,6 +13,16 @@ export function q(s: string): string {
 export const DEFAULT_ROOT = "/tmp/sandbox-jobs"
 
 /**
+ * Absolute cgroup-v2 path for a job. Derived purely from the job id so a cold
+ * caller (attach()) can reconstruct it without reading meta. The id is
+ * `<unix-ms>-<base36>` — only filesystem-safe characters — so it needs no
+ * escaping in `/sys/fs/cgroup`.
+ */
+export function cgroupPath(jobId: string): string {
+  return `/sys/fs/cgroup/sbj-${jobId}`
+}
+
+/**
  * Parse the PID printed by `... & echo $!`. The launcher prints exactly one
  * number on the last line; we take the last whitespace-delimited token.
  */

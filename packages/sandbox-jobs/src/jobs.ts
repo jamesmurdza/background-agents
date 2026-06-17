@@ -5,7 +5,10 @@
  *   1. `start` launches the command detached with `setsid` (own process group)
  *      and `nohup`-style redirection, capturing the leader pid synchronously.
  *      The command's combined output appends to `output.log`; when it finishes,
- *      the wrapper writes the real `$?` to `exit`.
+ *      the wrapper writes the real `$?` to `exit`. The leader also joins a
+ *      per-job cgroup so `cancel` can reap EVERY descendant — including ones
+ *      that escape the process group via `setsid()` (e.g. a daemonized MCP
+ *      server) — by writing the cgroup's `cgroup.kill`.
  *   2. `read`/`status` reconstruct the run from the filesystem: the exit file
  *      (clean completion + real code), the process-group state (liveness /
  *      crash), and a byte-offset `tail` of the log (only new bytes).
@@ -22,7 +25,7 @@ import type {
   SandboxJobs,
   StartJobOptions,
 } from "./types"
-import { DEFAULT_ROOT, makeJobId, parsePid, q, splitComplete } from "./shell"
+import { cgroupPath, DEFAULT_ROOT, makeJobId, parsePid, q, splitComplete } from "./shell"
 
 /** Separates the status header from raw log bytes in a read round trip. */
 const DATA_MARKER = "@@SBJ-DATA@@"
@@ -44,6 +47,9 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     const outputFile = `${dir}/output.log`
     const exitFile = `${dir}/exit`
     const metaFile = `${dir}/meta.json`
+    // One cgroup per job. Killing it reaps EVERY descendant, including children
+    // that re-session themselves (setsid) and so escape the process group.
+    const cgroup = cgroupPath(jobId)
 
     const envExports = Object.entries(opts.env ?? {})
       .map(([k, v]) => `export ${k}=${q(v)}; `)
@@ -57,24 +63,31 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
       ? `timeout ${opts.timeoutSeconds} sh -c ${q(opts.command)}`
       : `sh -c ${q(opts.command)}`
 
-    // Inner program: (cd &&) export env; run; record the true exit status.
-    // `setsid` gives the job its own session/group so `kill -- -<pgid>` later
-    // reaps the command and all its children.
-    const inner = `${cd}${envExports}${userCmd} >> ${q(outputFile)} 2>&1; echo $? > ${q(exitFile)}`
+    // Move the leader into the job cgroup BEFORE it spawns anything, so every
+    // descendant inherits membership. cgroup membership, unlike a process
+    // group, survives setsid() — which is what makes cancel() able to reap an
+    // escaped child that a process-group kill would miss.
+    const cgJoin = `echo $$ | sudo -n tee ${q(`${cgroup}/cgroup.procs`)} >/dev/null 2>&1; `
+    // Inner program: join cgroup; (cd &&) export env; run; record true exit.
+    // `setsid` detaches the job into its own session and gives a stable leader
+    // pid (== pgid) for liveness/crash detection.
+    const inner = `${cgJoin}${cd}${envExports}${userCmd} >> ${q(outputFile)} 2>&1; echo $? > ${q(exitFile)}`
     // CRITICAL: the backgrounded part must be a SIMPLE command so the shell
     // exec-replaces it into a single detached process whose std fds are all on
     // /dev/null. If we instead background a COMPOUND like `mkdir && setsid …`,
     // the shell forks a subshell whose own stdout is still the executeCommand
     // read channel; that subshell lingers for the whole life of the job and
     // keeps the channel open, so the launch call blocks until it times out
-    // ("command execution timeout"). So: run mkdir in the foreground, then
-    // background only `setsid …` (fully redirected), then print the pid.
+    // ("command execution timeout"). So: run the foreground setup (the job dir
+    // and the cgroup create) first, then background only `setsid …` (fully
+    // redirected), then print the pid.
     const launch =
       `mkdir -p ${q(dir)} && ` +
+      `sudo -n mkdir -p ${q(cgroup)} && ` +
       `{ setsid sh -c ${q(inner)} < /dev/null > /dev/null 2>&1 & echo $!; }`
 
     const pgid = parsePid(await exec(launch))
-    const handle: JobHandle = { jobId, dir, outputFile, exitFile, pgid }
+    const handle: JobHandle = { jobId, dir, outputFile, exitFile, pgid, cgroup }
 
     // Persist a small job-meta so a cold caller can attach() from just the id.
     // base64 + atomic rename: arbitrary JSON crosses the shell safely and a
@@ -85,6 +98,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
       outputFile,
       exitFile,
       dir,
+      cgroup,
       createdAt: new Date(Date.now()).toISOString(),
       version: 1,
     })
@@ -120,13 +134,16 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
   }
 
   async function cancel(handle: JobHandle): Promise<void> {
-    // Negative pid targets the whole process group → reaps children too. Then
-    // record a deterministic exit sentinel so the job reads back as terminal
-    // even if the wrapper was killed before it could write `$?` itself.
+    // cgroup.kill atomically SIGKILLs EVERY member of the job cgroup — including
+    // children that escaped the process group via setsid() (e.g. a daemonized
+    // MCP server), which a process-group kill would miss and leak. Then record
+    // a deterministic exit sentinel so the job reads back as terminal even if
+    // the wrapper was killed before it could write `$?`, and rmdir the
+    // now-empty cgroup so job cgroups don't accumulate.
     await exec(
-      `kill -TERM -- -${handle.pgid} 2>/dev/null; sleep 0.3; ` +
-        `kill -KILL -- -${handle.pgid} 2>/dev/null; ` +
-        `test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; true`,
+      `echo 1 | sudo -n tee ${q(`${handle.cgroup}/cgroup.kill`)} >/dev/null 2>&1; ` +
+        `test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; ` +
+        `sudo -n rmdir ${q(handle.cgroup)} 2>/dev/null; true`,
       10
     )
   }
@@ -144,6 +161,9 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
         outputFile: m.outputFile,
         exitFile: m.exitFile,
         pgid: m.pgid,
+        // cgroup is derived purely from the job id, so it's reconstructable
+        // even if an older meta.json predates the field.
+        cgroup: m.cgroup ?? cgroupPath(jobId),
       }
     } catch {
       return null

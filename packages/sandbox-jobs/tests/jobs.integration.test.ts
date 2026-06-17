@@ -147,6 +147,42 @@ describe.skipIf(!API_KEY)("sandbox-jobs (integration)", () => {
     expect(r.raw).toContain("starting")
   })
 
+  it("cancel() reaps a child that escaped the process group via setsid (cgroup)", async () => {
+    // Regression guard for the RAM leak: an MCP-server-like child that calls
+    // setsid() lands in its OWN process group, so a process-group kill misses
+    // it. cgroup membership is inherited through setsid, so cancel()'s
+    // cgroup.kill must still reap it. Requires cgroup-v2 + sudo in the image.
+    const jobs = createSandboxJobs(sandbox)
+    const pidFile = "/tmp/sbj-escapee.pid"
+    await sandbox.process.executeCommand(`rm -f ${pidFile}; true`)
+    // Spawn a detached grandchild (own session/group), record its pid, then the
+    // leader itself blocks so the job stays running until we cancel it.
+    const handle = await jobs.start({
+      command: `setsid sleep 300 & echo $! > ${pidFile}; sleep 300`,
+    })
+    await sleep(2500)
+
+    const escapee = Number(
+      ((await sandbox.process.executeCommand(`cat ${pidFile} 2>/dev/null`)).result ?? "").trim()
+    )
+    expect(escapee).toBeGreaterThan(0)
+    // It escaped: its process group differs from the job's leader group.
+    const pgidOut = (
+      await sandbox.process.executeCommand(`ps -o pgid= -p ${escapee} | tr -d ' \n'`)
+    ).result?.trim()
+    expect(Number(pgidOut)).not.toBe(handle.pgid)
+
+    await jobs.cancel(handle)
+    await sleep(1000)
+
+    const liveness = (
+      await sandbox.process.executeCommand(
+        `kill -0 ${escapee} 2>/dev/null && echo ALIVE || echo DEAD`
+      )
+    ).result?.trim()
+    expect(liveness).toBe("DEAD")
+  })
+
   it("cancel() terminates the job and its children and reads back as terminal", async () => {
     const jobs = createSandboxJobs(sandbox)
     const handle = await jobs.start({

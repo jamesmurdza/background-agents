@@ -29,9 +29,17 @@ export interface JobHandle {
   readonly exitFile: string
   /**
    * Process-group id of the detached job (== leader pid, thanks to `setsid`).
-   * Lets us reap the whole tree — the command AND its children (e.g. `sleep`).
+   * Used for liveness/crash detection (`ps` on the leader); NOT for killing.
    */
   readonly pgid: number
+  /**
+   * Absolute path to the job's own cgroup-v2 directory. Killing this cgroup is
+   * the sole cancellation mechanism: it reaps EVERY descendant, including a
+   * child that called `setsid()` and so escaped {@link pgid} (e.g. a daemonized
+   * MCP server) — which a process-group kill cannot. Requires cgroup-v2 and the
+   * privilege to `mkdir` under `/sys/fs/cgroup` (provided by the sandbox image).
+   */
+  readonly cgroup: string
 }
 
 /** Lifecycle state of a job, derived from the filesystem on each poll. */
@@ -105,7 +113,7 @@ export interface StartJobOptions {
  * File layout, one directory per job:
  * ```
  * <root>/<jobId>/
- *   meta.json     { jobId, pgid, outputFile, exitFile, createdAt, version }
+ *   meta.json     { jobId, pgid, outputFile, exitFile, cgroup, createdAt, version }
  *   output.log    combined stdout+stderr, byte-exact, append-only
  *   exit          integer $?, present ONLY once the process finishes
  * ```
@@ -120,7 +128,11 @@ export interface SandboxJobs {
   read(handle: JobHandle, cursor?: number): Promise<JobRead>
   /** Report job status without reading output. Cold-start safe. */
   status(handle: JobHandle): Promise<JobStatus>
-  /** Terminate the job and its entire process group. */
+  /**
+   * Terminate the job and all its descendants. Kills the job cgroup (reaping
+   * even children that escaped the process group via setsid), with a
+   * process-group kill as fallback when no cgroup is available.
+   */
   cancel(handle: JobHandle): Promise<void>
   /**
    * Rebuild a handle from just the job id, by reading its `meta.json`. Use when
