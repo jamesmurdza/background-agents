@@ -26,6 +26,8 @@ export interface CredentialField {
   placeholder?: string
   multiline?: boolean
   description?: string
+  /** Marks a field the user must fill in. Rendered with a required indicator. */
+  required?: boolean
   /**
    * Which settings tab renders this field. Defaults to "api-keys". Fields in
    * the "custom-model" group are rendered on the dedicated Custom model tab and
@@ -85,40 +87,31 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     helpUrl: "https://aistudio.google.com/apikey",
   },
   // Custom Anthropic-compatible endpoint — rendered on the "Custom model" tab.
+  // Required field comes first; auth is supplied through the headers field.
   {
     id: "CUSTOM_MODEL_BASE_URL",
     provider: "anthropic",
     label: "Base URL",
     placeholder: "https://api.anthropic.com",
-    group: "custom-model",
-  },
-  {
-    id: "CUSTOM_MODEL_API_KEY",
-    provider: "anthropic",
-    label: "API key",
-    placeholder: "sk-ant-… (sent as x-api-key)",
-    group: "custom-model",
-  },
-  {
-    id: "CUSTOM_MODEL_AUTH_TOKEN",
-    provider: "anthropic",
-    label: "Auth token",
-    placeholder: "sent as Authorization: Bearer",
+    required: true,
     group: "custom-model",
   },
   {
     id: "CUSTOM_MODEL_NAME",
     provider: "anthropic",
-    label: "Model name",
-    placeholder: "Custom model",
+    label: "Model ID",
+    placeholder: "claude-opus-4-1 (sent to --model)",
+    description: "The exact model ID the endpoint expects. Leave blank to use its default.",
     group: "custom-model",
   },
   {
     id: "CUSTOM_MODEL_HEADERS",
     provider: "anthropic",
-    label: "Custom headers",
+    label: "Headers",
     multiline: true,
-    placeholder: "One per line — Header-Name: value",
+    placeholder: "x-api-key: sk-ant-…\n# or: Authorization: Bearer <token>",
+    description:
+      "One per line — Header-Name: value. Put auth here: x-api-key or Authorization. anthropic-version is managed for you.",
     group: "custom-model",
   },
 ] as const

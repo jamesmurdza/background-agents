@@ -21,6 +21,8 @@ import { DEFAULT_SETTINGS } from "@/lib/storage"
 interface SettingsResponse {
   settings: Settings
   credentialFlags: CredentialFlags
+  /** Plaintext values for non-secret fields the UI shows unmasked (custom Base URL / Model ID). */
+  credentialValues: Partial<Record<CredentialId, string>>
   /** ISO timestamp when the daily Claude limit resets, or null if not limited */
   claudeLimitResetAt: string | null
   /** Remaining Claude Code messages today, or null if not applicable */
@@ -69,6 +71,7 @@ export async function GET(): Promise<Response> {
     const response: SettingsResponse = {
       settings: readSettings(user?.settings),
       credentialFlags: effective.flags,
+      credentialValues: effective.credentialValues,
       claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
       claudeLimitRemaining: effective.limitRemaining,
       claudeLimitUsed: effective.limitUsed,
@@ -146,6 +149,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     const response: SettingsResponse = {
       settings: newSettings,
       credentialFlags: effective.flags,
+      credentialValues: effective.credentialValues,
       claudeLimitResetAt: effective.limitResetAt?.toISOString() ?? null,
       claudeLimitRemaining: effective.limitRemaining,
       claudeLimitUsed: effective.limitUsed,

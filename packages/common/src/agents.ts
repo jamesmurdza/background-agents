@@ -62,10 +62,9 @@ export type CredentialId =
   | "KILO_API_KEY"
   // Custom Anthropic-compatible endpoint ("Custom model" tab). Stored encrypted
   // like every other credential; mapped to the standard ANTHROPIC_* env vars at
-  // injection time (see getEnvForModel / buildCustomModelEnv).
+  // injection time (see getEnvForModel / buildCustomModelEnv). Auth (API key or
+  // bearer token) is supplied through CUSTOM_MODEL_HEADERS, not a dedicated field.
   | "CUSTOM_MODEL_BASE_URL"
-  | "CUSTOM_MODEL_API_KEY"
-  | "CUSTOM_MODEL_AUTH_TOKEN"
   | "CUSTOM_MODEL_HEADERS"
   | "CUSTOM_MODEL_NAME"
 
@@ -358,13 +357,10 @@ export function hasCredentialsForModel(
 ): boolean {
   if (!model.requiresKey || model.requiresKey === "none") return true
   if (model.requiresKey === "custom") {
-    // Custom endpoint is usable once a base URL and at least one auth credential
-    // (API key or auth token) are configured. The CLI refuses to start with no
-    // auth at all, so we require at least one — see buildCustomModelEnv.
-    return (
-      !!flags?.CUSTOM_MODEL_BASE_URL &&
-      (!!flags?.CUSTOM_MODEL_API_KEY || !!flags?.CUSTOM_MODEL_AUTH_TOKEN)
-    )
+    // Custom endpoint is usable once a base URL is configured. Auth, if the
+    // endpoint needs it, is supplied via custom headers (x-api-key /
+    // Authorization) — see buildCustomModelEnv — so it isn't required here.
+    return !!flags?.CUSTOM_MODEL_BASE_URL
   }
   if (model.requiresKey === "anthropic") {
     // OpenCode and Pi require an API key — they can't drive a subscription session.
@@ -444,43 +440,54 @@ export function getEnvForModel(
   return env
 }
 
-/**
- * Header names a custom-headers blob must NOT set, so a user-supplied header
- * can't silently override authentication or API versioning. Compared
- * case-insensitively.
- */
-const CUSTOM_HEADER_BLOCKLIST = new Set([
-  "authorization",
-  "x-api-key",
-  "anthropic-version",
-])
+export interface ParsedCustomHeaders {
+  /** Value of an `x-api-key:` line, mapped to ANTHROPIC_API_KEY. */
+  apiKey?: string
+  /** Value of an `Authorization:` line (any `Bearer ` prefix stripped), mapped to ANTHROPIC_AUTH_TOKEN. */
+  authToken?: string
+  /** The remaining (non-auth) headers as a cleaned blob, or undefined if none. */
+  headers?: string
+}
 
 /**
- * Sanitize a user-supplied ANTHROPIC_CUSTOM_HEADERS blob (newline-separated
- * `Name: Value` pairs), dropping any line that targets a blocklisted header or
- * is malformed. Returns the cleaned blob, or undefined if nothing remains.
+ * Parse a user-supplied custom-headers blob (newline-separated `Name: Value`
+ * pairs). Auth headers are promoted to the canonical env vars the Claude CLI
+ * understands so the run actually authenticates (and the CLI starts):
+ *   `x-api-key: …`      → apiKey   (→ ANTHROPIC_API_KEY)
+ *   `Authorization: …`  → authToken (→ ANTHROPIC_AUTH_TOKEN, `Bearer ` stripped)
+ * `anthropic-version` is dropped (the CLI manages it). Everything else passes
+ * through as additional request headers. Malformed/empty lines are ignored.
  */
-export function sanitizeCustomHeaders(raw: string): string | undefined {
-  const kept = raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => {
-      if (!line) return false
-      const idx = line.indexOf(":")
-      if (idx <= 0) return false // no name, or no colon
-      const name = line.slice(0, idx).trim().toLowerCase()
-      return !CUSTOM_HEADER_BLOCKLIST.has(name)
-    })
-  return kept.length > 0 ? kept.join("\n") : undefined
+export function parseCustomHeaders(raw: string): ParsedCustomHeaders {
+  let apiKey: string | undefined
+  let authToken: string | undefined
+  const kept: string[] = []
+  for (const line of raw.split("\n").map((l) => l.trim())) {
+    if (!line) continue
+    const idx = line.indexOf(":")
+    if (idx <= 0) continue // no name, or no colon
+    const name = line.slice(0, idx).trim().toLowerCase()
+    const value = line.slice(idx + 1).trim()
+    if (!value) continue
+    if (name === "x-api-key") {
+      apiKey = value
+    } else if (name === "authorization") {
+      authToken = value.replace(/^Bearer\s+/i, "")
+    } else if (name === "anthropic-version") {
+      // Managed by the CLI — ignore.
+    } else {
+      kept.push(`${line.slice(0, idx).trim()}: ${value}`)
+    }
+  }
+  return { apiKey, authToken, headers: kept.length > 0 ? kept.join("\n") : undefined }
 }
 
 /**
  * Map the stored CUSTOM_MODEL_* credentials to the standard Anthropic env vars
  * the Claude CLI understands:
- *   CUSTOM_MODEL_BASE_URL    → ANTHROPIC_BASE_URL
- *   CUSTOM_MODEL_API_KEY     → ANTHROPIC_API_KEY     (sent as x-api-key)
- *   CUSTOM_MODEL_AUTH_TOKEN  → ANTHROPIC_AUTH_TOKEN  (sent as Authorization: Bearer)
- *   CUSTOM_MODEL_HEADERS     → ANTHROPIC_CUSTOM_HEADERS (sanitized)
+ *   CUSTOM_MODEL_BASE_URL → ANTHROPIC_BASE_URL
+ *   CUSTOM_MODEL_HEADERS  → ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN (auth headers,
+ *                           promoted) + ANTHROPIC_CUSTOM_HEADERS (the rest)
  * The model NAME is applied separately as the CLI --model arg (resolveCliModel).
  * Deliberately never includes CLAUDE_CODE_CREDENTIALS, so a custom run can never
  * leak the shared-pool token.
@@ -488,10 +495,10 @@ export function sanitizeCustomHeaders(raw: string): string | undefined {
 export function buildCustomModelEnv(credentials: Credentials): Record<string, string> {
   const env: Record<string, string> = {}
   if (credentials.CUSTOM_MODEL_BASE_URL) env.ANTHROPIC_BASE_URL = credentials.CUSTOM_MODEL_BASE_URL
-  if (credentials.CUSTOM_MODEL_API_KEY) env.ANTHROPIC_API_KEY = credentials.CUSTOM_MODEL_API_KEY
-  if (credentials.CUSTOM_MODEL_AUTH_TOKEN) env.ANTHROPIC_AUTH_TOKEN = credentials.CUSTOM_MODEL_AUTH_TOKEN
   if (credentials.CUSTOM_MODEL_HEADERS) {
-    const headers = sanitizeCustomHeaders(credentials.CUSTOM_MODEL_HEADERS)
+    const { apiKey, authToken, headers } = parseCustomHeaders(credentials.CUSTOM_MODEL_HEADERS)
+    if (apiKey) env.ANTHROPIC_API_KEY = apiKey
+    if (authToken) env.ANTHROPIC_AUTH_TOKEN = authToken
     if (headers) env.ANTHROPIC_CUSTOM_HEADERS = headers
   }
   return env

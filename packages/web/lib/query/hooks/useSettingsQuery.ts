@@ -4,12 +4,13 @@ import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
 import { fetchSettings } from "@/lib/sync/api"
-import type { Settings, CredentialFlags } from "@/lib/types"
+import type { Settings, CredentialFlags, CredentialId } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 
 export interface SettingsData {
   settings: Settings
   credentialFlags: CredentialFlags
+  credentialValues?: Partial<Record<CredentialId, string>>
   claudeLimitResetAt?: string | null
   claudeLimitRemaining?: number | null
   claudeLimitUsed?: number | null
@@ -33,6 +34,7 @@ export function useSettingsQuery() {
       return {
         settings: response.settings,
         credentialFlags: response.credentialFlags,
+        credentialValues: response.credentialValues,
         claudeLimitResetAt: response.claudeLimitResetAt,
         claudeLimitRemaining: response.claudeLimitRemaining,
         claudeLimitUsed: response.claudeLimitUsed,

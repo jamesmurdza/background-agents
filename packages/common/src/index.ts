@@ -21,6 +21,7 @@ export {
   type ProviderName,
   type ProviderId,
   type ModelOption,
+  type ParsedCustomHeaders,
   type CredentialId,
   type CredentialFlags,
   type Credentials,
@@ -39,7 +40,7 @@ export {
   getModelLabel,
   getEnvForModel,
   buildCustomModelEnv,
-  sanitizeCustomHeaders,
+  parseCustomHeaders,
   resolveCliModel,
 } from "./agents"
 

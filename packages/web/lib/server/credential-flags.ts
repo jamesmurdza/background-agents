@@ -15,10 +15,15 @@ import {
   getNextUtcWeekReset,
   type Plan,
 } from "@/lib/server/usage-budgets"
-import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags } from "@/lib/credentials"
+import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags, type CredentialId } from "@/lib/credentials"
 
 export interface EffectiveFlags {
   flags: CredentialFlags
+  /**
+   * Plaintext values for non-secret credential fields the UI shows unmasked
+   * (the custom-model Base URL / Model ID). Secrets are never included.
+   */
+  credentialValues: Partial<Record<CredentialId, string>>
   limitResetAt: Date | null
   /** Remaining limited tokens (cache-excluded) for free users; null = unlimited. */
   limitRemaining: number | null
@@ -67,6 +72,16 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // Build flags from the stored (user-provided) credentials so we can
   // distinguish between user-owned keys and server-shared env keys.
   const flags = flagsFromCredentials(storedCreds)
+
+  // Echo back plaintext for the non-secret custom-model fields (single-line
+  // ones — Base URL / Model ID) so the UI can show them unmasked and editable.
+  // The multiline Headers field carries auth, so it stays masked.
+  const credentialValues: Partial<Record<CredentialId, string>> = {}
+  for (const f of CREDENTIAL_KEYS) {
+    if (f.group === "custom-model" && !f.multiline && storedCreds[f.id]) {
+      credentialValues[f.id] = storedCreds[f.id]
+    }
+  }
 
   // Special-case: mark whether OPENCODE_API_KEY comes from the user's stored
   // credentials (user-owned) or only from the server environment (shared).
@@ -132,5 +147,5 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
     }
   }
 
-  return { flags, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro, isWeekly, plan }
+  return { flags, credentialValues, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro, isWeekly, plan }
 }

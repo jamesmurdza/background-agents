@@ -46,10 +46,19 @@ export function useUpdateSettingsMutation() {
       return { previousSettings }
     },
     onSuccess: (response) => {
-      // Update with server response (includes new credential flags)
+      // Update with the full server response. Must carry every field —
+      // dropping any (e.g. credentialValues or the claudeLimit* fields) would
+      // blank it in the cache until the next refetch.
       queryClient.setQueryData<SettingsData>(queryKeys.settings.all, {
         settings: response.settings,
         credentialFlags: response.credentialFlags,
+        credentialValues: response.credentialValues,
+        claudeLimitResetAt: response.claudeLimitResetAt,
+        claudeLimitRemaining: response.claudeLimitRemaining,
+        claudeLimitUsed: response.claudeLimitUsed,
+        claudeLimitTotal: response.claudeLimitTotal,
+        claudeIsPro: response.claudeIsPro,
+        claudeIsWeekly: response.claudeIsWeekly,
       })
     },
     onError: (err, _, context) => {

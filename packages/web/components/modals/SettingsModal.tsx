@@ -14,6 +14,7 @@ import {
   CREDENTIAL_KEYS,
   type CredentialId,
 } from "@/lib/credentials"
+import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import {
   GeneralSection,
   ApiKeysSection,
@@ -79,6 +80,11 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const { setTheme } = useTheme()
   const { isDesktopApp, getClaudeLicenseAutoDetect, getLicenseDetectSettings, setLicenseDetectSettings } = useElectron()
 
+  // Plaintext values for non-secret fields (custom Base URL / Model ID) so they
+  // render unmasked and editable. Read from the shared settings query cache.
+  const { data: settingsData } = useSettingsQuery()
+  const credentialValues = settingsData?.credentialValues
+
   // The "Local Sync" tab only exists in the desktop app.
   const sections = useMemo(() => getSections(isDesktopApp), [isDesktopApp])
 
@@ -99,9 +105,12 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
 
   // Form state
   const [credValues, setCredValues] = useState<Record<CredentialId, string>>(() =>
-    initialCredValues(credentialFlags)
+    initialCredValues(credentialFlags, credentialValues)
   )
-  const initialCreds = useMemo(() => initialCredValues(credentialFlags), [credentialFlags])
+  const initialCreds = useMemo(
+    () => initialCredValues(credentialFlags, credentialValues),
+    [credentialFlags, credentialValues]
+  )
 
   // Resolve null preference against current credential flags so the dropdown
   // shows whatever new chats would actually use. Snapshotted off saved flags
@@ -144,7 +153,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      setCredValues(initialCredValues(credentialFlags))
+      setCredValues(initialCredValues(credentialFlags, credentialValues))
       setDefaultAgent(initialDefaultAgent)
       setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
@@ -155,7 +164,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setNotificationSound(settings.notificationSound)
       setActiveSection(defaultSection)
     }
-  }, [open, settings, credentialFlags, initialDefaultAgent, initialDefaultModel, defaultSection])
+  }, [open, settings, credentialFlags, credentialValues, initialDefaultAgent, initialDefaultModel, defaultSection])
 
   // Refresh license detection
   const refreshLicenseDetect = useCallback(async () => {
