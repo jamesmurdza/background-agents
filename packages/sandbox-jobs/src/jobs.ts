@@ -92,13 +92,14 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     // Persist a small job-meta so a cold caller can attach() from just the id.
     // base64 + atomic rename: arbitrary JSON crosses the shell safely and a
     // concurrent reader never observes a half-written file.
+    // Note: `cgroup` is intentionally NOT persisted — it's a pure function of
+    // jobId (see cgroupPath), so attach() reconstructs it without storing it.
     const metaJson = JSON.stringify({
       jobId,
       pgid,
       outputFile,
       exitFile,
       dir,
-      cgroup,
       createdAt: new Date(Date.now()).toISOString(),
       version: 1,
     })
@@ -111,25 +112,27 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     return handle
   }
 
-  async function read(handle: JobHandle, cursor = 0): Promise<JobRead> {
-    // One round trip: exit code, process-group state, then only the bytes after
-    // the cursor. The marker cleanly separates the header from raw log bytes
-    // (which may themselves contain anything, including the header keywords).
-    const script =
+  /** Shell that prints the `EXIT:`/`STATE:` status header (see parseHeader). */
+  function statusHeader(handle: JobHandle): string {
+    return (
       `EC=$(cat ${q(handle.exitFile)} 2>/dev/null); printf 'EXIT:%s\\n' "$EC"; ` +
-      `ST=$(ps -o state= -p ${handle.pgid} 2>/dev/null | tr -d ' \\n'); printf 'STATE:%s\\n' "$ST"; ` +
+      `ST=$(ps -o state= -p ${handle.pgid} 2>/dev/null | tr -d ' \\n'); printf 'STATE:%s\\n' "$ST"; `
+    )
+  }
+
+  async function read(handle: JobHandle, cursor = 0): Promise<JobRead> {
+    // One round trip: status header, then only the bytes after the cursor. The
+    // marker cleanly separates the header from raw log bytes (which may
+    // themselves contain anything, including the header keywords).
+    const script =
+      statusHeader(handle) +
       `printf '%s\\n' ${q(DATA_MARKER)}; ` +
       `tail -c +${cursor + 1} ${q(handle.outputFile)} 2>/dev/null`
     return parseRead(await exec(script), cursor)
   }
 
   async function status(handle: JobHandle): Promise<JobStatus> {
-    const script =
-      `EC=$(cat ${q(handle.exitFile)} 2>/dev/null); printf 'EXIT:%s\\n' "$EC"; ` +
-      `ST=$(ps -o state= -p ${handle.pgid} 2>/dev/null | tr -d ' \\n'); printf 'STATE:%s' "$ST"`
-    const out = await exec(script)
-    const exitRaw = out.match(/EXIT:(\d*)/)?.[1] ?? ""
-    const stateRaw = out.match(/STATE:([^\n]*)/)?.[1] ?? ""
+    const { exitRaw, stateRaw } = parseHeader(await exec(statusHeader(handle)))
     return deriveStatus(exitRaw, stateRaw)
   }
 
@@ -161,9 +164,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
         outputFile: m.outputFile,
         exitFile: m.exitFile,
         pgid: m.pgid,
-        // cgroup is derived purely from the job id, so it's reconstructable
-        // even if an older meta.json predates the field.
-        cgroup: m.cgroup ?? cgroupPath(jobId),
+        cgroup: cgroupPath(jobId),
       }
     } catch {
       return null
@@ -193,13 +194,20 @@ export function deriveStatus(exitRaw: string, stateRaw: string): JobStatus {
   return { state: "crashed", exitCode: null, alive: false }
 }
 
+/** Extract the `EXIT:`/`STATE:` fields from a status header. */
+export function parseHeader(text: string): { exitRaw: string; stateRaw: string } {
+  return {
+    exitRaw: text.match(/EXIT:(\d*)/)?.[1] ?? "",
+    stateRaw: text.match(/STATE:([^\n]*)/)?.[1] ?? "",
+  }
+}
+
 export function parseRead(raw: string, cursor: number): JobRead {
   const markerIdx = raw.indexOf(`${DATA_MARKER}\n`)
   const header = markerIdx === -1 ? raw : raw.slice(0, markerIdx)
   const data = markerIdx === -1 ? "" : raw.slice(markerIdx + DATA_MARKER.length + 1)
 
-  const exitRaw = header.match(/EXIT:(\d*)/)?.[1] ?? ""
-  const stateRaw = header.match(/STATE:([^\n]*)/)?.[1] ?? ""
+  const { exitRaw, stateRaw } = parseHeader(header)
   const status = deriveStatus(exitRaw, stateRaw)
 
   const { complete, consumedBytes } = splitComplete(data)
