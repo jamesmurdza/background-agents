@@ -6,6 +6,13 @@ datasource db {
   provider = "postgresql"
 }
 
+// Subscription tier. See User.plan.
+enum Plan {
+  free
+  pro
+  unlimited
+}
+
 // =============================================================================
 // User - linked to GitHub OAuth
 // =============================================================================
@@ -23,8 +30,11 @@ model User {
   // Admin flag for analytics dashboard access
   isAdmin Boolean @default(false)
 
-  // Pro subscription flag for unlimited shared Claude usage
-  isPro Boolean @default(false)
+  // Subscription tier governing shared-pool budgets:
+  //   free      → per-provider daily budget
+  //   pro        → 2× the free daily budget
+  //   unlimited  → no shared-pool cap
+  plan Plan @default(free)
 
   // JSONB for flexible settings storage (no migrations needed for new fields)
   // { defaultAgent, defaultModel, theme }

@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
 import { logActivity } from "@/lib/db/activity-log"
+import type { Plan } from "@/lib/server/usage-budgets"
+
+const PLANS: readonly Plan[] = ["free", "pro", "unlimited"]
 
 /**
  * PATCH /api/admin/users/[userId]
- * Update user properties (e.g., toggle admin status, toggle pro status)
+ * Update user properties (e.g., toggle admin status, change subscription plan)
  */
 export async function PATCH(
   request: NextRequest,
@@ -17,7 +20,7 @@ export async function PATCH(
   const { userId: targetUserId } = await params
 
   // Parse request body
-  let body: { isAdmin?: boolean; isPro?: boolean }
+  let body: { isAdmin?: boolean; plan?: string }
   try {
     body = await request.json()
   } catch {
@@ -27,7 +30,7 @@ export async function PATCH(
   // Validate the target user exists
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
-    select: { id: true, isAdmin: true, isPro: true, name: true },
+    select: { id: true, isAdmin: true, plan: true, name: true },
   })
 
   if (!targetUser) {
@@ -43,12 +46,18 @@ export async function PATCH(
   }
 
   // Build update data
-  const updateData: { isAdmin?: boolean; isPro?: boolean } = {}
+  const updateData: { isAdmin?: boolean; plan?: Plan } = {}
   if (typeof body.isAdmin === "boolean") {
     updateData.isAdmin = body.isAdmin
   }
-  if (typeof body.isPro === "boolean") {
-    updateData.isPro = body.isPro
+  if (body.plan !== undefined) {
+    if (!PLANS.includes(body.plan as Plan)) {
+      return NextResponse.json(
+        { error: `Invalid plan. Expected one of: ${PLANS.join(", ")}` },
+        { status: 400 }
+      )
+    }
+    updateData.plan = body.plan as Plan
   }
 
   // If no valid updates, return error
@@ -65,7 +74,7 @@ export async function PATCH(
       name: true,
       email: true,
       isAdmin: true,
-      isPro: true,
+      plan: true,
     },
   })
 

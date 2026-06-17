@@ -13,6 +13,7 @@ import {
   getNextUtcDayReset,
   getStartOfUtcWeek,
   getNextUtcWeekReset,
+  type Plan,
 } from "@/lib/server/usage-budgets"
 import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags } from "@/lib/credentials"
 
@@ -21,14 +22,16 @@ export interface EffectiveFlags {
   limitResetAt: Date | null
   /** Remaining limited tokens (cache-excluded) for free users; null = unlimited. */
   limitRemaining: number | null
-  /** Limited tokens used by the shared Claude pool this period (daily free / weekly pro). */
+  /** Limited tokens used by the shared Claude pool this period (daily capped / weekly unlimited). */
   limitUsed: number | null
-  /** Daily token budget for free users; null for pro/unlimited. */
+  /** Daily token budget for capped plans (free/pro); null when unlimited. */
   limitTotal: number | null
-  /** Whether usage is tracked weekly (pro) vs daily (free) */
+  /** Whether usage is tracked weekly (unlimited plan) vs daily (free/pro) */
   isWeekly: boolean
-  /** Whether user is a pro subscriber */
+  /** Whether the user has a paid plan (pro or unlimited) */
   isPro: boolean
+  /** The user's subscription tier. */
+  plan: Plan
 }
 
 /**
@@ -44,7 +47,7 @@ export interface EffectiveFlags {
 export async function getEffectiveCredentialFlags(userId: string): Promise<EffectiveFlags> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { credentials: true, isPro: true },
+    select: { credentials: true, plan: true },
   })
 
   // Decrypt stored credentials (only those the user has saved)
@@ -88,7 +91,8 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // (no personal API key or subscription token)
   const hasOwnAnthropicKey = !!flags.ANTHROPIC_API_KEY || !!flags.CLAUDE_CODE_CREDENTIALS
   const usesSharedPool = flags.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicKey
-  const isPro = user?.isPro ?? false
+  const plan: Plan = user?.plan ?? "free"
+  const isPro = plan !== "free"
 
   let limitResetAt: Date | null = null
   let limitRemaining: number | null = null
@@ -98,8 +102,8 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
 
   if (usesSharedPool) {
     // Limited tokens (cache-excluded) consumed from the shared Claude pool.
-    if (isPro) {
-      // Pro users: weekly usage for display only — no cap.
+    if (plan === "unlimited") {
+      // Unlimited plan: weekly usage for display only — no cap.
       isWeekly = true
       const { limitedTokens } = await sumSharedUsage({
         userId,
@@ -110,7 +114,7 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
       limitResetAt = getNextUtcWeekReset()
       // limitTotal / limitRemaining stay null (unlimited)
     } else {
-      // Free users: daily token budget.
+      // Free and Pro users: daily token budget (Pro = 2× free).
       const { limitedTokens } = await sumSharedUsage({
         userId,
         provider: "claude",
@@ -119,7 +123,7 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
       limitUsed = limitedTokens
       limitResetAt = getNextUtcDayReset()
 
-      const budget = getDailyTokenBudget("claude")
+      const budget = getDailyTokenBudget("claude", plan)
       if (budget != null) {
         limitTotal = budget
         limitRemaining = Math.max(0, budget - limitedTokens)
@@ -128,5 +132,5 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
     }
   }
 
-  return { flags, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro, isWeekly }
+  return { flags, limitResetAt, limitRemaining, limitUsed, limitTotal, isPro, isWeekly, plan }
 }

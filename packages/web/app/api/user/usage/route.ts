@@ -11,6 +11,7 @@ import {
   getStartOfUtcDay,
   getNextUtcDayReset,
   type BudgetUnit,
+  type Plan,
 } from "@/lib/server/usage-budgets"
 import { agentLabels, type Agent } from "@background-agents/common"
 
@@ -25,14 +26,15 @@ export interface PoolUsage {
   used: number
   /** Estimated cost (USD) of today's shared-pool usage for this provider. */
   costUsd: number
-  /** Daily budget in `unit`, or null when unlimited (Pro, own key, or no budget). */
+  /** Daily budget in `unit`, or null when unlimited (unlimited plan, own key, or no budget). */
   limit: number | null
   /** True when the user has their own key for this provider (shared pool unused). */
   ownKey: boolean
 }
 
 export interface UsageResponse {
-  isPro: boolean
+  /** The user's subscription tier. */
+  plan: Plan
   /** ISO timestamp of the next daily reset (UTC midnight). */
   resetAt: string
   pools: PoolUsage[]
@@ -50,9 +52,9 @@ export async function GET(): Promise<Response> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { isPro: true, credentials: true },
+      select: { plan: true, credentials: true },
     })
-    const isPro = user?.isPro ?? false
+    const plan: Plan = user?.plan ?? "free"
     const storedCreds = decryptUserCredentials(
       user?.credentials as Record<string, unknown> | null
     )
@@ -62,7 +64,7 @@ export async function GET(): Promise<Response> {
       SHARED_POOL_AGENTS.map(async (agent) => {
         const provider = providerForAgent(agent)
         const ownKey = resolvePool(agent, storedCreds) === "user"
-        const budget = getProviderBudget(provider)
+        const budget = getProviderBudget(provider, plan)
         const unit = budget?.unit ?? "tokens"
         const { limitedTokens, costUsd } = await sumSharedUsage({
           userId,
@@ -76,8 +78,9 @@ export async function GET(): Promise<Response> {
             : unit === "cost"
               ? costUsd
               : limitedTokens
-        // Unlimited when Pro, on own key, or no configured budget.
-        const limit = isPro || ownKey ? null : (budget?.limit ?? null)
+        // Unlimited on own key, or when the plan has no budget (unlimited plan
+        // or a provider with none configured). `budget` already reflects plan.
+        const limit = ownKey ? null : (budget?.limit ?? null)
         return {
           agent,
           provider,
@@ -92,7 +95,7 @@ export async function GET(): Promise<Response> {
     )
 
     const response: UsageResponse = {
-      isPro,
+      plan,
       resetAt: getNextUtcDayReset().toISOString(),
       pools,
     }

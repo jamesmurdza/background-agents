@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
       image: true,
       githubId: true,
       isAdmin: true,
-      isPro: true,
+      plan: true,
       createdAt: true,
     },
   })
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
         image: user.image,
         githubId: user.githubId,
         isAdmin: user.isAdmin,
-        isPro: user.isPro,
+        plan: user.plan,
         totalMessages: messageCountMap.get(user.id) ?? 0,
         lastActivityAt: lastActivity?.createdAt.toISOString() ?? null,
         lastActivityAction: lastActivity?.action ?? null,

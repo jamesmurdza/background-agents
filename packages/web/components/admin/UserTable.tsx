@@ -4,6 +4,7 @@ import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, ArrowUp, ArrowDown, ArrowUpDown, Crown, Mail, Github } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Plan } from "@/lib/server/usage-budgets"
 
 interface User {
   id: string
@@ -12,11 +13,32 @@ interface User {
   image: string | null
   githubId: string | null
   isAdmin: boolean
-  isPro: boolean
+  plan: Plan
   totalMessages: number
   lastActivityAt: string | null
   lastActivityAction: string | null
   createdAt: string
+}
+
+/** Admin-cycle order for the plan control: free → pro → unlimited → free. */
+const PLAN_CYCLE: Record<Plan, Plan> = {
+  free: "pro",
+  pro: "unlimited",
+  unlimited: "free",
+}
+
+const PLAN_LABEL: Record<Plan, string> = {
+  free: "Free",
+  pro: "Pro",
+  unlimited: "Unlimited",
+}
+
+/** Pill styling per plan for the admin table. */
+const PLAN_STYLE: Record<Plan, string> = {
+  free: "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400",
+  pro: "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400",
+  unlimited:
+    "bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400",
 }
 
 interface Pagination {
@@ -40,7 +62,7 @@ interface UserTableProps {
   onPageChange: (page: number) => void
   onSortChange: (field: SortField) => void
   onToggleAdmin: (userId: string, isAdmin: boolean) => void
-  onTogglePro: (userId: string, isPro: boolean) => void
+  onPlanChange: (userId: string, plan: Plan) => void
   isUpdating?: string | null
   currentUserId?: string
 }
@@ -86,13 +108,13 @@ function SortHeader({
 function MobileUserCard({
   user,
   onToggleAdmin,
-  onTogglePro,
+  onPlanChange,
   isUpdating,
   currentUserId,
 }: {
   user: User
   onToggleAdmin: (userId: string, isAdmin: boolean) => void
-  onTogglePro: (userId: string, isPro: boolean) => void
+  onPlanChange: (userId: string, plan: Plan) => void
   isUpdating?: string | null
   currentUserId?: string
 }) {
@@ -147,18 +169,17 @@ function MobileUserCard({
       {/* Actions row */}
       <div className="flex items-center gap-2 pt-1">
         <button
-          onClick={() => onTogglePro(user.id, !user.isPro)}
+          onClick={() => onPlanChange(user.id, PLAN_CYCLE[user.plan])}
           disabled={isUpdating === user.id}
           className={cn(
             "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-            user.isPro
-              ? "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400",
+            PLAN_STYLE[user.plan],
             "disabled:cursor-not-allowed disabled:opacity-50"
           )}
+          title={`Click to change plan (→ ${PLAN_LABEL[PLAN_CYCLE[user.plan]]})`}
         >
           <Crown className="h-3 w-3" />
-          {user.isPro ? "Pro" : "Free"}
+          {PLAN_LABEL[user.plan]}
         </button>
         <button
           onClick={() => onToggleAdmin(user.id, !user.isAdmin)}
@@ -199,7 +220,7 @@ export function UserTable({
   onPageChange,
   onSortChange,
   onToggleAdmin,
-  onTogglePro,
+  onPlanChange,
   isUpdating,
   currentUserId,
 }: UserTableProps) {
@@ -261,7 +282,7 @@ export function UserTable({
               key={user.id}
               user={user}
               onToggleAdmin={onToggleAdmin}
-              onTogglePro={onTogglePro}
+              onPlanChange={onPlanChange}
               isUpdating={isUpdating}
               currentUserId={currentUserId}
             />
@@ -280,7 +301,7 @@ export function UserTable({
                 <SortHeader label="Messages" field="totalMessages" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} align="center" />
                 <SortHeader label="Last Active" field="lastActivityAt" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} />
                 <SortHeader label="Joined" field="createdAt" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} />
-                <th className="px-4 py-3 text-center font-medium">Pro</th>
+                <th className="px-4 py-3 text-center font-medium">Plan</th>
                 <th className="px-4 py-3 text-center font-medium">Admin</th>
               </tr>
             </thead>
@@ -379,17 +400,17 @@ export function UserTable({
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
-                        onClick={() => onTogglePro(user.id, !user.isPro)}
+                        onClick={() => onPlanChange(user.id, PLAN_CYCLE[user.plan])}
                         disabled={isUpdating === user.id}
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition-colors ${
-                          user.isPro
-                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
-                        } disabled:cursor-not-allowed disabled:opacity-50`}
-                        title={user.isPro ? "Click to remove Pro status" : "Click to grant Pro status"}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition-colors",
+                          PLAN_STYLE[user.plan],
+                          "disabled:cursor-not-allowed disabled:opacity-50"
+                        )}
+                        title={`Click to change plan (→ ${PLAN_LABEL[PLAN_CYCLE[user.plan]]})`}
                       >
                         <Crown className="h-3 w-3" />
-                        {user.isPro ? "Pro" : "Free"}
+                        {PLAN_LABEL[user.plan]}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">

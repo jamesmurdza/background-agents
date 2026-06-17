@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
+import type { Plan } from "@/lib/server/usage-budgets"
 
 interface User {
   id: string
@@ -11,7 +12,7 @@ interface User {
   image: string | null
   githubId: string | null
   isAdmin: boolean
-  isPro: boolean
+  plan: Plan
   totalMessages: number
   lastActivityAt: string | null
   lastActivityAction: string | null
@@ -80,17 +81,17 @@ export function useAdminUsersQuery(options: UseAdminUsersQueryOptions = {}) {
   })
 }
 
-// Mutation for updating user properties (admin status, pro status)
+// Mutation for updating user properties (admin status, subscription plan)
 interface UpdateUserParams {
   userId: string
   isAdmin?: boolean
-  isPro?: boolean
+  plan?: Plan
 }
 
-async function updateUser({ userId, isAdmin, isPro }: UpdateUserParams): Promise<User> {
-  const body: { isAdmin?: boolean; isPro?: boolean } = {}
+async function updateUser({ userId, isAdmin, plan }: UpdateUserParams): Promise<User> {
+  const body: { isAdmin?: boolean; plan?: Plan } = {}
   if (typeof isAdmin === "boolean") body.isAdmin = isAdmin
-  if (typeof isPro === "boolean") body.isPro = isPro
+  if (plan !== undefined) body.plan = plan
 
   const response = await fetch(`/api/admin/users/${userId}`, {
     method: "PATCH",

@@ -191,7 +191,7 @@ export function LimitReachedDialog({
                     Upgrade to Pro
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Unlimited usage on all shared pools and priority support
+                    Higher daily limits on all shared pools and priority support
                   </div>
                 </div>
                 <div className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded bg-amber-500/10">

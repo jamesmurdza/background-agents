@@ -1,9 +1,9 @@
 /**
  * Per-provider daily budgets for the shared credential pools.
  *
- * Free users get a daily budget per shared pool; Pro users are unlimited. The
- * budget *unit* differs by provider — each pool is metered in whatever measure
- * best reflects its cost:
+ * Budgets scale by plan: `free` gets the base daily budget, `pro` gets 2× that
+ * budget (still daily), and `unlimited` is uncapped. The budget *unit* differs
+ * by provider — each pool is metered in whatever measure best reflects its cost:
  *   - claude   → "tokens": cache-excluded limited tokens (input + output +
  *                reasoning; see UsageTotals.limitedTokens).
  *   - opencode → "cost": USD spend (tokscale's per-turn cost), since OpenCode
@@ -16,6 +16,9 @@
 
 import type { ProviderName } from "@background-agents/common"
 
+/** Subscription tier (mirrors Prisma's `Plan` enum). */
+export type Plan = "free" | "pro" | "unlimited"
+
 /** Unit a provider's shared-pool budget is measured in. */
 export type BudgetUnit = "tokens" | "cost" | "messages"
 
@@ -25,6 +28,9 @@ export interface ProviderBudget {
   limit: number
 }
 
+/** Multiplier applied to the free daily budget for `pro` users. */
+export const PRO_BUDGET_MULTIPLIER = 2
+
 /** Free-tier daily budget per shared-pool provider, with its unit. */
 export const FREE_DAILY_BUDGETS: Partial<Record<ProviderName, ProviderBudget>> = {
   // TODO(token-budgets): replace placeholders with tuned values.
@@ -33,18 +39,34 @@ export const FREE_DAILY_BUDGETS: Partial<Record<ProviderName, ProviderBudget>> =
   gemini: { unit: "messages", limit: 100 },
 }
 
-/** Daily budget descriptor for a provider, or null when unlimited. */
-export function getProviderBudget(provider: ProviderName): ProviderBudget | null {
-  return FREE_DAILY_BUDGETS[provider] ?? null
+/**
+ * Daily budget descriptor for a provider on a given plan, or null when
+ * unlimited (the `unlimited` plan, or a provider with no configured budget).
+ * `pro` gets `PRO_BUDGET_MULTIPLIER`× the free budget; `free` gets the base.
+ */
+export function getProviderBudget(
+  provider: ProviderName,
+  plan: Plan = "free"
+): ProviderBudget | null {
+  if (plan === "unlimited") return null
+  const base = FREE_DAILY_BUDGETS[provider]
+  if (!base) return null
+  if (plan === "pro") {
+    return { unit: base.unit, limit: base.limit * PRO_BUDGET_MULTIPLIER }
+  }
+  return base
 }
 
 /**
- * Daily token budget for a provider, or null when the provider isn't metered
- * in tokens (cost/message-based) or is unlimited. Used by the Claude-specific
- * limit display in credential-flags.
+ * Daily token budget for a provider on a given plan, or null when the provider
+ * isn't metered in tokens (cost/message-based) or is unlimited. Used by the
+ * Claude-specific limit display in credential-flags.
  */
-export function getDailyTokenBudget(provider: ProviderName): number | null {
-  const b = FREE_DAILY_BUDGETS[provider]
+export function getDailyTokenBudget(
+  provider: ProviderName,
+  plan: Plan = "free"
+): number | null {
+  const b = getProviderBudget(provider, plan)
   return b && b.unit === "tokens" ? b.limit : null
 }
 

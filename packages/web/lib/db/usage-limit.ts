@@ -2,9 +2,10 @@
  * Token-based usage limits for the shared credential pools.
  *
  * Free users get a daily, per-provider, cache-excluded token budget when using
- * a shared pool (Claude OAuth / Gemini / OpenCode server keys). Users running on
- * their own key, and Pro users, are unlimited. Usage is summed from the
- * TokenUsage ledger (populated post-turn by tokscale metering).
+ * a shared pool (Claude OAuth / Gemini / OpenCode server keys). Pro users get
+ * the same daily budget scaled by PRO_BUDGET_MULTIPLIER; only `unlimited`-plan
+ * users (and anyone running on their own key) are uncapped. Usage is summed from
+ * the TokenUsage ledger (populated post-turn by tokscale metering).
  *
  * Because a turn's token cost is only known after it runs, enforcement is
  * post-hoc: we block the NEXT turn once the period's usage has met the budget.
@@ -21,11 +22,12 @@ import {
   getNextUtcDayReset,
   getStartOfUtcDay,
   type BudgetUnit,
+  type Plan,
 } from "@/lib/server/usage-budgets"
 
 export interface UsageLimitResult {
   allowed: boolean
-  isPro: boolean
+  plan: Plan
   provider: ProviderName
   /** "shared" pools are limited; "user" pools are always allowed. */
   pool: "shared" | "user"
@@ -43,7 +45,8 @@ export interface UsageLimitResult {
 /**
  * Check whether a user may start a turn on `agent` given the shared-pool token
  * budget. Unlimited (allowed, no limit) when: the agent has no shared pool, the
- * user supplied their own key for it, or the user is Pro.
+ * user supplied their own key for it, or the user is on the `unlimited` plan.
+ * Free and Pro users are capped (Pro at PRO_BUDGET_MULTIPLIER× the free budget).
  */
 export async function checkSharedPoolUsage(
   userId: string,
@@ -54,18 +57,19 @@ export async function checkSharedPoolUsage(
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { isPro: true, credentials: true },
+    select: { plan: true, credentials: true },
   })
 
+  const plan: Plan = user?.plan ?? "free"
   const storedCreds = decryptUserCredentials(
     user?.credentials as Record<string, unknown> | null
   )
   const pool = resolvePool(agent, storedCreds)
 
-  const budget = getProviderBudget(provider)
+  const budget = getProviderBudget(provider, plan)
 
   const base = {
-    isPro: user?.isPro ?? false,
+    plan,
     provider,
     pool,
     unit: budget?.unit ?? ("tokens" as BudgetUnit),
@@ -78,13 +82,8 @@ export async function checkSharedPoolUsage(
     return { ...base, allowed: true, limit: null, remaining: null }
   }
 
-  // Pro users: unlimited on shared pools.
-  if (base.isPro) {
-    return { ...base, allowed: true, limit: null, remaining: null }
-  }
-
   if (budget == null) {
-    // No configured budget ⇒ effectively unlimited.
+    // Unlimited plan, or a provider with no configured budget ⇒ unlimited.
     return { ...base, allowed: true, limit: null, remaining: null }
   }
 

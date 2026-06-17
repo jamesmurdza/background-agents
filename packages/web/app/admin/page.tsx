@@ -403,8 +403,8 @@ export default function AdminDashboard() {
                 onToggleAdmin={(userId, isAdmin) => {
                   updateUserMutation.mutate({ userId, isAdmin })
                 }}
-                onTogglePro={(userId, isPro) => {
-                  updateUserMutation.mutate({ userId, isPro })
+                onPlanChange={(userId, plan) => {
+                  updateUserMutation.mutate({ userId, plan })
                 }}
                 isUpdating={updateUserMutation.isPending ? updateUserMutation.variables?.userId : null}
                 currentUserId={session?.user?.id}
