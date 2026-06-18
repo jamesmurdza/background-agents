@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { rebuildSnapshot } from "@background-agents/sandbox-image"
+import { rotateSnapshot } from "@background-agents/sandbox-image"
 
 // Building the snapshot can take several minutes
 export const maxDuration = 300
@@ -25,19 +25,22 @@ export async function GET(req: Request) {
   const daytona = new Daytona({ apiKey })
 
   try {
-    const snapshot = await rebuildSnapshot(daytona)
+    const result = await rotateSnapshot(daytona, {
+      onLog: (line) => console.log(`[cron/rebuild-snapshot] ${line}`),
+    })
 
     return Response.json({
       success: true,
-      message: "Snapshot rebuilt successfully",
-      snapshotName: snapshot.name,
+      message: "Snapshot rotated successfully",
+      activeSnapshot: result.snapshot.name,
+      deactivatedSnapshot: result.deactivatedName ?? null,
       timestamp: new Date().toISOString(),
     })
   } catch (err) {
     console.error("[cron/rebuild-snapshot] failed:", err)
     return Response.json(
       {
-        error: "SNAPSHOT_BUILD_FAILED",
+        error: "SNAPSHOT_ROTATION_FAILED",
         message: err instanceof Error ? err.message : String(err),
       },
       { status: 500 }

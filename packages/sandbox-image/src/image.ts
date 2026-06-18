@@ -1,10 +1,37 @@
 import { Image } from "@daytonaio/sdk"
 
 /**
- * Snapshot name used for sandbox creation.
- * Must match what's registered with Daytona.
+ * Blue/green snapshot names for zero-downtime rotation.
+ * The cron alternates between these: builds the inactive one, then deletes
+ * the active one. The app calls getActiveSnapshotName() to discover which
+ * exists at runtime — no env var or config needed.
  */
 export const SNAPSHOT_NAME = "background-agents"
+export const SNAPSHOT_NAME_TEMP = "background-agents-temp"
+
+/** Both possible snapshot names (for lookups). */
+export const ALL_SNAPSHOT_NAMES = [SNAPSHOT_NAME, SNAPSHOT_NAME_TEMP] as const
+
+/**
+ * Discovers which snapshot is currently available by querying Daytona.
+ * Returns the first snapshot that exists, preferring the primary name.
+ * Throws if neither exists — caller should handle first-run bootstrap.
+ */
+export async function getActiveSnapshotName(
+  daytona: import("@daytonaio/sdk").Daytona
+): Promise<string> {
+  for (const name of ALL_SNAPSHOT_NAMES) {
+    try {
+      await daytona.snapshot.get(name)
+      return name
+    } catch {
+      // doesn't exist, try next
+    }
+  }
+  throw new Error(
+    `No snapshot found. Run "npm run build:snapshot" to create the initial snapshot.`
+  )
+}
 
 /**
  * Resource limits for the snapshot.

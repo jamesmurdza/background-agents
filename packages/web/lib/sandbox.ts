@@ -10,7 +10,7 @@ import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { installSkills, discoverInstalledSkills } from "@background-agents/skills/sandbox"
-import { TOKSCALE_VERSION } from "@background-agents/sandbox-image"
+import { TOKSCALE_VERSION, getActiveSnapshotName } from "@background-agents/sandbox-image"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
@@ -191,7 +191,7 @@ export async function createSandboxForChat(
 
   const sandbox = await daytona.create({
     name: generateSandboxName(userId),
-    snapshot: SANDBOX_CONFIG.DEFAULT_SNAPSHOT,
+    snapshot: await getActiveSnapshotName(daytona),
     autoStopInterval: 5,
     autoDeleteInterval: 5760, // 4 days - auto-delete after being stopped for four days
     public: true,
