@@ -8,6 +8,7 @@
  */
 import { prisma } from "@/lib/db/prisma"
 import type { Prisma } from "@prisma/client"
+import { requireAuth, isAuthError, notFound } from "@/lib/db/api-helpers"
 
 export type McpOwner =
   | { kind: "chat"; id: string }
@@ -74,4 +75,28 @@ export async function requireMcpOwnerAuth(
     select: { userId: true },
   })
   return !!row && row.userId === userId
+}
+
+/**
+ * Route guard shared by every MCP-connection endpoint. Authenticates the
+ * caller and verifies they own the chat/job, returning the resolved owner and
+ * userId on success or the appropriate error Response (401 / 404) otherwise.
+ *
+ * Usage:
+ *   const resolved = await resolveMcpOwner("chat", chatId)
+ *   if (resolved instanceof Response) return resolved
+ *   // resolved.owner, resolved.userId
+ */
+export async function resolveMcpOwner(
+  kind: McpOwner["kind"],
+  id: string
+): Promise<{ owner: McpOwner; userId: string } | Response> {
+  const auth = await requireAuth()
+  if (isAuthError(auth)) return auth
+
+  const owner: McpOwner = { kind, id }
+  if (!(await requireMcpOwnerAuth(owner, auth.userId))) {
+    return notFound(kind === "chat" ? "Chat not found" : "Scheduled job not found")
+  }
+  return { owner, userId: auth.userId }
 }
