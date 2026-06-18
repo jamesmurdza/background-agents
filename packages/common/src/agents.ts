@@ -242,6 +242,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-5.4", label: "GPT-5.4", requiresKey: "github" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "github" },
     { value: "gpt-5-mini", label: "GPT-5 Mini", requiresKey: "github" },
+    { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "github" },
     { value: "gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "github" },
     { value: "gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "github" },
   ],
