@@ -151,16 +151,12 @@ async function mergeRemote(
     // Commit the agent's uncommitted WIP so the pull is a real, abortable merge
     // rather than an autostash pop. No markers exist yet (nothing is merged), so
     // the pre-commit hook passes.
-    console.log(`[auto-pull] working tree is DIRTY — committing WIP before merge:\n${dirty}`)
     const wipRes = await sandbox.process.executeCommand(
       `cd ${esc(repoPath)} && git add -A && git commit --no-edit -m "Auto-saved WIP before pulling origin/${esc(branch)}" 2>&1`
     )
     if (wipRes.exitCode !== 0) {
-      console.error(`[auto-pull] failed to commit WIP before merge:\n${wipRes.result.trim()}`)
       return { status: "error", message: wipRes.result.trim() || "failed to commit WIP before pull" }
     }
-  } else {
-    console.log(`[auto-pull] working tree is clean before merge`)
   }
 
   const before = await head(sandbox, repoPath)
@@ -168,9 +164,6 @@ async function mergeRemote(
     `cd ${esc(repoPath)} && git merge --no-edit origin/${esc(branch)} 2>&1`
   )
   const after = await head(sandbox, repoPath)
-  console.log(
-    `[auto-pull] git merge exit=${mergeRes.exitCode}, HEAD ${before || "?"} -> ${after || "?"}\n${mergeRes.result.trim()}`
-  )
 
   // A real merge conflict leaves unmerged paths and MERGE_HEAD in place.
   const conflicts = await conflictedFiles(sandbox, repoPath)
@@ -210,8 +203,6 @@ export async function autoPullBeforeRun(
   branch: string,
   token: string
 ): Promise<AutoPullResult> {
-  console.log(`[auto-pull] start: branch=${branch} repo=${repoPath}`)
-
   // Guard against the agent committing unresolved conflict markers (which would
   // silently finalize a conflicted merge and drop us out of conflict state).
   await installConflictMarkerHook(sandbox, repoPath)
@@ -224,36 +215,17 @@ export async function autoPullBeforeRun(
   // pre-commit hook). The agent runs on the conflicted tree.
   const existingConflicts = await conflictedFiles(sandbox, repoPath)
   if (existingConflicts.length > 0 || (await isMergeInProgress(sandbox, repoPath))) {
-    console.log(
-      `[auto-pull] already in conflict, ${existingConflicts.length} unresolved file(s): ${existingConflicts.join(", ") || "(none)"} — agent will resolve`
-    )
     return { status: "conflict", conflictedFiles: existingConflicts, alreadyInProgress: true }
   }
 
   const git = createSandboxGit(sandbox)
   // Ensures origin/<branch> exists even for single-branch clones.
-  console.log(`[auto-pull] fetching origin/${branch}…`)
   await git.fetchBranch(repoPath, branch, token)
 
   const behind = await commitsBehind(sandbox, repoPath, branch)
-  console.log(`[auto-pull] ${branch} is ${behind} commit(s) behind origin/${branch}`)
   if (behind === 0) {
-    console.log(`[auto-pull] up-to-date — nothing to pull`)
     return { status: "up-to-date" }
   }
 
-  console.log(`[auto-pull] merging origin/${branch} (${behind} commit(s))…`)
-  const result = await mergeRemote(sandbox, repoPath, branch, behind)
-  if (result.status === "conflict") {
-    console.log(
-      `[auto-pull] CONFLICT merging origin/${branch} — ${result.conflictedFiles.length} file(s): ${result.conflictedFiles.join(", ") || "(none)"} (merge left in progress)`
-    )
-  } else if (result.status === "pulled") {
-    console.log(`[auto-pull] merged cleanly — pulled ${result.commits} commit(s) from ${branch}`)
-  } else if (result.status === "error") {
-    console.error(
-      `[auto-pull] ERROR — merge did not apply (still ${behind} behind); agent will run on the un-pulled tree:\n${result.message}`
-    )
-  }
-  return result
+  return mergeRemote(sandbox, repoPath, branch, behind)
 }

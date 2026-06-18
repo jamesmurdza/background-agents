@@ -71,11 +71,8 @@ export async function finalizeInteractiveChat(
           const git = createSandboxGit(sandbox)
           const pushOptions = await getUserPushOptions(chat.userId)
           try {
-            console.log(`[auto-push:cron] pushing ${chat.branch} for chat ${chat.id}`)
-            const pushResult = await git.push(`${PATHS.SANDBOX_HOME}/project`, account.access_token, pushOptions)
-            console.log(`[auto-push:cron] done: branch=${chat.branch} updated=${pushResult.updated}`)
+            await git.push(`${PATHS.SANDBOX_HOME}/project`, account.access_token, pushOptions)
           } catch (err) {
-            console.error(`[auto-push:cron] FAILED for chat ${chat.id} (likely non-fast-forward — force-push prompt will be shown):`, err instanceof Error ? err.message : err)
             // Create error message with force-push action (same as SSE stream)
             await createGitOperationMessage(
               chat.id,

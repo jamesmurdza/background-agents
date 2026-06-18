@@ -382,10 +382,8 @@ export async function POST(
       chat.repo !== "__new__" &&
       githubToken
     ) {
-      console.log(`[chats/messages] auto-pull for chat ${chatId} (branch=${branch})`)
       try {
         const pull = await autoPullBeforeRun(sandbox, repoPath, branch, githubToken)
-        console.log(`[chats/messages] auto-pull result for chat ${chatId}:`, JSON.stringify(pull))
 
         if (pull.status === "pulled") {
           await createGitOperationMessage(
@@ -400,9 +398,6 @@ export async function POST(
           // progress, surface the existing conflict UI, and do NOT start the
           // agent or persist messages — the user decides (send a message to
           // have the agent resolve it, or Abort Merge).
-          console.log(
-            `[chats/messages] PULL_CONFLICT for chat ${chatId} on ${branch}: ${pull.conflictedFiles.length} file(s) [${pull.conflictedFiles.join(", ")}] — surfacing conflict UI, agent NOT started`
-          )
           const fileList = pull.conflictedFiles.join(", ")
           await createGitOperationMessage(
             chatId,
@@ -420,9 +415,6 @@ export async function POST(
         } else if (pull.status === "conflict" && pull.alreadyInProgress) {
           // A prior conflicted pull is still in progress and the user sent a
           // message — hand the conflict to the agent to resolve this turn.
-          console.log(
-            `[chats/messages] resolving in-progress merge for chat ${chatId}: handing ${pull.conflictedFiles.length} conflicted file(s) to the agent [${pull.conflictedFiles.join(", ")}]`
-          )
           const fileList = pull.conflictedFiles.join(", ")
           pullConflictNote =
             `A merge of origin/${branch} is in progress with conflicts in: ${fileList}. ` +
@@ -433,10 +425,6 @@ export async function POST(
         // the current tree and the end-of-turn push surfaces any divergence.
         console.error("[chats/messages] auto-pull failed:", err)
       }
-    } else {
-      console.log(
-        `[chats/messages] auto-pull skipped for chat ${chatId} (createdSandbox=${createdSandbox}, branch=${branch ?? "none"}, repo=${chat.repo}, hasToken=${!!githubToken})`
-      )
     }
 
     // ── Stage 3: file upload ───────────────────────────────────────────────

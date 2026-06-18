@@ -71,7 +71,6 @@ async function autoPush(
     // Skip auto-push if in conflict state (merge or rebase in progress)
     const inConflict = await isInConflictState(sandbox, repoPath)
     if (inConflict) {
-      console.log("[auto-push] skipped — repo is in a merge/rebase conflict state")
       return { success: true, skipped: true }
     }
 
@@ -80,18 +79,6 @@ async function autoPush(
       `cd ${repoPath} && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo ""`
     )
     const branch = branchRes.result.trim()
-
-    // Diagnostic: how does local compare to origin/<branch> right before we push?
-    // A non-zero "behind" here means the remote advanced after the start-of-turn
-    // auto-pull (e.g. someone pushed during the agent's run) and the push below
-    // will be rejected as non-fast-forward.
-    const aheadBehindRes = await sandbox.process.executeCommand(
-      `cd ${repoPath} && git rev-list --left-right --count origin/${branch}...HEAD 2>/dev/null || echo "? ?"`
-    )
-    const [behindStr, aheadStr] = aheadBehindRes.result.trim().split(/\s+/)
-    console.log(
-      `[auto-push] pushing ${branch}: local is ${aheadStr ?? "?"} ahead, ${behindStr ?? "?"} behind origin/${branch}`
-    )
 
     const git = createSandboxGit(sandbox)
     // The push result is the source of truth for "did anything get pushed":
@@ -116,16 +103,9 @@ async function autoPush(
       pushedCommits = parseInt(countRes.result.trim() || "0", 10) || 0
     }
 
-    console.log(
-      `[auto-push] done: branch=${branch} updated=${pushResult.updated} pushedCommits=${pushedCommits} head=${commitSha}`
-    )
     return { success: true, pushed: pushResult.updated, pushedCommits, branch, commitSha }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"
-    console.error(
-      `[auto-push] FAILED — ${message.includes("non-fast-forward") || message.includes("behind") ? "remote advanced after the start-of-turn pull (non-fast-forward); force-push prompt will be shown" : "see error"}:`,
-      message
-    )
     return { success: false, error: message }
   }
 }
