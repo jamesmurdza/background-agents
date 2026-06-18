@@ -4,13 +4,8 @@
  *
  * Thin wrappers around the owner-parameterized handlers in lib/mcp/connections.
  */
-import {
-  requireAuth,
-  isAuthError,
-  badRequest,
-  notFound,
-} from "@/lib/db/api-helpers"
-import { requireMcpOwnerAuth, type McpOwner } from "@/lib/mcp/owner"
+import { badRequest } from "@/lib/db/api-helpers"
+import { resolveMcpOwner } from "@/lib/mcp/owner"
 import {
   connectSmitheryResponse,
   listConnectionsResponse,
@@ -21,29 +16,19 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ chatId: string }> }
 ): Promise<Response> {
-  const auth = await requireAuth()
-  if (isAuthError(auth)) return auth
   const { chatId } = await params
-
-  const owner: McpOwner = { kind: "chat", id: chatId }
-  if (!(await requireMcpOwnerAuth(owner, auth.userId))) {
-    return notFound("Chat not found")
-  }
-  return listConnectionsResponse(owner)
+  const resolved = await resolveMcpOwner("chat", chatId)
+  if (resolved instanceof Response) return resolved
+  return listConnectionsResponse(resolved.owner)
 }
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ chatId: string }> }
 ): Promise<Response> {
-  const auth = await requireAuth()
-  if (isAuthError(auth)) return auth
   const { chatId } = await params
-
-  const owner: McpOwner = { kind: "chat", id: chatId }
-  if (!(await requireMcpOwnerAuth(owner, auth.userId))) {
-    return notFound("Chat not found")
-  }
+  const resolved = await resolveMcpOwner("chat", chatId)
+  if (resolved instanceof Response) return resolved
 
   let body: ConnectSmitheryBody
   try {
@@ -51,5 +36,5 @@ export async function POST(
   } catch {
     return badRequest("Invalid JSON body")
   }
-  return connectSmitheryResponse(owner, body)
+  return connectSmitheryResponse(resolved.owner, body)
 }
