@@ -1,6 +1,6 @@
 // Queries
 export { useChatsQuery } from "./useChatsQuery"
-export { useSettingsQuery, useSettings, useCredentialFlags } from "./useSettingsQuery"
+export { useSettingsQuery, useSettings } from "./useSettingsQuery"
 export type { SettingsData } from "./useSettingsQuery"
 export { useReposQuery } from "./useReposQuery"
 export { useBranchesQuery } from "./useBranchesQuery"
@@ -13,7 +13,7 @@ export { useUpdateChatMutation } from "./useUpdateChatMutation"
 export { useDeleteChatMutation } from "./useDeleteChatMutation"
 export { useUpdateSettingsMutation } from "./useUpdateSettingsMutation"
 export { useSuggestNameMutation } from "./useSuggestNameMutation"
-export { useSandboxDeleteMutation, useDeleteMultipleSandboxes } from "./useSandboxDeleteMutation"
+export { useSandboxDeleteMutation } from "./useSandboxDeleteMutation"
 
 // Admin
 export { useAdminStatsQuery } from "./useAdminStatsQuery"

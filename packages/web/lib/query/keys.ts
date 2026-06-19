@@ -55,12 +55,3 @@ export const queryKeys = {
     topUsers: (range: string) => [...queryKeys.admin.all, "topUsers", range] as const,
   },
 }
-
-// Type helpers for query keys
-export type QueryKeys = typeof queryKeys
-export type ChatsQueryKey = ReturnType<typeof queryKeys.chats.list>
-export type ChatDetailQueryKey = ReturnType<typeof queryKeys.chats.detail>
-export type SettingsQueryKey = typeof queryKeys.settings.all
-export type ReposQueryKey = ReturnType<typeof queryKeys.github.repos>
-export type BranchesQueryKey = ReturnType<typeof queryKeys.github.branches>
-export type ServersQueryKey = ReturnType<typeof queryKeys.sandbox.servers>

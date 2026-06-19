@@ -60,11 +60,3 @@ export function useSettings() {
   const { data } = useSettingsQuery()
   return data?.settings ?? DEFAULT_SETTINGS
 }
-
-/**
- * Get just the credential flags (convenience hook)
- */
-export function useCredentialFlags() {
-  const { data } = useSettingsQuery()
-  return data?.credentialFlags ?? {}
-}
