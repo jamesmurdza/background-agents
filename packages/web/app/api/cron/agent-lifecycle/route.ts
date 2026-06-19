@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { addMinutes, differenceInMinutes } from "date-fns"
 
 import { prisma } from "@/lib/db/prisma"
+import { requireCronSecret } from "@/lib/db/api-helpers"
 
 import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constants"
 import { monitorAgent, stopAgent } from "./_lib/monitor"
@@ -23,10 +24,8 @@ export const maxDuration = 300
 
 export async function GET(req: Request) {
   // Verify cron secret (skip auth if not configured, for local development)
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && req.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+  const denied = requireCronSecret(req)
+  if (denied) return denied
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {

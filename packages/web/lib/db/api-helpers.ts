@@ -62,6 +62,29 @@ export function internalError(error: unknown) {
 }
 
 // =============================================================================
+// Cron Helpers
+// =============================================================================
+
+/**
+ * Verifies the cron secret on an incoming cron request.
+ * - Skips the check when CRON_SECRET is unset (local development).
+ * - Returns a 401 Response when the secret is set but the header doesn't match.
+ * - Returns null when the request is authorized.
+ *
+ * Usage: const denied = requireCronSecret(req); if (denied) return denied
+ */
+export function requireCronSecret(req: Request): Response | null {
+  const cronSecret = process.env.CRON_SECRET
+  if (
+    cronSecret &&
+    req.headers.get("authorization") !== `Bearer ${cronSecret}`
+  ) {
+    return new Response("Unauthorized", { status: 401 })
+  }
+  return null
+}
+
+// =============================================================================
 // Authentication Helpers
 // =============================================================================
 
