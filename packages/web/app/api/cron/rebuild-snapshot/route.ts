@@ -1,18 +1,14 @@
 import { Daytona } from "@daytonaio/sdk"
 import { rotateSnapshot } from "@background-agents/sandbox-image"
+import { requireCronSecret } from "@/lib/db/api-helpers"
 
 // Building the snapshot can take several minutes
 export const maxDuration = 300
 
 export async function GET(req: Request) {
   // Verify cron secret
-  const cronSecret = process.env.CRON_SECRET
-  if (
-    cronSecret &&
-    req.headers.get("authorization") !== `Bearer ${cronSecret}`
-  ) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+  const denied = requireCronSecret(req)
+  if (denied) return denied
 
   const apiKey = process.env.DAYTONA_API_KEY
   if (!apiKey) {

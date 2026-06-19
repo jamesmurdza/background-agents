@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
+import { requireCronSecret } from "@/lib/db/api-helpers"
 import {
   generateClaudeCredentials,
   CLAUDE_CREDS_KEY,
@@ -17,10 +18,8 @@ export const maxDuration = 300
 
 export async function GET(req: Request) {
   // Verify cron secret (skip auth if not configured, for local development)
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && req.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+  const denied = requireCronSecret(req)
+  if (denied) return denied
 
   const credsRow = await prisma.ccAuthInfo.findUnique({
     where: { id: CLAUDE_CREDS_KEY },
