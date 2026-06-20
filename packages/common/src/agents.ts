@@ -282,7 +282,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/openai/o3", label: "o3", requiresKey: "kilo" },
     { value: "kilo/openai/o4-mini", label: "o4 Mini", requiresKey: "kilo" },
     // Google via Kilo gateway
-    { value: "kilo/google/gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "kilo" },
+    { value: "kilo/google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "kilo" },
     // DeepSeek via Kilo gateway
