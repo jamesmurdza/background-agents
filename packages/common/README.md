@@ -30,6 +30,7 @@ import {
   type CredentialId,
   type CredentialFlags,
   type Credentials,
+  type ParsedCustomHeaders,
   // Data
   ALL_AGENTS,
   agentLabels,
@@ -37,12 +38,16 @@ import {
   agentModels,
   defaultAgentModel,
   agentSupportsPlanMode,
+  CUSTOM_MODEL_VALUE,
   // Functions
   getDefaultAgent,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
   getEnvForModel,
+  buildCustomModelEnv,
+  parseCustomHeaders,
+  resolveCliModel,
 } from "@background-agents/common"
 ```
 
