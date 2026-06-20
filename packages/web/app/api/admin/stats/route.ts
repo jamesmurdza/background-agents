@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
+import { getTopUsers } from "@/lib/db/admin-stats"
 
 type TimeRange = "24h" | "7d" | "30d" | "all"
 
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
   // Run all queries in parallel for performance
   const [
     userGrowthRaw,
-    topUsersRaw,
+    topUsers,
     hourlyActivityRaw,
     dailyMessagesChatsRaw,
     messagesByAgentModelRaw,
@@ -125,31 +126,7 @@ export async function GET(request: NextRequest) {
     `,
 
     // Top active users (by message count in selected range) - from ActivityLog to include deleted
-    prisma.$queryRaw<Array<{ userId: string; name: string | null; image: string | null; messageCount: bigint; chatCount: bigint }>>`
-      SELECT
-        u.id as "userId",
-        u.name,
-        u.image,
-        COALESCE(m.count, 0)::bigint as "messageCount",
-        COALESCE(c.count, 0)::bigint as "chatCount"
-      FROM "User" u
-      LEFT JOIN (
-        SELECT "userId", COUNT(*)::bigint as count
-        FROM "ActivityLog"
-        WHERE action = 'message_sent' AND "createdAt" >= NOW() - ${interval}::interval
-        GROUP BY "userId"
-      ) m ON m."userId" = u.id
-      LEFT JOIN (
-        SELECT "userId", COUNT(*)::bigint as count
-        FROM "ActivityLog"
-        WHERE action = 'chat_created' AND "createdAt" >= NOW() - ${interval}::interval
-        GROUP BY "userId"
-      ) c ON c."userId" = u.id
-      WHERE COALESCE(m.count, 0) > 0
-        AND (${excludeAdmins} = false OR u."isAdmin" = false)
-      ORDER BY "messageCount" DESC
-      LIMIT 10
-    `,
+    getTopUsers(interval, excludeAdmins),
 
     // Hourly activity distribution (selected range) - from ActivityLog to include deleted
     prisma.$queryRaw<Array<{ hour: number; count: bigint }>>`
@@ -253,14 +230,6 @@ export async function GET(request: NextRequest) {
   const weeklyActiveUsers = userGrowthRaw.map((item) => ({
     date: item.date.toISOString().split("T")[0],
     count: Number(item.count),
-  }))
-
-  // Format top users
-  const topUsers = topUsersRaw.map((item) => ({
-    name: item.name || "Unknown",
-    image: item.image,
-    messageCount: Number(item.messageCount),
-    chatCount: Number(item.chatCount),
   }))
 
   // Format hourly activity
