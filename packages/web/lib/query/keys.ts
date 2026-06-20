@@ -25,8 +25,6 @@ export const queryKeys = {
     repos: () => [...queryKeys.github.all, "repos"] as const,
     branches: (owner: string, repo: string) =>
       [...queryKeys.github.all, "branches", owner, repo] as const,
-    compare: (owner: string, repo: string, base: string, head: string) =>
-      [...queryKeys.github.all, "compare", owner, repo, base, head] as const,
   },
 
   // Sandbox
@@ -52,6 +50,5 @@ export const queryKeys = {
     }) => [...queryKeys.admin.all, "activity", { page, ...filters }] as const,
     users: (page: number, search?: string, sortField?: string, sortOrder?: string) =>
       [...queryKeys.admin.all, "users", { page, search, sortField, sortOrder }] as const,
-    topUsers: (range: string) => [...queryKeys.admin.all, "topUsers", range] as const,
   },
 }
