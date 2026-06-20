@@ -79,6 +79,15 @@ export type CredentialId =
   | "CUSTOM_CODEX_BASE_URL"
   | "CUSTOM_CODEX_HEADERS"
   | "CUSTOM_CODEX_NAME"
+  // Custom OpenAI-compatible endpoint for OpenCode ("OpenCode" target on the
+  // Custom model tab). Like the others, only a base URL is required and auth is
+  // supplied through CUSTOM_OPENCODE_HEADERS. At run time these become a
+  // ~/.config/opencode/opencode.json custom provider (see buildOpencodeConfigJson
+  // in the SDK). The model id is required here — OpenCode addresses models as
+  // `<provider>/<model>`, so there is no "endpoint default".
+  | "CUSTOM_OPENCODE_BASE_URL"
+  | "CUSTOM_OPENCODE_HEADERS"
+  | "CUSTOM_OPENCODE_NAME"
 
 export type CredentialFlags = Partial<Record<CredentialId, boolean>> & {
   // Server has a shared Claude credential pool (e.g. the rotating row written
@@ -120,8 +129,9 @@ export interface ModelOption {
    * needed. "custom" means the user-configured custom Anthropic endpoint (see
    * the CUSTOM_MODEL_* credentials). "codex-custom" means the user-configured
    * custom OpenAI-compatible Codex endpoint (see the CUSTOM_CODEX_* credentials).
+   * "opencode-custom" is the equivalent for OpenCode (see CUSTOM_OPENCODE_*).
    */
-  requiresKey?: ProviderId | "none" | "custom" | "codex-custom"
+  requiresKey?: ProviderId | "none" | "custom" | "codex-custom" | "opencode-custom"
 }
 
 /**
@@ -137,6 +147,14 @@ export const CUSTOM_MODEL_VALUE = "custom"
  * custom ~/.codex/config.toml model_provider instead of the OpenAI default.
  */
 export const CUSTOM_CODEX_MODEL_VALUE = "codex-custom"
+
+/**
+ * Sentinel model value for the user-configured custom OpenCode endpoint.
+ * When selected (opencode only), the stored CUSTOM_OPENCODE_* credentials drive a
+ * custom ~/.config/opencode/opencode.json provider; resolveCliModel maps it to
+ * `custom/<model id>`.
+ */
+export const CUSTOM_OPENCODE_MODEL_VALUE = "opencode-custom"
 
 /**
  * Models allowed to run on the server-shared OpenCode API key.
@@ -247,6 +265,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
     { value: "openai/o3-pro", label: "o3 Pro", requiresKey: "openai" },
     { value: "openai/o4-mini", label: "o4 Mini", requiresKey: "openai" },
+    { value: CUSTOM_OPENCODE_MODEL_VALUE, label: "Custom endpoint", requiresKey: "opencode-custom" },
   ],
   "codex": [
     { value: "gpt-5.5", label: "GPT-5.5 (Recommended)", requiresKey: "openai" },
@@ -414,6 +433,9 @@ export function hasCredentialsForModel(
     // set; auth is supplied through CUSTOM_CODEX_HEADERS, not a separate key.
     return !!flags?.CUSTOM_CODEX_BASE_URL
   }
+  if (model.requiresKey === "opencode-custom") {
+    return !!flags?.CUSTOM_OPENCODE_BASE_URL
+  }
   if (model.requiresKey === "anthropic") {
     // OpenCode and Pi require an API key — they can't drive a subscription session.
     if (agent === "opencode" || agent === "pi") return !!flags?.ANTHROPIC_API_KEY
@@ -481,6 +503,12 @@ export function getEnvForModel(
     return buildCodexCustomEnv(credentials)
   }
 
+  // Custom OpenCode endpoint: same as Codex — passed through and turned into a
+  // ~/.config/opencode/opencode.json provider by the SDK's opencodeSetup.
+  if (agent === "opencode" && model === CUSTOM_OPENCODE_MODEL_VALUE) {
+    return buildOpencodeCustomEnv(credentials)
+  }
+
   // Claude Code: subscription token wins over API key.
   if ((!agent || agent === "claude-code") && credentials.CLAUDE_CODE_CREDENTIALS) {
     return { CLAUDE_CODE_CREDENTIALS: credentials.CLAUDE_CODE_CREDENTIALS }
@@ -490,6 +518,7 @@ export function getEnvForModel(
   if (!opt?.requiresKey || opt.requiresKey === "none") return {}
   if (opt.requiresKey === "custom") return buildCustomModelEnv(credentials)
   if (opt.requiresKey === "codex-custom") return buildCodexCustomEnv(credentials)
+  if (opt.requiresKey === "opencode-custom") return buildOpencodeCustomEnv(credentials)
 
   const env: Record<string, string> = {}
   for (const id of PROVIDER_ENV[opt.requiresKey]) {
@@ -610,6 +639,31 @@ export function buildCodexCustomEnv(credentials: Credentials): Record<string, st
 }
 
 /**
+ * Pass the stored CUSTOM_OPENCODE_* credentials through to the sandbox. OpenCode
+ * takes a custom provider via ~/.config/opencode/opencode.json, so the SDK's
+ * opencodeSetup reads these back and writes that file — see buildOpencodeConfigJson.
+ *
+ * Auth: OpenCode's openai-compatible provider sends `Authorization: Bearer
+ * <apiKey>`, so we promote the user's Authorization token (Bearer stripped) into
+ * CUSTOM_OPENCODE_API_KEY, which the config references via `{env:...}`. Other
+ * headers (incl. x-api-key) ride along in the blob for the SDK to emit verbatim.
+ *
+ * Deliberately never includes OPENCODE_API_KEY, so a custom run can't fall back
+ * to a stored OpenCode key.
+ */
+export function buildOpencodeCustomEnv(credentials: Credentials): Record<string, string> {
+  const env: Record<string, string> = {}
+  if (credentials.CUSTOM_OPENCODE_BASE_URL) env.CUSTOM_OPENCODE_BASE_URL = credentials.CUSTOM_OPENCODE_BASE_URL
+  if (credentials.CUSTOM_OPENCODE_NAME) env.CUSTOM_OPENCODE_NAME = credentials.CUSTOM_OPENCODE_NAME
+  if (credentials.CUSTOM_OPENCODE_HEADERS) {
+    env.CUSTOM_OPENCODE_HEADERS = credentials.CUSTOM_OPENCODE_HEADERS
+    const { authToken } = parseCustomHeaders(credentials.CUSTOM_OPENCODE_HEADERS)
+    if (authToken) env.CUSTOM_OPENCODE_API_KEY = authToken
+  }
+  return env
+}
+
+/**
  * Resolve the model string passed to the CLI's --model flag. For a custom
  * endpoint the dropdown value is a sentinel, so translate it to the user's
  * configured model name (or undefined → endpoint default). All other models
@@ -624,6 +678,13 @@ export function resolveCliModel(
   }
   if (model === CUSTOM_CODEX_MODEL_VALUE) {
     return credentials.CUSTOM_CODEX_NAME || undefined
+  }
+  if (model === CUSTOM_OPENCODE_MODEL_VALUE) {
+    // OpenCode addresses models as `<provider>/<model>`; "custom" is the provider
+    // id written by buildOpencodeConfigJson.
+    return credentials.CUSTOM_OPENCODE_NAME
+      ? `custom/${credentials.CUSTOM_OPENCODE_NAME}`
+      : undefined
   }
   return model
 }

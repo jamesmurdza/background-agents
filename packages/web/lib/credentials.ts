@@ -33,7 +33,7 @@ export interface CredentialField {
    * "custom-*" group are rendered on the Custom model tab (each group is a target
    * in its selector) and filtered out of the API Keys tab.
    */
-  group?: "api-keys" | "custom-model" | "custom-codex"
+  group?: "api-keys" | "custom-model" | "custom-codex" | "custom-opencode"
 }
 
 export const CREDENTIAL_KEYS: readonly CredentialField[] = [
@@ -149,6 +149,36 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     description:
       "One per line — Header-Name: value. Put auth here (e.g. Authorization: Bearer …); it's sent with every request.",
     group: "custom-codex",
+  },
+  // Custom OpenAI-compatible endpoint for OpenCode — the "OpenCode" target on the
+  // Custom model tab. Model ID is required (OpenCode addresses models as
+  // <provider>/<model>); auth is supplied through the Headers field.
+  {
+    id: "CUSTOM_OPENCODE_BASE_URL",
+    provider: "openai",
+    label: "Base URL",
+    placeholder: "https://openrouter.ai/api/v1",
+    required: true,
+    group: "custom-opencode",
+  },
+  {
+    id: "CUSTOM_OPENCODE_NAME",
+    provider: "openai",
+    label: "Model ID",
+    placeholder: "gpt-4o-mini",
+    description: "The exact model ID the endpoint expects. Required for OpenCode.",
+    required: true,
+    group: "custom-opencode",
+  },
+  {
+    id: "CUSTOM_OPENCODE_HEADERS",
+    provider: "openai",
+    label: "Headers",
+    multiline: true,
+    placeholder: "Authorization: Bearer sk-…\n# or: x-api-key: <token>",
+    description:
+      "One per line — Header-Name: value. Put auth here (e.g. Authorization: Bearer …); it's sent with every request.",
+    group: "custom-opencode",
   },
 ] as const
 

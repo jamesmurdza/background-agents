@@ -9,9 +9,47 @@ import type {
   RunOptions,
 } from "../../core/agent"
 import type { Event } from "../../types/events"
+import type { CodeAgentSandbox } from "../../types/provider"
 import { parseOpencodeLine } from "./parser"
 import { OPENCODE_TOOL_MAPPINGS } from "./tools"
 import { quote } from "../../utils/shell"
+import { buildOpencodeConfigJson } from "./config"
+
+/** Global OpenCode config path (not the project root, to avoid touching the repo). */
+const OPENCODE_CONFIG_PATH = "~/.config/opencode/opencode.json"
+
+/**
+ * OpenCode agent-specific setup. Two mutually exclusive paths:
+ *
+ * 1. Custom endpoint — when CUSTOM_OPENCODE_BASE_URL is set, write a global
+ *    opencode.json defining a custom OpenAI-compatible provider. Auth lives in
+ *    the headers blob (promoted to the provider apiKey).
+ * 2. Standard — remove any custom opencode.json left over from a previous custom
+ *    run in this sandbox, so a custom→standard switch stops using the old
+ *    provider. In this app that file is only ever written by the custom path.
+ */
+async function opencodeSetup(
+  sandbox: CodeAgentSandbox,
+  env: Record<string, string>
+): Promise<void> {
+  if (!sandbox.executeCommand) return
+
+  if (env.CUSTOM_OPENCODE_BASE_URL) {
+    const json = buildOpencodeConfigJson({
+      baseUrl: env.CUSTOM_OPENCODE_BASE_URL,
+      model: env.CUSTOM_OPENCODE_NAME || "",
+      headers: env.CUSTOM_OPENCODE_HEADERS || undefined,
+      apiKeyEnv: env.CUSTOM_OPENCODE_API_KEY ? "CUSTOM_OPENCODE_API_KEY" : undefined,
+    })
+    await sandbox.executeCommand(
+      `mkdir -p ~/.config/opencode && printf '%s' ${quote(json)} > ${OPENCODE_CONFIG_PATH}`,
+      30
+    )
+    return
+  }
+
+  await sandbox.executeCommand(`rm -f ${OPENCODE_CONFIG_PATH}`, 10)
+}
 
 /**
  * OpenCode CLI agent definition.
@@ -27,6 +65,7 @@ export const opencodeAgent: AgentDefinition = {
   capabilities: {
     supportsSystemPrompt: false,
     supportsResume: true,
+    setup: opencodeSetup,
   },
 
   buildCommand(options: RunOptions): CommandSpec {

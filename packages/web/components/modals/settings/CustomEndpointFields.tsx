@@ -6,8 +6,8 @@ import { CREDENTIAL_KEYS, type CredentialId } from "@/lib/credentials"
 import { SettingsRow } from "./shared"
 
 interface CustomEndpointFieldsProps {
-  /** Which credential group's fields to render (one of the "custom-*" tabs). */
-  group: "custom-model" | "custom-codex"
+  /** Which credential group's fields to render (one of the "custom-*" targets). */
+  group: "custom-model" | "custom-codex" | "custom-opencode"
   credValues: Record<CredentialId, string>
   setCredValue: (id: CredentialId, value: string) => void
 }

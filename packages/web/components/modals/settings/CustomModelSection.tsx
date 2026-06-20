@@ -15,7 +15,7 @@ interface CustomModelSectionProps {
 
 /** A custom-endpoint target: one credential group + the agent it drives. */
 type CustomTarget = {
-  group: "custom-model" | "custom-codex"
+  group: "custom-model" | "custom-codex" | "custom-opencode"
   /** Label for the target selector. */
   label: string
   /** Per-target intro copy shown above the fields. */
@@ -51,6 +51,19 @@ const CUSTOM_TARGETS: CustomTarget[] = [
         (e.g. <code>Authorization: Bearer …</code>) in the Headers field. Select
         the Codex agent and pick &ldquo;Custom endpoint&rdquo; in the model
         dropdown to use it.
+      </>
+    ),
+  },
+  {
+    group: "custom-opencode",
+    label: "OpenCode",
+    intro: (
+      <>
+        Route OpenCode runs to a custom OpenAI-compatible endpoint (your own key,
+        a gateway, or a proxy). Base URL and Model ID are required — add
+        authentication (e.g. <code>Authorization: Bearer …</code>) in the Headers
+        field. Select the OpenCode agent and pick &ldquo;Custom endpoint&rdquo; in
+        the model dropdown to use it.
       </>
     ),
   },

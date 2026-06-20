@@ -17,10 +17,8 @@ import {
   type Credentials,
   type CredentialFlags,
 } from "@background-agents/common"
-import {
-  buildCodexConfigToml,
-  parseHeaderLines,
-} from "../../src/agents/codex/config"
+import { buildCodexConfigToml } from "../../src/agents/codex/config"
+import { parseHeaderLines } from "../../src/utils/headers"
 
 const codexCustomModel = agentModels["codex"].find(
   (m) => m.value === CUSTOM_CODEX_MODEL_VALUE

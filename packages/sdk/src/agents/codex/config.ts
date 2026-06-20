@@ -8,6 +8,8 @@
  * @background-agents/common); codexSetup reads them back and writes the config.
  */
 
+import { parseHeaderLines } from "../../utils/headers"
+
 export interface CodexCustomConfig {
   /** Provider base URL, e.g. https://api.openai.com/v1 */
   baseUrl: string
@@ -28,26 +30,6 @@ export interface CodexCustomConfig {
 
 /** Provider id used for the synthesized custom provider in config.toml. */
 const CODEX_CUSTOM_PROVIDER_ID = "custom"
-
-/**
- * Parse the Headers blob into ordered `[name, value]` pairs. Blank lines and
- * `#` comments are skipped; a line needs a non-empty name and value to count.
- * The caller routes the `Authorization` header separately (via env_http_headers)
- * and emits the remaining pairs as static http_headers.
- */
-export function parseHeaderLines(raw: string): Array<[string, string]> {
-  const out: Array<[string, string]> = []
-  for (const line of raw.split("\n").map((l) => l.trim())) {
-    if (!line || line.startsWith("#")) continue
-    const idx = line.indexOf(":")
-    if (idx <= 0) continue
-    const name = line.slice(0, idx).trim()
-    const value = line.slice(idx + 1).trim()
-    if (!name || !value) continue
-    out.push([name, value])
-  }
-  return out
-}
 
 /** Escape a string for use inside a TOML basic (double-quoted) string. */
 function tomlString(value: string): string {
