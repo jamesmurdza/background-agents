@@ -75,10 +75,10 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   const flags = flagsFromCredentials(storedCreds)
 
   // Echo back plaintext for all custom-endpoint fields (Base URL, Model ID, and
-  // the Headers blob — both the Anthropic and Codex tabs) so the UI can show them
-  // unmasked and editable. The Headers field can carry auth, so its contents are
-  // returned to the authenticated owner's own client — an accepted trade-off for
-  // editability.
+  // the Headers blob — both the Anthropic and Codex targets) so the UI can show
+  // them unmasked and editable. The Headers field can carry auth, so its contents
+  // are returned to the authenticated owner's own client — an accepted trade-off
+  // for editability.
   const credentialValues: Partial<Record<CredentialId, string>> = {}
   for (const f of CREDENTIAL_KEYS) {
     if ((f.group === "custom-model" || f.group === "custom-codex") && storedCreds[f.id]) {

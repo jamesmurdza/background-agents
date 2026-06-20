@@ -30,8 +30,8 @@ export interface CredentialField {
   required?: boolean
   /**
    * Which settings tab renders this field. Defaults to "api-keys". Fields in a
-   * "custom-*" group are rendered on their own dedicated tab (Custom model /
-   * Custom Codex) and filtered out of the API Keys tab.
+   * "custom-*" group are rendered on the Custom model tab (each group is a target
+   * in its selector) and filtered out of the API Keys tab.
    */
   group?: "api-keys" | "custom-model" | "custom-codex"
 }
@@ -121,9 +121,9 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
       "One per line — Header-Name: value. Put auth here: x-api-key or Authorization. anthropic-version is managed for you.",
     group: "custom-model",
   },
-  // Custom OpenAI-compatible endpoint for Codex — rendered on the "Custom Codex"
-  // tab. Mirrors the Anthropic custom-model fields: Base URL is required, auth is
-  // supplied through the Headers field rather than a separate key.
+  // Custom OpenAI-compatible endpoint for Codex — the "Codex" target on the
+  // Custom model tab. Mirrors the Anthropic custom-model fields: Base URL is
+  // required, auth is supplied through the Headers field rather than a separate key.
   {
     id: "CUSTOM_CODEX_BASE_URL",
     provider: "openai",

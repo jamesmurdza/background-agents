@@ -27,14 +27,13 @@ export interface CodexCustomConfig {
 }
 
 /** Provider id used for the synthesized custom provider in config.toml. */
-export const CODEX_CUSTOM_PROVIDER_ID = "custom"
+const CODEX_CUSTOM_PROVIDER_ID = "custom"
 
 /**
  * Parse the Headers blob into ordered `[name, value]` pairs. Blank lines and
  * `#` comments are skipped; a line needs a non-empty name and value to count.
- * Unlike the Anthropic path, auth headers are NOT promoted to env vars — Codex
- * sends them verbatim as static request headers, which is how OpenAI-compatible
- * auth (`Authorization: Bearer …`) works.
+ * The caller routes the `Authorization` header separately (via env_http_headers)
+ * and emits the remaining pairs as static http_headers.
  */
 export function parseHeaderLines(raw: string): Array<[string, string]> {
   const out: Array<[string, string]> = []
@@ -63,7 +62,8 @@ function tomlString(value: string): string {
 
 /**
  * Build a ~/.codex/config.toml that routes all requests through a custom
- * provider. Auth headers (if any) are emitted as static http_headers.
+ * provider. The Authorization header (if any) is routed via env_http_headers;
+ * other headers are emitted as static http_headers.
  *
  * `wire_api` is "responses" (the OpenAI Responses API): current Codex CLI
  * versions have removed Chat Completions support and reject `wire_api = "chat"`
