@@ -177,7 +177,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 
     // Remaining paid models — route through OpenCode Zen (pay-as-you-go credits).
     // Preserve original order, excluding duplicates.
-    { value: "opencode/claude-sonnet-4", label: "Claude Sonnet 4 (Zen)", requiresKey: "opencode" },
     { value: "opencode/claude-sonnet-4-5", label: "Claude Sonnet 4.5 (Zen)", requiresKey: "opencode" },
     { value: "opencode/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Zen)", requiresKey: "opencode" },
     { value: "opencode/claude-haiku-4-5", label: "Claude Haiku 4.5 (Zen)", requiresKey: "opencode" },
