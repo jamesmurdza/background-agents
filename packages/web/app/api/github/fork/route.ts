@@ -1,5 +1,9 @@
 import { forkRepo, getRepo, type GitHubRepo } from "@background-agents/common"
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
+import {
+  requireGitHubAuth,
+  isGitHubAuthError,
+  githubErrorResponse,
+} from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   // 1. Get GitHub token from DB
@@ -63,29 +67,9 @@ export async function POST(req: Request) {
     })
   } catch (error) {
     console.error("[github/fork] Error:", error)
-
-    // Handle specific GitHub errors
-    if (error && typeof error === "object" && "status" in error) {
-      const ghError = error as { message: string; status: number }
-      if (ghError.status === 404) {
-        return Response.json(
-          { error: "Repository not found" },
-          { status: 404 }
-        )
-      }
-      if (ghError.status === 403) {
-        return Response.json(
-          { error: "You don't have permission to fork this repository" },
-          { status: 403 }
-        )
-      }
-      return Response.json(
-        { error: ghError.message || "Failed to fork repository" },
-        { status: ghError.status }
-      )
-    }
-
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return githubErrorResponse(error, "Failed to fork repository", {
+      404: "Repository not found",
+      403: "You don't have permission to fork this repository",
+    })
   }
 }

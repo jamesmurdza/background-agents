@@ -247,6 +247,34 @@ export function isGitHubAuthError(
   return result instanceof Response
 }
 
+/**
+ * Builds an error Response from an error thrown by a GitHub API call.
+ *
+ * - GitHub API errors (objects with a numeric `status`) are mapped to a
+ *   matching response. Pass `statusMessages` to override the message for
+ *   specific status codes (e.g. a friendlier 404). Unmatched statuses fall
+ *   back to the GitHub-provided message or `fallbackMessage`.
+ * - Any other error becomes a generic 500 via {@link internalError}.
+ */
+export function githubErrorResponse(
+  error: unknown,
+  fallbackMessage: string,
+  statusMessages: Record<number, string> = {}
+): Response {
+  if (error && typeof error === "object" && "status" in error) {
+    const ghError = error as { message?: string; status: number }
+    const override = statusMessages[ghError.status]
+    if (override) {
+      return Response.json({ error: override }, { status: ghError.status })
+    }
+    return Response.json(
+      { error: ghError.message || fallbackMessage },
+      { status: ghError.status }
+    )
+  }
+  return internalError(error)
+}
+
 // =============================================================================
 // Credential Helpers
 // =============================================================================
