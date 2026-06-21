@@ -10,8 +10,6 @@ export { PATHS, SANDBOX_CONFIG } from "./constants"
 export type {
   ContentBlock,
   ToolCall,
-  AgentStatus,
-  AgentStatusResponse,
 } from "./types"
 
 // Agent configuration
