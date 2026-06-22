@@ -27,6 +27,7 @@ export const AGENT_PACKAGES = {
   codex: "@openai/codex",
   copilot: "@github/copilot",
   kilo: "@kilocode/cli",
+  kimi: "", // kimi uses a shell script installer, not npm
   opencode: "opencode-ai",
   gemini: "@google/gemini-cli",
   pi: "@mariozechner/pi-coding-agent",
@@ -113,6 +114,16 @@ export function getAgentSandboxImage(): Image {
         "npm install -g @kilocode/cli"
       )
       .runCommands(
+        // Install Kimi Code CLI (Moonshot). Shell-script installer, not npm —
+        // run with HOME pointed at the daytona user so the `kimi` binary lands
+        // in /home/daytona/.kimi-code/bin, then hand ownership to the daytona
+        // user. KIMI_NO_MODIFY_PATH avoids the installer editing .profile; the
+        // dir is added to PATH via .bashrc below.
+        "export HOME=/home/daytona KIMI_NO_MODIFY_PATH=1 && " +
+          "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash && " +
+          "chown -R daytona:daytona /home/daytona/.kimi-code"
+      )
+      .runCommands(
         // Install tokscale (token/cost metering). Binary embeds at build time
         // via @tokscale/cli's platform optionalDependency — no runtime download.
         `npm install -g tokscale@${TOKSCALE_VERSION}`
@@ -148,7 +159,7 @@ export function getAgentSandboxImage(): Image {
           "chown -R daytona:daytona /opt/pty-server"
       )
       .runCommands(
-        'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> /home/daytona/.bashrc'
+        'echo \'export PATH="$HOME/.local/bin:$HOME/.kimi-code/bin:$PATH"\' >> /home/daytona/.bashrc'
       )
       // Set the default user to daytona
       .dockerfileCommands(["USER daytona"])

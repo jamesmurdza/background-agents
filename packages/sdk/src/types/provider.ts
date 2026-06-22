@@ -8,7 +8,7 @@ import type { SandboxJobs } from "@background-agents/sandbox-jobs"
  * Supported agent names.
  * Used by ensureProvider() to install the correct CLI.
  */
-export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "goose" | "kilo" | "opencode" | "gemini" | "pi"
+export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "goose" | "kilo" | "kimi" | "opencode" | "gemini" | "pi"
 
 /**
  * Sandbox interface required by the SDK.

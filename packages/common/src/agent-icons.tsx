@@ -195,6 +195,30 @@ export function KiloIcon({ className }: AgentIconProps) {
   )
 }
 
+// Kimi icon - placeholder lettermark (replace with the official Kimi Code logo)
+export function KimiIcon({ className }: AgentIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-4 w-4", className)}
+    >
+      <text
+        x="12"
+        y="17"
+        textAnchor="middle"
+        fontSize="16"
+        fontWeight="700"
+        fontFamily="system-ui, sans-serif"
+        fill="currentColor"
+      >
+        K
+      </text>
+    </svg>
+  )
+}
+
 // Pi icon - Official Pi Coding Agent logo
 // Source: https://shittycodingagent.ai/logo.svg
 export function PiIcon({ className }: AgentIconProps) {
@@ -239,6 +263,8 @@ export function AgentIcon({ agent, className }: { agent: Agent; className?: stri
       return <GooseIcon className={className} />
     case "kilo":
       return <KiloIcon className={className} />
+    case "kimi":
+      return <KimiIcon className={className} />
     case "pi":
       return <PiIcon className={className} />
     default:

@@ -79,10 +79,14 @@ export function adaptDaytonaSandbox(
         return
       }
 
-      // For goose, also check in ~/.local/bin which is the default install location
-      const checkCommand = name === "goose"
-        ? `which ${name} || test -x "$HOME/.local/bin/${name}"`
-        : `which ${name}`
+      // goose and kimi install outside the default PATH; check their known
+      // binary locations too (goose: ~/.local/bin, kimi: ~/.kimi-code/bin).
+      const checkCommand =
+        name === "goose"
+          ? `which ${name} || test -x "$HOME/.local/bin/${name}"`
+          : name === "kimi"
+            ? `which ${name} || test -x "$HOME/.kimi-code/bin/${name}"`
+            : `which ${name}`
       const checkResult = await sandbox.process.executeCommand(checkCommand)
       if (checkResult.exitCode === 0) return
 
@@ -110,6 +114,14 @@ export function adaptDaytonaSandbox(
 
       if (name === "gemini") {
         await sandbox.process.executeCommand("mkdir -p ~/.gemini", undefined, undefined, 30)
+      }
+
+      // Kimi installs to ~/.kimi-code/bin; ensure it's on PATH for later runs.
+      if (name === "kimi") {
+        await sandbox.process.executeCommand(
+          `grep -q 'HOME/.kimi-code/bin' ~/.bashrc || echo 'export PATH="$HOME/.kimi-code/bin:$PATH"' >> ~/.bashrc`,
+          undefined, undefined, 10
+        )
       }
 
       // For goose, add ~/.local/bin to PATH and create default config
