@@ -2,7 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { format } from "date-fns"
-import { createSandboxGit } from "@background-agents/daytona-git"
+import { createSandboxGit, type SandboxLike } from "@background-agents/daytona-git"
 import { getEnvForModel, type Agent } from "@background-agents/common"
 
 import { prisma } from "@/lib/db/prisma"
@@ -30,6 +30,25 @@ import type { ScheduledJobRunWithJob } from "./types"
 // =============================================================================
 // Job Execution
 // =============================================================================
+
+/**
+ * Pushes the run's branch to GitHub using the user's stored token.
+ * Returns the token used, or null if the user has no GitHub token linked
+ * (in which case nothing is pushed).
+ */
+async function pushRunBranch(
+  sandbox: SandboxLike,
+  userId: string,
+  repoPath: string
+): Promise<string | null> {
+  const token = await getGitHubToken(userId)
+  if (!token) return null
+
+  const git = createSandboxGit(sandbox)
+  const pushOptions = await getUserPushOptions(userId)
+  await git.push(repoPath, token, pushOptions)
+  return token
+}
 
 export async function startJobExecution(
   job: Prisma.ScheduledJobGetPayload<object>,
@@ -424,14 +443,9 @@ export async function finalizeScheduledRun(
 
       // Push and create PR if there are commits
       if (job.autoPR && commitCount > 0) {
-        const token = await getGitHubToken(job.userId)
+        const token = await pushRunBranch(sandbox, job.userId, repoPath)
 
         if (token) {
-          // Push branch
-          const git = createSandboxGit(sandbox)
-          const pushOptions = await getUserPushOptions(job.userId)
-          await git.push(repoPath, token, pushOptions)
-
           // Create PR via GitHub API
           const [owner, repoName] = job.repo.split("/")
           const prTitle = `[Scheduled] ${job.name} - ${format(run.startedAt, "MMM d")}`
@@ -467,13 +481,7 @@ export async function finalizeScheduledRun(
         }
       } else if (commitCount > 0) {
         // Still push even if not creating PR
-        const token = await getGitHubToken(job.userId)
-
-        if (token) {
-          const git = createSandboxGit(sandbox)
-          const pushOptions = await getUserPushOptions(job.userId)
-          await git.push(repoPath, token, pushOptions)
-        }
+        await pushRunBranch(sandbox, job.userId, repoPath)
       }
       } // end !isRepoLess
     } catch (err) {
