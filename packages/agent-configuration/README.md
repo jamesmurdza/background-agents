@@ -78,7 +78,7 @@ All agents block the same core set of dangerous operations:
 
 ## MCP Setup
 
-Writes per-agent MCP server configs into the sandbox before the agent CLI starts. Currently supported agents: `claude-code`, `codex`, `gemini`, `opencode`, `goose`, `copilot`, `kilo`.
+Writes per-agent MCP server configs into the sandbox before the agent CLI starts. Currently supported agents: `claude-code`, `codex`, `gemini`, `opencode`, `goose`, `copilot`, `kilo`, `kimi`.
 
 ```ts
 import { setupMcpForAgent } from '@background-agents/agent-configuration'

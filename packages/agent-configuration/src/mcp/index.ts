@@ -42,6 +42,7 @@ const MCP_SUPPORTED_AGENTS = [
   "goose",
   "copilot",
   "kilo",
+  "kimi",
 ] as const
 
 type McpSupportedAgent = (typeof MCP_SUPPORTED_AGENTS)[number]
@@ -207,6 +208,27 @@ function generateKiloConfig(servers: AgentMcpServer[]): McpConfigFile {
   }
 }
 
+/**
+ * Kimi Code: ~/.kimi-code/mcp.json — `mcpServers.<name>` with `url` + bearer
+ * `headers`. Kimi infers Streamable-HTTP from the presence of `url` (no `type`
+ * field). This is a separate file from config.toml (providers/models), so the
+ * two never collide; the user-level path is auto-loaded on startup.
+ */
+function generateKimiConfig(servers: AgentMcpServer[]): McpConfigFile {
+  const mcpServers: Record<string, unknown> = {}
+  for (const s of servers) {
+    mcpServers[s.name] = {
+      url: s.url,
+      headers: { Authorization: `Bearer ${s.bearerToken}` },
+    }
+  }
+  return {
+    filePath: "/home/daytona/.kimi-code/mcp.json",
+    content: JSON.stringify({ mcpServers }, null, 2),
+    format: "json",
+  }
+}
+
 function generateMcpConfigForAgent(
   agent: string,
   servers: AgentMcpServer[]
@@ -229,6 +251,8 @@ function generateMcpConfigForAgent(
       return generateCopilotConfig(servers)
     case "kilo":
       return generateKiloConfig(servers)
+    case "kimi":
+      return generateKimiConfig(servers)
   }
 }
 
