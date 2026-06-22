@@ -10,7 +10,11 @@ import {
   type AgentSnapshot,
 } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
-import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
+import {
+  getGitHubToken,
+  isAuthError,
+  requireChatStreamAccess,
+} from "@/lib/db/api-helpers"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import type { Settings } from "@/lib/types"
@@ -337,12 +341,9 @@ export async function GET(req: Request) {
 
               if (chat?.branch && chat.repo && chat.repo !== "__new__") {
                 // Get GitHub token from user's account
-                const account = await prisma.account.findFirst({
-                  where: { userId: chat.userId, provider: "github" },
-                  select: { access_token: true },
-                })
+                const token = await getGitHubToken(chat.userId)
 
-                if (account?.access_token) {
+                if (token) {
                   // Get user settings for push options
                   let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
                   const user = await prisma.user.findUnique({
@@ -357,7 +358,7 @@ export async function GET(req: Request) {
                   const pushResult = await autoPush(
                     sandbox,
                     sessionOpts.repoPath,
-                    account.access_token,
+                    token,
                     { noVerify: !enablePrepushHooks }
                   )
 

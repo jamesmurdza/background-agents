@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@background-agents/daytona-git"
 
 import { prisma } from "@/lib/db/prisma"
+import { getGitHubToken } from "@/lib/db/api-helpers"
 import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
@@ -62,16 +63,13 @@ export async function finalizeInteractiveChat(
 
       // 3. Auto-push if chat has a branch (reuse existing logic from SSE stream)
       if (chat.branch && chat.repo && chat.repo !== "__new__") {
-        const account = await prisma.account.findFirst({
-          where: { userId: chat.userId, provider: "github" },
-          select: { access_token: true },
-        })
+        const token = await getGitHubToken(chat.userId)
 
-        if (account?.access_token) {
+        if (token) {
           const git = createSandboxGit(sandbox)
           const pushOptions = await getUserPushOptions(chat.userId)
           try {
-            await git.push(`${PATHS.SANDBOX_HOME}/project`, account.access_token, pushOptions)
+            await git.push(`${PATHS.SANDBOX_HOME}/project`, token, pushOptions)
           } catch (err) {
             // Create error message with force-push action (same as SSE stream)
             await createGitOperationMessage(

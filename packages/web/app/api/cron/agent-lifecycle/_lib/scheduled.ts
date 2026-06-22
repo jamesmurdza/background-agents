@@ -6,7 +6,11 @@ import { createSandboxGit } from "@background-agents/daytona-git"
 import { getEnvForModel, type Agent } from "@background-agents/common"
 
 import { prisma } from "@/lib/db/prisma"
-import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers"
+import {
+  decryptUserCredentials,
+  getGitHubToken,
+  getUserCredentials,
+} from "@/lib/db/api-helpers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
@@ -37,12 +41,9 @@ export async function startJobExecution(
   // 1. Get GitHub token for the user — required for cloned repos, optional
   //    for repo-less jobs (the sandbox never reaches out to GitHub, though
   //    MCP servers may still want a token of their own).
-  const account = await prisma.account.findFirst({
-    where: { userId: job.userId, provider: "github" },
-    select: { access_token: true },
-  })
+  const githubToken = await getGitHubToken(job.userId)
 
-  if (!isRepoLess && !account?.access_token) {
+  if (!isRepoLess && !githubToken) {
     throw new Error("GitHub account not linked")
   }
 
@@ -95,7 +96,7 @@ export async function startJobExecution(
             `https://api.github.com/repos/${owner}/${repoName}/pulls/${lastSuccessfulRun.prNumber}`,
             {
               headers: {
-                Authorization: `Bearer ${account!.access_token}`,
+                Authorization: `Bearer ${githubToken!}`,
                 Accept: "application/vnd.github.v3+json",
               },
             }
@@ -126,7 +127,7 @@ export async function startJobExecution(
     repo: job.repo,
     baseBranch: effectiveBaseBranch,
     newBranch: branch,
-    githubToken: account?.access_token ?? undefined,
+    githubToken: githubToken ?? undefined,
     userId: job.userId,
   })
 
@@ -423,16 +424,13 @@ export async function finalizeScheduledRun(
 
       // Push and create PR if there are commits
       if (job.autoPR && commitCount > 0) {
-        const account = await prisma.account.findFirst({
-          where: { userId: job.userId, provider: "github" },
-          select: { access_token: true },
-        })
+        const token = await getGitHubToken(job.userId)
 
-        if (account?.access_token) {
+        if (token) {
           // Push branch
           const git = createSandboxGit(sandbox)
           const pushOptions = await getUserPushOptions(job.userId)
-          await git.push(repoPath, account.access_token, pushOptions)
+          await git.push(repoPath, token, pushOptions)
 
           // Create PR via GitHub API
           const [owner, repoName] = job.repo.split("/")
@@ -443,7 +441,7 @@ export async function finalizeScheduledRun(
             {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${account.access_token}`,
+                Authorization: `Bearer ${token}`,
                 Accept: "application/vnd.github.v3+json",
                 "Content-Type": "application/json",
               },
@@ -469,15 +467,12 @@ export async function finalizeScheduledRun(
         }
       } else if (commitCount > 0) {
         // Still push even if not creating PR
-        const account = await prisma.account.findFirst({
-          where: { userId: job.userId, provider: "github" },
-          select: { access_token: true },
-        })
+        const token = await getGitHubToken(job.userId)
 
-        if (account?.access_token) {
+        if (token) {
           const git = createSandboxGit(sandbox)
           const pushOptions = await getUserPushOptions(job.userId)
-          await git.push(repoPath, account.access_token, pushOptions)
+          await git.push(repoPath, token, pushOptions)
         }
       }
       } // end !isRepoLess
