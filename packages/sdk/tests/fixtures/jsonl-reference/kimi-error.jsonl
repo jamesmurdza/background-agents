@@ -1,0 +1,2 @@
+error: failed to run prompt: provider.rate_limit: 429 Your account org-REDACTED <ak-REDACTED> is suspended due to insufficient balance, please recharge your account or check your plan and billing details
+See log: /home/daytona/.kimi-code/logs/kimi-code.log

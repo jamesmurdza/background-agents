@@ -14,6 +14,8 @@ Raw JSONL output captured from actual AI coding agent CLI runs. These are **not 
 | `gemini.jsonl` | Gemini | Google Gemini CLI |
 | `goose.jsonl` | Goose | Block's Goose AI coding agent CLI |
 | `kilo.jsonl` | Kilo | Kilo CLI — OpenCode fork with its own gateway |
+| `kimi.jsonl` | Kimi Code | Moonshot Kimi Code CLI — chat-completion-shaped stream-json |
+| `kimi-error.jsonl` | Kimi Code | Kimi's plain-text fatal-error output (out-of-credits / 429 insufficient balance) |
 | `opencode.jsonl` | OpenCode | OpenCode CLI |
 | `pi.jsonl` | Pi | Pi Coding Agent CLI |
 

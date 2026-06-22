@@ -12,11 +12,21 @@
  *
  * The trailing `meta`/session.resume_hint line is the end-of-turn marker and the
  * only place the session id appears.
+ *
+ * Fatal failures are NOT emitted as JSON — Kimi prints a plain-text line like
+ *   error: failed to run prompt: provider.rate_limit: 429 … insufficient balance …
+ * then exits. We detect that line and emit a classified end-error so the UI
+ * shows an actionable message (e.g. the user is out of credits) instead of a
+ * generic process-crash.
  */
 
 import type { Event } from "../../types/events"
 import { createToolStartEvent } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import { resolveAgentError } from "../../utils/errors"
+
+/** Matches Kimi's plain-text fatal error line (`error: <detail>`). */
+const KIMI_ERROR_LINE = /^error:\s*(.+)$/i
 
 interface KimiToolCall {
   type?: string
@@ -38,7 +48,14 @@ export function parseKimiLine(
   toolMappings: Record<string, string>
 ): Event | Event[] | null {
   const json = safeJsonParse<KimiLine>(line)
-  if (!json) return null
+  if (!json) {
+    // Non-JSON line: the only ones we care about are Kimi's fatal error lines.
+    const m = KIMI_ERROR_LINE.exec(line.trim())
+    if (m) {
+      return { type: "end", error: resolveAgentError(m[1], "kimi") }
+    }
+    return null
+  }
 
   // End-of-turn marker — also carries the resumable session id.
   if (json.role === "meta") {
