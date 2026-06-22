@@ -6,7 +6,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 ## Features
 
-- **Multi-Agent Support**: choose from any agent supported by the [`@background-agents/sdk`](../agents) SDK
+- **Multi-Agent Support**: choose from any agent supported by the [`@background-agents/sdk`](../sdk) SDK
 - **Sandbox Isolation**: each chat session runs in an isolated Daytona sandbox environment
 - **Git Integration**: conversations are tied to Git branches, with optional GitHub repository integration
 - **Model Selection**: choose different models for each agent based on your API keys
@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives
 - **Authentication**: NextAuth.js with GitHub OAuth provider and Prisma adapter
 - **Database**: PostgreSQL with Prisma ORM (supports local and Neon serverless)
-- **Agent SDK**: Uses [`@background-agents/sdk`](../agents) for agent session management
+- **Agent SDK**: Uses [`@background-agents/sdk`](../sdk) for agent session management
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
 
