@@ -2,9 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
 import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
-import { prisma } from "@/lib/db/prisma"
-import type { Settings } from "@/lib/types"
-import { DEFAULT_SETTINGS } from "@/lib/storage"
+import { getUserPushOptions } from "@/lib/git/push-options"
 
 export async function POST(req: Request) {
   // 1. Parse request body
@@ -45,17 +43,7 @@ export async function POST(req: Request) {
 
   try {
     // 4. Get user settings for push options
-    let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
-    if (userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { settings: true },
-      })
-      if (user?.settings) {
-        const s = user.settings as Partial<Settings>
-        enablePrepushHooks = s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks
-      }
-    }
+    const pushOptions = await getUserPushOptions(userId)
 
     // 5. Get sandbox from Daytona
     const daytona = new Daytona({ apiKey: daytonaApiKey })
@@ -65,7 +53,7 @@ export async function POST(req: Request) {
     // 6. Push to remote
     const repoPath = `${PATHS.SANDBOX_HOME}/${repoName}`
 
-    await git.push(repoPath, githubToken, { noVerify: !enablePrepushHooks })
+    await git.push(repoPath, githubToken, pushOptions)
 
     return Response.json({ success: true })
   } catch (error) {

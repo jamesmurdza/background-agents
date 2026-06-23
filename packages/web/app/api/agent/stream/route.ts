@@ -14,8 +14,7 @@ import { prisma } from "@/lib/db/prisma"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
-import type { Settings } from "@/lib/types"
-import { DEFAULT_SETTINGS } from "@/lib/storage"
+import { getUserPushOptions } from "@/lib/git/push-options"
 
 /**
  * Check if the repository is in a conflict state (merge or rebase in progress)
@@ -356,21 +355,13 @@ export async function GET(req: Request) {
 
                 if (account?.access_token) {
                   // Get user settings for push options
-                  let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
-                  const user = await prisma.user.findUnique({
-                    where: { id: chat.userId },
-                    select: { settings: true },
-                  })
-                  if (user?.settings) {
-                    const s = user.settings as Partial<Settings>
-                    enablePrepushHooks = s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks
-                  }
+                  const pushOptions = await getUserPushOptions(chat.userId)
 
                   const pushResult = await autoPush(
                     sandbox,
                     sessionOpts.repoPath,
                     account.access_token,
-                    { noVerify: !enablePrepushHooks }
+                    pushOptions
                   )
 
                   if (!pushResult.success) {

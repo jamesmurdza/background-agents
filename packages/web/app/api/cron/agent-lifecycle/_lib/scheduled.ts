@@ -20,7 +20,7 @@ import {
 } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 
-import { getUserPushOptions } from "./push-options"
+import { getUserPushOptions } from "@/lib/git/push-options"
 import type { ScheduledJobRunWithJob } from "./types"
 
 // =============================================================================
