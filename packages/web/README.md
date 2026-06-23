@@ -111,7 +111,7 @@ End-to-end tests run against a local test database.
 > [!WARNING]
 > Each E2E run wipes the test database via `prisma migrate reset --force`. `DATABASE_URL` must contain `localhost` or `127.0.0.1`.
 
-Env (`packages/web/.env.test`) — overrides the dev env from `.env.local`:
+Env — copy `packages/web/.env.test.example` to `packages/web/.env.test` (overrides the dev env from `.env.local`):
 
 ```bash
 # DATABASE_URL MUST contain "localhost" or "127.0.0.1" (safety check)

@@ -31,7 +31,6 @@ import {
   type CredentialId,
   type CredentialFlags,
   type Credentials,
-  type ParsedCustomHeaders,
   // Data
   ALL_AGENTS,
   agentLabels,
@@ -42,6 +41,8 @@ import {
   CUSTOM_MODEL_VALUE,
   // Functions
   getDefaultAgent,
+  hasOwnAnthropicCredentials,
+  sharedClaudePoolEligible,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,
