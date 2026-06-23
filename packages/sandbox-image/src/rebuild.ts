@@ -1,5 +1,11 @@
 import { Daytona } from "@daytonaio/sdk"
-import { getAgentSandboxImage, SNAPSHOT_NAME, SNAPSHOT_RESOURCES } from "./image"
+import {
+  getAgentSandboxImage,
+  SNAPSHOT_NAME,
+  SNAPSHOT_NAME_TEMP,
+  ALL_SNAPSHOT_NAMES,
+  SNAPSHOT_RESOURCES,
+} from "./image"
 
 export interface RebuildSnapshotOptions {
   /**
@@ -51,4 +57,69 @@ export async function rebuildSnapshot(
     },
     onLog ? { onLogs: onLog } : undefined
   )
+}
+
+export interface RotateSnapshotResult {
+  /** The newly built snapshot (now the active one). */
+  snapshot: Awaited<ReturnType<Daytona["snapshot"]["create"]>>
+  /** The name of the snapshot that was deactivated (old one). Undefined on first run. */
+  deactivatedName?: string
+}
+
+/**
+ * Zero-downtime blue/green snapshot rotation.
+ *
+ * 1. Checks which snapshot currently exists (the "active" one).
+ * 2. Builds the *other* snapshot (so the active one stays available).
+ * 3. Deletes the old snapshot after the new one is ready.
+ *
+ * The app uses getActiveSnapshotName() to discover which snapshot to use —
+ * no env var or config update needed after rotation.
+ */
+export async function rotateSnapshot(
+  daytona: Daytona,
+  options: RebuildSnapshotOptions = {}
+): Promise<RotateSnapshotResult> {
+  const { onLog } = options
+
+  // Figure out which snapshot currently exists (active) and which to build (target).
+  let activeName: string | undefined
+  for (const name of ALL_SNAPSHOT_NAMES) {
+    try {
+      await daytona.snapshot.get(name)
+      activeName = name
+      break
+    } catch {
+      // doesn't exist
+    }
+  }
+
+  // If neither exists (first run), build the primary.
+  // If one exists, build the other.
+  const targetName = activeName === SNAPSHOT_NAME ? SNAPSHOT_NAME_TEMP : SNAPSHOT_NAME
+
+  onLog?.(`Active snapshot: ${activeName ?? "(none)"}`)
+  onLog?.(`Building new snapshot "${targetName}" (this can take several minutes)...`)
+
+  const snapshot = await daytona.snapshot.create(
+    {
+      name: targetName,
+      image: getAgentSandboxImage(),
+      resources: SNAPSHOT_RESOURCES,
+    },
+    onLog ? { onLogs: onLog } : undefined
+  )
+
+  // Clean up the old snapshot if one existed.
+  if (activeName) {
+    try {
+      onLog?.(`Deleting old snapshot "${activeName}"...`)
+      const old = await daytona.snapshot.get(activeName)
+      await daytona.snapshot.delete(old)
+    } catch (err) {
+      onLog?.(`Warning: failed to delete old snapshot "${activeName}": ${err}`)
+    }
+  }
+
+  return { snapshot, deactivatedName: activeName }
 }
