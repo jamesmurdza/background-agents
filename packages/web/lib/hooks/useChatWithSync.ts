@@ -194,6 +194,25 @@ export function useChatWithSync() {
     loadMessages()
   }, [currentChatId, chats, isHydrated, updateChatsCache])
 
+  // Force a re-fetch of a chat's messages (e.g. after the server appends a
+  // git-operation message). Unlike the load-on-select effect this has no
+  // "already loaded" guard.
+  const reloadMessages = useCallback(async (chatId: string) => {
+    try {
+      const chatData = await fetchChat(chatId)
+      const incomingMessages = chatData.messages.map(toMessageType)
+      updateChatsCache((old) =>
+        old.map((c) =>
+          c.id === chatId
+            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount }
+            : c
+        )
+      )
+    } catch (err) {
+      console.error("Failed to reload chat messages:", err)
+    }
+  }, [updateChatsCache])
+
   // Helper to check if a chat ID is a draft
   const isDraftChatId = useCallback((chatId: string | null): boolean => {
     return chatId?.startsWith("draft-") ?? false
@@ -469,6 +488,29 @@ export function useChatWithSync() {
         const result = await sendMessageToApi(chatId, payload, files)
 
         if (!result.ok) {
+          // Pre-run auto-pull hit a merge conflict and left the merge in
+          // progress. Roll back the optimistic messages, restore the typed text
+          // to the composer, and surface the *existing* merge-conflict UI (header
+          // indicator + Abort Merge) — same as a merge/rebase conflict. The user
+          // then re-sends to have the agent resolve it, or aborts the merge.
+          if ("isPullConflict" in result) {
+            updateChatsCache((old) => old.map((c) =>
+              c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
+            ))
+            // Keep the user's message available to send again.
+            useChatSyncStore.getState().setDraftText(chatId, content)
+            // Show the git-operation message the server appended.
+            await reloadMessages(chatId)
+            // Light up the conflict indicator immediately (the in-progress merge
+            // is also detected by check-rebase-status on the next status poll).
+            onConflictStateChangeRef.current?.({
+              inRebase: false,
+              inMerge: true,
+              conflictedFiles: result.conflictedFiles,
+            })
+            return
+          }
+
           // Handle daily limit exceeded error
           if (result.isDailyLimit) {
             // Remove the optimistic messages
@@ -515,7 +557,7 @@ export function useChatWithSync() {
     } finally {
       sendInFlight.current.delete(chatId)
     }
-  }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, localChatState.previewStates, updateChatById, queryClient])
+  }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, localChatState.previewStates, updateChatById, queryClient, reloadMessages])
 
   // Predicates so useQueueDispatch can check the parent-owned in-flight refs
   // without holding them directly.

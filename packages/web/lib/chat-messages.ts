@@ -46,6 +46,13 @@ export type SendMessageResult =
       used?: number
       limit?: number
     }
+  | {
+      ok: false
+      isPullConflict: true
+      error: string
+      conflictedFiles: string[]
+      branch: string | null
+    }
 
 /**
  * Send a message to the API, handling both JSON and FormData (for files).
@@ -83,6 +90,19 @@ export async function sendMessageToApi(
       }
     }
     const err = await response.json().catch(() => ({}))
+
+    // Pre-run auto-pull conflict — the caller surfaces the existing
+    // merge-conflict UI (the merge is left in progress in the sandbox).
+    if (response.status === 409 && err.error === "PULL_CONFLICT") {
+      return {
+        ok: false,
+        isPullConflict: true,
+        error: "PULL_CONFLICT",
+        conflictedFiles: Array.isArray(err.conflictedFiles) ? err.conflictedFiles : [],
+        branch: err.branch ?? null,
+      }
+    }
+
     return {
       ok: false,
       // Surface the HTTP status when the server didn't return a JSON error

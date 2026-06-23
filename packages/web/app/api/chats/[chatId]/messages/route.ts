@@ -21,6 +21,8 @@ import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
+import { autoPullBeforeRun } from "@/lib/server/auto-pull"
+import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { getEnvForModel, resolveCliModel, CUSTOM_MODEL_VALUE } from "@background-agents/common"
@@ -362,6 +364,69 @@ export async function POST(
 
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
+    // ── Stage 2b: auto-pull the branch before the agent runs ───────────────
+    // Commits pushed to this branch from elsewhere (local checkout, another
+    // chat, GitHub UI) aren't in the sandbox until we pull them. A freshly
+    // created sandbox was just cloned, so it's already current — skip it there.
+    //
+    // On a *new* conflict we leave the merge in progress and return 409 without
+    // starting the agent, so the client surfaces the existing merge-conflict UI
+    // (header indicator + Abort Merge) — exactly like a merge/rebase conflict.
+    // When the user then sends a message, the merge is *already in progress*, so
+    // we prepend `pullConflictNote` and let the agent resolve it during the turn.
+    let pullConflictNote = ""
+    if (
+      !createdSandbox &&
+      branch &&
+      chat.repo !== NEW_REPOSITORY &&
+      chat.repo !== "__new__" &&
+      githubToken
+    ) {
+      try {
+        const pull = await autoPullBeforeRun(sandbox, repoPath, branch, githubToken)
+
+        if (pull.status === "pulled") {
+          await createGitOperationMessage(
+            chatId,
+            `Pulled ${pull.commits} commit${pull.commits === 1 ? "" : "s"} from ${branch}.`,
+            false,
+            undefined,
+            branch
+          )
+        } else if (pull.status === "conflict" && !pull.alreadyInProgress) {
+          // This send started the merge and it conflicted. Leave the merge in
+          // progress, surface the existing conflict UI, and do NOT start the
+          // agent or persist messages — the user decides (send a message to
+          // have the agent resolve it, or Abort Merge).
+          const fileList = pull.conflictedFiles.join(", ")
+          await createGitOperationMessage(
+            chatId,
+            `Pull conflict on ${branch} (${pull.conflictedFiles.length} file${pull.conflictedFiles.length === 1 ? "" : "s"}): ${fileList}`,
+            true
+          )
+          return Response.json(
+            {
+              error: "PULL_CONFLICT",
+              conflictedFiles: pull.conflictedFiles,
+              branch,
+            },
+            { status: 409 }
+          )
+        } else if (pull.status === "conflict" && pull.alreadyInProgress) {
+          // A prior conflicted pull is still in progress and the user sent a
+          // message — hand the conflict to the agent to resolve this turn.
+          const fileList = pull.conflictedFiles.join(", ")
+          pullConflictNote =
+            `A merge of origin/${branch} is in progress with conflicts in: ${fileList}. ` +
+            `Resolve the conflicts, commit the merge, then address the request below.\n\n---\n\n`
+        }
+      } catch (err) {
+        // Never block a turn on the auto-pull. If it fails, the agent runs on
+        // the current tree and the end-of-turn push surfaces any divergence.
+        console.error("[chats/messages] auto-pull failed:", err)
+      }
+    }
+
     // ── Stage 3: file upload ───────────────────────────────────────────────
     let uploadedFilePaths: string[] = []
     if (files.length > 0) {
@@ -375,7 +440,7 @@ export async function POST(
     }
 
     // Build the prompt the agent sees. Mirrors the legacy client logic.
-    let agentPrompt = payload.message
+    let agentPrompt = pullConflictNote + payload.message
     if (uploadedFilePaths.length > 0) {
       agentPrompt +=
         "\n\n---\nUploaded files:\n" +
