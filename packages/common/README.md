@@ -27,6 +27,7 @@ import {
   type ProviderName,
   type ProviderId,
   type ModelOption,
+  type ParsedCustomHeaders,
   type CredentialId,
   type CredentialFlags,
   type Credentials,
