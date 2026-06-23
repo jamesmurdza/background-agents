@@ -81,6 +81,13 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     placeholder: "kilo-...",
   },
   {
+    id: "KIMI_API_KEY",
+    provider: "kimi",
+    label: "Kimi (Moonshot)",
+    helpUrl: "https://platform.moonshot.ai/console/api-keys",
+    placeholder: "sk-...",
+  },
+  {
     id: "GEMINI_API_KEY",
     provider: "gemini",
     label: "Google AI (Gemini)",

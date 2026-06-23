@@ -7,13 +7,13 @@
 // Agent Types
 // =============================================================================
 
-export type Agent = "claude-code" | "opencode" | "codex" | "copilot" | "eliza" | "gemini" | "goose" | "kilo" | "pi"
+export type Agent = "claude-code" | "opencode" | "codex" | "copilot" | "eliza" | "gemini" | "goose" | "kilo" | "kimi" | "pi"
 
 /** All agent ids, in display order. */
-export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "copilot", "gemini", "goose", "kilo", "pi", "eliza"]
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "copilot", "gemini", "goose", "kilo", "kimi", "pi", "eliza"]
 
 /** SDK provider names (must match ProviderName from SDK) */
-export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "pi"
+export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "kimi" | "pi"
 
 /** Display labels for each agent */
 export const agentLabels: Record<Agent, string> = {
@@ -25,6 +25,7 @@ export const agentLabels: Record<Agent, string> = {
   "gemini": "Gemini",
   "goose": "Goose",
   "kilo": "Kilo",
+  "kimi": "Kimi Code",
   "pi": "Pi",
 }
 
@@ -38,6 +39,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "gemini": "gemini",
   "goose": "goose",
   "kilo": "kilo",
+  "kimi": "kimi",
   "pi": "pi",
 }
 
@@ -46,7 +48,7 @@ export const agentToProvider: Record<Agent, ProviderName> = {
 // =============================================================================
 
 /** Provider an API key is associated with. */
-export type ProviderId = "anthropic" | "github" | "openai" | "opencode" | "gemini" | "kilo"
+export type ProviderId = "anthropic" | "github" | "openai" | "opencode" | "gemini" | "kilo" | "kimi"
 
 /**
  * Credential identifiers. The id doubles as the env var name we inject
@@ -60,6 +62,7 @@ export type CredentialId =
   | "OPENCODE_API_KEY"
   | "GEMINI_API_KEY"
   | "KILO_API_KEY"
+  | "KIMI_API_KEY"
   // Custom Anthropic-compatible endpoint ("Custom model" tab). Stored encrypted
   // like every other credential; mapped to the standard ANTHROPIC_* env vars at
   // injection time (see getEnvForModel / buildCustomModelEnv). Auth (API key or
@@ -92,6 +95,7 @@ const PROVIDER_ENV: Record<ProviderId, CredentialId[]> = {
   opencode: ["OPENCODE_API_KEY"],
   gemini: ["GEMINI_API_KEY"],
   kilo: ["KILO_API_KEY"],
+  kimi: ["KIMI_API_KEY"],
 }
 
 // =============================================================================
@@ -290,6 +294,15 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/mistralai/devstral-medium", label: "Devstral Medium", requiresKey: "kilo" },
     { value: "kilo/x-ai/grok-4.20", label: "Grok 4.20", requiresKey: "kilo" },
   ],
+  "kimi": [
+    // Moonshot (Kimi) models, routed through the user's KIMI_API_KEY against
+    // https://api.moonshot.ai/v1. Each value must match a [models."<id>"] entry
+    // declared in the generated ~/.kimi-code/config.toml (see the kimi agent).
+    { value: "kimi-k2.7-code", label: "Kimi K2.7 Code (Recommended)", requiresKey: "kimi" },
+    { value: "kimi-k2.7-code-highspeed", label: "Kimi K2.7 Code Highspeed", requiresKey: "kimi" },
+    { value: "kimi-k2.6", label: "Kimi K2.6", requiresKey: "kimi" },
+    { value: "kimi-k2.5", label: "Kimi K2.5", requiresKey: "kimi" },
+  ],
   "pi": [
     // Anthropic models (default provider)
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5 (Recommended)", requiresKey: "anthropic" },
@@ -318,6 +331,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "gemini": "gemini-2.5-flash",
   "goose": "gpt-4o",
   "kilo": "kilo/kilo-auto/free", // Free auto-router, no API key needed
+  "kimi": "kimi-k2.7-code",
   "pi": "claude-sonnet-4-5",
 }
 
@@ -331,6 +345,7 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
   "gemini": true,
   "goose": true,
   "kilo": false,
+  "kimi": false,
   "pi": false,
 }
 

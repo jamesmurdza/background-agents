@@ -52,6 +52,10 @@ const GEMINI_API_KEY =
   process.env.TEST_GOOGLE_API_KEY ||
   process.env.GEMINI_API_KEY ||
   process.env.GOOGLE_API_KEY
+const KIMI_API_KEY =
+  process.env.TEST_KIMI_API_KEY ||
+  process.env.KIMI_API_KEY ||
+  process.env.MOONSHOT_API_KEY
 
 if (!DAYTONA_API_KEY) {
   console.error("Error: DAYTONA_API_KEY is required")
@@ -112,6 +116,12 @@ const providers: ProviderConfig[] = [
     name: "pi",
     apiKeyEnvVar: "ANTHROPIC_API_KEY",
     apiKey: ANTHROPIC_API_KEY,
+  },
+  {
+    name: "kimi",
+    apiKeyEnvVar: "KIMI_API_KEY",
+    apiKey: KIMI_API_KEY,
+    model: "kimi-k2.7-code",
   },
 ]
 
