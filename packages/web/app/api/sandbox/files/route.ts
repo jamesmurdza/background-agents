@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { escapeShell } from "@background-agents/sdk"
 import { PATHS } from "@background-agents/common"
+import { internalError, badRequest, notFound } from "@/lib/db/api-helpers"
 
 export const maxDuration = 30
 
@@ -41,12 +42,12 @@ export async function POST(req: Request) {
     maxLines?: number
   } | null
 
-  if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 })
+  if (!body) return badRequest("Invalid JSON body")
 
   const { sandboxId, action, filePath } = body
 
   if (!sandboxId || !action) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 })
+    return badRequest("Missing required fields")
   }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
 
     switch (action) {
       case "read-file": {
-        if (!filePath) return Response.json({ error: "Missing filePath" }, { status: 400 })
+        if (!filePath) return badRequest("Missing filePath")
         const resolvedPath = resolveFilePath(filePath)
         const safe = escapeShell(resolvedPath)
         const maxLines = body.maxLines
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
           `stat --format='%Y|%s' '${safe}' 2>/dev/null || echo 'error'`
         )
         if (statResult.result?.trim() === "error" || statResult.exitCode !== 0) {
-          return Response.json({ error: `File not found: ${resolvedPath}` }, { status: 404 })
+          return notFound(`File not found: ${resolvedPath}`)
         }
         const [mtimeStr, sizeStr] = statResult.result.trim().split("|")
         const mtime = parseInt(mtimeStr, 10)
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
       }
 
       case "read-file-binary": {
-        if (!filePath) return Response.json({ error: "Missing filePath" }, { status: 400 })
+        if (!filePath) return badRequest("Missing filePath")
         const resolvedPath = resolveFilePath(filePath)
         const safe = escapeShell(resolvedPath)
 
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
           `stat --format='%Y|%s' '${safe}' 2>/dev/null || echo 'error'`
         )
         if (statResult.result?.trim() === "error" || statResult.exitCode !== 0) {
-          return Response.json({ error: `File not found: ${resolvedPath}` }, { status: 404 })
+          return notFound(`File not found: ${resolvedPath}`)
         }
         const [, sizeStr] = statResult.result.trim().split("|")
         const size = parseInt(sizeStr, 10)
@@ -166,11 +167,10 @@ export async function POST(req: Request) {
       }
 
       default:
-        return Response.json({ error: `Unknown action: ${action}` }, { status: 400 })
+        return badRequest(`Unknown action: ${action}`)
     }
   } catch (error) {
     console.error("[sandbox/files] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

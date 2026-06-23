@@ -8,7 +8,7 @@ import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 
-import { getUserPushOptions } from "./push-options"
+import { getUserPushOptions } from "@/lib/git/push-options"
 import type { ChatWithMessages } from "./types"
 
 // =============================================================================

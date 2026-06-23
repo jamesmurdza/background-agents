@@ -1,4 +1,4 @@
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, internalError } from "@/lib/db/api-helpers"
 import { getUserRepos } from "@background-agents/common"
 import { NextRequest } from "next/server"
 
@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
     return Response.json({ repos, page, hasMore })
   } catch (error: unknown) {
     console.error("[github/repos] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

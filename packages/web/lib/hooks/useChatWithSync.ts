@@ -11,50 +11,27 @@
 import { useEffect, useCallback, useMemo, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
-import { nanoid } from "nanoid"
-import type { Chat, ChatStatus, Message } from "@/lib/types"
-import { NEW_REPOSITORY, getDefaultModelForAgent } from "@/lib/types"
+import type { Chat, ChatStatus } from "@/lib/types"
+import { getDefaultModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
-import {
-  clearLocalStateForChats,
-  collectDescendantIds,
-  DEFAULT_SETTINGS,
-} from "@/lib/storage"
+import { DEFAULT_SETTINGS } from "@/lib/storage"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import {
   useChatsQuery,
   useSettingsQuery,
-  type SettingsData,
   useCreateChatMutation,
-  useUpdateChatMutation,
-  useDeleteChatMutation,
   useUpdateSettingsMutation,
   useSuggestNameMutation,
-  useSandboxDeleteMutation,
-  queryKeys,
 } from "@/lib/query"
 import { useStreamStore } from "@/lib/stores/stream-store"
-import { fetchChat, toMessageType } from "@/lib/sync/api"
-import { useStreaming, mergeMessages } from "./useStreaming"
-import { useQueueDispatch } from "./useQueueDispatch"
+import { useStreaming } from "./useStreaming"
+import { useChatMessageSync } from "./useChatMessageSync"
+import { useChatOperations } from "./useChatOperations"
+import { useMessageDispatch } from "./useMessageDispatch"
 import {
   mergeLocalState,
   computeUnseenTransitions,
-  removeLocalChatStateFor,
-  selectFallbackNextChatId,
 } from "@/lib/chat-state"
-import {
-  sendMessageToApi,
-  resolveAgentAndModel,
-  usesSharedClaudePool,
-  newBranchForSend,
-  applyOptimisticSend,
-  removeOptimisticMessages,
-  applySendSuccess,
-  applySendError,
-  decrementClaudeUsage,
-  type SendMessagePayload,
-} from "@/lib/chat-messages"
 
 // =============================================================================
 // Hook
@@ -70,11 +47,8 @@ export function useChatWithSync() {
 
   // Mutations
   const createChatMutation = useCreateChatMutation()
-  const updateChatMutation = useUpdateChatMutation()
-  const deleteChatMutation = useDeleteChatMutation()
   const updateSettingsMutation = useUpdateSettingsMutation()
   const suggestNameMutation = useSuggestNameMutation()
-  const sandboxDeleteMutation = useSandboxDeleteMutation()
 
   // Local-only state (owned by the chat-sync store)
   const currentChatId = useChatSyncStore((s) => s.currentChatId)
@@ -95,9 +69,6 @@ export function useChatWithSync() {
   // rendered) used to coordinate in-flight async work; they have no
   // stale-closure hazard, so they stay as refs rather than moving to the store.
   const prevStatuses = useRef<Map<string, ChatStatus>>(new Map())
-  const sendInFlight = useRef<Set<string>>(new Set())
-  const stopInFlight = useRef<Set<string>>(new Set())
-  const messagesLoadFailed = useRef<Set<string>>(new Set())
   const materializingDraft = useRef<boolean>(false)
 
   // Callback for conflict state changes from SSE complete events
@@ -158,60 +129,10 @@ export function useChatWithSync() {
     }
   }, [chats, currentChatId, isHydrated])
 
-  // Load messages for current chat when selected
-  useEffect(() => {
-    if (!currentChatId || !isHydrated) return
-
-    const chat = chats.find((c) => c.id === currentChatId)
-    if (!chat) return
-
-    // Skip if messages already loaded or previous load failed
-    if (chat.messages.length > 0 || messagesLoadFailed.current.has(currentChatId)) {
-      return
-    }
-
-    const loadMessages = async () => {
-      try {
-        const chatData = await fetchChat(currentChatId)
-        const incomingMessages = chatData.messages.map(toMessageType)
-
-        updateChatsCache((old) =>
-          old.map((c) => {
-            if (c.id !== currentChatId) return c
-            return {
-              ...c,
-              messages: mergeMessages(c.messages, incomingMessages),
-              messageCount: chatData.messageCount,
-            }
-          })
-        )
-      } catch (err) {
-        console.error("Failed to load chat messages:", err)
-        messagesLoadFailed.current.add(currentChatId)
-      }
-    }
-
-    loadMessages()
-  }, [currentChatId, chats, isHydrated, updateChatsCache])
-
-  // Force a re-fetch of a chat's messages (e.g. after the server appends a
-  // git-operation message). Unlike the load-on-select effect this has no
-  // "already loaded" guard.
-  const reloadMessages = useCallback(async (chatId: string) => {
-    try {
-      const chatData = await fetchChat(chatId)
-      const incomingMessages = chatData.messages.map(toMessageType)
-      updateChatsCache((old) =>
-        old.map((c) =>
-          c.id === chatId
-            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount }
-            : c
-        )
-      )
-    } catch (err) {
-      console.error("Failed to reload chat messages:", err)
-    }
-  }, [updateChatsCache])
+  // Message fetching/merging (load-on-select, reload, refetch delta-sync,
+  // reload-after-disconnect, client-side append) lives in its own hook.
+  const { reloadMessages, refetchMessages, reloadChat, addMessageToChat } =
+    useChatMessageSync({ chats, currentChatId, isHydrated, updateChatsCache })
 
   // Helper to check if a chat ID is a draft
   const isDraftChatId = useCallback((chatId: string | null): boolean => {
@@ -266,110 +187,15 @@ export function useChatWithSync() {
     }
   }, [createChatMutation])
 
-  // Chat operations
-  const startNewChat = useCallback(async (
-    repo: string = NEW_REPOSITORY,
-    baseBranch: string = "main",
-    parentChatId?: string,
-    switchTo: boolean = true,
-    initialStatus: Chat["status"] = "pending",
-    agent?: string | null,
-    model?: string | null,
-  ): Promise<string | null> => {
-    // Branch chats (with parentChatId) are created immediately since they need to reference the parent
-    if (parentChatId) {
-      try {
-        const newChat = await createChatMutation.mutateAsync({
-          repo,
-          baseBranch,
-          parentChatId,
-          agent,
-          model,
-          status: initialStatus,
-        })
-        if (switchTo) {
-          useChatSyncStore.getState().setCurrentChatId(newChat.id)
-        }
-        return newChat.id
-      } catch (error) {
-        console.error("Failed to create chat:", error)
-        return null
-      }
-    }
-
-    // For regular new chats, enter draft mode instead of creating in DB
-    return useChatSyncStore.getState().enterDraftMode(repo, baseBranch, agent ?? null, model ?? null)
-  }, [createChatMutation])
-
-  const removeChat = useCallback(
-    async (chatId: string, getNextChatId?: (deletedIds: string[]) => string | null) => {
-      const allIds = collectDescendantIds(chats, chatId)
-      for (const id of allIds) useStreamStore.getState().stopStream(id)
-      useChatSyncStore.getState().addDeleting(allIds)
-
-      const selectNextChat = (deletedIds: string[]) => {
-        const nextChat = getNextChatId
-          ? getNextChatId(deletedIds)
-          : selectFallbackNextChatId(chats, deletedIds)
-        useChatSyncStore.getState().setCurrentChatId(nextChat)
-      }
-
-      // Select the next chat right away (optimistically) when the open chat is
-      // being deleted, so the UI moves off it immediately instead of lingering
-      // until the server round-trip completes. The sidebar already removes the
-      // chat optimistically via the delete mutation's onMutate.
-      if (allIds.includes(currentChatId ?? "")) {
-        selectNextChat(allIds)
-      }
-
-      try {
-        const result = await deleteChatMutation.mutateAsync(chatId)
-        for (const sandboxId of result.sandboxIdsToCleanup) {
-          sandboxDeleteMutation.mutate(sandboxId)
-        }
-        clearLocalStateForChats(result.deletedChatIds)
-        useChatSyncStore.getState().setLocalChatState((prev) => removeLocalChatStateFor(prev, result.deletedChatIds))
-        // Reconcile against the server's actual deleted set in case it removed
-        // descendants we didn't predict locally and the open chat was among them.
-        const serverDeletedExtra = result.deletedChatIds.some((id) => !allIds.includes(id))
-        if (serverDeletedExtra && result.deletedChatIds.includes(currentChatId ?? "")) {
-          selectNextChat(result.deletedChatIds)
-        }
-      } catch (error) {
-        console.error("Failed to delete chat:", error)
-      } finally {
-        useChatSyncStore.getState().removeDeleting(allIds)
-      }
-    },
-    [chats, currentChatId, deleteChatMutation, sandboxDeleteMutation]
-  )
-
-  const renameChat = useCallback(async (chatId: string, newName: string) => {
-    try {
-      await updateChatMutation.mutateAsync({ chatId, data: { displayName: newName } })
-    } catch (error) {
-      console.error("Failed to rename chat:", error)
-    }
-  }, [updateChatMutation])
-
-  const updateChatRepo = useCallback(async (chatId: string, repo: string, baseBranch: string) => {
-    const chat = chats.find((c) => c.id === chatId)
-    if (!chat) return
-    // Can select existing repo only before first message and sandbox creation
-    const canSelectExistingRepo = chat.messages.length === 0 && !chat.sandboxId
-    // Can assign a new repo if chat currently has NEW_REPOSITORY
-    const canAssignNewRepo = chat.repo === NEW_REPOSITORY && repo !== NEW_REPOSITORY
-    if (!canSelectExistingRepo && !canAssignNewRepo) return
-
-    try {
-      // When assigning a new repo to an existing sandbox, preserve the working branch.
-      // Only reset branch to null when selecting a repo before sandbox creation.
-      const branchToSet = canAssignNewRepo ? chat.branch : null
-      await updateChatMutation.mutateAsync({ chatId, data: { repo, baseBranch, branch: branchToSet } })
-    } catch (error) {
-      console.error("Failed to update chat repo:", error)
-    }
-  }, [chats, updateChatMutation])
+  // Chat CRUD (create/rename/repo/generic-update/delete) lives in its own hook.
+  const {
+    startNewChat,
+    renameChat,
+    updateChatRepo,
+    updateChatById,
+    updateCurrentChat,
+    removeChat,
+  } = useChatOperations({ chats, currentChatId, createChatMutation })
 
   const updateSettings = useCallback(async (data: { settings?: Partial<typeof settings>; credentials?: Credentials }): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -380,244 +206,28 @@ export function useChatWithSync() {
     }
   }, [updateSettingsMutation])
 
-  // Split a Partial<Chat> into the local-only preview fields (handled by the
-  // sync store) and the server-bound fields (sent through the mutation). The
-  // `in`-check matters: destructuring would produce `undefined` whether the
-  // key was present or absent, and an all-undefined preview update is the
-  // store's "clear it" sentinel — so an unrelated update like { planModeEnabled:
-  // false } would otherwise wipe the preview pane.
-  const updateChatById = useCallback(async (chatId: string, updates: Partial<Chat>) => {
-    const { previewItems, activePreviewIndex, previewPaneHidden, queuedMessages, queuePaused, ...serverUpdates } = updates
-
-    if ("previewItems" in updates || "activePreviewIndex" in updates || "previewPaneHidden" in updates) {
-      useChatSyncStore.getState().setPreviewStateForChat(chatId, { previewItems, activePreviewIndex, previewPaneHidden })
-    }
-
-    if (Object.keys(serverUpdates).length > 0) {
-      try {
-        await updateChatMutation.mutateAsync({ chatId, data: serverUpdates as Parameters<typeof updateChatMutation.mutateAsync>[0]["data"] })
-      } catch (error) {
-        console.error("Failed to update chat:", error)
-      }
-    }
-  }, [updateChatMutation])
-
-  const updateCurrentChat = useCallback(async (updates: Partial<Chat>) => {
-    if (!currentChatId) return
-    await updateChatById(currentChatId, updates)
-  }, [currentChatId, updateChatById])
-
-  // Send message
-  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean) => {
-    let chatId = targetChatId || currentChatId
-    if (!chatId) return
-
-    let chat: Chat | undefined
-
-    const draftIdToActivate = isDraftChatId(chatId) ? chatId : null
-
-    // If this is a draft chat, materialize it first. `activate: false` defers the
-    // currentChatId switch until the optimistic messages are in the cache (below),
-    // so the real chat isn't shown empty for one render — which flashed the "new
-    // chat" welcome screen. The draft stays selected until then.
-    if (draftIdToActivate) {
-      const materializedChat = await materializeDraft(chatId, { activate: false })
-      if (!materializedChat) {
-        console.error("Failed to materialize draft chat before sending message")
-        return
-      }
-      chatId = materializedChat.id
-      chat = materializedChat
-    } else {
-      chat = chats.find((c) => c.id === chatId)
-      // Fallback to query cache if not found in chats array (e.g., newly created branched chat
-      // where React state hasn't re-rendered yet but the cache has been updated)
-      if (!chat) {
-        const cachedChats = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())
-        chat = cachedChats?.find((c) => c.id === chatId)
-      }
-    }
-
-    if (!chat) return
-
-    if (sendInFlight.current.has(chatId)) return
-    if (stopInFlight.current.has(chatId)) return
-    if (useStreamStore.getState().isStreaming(chatId)) return
-    if (chat.status === "creating" || chat.status === "running") return
-
-    sendInFlight.current.add(chatId)
-
-    try {
-      if (!session) return
-
-      const isFirstMessage = chat.messages.length === 0
-      const { agent: selectedAgent, model: selectedModel } = resolveAgentAndModel(
-        agent,
-        model,
-        chat,
-        settings,
-        credentialFlags
-      )
-
-      const now = Date.now()
-      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now }
-      const assistantMessage: Message = { id: nanoid(), role: "assistant", content: "", timestamp: now + 1, toolCalls: [], contentBlocks: [] }
-
-      // Optimistic update
-      updateChatsCache((old) => old.map((c) =>
-        c.id === chatId ? applyOptimisticSend(c, userMessage, assistantMessage, now) : c
-      ))
-
-      // Switch to the real chat in the same synchronous block as the optimistic
-      // update above, so both commit in one render (no empty-chat flash).
-      if (draftIdToActivate) {
-        useChatSyncStore.getState().completeMaterialize(draftIdToActivate, chatId)
-      }
-
-      try {
-        const payload: SendMessagePayload = {
-          message: content,
-          agent: selectedAgent,
-          model: selectedModel,
-          userMessageId: userMessage.id,
-          assistantMessageId: assistantMessage.id,
-          newBranch: newBranchForSend(chat),
-          planMode: planMode || undefined,
-        }
-
-        const result = await sendMessageToApi(chatId, payload, files)
-
-        if (!result.ok) {
-          // Pre-run auto-pull hit a merge conflict and left the merge in
-          // progress. Roll back the optimistic messages, restore the typed text
-          // to the composer, and surface the *existing* merge-conflict UI (header
-          // indicator + Abort Merge) — same as a merge/rebase conflict. The user
-          // then re-sends to have the agent resolve it, or aborts the merge.
-          if ("isPullConflict" in result) {
-            updateChatsCache((old) => old.map((c) =>
-              c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
-            ))
-            // Keep the user's message available to send again.
-            useChatSyncStore.getState().setDraftText(chatId, content)
-            // Show the git-operation message the server appended.
-            await reloadMessages(chatId)
-            // Light up the conflict indicator immediately (the in-progress merge
-            // is also detected by check-rebase-status on the next status poll).
-            onConflictStateChangeRef.current?.({
-              inRebase: false,
-              inMerge: true,
-              conflictedFiles: result.conflictedFiles,
-            })
-            return
-          }
-
-          // Handle daily limit exceeded error
-          if (result.isDailyLimit) {
-            // Remove the optimistic messages
-            updateChatsCache((old) => old.map((c) =>
-              c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
-            ))
-
-            // Show the limit reached dialog with pending message info
-            setLimitReachedState({
-              show: true,
-              pendingMessage: { chatId, content, files, planMode },
-              provider: result.provider,
-              used: result.used,
-              limit: result.limit,
-              resetAt: result.resetAt ? new Date(result.resetAt) : undefined,
-            })
-            return
-          }
-
-          throw new Error(result.error)
-        }
-
-        const { data } = result
-        updateChatsCache((old) => old.map((c) =>
-          c.id === chatId ? applySendSuccess(c, data, selectedAgent, selectedModel, userMessage.id) : c
-        ))
-
-        startStreaming(chatId, data.sandboxId, "project", data.backgroundSessionId, assistantMessage.id, data.previewUrlPattern ?? undefined, data.branch, undefined, planMode)
-
-        // Optimistically update Claude usage count if using shared pool with Claude Code
-        if (usesSharedClaudePool(selectedAgent, credentialFlags)) {
-          queryClient.setQueryData<SettingsData>(queryKeys.settings.all, decrementClaudeUsage)
-        }
-
-        if (isFirstMessage) {
-          suggestNameMutation.mutate({ chatId, prompt: content })
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error"
-        updateChatsCache((old) => old.map((c) =>
-          c.id === chatId ? applySendError(c, assistantMessage.id, errorMessage) : c
-        ))
-      }
-    } finally {
-      sendInFlight.current.delete(chatId)
-    }
-  }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, localChatState.previewStates, updateChatById, queryClient, reloadMessages])
-
-  // Predicates so useQueueDispatch can check the parent-owned in-flight refs
-  // without holding them directly.
-  const isSendInFlight = useCallback((chatId: string) => sendInFlight.current.has(chatId), [])
-  const isStopInFlight = useCallback((chatId: string) => stopInFlight.current.has(chatId), [])
-
-  // Queue management — owns enqueue/remove/resume/pause + the auto-drain
-  // effect that dispatches the next queued message whenever a chat is idle.
-  const { enqueueMessage, removeQueuedMessage, resumeQueue, pauseQueue } = useQueueDispatch({
-    isHydrated,
-    chats,
-    currentChat,
-    queuedMessages: localChatState.queuedMessages,
-    queuePaused: localChatState.queuePaused,
-    sendMessage,
-    isSendInFlight,
-    isStopInFlight,
-  })
-
-  const stopAgent = useCallback(async () => {
-    if (!currentChat) return
-
-    const chatId = currentChat.id
-
-    // Prevent sending messages while stop is in progress
-    stopInFlight.current.add(chatId)
-
-    // Stop the SSE stream on the client side
-    useStreamStore.getState().stopStream(chatId)
-    const hasQueue = (currentChat.queuedMessages?.length ?? 0) > 0
-
-    // Optimistically update the UI
-    updateChatsCache((old) => old.map((c) =>
-      c.id === chatId
-        ? {
-            ...c,
-            status: "ready",
-            backgroundSessionId: undefined,
-            queuePaused: hasQueue ? true : c.queuePaused,
-          }
-        : c
-    ))
-
-    if (hasQueue) {
-      pauseQueue(chatId)
-    }
-
-    // Call the stop endpoint and wait for it to complete before allowing new messages
-    try {
-      await fetch("/api/agent/stop", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId }),
-      })
-    } catch (err) {
-      console.error("[stopAgent] Failed to stop agent:", err)
-    } finally {
-      stopInFlight.current.delete(chatId)
-    }
-  }, [currentChat, updateChatsCache, pauseQueue])
+  // Outbound dispatch — sendMessage, stopAgent and the per-chat send queue
+  // (the most coupled slice) live in their own hook.
+  const { sendMessage, stopAgent, enqueueMessage, removeQueuedMessage, resumeQueue } =
+    useMessageDispatch({
+      currentChatId,
+      currentChat,
+      chats,
+      isHydrated,
+      session,
+      settings,
+      credentialFlags,
+      updateChatsCache,
+      startStreaming,
+      suggestNameMutation,
+      isDraftChatId,
+      materializeDraft,
+      reloadMessages,
+      queryClient,
+      onConflictStateChangeRef,
+      queuedMessages: localChatState.queuedMessages,
+      queuePaused: localChatState.queuePaused,
+    })
 
   // Resume streaming for running chats. The key must include the last
   // assistant message id, otherwise the effect can fire once when the
@@ -679,12 +289,6 @@ export function useChatWithSync() {
     }
   }, [localChatState.previewStates, updateChatById])
 
-  // Append a message into the cached chat without going through the server.
-  // Used by callers that have already produced a system message client-side.
-  const addMessageToChat = useCallback((chatId: string, message: Message) => {
-    updateChatsCache((old) => old.map((c) => c.id === chatId ? { ...c, messages: [...c.messages, message] } : c))
-  }, [updateChatsCache])
-
   // Draft management
   const updateDraft = useCallback((chatId: string, draft: string) => {
     useChatSyncStore.getState().setDraftText(chatId, draft)
@@ -693,58 +297,6 @@ export function useChatWithSync() {
   const clearDraft = useCallback((chatId: string) => {
     useChatSyncStore.getState().setDraftText(chatId, undefined)
   }, [])
-
-  // Refetch messages for a specific chat (used after git operations add messages on backend)
-  // Uses delta sync - only fetches messages after the last known message ID
-  const refetchMessages = useCallback(async (chatId: string) => {
-    try {
-      // Find the last message ID for this chat to enable delta sync
-      const chat = chats.find((c) => c.id === chatId)
-      const lastMessageId = chat?.messages[chat.messages.length - 1]?.id
-
-      // Fetch only new messages (after lastMessageId)
-      const chatData = await fetchChat(chatId, lastMessageId ? { afterMessageId: lastMessageId } : undefined)
-      const incomingMessages = chatData.messages.map(toMessageType)
-
-      if (incomingMessages.length > 0) {
-        updateChatsCache((old) =>
-          old.map((c) => {
-            if (c.id !== chatId) return c
-            return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
-          })
-        )
-      }
-    } catch (err) {
-      console.error("Failed to refetch messages:", err)
-    }
-  }, [chats, updateChatsCache])
-
-  // Reload a chat's full history after the SSE stream died ("disconnected").
-  // Unlike refetchMessages (delta sync), this re-fetches the entire history so a
-  // partially-streamed assistant turn is replaced by the fuller persisted copy
-  // (mergeMessages prefers the message with more content), then clears the
-  // disconnected banner so the user can continue.
-  const reloadChat = useCallback(async (chatId: string) => {
-    try {
-      const chatData = await fetchChat(chatId)
-      const incomingMessages = chatData.messages.map(toMessageType)
-      updateChatsCache((old) =>
-        old.map((c) => {
-          if (c.id !== chatId) return c
-          return {
-            ...c,
-            messages: incomingMessages.length > 0
-              ? mergeMessages(c.messages, incomingMessages)
-              : c.messages,
-            status: "ready",
-            errorMessage: undefined,
-          }
-        })
-      )
-    } catch (err) {
-      console.error("Failed to reload chat:", err)
-    }
-  }, [updateChatsCache])
 
   // True when messages need to be loaded for current chat (to prevent flash of empty state)
   // A chat needs loading if: has no messages locally, but server says it has messages (messageCount > 0)

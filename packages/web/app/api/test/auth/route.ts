@@ -7,6 +7,7 @@
 
 import { prisma } from "@/lib/db/prisma"
 import { encode } from "next-auth/jwt"
+import { internalError } from "@/lib/db/api-helpers"
 
 export async function POST() {
   // Safety check: only allow in test mode
@@ -45,10 +46,7 @@ export async function POST() {
     })
   } catch (error) {
     console.error("Test auth error:", error)
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    )
+    return internalError(error)
   }
 }
 
