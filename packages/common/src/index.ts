@@ -35,6 +35,8 @@ export {
   CUSTOM_MODEL_VALUE,
   // Functions
   getDefaultAgent,
+  hasOwnAnthropicCredentials,
+  sharedClaudePoolEligible,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getModelLabel,

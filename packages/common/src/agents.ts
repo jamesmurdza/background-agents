@@ -362,6 +362,20 @@ export function getDefaultAgent(): Agent {
   return "opencode"
 }
 
+/** Whether the user has their own Anthropic credentials (API key or subscription token). */
+export function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undefined): boolean {
+  return !!flags?.ANTHROPIC_API_KEY || !!flags?.CLAUDE_CODE_CREDENTIALS
+}
+
+/**
+ * Whether a Claude run would draw from the server's shared Claude pool: the
+ * shared pool is available and the user has no personal Anthropic credentials.
+ * Does not account for the daily limit — see CLAUDE_DAILY_LIMIT_EXCEEDED.
+ */
+export function sharedClaudePoolEligible(flags: CredentialFlags | null | undefined): boolean {
+  return !!flags?.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicCredentials(flags)
+}
+
 /**
  * Check if user has credentials for a specific model.
  */

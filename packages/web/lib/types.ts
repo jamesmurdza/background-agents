@@ -23,6 +23,8 @@ export {
   getDefaultModelForAgent,
   getModelLabel,
   hasCredentialsForModel,
+  hasOwnAnthropicCredentials,
+  sharedClaudePoolEligible,
 } from "@background-agents/common"
 
 // =============================================================================

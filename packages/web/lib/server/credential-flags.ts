@@ -16,6 +16,7 @@ import {
   type Plan,
 } from "@/lib/server/usage-budgets"
 import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags, type CredentialId } from "@/lib/credentials"
+import { sharedClaudePoolEligible } from "@background-agents/common"
 
 export interface EffectiveFlags {
   flags: CredentialFlags
@@ -105,8 +106,7 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
 
   // Check daily limit only for free users who would use the shared pool
   // (no personal API key or subscription token)
-  const hasOwnAnthropicKey = !!flags.ANTHROPIC_API_KEY || !!flags.CLAUDE_CODE_CREDENTIALS
-  const usesSharedPool = flags.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicKey
+  const usesSharedPool = sharedClaudePoolEligible(flags)
   const plan: Plan = user?.plan ?? "free"
   const isPro = plan !== "free"
 
