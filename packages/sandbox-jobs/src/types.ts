@@ -28,28 +28,26 @@ export interface JobHandle {
   /** Exit-code sentinel file; exists ONLY once the process has finished. */
   readonly exitFile: string
   /**
-   * Process-group id of the detached job (== leader pid, thanks to `setsid`).
-   * Used for liveness/crash detection (`ps` on the leader); NOT for killing.
+   * Process id of the detached job leader. Used for liveness/crash detection
+   * (`ps` on the leader) and as the primary kill target on cancel.
    */
-  readonly pgid: number
+  readonly pid: number
   /**
-   * Absolute path to the job's own cgroup-v2 directory. Killing this cgroup is
-   * the sole cancellation mechanism: it reaps EVERY descendant, including a
-   * child that called `setsid()` and so escaped {@link pgid} (e.g. a daemonized
-   * MCP server) — which a process-group kill cannot. Requires cgroup-v2 and the
-   * privilege to `mkdir` under `/sys/fs/cgroup` (provided by the sandbox image).
+   * Optional process name used for a name-based sweep on cancel (`pkill -f`)
+   * so children that escaped the process tree (e.g. daemonized MCP servers)
+   * are also reaped. Stored in meta for cold reattachment.
    */
-  readonly cgroup: string
+  readonly processName?: string
 }
 
 /** Lifecycle state of a job, derived from the filesystem on each poll. */
 export type JobState =
-  /** Process group is alive (and not a zombie). */
+  /** Process is alive (and not a zombie). */
   | "running"
   /** Finished cleanly: the exit file is present and holds the real `$?`. */
   | "exited"
   /**
-   * The process group is gone but no exit file was ever written — the wrapper
+   * The process is gone but no exit file was ever written — the wrapper
    * was killed before it could record `$?` (SIGKILL, OOM, sandbox reaping).
    * This is the one case a real exit code can't cover, so we detect it by
    * liveness instead.
@@ -95,6 +93,12 @@ export interface StartJobOptions {
   /** Environment variables exported before the command runs. */
   readonly env?: Record<string, string>
   /**
+   * Optional process name for a name-based sweep on cancel (`pkill -f`).
+   * When set, cancel() will also run `pkill -9 -f <processName>` as a
+   * backstop to catch daemonized children that escaped the primary kill.
+   */
+  readonly processName?: string
+  /**
    * Parent directory for the job directory. One subdirectory is created per
    * job. Defaults to `/tmp/sandbox-jobs`.
    */
@@ -113,7 +117,7 @@ export interface StartJobOptions {
  * File layout, one directory per job:
  * ```
  * <root>/<jobId>/
- *   meta.json     { jobId, pgid, outputFile, exitFile, cgroup, createdAt, version }
+ *   meta.json     { jobId, pid, outputFile, exitFile, processName, createdAt, version }
  *   output.log    combined stdout+stderr, byte-exact, append-only
  *   exit          integer $?, present ONLY once the process finishes
  * ```
@@ -129,9 +133,10 @@ export interface SandboxJobs {
   /** Report job status without reading output. Cold-start safe. */
   status(handle: JobHandle): Promise<JobStatus>
   /**
-   * Terminate the job and all its descendants. Kills the job cgroup (reaping
-   * even children that escaped the process group via setsid), with a
-   * process-group kill as fallback when no cgroup is available.
+   * Terminate the job and all its descendants. Uses a graceful-then-forced
+   * kill sequence (TERM → 500ms → KILL) plus a name-based `pkill -f` sweep
+   * if a processName was provided on start, so daemonized children that
+   * escaped the primary kill are also reaped.
    */
   cancel(handle: JobHandle): Promise<void>
   /**

@@ -2,16 +2,16 @@
  * Daytona-backed implementation of {@link SandboxJobs}.
  *
  * Mechanism (no live connection is ever held open):
- *   1. `start` launches the command detached with `setsid` (own process group)
- *      and `nohup`-style redirection, capturing the leader pid synchronously.
- *      The command's combined output appends to `output.log`; when it finishes,
- *      the wrapper writes the real `$?` to `exit`. The leader also joins a
- *      per-job cgroup so `cancel` can reap EVERY descendant — including ones
- *      that escape the process group via `setsid()` (e.g. a daemonized MCP
- *      server) — by writing the cgroup's `cgroup.kill`.
+ *   1. `start` launches the command detached with `nohup` and explicit
+ *      redirection, capturing the leader pid synchronously. The command's
+ *      combined output appends to `output.log`; when it finishes, the wrapper
+ *      writes the real `$?` to `exit`.
  *   2. `read`/`status` reconstruct the run from the filesystem: the exit file
- *      (clean completion + real code), the process-group state (liveness /
- *      crash), and a byte-offset `tail` of the log (only new bytes).
+ *      (clean completion + real code), the process state (liveness / crash),
+ *      and a byte-offset `tail` of the log (only new bytes).
+ *   3. `cancel` uses a graceful-then-forced sequence (SIGTERM → 500ms → SIGKILL)
+ *      plus a name-based `pkill -f` sweep so daemonized children that escaped
+ *      the process tree are also reaped.
  *
  * Because the redirection and `echo $? > exit` run sequentially in one shell,
  * the exit file never appears before the output is flushed — so there are no
@@ -25,7 +25,7 @@ import type {
   SandboxJobs,
   StartJobOptions,
 } from "./types"
-import { cgroupPath, DEFAULT_ROOT, makeJobId, parsePid, q, splitComplete } from "./shell"
+import { DEFAULT_ROOT, makeJobId, parsePid, q, splitComplete } from "./shell"
 
 /** Separates the status header from raw log bytes in a read round trip. */
 const DATA_MARKER = "@@SBJ-DATA@@"
@@ -46,64 +46,47 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     const dir = `${root}/${jobId}`
     const outputFile = `${dir}/output.log`
     const exitFile = `${dir}/exit`
-    const metaFile = `${dir}/meta.json`
-    // One cgroup per job. Killing it reaps EVERY descendant, including children
-    // that re-session themselves (setsid) and so escape the process group.
-    const cgroup = cgroupPath(jobId)
 
     const envExports = Object.entries(opts.env ?? {})
       .map(([k, v]) => `export ${k}=${q(v)}; `)
       .join("")
     const cd = opts.cwd ? `cd ${q(opts.cwd)} && ` : ""
-    // Always run the user command in its OWN `sh -c`, so the output redirection
-    // and exit-code capture wrap the command as a whole. Without this, a
-    // multi-statement command (`a; exit 3`) would redirect only its last
-    // statement and could exit the wrapper before `$?` is ever recorded.
     const userCmd = opts.timeoutSeconds
       ? `timeout ${opts.timeoutSeconds} sh -c ${q(opts.command)}`
       : `sh -c ${q(opts.command)}`
 
-    // Move the leader into the job cgroup BEFORE it spawns anything, so every
-    // descendant inherits membership. cgroup membership, unlike a process
-    // group, survives setsid() — which is what makes cancel() able to reap an
-    // escaped child that a process-group kill would miss.
-    const cgJoin = `echo $$ | sudo -n tee ${q(`${cgroup}/cgroup.procs`)} >/dev/null 2>&1; `
-    // Inner program: join cgroup; (cd &&) export env; run; record true exit.
-    // `setsid` detaches the job into its own session and gives a stable leader
-    // pid (== pgid) for liveness/crash detection.
-    const inner = `${cgJoin}${cd}${envExports}${userCmd} >> ${q(outputFile)} 2>&1; echo $? > ${q(exitFile)}`
+    // Inner program: (cd &&) export env; run; record true exit.
+    const inner = `${cd}${envExports}${userCmd} >> ${q(outputFile)} 2>&1; echo $? > ${q(exitFile)}`
     // CRITICAL: the backgrounded part must be a SIMPLE command so the shell
     // exec-replaces it into a single detached process whose std fds are all on
-    // /dev/null. If we instead background a COMPOUND like `mkdir && setsid …`,
+    // /dev/null. If we instead background a COMPOUND like `mkdir && nohup …`,
     // the shell forks a subshell whose own stdout is still the executeCommand
     // read channel; that subshell lingers for the whole life of the job and
     // keeps the channel open, so the launch call blocks until it times out
-    // ("command execution timeout"). So: run the foreground setup (the job dir
-    // and the cgroup create) first, then background only `setsid …` (fully
-    // redirected), then print the pid.
+    // ("command execution timeout"). So: run the foreground setup (the job dir)
+    // first, then background only `nohup …` (fully redirected), then print the pid.
     const launch =
       `mkdir -p ${q(dir)} && ` +
-      `sudo -n mkdir -p ${q(cgroup)} && ` +
-      `{ setsid sh -c ${q(inner)} < /dev/null > /dev/null 2>&1 & echo $!; }`
+      `{ nohup sh -c ${q(inner)} < /dev/null > /dev/null 2>&1 & echo $!; }`
 
-    const pgid = parsePid(await exec(launch))
-    const handle: JobHandle = { jobId, dir, outputFile, exitFile, pgid, cgroup }
+    const pid = parsePid(await exec(launch))
+    const handle: JobHandle = { jobId, dir, outputFile, exitFile, pid, processName: opts.processName }
 
     // Persist a small job-meta so a cold caller can attach() from just the id.
     // base64 + atomic rename: arbitrary JSON crosses the shell safely and a
     // concurrent reader never observes a half-written file.
-    // Note: `cgroup` is intentionally NOT persisted — it's a pure function of
-    // jobId (see cgroupPath), so attach() reconstructs it without storing it.
     const metaJson = JSON.stringify({
       jobId,
-      pgid,
+      pid,
       outputFile,
       exitFile,
       dir,
+      processName: opts.processName,
       createdAt: new Date(Date.now()).toISOString(),
       version: 1,
     })
     const b64 = Buffer.from(metaJson, "utf8").toString("base64")
+    const metaFile = `${dir}/meta.json`
     await exec(
       `printf %s ${q(b64)} | base64 -d > ${q(metaFile)}.tmp && mv ${q(metaFile)}.tmp ${q(metaFile)}`,
       10
@@ -116,7 +99,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
   function statusHeader(handle: JobHandle): string {
     return (
       `EC=$(cat ${q(handle.exitFile)} 2>/dev/null); printf 'EXIT:%s\\n' "$EC"; ` +
-      `ST=$(ps -o state= -p ${handle.pgid} 2>/dev/null | tr -d ' \\n'); printf 'STATE:%s\\n' "$ST"; `
+      `ST=$(ps -o state= -p ${handle.pid} 2>/dev/null | tr -d ' \\n'); printf 'STATE:%s\\n' "$ST"; `
     )
   }
 
@@ -137,16 +120,21 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
   }
 
   async function cancel(handle: JobHandle): Promise<void> {
-    // cgroup.kill atomically SIGKILLs EVERY member of the job cgroup — including
-    // children that escaped the process group via setsid() (e.g. a daemonized
-    // MCP server), which a process-group kill would miss and leak. Then record
-    // a deterministic exit sentinel so the job reads back as terminal even if
-    // the wrapper was killed before it could write `$?`, and rmdir the
-    // now-empty cgroup so job cgroups don't accumulate.
+    // Three-step kill sequence matching the original pre-sandbox-jobs logic:
+    //   1. SIGTERM — graceful shutdown, giving the process a chance to persist
+    //      conversation state (fixes "No conversation found" errors).
+    //   2. 500ms wait — allow the SIGTERM to be processed.
+    //   3. SIGKILL — force kill what's still alive.
+    //   4. pkill -f by name — backstop for daemonized children (e.g. MCP
+    //      servers that re-session'd themselves) that the pid kill missed.
+    // Then write a deterministic exit sentinel so the job reads back as
+    // terminal even if the wrapper was killed before it could write `$?`.
     await exec(
-      `echo 1 | sudo -n tee ${q(`${handle.cgroup}/cgroup.kill`)} >/dev/null 2>&1; ` +
-        `test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; ` +
-        `sudo -n rmdir ${q(handle.cgroup)} 2>/dev/null; true`,
+      `kill -TERM ${handle.pid} 2>/dev/null || true; ` +
+        `sleep 0.5; ` +
+        `kill -9 ${handle.pid} 2>/dev/null || true; ` +
+        (handle.processName ? `pkill -9 -f ${q(handle.processName)} 2>/dev/null || true; ` : "") +
+        `test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; true`,
       10
     )
   }
@@ -157,14 +145,14 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     if (!raw) return null
     try {
       const m = JSON.parse(raw) as Partial<JobHandle>
-      if (!m.outputFile || !m.exitFile || typeof m.pgid !== "number") return null
+      if (!m.outputFile || !m.exitFile || typeof m.pid !== "number") return null
       return {
         jobId,
         dir,
         outputFile: m.outputFile,
         exitFile: m.exitFile,
-        pgid: m.pgid,
-        cgroup: cgroupPath(jobId),
+        pid: m.pid,
+        processName: m.processName,
       }
     } catch {
       return null
@@ -181,8 +169,8 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
 /**
  * Decide job state from the two independent signals:
  *   - exit file present  → clean completion, with the real code.
- *   - no exit file, group alive (any non-zombie process) → running.
- *   - no exit file, group gone/zombie → crashed (killed before writing $?).
+ *   - no exit file, process alive (non-zombie) → running.
+ *   - no exit file, process gone/zombie → crashed (killed before writing $?).
  */
 export function deriveStatus(exitRaw: string, stateRaw: string): JobStatus {
   if (exitRaw !== "") {
