@@ -8,7 +8,7 @@ npx background-agents@latest
 
 That's it. The first run downloads the Electron runtime (~once, then cached); every run loads the production app at <https://backgrounder.dev>.
 
-> **Naming:** the TypeScript SDK previously published as `background-agents` now lives at [`@background-agents/sdk`](../agents), which freed the `background-agents` name for this desktop launcher.
+> **Naming:** the TypeScript SDK previously published as `background-agents` now lives at [`@background-agents/sdk`](../sdk), which freed the `background-agents` name for this desktop launcher.
 
 ## How it works
 
