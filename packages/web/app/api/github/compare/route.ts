@@ -1,5 +1,5 @@
 import { compareBranches, isGitHubApiError } from "@background-agents/common"
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   const ghAuth = await requireGitHubAuth()
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const { owner, repo, base, head } = body
 
   if (!owner || !repo || !base || !head) {
-    return Response.json({ error: "Missing required fields: owner, repo, base, head" }, { status: 400 })
+    return badRequest("Missing required fields: owner, repo, base, head")
   }
 
   try {
@@ -28,7 +28,6 @@ export async function POST(req: Request) {
       }
       return Response.json({ error: error.message }, { status: error.status })
     }
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

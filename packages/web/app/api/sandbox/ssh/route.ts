@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { ensureSandboxStarted } from "@/lib/sandbox"
+import { internalError, badRequest } from "@/lib/db/api-helpers"
 
 export const maxDuration = 30
 
@@ -12,9 +13,9 @@ export const maxDuration = 30
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { sandboxId?: string } | null
-  if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 })
+  if (!body) return badRequest("Invalid JSON body")
   const { sandboxId } = body
-  if (!sandboxId) return Response.json({ error: "Missing sandboxId" }, { status: 400 })
+  if (!sandboxId) return badRequest("Missing sandboxId")
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
@@ -34,7 +35,6 @@ export async function POST(req: Request) {
     return Response.json({ sshCommand: sshAccess.sshCommand })
   } catch (error) {
     console.error("[sandbox/ssh] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

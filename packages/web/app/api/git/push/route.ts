@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
-import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const { sandboxId, repoName, branch } = body
 
   if (!sandboxId || !repoName || !branch) {
-    return Response.json({ error: "Missing required fields: sandboxId, repoName, branch" }, { status: 400 })
+    return badRequest("Missing required fields: sandboxId, repoName, branch")
   }
 
   // 2. Get GitHub token from request body first (for API access)
@@ -70,7 +70,6 @@ export async function POST(req: Request) {
     return Response.json({ success: true })
   } catch (error) {
     console.error("[git/push] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

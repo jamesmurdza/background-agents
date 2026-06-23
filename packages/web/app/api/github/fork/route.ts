@@ -1,5 +1,5 @@
 import { forkRepo, getRepo, type GitHubRepo } from "@background-agents/common"
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   // 1. Get GitHub token from DB
@@ -11,17 +11,11 @@ export async function POST(req: Request) {
   const { owner, repo } = body
 
   if (!owner || typeof owner !== "string") {
-    return Response.json(
-      { error: "Repository owner is required" },
-      { status: 400 }
-    )
+    return badRequest("Repository owner is required")
   }
 
   if (!repo || typeof repo !== "string") {
-    return Response.json(
-      { error: "Repository name is required" },
-      { status: 400 }
-    )
+    return badRequest("Repository name is required")
   }
 
   try {
@@ -85,7 +79,6 @@ export async function POST(req: Request) {
       )
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }
