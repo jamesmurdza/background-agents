@@ -80,7 +80,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     onUpdateChat?.({ planModeEnabled: newValue })
   }, [onUpdateChat, planModeEnabled])
   // Computed current agent for plan mode check
-  const currentAgentForPlanMode = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+  const currentAgentForPlanMode = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
   // Reset plan mode when switching to an agent that doesn't support it
   useEffect(() => {
     if (planModeEnabled && !agentSupportsPlanMode[currentAgentForPlanMode]) {
@@ -127,7 +127,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
 
   // Get current agent/model (from chat, the user's preference, or auto-resolved
   // from credential flags). Uses ?? so we don't trip over the empty string.
-  const currentAgent = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+  const currentAgent = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
   const currentModel = chat?.model ?? settings.defaultModel ?? getDefaultModelForAgent(currentAgent, credentialFlags)
 
   // Check if the selected model has required credentials

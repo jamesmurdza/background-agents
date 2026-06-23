@@ -155,13 +155,13 @@ export async function POST(req: NextRequest): Promise<Response> {
     const userSettings = (user?.settings as { defaultAgent?: string; defaultModel?: string } | null) ?? {}
     const { flags } = await getEffectiveCredentialFlags(userId)
 
-    const requestedAgent = (body.agent ?? userSettings.defaultAgent ?? getDefaultAgent(flags)) as Agent
+    const requestedAgent = (body.agent ?? userSettings.defaultAgent ?? getDefaultAgent()) as Agent
     const requestedAgentUsable = (agentModels[requestedAgent] ?? []).some((m) =>
       hasCredentialsForModel(m, flags, requestedAgent)
     )
     const finalAgent: Agent = requestedAgentUsable
       ? requestedAgent
-      : getDefaultAgent(flags)
+      : getDefaultAgent()
 
     let finalModel: string | null = body.model ?? null
     if (!finalModel) {

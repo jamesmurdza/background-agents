@@ -116,8 +116,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   // shows whatever new chats would actually use. Snapshotted off saved flags
   // (not in-form values) so it doesn't drift while the user types keys.
   const initialDefaultAgent = useMemo<Agent>(
-    () => (settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent,
-    [settings.defaultAgent, credentialFlags]
+    () => (settings.defaultAgent ?? getDefaultAgent()) as Agent,
+    [settings.defaultAgent]
   )
   const initialDefaultModel = useMemo<string>(
     () => settings.defaultModel ?? getDefaultModelForAgent(initialDefaultAgent, credentialFlags),

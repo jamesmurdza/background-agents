@@ -222,9 +222,7 @@ export interface QueuedMessage {
 export type Theme = "light" | "dark" | "system"
 
 export interface Settings {
-  // null means "no preference" — resolve via getDefaultAgent(flags) at the
-  // call site. Lets the default track credential state (e.g. shared pool
-  // available → claude-code) instead of a baked-in literal.
+  // null means "no preference" — resolve via getDefaultAgent() at the call site.
   defaultAgent: string | null
   defaultModel: string | null
   theme: Theme

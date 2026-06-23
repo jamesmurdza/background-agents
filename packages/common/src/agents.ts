@@ -78,7 +78,8 @@ export type CredentialFlags = Partial<Record<CredentialId, boolean>> & {
   // their own token. Not a CredentialId — it's a server capability, not an env var.
   CLAUDE_SHARED_POOL_AVAILABLE?: boolean
   // Free user has hit daily limit on shared Claude credentials. When true,
-  // getDefaultAgent falls back to opencode even if shared pool is available.
+  // hasCredentialsForModel stops treating the shared pool as usable for
+  // Claude models, so the UI falls back to a model the user can actually run.
   CLAUDE_DAILY_LIMIT_EXCEEDED?: boolean
   // Whether the OPENCODE_API_KEY originates from the server environment (shared)
   OPENCODE_API_KEY_SHARED?: boolean
@@ -357,7 +358,7 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
 /**
  * Get the default agent. Always defaults to OpenCode.
  */
-export function getDefaultAgent(flags: CredentialFlags | null | undefined): Agent {
+export function getDefaultAgent(): Agent {
   return "opencode"
 }
 

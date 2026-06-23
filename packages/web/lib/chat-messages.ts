@@ -136,7 +136,7 @@ export function resolveAgentAndModel(
   settings: Pick<Settings, "defaultAgent" | "defaultModel">,
   credentialFlags: CredentialFlags
 ): { agent: Agent; model: string } {
-  const agent = (explicitAgent ?? chat.agent ?? settings.defaultAgent ?? getDefaultAgent(credentialFlags)) as Agent
+  const agent = (explicitAgent ?? chat.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
   const model =
     explicitModel ?? chat.model ?? settings.defaultModel ?? getDefaultModelForAgent(agent, credentialFlags)
   return { agent, model }
