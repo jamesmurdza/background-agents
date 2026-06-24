@@ -1,5 +1,5 @@
 import { createRepo, createFileCommit, type GitHubRepo } from "@background-agents/common"
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   // 1. Get GitHub token from DB
@@ -11,19 +11,13 @@ export async function POST(req: Request) {
   const { name, description, isPrivate } = body
 
   if (!name || typeof name !== "string") {
-    return Response.json(
-      { error: "Repository name is required" },
-      { status: 400 }
-    )
+    return badRequest("Repository name is required")
   }
 
   // Validate repo name format (GitHub rules)
   const nameRegex = /^[a-zA-Z0-9._-]+$/
   if (!nameRegex.test(name)) {
-    return Response.json(
-      { error: "Repository name can only contain alphanumeric characters, hyphens, underscores, and periods" },
-      { status: 400 }
-    )
+    return badRequest("Repository name can only contain alphanumeric characters, hyphens, underscores, and periods")
   }
 
   try {
@@ -73,7 +67,6 @@ export async function POST(req: Request) {
       )
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

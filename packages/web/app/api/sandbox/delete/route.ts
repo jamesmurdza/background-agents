@@ -1,11 +1,12 @@
 import { Daytona } from "@daytonaio/sdk"
+import { badRequest } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   const body = await req.json()
   const { sandboxId } = body
 
   if (!sandboxId) {
-    return Response.json({ error: "Missing sandboxId" }, { status: 400 })
+    return badRequest("Missing sandboxId")
   }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY

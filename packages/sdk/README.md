@@ -1,6 +1,6 @@
 # Background Agents SDK
 
-A TypeScript SDK for running AI coding agents (Claude, Codex, Copilot, Gemini, Goose, Kilo, OpenCode, Pi) in secure [Daytona](https://daytona.io) sandboxes. Designed for background execution with polling-based event streaming.
+A TypeScript SDK for running AI coding agents (Claude, Codex, Copilot, Gemini, Goose, Kilo, Kimi, OpenCode, Pi) in secure [Daytona](https://daytona.io) sandboxes. Designed for background execution with polling-based event streaming.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
@@ -34,7 +34,7 @@ await sandbox.delete()
 
 - **Secure sandboxed execution** — Agents run in isolated Daytona sandboxes
 - **Background execution** — Start agents, poll for events, survive restarts
-- **Unified API** — One interface for [Claude](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/cli), [Copilot](https://docs.github.com/en/copilot), [Gemini](https://geminicli.com/docs/), [Goose](https://block.github.io/goose/docs/), [Kilo](https://kilo.codes/docs/), [OpenCode](https://opencode.ai/docs/), and [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
+- **Unified API** — One interface for [Claude](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/cli), [Copilot](https://docs.github.com/en/copilot), [Gemini](https://geminicli.com/docs/), [Goose](https://block.github.io/goose/docs/), [Kilo](https://kilo.codes/docs/), [Kimi](https://code.kimi.com/), [OpenCode](https://opencode.ai/docs/), and [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
 - **Zero-friction setup** — Provider CLI auto-installed in sandbox
 - **Session persistence** — Resume conversations across runs and restarts
 
@@ -50,6 +50,7 @@ await sandbox.delete()
 | [Gemini](https://geminicli.com/docs/) | ✅ | `GEMINI_API_KEY` |
 | [Goose](https://block.github.io/goose/docs/) | ✅ | Provider-specific (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
 | [Kilo](https://kilo.codes/docs/) | ✅ | `KILO_API_KEY` or none (free models available) |
+| [Kimi](https://code.kimi.com/) | ✅ | `KIMI_API_KEY` |
 | [OpenCode](https://opencode.ai/docs/) | ✅ | `OPENCODE_API_KEY` or none (free models available) |
 | [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ | Provider-specific (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) |
 | Eliza | ✅ | None (deterministic test agent) |
@@ -64,6 +65,7 @@ await sandbox.delete()
 | Gemini | `gemini --output-format stream-json --skip-trust --yolo -p "prompt"` |
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | Kilo | `kilo run --format json --auto -- "prompt" 2>&1` |
+| Kimi | `kimi -m <model> --output-format stream-json -p "prompt"` |
 | OpenCode | `opencode run --format json --variant medium -- "prompt" 2>&1` |
 | Pi | `pi --mode json -p "prompt"` |
 | Eliza | Built-in deterministic agent (no CLI) |
@@ -259,6 +261,7 @@ type Event =
 | **Gemini** | `model: "gemini-2.5-flash"`, `model: "gemini-2.5-pro"`, `model: "gemini-3-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
 | **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://block.github.io/goose/docs/getting-started/providers) |
 | **Kilo** | `model: "kilo/kilo-auto/free"`, `model: "kilo/anthropic/claude-opus-4.7"` | [Kilo](https://kilo.codes/docs/) |
+| **Kimi** | `model: "kimi-k2.7-code"`, `model: "kimi-k2.7-code-highspeed"`, `model: "kimi-k2.6"` | [Kimi Code](https://code.kimi.com/) |
 | **OpenCode** | `model: "opencode/big-pickle"` (free), `model: "anthropic/claude-sonnet-4-5"` | [OpenCode models](https://opencode.ai/docs/models/) |
 | **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"`, `model: "google/gemini-2.5-pro"` | [Pi CLI models](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#providers--models) |
 
@@ -336,7 +339,7 @@ For testing scenarios, you can use the deterministic Eliza agent, which requires
 
 **Sandbox** — [Daytona Docs](https://www.daytona.io/docs/) · [Daytona GitHub](https://github.com/daytonaio/daytona)
 
-**Agents** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code) · [Codex CLI](https://developers.openai.com/codex/cli) · [GitHub Copilot](https://docs.github.com/en/copilot) · [Gemini CLI](https://geminicli.com/docs/) · [Goose](https://block.github.io/goose/docs/) · [Kilo](https://kilo.codes/docs/) · [OpenCode](https://opencode.ai/docs/) · [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
+**Agents** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code) · [Codex CLI](https://developers.openai.com/codex/cli) · [GitHub Copilot](https://docs.github.com/en/copilot) · [Gemini CLI](https://geminicli.com/docs/) · [Goose](https://block.github.io/goose/docs/) · [Kilo](https://kilo.codes/docs/) · [Kimi](https://code.kimi.com/) · [OpenCode](https://opencode.ai/docs/) · [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
 
 ---
 

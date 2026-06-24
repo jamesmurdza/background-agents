@@ -1,10 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
-import { prisma } from "@/lib/db/prisma"
-import type { Settings } from "@/lib/types"
-import { DEFAULT_SETTINGS } from "@/lib/storage"
+import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
+import { getUserPushOptions } from "@/lib/git/push-options"
 
 /**
  * Sets up a GitHub remote for an existing local repo in a sandbox and pushes to it.
@@ -16,10 +14,7 @@ export async function POST(req: Request) {
   const { sandboxId, repoFullName, branch } = body
 
   if (!sandboxId || !repoFullName || !branch) {
-    return Response.json(
-      { error: "Missing required fields: sandboxId, repoFullName, branch" },
-      { status: 400 }
-    )
+    return badRequest("Missing required fields: sandboxId, repoFullName, branch")
   }
 
   // 2. Get GitHub token from DB
@@ -44,15 +39,7 @@ export async function POST(req: Request) {
 
   try {
     // 4. Get user settings for push options
-    let enablePrepushHooks = DEFAULT_SETTINGS.enablePrepushHooks
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { settings: true },
-    })
-    if (user?.settings) {
-      const s = user.settings as Partial<Settings>
-      enablePrepushHooks = s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks
-    }
+    const pushOptions = await getUserPushOptions(userId)
 
     // 5. Get sandbox from Daytona
     const daytona = new Daytona({ apiKey: daytonaApiKey })
@@ -75,12 +62,11 @@ export async function POST(req: Request) {
 
     // 8. Push to the remote (token passed via -c http.extraHeader, not stored)
     const git = createSandboxGit(sandbox)
-    await git.push(repoPath, githubToken, { noVerify: !enablePrepushHooks })
+    await git.push(repoPath, githubToken, pushOptions)
 
     return Response.json({ success: true })
   } catch (error) {
     console.error("[git/setup-remote] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

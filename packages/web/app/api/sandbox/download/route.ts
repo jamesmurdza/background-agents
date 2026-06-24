@@ -1,6 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@background-agents/common"
 import { ensureSandboxStarted } from "@/lib/sandbox"
+import { internalError, badRequest } from "@/lib/db/api-helpers"
 
 export const maxDuration = 60
 
@@ -9,12 +10,12 @@ export async function POST(req: Request) {
     sandboxId?: string
   } | null
 
-  if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 })
+  if (!body) return badRequest("Invalid JSON body")
 
   const { sandboxId } = body
 
   if (!sandboxId) {
-    return Response.json({ error: "Missing sandboxId" }, { status: 400 })
+    return badRequest("Missing sandboxId")
   }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
@@ -72,7 +73,6 @@ export async function POST(req: Request) {
     }
 
     console.error("[sandbox/download] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }
