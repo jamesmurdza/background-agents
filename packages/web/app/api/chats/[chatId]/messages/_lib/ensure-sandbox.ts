@@ -83,15 +83,26 @@ export async function ensureSandboxForChat(params: {
     state.previewUrlPattern = previewUrlPattern
     state.createdSandbox = true
 
+    // A freshly created sandbox is a clean clone with no agent conversation
+    // history on disk. If this chat carried a stale session pointer (e.g. a
+    // prior sandbox was deleted and a failure path nulled `sandboxId` while
+    // leaving `sessionId` set), resuming it would make the agent CLI fail with
+    // "No conversation found with session ID". Drop the pointer so the agent
+    // starts a new conversation — both in the DB (future requests) and in
+    // memory (this request's resume read below). Agent-agnostic: sessionId is
+    // the generic resume pointer used by every agent. Mirrors the recreation
+    // path in Stage 2.
     await prisma.chat.update({
       where: { id: chatId },
       data: {
         sandboxId,
         branch,
         previewUrlPattern,
+        sessionId: null,
         status: "ready",
       },
     })
+    chat.sessionId = null
   }
 
   // ── Stage 2: get sandbox object ────────────────────────────────────────
