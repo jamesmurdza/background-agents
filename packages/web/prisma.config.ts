@@ -14,6 +14,8 @@ export default defineConfig({
     // Prefer the direct (non-pooling) connection for CLI/migrations — the
     // pgbouncer pooler can't take the advisory locks migrate needs. The runtime
     // app is unaffected (it connects via DATABASE_URL through its own client).
-    url: process.env.DIRECT_URL || process.env.DATABASE_URL || "",
+    // Migrations run over a direct/session connection (DIRECT_URL); fall back to
+    // DATABASE_URL for local/legacy setups that don't define one.
+    url: process.env.DIRECT_URL || process.env.DIRECT_URL || process.env.DATABASE_URL || "",
   },
 })
