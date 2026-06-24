@@ -18,12 +18,10 @@ export {
   agentModels,
   agentLabels,
   agentSupportsPlanMode,
-  CUSTOM_MODEL_VALUE,
   getDefaultAgent,
   getDefaultModelForAgent,
   getModelLabel,
   hasCredentialsForModel,
-  hasOwnAnthropicCredentials,
   sharedClaudePoolEligible,
 } from "@background-agents/common"
 

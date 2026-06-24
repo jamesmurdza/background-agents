@@ -14,7 +14,6 @@ import {
   RebaseDialog,
   PRDialog,
   SquashDialog,
-  ForcePushDialog,
 } from "@/components/modals/git-dialogs"
 import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
@@ -161,13 +160,6 @@ export function AppModals({
       <SquashDialog
         open={gitDialogs.squashOpen}
         onClose={() => gitDialogs.setSquashOpen(false)}
-        gitDialogs={gitDialogs}
-        chat={currentChat}
-        isMobile={isMobile}
-      />
-      <ForcePushDialog
-        open={gitDialogs.forcePushOpen}
-        onClose={() => gitDialogs.setForcePushOpen(false)}
         gitDialogs={gitDialogs}
         chat={currentChat}
         isMobile={isMobile}

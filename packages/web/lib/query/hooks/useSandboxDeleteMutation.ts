@@ -28,16 +28,3 @@ export function useSandboxDeleteMutation() {
     },
   })
 }
-
-/**
- * Helper to delete multiple sandboxes
- */
-export function useDeleteMultipleSandboxes() {
-  const deleteMutation = useSandboxDeleteMutation()
-
-  return (sandboxIds: string[]) => {
-    for (const sandboxId of sandboxIds) {
-      deleteMutation.mutate(sandboxId)
-    }
-  }
-}

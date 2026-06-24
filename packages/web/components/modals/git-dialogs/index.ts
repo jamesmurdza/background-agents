@@ -3,7 +3,6 @@ export { MergeDialog } from "./MergeDialog"
 export { RebaseDialog } from "./RebaseDialog"
 export { PRDialog } from "./PRDialog"
 export { SquashDialog } from "./SquashDialog"
-export { ForcePushDialog } from "./ForcePushDialog"
 export { GitBranchDialog, type GitBranchDialogConfig } from "./GitBranchDialog"
 export { useGitDialogs } from "./useGitDialogs"
 export type {

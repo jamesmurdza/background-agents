@@ -50,8 +50,6 @@ export interface UseGitDialogsResult {
   setPROpen: (open: boolean) => void
   squashOpen: boolean
   setSquashOpen: (open: boolean) => void
-  forcePushOpen: boolean
-  setForcePushOpen: (open: boolean) => void
 
   // Branch picker state
   remoteBranches: string[]

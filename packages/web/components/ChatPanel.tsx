@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react"
-import { Github, HelpCircle, Plus, X, Command, ArrowDown } from "lucide-react"
-import { ErrorBanner, FilePreviewModal, ChatHeader, MobileConflictBar, ChatInput } from "./chat"
+import {
+  ChatHeader,
+  MobileConflictBar,
+  ChatInput,
+  FilePreviewModal,
+  ChatPanelSkeleton,
+  WelcomeView,
+  ChatMessageList,
+} from "./chat"
 import { cn } from "@/lib/utils"
-import { useModals, useGit } from "@/lib/contexts"
-import type { Chat, Settings, Agent, CredentialFlags } from "@/lib/types"
-import { NEW_REPOSITORY, agentModels, hasCredentialsForModel, getDefaultAgent, getDefaultModelForAgent, agentSupportsPlanMode } from "@/lib/types"
-import { filterSlashCommandsWithConflict } from "@background-agents/common"
-import { MessageBubble } from "./MessageBubble"
+import type { Chat, Settings, CredentialFlags } from "@/lib/types"
+import { NEW_REPOSITORY, agentSupportsPlanMode } from "@/lib/types"
 import type { SlashCommandType } from "./SlashCommandMenu"
-import { useFileUpload } from "@/lib/hooks/useFileUpload"
+import { useChatComposer } from "@/lib/hooks/useChatComposer"
 
 interface ChatPanelProps {
   chat: Chat | null
@@ -53,329 +56,62 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, rapidFireMode = false, rapidFireNotification = 0 }: ChatPanelProps) {
-  // Get modal and git state from contexts
-  const modals = useModals()
-  const git = useGit()
-  // Use draft prop as input value (controlled component pattern for per-chat drafts)
-  const input = draft
-  const setInput = useCallback((value: string) => {
-    onDraftChange?.(value)
-  }, [onDraftChange])
-  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
-  // Slash command menu state
-  const [slashMenuOpen, setSlashMenuOpen] = useState(false)
-  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
-  // Plan mode state - persisted to database via onUpdateChat, with local state for immediate UI updates
-  const [planModeEnabled, setPlanModeEnabledLocal] = useState(chat?.planModeEnabled ?? false)
-  // Sync local state when chat changes (switching between chats) or when chat.planModeEnabled changes
-  useEffect(() => {
-    setPlanModeEnabledLocal(chat?.planModeEnabled ?? false)
-  }, [chat?.id, chat?.planModeEnabled])
-  // Wrapper that updates both local state and persists to database
-  const setPlanModeEnabled = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
-    // Calculate the new value outside the state setter to avoid calling onUpdateChat during render
-    const newValue = typeof value === 'function' ? value(planModeEnabled) : value
-    setPlanModeEnabledLocal(newValue)
-    // Call onUpdateChat after the state update, not inside the setter callback
-    onUpdateChat?.({ planModeEnabled: newValue })
-  }, [onUpdateChat, planModeEnabled])
-  // Computed current agent for plan mode check
-  const currentAgentForPlanMode = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
-  // Reset plan mode when switching to an agent that doesn't support it
-  useEffect(() => {
-    if (planModeEnabled && !agentSupportsPlanMode[currentAgentForPlanMode]) {
-      setPlanModeEnabled(false)
-    }
-  }, [currentAgentForPlanMode, planModeEnabled, setPlanModeEnabled])
-  // File upload state - using custom hook
+  const composer = useChatComposer({
+    chat,
+    settings,
+    credentialFlags,
+    draft,
+    onDraftChange,
+    isMobile,
+    isSending,
+    isAuthenticated,
+    onSendMessage,
+    onEnqueueMessage,
+    onResumeQueue,
+    onUpdateChat,
+    onSlashCommand,
+  })
   const {
-    pendingFiles,
-    isDraggingOver,
+    modals,
+    git,
+    input,
+    setInput,
+    textareaRef,
+    handleSend,
+    handleKeyDown,
+    messagesEndRef,
+    messagesContainerRef,
+    userHasScrolledUp,
+    setUserHasScrolledUp,
+    handleScroll,
+    slashMenuOpen,
+    setSlashMenuOpen,
+    slashSelectedIndex,
+    setSlashSelectedIndex,
+    handleSlashCommandSelect,
+    hasLinkedRepo,
+    planModeEnabled,
+    setPlanModeEnabled,
+    currentAgent,
+    currentModel,
+    rebaseConflict,
+    inConflict,
+    isMergeConflict,
+    hasQueued,
+    isRunning,
+    isCreating,
+    canSend,
+    canQueue,
+    fileUpload,
     previewFile,
     fileContents,
-    fileError,
-    fileInputRef,
-    addFiles,
     removeFile,
-    clearFiles,
-    clearError: clearFileError,
     setPreviewFile,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handlePaste,
-    getFileTypeForFile,
-    getFilePreviewUrl,
-  } = useFileUpload({ onRequireSignIn: isAuthenticated ? undefined : () => modals.setSignInModalOpen(true) })
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const prevChatIdRef = useRef<string | null>(null)
-
-  const focusPrompt = useCallback((moveCursorToEnd: boolean = false) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    textarea.focus()
-
-    if (moveCursorToEnd) {
-      const end = textarea.value.length
-      textarea.setSelectionRange(end, end)
-    }
-  }, [])
-
-  // Get current agent/model (from chat, the user's preference, or auto-resolved
-  // from credential flags). Uses ?? so we don't trip over the empty string.
-  const currentAgent = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
-  const currentModel = chat?.model ?? settings.defaultModel ?? getDefaultModelForAgent(currentAgent, credentialFlags)
-
-  // Check if the selected model has required credentials
-  const availableModels = agentModels[currentAgent] ?? []
-  const selectedModelConfig = availableModels.find(m => m.value === currentModel)
-  const hasRequiredCredentials = selectedModelConfig
-    ? hasCredentialsForModel(selectedModelConfig, credentialFlags, currentAgent)
-    : true
-
-  // Conflict state (from context)
-  const rebaseConflict = git.rebaseConflict
-  const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
-  const isMergeConflict = rebaseConflict?.inMerge ?? false
-
-  // Treat the chat as running while it has (non-paused) queued messages too,
-  // so the UI doesn't flicker between ready and running as the queue drains.
-  const hasQueued = (chat?.queuedMessages?.length ?? 0) > 0
-  const isPaused = !!(chat?.queuePaused && hasQueued)
-  const isRunning = chat?.status === "running" || (hasQueued && !chat?.queuePaused)
-  // Include isSending for instant feedback before server responds
-  const isCreating = chat?.status === "creating" || isSending
-  const hasContent = input.trim() || pendingFiles.length > 0
-  // When the agent is running, text-only messages are queued for later dispatch.
-  const canQueue = !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
-  // Paused queue: always show the send button (either to enqueue a new prompt
-  // at the end or to resume draining with nothing typed).
-  const canSend =
-    (hasContent && !isRunning && !isCreating && !isPaused) ||
-    (isRunning && canQueue) ||
-    isPaused
-
-  // Track if user has scrolled up from bottom
-  const handleScroll = () => {
-    const container = messagesContainerRef.current
-    if (!container) return
-    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
-    setUserHasScrolledUp(!isAtBottom)
-  }
-
-  // Auto-scroll to bottom when chat changes or content grows during streaming.
-  useLayoutEffect(() => {
-    const chatChanged = chat?.id !== prevChatIdRef.current
-    prevChatIdRef.current = chat?.id ?? null
-
-    if (chatChanged || !userHasScrolledUp) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
-    }
-  }, [chat?.id, chat?.messages, userHasScrolledUp])
-
-  // Focus prompt when switching chats or when the welcome view transitions to
-  // the messages view (which remounts the textarea in a different DOM location).
-  useEffect(() => {
-    if (isMobile) return
-    const t = window.setTimeout(() => {
-      focusPrompt(true)
-    }, 0)
-    return () => window.clearTimeout(t)
-  }, [chat?.id, isCreating, isMobile, focusPrompt])
-
-  // Auto-resize textarea - use requestAnimationFrame to batch DOM reads/writes
-  // and avoid layout thrashing on every keystroke
-  useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    // Use rAF to batch DOM operations and avoid synchronous layout
-    const rafId = requestAnimationFrame(() => {
-      // Store current scroll position to avoid scroll jumps
-      const scrollTop = textarea.scrollTop
-      textarea.style.height = "auto"
-      const maxHeight = isMobile ? 120 : 200
-      textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + "px"
-      textarea.scrollTop = scrollTop
-    })
-
-    return () => cancelAnimationFrame(rafId)
-  }, [input, isMobile])
-
-  // Update slash menu visibility based on input.
-  const hasLinkedRepo = !!(chat?.repo && chat.repo !== NEW_REPOSITORY)
-  useEffect(() => {
-    if (input.startsWith("/")) {
-      setSlashMenuOpen(true)
-    } else {
-      setSlashMenuOpen(false)
-      setSlashSelectedIndex(0)
-    }
-  }, [input])
-
-  // Get filtered commands for keyboard navigation. When there's no linked repo,
-  // the slash menu swaps in a single "Create repository" entry.
-  const filteredCommands = useMemo(() => {
-    if (hasLinkedRepo) return filterSlashCommandsWithConflict(input, inConflict)
-    const filter = input.startsWith("/") ? input.slice(1).toLowerCase() : input.toLowerCase()
-    const repoCmd = { name: "repo", description: "Create repository", icon: "FolderGit2" }
-    if (!filter || repoCmd.name.startsWith(filter)) return [repoCmd]
-    return []
-  }, [input, hasLinkedRepo, inConflict])
-
-  // Handle slash command selection
-  const handleSlashCommandSelect = useCallback((command: SlashCommandType) => {
-    setSlashMenuOpen(false)
-    setSlashSelectedIndex(0)
-    setInput("")
-    if (command === "repo") {
-      // Open the create repo modal directly
-      modals.setRepoCreateOpen(true)
-      return
-    }
-    if (command === "abort") {
-      git.handleAbortConflict?.()
-      return
-    }
-    onSlashCommand?.(command)
-  }, [onSlashCommand, modals, git])
-
-  const handleSend = () => {
-    if (!canSend) return
-    // Don't send if credentials are missing - the UI shows a warning instead
-    if (!hasRequiredCredentials) return
-
-    // Reset scroll state so we snap to bottom when sending
-    setUserHasScrolledUp(false)
-
-    // If the agent is running, queue the message instead of sending.
-    if (isRunning && onEnqueueMessage) {
-      onEnqueueMessage(input.trim(), currentAgent, currentModel)
-      setInput("")
-      textareaRef.current?.focus()
-      return
-    }
-
-    // Paused queue: typed text goes to the end of the queue and unpauses it;
-    // with nothing typed, just resume draining.
-    if (isPaused) {
-      if (input.trim() && onEnqueueMessage) {
-        onEnqueueMessage(input.trim(), currentAgent, currentModel)
-        setInput("")
-      } else {
-        onResumeQueue?.()
-      }
-      textareaRef.current?.focus()
-      return
-    }
-
-    // Pass files to sendMessage - upload will happen after sandbox is ready
-    const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
-    onSendMessage(input.trim(), currentAgent, currentModel, files, planModeEnabled || undefined)
-    setInput("")
-    clearFiles()
-    textareaRef.current?.focus()
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle slash command menu navigation
-    if (slashMenuOpen && filteredCommands.length > 0 && onSlashCommand) {
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault()
-          setSlashSelectedIndex((prev) =>
-            prev < filteredCommands.length - 1 ? prev + 1 : 0
-          )
-          return
-        case "ArrowUp":
-          e.preventDefault()
-          setSlashSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredCommands.length - 1
-          )
-          return
-        case "Enter":
-          e.preventDefault()
-          if (filteredCommands[slashSelectedIndex]) {
-            handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
-          }
-          return
-        case "Tab":
-          e.preventDefault()
-          if (filteredCommands[slashSelectedIndex]) {
-            handleSlashCommandSelect(filteredCommands[slashSelectedIndex].name as SlashCommandType)
-          }
-          return
-        case "Escape":
-          e.preventDefault()
-          setSlashMenuOpen(false)
-          setSlashSelectedIndex(0)
-          setInput("")
-          return
-      }
-    }
-
-    // Shift+Enter to insert newline (let browser handle it)
-    if (e.key === "Enter" && e.shiftKey) {
-      return
-    }
-
-    // Option/Alt+Enter, Command/Meta+Enter, or Ctrl+Enter to branch and send
-    if (e.key === "Enter" && (e.altKey || e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      if (git.canBranch && input.trim()) {
-        git.handleBranchWithMessage(input.trim(), currentAgent, currentModel)
-        setInput("")
-        clearFiles()
-        textareaRef.current?.focus()
-      }
-      return
-    }
-
-    // Normal enter to send
-    if (e.key === "Enter") {
-      e.preventDefault()
-      handleSend()
-    }
-  }
+  } = composer
 
   // No chat selected - show a skeleton while the first chat is being created.
   if (!chat) {
-    return (
-      <div className="flex-1 flex flex-col bg-background min-h-0 animate-pulse">
-        {!isMobile && (
-          <div className="pt-3 pl-[1.625rem] pr-4">
-            <div className="h-6 w-40 rounded bg-muted" />
-          </div>
-        )}
-        <div className="flex-1" />
-        <div className={cn(
-          "w-full mx-auto",
-          isMobile ? "max-w-full px-3 pb-3" : "max-w-[52rem] px-4 pb-4"
-        )}>
-          <div className={cn(
-            "flex flex-col border border-border bg-card shadow-sm",
-            isMobile ? "rounded-xl" : "rounded-2xl"
-          )}>
-            <div className={cn(isMobile ? "px-3 py-3" : "px-4 py-3")}>
-              <div className="h-5 w-1/3 rounded bg-muted" />
-            </div>
-            <div className={cn(
-              "flex items-center gap-2 border-t border-border",
-              isMobile ? "px-3 py-2" : "px-4 py-2"
-            )}>
-              <div className="h-6 w-20 rounded bg-muted" />
-              <div className="h-6 w-24 rounded bg-muted" />
-              <div className="flex-1" />
-              <div className={cn("rounded-md bg-muted", isMobile ? "h-9 w-9" : "h-7 w-7")} />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <ChatPanelSkeleton isMobile={isMobile} titleWidth="w-40" headerWidth="w-1/3" />
   }
 
   const isNewRepo = chat.repo === NEW_REPOSITORY
@@ -391,6 +127,20 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   // Rapid fire notification
   const showRapidFireNotification = rapidFireMode && rapidFireNotification && rapidFireNotification > 0
 
+  // File preview modal — built once, shared by the welcome and messages views.
+  const filePreviewModal = previewFile ? (
+    <FilePreviewModal
+      file={previewFile}
+      fileContent={fileContents.get(previewFile.id)}
+      onClose={() => setPreviewFile(null)}
+      onRemove={() => {
+        removeFile(previewFile.id)
+        setPreviewFile(null)
+      }}
+      isMobile={isMobile}
+    />
+  ) : null
+
   // Chat input component
   const chatInput = (
     <ChatInput
@@ -402,21 +152,21 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       onKeyDown={handleKeyDown}
       textareaRef={textareaRef}
       // File upload
-      pendingFiles={pendingFiles}
-      fileContents={fileContents}
-      fileError={fileError}
-      fileInputRef={fileInputRef}
-      isDraggingOver={isDraggingOver}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onPaste={handlePaste}
-      onAddFiles={addFiles}
-      onRemoveFile={removeFile}
-      onClearFileError={clearFileError}
-      onPreviewFile={setPreviewFile}
-      getFileTypeForFile={getFileTypeForFile}
-      getFilePreviewUrl={getFilePreviewUrl}
+      pendingFiles={fileUpload.pendingFiles}
+      fileContents={fileUpload.fileContents}
+      fileError={fileUpload.fileError}
+      fileInputRef={fileUpload.fileInputRef}
+      isDraggingOver={fileUpload.isDraggingOver}
+      onDragOver={fileUpload.handleDragOver}
+      onDragLeave={fileUpload.handleDragLeave}
+      onDrop={fileUpload.handleDrop}
+      onPaste={fileUpload.handlePaste}
+      onAddFiles={fileUpload.addFiles}
+      onRemoveFile={fileUpload.removeFile}
+      onClearFileError={fileUpload.clearError}
+      onPreviewFile={fileUpload.setPreviewFile}
+      getFileTypeForFile={fileUpload.getFileTypeForFile}
+      getFilePreviewUrl={fileUpload.getFilePreviewUrl}
       // Slash commands
       slashMenuOpen={slashMenuOpen}
       slashSelectedIndex={slashSelectedIndex}
@@ -461,115 +211,20 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
 
   // Loading messages skeleton - check BEFORE isNewChat to prevent flash
   if (isLoadingMessages) {
-    return (
-      <div className="flex-1 flex flex-col bg-background min-h-0 animate-pulse">
-        {/* Header skeleton */}
-        {!isMobile && (
-          <div className="pt-3 pl-[1.625rem] pr-4">
-            <div className="h-6 w-48 rounded bg-muted" />
-          </div>
-        )}
-        {/* Empty messages area */}
-        <div className="flex-1" />
-        {/* Input skeleton */}
-        <div className={cn(
-          "w-full mx-auto",
-          isMobile ? "max-w-full px-3 pb-3" : "max-w-[52rem] px-4 pb-4"
-        )}>
-          <div className={cn(
-            "flex flex-col border border-border bg-card shadow-sm",
-            isMobile ? "rounded-xl" : "rounded-2xl"
-          )}>
-            <div className={cn(isMobile ? "px-3 py-3" : "px-4 py-3")}>
-              <div className="h-5 w-1/4 rounded bg-muted" />
-            </div>
-            <div className={cn(
-              "flex items-center gap-2 border-t border-border",
-              isMobile ? "px-3 py-2" : "px-4 py-2"
-            )}>
-              <div className="h-6 w-20 rounded bg-muted" />
-              <div className="h-6 w-24 rounded bg-muted" />
-              <div className="flex-1" />
-              <div className={cn("rounded-md bg-muted", isMobile ? "h-9 w-9" : "h-7 w-7")} />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <ChatPanelSkeleton isMobile={isMobile} titleWidth="w-48" headerWidth="w-1/4" />
   }
 
   // New chat - centered welcome with input
   if (isNewChat) {
     return (
-      <>
-        <div className={cn(
-          "flex-1 flex flex-col items-center justify-center bg-background relative",
-          isMobile ? "p-4 pb-safe" : "p-4"
-        )}>
-          <div className="absolute top-3 right-3 flex items-center gap-1">
-            {onOpenCommandPalette && (
-              <button
-                onClick={onOpenCommandPalette}
-                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                title="Commands"
-                aria-label="Open commands"
-              >
-                <Command className="h-4 w-4" />
-              </button>
-            )}
-            <button
-              onClick={() => modals.setHelpOpen(true)}
-              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Help"
-              aria-label="Help"
-            >
-              <HelpCircle className="h-4 w-4" />
-            </button>
-          </div>
-          <a
-            href="https://github.com/jamesmurdza/background-agents"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute top-5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-sm text-foreground/70 hover:text-foreground transition-colors"
-          >
-            <Github className="h-3.5 w-3.5" />
-            Backgrounder is open source.
-          </a>
-          <div className="text-center mb-6">
-            <h2 className={cn("font-semibold", isMobile ? "text-xl" : "text-2xl")}>
-              What would you like to build?
-            </h2>
-          </div>
-          {showRapidFireNotification && (
-            <div className="mt-2 flex items-center justify-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-bottom-1 duration-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Task started
-            </div>
-          )}
-          {chatInput}
-          <div className={cn(
-            "text-muted-foreground mt-4 text-center",
-            isMobile ? "text-sm px-4" : "text-sm"
-          )}>
-            <p>
-              Changes will apply when you type /merge. Access tools with ⌘K.
-            </p>
-          </div>
-        </div>
-        {/* File preview modal */}
-        {previewFile && (
-          <FilePreviewModal
-            file={previewFile}
-            fileContent={fileContents.get(previewFile.id)}
-            onClose={() => setPreviewFile(null)}
-            onRemove={() => {
-              removeFile(previewFile.id)
-              setPreviewFile(null)
-            }}
-            isMobile={isMobile}
-          />
-        )}
-      </>
+      <WelcomeView
+        isMobile={isMobile}
+        showRapidFireNotification={showRapidFireNotification}
+        onOpenCommandPalette={onOpenCommandPalette}
+        onOpenHelp={() => modals.setHelpOpen(true)}
+        chatInput={chatInput}
+        filePreviewModal={filePreviewModal}
+      />
     )
   }
 
@@ -602,160 +257,29 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       )}
 
       {/* Messages */}
-      <div className="relative flex-1 flex flex-col min-h-0">
-      <div
-        ref={messagesContainerRef}
+      <ChatMessageList
+        chat={chat}
+        isMobile={isMobile}
+        isRunning={isRunning}
+        isCreating={isCreating}
+        isNewRepo={isNewRepo}
+        git={git}
+        onOpenFile={onOpenFile}
+        onReload={onReload}
+        onSendMessage={onSendMessage}
+        onRemoveQueuedMessage={onRemoveQueuedMessage}
+        currentAgent={currentAgent}
+        currentModel={currentModel}
+        planModeEnabled={planModeEnabled}
+        messagesContainerRef={messagesContainerRef}
+        messagesEndRef={messagesEndRef}
         onScroll={handleScroll}
-        className={cn(
-          "flex-1 overflow-y-auto overflow-x-hidden mobile-scroll scrollbar-auto-hide",
-          isMobile ? "py-3 px-[27px]" : "py-4 px-[31px]"
-        )}
-      >
-        <div className={cn(
-          "space-y-4 mx-auto",
-          isMobile ? "max-w-full" : "max-w-3xl space-y-6"
-        )}>
-          {chat.messages.map((message, index) => {
-            const isLastAssistant =
-              isRunning &&
-              message.role === "assistant" &&
-              index === chat.messages.length - 1
-            return (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                isStreaming={isLastAssistant}
-                isMobile={isMobile}
-                repo={isNewRepo ? undefined : chat.repo}
-                onOpenFile={onOpenFile}
-                onForcePush={git.handleForcePush}
-              />
-            )
-          })}
-          {/* Show loading indicator when sandbox is being created */}
-          {isCreating && (
-            <div className="text-2xl text-muted-foreground animate-pulse">
-              ...
-            </div>
-          )}
-          {/* Surface the latest agent/streaming failure inline so users see why
-              their last run stopped. Cleared on the next send.
-
-              Two distinct failure modes, distinguished by chat.status:
-              - "error": the agent itself errored. The Retry action resends the
-                last user message — note this leaves the previously-failed
-                assistant turn in the history (the user can see what failed) and
-                doesn't re-attach any originally-uploaded files (those File
-                objects are no longer in memory).
-              - "disconnected": the SSE stream died before the turn finished. The
-                agent may still be running in the background, so the action is
-                Reload (refresh the chat history) rather than resending. */}
-          {chat.status === "disconnected" && (
-            <ErrorBanner
-              key={chat.id}
-              message={chat.errorMessage || "Connection to the agent was lost."}
-              isMobile={isMobile}
-              onRetry={onReload ? () => onReload(chat.id) : undefined}
-              actionLabel="Reload"
-              actionPendingLabel="Reloading…"
-            />
-          )}
-          {chat.status === "error" && chat.errorMessage && (() => {
-            const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
-            const resend = lastUserMessage
-              ? () => onSendMessage(
-                  lastUserMessage.content,
-                  (lastUserMessage.agent ?? currentAgent) as string,
-                  lastUserMessage.model ?? currentModel,
-                  undefined,
-                  planModeEnabled,
-                )
-              : undefined
-
-            // A generic process crash is often transient. If the failed turn
-            // already streamed some output, the fuller copy is likely persisted
-            // server-side, so offer Reload (refresh history) instead of Retry
-            // (which resends and duplicates the turn). With nothing to recover —
-            // the agent crashed before producing anything — fall back to Retry.
-            //
-            // "incomplete" means the turn ended with no terminal event: the agent
-            // may still be running in the background, so always Reload (refresh
-            // history) rather than resending and risking a duplicate run.
-            const lastAssistant = [...chat.messages].reverse().find((m) => m.role === "assistant")
-            const recoveredOutput =
-              !!lastAssistant?.content?.trim() || (lastAssistant?.toolCalls?.length ?? 0) > 0
-            const useReload =
-              !!onReload &&
-              (chat.errorKind === "incomplete" ||
-                (chat.errorKind === "crash" && recoveredOutput))
-
-            return (
-              <ErrorBanner
-                key={chat.id}
-                message={chat.errorMessage}
-                isMobile={isMobile}
-                onRetry={useReload ? () => onReload!(chat.id) : resend}
-                actionLabel={useReload ? "Reload" : "Retry"}
-                actionPendingLabel={useReload ? "Reloading…" : "Retrying…"}
-              />
-            )
-          })()}
-          {/* Queue shelf — lives at the bottom of the scroll area so it
-              scrolls out of view with the conversation. */}
-          {chat.queuedMessages && chat.queuedMessages.length > 0 && (
-            <div className={cn(
-              "border border-b-0 border-border bg-card rounded-t-md -mb-4",
-              isMobile ? "mx-4" : "mx-6"
-            )}>
-              {chat.queuedMessages.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 last:border-b-0"
-                >
-                  <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">{m.content}</span>
-                  {git.canBranch && (
-                    <button
-                      onClick={() => git.handleBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
-                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-                      aria-label="Branch to new chat"
-                      title="Branch to new chat"
-                    >
-                      <Plus className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                  {onRemoveQueuedMessage && (
-                    <button
-                      onClick={() => onRemoveQueuedMessage(m.id)}
-                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-                      aria-label="Remove queued message"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-        {/* Floating scroll-to-bottom button — only shown when the user has
-            scrolled away from the bottom of the conversation. */}
-        {userHasScrolledUp && (
-          <button
-            type="button"
-            onClick={() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-              setUserHasScrolledUp(false)
-            }}
-            aria-label="Scroll to bottom"
-            title="Scroll to bottom"
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 h-9 w-9 flex items-center justify-center rounded-full border border-border bg-background/80 shadow-md text-foreground/70 hover:text-foreground hover:bg-background transition-colors cursor-pointer animate-in fade-in slide-in-from-bottom-1 duration-150"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+        userHasScrolledUp={userHasScrolledUp}
+        onScrollToBottom={() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+          setUserHasScrolledUp(false)
+        }}
+      />
 
       {/* Input - fixed at bottom on mobile */}
       <div className={cn(
@@ -774,18 +298,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       </div>
 
       {/* File preview modal */}
-      {previewFile && (
-        <FilePreviewModal
-          file={previewFile}
-          fileContent={fileContents.get(previewFile.id)}
-          onClose={() => setPreviewFile(null)}
-          onRemove={() => {
-            removeFile(previewFile.id)
-            setPreviewFile(null)
-          }}
-          isMobile={isMobile}
-        />
-      )}
+      {filePreviewModal}
     </div>
   )
 }
