@@ -64,6 +64,27 @@ export const CODE_EXTENSIONS = [
 ]
 
 /**
+ * Image file extensions mapped to their MIME content types.
+ * Single source of truth for both client-side type detection and
+ * server-side content-type headers.
+ */
+export const IMAGE_MIME_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  bmp: 'image/bmp',
+}
+
+/**
+ * Image file extensions (for determining FileType)
+ */
+export const IMAGE_EXTENSIONS = Object.keys(IMAGE_MIME_TYPES)
+
+/**
  * Plain text file extensions (for determining FileType)
  */
 export const TEXT_EXTENSIONS = [

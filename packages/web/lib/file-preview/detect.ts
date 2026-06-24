@@ -2,7 +2,7 @@
  * File type detection utilities
  */
 
-import { FileType, EXT_TO_LANG, CODE_EXTENSIONS, TEXT_EXTENSIONS } from './types'
+import { FileType, EXT_TO_LANG, CODE_EXTENSIONS, TEXT_EXTENSIONS, IMAGE_EXTENSIONS } from './types'
 
 /**
  * Get the file extension from a filename or path
@@ -70,8 +70,7 @@ export function getFileTypeFromPath(filePath: string): FileType {
   if (name === 'dockerfile' || name === 'makefile') return 'code'
 
   // Images (by extension)
-  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp']
-  if (imageExtensions.includes(ext)) return 'image'
+  if (IMAGE_EXTENSIONS.includes(ext)) return 'image'
 
   // PDFs
   if (ext === 'pdf') return 'pdf'
