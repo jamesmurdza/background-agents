@@ -1,16 +1,11 @@
 import { Daytona } from "@daytonaio/sdk"
 import { NextRequest } from "next/server"
-import { Prisma } from "@prisma/client"
-import { randomUUID } from "crypto"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import {
-  badRequest,
   decryptUserCredentials,
   getChatWithAuth,
-  getGitHubToken,
-  getUserCredentials,
   internalError,
   isAuthError,
   notFound,
@@ -19,22 +14,22 @@ import {
 } from "@/lib/db/api-helpers"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { logActivityAsync } from "@/lib/db/activity-log"
-import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
-import { autoPullBeforeRun } from "@/lib/server/auto-pull"
-import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
-import { getClaudeCredentials } from "@/lib/claude-credentials"
-import { getEnvForModel, resolveCliModel, CUSTOM_MODEL_VALUE } from "@background-agents/common"
-import { decrypt } from "@/lib/db/encryption"
+import { resolveCliModel } from "@background-agents/common"
 import {
-  createSandboxForChat,
   deleteSandboxQuietly,
-  ensureSandboxStarted,
-  installSkillsForRepo,
   discoverSkillsForRepo,
   uploadFilesToSandbox,
 } from "@/lib/sandbox"
+import type { SuccessResponse } from "./_lib/types"
+import { parseMessageRequest } from "./_lib/parse-request"
+import { resolveSendCredentials } from "./_lib/resolve-credentials"
+import { ensureSandboxForChat, type SandboxState } from "./_lib/ensure-sandbox"
+import { runPreRunPull } from "./_lib/pre-run-pull"
+import { buildAgentHistory } from "./_lib/history"
+import { buildAgentEnv } from "./_lib/agent-env"
+import { persistTurn } from "./_lib/persist-turn"
 
 
 export const maxDuration = 300
@@ -70,26 +65,6 @@ export async function GET(
   return Response.json({ messages: serializedMessages })
 }
 
-interface MessagePayload {
-  message: string
-  agent: string
-  model: string
-  userMessageId: string
-  assistantMessageId: string
-  /** Branch name for the new sandbox if one is being created. Generated server-side if omitted. */
-  newBranch?: string
-  /** When true, agent should plan before acting */
-  planMode?: boolean
-}
-
-interface SuccessResponse {
-  sandboxId: string
-  branch: string | null
-  previewUrlPattern: string | null
-  backgroundSessionId: string
-  uploadedFiles: string[]
-}
-
 /**
  * POST /api/chats/[chatId]/messages
  *
@@ -105,6 +80,8 @@ interface SuccessResponse {
  * failure after a sandbox was newly created, the sandbox is deleted
  * before we respond, so the chat is never left referencing a leaked
  * sandbox.
+ *
+ * The per-stage logic lives in `./_lib/*`; this handler is the orchestrator.
  */
 export async function POST(
   req: NextRequest,
@@ -125,316 +102,58 @@ export async function POST(
     return Response.json({ error: "Chat is busy" }, { status: 409 })
   }
 
-  // Parse body (JSON or multipart)
-  let payload: MessagePayload
-  let files: File[] = []
-  const contentType = req.headers.get("content-type") ?? ""
-  if (contentType.includes("multipart/form-data")) {
-    const formData = await req.formData()
-    const payloadJson = formData.get("payload")
-    if (typeof payloadJson !== "string") return badRequest("Missing payload")
-    try {
-      payload = JSON.parse(payloadJson) as MessagePayload
-    } catch {
-      return badRequest("Invalid payload JSON")
-    }
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith("file-") && value instanceof File) files.push(value)
-    }
-  } else {
-    payload = (await req.json()) as MessagePayload
-  }
-
-  if (
-    !payload.message ||
-    !payload.agent ||
-    !payload.model ||
-    !payload.userMessageId ||
-    !payload.assistantMessageId
-  ) {
-    return badRequest("Missing required fields")
-  }
+  // Parse body (JSON or multipart) + validate.
+  const parsed = await parseMessageRequest(req)
+  if (parsed instanceof Response) return parsed
+  const { payload, files } = parsed
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) return serverConfigError("DAYTONA_API_KEY")
 
-  const githubToken = await getGitHubToken(userId)
-
-  let credentials = await getUserCredentials(userId)
-
-  // Enforce the per-provider daily token budget on shared pools (free users
-  // only). Returns allowed=true for own-key runs, Pro users, and agents without
-  // a shared pool — so this is safe to call unconditionally.
-  const usageCheck = await checkSharedPoolUsage(userId, payload.agent as Agent, payload.model)
-  if (!usageCheck.allowed) {
-    logActivityAsync(userId, "daily_limit_reached", {
-      provider: usageCheck.provider,
-      used: usageCheck.used,
-      limit: usageCheck.limit,
-      resetAt: usageCheck.resetAt.toISOString(),
-    })
-
-    return Response.json(
-      {
-        error: "DAILY_LIMIT_EXCEEDED",
-        message: usageCheck.error,
-        provider: usageCheck.provider,
-        used: usageCheck.used,
-        remaining: usageCheck.remaining,
-        limit: usageCheck.limit,
-        resetAt: usageCheck.resetAt.toISOString(),
-      },
-      { status: 429 }
-    )
-  }
-
-  // Shared-pool fallback for Claude Code: when the user hasn't stored their own
-  // subscription token, inject the rotating credential blob written by
-  // /api/cron/refresh-claude-creds. (Gemini/OpenCode shared keys come from
-  // process.env via getUserCredentials, so they need no injection here.)
-  let useSharedClaude = false
-  if (
-    payload.agent === "claude-code" &&
-    payload.model !== CUSTOM_MODEL_VALUE &&
-    !credentials.CLAUDE_CODE_CREDENTIALS
-  ) {
-    try {
-      credentials = {
-        ...credentials,
-        CLAUDE_CODE_CREDENTIALS: await getClaudeCredentials(),
-      }
-      useSharedClaude = true
-    } catch (err) {
-      console.error(
-        "[chats/messages] Failed to fetch shared Claude credential:",
-        err
-      )
-      return Response.json(
-        {
-          error: "SHARED_CREDS_UNAVAILABLE",
-          message:
-            "Shared Claude credentials are unavailable. Add your own Claude Subscription token in Settings.",
-        },
-        { status: 503 }
-      )
-    }
-  }
+  // Resolve GitHub token + agent credentials and enforce the shared-pool budget.
+  const resolved = await resolveSendCredentials(userId, payload)
+  if (resolved instanceof Response) return resolved
+  const { credentials, githubToken, useSharedClaude } = resolved
 
   const daytona = new Daytona({ apiKey: daytonaApiKey })
 
-  let sandboxId = chat.sandboxId
-  let branch = chat.branch
-  let previewUrlPattern = chat.previewUrlPattern
-  let createdSandbox = false
+  // Seeded from the chat row; kept in sync by ensureSandboxForChat so the
+  // catch below can tear down a sandbox newly created during this request.
+  const state: SandboxState = {
+    sandboxId: chat.sandboxId,
+    branch: chat.branch,
+    previewUrlPattern: chat.previewUrlPattern,
+    createdSandbox: false,
+  }
 
   try {
-    // ── Stage 1: ensure sandbox ────────────────────────────────────────────
-    if (!sandboxId) {
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: { status: "creating" },
-      })
-
-      const newBranch = payload.newBranch ?? `agent/${randomUUID().slice(0, 8)}`
-      const created = await createSandboxForChat({
-        daytona,
-        repo: chat.repo,
-        baseBranch: chat.baseBranch ?? "main",
-        newBranch,
-        githubToken: githubToken ?? undefined,
-        userId,
-      })
-      sandboxId = created.sandboxId
-      branch = created.branch
-      previewUrlPattern = created.previewUrlPattern ?? null
-      createdSandbox = true
-
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: {
-          sandboxId,
-          branch,
-          previewUrlPattern,
-          status: "ready",
-        },
-      })
-    }
-
-    // ── Stage 2: get sandbox object ────────────────────────────────────────
-    let sandbox: Awaited<ReturnType<Daytona["get"]>>
-    try {
-      sandbox = await daytona.get(sandboxId)
-    } catch {
-      // Sandbox was deleted (e.g., cleanup cronjob). Attempt transparent recreation.
-
-      // Cannot recreate NEW_REPOSITORY chats - no remote to clone from
-      if (chat.repo === NEW_REPOSITORY || chat.repo === "__new__") {
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
-        })
-        return Response.json(
-          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. Cannot recreate sandbox for local repository." },
-          { status: 410 }
-        )
-      }
-
-      // Cannot recreate without GitHub token
-      if (!githubToken) {
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
-        })
-        return Response.json(
-          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },
-          { status: 410 }
-        )
-      }
-
-      // Cannot recreate without existing branch name
-      if (!chat.branch) {
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
-        })
-        return Response.json(
-          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. No branch to restore." },
-          { status: 410 }
-        )
-      }
-
-      console.log(`[chats/messages] Sandbox ${sandboxId} not found, attempting recreation for chat ${chatId}`)
-
-      try {
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { status: "creating" },
-        })
-
-        const recreated = await createSandboxForChat({
-          daytona,
-          repo: chat.repo,
-          baseBranch: chat.baseBranch ?? "main",
-          newBranch: chat.branch,
-          githubToken,
-          userId,
-          restoreExistingBranch: true,
-        })
-
-        sandboxId = recreated.sandboxId
-        branch = recreated.branch
-        previewUrlPattern = recreated.previewUrlPattern ?? null
-        createdSandbox = true // Important: mark as created for cleanup on downstream failures
-
-        // The recreated sandbox is a fresh clone with no agent conversation
-        // history on disk (it only ever lived in the now-deleted sandbox).
-        // Drop the stale session pointer so the agent starts a new conversation
-        // instead of resuming a session the CLI can't find. Clear it both in the
-        // DB (for future requests) and in memory (so this request's resume read
-        // below sees no session). Agent-agnostic: sessionId is the generic
-        // resume pointer used by every agent.
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: {
-            sandboxId,
-            previewUrlPattern,
-            sessionId: null,
-            status: "ready",
-          },
-        })
-        chat.sessionId = null
-
-        sandbox = recreated.sandbox
-
-        console.log(`[chats/messages] Successfully recreated sandbox ${sandboxId} for chat ${chatId}, branchRestored=${recreated.branchRestored}`)
-      } catch (recreationError) {
-        console.error(`[chats/messages] Failed to recreate sandbox for chat ${chatId}:`, recreationError)
-
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
-        })
-        return Response.json(
-          { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found and recreation failed." },
-          { status: 410 }
-        )
-      }
-    }
-
-    await ensureSandboxStarted(sandbox)
-
-    // ── Stage 2a: restore repo-scoped skills ──────────────────────────────
-    // On newly created sandboxes (including recreation after deletion),
-    // install all skills associated with this user+repo so the agent has
-    // them available from the first prompt.
-    if (createdSandbox && chat.repo !== NEW_REPOSITORY) {
-      await installSkillsForRepo(sandbox, userId, chat.repo)
-    }
+    // ── Stages 1–2: ensure (or recreate) a started sandbox ─────────────────
+    const ensured = await ensureSandboxForChat({
+      daytona,
+      chat,
+      chatId,
+      payload,
+      githubToken,
+      userId,
+      state,
+    })
+    if (ensured instanceof Response) return ensured
+    const { sandbox, sandboxId, branch, previewUrlPattern, createdSandbox } = ensured
 
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
     // ── Stage 2b: auto-pull the branch before the agent runs ───────────────
-    // Commits pushed to this branch from elsewhere (local checkout, another
-    // chat, GitHub UI) aren't in the sandbox until we pull them. A freshly
-    // created sandbox was just cloned, so it's already current — skip it there.
-    //
-    // On a *new* conflict we leave the merge in progress and return 409 without
-    // starting the agent, so the client surfaces the existing merge-conflict UI
-    // (header indicator + Abort Merge) — exactly like a merge/rebase conflict.
-    // When the user then sends a message, the merge is *already in progress*, so
-    // we prepend `pullConflictNote` and let the agent resolve it during the turn.
-    let pullConflictNote = ""
-    if (
-      !createdSandbox &&
-      branch &&
-      chat.repo !== NEW_REPOSITORY &&
-      chat.repo !== "__new__" &&
-      githubToken
-    ) {
-      try {
-        const pull = await autoPullBeforeRun(sandbox, repoPath, branch, githubToken)
-
-        if (pull.status === "pulled") {
-          await createGitOperationMessage(
-            chatId,
-            `Pulled ${pull.commits} commit${pull.commits === 1 ? "" : "s"} from ${branch}.`,
-            false,
-            undefined,
-            branch
-          )
-        } else if (pull.status === "conflict" && !pull.alreadyInProgress) {
-          // This send started the merge and it conflicted. Leave the merge in
-          // progress, surface the existing conflict UI, and do NOT start the
-          // agent or persist messages — the user decides (send a message to
-          // have the agent resolve it, or Abort Merge).
-          const fileList = pull.conflictedFiles.join(", ")
-          await createGitOperationMessage(
-            chatId,
-            `Pull conflict on ${branch} (${pull.conflictedFiles.length} file${pull.conflictedFiles.length === 1 ? "" : "s"}): ${fileList}`,
-            true
-          )
-          return Response.json(
-            {
-              error: "PULL_CONFLICT",
-              conflictedFiles: pull.conflictedFiles,
-              branch,
-            },
-            { status: 409 }
-          )
-        } else if (pull.status === "conflict" && pull.alreadyInProgress) {
-          // A prior conflicted pull is still in progress and the user sent a
-          // message — hand the conflict to the agent to resolve this turn.
-          const fileList = pull.conflictedFiles.join(", ")
-          pullConflictNote =
-            `A merge of origin/${branch} is in progress with conflicts in: ${fileList}. ` +
-            `Resolve the conflicts, commit the merge, then address the request below.\n\n---\n\n`
-        }
-      } catch (err) {
-        // Never block a turn on the auto-pull. If it fails, the agent runs on
-        // the current tree and the end-of-turn push surfaces any divergence.
-        console.error("[chats/messages] auto-pull failed:", err)
-      }
-    }
+    const pull = await runPreRunPull({
+      sandbox,
+      repoPath,
+      chat,
+      chatId,
+      branch,
+      githubToken,
+      createdSandbox,
+    })
+    if (pull instanceof Response) return pull
+    const { pullConflictNote } = pull
 
     // ── Stage 3: file upload ───────────────────────────────────────────────
     let uploadedFilePaths: string[] = []
@@ -456,107 +175,11 @@ export async function POST(
         uploadedFilePaths.map((p) => `- ${p}`).join("\n")
     }
 
-    // ── Agent switch detection ────────────────────────────────────────────
-    // Detect by comparing the incoming agent against the agent that produced
-    // the most recent assistant message. Per-message agent fields are
-    // immutable, so this works even though chat.agent was already PATCHed
-    // by the dropdown change.
-    const lastAssistant = await prisma.message.findFirst({
-      where: { chatId, role: "assistant" },
-      orderBy: { timestamp: "desc" },
-      select: { agent: true },
-    })
-    const isAgentSwitch =
-      !!lastAssistant?.agent && lastAssistant.agent !== payload.agent
-
-    let history:
-      | { role: "user" | "assistant"; content: string }[]
-      | undefined
-
-    if (isAgentSwitch) {
-      const messages = await prisma.message.findMany({
-        where: { chatId },
-        orderBy: { timestamp: "asc" },
-        select: { role: true, content: true },
-      })
-      history = messages
-        .filter(
-          (
-            m
-          ): m is typeof m & { role: "user" | "assistant" } =>
-            (m.role === "user" || m.role === "assistant") &&
-            !!m.content.trim()
-        )
-        .map((m) => ({ role: m.role, content: m.content }))
-
-      if (history.length === 0) history = undefined
-      else
-        console.log(
-          `[chats/messages] Agent switch detected: injecting ${history.length} history messages`
-        )
-    }
-
-    // ── Chat fork detection ───────────────────────────────────────────────
-    // When a chat is forked from a parent (via /branch, Option+Enter, etc.),
-    // the first message should include the parent's conversation history so
-    // the agent has context about what was previously discussed.
-    if (!history && chat.parentChatId && !lastAssistant) {
-      const parentMessages = await prisma.message.findMany({
-        where: { chatId: chat.parentChatId },
-        orderBy: { timestamp: "asc" },
-        select: { role: true, content: true },
-      })
-      history = parentMessages
-        .filter(
-          (
-            m
-          ): m is typeof m & { role: "user" | "assistant" } =>
-            (m.role === "user" || m.role === "assistant") &&
-            !!m.content.trim()
-        )
-        .map((m) => ({ role: m.role, content: m.content }))
-
-      if (history.length === 0) history = undefined
-      else
-        console.log(
-          `[chats/messages] Chat fork detected: injecting ${history.length} parent messages`
-        )
-    }
+    // Decide what prior conversation to replay (agent switch / chat fork).
+    const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
 
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
-    const systemEnv = getEnvForModel(payload.model, payload.agent as Agent, credentials)
-
-    // Fetch user-defined environment variables (repo-level then chat-level, chat takes precedence)
-    const userEnv: Record<string, string> = {}
-
-    // Get repo-level env vars from user
-    if (chat.repo !== NEW_REPOSITORY) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { repoEnvironmentVariables: true },
-      })
-      const repoEnvVars = (user?.repoEnvironmentVariables as Record<string, Record<string, string>>)?.[chat.repo]
-      if (repoEnvVars) {
-        for (const [key, encryptedValue] of Object.entries(repoEnvVars)) {
-          if (encryptedValue) {
-            userEnv[key] = decrypt(encryptedValue)
-          }
-        }
-      }
-    }
-
-    // Get chat-level env vars (overrides repo-level)
-    const chatEnvVars = chat.environmentVariables as Record<string, string> | null
-    if (chatEnvVars) {
-      for (const [key, encryptedValue] of Object.entries(chatEnvVars)) {
-        if (encryptedValue) {
-          userEnv[key] = decrypt(encryptedValue)
-        }
-      }
-    }
-
-    // Merge: system env vars first, then user env vars (user takes precedence)
-    const env = { ...systemEnv, ...userEnv }
+    const env = await buildAgentEnv({ chat, userId, payload, credentials })
 
     // Fetch this chat's connected MCP servers so the agent sees them as tools.
     // Best-effort — a fetch error shouldn't block the turn.
@@ -603,78 +226,14 @@ export async function POST(
     )
 
     // ── Stage 5: persist messages + chat status (transactional) ────────────
-    const now = Date.now()
-    await prisma.$transaction(async (tx) => {
-      // Reject reuse of a message ID that already exists in a different
-      // chat — the upsert below would otherwise overwrite a foreign row.
-      const existing = await tx.message.findMany({
-        where: { id: { in: [payload.userMessageId, payload.assistantMessageId] } },
-        select: { id: true, chatId: true },
-      })
-      for (const m of existing) {
-        if (m.chatId !== chatId) {
-          throw new Error("Message ID belongs to a different chat")
-        }
-      }
-
-      await tx.message.upsert({
-        where: { id: payload.userMessageId },
-        create: {
-          id: payload.userMessageId,
-          chatId,
-          role: "user",
-          content: agentPrompt,
-          timestamp: BigInt(now),
-          agent: payload.agent,
-          model: payload.model,
-          uploadedFiles:
-            uploadedFilePaths.length > 0
-              ? (uploadedFilePaths as unknown as Prisma.InputJsonValue)
-              : undefined,
-        },
-        update: {
-          content: agentPrompt,
-          agent: payload.agent,
-          model: payload.model,
-          uploadedFiles:
-            uploadedFilePaths.length > 0
-              ? (uploadedFilePaths as unknown as Prisma.InputJsonValue)
-              : undefined,
-        },
-      })
-
-      await tx.message.upsert({
-        where: { id: payload.assistantMessageId },
-        create: {
-          id: payload.assistantMessageId,
-          chatId,
-          role: "assistant",
-          content: "",
-          timestamp: BigInt(now + 1),
-          agent: payload.agent,
-          model: payload.model,
-          toolCalls: [],
-          contentBlocks: [],
-          metadata: { usage: usageMeta } as unknown as Prisma.InputJsonValue,
-        },
-        update: {
-          metadata: { usage: usageMeta } as unknown as Prisma.InputJsonValue,
-        },
-      })
-
-      await tx.chat.update({
-        where: { id: chatId },
-        data: {
-          status: "running",
-          backgroundSessionId: bgSession.backgroundSessionId,
-          lastActiveAt: new Date(),
-          // Persist agent/model so subsequent messages on this chat keep them
-          agent: payload.agent,
-          model: payload.model,
-          // Clear stale sessionId on agent switch — new agent will generate its own
-          ...(isAgentSwitch && { sessionId: null }),
-        },
-      })
+    await persistTurn({
+      chatId,
+      payload,
+      agentPrompt,
+      uploadedFilePaths,
+      usageMeta,
+      backgroundSessionId: bgSession.backgroundSessionId,
+      isAgentSwitch,
     })
 
     // ── Stage 6: kick off the agent ────────────────────────────────────────
@@ -702,8 +261,8 @@ export async function POST(
 
     // If we just created the sandbox in this request and something
     // downstream failed, delete it so it's not orphaned.
-    if (createdSandbox && sandboxId) {
-      await deleteSandboxQuietly(daytona, sandboxId)
+    if (state.createdSandbox && state.sandboxId) {
+      await deleteSandboxQuietly(daytona, state.sandboxId)
       try {
         await prisma.chat.update({
           where: { id: chatId },

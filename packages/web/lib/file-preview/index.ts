@@ -6,17 +6,12 @@
  */
 
 // Types and utilities
-export type { FileType } from './types'
 export { formatFileSize } from './types'
 
 // Detection utilities
 export {
-  getFileExtension,
-  getFilename,
-  detectLang,
   getFileType,
   getFileTypeFromPath,
-  isMarkdownFile,
   isMarkdownPath,
 } from './detect'
 
