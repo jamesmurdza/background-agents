@@ -273,7 +273,7 @@ type Event =
 2. **CLI install** — Provider CLI is installed in the sandbox automatically
 3. **Background execution** — Agent runs via `nohup`, outputs to a log file
 4. **Polling** — SDK polls the log file for new JSON events
-5. **Completion** — A `.done` file signals when the agent finishes
+5. **Completion** — An `exit` file (holding the process exit code) signals when the agent finishes
 6. **Cleanup** — You call `sandbox.delete()` when done
 
 ```

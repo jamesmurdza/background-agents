@@ -99,6 +99,7 @@ import { WebSocketTerminal } from '@background-agents/daytona-terminal'
     background: '#1e1e1e',
     foreground: '#d4d4d4',
     cursor: '#ffffff',
+    selection: 'rgba(255, 255, 255, 0.3)',
   }}
 />
 ```
