@@ -53,7 +53,6 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
   const [rebaseOpen, setRebaseOpen] = useState(false)
   const [prOpen, setPROpen] = useState(false)
   const [squashOpen, setSquashOpen] = useState(false)
-  const [forcePushOpen, setForcePushOpen] = useState(false)
 
   // Shared state for branch picker
   const [remoteBranches, setRemoteBranches] = useState<string[]>([])
@@ -330,11 +329,9 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
 
       // Message created by backend (success or error) - refetch to show it
       await refetchMessages?.(chatId)
-      setForcePushOpen(false)
     } catch {
       // Error message may have been created by backend - refetch to show it
       await refetchMessages?.(chatId)
-      setForcePushOpen(false)
     } finally {
       setActionLoading(false)
     }
@@ -483,8 +480,6 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     setPROpen,
     squashOpen,
     setSquashOpen,
-    forcePushOpen,
-    setForcePushOpen,
     remoteBranches,
     selectedBranch,
     setSelectedBranch,

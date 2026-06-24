@@ -1,9 +1,6 @@
 import { signIn } from "next-auth/react"
 import { isElectron } from "@/lib/hooks/useElectron"
 
-// Re-exported for backwards compatibility; the canonical definition lives in useElectron.
-export { isElectron }
-
 /**
  * Sign in with GitHub, handling Electron's special OAuth flow
  *

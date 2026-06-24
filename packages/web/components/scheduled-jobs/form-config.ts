@@ -25,15 +25,6 @@ export function localHourToUtc(localHour: number): number {
   return Math.floor(utcHour)
 }
 
-/** Convert UTC hour (0-23) to local hour */
-export function utcHourToLocal(utcHour: number): number {
-  const offset = getTimezoneOffset()
-  let localHour = utcHour + offset
-  if (localHour < 0) localHour += 24
-  if (localHour >= 24) localHour -= 24
-  return Math.floor(localHour)
-}
-
 // =============================================================================
 // Trigger / Schedule Constants
 // =============================================================================
