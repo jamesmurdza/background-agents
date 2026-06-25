@@ -455,14 +455,14 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo }: SkillSearc
                         href={skill.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                        className="flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     )}
                     <button
                       onClick={() => handleUninstall(skill.id)}
-                      className="flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                      className="flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
                       title="Uninstall skill"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

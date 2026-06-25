@@ -1,4 +1,4 @@
-import { Plus, X, ArrowDown } from "lucide-react"
+import { GitBranchPlus, X, ArrowDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
@@ -166,11 +166,12 @@ export function ChatMessageList({
                   {git.canBranch && (
                     <button
                       onClick={() => git.handleBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
-                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
                       aria-label="Branch to new chat"
                       title="Branch to new chat"
                     >
-                      <Plus className="h-2.5 w-2.5" />
+                      <GitBranchPlus className="h-3 w-3" />
+                      Branch
                     </button>
                   )}
                   {onRemoveQueuedMessage && (

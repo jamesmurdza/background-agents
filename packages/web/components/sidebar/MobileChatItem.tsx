@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2, Loader2, ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import type { Chat } from "@/lib/types"
@@ -13,18 +13,25 @@ export interface MobileChatItemProps {
   isActive: boolean
   isDeleting: boolean
   isUnseen: boolean
+  depth?: number
+  hasChildren?: boolean
+  isExpanded?: boolean
+  onToggleExpanded?: () => void
   onSelect: () => void
   onDelete: () => void
   onRequestRename: () => void
 }
 
-export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, onSelect, onDelete, onRequestRename }: MobileChatItemProps) {
+export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onRequestRename }: MobileChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const displayName = chat.displayName || "Untitled"
 
   // Close menu when clicking outside
   useClickOutside(menuRef, () => setMenuOpen(false), menuOpen)
+
+  // Indent branched chats to mirror the desktop tree (see ChatItem).
+  const indentPx = depth * 24
 
   return (
     <div
@@ -39,8 +46,21 @@ export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, onSelect,
           ? "bg-accent text-accent-foreground"
           : "hover:bg-accent/50 text-sidebar-foreground")
       )}
+      style={indentPx ? { paddingLeft: `calc(0.75rem + ${indentPx}px)` } : undefined}
       onClick={isDeleting ? undefined : onSelect}
     >
+      {hasChildren && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleExpanded?.()
+          }}
+          className="flex h-5 w-5 flex-shrink-0 items-center justify-center -ml-1 text-foreground/80 rounded-sm"
+          aria-label={isExpanded ? "Collapse branches" : "Expand branches"}
+        >
+          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </button>
+      )}
       <div className="flex-1 min-w-0">
         <div className="text-sm truncate">{displayName}</div>
       </div>

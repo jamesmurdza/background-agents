@@ -47,6 +47,11 @@ function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
   return <ChatPanel {...props} onOpenCommandPalette={openCommand} />
 }
 
+function MobileHeaderWithPalette(props: React.ComponentProps<typeof MobileHeader>) {
+  const { openCommand } = usePalette()
+  return <MobileHeader {...props} onOpenCommandPalette={openCommand} />
+}
+
 // =============================================================================
 // HomePage - Wrapper that sets up providers
 // =============================================================================
@@ -583,7 +588,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
         {isMobile && (
-          <MobileHeader
+          <MobileHeaderWithPalette
             chat={displayCurrentChat}
             viewMode={sidebar.viewMode}
             githubBranchUrl={githubBranchUrl}
@@ -669,6 +674,24 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
             )}
           </div>
       </div>
+
+      {/* Mobile preview - full-screen overlay since there's no room for a split pane. */}
+      {isMobile && preview.previewOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-card pt-safe">
+          <PreviewView
+            className="flex-1 min-h-0"
+            item={preview.previewItem}
+            sandboxId={currentChat?.sandboxId ?? null}
+            repo={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? currentChat.repo : null}
+            branch={currentChat?.branch ?? currentChat?.baseBranch ?? null}
+            onClose={preview.closePreview}
+            allItems={preview.previewItems}
+            onSelectItem={preview.selectPreviewItem}
+            onCloseItem={preview.closePreviewItem}
+            messages={currentChat?.messages}
+          />
+        </div>
+      )}
 
       {/* Transparent full-screen shield during split drag so the cursor isn't
           swallowed by iframes or other child elements. */}

@@ -15,9 +15,9 @@ import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import {
   UserMenu,
-  MobileChatItem,
   RepoFilterDropdown,
   renderChatTree,
+  renderMobileChatTree,
 } from "./sidebar"
 
 // Re-export from context for backward compatibility
@@ -415,18 +415,18 @@ export function Sidebar({
                   ))}
                 </div>
               ) : (
-                filteredChats.map((chat) => (
-                  <MobileChatItem
-                    key={chat.id}
-                    chat={chat}
-                    isActive={chat.id === currentChatId}
-                    isDeleting={deletingChatIds.has(chat.id)}
-                    isUnseen={unseenChatIds?.has(chat.id) ?? false}
-                    onSelect={() => handleSelectChat(chat.id)}
-                    onDelete={() => onDeleteChat(chat.id)}
-                    onRequestRename={() => modals.setMobileRenameChat({ id: chat.id, name: chat.displayName || "Untitled" })}
-                  />
-                ))
+                renderMobileChatTree({
+                  roots: rootChats,
+                  childrenByParent,
+                  collapsedChatIds,
+                  currentChatId,
+                  deletingChatIds,
+                  unseenChatIds,
+                  onToggleCollapsed: toggleChatCollapsed,
+                  onSelectChat: handleSelectChat,
+                  onDeleteChat,
+                  onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
+                })
               )}
             </div>
           </div>
