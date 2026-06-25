@@ -199,8 +199,3 @@ export function useModals(): ModalContextValue {
   }
   return context
 }
-
-/** Optional hook that returns null if not in provider */
-export function useModalsOptional(): ModalContextValue | null {
-  return useContext(ModalContext)
-}

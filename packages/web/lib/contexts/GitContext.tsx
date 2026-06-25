@@ -28,8 +28,3 @@ export function useGit(): GitContextValue {
   }
   return context
 }
-
-/** Optional hook that returns null if not in provider */
-export function useGitOptional(): GitContextValue | null {
-  return useContext(GitContext)
-}

@@ -127,8 +127,3 @@ export function useSidebar(): SidebarContextValue {
   }
   return context
 }
-
-/** Optional hook that returns null if not in provider */
-export function useSidebarOptional(): SidebarContextValue | null {
-  return useContext(SidebarContext)
-}

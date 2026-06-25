@@ -1,16 +1,15 @@
 export { ChatProvider, useChat, useChatOptional } from "./ChatContext"
 export type { ChatContextValue } from "./ChatContext"
 
-export { ModalProvider, useModals, useModalsOptional } from "./ModalContext"
+export { ModalProvider, useModals } from "./ModalContext"
 export type { ModalContextValue } from "./ModalContext"
 
-export { GitProvider, useGit, useGitOptional } from "./GitContext"
+export { GitProvider, useGit } from "./GitContext"
 export type { GitContextValue } from "./GitContext"
 
 export {
   SidebarProvider,
   useSidebar,
-  useSidebarOptional,
   ALL_REPOSITORIES,
   NO_REPOSITORY,
   MIN_WIDTH,
