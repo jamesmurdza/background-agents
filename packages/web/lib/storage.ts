@@ -76,40 +76,51 @@ const DEFAULT_LOCAL_STATE: LocalState = {
 }
 
 // =============================================================================
+// localStorage helpers (SSR-safe, parse/serialize once)
+// =============================================================================
+
+/**
+ * Read and JSON-parse a localStorage value. Returns `fallback` when running on
+ * the server, when the key is missing, or when the stored value fails to parse.
+ */
+function readJSON<T>(key: string, fallback: T, label: string): T {
+  if (typeof window === "undefined") return fallback
+  try {
+    const stored = localStorage.getItem(key)
+    if (!stored) return fallback
+    return JSON.parse(stored) as T
+  } catch (error) {
+    console.error(`Failed to load ${label}:`, error)
+    return fallback
+  }
+}
+
+/**
+ * JSON-serialize and write a value to localStorage. No-ops on the server and
+ * swallows quota/serialization errors after logging them.
+ */
+function writeJSON(key: string, value: unknown, label: string): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (error) {
+    console.error(`Failed to save ${label}:`, error)
+  }
+}
+
+// =============================================================================
 // Local State (Device-Specific)
 // =============================================================================
 
 export function loadLocalState(): LocalState {
-  if (typeof window === "undefined") {
-    return DEFAULT_LOCAL_STATE
-  }
-
-  try {
-    const stored = localStorage.getItem(LOCAL_STATE_KEY)
-    if (!stored) {
-      return DEFAULT_LOCAL_STATE
-    }
-    const parsed = JSON.parse(stored) as LocalState
-    return {
-      ...DEFAULT_LOCAL_STATE,
-      ...parsed,
-    }
-  } catch (error) {
-    console.error("Failed to load local state:", error)
-    return DEFAULT_LOCAL_STATE
+  return {
+    ...DEFAULT_LOCAL_STATE,
+    ...readJSON<LocalState>(LOCAL_STATE_KEY, DEFAULT_LOCAL_STATE, "local state"),
   }
 }
 
 export function saveLocalState(state: LocalState): void {
-  if (typeof window === "undefined") {
-    return
-  }
-
-  try {
-    localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state))
-  } catch (error) {
-    console.error("Failed to save local state:", error)
-  }
+  writeJSON(LOCAL_STATE_KEY, state, "local state")
 }
 
 /**
@@ -226,24 +237,11 @@ export function clearLocalStateForChats(chatIds: string[]): void {
 // =============================================================================
 
 export function loadUnseenChatIds(): Set<string> {
-  if (typeof window === "undefined") return new Set()
-  try {
-    const stored = localStorage.getItem(UNSEEN_KEY)
-    if (!stored) return new Set()
-    const parsed = JSON.parse(stored) as string[]
-    return new Set(parsed)
-  } catch {
-    return new Set()
-  }
+  return new Set(readJSON<string[]>(UNSEEN_KEY, [], "unseen chat ids"))
 }
 
 export function saveUnseenChatIds(ids: Set<string>): void {
-  if (typeof window === "undefined") return
-  try {
-    localStorage.setItem(UNSEEN_KEY, JSON.stringify([...ids]))
-  } catch (error) {
-    console.error("Failed to save unseen chat ids:", error)
-  }
+  writeJSON(UNSEEN_KEY, [...ids], "unseen chat ids")
 }
 
 // =============================================================================
