@@ -236,6 +236,7 @@ export async function PATCH(
       model: updatedChat.model,
       planModeEnabled: updatedChat.planModeEnabled,
       displayName: updatedChat.displayName,
+      shareId: updatedChat.shareId,
       status: updatedChat.status,
       parentChatId: updatedChat.parentChatId,
       needsSync: updatedChat.needsSync,

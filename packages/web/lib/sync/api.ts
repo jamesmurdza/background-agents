@@ -26,6 +26,7 @@ export interface ChatResponse {
   model: string | null
   planModeEnabled: boolean
   displayName: string | null
+  shareId?: string | null
   status: string
   parentChatId: string | null
   needsSync: boolean
@@ -238,6 +239,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     model: serverChat.model || undefined,
     planModeEnabled: serverChat.planModeEnabled,
     displayName: serverChat.displayName,
+    shareId: serverChat.shareId ?? null,
     status: serverChat.status as Chat["status"],
     parentChatId: serverChat.parentChatId || undefined,
     needsSync: serverChat.needsSync,
