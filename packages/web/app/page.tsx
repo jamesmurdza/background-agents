@@ -47,6 +47,11 @@ function ChatPanelWithPalette(props: React.ComponentProps<typeof ChatPanel>) {
   return <ChatPanel {...props} onOpenCommandPalette={openCommand} />
 }
 
+function MobileHeaderWithPalette(props: React.ComponentProps<typeof MobileHeader>) {
+  const { openCommand } = usePalette()
+  return <MobileHeader {...props} onOpenCommandPalette={openCommand} />
+}
+
 // =============================================================================
 // HomePage - Wrapper that sets up providers
 // =============================================================================
@@ -583,7 +588,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
         {isMobile && (
-          <MobileHeader
+          <MobileHeaderWithPalette
             chat={displayCurrentChat}
             viewMode={sidebar.viewMode}
             githubBranchUrl={githubBranchUrl}

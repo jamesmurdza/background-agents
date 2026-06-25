@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock } from "lucide-react"
+import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command } from "lucide-react"
 import { useModals, useSidebar } from "@/lib/contexts"
 import type { Chat } from "@/lib/types"
 
@@ -12,6 +12,7 @@ interface MobileHeaderProps {
   onOpenMenu: () => void
   onOpenInGitHub: () => void
   onOpenEnvVars: () => void
+  onOpenCommandPalette?: () => void
 }
 
 export function MobileHeader({
@@ -21,6 +22,7 @@ export function MobileHeader({
   onOpenMenu,
   onOpenInGitHub,
   onOpenEnvVars,
+  onOpenCommandPalette,
 }: MobileHeaderProps) {
   const modals = useModals()
   const mobileTitleMenuRef = useRef<HTMLDivElement>(null)
@@ -117,6 +119,17 @@ export function MobileHeader({
             </div>
           )}
         </div>
+      )}
+
+      {/* Command palette - only show for chat view */}
+      {viewMode === "chat" && onOpenCommandPalette && (
+        <button
+          onClick={onOpenCommandPalette}
+          className="p-2 -mr-1 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
+          aria-label="Open command palette"
+        >
+          <Command className="h-5 w-5" />
+        </button>
       )}
 
       {/* Commands menu - only show for chat view */}
