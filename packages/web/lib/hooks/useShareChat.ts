@@ -16,10 +16,16 @@ export function useShareChat(chatId: string, initialShareId?: string | null) {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const shareUrl =
-    shareId && typeof window !== "undefined"
-      ? `${window.location.origin}/share/${shareId}`
+  // Build the link against the hosted backend origin when one is configured
+  // (the Electron desktop app sets BACKGROUND_AGENTS_API_URL — without this the
+  // link would be a useless `app://./share/...`). On the plain web app this is
+  // empty, so we fall back to the current origin (correct host in prod).
+  const origin =
+    typeof window !== "undefined"
+      ? (window as { BACKGROUND_AGENTS_API_URL?: string }).BACKGROUND_AGENTS_API_URL ||
+        window.location.origin
       : ""
+  const shareUrl = shareId && origin ? `${origin}/share/${shareId}` : ""
 
   const enableShare = async () => {
     setBusy(true)
