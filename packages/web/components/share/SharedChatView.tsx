@@ -21,9 +21,12 @@ export function SharedChatView({ chat }: SharedChatViewProps) {
   const title = chat.displayName || "Shared chat"
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    // Fixed viewport height + min-h-0 on the scroll region: the app shell sets
+    // `body { overflow: hidden }`, so the page itself can't scroll — the
+    // messages area must be its own scroll container.
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border">
+      <header className="border-b border-border shrink-0">
         <div className="max-w-3xl mx-auto w-full px-6 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-sm font-medium text-foreground truncate">{title}</h1>
@@ -46,7 +49,7 @@ export function SharedChatView({ chat }: SharedChatViewProps) {
       </header>
 
       {/* Messages */}
-      <main className="flex-1 overflow-y-auto py-6 px-6">
+      <main className="flex-1 min-h-0 overflow-y-auto py-6 px-6">
         <div className="max-w-3xl mx-auto w-full space-y-6">
           {chat.messages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-12">
