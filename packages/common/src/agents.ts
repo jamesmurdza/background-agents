@@ -9,8 +9,12 @@
 
 export type Agent = "claude-code" | "opencode" | "codex" | "copilot" | "eliza" | "gemini" | "goose" | "kilo" | "kimi" | "pi"
 
-/** All agent ids, in display order. */
-export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "codex", "copilot", "gemini", "goose", "kilo", "kimi", "pi", "eliza"]
+/**
+ * All agent ids, in display order. Agents backed by a server shared pool
+ * (claude-code, opencode, gemini) lead, followed by Kilo (free models, no
+ * shared pool), then the remaining providers.
+ */
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "gemini", "kilo", "codex", "copilot", "goose", "kimi", "pi", "eliza"]
 
 /** SDK provider names (must match ProviderName from SDK) */
 export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "kimi" | "pi"
@@ -78,6 +82,10 @@ export type CredentialFlags = Partial<Record<CredentialId, boolean>> & {
   OPENCODE_API_KEY_SHARED?: boolean
   // Whether the OPENCODE_API_KEY is a user-provided credential stored in DB
   OPENCODE_API_KEY_USER?: boolean
+  // Whether the GEMINI_API_KEY originates from the server environment (shared)
+  GEMINI_API_KEY_SHARED?: boolean
+  // Whether the GEMINI_API_KEY is a user-provided credential stored in DB
+  GEMINI_API_KEY_USER?: boolean
 }
 export type Credentials = Partial<Record<CredentialId, string>>
 
@@ -413,6 +421,43 @@ export function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undef
  */
 export function sharedClaudePoolEligible(flags: CredentialFlags | null | undefined): boolean {
   return !!flags?.CLAUDE_SHARED_POOL_AVAILABLE && !hasOwnAnthropicCredentials(flags)
+}
+
+/**
+ * Whether picking this agent would draw from a server-provided shared pool
+ * (free usage) instead of the user's own key. Used to surface a "free usage
+ * available" indicator in the agent picker. Returns false once the user stores
+ * their own key for that provider. Agents without a shared pool are always false.
+ */
+export function agentUsesSharedPool(
+  agent: Agent,
+  flags: CredentialFlags | null | undefined
+): boolean {
+  switch (agent) {
+    case "claude-code":
+      return sharedClaudePoolEligible(flags)
+    case "opencode":
+      return !!flags?.OPENCODE_API_KEY_SHARED
+    case "gemini":
+      return !!flags?.GEMINI_API_KEY_SHARED
+    default:
+      return false
+  }
+}
+
+/**
+ * Whether picking this agent gives free usage out of the box — either a
+ * server-provided shared pool (see agentUsesSharedPool) or always-free models
+ * that need no API key. Kilo qualifies via its free auto-router and free model
+ * tier, which stay available even when the user adds their own Kilo key. Used to
+ * surface the "Free usage available" green dot in the agent picker.
+ */
+export function agentHasFreeUsage(
+  agent: Agent,
+  flags: CredentialFlags | null | undefined
+): boolean {
+  if (agent === "kilo") return true
+  return agentUsesSharedPool(agent, flags)
 }
 
 /**

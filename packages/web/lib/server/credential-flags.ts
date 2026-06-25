@@ -82,7 +82,11 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // show as available in the UI, not prompt for a key. Pool origin (shared vs
   // user) is still resolved separately from stored creds, so flagging the env
   // key here doesn't make it count as user-owned.
-  flags.GEMINI_API_KEY = !!storedCreds.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY
+  const geminiFromDb = !!storedCreds.GEMINI_API_KEY
+  const geminiFromEnv = !geminiFromDb && !!process.env.GEMINI_API_KEY
+  flags.GEMINI_API_KEY_USER = geminiFromDb
+  flags.GEMINI_API_KEY_SHARED = geminiFromEnv
+  flags.GEMINI_API_KEY = geminiFromDb || geminiFromEnv
 
   if (await isSharedPoolAvailable()) {
     flags.CLAUDE_SHARED_POOL_AVAILABLE = true
