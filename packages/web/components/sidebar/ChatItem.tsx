@@ -179,7 +179,7 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
                 setMenuOpen(!menuOpen)
               }}
               disabled={isDeleting}
-              className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="p-1 rounded opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>

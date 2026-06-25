@@ -27,7 +27,7 @@ export function CodeBlock({ children, isMobile = false }: CodeBlockProps) {
         onClick={handleCopy}
         className={cn(
           "absolute top-2 right-2 p-1.5 rounded-md cursor-pointer",
-          "opacity-0 group-hover:opacity-100 transition-all",
+          "opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-all",
           "hover:bg-muted",
           copied && "opacity-100"
         )}

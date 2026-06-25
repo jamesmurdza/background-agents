@@ -317,7 +317,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
         onClick={handleCopy}
         className={cn(
           "absolute top-2 right-2 p-1.5 rounded-md cursor-pointer",
-          "opacity-0 group-hover:opacity-100 transition-all",
+          "opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-all",
           "bg-[#f6f8fa] dark:bg-[#21262d] hover:bg-[#eaeef2] dark:hover:bg-[#30363d]",
           "border border-[#d0d7de] dark:border-[#30363d]",
           copied && "opacity-100"
