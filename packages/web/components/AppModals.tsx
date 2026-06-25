@@ -199,11 +199,13 @@ export function AppModals({
       {/* Mobile Commands Menu */}
       {isMobile && (
         <MobileCommandsMenu
+          key={currentChat?.id ?? "none"}
           open={modals.mobileCommandsOpen}
           onClose={() => modals.setMobileCommandsOpen(false)}
           onSlashCommand={onSlashCommand}
           hasLinkedRepo={!!(currentChat && currentChat.repo !== NEW_REPOSITORY)}
           inConflict={!!(gitDialogs.rebaseConflict?.inRebase || gitDialogs.rebaseConflict?.inMerge)}
+          chat={currentChat}
         />
       )}
 

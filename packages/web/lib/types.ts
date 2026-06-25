@@ -163,6 +163,10 @@ export interface Chat {
   // Display name (auto-generated from first prompt)
   displayName: string | null
 
+  /** Public share token. When set, the chat is viewable read-only at
+   *  /share/<shareId> without auth. Null/undefined = private. */
+  shareId?: string | null
+
   /** When this chat was branched from another chat, the parent's id. */
   parentChatId?: string
 

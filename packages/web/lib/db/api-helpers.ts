@@ -295,6 +295,7 @@ export async function getChatWithAuth(
   model: string | null
   planModeEnabled: boolean
   displayName: string | null
+  shareId: string | null
   status: string
   parentChatId: string | null
   needsSync: boolean

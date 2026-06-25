@@ -136,6 +136,11 @@ model Chat {
   displayName String?
   status      String  @default("pending") // pending, creating, ready, running, error
 
+  // Public sharing: when set, this chat is viewable (read-only) at
+  // /share/<shareId> without authentication. Null = private. The token is
+  // unguessable and distinct from `id` so the private id never leaks.
+  shareId String? @unique
+
   // Branching support
   parentChatId String?
   parentChat   Chat?   @relation("ChatBranches", fields: [parentChatId], references: [id], onDelete: SetNull)
