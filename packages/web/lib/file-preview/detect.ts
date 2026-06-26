@@ -97,10 +97,3 @@ export function isMarkdownPath(filePath: string): boolean {
   const ext = getFileExtension(filePath)
   return MARKDOWN_EXTENSIONS.includes(ext)
 }
-
-/**
- * Check if a file is a markdown file
- */
-export function isMarkdownFile(file: File): boolean {
-  return isMarkdownPath(file.name)
-}
