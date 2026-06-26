@@ -446,16 +446,38 @@ export function agentUsesSharedPool(
 }
 
 /**
+ * Whether the agent's only route to usage is a shared pool that's been used up,
+ * leaving nothing the user can actually run. Currently only the Claude shared
+ * pool is metered (CLAUDE_DAILY_LIMIT_EXCEEDED); "exhausted" means the limit is
+ * hit AND the user has no personal Anthropic credentials to fall back on. The
+ * agent picker shows a red dot for this state — distinct from "ready" (green)
+ * and "needs setup" (no dot).
+ */
+export function agentSharedPoolExhausted(
+  agent: Agent,
+  flags: CredentialFlags | null | undefined
+): boolean {
+  if (agent !== "claude-code") return false
+  return (
+    !!flags?.CLAUDE_DAILY_LIMIT_EXCEEDED &&
+    !!flags?.CLAUDE_SHARED_POOL_AVAILABLE &&
+    !hasOwnAnthropicCredentials(flags)
+  )
+}
+
+/**
  * Whether picking this agent gives free usage out of the box — either a
  * server-provided shared pool (see agentUsesSharedPool) or always-free models
  * that need no API key. Kilo qualifies via its free auto-router and free model
  * tier, which stay available even when the user adds their own Kilo key. Used to
- * surface the "Free usage available" green dot in the agent picker.
+ * surface the "Free usage available" green dot in the agent picker. Returns
+ * false once a metered shared pool is exhausted (see agentSharedPoolExhausted).
  */
 export function agentHasFreeUsage(
   agent: Agent,
   flags: CredentialFlags | null | undefined
 ): boolean {
+  if (agentSharedPoolExhausted(agent, flags)) return false
   if (agent === "kilo") return true
   return agentUsesSharedPool(agent, flags)
 }
