@@ -42,6 +42,7 @@ export {
   sharedClaudePoolEligible,
   agentUsesSharedPool,
   agentHasFreeUsage,
+  agentIsReady,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getAgentModels,

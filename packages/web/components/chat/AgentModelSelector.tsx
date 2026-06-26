@@ -5,7 +5,7 @@ import { ChevronDown, Key, Cpu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
-import { getAgentModels, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, ALL_AGENTS } from "@/lib/types"
+import { getAgentModels, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, ALL_AGENTS } from "@/lib/types"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import { AgentIcon } from "../icons/agent-icons"
 import { MobileSelect } from "../ui/MobileBottomSheet"
@@ -132,9 +132,11 @@ export function AgentModelSelector({
     value: agent,
     label: agentLabels[agent],
     icon: <AgentIcon agent={agent} className="h-5 w-5" />,
-    // Surface free usage: shared-pool agents (until the user adds their own key)
-    // and agents with always-free models like Kilo.
-    description: agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : undefined,
+    // Surface any agent that's ready to use right now: free usage (shared-pool
+    // agents and always-free models like Kilo) or the user's own configured key.
+    description: agentIsReady(agent, credentialFlags)
+      ? (agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : "Ready to use")
+      : undefined,
   }))
 
   // Prepare model options for mobile bottom sheet
@@ -232,11 +234,11 @@ export function AgentModelSelector({
               >
                 <AgentIcon agent={agent} className="h-3.5 w-3.5" />
                 <span className="flex-1 truncate">{agentLabels[agent]}</span>
-                {agentHasFreeUsage(agent, credentialFlags) && (
+                {agentIsReady(agent, credentialFlags) && (
                   <span
                     className="h-2 w-2 shrink-0 rounded-full bg-green-500"
-                    title="Free usage available"
-                    aria-label="Free usage available"
+                    title={agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : "Ready to use"}
+                    aria-label={agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : "Ready to use"}
                   />
                 )}
               </button>

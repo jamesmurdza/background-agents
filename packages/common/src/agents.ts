@@ -461,6 +461,22 @@ export function agentHasFreeUsage(
 }
 
 /**
+ * Whether picking this agent would work right now without any further setup —
+ * either it has free usage (see agentHasFreeUsage) or the user has the
+ * credentials needed for at least one of its models (their own API key, a
+ * subscription token, etc.). Used to surface the green "ready to use" dot in the
+ * agent picker so it covers any agent that's set up to go, not just free ones.
+ */
+export function agentIsReady(
+  agent: Agent,
+  flags: CredentialFlags | null | undefined
+): boolean {
+  if (agentHasFreeUsage(agent, flags)) return true
+  const models = agentModels[agent] ?? []
+  return models.some((m) => hasCredentialsForModel(m, flags, agent))
+}
+
+/**
  * Check if user has credentials for a specific model.
  */
 export function hasCredentialsForModel(
