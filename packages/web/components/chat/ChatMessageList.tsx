@@ -1,9 +1,15 @@
-import { GitBranchPlus, X, ArrowDown } from "lucide-react"
+import { MoreHorizontal, GitBranchPlus, X, ArrowDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ErrorBanner } from "./ErrorBanner"
 import { MessageBubble } from "../MessageBubble"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface ChatMessageListProps {
   chat: Chat
@@ -163,26 +169,32 @@ export function ChatMessageList({
                   className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 last:border-b-0"
                 >
                   <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">{m.content}</span>
-                  {git.canBranch && (
-                    <button
-                      onClick={() => git.handleBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-                      aria-label="Branch to new chat"
-                      title="Branch to new chat"
-                    >
-                      <GitBranchPlus className="h-3 w-3" />
-                      Branch
-                    </button>
-                  )}
-                  {onRemoveQueuedMessage && (
-                    <button
-                      onClick={() => onRemoveQueuedMessage(m.id)}
-                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-                      aria-label="Remove queued message"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                        aria-label="More actions"
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                      {git.canBranch && (
+                        <DropdownMenuItem
+                          onClick={() => git.handleBranchQueuedMessage(m.id, m.content, m.agent, m.model)}
+                        >
+                          <GitBranchPlus className="h-3.5 w-3.5 mr-2" />
+                          Branch to new chat
+                        </DropdownMenuItem>
+                      )}
+                      {onRemoveQueuedMessage && (
+                        <DropdownMenuItem onClick={() => onRemoveQueuedMessage(m.id)}>
+                          <X className="h-3.5 w-3.5 mr-2" />
+                          Remove from queue
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>
