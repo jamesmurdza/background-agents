@@ -9,7 +9,7 @@ import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { useElectron, type LicenseDetectResult } from "@/lib/hooks/useElectron"
 import type { Settings, Theme, Agent, Credentials, CredentialFlags, CustomEndpoint } from "@/lib/types"
-import { agentModels, getDefaultAgent, getDefaultModelForAgent } from "@/lib/types"
+import { agentModels, resolveAgent, getDefaultModelForAgent } from "@/lib/types"
 import {
   CREDENTIAL_KEYS,
   type CredentialId,
@@ -123,7 +123,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   // shows whatever new chats would actually use. Snapshotted off saved flags
   // (not in-form values) so it doesn't drift while the user types keys.
   const initialDefaultAgent = useMemo<Agent>(
-    () => (settings.defaultAgent ?? getDefaultAgent()) as Agent,
+    () => resolveAgent(settings.defaultAgent, undefined),
     [settings.defaultAgent]
   )
   const initialDefaultModel = useMemo<string>(

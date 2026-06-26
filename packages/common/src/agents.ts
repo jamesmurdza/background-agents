@@ -446,16 +446,38 @@ export function agentUsesSharedPool(
 }
 
 /**
+ * Whether the agent's only route to usage is a shared pool that's been used up,
+ * leaving nothing the user can actually run. Currently only the Claude shared
+ * pool is metered (CLAUDE_DAILY_LIMIT_EXCEEDED); "exhausted" means the limit is
+ * hit AND the user has no personal Anthropic credentials to fall back on. The
+ * agent picker shows a yellow dot for this state — distinct from "ready" (green)
+ * and "needs setup" (no dot).
+ */
+export function agentSharedPoolExhausted(
+  agent: Agent,
+  flags: CredentialFlags | null | undefined
+): boolean {
+  if (agent !== "claude-code") return false
+  return (
+    !!flags?.CLAUDE_DAILY_LIMIT_EXCEEDED &&
+    !!flags?.CLAUDE_SHARED_POOL_AVAILABLE &&
+    !hasOwnAnthropicCredentials(flags)
+  )
+}
+
+/**
  * Whether picking this agent gives free usage out of the box — either a
  * server-provided shared pool (see agentUsesSharedPool) or always-free models
  * that need no API key. Kilo qualifies via its free auto-router and free model
  * tier, which stay available even when the user adds their own Kilo key. Used to
- * surface the "Free usage available" green dot in the agent picker.
+ * surface the "Free usage available" green dot in the agent picker. Returns
+ * false once a metered shared pool is exhausted (see agentSharedPoolExhausted).
  */
 export function agentHasFreeUsage(
   agent: Agent,
   flags: CredentialFlags | null | undefined
 ): boolean {
+  if (agentSharedPoolExhausted(agent, flags)) return false
   if (agent === "kilo") return true
   return agentUsesSharedPool(agent, flags)
 }
@@ -528,6 +550,67 @@ export function getDefaultModelForAgent(
 
   const firstAvailable = allModels.find(m => hasCredentialsForModel(m, flags, agent))
   return firstAvailable?.value || defaultModel
+}
+
+/**
+ * Resolve which model an agent should use, honoring the user's saved default
+ * model preference when it makes sense.
+ *
+ * `preferredModel` is the user's settings default (`settings.defaultModel`). It
+ * is stored as a pair with `settings.defaultAgent`, so it only ever belongs to
+ * one agent. We honor it only when it actually belongs to the agent we're
+ * resolving for AND the user can use it right now (free or configured — no lock
+ * icon); otherwise the preference is irrelevant or broken and we fall back to
+ * the standard default (first usable model, else the hardcoded default).
+ *
+ * Membership is checked against `getAgentModels`, so a saved preference pointing
+ * at a custom endpoint resolves correctly when endpoints are supplied.
+ */
+export function resolveModelForAgent(
+  agent: Agent,
+  flags: CredentialFlags | null | undefined,
+  preferredModel: string | null | undefined,
+  endpoints?: CustomEndpoint[]
+): string {
+  if (preferredModel) {
+    const models = getAgentModels(agent, endpoints)
+    const preferredConfig = models.find(m => m.value === preferredModel)
+    if (preferredConfig && hasCredentialsForModel(preferredConfig, flags, agent)) {
+      return preferredModel
+    }
+  }
+  return getDefaultModelForAgent(agent, flags)
+}
+
+/**
+ * Resolve which agent to use, following the precedence:
+ * caller-preferred → user's saved default → the hardcoded default agent.
+ * Centralizes the `as Agent` cast so call sites don't each repeat it.
+ */
+export function resolveAgent(
+  preferred: string | null | undefined,
+  settingsDefault: string | null | undefined
+): Agent {
+  return (preferred ?? settingsDefault ?? getDefaultAgent()) as Agent
+}
+
+/**
+ * Resolve an agent and its model together — the canonical pairing used wherever
+ * a new send/draft/chat needs both. The caller passes whatever it already knows
+ * (an explicit choice, the chat's current value, etc.) as the preferred values;
+ * everything else falls back through the user's settings to the defaults via
+ * resolveAgent / resolveModelForAgent.
+ */
+export function resolveAgentAndModel(
+  preferredAgent: string | null | undefined,
+  preferredModel: string | null | undefined,
+  settings: { defaultAgent?: string | null; defaultModel?: string | null },
+  flags: CredentialFlags | null | undefined,
+  endpoints?: CustomEndpoint[]
+): { agent: Agent; model: string } {
+  const agent = resolveAgent(preferredAgent, settings.defaultAgent)
+  const model = preferredModel ?? resolveModelForAgent(agent, flags, settings.defaultModel, endpoints)
+  return { agent, model }
 }
 
 /**

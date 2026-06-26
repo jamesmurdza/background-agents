@@ -5,7 +5,7 @@ import { ChevronDown, Cpu, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
-import { getAgentModels, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, getDefaultAgent, ALL_AGENTS } from "@/lib/types"
+import { getAgentModels, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, agentSharedPoolExhausted, resolveModelForAgent, ALL_AGENTS } from "@/lib/types"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import { AgentIcon } from "../icons/agent-icons"
 import { MobileSelect } from "../ui/MobileBottomSheet"
@@ -43,6 +43,29 @@ interface AgentModelSelectorProps {
 }
 
 const agents = ALL_AGENTS
+
+/**
+ * Picker status for an agent's readiness dot:
+ *  - "ready"     → green dot (free usage available or the user is set up)
+ *  - "exhausted" → yellow dot (its only usage was a shared pool that's now used up)
+ *  - null        → no dot (needs setup)
+ * Single source of truth for the dot color and its tooltip/description text.
+ */
+function getAgentStatus(
+  agent: Agent,
+  flags: CredentialFlags
+): { tone: "ready" | "exhausted"; label: string } | null {
+  if (agentSharedPoolExhausted(agent, flags)) {
+    return { tone: "exhausted", label: "Free usage limit reached" }
+  }
+  if (agentIsReady(agent, flags)) {
+    return {
+      tone: "ready",
+      label: agentHasFreeUsage(agent, flags) ? "Free usage available" : "Ready to use",
+    }
+  }
+  return null
+}
 
 export function AgentModelSelector({
   chat,
@@ -106,21 +129,11 @@ export function AgentModelSelector({
 
     // Update chat's agent if possible
     if (chat && onUpdateChat) {
+      // Pick a model that works right now for the agent we're switching to:
+      // honor the user's saved default model when it belongs to this agent and
+      // is usable, otherwise the first free/configured model (see resolver).
       const models = getAgentModels(agent, endpoints)
-
-      // Pick the default model for the agent we're switching to:
-      // 1. If this is the user's default agent and they have a default model set
-      //    (and it's still valid for this agent), honor that preference.
-      // 2. Otherwise, the first model that's free or configured (no lock icon).
-      // 3. Otherwise, just the first model in the list.
-      const defaultAgent = (settingsData?.settings?.defaultAgent ?? getDefaultAgent()) as Agent
-      const settingsDefaultModel = settingsData?.settings?.defaultModel
-      const preferredModel =
-        agent === defaultAgent && settingsDefaultModel && models.some(m => m.value === settingsDefaultModel)
-          ? settingsDefaultModel
-          : undefined
-      const firstUnlocked = models.find(m => hasCredentialsForModel(m, credentialFlags, agent))
-      const newModel = preferredModel || firstUnlocked?.value || models[0]?.value || currentModel
+      const newModel = resolveModelForAgent(agent, credentialFlags, settingsData?.settings?.defaultModel, endpoints)
       onUpdateChat({ agent, model: newModel })
 
       // Check if the new model requires credentials we don't have
@@ -230,11 +243,9 @@ export function AgentModelSelector({
     value: agent,
     label: agentLabels[agent],
     icon: <AgentIcon agent={agent} className="h-5 w-5" />,
-    // Surface any agent that's ready to use right now: free usage (shared-pool
-    // agents and always-free models like Kilo) or the user's own configured key.
-    description: agentIsReady(agent, credentialFlags)
-      ? (agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : "Ready to use")
-      : undefined,
+    // Surface the agent's status: ready to use (free or configured), or a
+    // used-up free pool with nothing else to fall back on.
+    description: getAgentStatus(agent, credentialFlags)?.label,
   }))
 
   // Prepare model options for mobile bottom sheet
@@ -321,29 +332,34 @@ export function AgentModelSelector({
         </button>
         {showAgentDropdown && (
           <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-48">
-            {agents.map((agent) => (
-              <button
-                key={agent}
-                onClick={() => handleAgentChange(agent)}
-                className={cn(
-                  "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
-                  agent === currentAgent && "bg-accent"
-                )}
-              >
-                <AgentIcon agent={agent} className="h-3.5 w-3.5" />
-                <span className="flex-1 truncate">{agentLabels[agent]}</span>
-                <span
+            {agents.map((agent) => {
+              const status = getAgentStatus(agent, credentialFlags)
+              return (
+                <button
+                  key={agent}
+                  onClick={() => handleAgentChange(agent)}
                   className={cn(
-                    "h-2 w-2 shrink-0 rounded-full",
-                    agentIsReady(agent, credentialFlags)
-                      ? "bg-green-500"
-                      : "bg-transparent"
+                    "w-full text-left hover:bg-accent active:bg-accent transition-colors flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer",
+                    agent === currentAgent && "bg-accent"
                   )}
-                  title={agentIsReady(agent, credentialFlags) ? (agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : "Ready to use") : undefined}
-                  aria-label={agentIsReady(agent, credentialFlags) ? (agentHasFreeUsage(agent, credentialFlags) ? "Free usage available" : "Ready to use") : undefined}
-                />
-              </button>
-            ))}
+                >
+                  <AgentIcon agent={agent} className="h-3.5 w-3.5" />
+                  <span className="flex-1 truncate">{agentLabels[agent]}</span>
+                  <span
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      status?.tone === "exhausted"
+                        ? "bg-yellow-500"
+                        : status?.tone === "ready"
+                          ? "bg-green-500"
+                          : "bg-transparent"
+                    )}
+                    title={status?.label}
+                    aria-label={status?.label}
+                  />
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

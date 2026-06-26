@@ -23,9 +23,9 @@ import { useQueueDispatch } from "./useQueueDispatch"
 import type { useStreaming } from "./useStreaming"
 import type { useSuggestNameMutation } from "@/lib/query"
 import { queryKeys, type SettingsData } from "@/lib/query"
+import { resolveAgentAndModel } from "@/lib/types"
 import {
   sendMessageToApi,
-  resolveAgentAndModel,
   usesSharedClaudePool,
   newBranchForSend,
   applyOptimisticSend,
@@ -152,9 +152,8 @@ export function useMessageDispatch({
 
       const isFirstMessage = chat.messages.length === 0
       const { agent: selectedAgent, model: selectedModel } = resolveAgentAndModel(
-        agent,
-        model,
-        chat,
+        agent ?? chat.agent,
+        model ?? chat.model,
         settings,
         credentialFlags
       )

@@ -16,13 +16,13 @@ import {
   useCallback,
 } from "react"
 import { useModals, useGit } from "@/lib/contexts"
-import type { Chat, Settings, Agent, CredentialFlags } from "@/lib/types"
+import type { Chat, Settings, CredentialFlags } from "@/lib/types"
 import {
   NEW_REPOSITORY,
   agentModels,
   hasCredentialsForModel,
-  getDefaultAgent,
-  getDefaultModelForAgent,
+  resolveAgent,
+  resolveModelForAgent,
   agentSupportsPlanMode,
 } from "@/lib/types"
 import { filterSlashCommandsWithConflict } from "@background-agents/common"
@@ -86,14 +86,15 @@ export function useChatComposer({
     // Call onUpdateChat after the state update, not inside the setter callback
     onUpdateChat?.({ planModeEnabled: newValue })
   }, [onUpdateChat, planModeEnabled])
-  // Computed current agent for plan mode check
-  const currentAgentForPlanMode = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
+  // Current agent (from chat, the user's preference, or the default). Used for
+  // the plan-mode check here and the model resolution below.
+  const currentAgent = resolveAgent(chat?.agent, settings.defaultAgent)
   // Reset plan mode when switching to an agent that doesn't support it
   useEffect(() => {
-    if (planModeEnabled && !agentSupportsPlanMode[currentAgentForPlanMode]) {
+    if (planModeEnabled && !agentSupportsPlanMode[currentAgent]) {
       setPlanModeEnabled(false)
     }
-  }, [currentAgentForPlanMode, planModeEnabled, setPlanModeEnabled])
+  }, [currentAgent, planModeEnabled, setPlanModeEnabled])
   // File upload state - using custom hook
   const fileUpload = useFileUpload({ onRequireSignIn: isAuthenticated ? undefined : () => modals.setSignInModalOpen(true) })
   const {
@@ -123,10 +124,8 @@ export function useChatComposer({
     }
   }, [])
 
-  // Get current agent/model (from chat, the user's preference, or auto-resolved
-  // from credential flags). Uses ?? so we don't trip over the empty string.
-  const currentAgent = (chat?.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
-  const currentModel = chat?.model ?? settings.defaultModel ?? getDefaultModelForAgent(currentAgent, credentialFlags)
+  // Resolve the model for the current agent (honoring the saved default).
+  const currentModel = chat?.model ?? resolveModelForAgent(currentAgent, credentialFlags, settings.defaultModel)
 
   // Check if the selected model has required credentials
   const availableModels = agentModels[currentAgent] ?? []
