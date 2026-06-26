@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto"
 import { Daytona } from "@daytonaio/sdk"
-import { Prisma } from "@prisma/client"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { PATHS } from "@/lib/constants"
 import {
@@ -15,6 +14,7 @@ import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { getUserPushOptions } from "@/lib/git/push-options"
+import { persistAgentSnapshot } from "./_lib/persist-snapshot"
 
 /**
  * Check if the repository is in a conflict state (merge or rebase in progress)
@@ -184,40 +184,21 @@ export async function GET(req: Request) {
 
       // Persist a snapshot to the DB. The snapshot is the source of truth —
       // the route never holds a separate accumulator that could drift.
+      //
+      // The message body and the chat-status reset are persisted independently
+      // (see persistAgentSnapshot): on a final write the chat MUST be released
+      // from "running" even if the message body write fails, otherwise the chat
+      // is stranded as permanently busy.
       const persistSnapshot = async (snap: AgentSnapshot, isFinal: boolean) => {
         if (!chatId || !assistantMessageId) return
-        try {
-          await prisma.message.update({
-            where: { id: assistantMessageId },
-            data: {
-              content: snap.content,
-              toolCalls:
-                snap.toolCalls.length > 0
-                  ? (snap.toolCalls as unknown as Prisma.InputJsonValue)
-                  : undefined,
-              contentBlocks:
-                snap.contentBlocks.length > 0
-                  ? (snap.contentBlocks as unknown as Prisma.InputJsonValue)
-                  : undefined,
-            },
-          })
-
-          if (isFinal) {
-            await prisma.chat.update({
-              where: { id: chatId },
-              data: {
-                lastActiveAt: new Date(),
-                status: snap.status === "error" ? "error" : "ready",
-                backgroundSessionId: null,
-                sessionId: snap.sessionId || undefined,
-              },
-            })
-          }
-
-          lastDbPersist = Date.now()
-        } catch (error) {
-          console.error("[agent/stream] DB persist error:", error)
-        }
+        await persistAgentSnapshot({
+          prisma,
+          chatId,
+          assistantMessageId,
+          snapshot: snap,
+          isFinal,
+        })
+        lastDbPersist = Date.now()
       }
 
       const closeStream = () => {

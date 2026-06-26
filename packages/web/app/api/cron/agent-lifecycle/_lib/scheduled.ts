@@ -19,6 +19,7 @@ import {
   finalizeTurn,
   type AgentSnapshot,
 } from "@/lib/agent-session"
+import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 
 import { getUserPushOptions } from "@/lib/git/push-options"
@@ -353,20 +354,24 @@ export async function finalizeScheduledRun(
     })
 
     if (assistantMessage) {
-      await prisma.message.update({
-        where: { id: assistantMessage.id },
-        data: {
-          content: snapshot.content,
-          toolCalls:
-            snapshot.toolCalls.length > 0
-              ? (snapshot.toolCalls as unknown as Prisma.InputJsonValue)
-              : undefined,
-          contentBlocks:
-            snapshot.contentBlocks.length > 0
-              ? (snapshot.contentBlocks as unknown as Prisma.InputJsonValue)
-              : undefined,
-        },
-      })
+      try {
+        await prisma.message.update({
+          where: { id: assistantMessage.id },
+          data: {
+            content: stripNullBytes(snapshot.content),
+            toolCalls:
+              snapshot.toolCalls.length > 0
+                ? (stripNullBytesDeep(snapshot.toolCalls) as unknown as Prisma.InputJsonValue)
+                : undefined,
+            contentBlocks:
+              snapshot.contentBlocks.length > 0
+                ? (stripNullBytesDeep(snapshot.contentBlocks) as unknown as Prisma.InputJsonValue)
+                : undefined,
+          },
+        })
+      } catch (err) {
+        console.error(`[agent-lifecycle] Failed to persist message for run ${run.id}:`, err)
+      }
     }
 
     // Update chat status

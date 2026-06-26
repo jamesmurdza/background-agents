@@ -7,6 +7,7 @@ import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
 
 import { getUserPushOptions } from "@/lib/git/push-options"
 import type { ChatWithMessages } from "./types"
@@ -20,24 +21,30 @@ export async function finalizeInteractiveChat(
   snapshot: AgentSnapshot,
   daytona: Daytona
 ) {
-  // 1. Update message content (same as SSE stream does)
+  // 1. Update message content (same as SSE stream does). Best-effort and
+  //    NUL-sanitized: a failing message write must NOT prevent the status reset
+  //    in step 4 below, or the chat is stranded as permanently "running".
   const assistantMessage = chat.messages[0]
 
   if (assistantMessage) {
-    await prisma.message.update({
-      where: { id: assistantMessage.id },
-      data: {
-        content: snapshot.content,
-        toolCalls:
-          snapshot.toolCalls.length > 0
-            ? (snapshot.toolCalls as unknown as Prisma.InputJsonValue)
-            : undefined,
-        contentBlocks:
-          snapshot.contentBlocks.length > 0
-            ? (snapshot.contentBlocks as unknown as Prisma.InputJsonValue)
-            : undefined,
-      },
-    })
+    try {
+      await prisma.message.update({
+        where: { id: assistantMessage.id },
+        data: {
+          content: stripNullBytes(snapshot.content),
+          toolCalls:
+            snapshot.toolCalls.length > 0
+              ? (stripNullBytesDeep(snapshot.toolCalls) as unknown as Prisma.InputJsonValue)
+              : undefined,
+          contentBlocks:
+            snapshot.contentBlocks.length > 0
+              ? (stripNullBytesDeep(snapshot.contentBlocks) as unknown as Prisma.InputJsonValue)
+              : undefined,
+        },
+      })
+    } catch (err) {
+      console.error(`[agent-lifecycle] Failed to persist message for chat ${chat.id}:`, err)
+    }
   }
 
   // 2. Finalize the turn
