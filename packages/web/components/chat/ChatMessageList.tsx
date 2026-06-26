@@ -1,4 +1,4 @@
-import { MoreHorizontal, GitBranchPlus, X, ArrowDown } from "lucide-react"
+import { MoreHorizontal, GitBranchPlus, Trash2, ArrowDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
@@ -189,7 +189,7 @@ export function ChatMessageList({
                       )}
                       {onRemoveQueuedMessage && (
                         <DropdownMenuItem onClick={() => onRemoveQueuedMessage(m.id)}>
-                          <X className="h-3.5 w-3.5 mr-2" />
+                          <Trash2 className="h-3.5 w-3.5 mr-2" />
                           Remove from queue
                         </DropdownMenuItem>
                       )}
