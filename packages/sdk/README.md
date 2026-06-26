@@ -301,10 +301,11 @@ CODING_AGENTS_DEBUG=1 npx tsx your-script.ts
 
 Claude can authenticate via `ANTHROPIC_API_KEY` or `CLAUDE_CODE_CREDENTIALS`. The latter uses OAuth credentials from a Claude Pro/Max subscription.
 
-First, sign in locally:
+First, sign in locally by running `claude` and using the `/login` slash command:
 
 ```bash
-claude auth login
+claude
+# then run: /login
 ```
 
 Then retrieve your credentials:

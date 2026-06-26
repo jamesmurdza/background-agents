@@ -32,7 +32,7 @@ import { searchSkills, SKILLS_API_BASE } from "@background-agents/skills/registr
 const { results } = await searchSkills("react")
 
 for (const skill of results) {
-  console.log(`${skill.name}: ${skill.description}`)
+  console.log(`${skill.fullHandle} (${skill.installs} installs)`)
 }
 ```
 

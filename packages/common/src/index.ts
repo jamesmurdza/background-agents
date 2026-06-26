@@ -114,6 +114,7 @@ export {
   GeminiIcon,
   GooseIcon,
   KiloIcon,
+  KimiIcon,
   ElizaIcon,
   PiIcon,
   AgentIcon,
