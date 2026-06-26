@@ -206,10 +206,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   ],
   "opencode": [
     // Free models (opencode/) - no API key needed
-    { value: "opencode/big-pickle", label: "Big Pickle (Free)", requiresKey: "none" },
-    { value: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra (Free)", requiresKey: "none" },
-    { value: "opencode/deepseek-v4-flash-free", label: "DeepSeek V4 Flash (Free)", requiresKey: "none" },
-    { value: "opencode/mimo-v2.5-free", label: "MiMo v2.5 (Free)", requiresKey: "none" },
+    { value: "opencode/big-pickle", label: "Big Pickle", requiresKey: "none" },
+    { value: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra", requiresKey: "none" },
+    { value: "opencode/deepseek-v4-flash-free", label: "DeepSeek V4 Flash", requiresKey: "none" },
+    { value: "opencode/mimo-v2.5-free", label: "MiMo v2.5", requiresKey: "none" },
     // Curated OpenCode Go models (opencode-go/ prefix), runnable on the
     // server-shared Go subscription key. Shown first when OPENCODE_API_KEY is
     // available. These route through Go, not Zen — see SHARED_OPENCODE_ALLOWED.
@@ -279,7 +279,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o4-mini", label: "o4 Mini", requiresKey: "openai" },
   ],
   "codex": [
-    { value: "gpt-5.5", label: "GPT-5.5 (Recommended)", requiresKey: "openai" },
+    { value: "gpt-5.5", label: "GPT-5.5", requiresKey: "openai" },
     { value: "gpt-5.4", label: "GPT-5.4", requiresKey: "openai" },
     { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", requiresKey: "openai" },
     { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark", requiresKey: "openai" },
@@ -299,13 +299,13 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "github" },
   ],
   "gemini": [
-    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)", requiresKey: "gemini" },
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini" },
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
     { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini" },
   ],
   "goose": [
-    { value: "gpt-4o", label: "GPT-4o (Recommended)", requiresKey: "openai" },
+    { value: "gpt-4o", label: "GPT-4o", requiresKey: "openai" },
     { value: "gpt-4-turbo", label: "GPT-4 Turbo", requiresKey: "openai" },
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
@@ -318,9 +318,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
     // Free models
-    { value: "kilo/deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash (Free)", requiresKey: "none" },
-    { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super (Free)", requiresKey: "none" },
-    { value: "kilo/stepfun/step-3.5-flash:free", label: "Step 3.5 Flash (Free)", requiresKey: "none" },
+    { value: "kilo/deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash", requiresKey: "none" },
+    { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", requiresKey: "none" },
+    { value: "kilo/stepfun/step-3.5-flash:free", label: "Step 3.5 Flash", requiresKey: "none" },
     // Anthropic via Kilo gateway
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
@@ -347,14 +347,14 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Moonshot (Kimi) models, routed through the user's KIMI_API_KEY against
     // https://api.moonshot.ai/v1. Each value must match a [models."<id>"] entry
     // declared in the generated ~/.kimi-code/config.toml (see the kimi agent).
-    { value: "kimi-k2.7-code", label: "Kimi K2.7 Code (Recommended)", requiresKey: "kimi" },
+    { value: "kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "kimi" },
     { value: "kimi-k2.7-code-highspeed", label: "Kimi K2.7 Code Highspeed", requiresKey: "kimi" },
     { value: "kimi-k2.6", label: "Kimi K2.6", requiresKey: "kimi" },
     { value: "kimi-k2.5", label: "Kimi K2.5", requiresKey: "kimi" },
   ],
   "pi": [
     // Anthropic models (default provider)
-    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5 (Recommended)", requiresKey: "anthropic" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "claude-opus-4-5", label: "Claude Opus 4.5", requiresKey: "anthropic" },
     { value: "claude-opus-4-7", label: "Claude Opus 4.7", requiresKey: "anthropic" },
     { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
