@@ -10,6 +10,7 @@ import { logActivityAsync } from "@/lib/db/activity-log"
 import {
   agentModels,
   getDefaultAgent,
+  resolveAgent,
   resolveModelForAgent,
   hasCredentialsForModel,
   type Agent,
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const userSettings = (user?.settings as { defaultAgent?: string; defaultModel?: string } | null) ?? {}
     const { flags } = await getEffectiveCredentialFlags(userId)
 
-    const requestedAgent = (body.agent ?? userSettings.defaultAgent ?? getDefaultAgent()) as Agent
+    const requestedAgent = resolveAgent(body.agent, userSettings.defaultAgent)
     const requestedAgentUsable = (agentModels[requestedAgent] ?? []).some((m) =>
       hasCredentialsForModel(m, flags, requestedAgent)
     )

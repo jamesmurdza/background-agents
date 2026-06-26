@@ -561,6 +561,37 @@ export function resolveModelForAgent(
 }
 
 /**
+ * Resolve which agent to use, following the precedence:
+ * caller-preferred → user's saved default → the hardcoded default agent.
+ * Centralizes the `as Agent` cast so call sites don't each repeat it.
+ */
+export function resolveAgent(
+  preferred: string | null | undefined,
+  settingsDefault: string | null | undefined
+): Agent {
+  return (preferred ?? settingsDefault ?? getDefaultAgent()) as Agent
+}
+
+/**
+ * Resolve an agent and its model together — the canonical pairing used wherever
+ * a new send/draft/chat needs both. The caller passes whatever it already knows
+ * (an explicit choice, the chat's current value, etc.) as the preferred values;
+ * everything else falls back through the user's settings to the defaults via
+ * resolveAgent / resolveModelForAgent.
+ */
+export function resolveAgentAndModel(
+  preferredAgent: string | null | undefined,
+  preferredModel: string | null | undefined,
+  settings: { defaultAgent?: string | null; defaultModel?: string | null },
+  flags: CredentialFlags | null | undefined,
+  endpoints?: CustomEndpoint[]
+): { agent: Agent; model: string } {
+  const agent = resolveAgent(preferredAgent, settings.defaultAgent)
+  const model = preferredModel ?? resolveModelForAgent(agent, flags, settings.defaultModel, endpoints)
+  return { agent, model }
+}
+
+/**
  * Pick env vars to inject for a given agent + model. The credentials map is
  * already keyed by env var name, so this is a relevance filter with two
  * special cases: claude-code prefers the subscription token over the API

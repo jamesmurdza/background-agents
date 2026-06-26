@@ -7,7 +7,13 @@
  * stays honest about the credential rules.
  */
 import { describe, it, expect } from "vitest"
-import { resolveModelForAgent, type CustomEndpoint } from "@background-agents/common"
+import {
+  resolveModelForAgent,
+  resolveAgent,
+  resolveAgentAndModel,
+  getDefaultAgent,
+  type CustomEndpoint,
+} from "@background-agents/common"
 
 describe("resolveModelForAgent", () => {
   it("honors a saved preference that belongs to the agent and is usable", () => {
@@ -45,5 +51,54 @@ describe("resolveModelForAgent", () => {
     }
     const model = resolveModelForAgent("opencode", {}, "endpoint:e1", [endpoint])
     expect(model).toBe("endpoint:e1")
+  })
+})
+
+describe("resolveAgent", () => {
+  it("prefers the caller-preferred agent over everything", () => {
+    expect(resolveAgent("gemini", "claude-code")).toBe("gemini")
+  })
+
+  it("falls back to the settings default when no preferred agent", () => {
+    expect(resolveAgent(null, "claude-code")).toBe("claude-code")
+    expect(resolveAgent(undefined, "gemini")).toBe("gemini")
+  })
+
+  it("falls back to the hardcoded default agent when nothing is set", () => {
+    expect(resolveAgent(null, null)).toBe(getDefaultAgent())
+  })
+})
+
+describe("resolveAgentAndModel", () => {
+  it("resolves both, honoring preferred values first", () => {
+    const result = resolveAgentAndModel(
+      "gemini",
+      "gemini-2.5-pro",
+      { defaultAgent: "claude-code", defaultModel: "opus" },
+      { GEMINI_API_KEY: true }
+    )
+    expect(result).toEqual({ agent: "gemini", model: "gemini-2.5-pro" })
+  })
+
+  it("falls back through settings to defaults when no preferred values", () => {
+    const result = resolveAgentAndModel(
+      null,
+      null,
+      { defaultAgent: "gemini", defaultModel: "gemini-2.5-pro" },
+      { GEMINI_API_KEY: true }
+    )
+    expect(result).toEqual({ agent: "gemini", model: "gemini-2.5-pro" })
+  })
+
+  it("does not let a settings model from another agent leak in", () => {
+    // defaultModel "opus" belongs to claude-code, but the resolved agent is
+    // gemini → the mismatched model is dropped for gemini's default.
+    const result = resolveAgentAndModel(
+      "gemini",
+      null,
+      { defaultAgent: "claude-code", defaultModel: "opus" },
+      { GEMINI_API_KEY: true }
+    )
+    expect(result).toEqual({ agent: "gemini", model: "gemini-2.5-flash" })
   })
 })

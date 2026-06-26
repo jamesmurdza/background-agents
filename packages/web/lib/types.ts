@@ -21,6 +21,8 @@ export {
   getDefaultAgent,
   getDefaultModelForAgent,
   resolveModelForAgent,
+  resolveAgent,
+  resolveAgentAndModel,
   getAgentModels,
   getModelLabel,
   hasCredentialsForModel,

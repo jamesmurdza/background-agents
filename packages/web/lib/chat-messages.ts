@@ -6,8 +6,8 @@
 // shared-pool predicate. They're pure and deterministic, so they're unit-tested
 // in chat-messages.test.ts instead of being buried inline in the hook.
 
-import type { Chat, Message, Settings, Agent, CredentialFlags } from "@/lib/types"
-import { getDefaultAgent, resolveModelForAgent, sharedClaudePoolEligible } from "@/lib/types"
+import type { Chat, Message, CredentialFlags } from "@/lib/types"
+import { sharedClaudePoolEligible } from "@/lib/types"
 import type { SettingsData } from "@/lib/query"
 import { generateBranchName } from "@/lib/utils"
 
@@ -124,23 +124,6 @@ export async function sendMessageToApi(
 // =============================================================================
 // Pure resolution helpers
 // =============================================================================
-
-/**
- * Resolve the agent and model for a send, following the precedence:
- * explicit arg → chat's setting → user default → credential-aware fallback.
- */
-export function resolveAgentAndModel(
-  explicitAgent: string | undefined,
-  explicitModel: string | undefined,
-  chat: Pick<Chat, "agent" | "model">,
-  settings: Pick<Settings, "defaultAgent" | "defaultModel">,
-  credentialFlags: CredentialFlags
-): { agent: Agent; model: string } {
-  const agent = (explicitAgent ?? chat.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
-  const model =
-    explicitModel ?? chat.model ?? resolveModelForAgent(agent, credentialFlags, settings.defaultModel)
-  return { agent, model }
-}
 
 /**
  * Whether this send draws from the shared Claude pool (Claude Code, no personal

@@ -5,9 +5,7 @@ import { nanoid } from "nanoid"
 import { useSession } from "next-auth/react"
 import {
   NEW_REPOSITORY,
-  getDefaultAgent,
-  resolveModelForAgent,
-  type Agent,
+  resolveAgentAndModel,
   type Chat,
   type CredentialFlags,
   type Message,
@@ -138,8 +136,8 @@ export function useDraftChat({
     // Case 1: Unauthenticated user - use local draft state
     // This applies when there's no session AND either no chat ID or the chat ID is a draft
     if (!session && (!currentChatId || isDraftChatId(currentChatId))) {
-      const resolvedAgent = (draftAgent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
-      const resolvedModel = draftModel ?? resolveModelForAgent(resolvedAgent, credentialFlags, settings.defaultModel)
+      const { agent: resolvedAgent, model: resolvedModel } =
+        resolveAgentAndModel(draftAgent, draftModel, settings, credentialFlags)
       return {
         id: currentChatId ?? unauthDraftIdRef.current,
         repo: NEW_REPOSITORY,
@@ -159,8 +157,8 @@ export function useDraftChat({
 
     // Case 2: Authenticated user with a draft chat ID - use draftChatConfig
     if (session && currentChatId && isDraftChatId(currentChatId) && draftChatConfig) {
-      const resolvedAgent = (draftChatConfig.agent ?? settings.defaultAgent ?? getDefaultAgent()) as Agent
-      const resolvedModel = draftChatConfig.model ?? resolveModelForAgent(resolvedAgent, credentialFlags, settings.defaultModel)
+      const { agent: resolvedAgent, model: resolvedModel } =
+        resolveAgentAndModel(draftChatConfig.agent, draftChatConfig.model, settings, credentialFlags)
       const messages = messagesFor(currentChatId)
       return {
         id: currentChatId,

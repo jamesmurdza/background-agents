@@ -46,6 +46,8 @@ export {
   hasCredentialsForModel,
   getDefaultModelForAgent,
   resolveModelForAgent,
+  resolveAgent,
+  resolveAgentAndModel,
   getAgentModels,
   getModelLabel,
   getEnvForModel,
