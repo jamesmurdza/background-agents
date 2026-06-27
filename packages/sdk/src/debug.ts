@@ -8,10 +8,6 @@ const DEBUG_ENABLED =
   process.env &&
   String(process.env.CODING_AGENTS_DEBUG ?? "").trim() !== ""
 
-export function isDebugEnabled(): boolean {
-  return DEBUG_ENABLED
-}
-
 const PREFIX = "[agents]"
 
 export function debugLog(message: string, sessionId?: string | null, ...args: unknown[]): void {

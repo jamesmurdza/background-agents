@@ -118,7 +118,6 @@ export { registry, getAgent, agentSupportsPlanMode } from "./core/registry"
 export {
   normalizeToolName,
   createToolStartEvent,
-  getToolDisplayName,
   CANONICAL_DISPLAY_NAMES,
 } from "./core/tools"
 
@@ -159,4 +158,4 @@ export type { AgentErrorCategory, ClassifiedError } from "./utils/index"
 export { escapeShell, quote } from "./utils/shell"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
-export { isDebugEnabled, debugLog } from "./debug"
+export { debugLog } from "./debug"
