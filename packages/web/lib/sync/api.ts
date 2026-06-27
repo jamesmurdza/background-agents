@@ -51,6 +51,7 @@ export interface MessageResponse {
   metadata: unknown
   agent: string | null
   model: string | null
+  inherited?: boolean
 }
 
 export interface ChatWithMessagesResponse extends ChatResponse {
@@ -269,6 +270,7 @@ export function toMessageType(serverMessage: MessageResponse): Message {
     uploadedFiles: serverMessage.uploadedFiles as Message["uploadedFiles"],
     linkBranch: serverMessage.linkBranch || undefined,
     metadata: serverMessage.metadata as Message["metadata"],
+    inherited: serverMessage.inherited || undefined,
   }
 }
 

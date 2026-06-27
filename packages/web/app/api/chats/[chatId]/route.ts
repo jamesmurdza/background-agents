@@ -28,6 +28,8 @@ interface MessageResponse {
   metadata: unknown
   agent: string | null
   model: string | null
+  /** Carried over from the parent chat (branch context); read-only in the UI. */
+  inherited?: boolean
 }
 
 interface ChatWithMessagesResponse {
@@ -113,6 +115,37 @@ export async function GET(
       orderBy: { timestamp: "asc" },
     })
 
+    // When this chat was branched from a parent, the parent's conversation is
+    // replayed to the agent for context but isn't stored on this chat. Surface
+    // it in the UI too by prepending the parent's user/assistant messages,
+    // flagged `inherited` so the client renders them read-only. Only on a full
+    // fetch (delta sync via afterMessageId is for this chat's own new messages).
+    let inheritedMessages: MessageResponse[] = []
+    if (chat.parentChatId && !afterMessageId) {
+      const parentMessages = await prisma.message.findMany({
+        where: { chatId: chat.parentChatId, role: { in: ["user", "assistant"] } },
+        orderBy: { timestamp: "asc" },
+      })
+      inheritedMessages = parentMessages
+        .filter((m) => m.content.trim().length > 0)
+        .map((m) => ({
+          id: `inherited-${m.id}`,
+          role: m.role,
+          content: m.content,
+          timestamp: Number(m.timestamp),
+          messageType: m.messageType,
+          isError: m.isError,
+          toolCalls: m.toolCalls,
+          contentBlocks: m.contentBlocks,
+          uploadedFiles: m.uploadedFiles,
+          linkBranch: m.linkBranch,
+          metadata: m.metadata,
+          agent: m.agent,
+          model: m.model,
+          inherited: true,
+        }))
+    }
+
     const response: ChatWithMessagesResponse = {
       id: chat.id,
       repo: chat.repo,
@@ -134,21 +167,24 @@ export async function GET(
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount,
-      messages: messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: Number(m.timestamp),
-        messageType: m.messageType,
-        isError: m.isError,
-        toolCalls: m.toolCalls,
-        contentBlocks: m.contentBlocks,
-        uploadedFiles: m.uploadedFiles,
-        linkBranch: m.linkBranch,
-        metadata: m.metadata,
-        agent: m.agent,
-        model: m.model,
-      })),
+      messages: [
+        ...inheritedMessages,
+        ...messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: Number(m.timestamp),
+          messageType: m.messageType,
+          isError: m.isError,
+          toolCalls: m.toolCalls,
+          contentBlocks: m.contentBlocks,
+          uploadedFiles: m.uploadedFiles,
+          linkBranch: m.linkBranch,
+          metadata: m.metadata,
+          agent: m.agent,
+          model: m.model,
+        })),
+      ],
     }
 
     return Response.json(response)

@@ -1,9 +1,21 @@
 "use client"
 
-import { Github } from "lucide-react"
+import { Fragment } from "react"
+import { Github, GitBranch } from "lucide-react"
+import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/types"
 import type { SharedChat } from "@/lib/server/shared-chat"
 import { MessageBubble } from "@/components/MessageBubble"
+
+/** Minimal centered divider marking where inherited parent history ends. */
+function BranchDivider() {
+  return (
+    <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
+      <GitBranch className="h-3 w-3 shrink-0" />
+      <span>History above is inherited from the parent chat</span>
+    </div>
+  )
+}
 
 // =============================================================================
 // SharedChatView — public, read-only rendering of a shared chat
@@ -56,17 +68,31 @@ export function SharedChatView({ chat }: SharedChatViewProps) {
               This chat has no messages yet.
             </p>
           ) : (
-            chat.messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                // SharedMessage carries the same fields MessageBubble reads;
-                // JSONB tool data is already sanitized server-side.
-                message={message as unknown as Message}
-                repo={chat.repo ?? undefined}
-                // No onOpenFile / onForcePush: file references render as text.
-              />
-            ))
+            chat.messages.map((message, index) => {
+              // A divider marks where the inherited parent history ends and this
+              // branch's own conversation begins.
+              const isBranchStart =
+                !message.inherited && !!chat.messages[index - 1]?.inherited
+              return (
+                <Fragment key={message.id}>
+                  {isBranchStart && <BranchDivider />}
+                  <div className={cn(message.inherited && "opacity-60")}>
+                    <MessageBubble
+                      // SharedMessage carries the same fields MessageBubble reads;
+                      // JSONB tool data is already sanitized server-side.
+                      message={message as unknown as Message}
+                      repo={chat.repo ?? undefined}
+                      // No onOpenFile / onForcePush: file references render as text.
+                    />
+                  </div>
+                </Fragment>
+              )
+            })
           )}
+          {/* Branch with no own messages yet: the divider goes after the
+              inherited history so it's clear the conversation continues below. */}
+          {chat.messages.length > 0 &&
+            chat.messages[chat.messages.length - 1]?.inherited && <BranchDivider />}
         </div>
       </main>
     </div>

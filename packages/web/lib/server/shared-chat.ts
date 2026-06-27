@@ -25,6 +25,8 @@ export interface SharedMessage {
   metadata: unknown
   agent: string | null
   model: string | null
+  /** Carried over from the parent chat (branch context); rendered muted. */
+  inherited?: boolean
 }
 
 export interface SharedChat {
@@ -63,14 +65,52 @@ function sanitizeContentBlocks(value: unknown): unknown {
   })
 }
 
+/** Shape of a Prisma message row, narrowed to the fields the share view reads. */
+type MessageRow = Awaited<ReturnType<typeof prisma.message.findFirst>>
+
+/** Map + sanitize a DB message row into a public SharedMessage. */
+function toSharedMessage(m: NonNullable<MessageRow>, inherited = false): SharedMessage {
+  return {
+    id: inherited ? `inherited-${m.id}` : m.id,
+    role: m.role,
+    content: m.content,
+    timestamp: Number(m.timestamp),
+    messageType: m.messageType,
+    isError: m.isError,
+    toolCalls: sanitizeToolCalls(m.toolCalls),
+    contentBlocks: sanitizeContentBlocks(m.contentBlocks),
+    uploadedFiles: m.uploadedFiles,
+    linkBranch: m.linkBranch,
+    metadata: m.metadata,
+    agent: m.agent,
+    model: m.model,
+    ...(inherited && { inherited: true }),
+  }
+}
+
 /** Load a publicly-shared chat by its share token, sanitized for public view.
  *  Returns null if no chat has that token. */
 export async function getSharedChat(shareId: string): Promise<SharedChat | null> {
   const chat = await prisma.chat.findUnique({
     where: { shareId },
-    select: { id: true, displayName: true, repo: true },
+    select: { id: true, displayName: true, repo: true, parentChatId: true },
   })
   if (!chat) return null
+
+  // When this chat was branched from a parent, replay the parent's conversation
+  // ahead of this chat's own messages so viewers see the full branch context —
+  // mirroring the owner's in-app view. Flagged `inherited` so the client renders
+  // it muted with a divider. Same sanitization applies to both.
+  let inheritedMessages: SharedMessage[] = []
+  if (chat.parentChatId) {
+    const parentMessages = await prisma.message.findMany({
+      where: { chatId: chat.parentChatId, role: { in: ["user", "assistant"] } },
+      orderBy: { timestamp: "asc" },
+    })
+    inheritedMessages = parentMessages
+      .filter((m) => m.content.trim().length > 0)
+      .map((m) => toSharedMessage(m, true))
+  }
 
   const messages = await prisma.message.findMany({
     where: { chatId: chat.id },
@@ -80,20 +120,6 @@ export async function getSharedChat(shareId: string): Promise<SharedChat | null>
   return {
     displayName: chat.displayName,
     repo: chat.repo === NEW_REPOSITORY ? null : chat.repo,
-    messages: messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      timestamp: Number(m.timestamp),
-      messageType: m.messageType,
-      isError: m.isError,
-      toolCalls: sanitizeToolCalls(m.toolCalls),
-      contentBlocks: sanitizeContentBlocks(m.contentBlocks),
-      uploadedFiles: m.uploadedFiles,
-      linkBranch: m.linkBranch,
-      metadata: m.metadata,
-      agent: m.agent,
-      model: m.model,
-    })),
+    messages: [...inheritedMessages, ...messages.map((m) => toSharedMessage(m))],
   }
 }

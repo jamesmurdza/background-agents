@@ -101,6 +101,10 @@ export interface Message {
   linkBranch?: string
   /** Flexible metadata for actions, links, etc. */
   metadata?: MessageMetadata
+  /** True for messages carried over from a parent chat when this chat was
+   *  branched. They're shown read-only for context and aren't persisted on
+   *  this chat. */
+  inherited?: boolean
 }
 
 // Special value for new repository (local git repo, no GitHub)
