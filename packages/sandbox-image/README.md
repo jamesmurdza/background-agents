@@ -60,10 +60,10 @@ import {
   getAgentSandboxImage, // Builds the Daytona Image spec
   AGENT_PACKAGES,       // Map of agent name -> npm package
   TOKSCALE_VERSION,     // Pinned tokscale (token/cost metering) CLI version
-  SNAPSHOT_NAME,        // Registered snapshot name ("background-agents")
-  SNAPSHOT_NAME_TEMP,   // Temporary snapshot name used while rotating
+  SNAPSHOT_NAME,        // Canonical snapshot name ("background-agents")
+  SNAPSHOT_NAME_TEMP,   // Transient scratch name used only during a rebuild
   ALL_SNAPSHOT_NAMES,   // All known snapshot names
-  getActiveSnapshotName,// Resolves the currently active snapshot name
+  getActiveSnapshotName,// Resolves the ready ("active") snapshot to serve
   SNAPSHOT_RESOURCES,   // { cpu, memory, disk } defaults
 } from "@background-agents/sandbox-image"
 ```

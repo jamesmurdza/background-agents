@@ -10,10 +10,6 @@
     {
       "path": "/api/cron/agent-lifecycle",
       "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/rebuild-snapshot",
-      "schedule": "0 3 * * 0"
     }
   ]
 }

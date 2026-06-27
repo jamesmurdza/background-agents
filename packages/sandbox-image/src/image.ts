@@ -1,10 +1,11 @@
 import { Image } from "@daytonaio/sdk"
 
 /**
- * Blue/green snapshot names for zero-downtime rotation.
- * The cron alternates between these: builds the inactive one, then deletes
- * the active one. The app calls getActiveSnapshotName() to discover which
- * exists at runtime — no env var or config needed.
+ * Snapshot names. `SNAPSHOT_NAME` is the canonical snapshot the app always
+ * serves; `SNAPSHOT_NAME_TEMP` is transient scratch space used only *during*
+ * a zero-downtime rebuild (see rebuildSnapshot) and is always cleaned up.
+ * The app calls getActiveSnapshotName() to discover which one to use at
+ * runtime — no env var or config needed.
  */
 export const SNAPSHOT_NAME = "background-agents"
 export const SNAPSHOT_NAME_TEMP = "background-agents-temp"
@@ -13,23 +14,40 @@ export const SNAPSHOT_NAME_TEMP = "background-agents-temp"
 export const ALL_SNAPSHOT_NAMES = [SNAPSHOT_NAME, SNAPSHOT_NAME_TEMP] as const
 
 /**
- * Discovers which snapshot is currently available by querying Daytona.
- * Returns the first snapshot that exists, preferring the primary name.
- * Throws if neither exists — caller should handle first-run bootstrap.
+ * Daytona snapshot state meaning "built and ready to launch sandboxes from".
+ * Other states (building, pending, pulling, removing, error, build_failed)
+ * mean the snapshot must NOT be served. Matches SnapshotState.ACTIVE from
+ * @daytona/api-client — kept as a literal to avoid a direct dependency.
+ */
+const SNAPSHOT_STATE_ACTIVE = "active"
+
+/**
+ * Resolves the snapshot the app should launch new sandboxes from.
+ *
+ * Returns the first name in preference order (canonical, then temp) whose
+ * snapshot exists AND is in the `active` (ready) state. A snapshot that is
+ * still building, being removed, or errored is invisible here — this is what
+ * makes rebuilds zero-downtime: while the canonical snapshot is mid-rebuild,
+ * the (ready) temp snapshot is served instead, and vice versa.
+ *
+ * Throws if no snapshot is ready — caller should handle first-run bootstrap.
  */
 export async function getActiveSnapshotName(
   daytona: import("@daytonaio/sdk").Daytona
 ): Promise<string> {
   for (const name of ALL_SNAPSHOT_NAMES) {
     try {
-      await daytona.snapshot.get(name)
-      return name
+      const snapshot = await daytona.snapshot.get(name)
+      if (snapshot.state === SNAPSHOT_STATE_ACTIVE) {
+        return name
+      }
+      // exists but not ready (building/removing/error) — skip it
     } catch {
       // doesn't exist, try next
     }
   }
   throw new Error(
-    `No snapshot found. Run "npm run build:snapshot" to create the initial snapshot.`
+    `No active snapshot found. Run "npm run build:snapshot" to build it.`
   )
 }
 

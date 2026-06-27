@@ -1,9 +1,10 @@
 import { Daytona } from "@daytonaio/sdk"
-import { rebuildSnapshot, rotateSnapshot } from "../src/index"
+import { rebuildSnapshot } from "../src/index"
 
-// Rebuilds the named Daytona snapshot used for agent sandboxes.
-// Use --rotate for zero-downtime blue/green rotation.
-// Default (no flag): deletes existing snapshot first (brief downtime).
+// Zero-downtime (re)build of the canonical agent-sandbox snapshot.
+// Builds via a transient temp snapshot so new sandboxes always have a ready
+// snapshot to launch from. Safe to run while the app is live. See
+// rebuildSnapshot() for the step-by-step flow.
 async function main() {
   const apiKey = process.env.DAYTONA_API_KEY
   if (!apiKey) {
@@ -12,23 +13,10 @@ async function main() {
   }
 
   const daytona = new Daytona({ apiKey })
-  const args = process.argv.slice(2)
-
-  if (args.includes("--rotate")) {
-    const result = await rotateSnapshot(daytona, {
-      onLog: (line) => console.log(line),
-    })
-    console.log(`\nRotated snapshot: ${result.snapshot.name}`)
-    if (result.deactivatedName) {
-      console.log(`Deactivated old snapshot: ${result.deactivatedName}`)
-    }
-  } else {
-    const snapshot = await rebuildSnapshot(daytona, {
-      deleteFirst: true,
-      onLog: (line) => console.log(line),
-    })
-    console.log(`Built snapshot: ${snapshot.name}`)
-  }
+  const snapshot = await rebuildSnapshot(daytona, {
+    onLog: (line) => console.log(line),
+  })
+  console.log(`\nActive snapshot: ${snapshot.name}`)
 }
 
 main().catch((err) => {

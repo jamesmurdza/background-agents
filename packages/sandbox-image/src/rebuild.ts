@@ -3,123 +3,127 @@ import {
   getAgentSandboxImage,
   SNAPSHOT_NAME,
   SNAPSHOT_NAME_TEMP,
-  ALL_SNAPSHOT_NAMES,
   SNAPSHOT_RESOURCES,
 } from "./image"
 
 export interface RebuildSnapshotOptions {
-  /**
-   * Delete an existing snapshot of the same name before recreating it.
-   * Deletion is asynchronous, so this waits until the name is free.
-   * Disabled by default — Daytona rejects `create` if the name is taken,
-   * so only enable this when an intentional rebuild is desired.
-   */
-  deleteFirst?: boolean
   /** Receives progress and image-build log lines. */
   onLog?: (line: string) => void
 }
 
+/** Snapshot state meaning "built and ready". Mirrors image.ts. */
+const SNAPSHOT_STATE_ACTIVE = "active"
+
+/** Returns the snapshot if it exists, else undefined (get() throws when absent). */
+async function getSnapshotIfExists(daytona: Daytona, name: string) {
+  try {
+    return await daytona.snapshot.get(name)
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * Builds (or rebuilds) the named Daytona snapshot used for agent sandboxes.
+ * Deletes a snapshot by name if it exists and waits until the name is free.
+ * Daytona deletion is asynchronous, so we poll until get() reports it gone.
+ */
+async function deleteSnapshotAndWait(
+  daytona: Daytona,
+  name: string,
+  onLog?: (line: string) => void
+): Promise<void> {
+  const existing = await getSnapshotIfExists(daytona, name)
+  if (!existing) return
+
+  onLog?.(`Deleting snapshot "${name}"...`)
+  await daytona.snapshot.delete(existing)
+
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline) {
+    if (!(await getSnapshotIfExists(daytona, name))) return // gone
+    await new Promise((r) => setTimeout(r, 3_000))
+  }
+  throw new Error(`Timed out waiting for snapshot "${name}" to be deleted`)
+}
+
+/**
+ * Builds a snapshot and resolves once it is ready. `create()` already resolves
+ * on completion, but we verify the `active` state defensively before treating
+ * it as servable (a not-ready snapshot must never become the active one).
+ */
+async function buildSnapshot(
+  daytona: Daytona,
+  name: string,
+  onLog?: (line: string) => void
+) {
+  onLog?.(`Building snapshot "${name}" (this can take several minutes)...`)
+  const snapshot = await daytona.snapshot.create(
+    {
+      name,
+      image: getAgentSandboxImage(),
+      resources: SNAPSHOT_RESOURCES,
+    },
+    onLog ? { onLogs: onLog } : undefined
+  )
+
+  if (snapshot.state !== SNAPSHOT_STATE_ACTIVE) {
+    throw new Error(
+      `Snapshot "${name}" finished building in state "${snapshot.state}" (expected "${SNAPSHOT_STATE_ACTIVE}")`
+    )
+  }
+  return snapshot
+}
+
+/**
+ * Zero-downtime rebuild of the canonical agent-sandbox snapshot.
+ *
+ * The app always serves the snapshot named SNAPSHOT_NAME; SNAPSHOT_NAME_TEMP is
+ * transient scratch space that exists only mid-rebuild. Because the app's
+ * getActiveSnapshotName() only serves snapshots in the `active` state, there is
+ * always exactly one ready snapshot for new sandboxes to launch from:
+ *
+ *   0. Delete any leftover temp from a previously failed run (self-heals).
+ *   1. First run (no canonical snapshot yet) → build it directly and stop.
+ *   2. Build temp                  → canonical still active & serving.
+ *   3. Delete canonical            → temp is now the only active one, serving.
+ *   4. Rebuild canonical           → "building" (invisible); temp serves.
+ *                                     once ready it becomes active again.
+ *   5. Delete temp                 → steady state: only canonical remains.
+ *
+ * Note: deleting a snapshot does not affect sandboxes already created from it;
+ * it only governs which snapshot new sandboxes launch from.
+ *
+ * Intended to be run manually (`npm run build:snapshot`); it runs two serial
+ * image builds, so it is not bounded by a typical serverless cron timeout.
  */
 export async function rebuildSnapshot(
   daytona: Daytona,
   options: RebuildSnapshotOptions = {}
-) {
-  const { deleteFirst = false, onLog } = options
-
-  if (deleteFirst) {
-    try {
-      const existing = await daytona.snapshot.get(SNAPSHOT_NAME)
-      onLog?.(`Deleting existing snapshot "${SNAPSHOT_NAME}"...`)
-      await daytona.snapshot.delete(existing)
-
-      const deadline = Date.now() + 120_000
-      while (Date.now() < deadline) {
-        try {
-          await daytona.snapshot.get(SNAPSHOT_NAME)
-          await new Promise((r) => setTimeout(r, 3_000))
-        } catch {
-          break // get() throws once the snapshot is gone
-        }
-      }
-    } catch {
-      // No existing snapshot — first build.
-    }
-  }
-
-  onLog?.(`Building snapshot "${SNAPSHOT_NAME}" (this can take several minutes)...`)
-  return daytona.snapshot.create(
-    {
-      name: SNAPSHOT_NAME,
-      image: getAgentSandboxImage(),
-      resources: SNAPSHOT_RESOURCES,
-    },
-    onLog ? { onLogs: onLog } : undefined
-  )
-}
-
-export interface RotateSnapshotResult {
-  /** The newly built snapshot (now the active one). */
-  snapshot: Awaited<ReturnType<Daytona["snapshot"]["create"]>>
-  /** The name of the snapshot that was deactivated (old one). Undefined on first run. */
-  deactivatedName?: string
-}
-
-/**
- * Zero-downtime blue/green snapshot rotation.
- *
- * 1. Checks which snapshot currently exists (the "active" one).
- * 2. Builds the *other* snapshot (so the active one stays available).
- * 3. Deletes the old snapshot after the new one is ready.
- *
- * The app uses getActiveSnapshotName() to discover which snapshot to use —
- * no env var or config update needed after rotation.
- */
-export async function rotateSnapshot(
-  daytona: Daytona,
-  options: RebuildSnapshotOptions = {}
-): Promise<RotateSnapshotResult> {
+): Promise<Awaited<ReturnType<typeof buildSnapshot>>> {
   const { onLog } = options
 
-  // Figure out which snapshot currently exists (active) and which to build (target).
-  let activeName: string | undefined
-  for (const name of ALL_SNAPSHOT_NAMES) {
-    try {
-      await daytona.snapshot.get(name)
-      activeName = name
-      break
-    } catch {
-      // doesn't exist
-    }
+  // 0. Clean up a stale temp snapshot from any previous failed rebuild so the
+  //    build in step 2 can't fail on a taken name.
+  await deleteSnapshotAndWait(daytona, SNAPSHOT_NAME_TEMP, onLog)
+
+  // 1. First run: nothing to protect, build the canonical snapshot directly.
+  const canonical = await getSnapshotIfExists(daytona, SNAPSHOT_NAME)
+  if (!canonical) {
+    onLog?.(`No existing "${SNAPSHOT_NAME}" — building it directly.`)
+    return buildSnapshot(daytona, SNAPSHOT_NAME, onLog)
   }
 
-  // If neither exists (first run), build the primary.
-  // If one exists, build the other.
-  const targetName = activeName === SNAPSHOT_NAME ? SNAPSHOT_NAME_TEMP : SNAPSHOT_NAME
+  // 2. Build temp while the canonical snapshot keeps serving.
+  await buildSnapshot(daytona, SNAPSHOT_NAME_TEMP, onLog)
 
-  onLog?.(`Active snapshot: ${activeName ?? "(none)"}`)
-  onLog?.(`Building new snapshot "${targetName}" (this can take several minutes)...`)
+  // 3. Delete the canonical snapshot — temp is now the only active one.
+  await deleteSnapshotAndWait(daytona, SNAPSHOT_NAME, onLog)
 
-  const snapshot = await daytona.snapshot.create(
-    {
-      name: targetName,
-      image: getAgentSandboxImage(),
-      resources: SNAPSHOT_RESOURCES,
-    },
-    onLog ? { onLogs: onLog } : undefined
-  )
+  // 4. Rebuild the canonical snapshot fresh; temp serves until it's ready.
+  const rebuilt = await buildSnapshot(daytona, SNAPSHOT_NAME, onLog)
 
-  // Clean up the old snapshot if one existed.
-  if (activeName) {
-    try {
-      onLog?.(`Deleting old snapshot "${activeName}"...`)
-      const old = await daytona.snapshot.get(activeName)
-      await daytona.snapshot.delete(old)
-    } catch (err) {
-      onLog?.(`Warning: failed to delete old snapshot "${activeName}": ${err}`)
-    }
-  }
+  // 5. Remove temp — steady state is just the canonical snapshot.
+  await deleteSnapshotAndWait(daytona, SNAPSHOT_NAME_TEMP, onLog)
 
-  return { snapshot, deactivatedName: activeName }
+  return rebuilt
 }

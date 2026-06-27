@@ -8,5 +8,5 @@ export {
   SNAPSHOT_RESOURCES,
   getActiveSnapshotName,
 } from "./image"
-export { rebuildSnapshot, rotateSnapshot } from "./rebuild"
-export type { RebuildSnapshotOptions, RotateSnapshotResult } from "./rebuild"
+export { rebuildSnapshot } from "./rebuild"
+export type { RebuildSnapshotOptions } from "./rebuild"
