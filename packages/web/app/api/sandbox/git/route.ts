@@ -93,10 +93,20 @@ export async function POST(req: Request) {
           return Response.json({ error: "Missing repository owner or name for merge" }, { status: 400 })
         }
 
-        // Get current branch in sandbox
-        const currentStatus = await git.status(repoPath)
-        const localBranch = currentStatus.currentBranch
-        const isMergingIntoActiveBranch = localBranch === targetBranch
+        // A clean merge runs entirely through GitHub's merge API and needs no
+        // sandbox. We only touch the working tree when the sandbox is actually
+        // running — to detect whether we're merging into the checked-out branch
+        // (which gates conflict replication and the post-merge pull). A stopped
+        // sandbox has no active checkout, so treat it as "not the active branch"
+        // and let auto-pull-before-run sync it when it next wakes. This keeps
+        // merge working while the sandbox is stopped instead of failing on the
+        // up-front `git.status` ("failed to resolve container IP").
+        const sandboxStarted = sandbox.state === "started"
+        let isMergingIntoActiveBranch = false
+        if (sandboxStarted) {
+          const currentStatus = await git.status(repoPath)
+          isMergingIntoActiveBranch = currentStatus.currentBranch === targetBranch
+        }
 
         // Use GitHub's merge API
         const commitMessage = squash
