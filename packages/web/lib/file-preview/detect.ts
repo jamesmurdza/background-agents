@@ -5,27 +5,27 @@
 import { FileType, EXT_TO_LANG, CODE_EXTENSIONS, TEXT_EXTENSIONS, IMAGE_EXTENSIONS } from './types'
 
 /**
+ * Get the base filename from a path
+ */
+function getFilename(filePath: string): string {
+  return filePath.split('/').pop() ?? filePath
+}
+
+/**
  * Get the file extension from a filename or path
  */
 export function getFileExtension(filenameOrPath: string): string {
-  const name = filenameOrPath.split('/').pop()?.toLowerCase() ?? ''
+  const name = getFilename(filenameOrPath).toLowerCase()
   const dot = name.lastIndexOf('.')
   if (dot < 0) return ''
   return name.slice(dot + 1)
 }
 
 /**
- * Get the base filename from a path
- */
-export function getFilename(filePath: string): string {
-  return filePath.split('/').pop() ?? filePath
-}
-
-/**
  * Detect the highlight.js language from a filename or path
  */
 export function detectLang(filenameOrPath: string): string | null {
-  const name = filenameOrPath.split('/').pop()?.toLowerCase() ?? ''
+  const name = getFilename(filenameOrPath).toLowerCase()
 
   // Special filenames
   if (name === 'dockerfile') return 'dockerfile'

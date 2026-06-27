@@ -45,15 +45,6 @@ export function normalizeToolName(
 }
 
 /**
- * Get display name for a canonical tool name.
- */
-export function getToolDisplayName(canonicalName: string): string {
-  return (
-    CANONICAL_DISPLAY_NAMES[canonicalName as CanonicalToolName] ?? canonicalName
-  )
-}
-
-/**
  * Normalize tool input to a consistent format.
  * Extracts file_path from various field names.
  */
