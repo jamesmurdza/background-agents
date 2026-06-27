@@ -5,20 +5,33 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./next.config": "./next.config.codeagentsdk.cjs",
+    "./package.json": "./package.json",
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
   "scripts": {
-    "build": "npm run build:eliza && tsc",
+    "build": "npm run build:eliza && tsc && tsc-alias --resolve-full-paths",
     "build:eliza": "npm run build:eliza-bundle && npm run build:eliza-embed",
     "build:eliza-bundle": "esbuild src/agents/eliza/cli.ts --bundle --platform=node --format=esm --outfile=dist/agents/eliza/cli.bundle.js",
     "build:eliza-embed": "npx tsx scripts/embed-eliza-bundle.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build",
+    "prepare": "npm run build",
     "generate:jsonl-refs": "npx tsx scripts/generate-jsonl-references.ts"
   },
   "keywords": [
@@ -36,16 +49,17 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jamesmurdza/upstream-agents.git",
+    "url": "git+https://github.com/jamesmurdza/background-agents.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/jamesmurdza/upstream-agents/tree/main/packages/sdk",
+  "homepage": "https://github.com/jamesmurdza/background-agents/tree/main/packages/sdk",
   "bugs": {
-    "url": "https://github.com/jamesmurdza/upstream-agents/issues"
+    "url": "https://github.com/jamesmurdza/background-agents/issues"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "esbuild": "^0.20.0",
+    "tsc-alias": "^1.8.10",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0"
   },
@@ -57,13 +71,8 @@
     "README.md",
     "next.config.codeagentsdk.cjs"
   ],
-  "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*",
-    "./next.config": "./next.config.codeagentsdk.cjs"
-  },
   "dependencies": {
-    "@background-agents/sandbox-jobs": "*",
+    "@background-agents/sandbox-jobs": "^0.1.0",
     "@daytonaio/sdk": "^0.170.0",
     "dotenv": "^17.3.1"
   }
