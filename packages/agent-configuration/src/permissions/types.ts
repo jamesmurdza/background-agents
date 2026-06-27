@@ -1,14 +1,12 @@
 /**
- * Agent-agnostic command-permission vocabulary.
+ * Command-permission vocabulary.
  *
- * This is the input language of the translation layer. Callers describe *what*
- * should be denied in these neutral terms; the per-agent renderers in this
- * module translate that intent into each coding agent's native config format
- * (Claude bash hook, Codex Starlark rules, OpenCode permission JSON).
- *
- * The layer deliberately knows nothing about git specifically — a rule is just
- * a command prefix plus how to match its arguments. The concrete ruleset (e.g.
- * "block git push/rebase/...") is policy and lives with the consumer.
+ * This is the input language of the translation layer: a rule is a command
+ * prefix plus how to match its arguments. The per-agent renderers translate a
+ * policy written in these terms into each coding agent's native config format
+ * (Claude bash hook, Codex Starlark rules, OpenCode permission JSON). The
+ * concrete ruleset (e.g. which git operations to block) is supplied by the
+ * caller.
  */
 
 /**

@@ -1,11 +1,11 @@
 /**
  * Git safety policy for background agents.
  *
- * This is the *content* side of the agent-configuration translation layer: it
- * declares which git operations agents are not allowed to run. The
- * `@background-agents/agent-configuration` package knows nothing about git — it
- * only knows how to render a `CommandPolicy` into each agent's native config
- * format. This file owns the actual rules; the translation layer applies them.
+ * This declares which git operations agents are not allowed to run, as a
+ * `CommandPolicy`. The `@background-agents/agent-configuration` package renders
+ * that policy into each agent's native config format (Claude hook, Codex rules,
+ * OpenCode permissions). Keeping the rules here means one definition drives
+ * every agent, edited in one place.
  *
  * Blocked, and why:
  * - history rewriting: `git commit --amend`, `git rebase`, `git reset --hard`
