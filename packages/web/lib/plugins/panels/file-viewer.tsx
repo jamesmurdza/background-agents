@@ -4,6 +4,43 @@ import { useEffect, useMemo, useState } from "react"
 import { FileCode2, Loader2, RefreshCw } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { HighlightedCode, getFileTypeFromPath, ImageFullPreview, PdfFullPreview, isMarkdownPath, MarkdownPreview } from "@/lib/file-preview"
+import { cn } from "@/lib/utils"
+
+/**
+ * Centered status panel with a refresh button above the message. Used for the
+ * stopped/expired sandbox states and for generic load errors.
+ */
+function PanelStatus({
+  message,
+  destructive,
+  onRetry,
+  actionTitle = "Refresh",
+}: {
+  message: string
+  destructive?: boolean
+  onRetry: () => void
+  actionTitle?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "h-full flex flex-col items-center justify-center gap-3 p-4 text-center text-sm",
+        destructive ? "text-destructive" : "text-muted-foreground"
+      )}
+    >
+      <button
+        type="button"
+        onClick={onRetry}
+        title={actionTitle}
+        aria-label={actionTitle}
+        className="flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent cursor-pointer"
+      >
+        <RefreshCw className="h-5 w-5" />
+      </button>
+      <div>{message}</div>
+    </div>
+  )
+}
 
 function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartProp }: PanelProps) {
   const [content, setContent] = useState<string | null>(null)
@@ -13,6 +50,9 @@ function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartPr
   // The sandbox is stopped and this passive read declined to boot it. Bumping
   // `resumeCount` (via the Resume button) re-runs the load with autoStart=true.
   const [needsResume, setNeedsResume] = useState(false)
+  // The sandbox no longer exists (410). Distinct from `needsResume` (stopped)
+  // so we can show an "expired" message instead.
+  const [expired, setExpired] = useState(false)
   const [resumeCount, setResumeCount] = useState(0)
 
   const filePath = item.type === "file" ? item.filePath : ""
@@ -59,6 +99,7 @@ function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartPr
       setLoading(true)
       setError(null)
       setNeedsResume(false)
+      setExpired(false)
 
       // This is a passive panel read: don't boot a stopped sandbox unless the
       // user explicitly asked to (the refresh button bumps resumeCount, and the
@@ -78,6 +119,10 @@ function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartPr
 
           if (res.status === 409) {
             setNeedsResume(true)
+            return
+          }
+          if (res.status === 410) {
+            setExpired(true)
             return
           }
           if (!res.ok) {
@@ -103,6 +148,10 @@ function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartPr
 
           if (res.status === 409) {
             setNeedsResume(true)
+            return
+          }
+          if (res.status === 410) {
+            setExpired(true)
             return
           }
           const data = await res.json().catch(() => ({}))
@@ -154,26 +203,30 @@ function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartPr
 
   if (needsResume) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground">
-        <button
-          type="button"
-          onClick={() => setResumeCount((c) => c + 1)}
-          title="Start sandbox"
-          aria-label="Start sandbox"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent cursor-pointer"
-        >
-          <RefreshCw className="h-5 w-5" />
-        </button>
-        <div>This sandbox is stopped.</div>
-      </div>
+      <PanelStatus
+        message="This sandbox is stopped."
+        actionTitle="Start sandbox"
+        onRetry={() => setResumeCount((c) => c + 1)}
+      />
+    )
+  }
+
+  if (expired) {
+    return (
+      <PanelStatus
+        message="This sandbox expired."
+        onRetry={() => setResumeCount((c) => c + 1)}
+      />
     )
   }
 
   if (error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-1 p-4 text-sm text-destructive">
-        <div>{error}</div>
-      </div>
+      <PanelStatus
+        message={error}
+        destructive
+        onRetry={() => setResumeCount((c) => c + 1)}
+      />
     )
   }
 
