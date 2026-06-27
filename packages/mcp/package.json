@@ -2,24 +2,61 @@
   "name": "@background-agents/mcp",
   "version": "0.1.0",
   "description": "MCP provider abstractions for GitHub and Smithery",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./github": "./src/github/index.ts",
-    "./smithery": "./src/smithery/index.ts"
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./github": {
+      "import": {
+        "types": "./dist/github/index.d.ts",
+        "default": "./dist/github/index.js"
+      },
+      "require": {
+        "types": "./dist/github/index.d.cts",
+        "default": "./dist/github/index.cjs"
+      }
+    },
+    "./smithery": {
+      "import": {
+        "types": "./dist/smithery/index.d.ts",
+        "default": "./dist/smithery/index.js"
+      },
+      "require": {
+        "types": "./dist/smithery/index.d.cts",
+        "default": "./dist/smithery/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup src/index.ts src/github/index.ts src/smithery/index.ts --format esm,cjs --dts --clean --sourcemap",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "jose": "^6.0.11"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
     "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -2,20 +2,41 @@
   "name": "@background-agents/claude-credentials",
   "version": "0.1.0",
   "description": "Claude Code OAuth credential generation via ccauth and Daytona",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@daytonaio/sdk": "^0.170.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --sourcemap",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "tsup": "^8.0.0",
     "typescript": "5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

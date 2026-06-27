@@ -2,17 +2,66 @@
   "name": "@background-agents/sandbox-skills",
   "version": "0.1.0",
   "description": "Skills registry client and sandbox operations for Daytona",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./registry": {
+      "import": {
+        "types": "./dist/registry/index.d.ts",
+        "default": "./dist/registry/index.js"
+      },
+      "require": {
+        "types": "./dist/registry/index.d.cts",
+        "default": "./dist/registry/index.cjs"
+      }
+    },
+    "./sandbox": {
+      "import": {
+        "types": "./dist/sandbox/index.d.ts",
+        "default": "./dist/sandbox/index.js"
+      },
+      "require": {
+        "types": "./dist/sandbox/index.d.cts",
+        "default": "./dist/sandbox/index.cjs"
+      }
+    },
+    "./utils": {
+      "import": {
+        "types": "./dist/utils/index.d.ts",
+        "default": "./dist/utils/index.js"
+      },
+      "require": {
+        "types": "./dist/utils/index.d.cts",
+        "default": "./dist/utils/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup src/index.ts src/registry/index.ts src/sandbox/index.ts src/utils/index.ts --format esm,cjs --dts --clean --sourcemap",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@daytonaio/sdk": "^0.170.0",
     "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   },
   "peerDependencies": {
@@ -23,14 +72,7 @@
       "optional": true
     }
   },
-  "exports": {
-    ".": "./src/index.ts",
-    "./registry": "./src/registry/index.ts",
-    "./sandbox": "./src/sandbox/index.ts",
-    "./utils": "./src/utils/index.ts"
-  },
-  "files": [
-    "src",
-    "dist"
-  ]
+  "publishConfig": {
+    "access": "public"
+  }
 }

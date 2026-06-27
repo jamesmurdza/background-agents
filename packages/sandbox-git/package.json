@@ -2,16 +2,31 @@
   "name": "@background-agents/sandbox-git",
   "version": "0.1.0",
   "description": "Git operations for Daytona sandboxes without the toolbox dependency",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --sourcemap",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "@daytonaio/sdk": ">=0.8.0"
@@ -23,6 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   },
   "keywords": [
@@ -30,5 +46,8 @@
     "git",
     "sandbox"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

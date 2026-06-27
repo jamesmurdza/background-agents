@@ -99,20 +99,19 @@ jobs:
         # release tag doesn't publish a broken (src-pointing) tarball.
         run: |
           set -euo pipefail
-          # Uncomment each package in your refactor PR, once it has proper
-          # packaging (dist build + files + dist-pointing entry points).
-          # daytona-git is the reference; uncomment it when its refactor lands.
+          # The reusable @background-agents/* libraries, in dependency order
+          # (a package is listed before anything that depends on it).
+          # `common` and `sandbox-image` are intentionally excluded — they are
+          # internal-only (not published).
           PACKAGES=(
-            # daytona-git
-            # common
-            # sandbox-jobs
-            # claude-credentials
-            # agent-configuration
-            # mcp-providers
-            # skills
-            # sandbox-image
-            # daytona-terminal
-            # sdk            # depends on sandbox-jobs — publish that first
+            sandbox-git
+            sandbox-jobs
+            claude-credentials
+            agent-configuration
+            mcp
+            sandbox-skills
+            sandbox-terminal
+            sdk            # depends on sandbox-jobs — listed after it
           )
           for pkg in "${PACKAGES[@]}"; do
             dir="packages/$pkg"
