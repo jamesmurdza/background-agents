@@ -12,7 +12,7 @@ On npm — use them in your own projects.
 
 | Package | Description | Maintainer |
 |---------|-------------|------------|
-| [`agent-configuration`](packages/agent-configuration) | Agent configuration and policy rules for blocking dangerous operations | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> <a href="https://github.com/abdulrehmann231"><img src="https://github.com/abdulrehmann231.png?size=64" width="28" height="28"></a> |
+| [`agent-configuration`](packages/agent-configuration) | Translation layer between coding agents' configuration formats (MCP servers and command-permission policies) | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> <a href="https://github.com/abdulrehmann231"><img src="https://github.com/abdulrehmann231.png?size=64" width="28" height="28"></a> |
 | [`claude-credentials`](packages/claude-credentials) | Claude Code OAuth credential generation via ccauth and Daytona | <a href="https://github.com/synacktraa"><img src="https://github.com/synacktraa.png?size=64" width="28" height="28"></a> |
 | [`launcher`](packages/launcher) | `npx background-agents` launcher that runs the desktop app | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`mcp`](packages/mcp) | MCP provider integrations | <a href="https://github.com/abdulrehmann231"><img src="https://github.com/abdulrehmann231.png?size=64" width="28" height="28"></a> |
