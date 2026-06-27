@@ -71,7 +71,7 @@ Pushing a `v*` tag runs the publish workflow, which sets the package version fro
 git tag v1.0.1 && git push origin v1.0.1
 ```
 
-> The workflow lives at `.github/workflows/npm-publish.yml` and is active. Note the same `v*` tag also triggers `release-workflow.yml` (the Electron installers), so the desktop installers and the npm launcher publish together.
+> The workflow lives at `.github/workflows/npm-publish.yml` and is active. The Electron desktop installers are built by a separate workflow, `release-workflow.yml`, which currently sits at `.github/release-workflow.yml` — **outside** `.github/workflows/` — so it does **not** run on a tag push until it's moved into `.github/workflows/` (see the [desktop README](../desktop/README.md#automated-releases-github-actions)). Once moved, the same `v*` tag publishes the desktop installers and the npm launcher together.
 
 ### Manual
 
