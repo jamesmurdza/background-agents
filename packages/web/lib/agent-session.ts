@@ -169,6 +169,25 @@ export async function createBackgroundAgentSession(
   }
 }
 
+/**
+ * Rehydrate an existing background session handle. Every read/control entry
+ * point below (finalize, cancel, snapshot) needs the same thing: rebuild the
+ * system prompt from the session options and re-attach to the running session.
+ * Centralized here so the prompt-build arguments stay in sync across callers.
+ */
+async function getBackgroundSession(
+  sandbox: DaytonaSandbox,
+  backgroundSessionId: string,
+  options: AgentSessionOptions
+) {
+  const systemPrompt = buildSystemPrompt(
+    options.repoPath,
+    options.previewUrlPattern,
+    options.skills
+  )
+  return getSession(backgroundSessionId, { sandbox, systemPrompt })
+}
+
 // =============================================================================
 // Polling
 // =============================================================================
@@ -292,15 +311,11 @@ export async function finalizeTurn(
   options: AgentSessionOptions
 ): Promise<void> {
   try {
-    const systemPrompt = buildSystemPrompt(
-      options.repoPath,
-      options.previewUrlPattern,
-      options.skills
-    )
-    const bgSession = await getSession(backgroundSessionId, {
+    const bgSession = await getBackgroundSession(
       sandbox,
-      systemPrompt,
-    })
+      backgroundSessionId,
+      options
+    )
     await bgSession.getEvents()
   } catch {
     /* best effort */
@@ -317,16 +332,11 @@ export async function cancelBackgroundAgent(
   options: AgentSessionOptions
 ): Promise<void> {
   try {
-    const systemPrompt = buildSystemPrompt(
-      options.repoPath,
-      options.previewUrlPattern,
-      options.skills
-    )
-
-    const bgSession = await getSession(backgroundSessionId, {
+    const bgSession = await getBackgroundSession(
       sandbox,
-      systemPrompt,
-    })
+      backgroundSessionId,
+      options
+    )
 
     await bgSession.cancel()
   } catch (err) {
@@ -346,16 +356,11 @@ export async function snapshotBackgroundAgent(
   options: AgentSessionOptions
 ): Promise<AgentSnapshot> {
   try {
-    const systemPrompt = buildSystemPrompt(
-      options.repoPath,
-      options.previewUrlPattern,
-      options.skills
-    )
-
-    const bgSession = await getSession(backgroundSessionId, {
+    const bgSession = await getBackgroundSession(
       sandbox,
-      systemPrompt,
-    })
+      backgroundSessionId,
+      options
+    )
 
     const result = (await bgSession.getSnapshot()) as {
       events: Event[]
