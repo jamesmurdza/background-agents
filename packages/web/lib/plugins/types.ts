@@ -17,6 +17,11 @@ export interface PanelProps {
   sandboxId: string | null
   /** Optional scale factor for preview (e.g., 0.5, 0.75, 1) */
   scale?: number
+  /**
+   * Set when the user explicitly refreshed via the top-bar refresh button.
+   * Lets a panel boot a stopped sandbox (otherwise passive reads stay passive).
+   */
+  autoStart?: boolean
   /** All messages in the current chat, for plugins that need live content */
   messages?: import("@/lib/types").Message[]
 }

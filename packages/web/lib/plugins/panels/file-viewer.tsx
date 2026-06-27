@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { FileCode2, Loader2, Play } from "lucide-react"
+import { FileCode2, Loader2, RefreshCw } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { HighlightedCode, getFileTypeFromPath, ImageFullPreview, PdfFullPreview, isMarkdownPath, MarkdownPreview } from "@/lib/file-preview"
 
-function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
+function FileViewerComponent({ item, sandboxId, messages, autoStart: autoStartProp }: PanelProps) {
   const [content, setContent] = useState<string | null>(null)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -61,8 +61,9 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
       setNeedsResume(false)
 
       // This is a passive panel read: don't boot a stopped sandbox unless the
-      // user explicitly asked to (Resume button bumps resumeCount).
-      const autoStart = resumeCount > 0
+      // user explicitly asked to (the refresh button bumps resumeCount, and the
+      // top-bar refresh passes autoStartProp).
+      const autoStart = resumeCount > 0 || Boolean(autoStartProp)
 
       try {
         if (fileType === "image" || fileType === "pdf") {
@@ -154,15 +155,16 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
   if (needsResume) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground">
-        <div>This sandbox is stopped.</div>
         <button
           type="button"
           onClick={() => setResumeCount((c) => c + 1)}
-          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent"
+          title="Start sandbox"
+          aria-label="Start sandbox"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent"
         >
-          <Play className="h-3.5 w-3.5" />
-          Resume to view
+          <RefreshCw className="h-5 w-5" />
         </button>
+        <div>This sandbox is stopped.</div>
       </div>
     )
   }

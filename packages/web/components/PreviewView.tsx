@@ -84,10 +84,15 @@ export function PreviewView({
   messages,
 }: PreviewViewProps) {
   const [refreshKey, setRefreshKey] = useState(0)
+  // A top-bar refresh is an explicit user action, so it may boot a stopped
+  // sandbox. Passed down to panels as `autoStart`.
+  const [refreshAutoStart, setRefreshAutoStart] = useState(false)
   const [scale, setScale] = useState(1)
   const [isDownloading, setIsDownloading] = useState(false)
   // Track when the dropdown just opened to ignore the initial pointerup
   const menuJustOpenedRef = useRef(false)
+  // Track the currently displayed item to detect when the user switches previews
+  const prevItemKeyRef = useRef<string | null>(null)
 
   // Download a file that's not in the repo
   const handleDownloadFile = async () => {
@@ -144,6 +149,14 @@ export function PreviewView({
 
   const Icon = plugin.getIcon()
 
+  // Reset the auto-start intent when switching to a different preview item, so
+  // only an explicit refresh of the current item can boot a stopped sandbox.
+  const itemKey = getItemKey(item)
+  if (prevItemKeyRef.current !== itemKey) {
+    prevItemKeyRef.current = itemKey
+    if (refreshAutoStart) setRefreshAutoStart(false)
+  }
+
   // When the item is a file and we have a repo/branch, build the GitHub URL
   // File paths from sandbox are absolute (e.g., /home/daytona/project/src/index.ts)
   // so we need to strip the sandbox prefix to get the repo-relative path.
@@ -166,6 +179,8 @@ export function PreviewView({
       // Sessions are cached per-panel by their unique item.id.
       disposeTerminalSession(item.id)
     }
+    // Explicit user action — refreshing should boot a stopped sandbox.
+    setRefreshAutoStart(true)
     setRefreshKey((k) => k + 1)
   }
 
@@ -350,6 +365,7 @@ export function PreviewView({
             sandboxId={sandboxId}
             scale={scale}
             messages={messages}
+            autoStart={refreshAutoStart}
           />
         </div>
       </div>
