@@ -21,14 +21,15 @@ import {
   type SkillCatalogEntry,
 } from "./session"
 import {
-  setupClaudeHooks,
-  setupCodexRules,
-  OPENCODE_PERMISSION_ENV,
-} from "@background-agents/agent-configuration/git"
+  setupClaudePermissions,
+  setupCodexPermissions,
+  renderOpenCodePermissionEnv,
+} from "@background-agents/agent-configuration/permissions"
 import {
   setupMcpForAgent,
   type AgentMcpServer,
 } from "@background-agents/agent-configuration/mcp"
+import { DEFAULT_GIT_POLICY } from "./git-policy"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 // Re-export Agent type for convenience
@@ -120,9 +121,9 @@ export async function createBackgroundAgentSession(
   // Set up git safety hooks based on agent type
   // This blocks dangerous git operations (push, rebase, reset --hard, etc.)
   if (agent === "claude-code") {
-    await setupClaudeHooks(sandbox)
+    await setupClaudePermissions(sandbox, DEFAULT_GIT_POLICY)
   } else if (agent === "codex") {
-    await setupCodexRules(sandbox)
+    await setupCodexPermissions(sandbox, DEFAULT_GIT_POLICY)
   }
 
   // Write per-agent MCP config files for the connected MCP servers.
@@ -146,7 +147,7 @@ export async function createBackgroundAgentSession(
   // (Plan mode permissions are handled by the agent's buildCommand)
   const env = { ...options.env }
   if (agent === "opencode" && !options.planMode) {
-    env.OPENCODE_PERMISSION = OPENCODE_PERMISSION_ENV
+    env.OPENCODE_PERMISSION = renderOpenCodePermissionEnv(DEFAULT_GIT_POLICY)
   }
 
   const bgSession = await createSession(provider, {

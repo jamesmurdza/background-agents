@@ -1,7 +1,7 @@
 {
   "name": "@background-agents/agent-configuration",
   "version": "0.1.0",
-  "description": "Agent configuration and policy rules for blocking dangerous operations",
+  "description": "Translation layer between coding agents' configuration formats (MCP servers and command-permission policies)",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "type": "module",
@@ -13,9 +13,9 @@
   "keywords": [
     "agent",
     "configuration",
-    "git",
-    "safety",
-    "permissions"
+    "mcp",
+    "permissions",
+    "translation"
   ],
   "license": "MIT",
   "devDependencies": {
@@ -32,7 +32,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./git": "./src/git/index.ts",
+    "./permissions": "./src/permissions/index.ts",
     "./mcp": "./src/mcp/index.ts"
   }
 }

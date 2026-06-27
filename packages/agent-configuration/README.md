@@ -1,17 +1,28 @@
 # @background-agents/agent-configuration
 
-Agent configuration and policy rules for AI coding agents running in Daytona sandboxes.
+A translation layer between coding agents' configuration formats.
 
 ## Overview
 
-This package provides centralized configuration for AI coding agents running in sandboxed environments. It covers two areas:
+Every coding agent (Claude Code, Codex, Gemini, OpenCode, Goose, Copilot, Kilo,
+Kimi) loads MCP servers and command-permission rules from a different file, in a
+different schema, with a different transport convention. This package takes
+**agent-agnostic inputs** and renders the correct **native config** for whichever
+agent is running, then installs it into the sandbox.
 
-1. **Git safety** — Preventing agents from executing dangerous git operations that could:
-   - Rewrite history (`git commit --amend`, `git rebase`, `git reset --hard`)
-   - Push changes without authorization (`git push`)
-   - Manipulate branches (`git branch -d/-D/-m/-M`, `git checkout -b`, `git switch -c`)
-   - Switch branches (`git checkout <branch>`, `git switch <branch>`)
-2. **MCP setup** — Writing per-agent MCP server configuration files into the sandbox so the agent CLI picks them up on startup.
+It holds no policy of its own. Callers decide *what* to configure; this layer
+only knows *how* to express it per agent. There are two translation domains:
+
+1. **MCP servers** — given a list of `{ name, url, bearerToken }` connections,
+   write the right config file in the right format for the target agent.
+2. **Command permissions** — given an agent-agnostic `CommandPolicy` (a list of
+   command rules to deny), render it into the agent's native mechanism: a Claude
+   `PreToolUse` bash hook, Codex Starlark `prefix_rule`s, or the OpenCode
+   `OPENCODE_PERMISSION` JSON.
+
+> The actual ruleset (e.g. "block `git push`/`rebase`/...") is **policy** and
+> lives with the consumer. In this repo it's defined in
+> `packages/web/lib/git-policy.ts` as `DEFAULT_GIT_POLICY` and passed in.
 
 ## Installation
 
@@ -19,120 +30,116 @@ This package provides centralized configuration for AI coding agents running in 
 npm install @background-agents/agent-configuration
 ```
 
-## Usage
+## Command permissions
 
-### Claude Code
-
-Claude Code uses bash hooks that intercept commands before execution:
-
-```ts
-import { setupClaudeHooks } from '@background-agents/agent-configuration'
-
-// During agent session setup
-await setupClaudeHooks(sandbox)
-```
-
-### Codex
-
-Codex uses Starlark rules stored in `~/.codex/rules/`:
+Describe what to deny with the agent-agnostic `CommandPolicy` vocabulary, then
+hand it to the renderer for whichever agent is running:
 
 ```ts
-import { setupCodexRules } from '@background-agents/agent-configuration'
+import {
+  setupClaudePermissions,
+  setupCodexPermissions,
+  renderOpenCodePermissionEnv,
+  type CommandPolicy,
+} from "@background-agents/agent-configuration/permissions"
 
-// During agent session setup
-await setupCodexRules(sandbox)
-```
-
-### OpenCode
-
-OpenCode uses a JSON permission system via environment variable:
-
-```ts
-import { OPENCODE_PERMISSION_ENV } from '@background-agents/agent-configuration'
-
-// When starting the agent
-const env = {
-  OPENCODE_PERMISSION: OPENCODE_PERMISSION_ENV,
+const policy: CommandPolicy = {
+  deny: [
+    { kind: "deny", prefix: ["git", "push"], reason: "Pushing is automatic." },
+    {
+      kind: "deny-except",
+      prefix: ["git", "rebase"],
+      allow: ["--continue", "--abort", "--skip"],
+      reason: "rebase rewrites history.",
+    },
+    // ...
+  ],
 }
+
+await setupClaudePermissions(sandbox, policy) // Claude Code bash hook
+await setupCodexPermissions(sandbox, policy)  // Codex Starlark rules
+env.OPENCODE_PERMISSION = renderOpenCodePermissionEnv(policy) // OpenCode env
 ```
 
-## Blocked Operations
+### Rule kinds
 
-All agents block the same core set of dangerous operations:
+| `kind`            | Matches                                                       | Example                                           |
+| ----------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| `deny`            | the prefix, always                                           | `["git", "push"]`                                 |
+| `deny-with-flag`  | the prefix when any `flags` token appears in the args        | `["git", "branch"]` + `["-d", "-D"]`              |
+| `deny-except`     | the prefix unless the next token is in `allow`               | `["git", "rebase"]` + `["--continue", "--abort"]` |
+| `deny-branch-arg` | the prefix + a branch ref (`allowFileForms` permits `.`/`--`/`HEAD`) | `["git", "checkout"]`                      |
 
-| Category | Commands | Reason |
-|----------|----------|--------|
-| History Rewriting | `git commit --amend` | Modifies the last commit |
-| | `git rebase` | Rewrites commit history |
-| | `git reset --hard` | Discards commits |
-| Push | `git push` | Handled automatically by platform |
-| Branch Deletion | `git branch -d/-D` | Prevents accidental deletion |
-| Branch Renaming | `git branch -m/-M` | Prevents branch manipulation |
-| Branch Creation | `git checkout -b`, `git switch -c` | Agents should stay on assigned branch |
-| Branch Switching | `git checkout <branch>`, `git switch <branch>` | Agents should stay on assigned branch |
+Each renderer expresses these as faithfully as its format allows. Where a format
+can't model a nuance — OpenCode globs can't say "deny unless `--continue`", and
+Codex `prefix_rule`s can't match a flag mid-argument — the renderer falls back
+to denying the whole prefix (so e.g. `git checkout`/`switch` are blocked
+entirely for Codex/OpenCode, and agents are told to use `git restore`).
 
-**Per-agent differences in how `checkout`/`switch` are matched:**
+Renderers are also exposed as pure functions (`renderClaudeHook`,
+`renderCodexRules`, `renderOpenCodePermissions`) for testing or custom install
+flows. OpenCode additionally merges in `OPENCODE_BASELINE_PERMISSIONS` — the
+non-policy allows (`edit`, `webfetch`, `external_directory`) the agent needs to
+run headlessly.
 
-- **Claude Code** blocks only the branch-creation and branch-switching forms above. File-level operations stay allowed (`git checkout .`, `git checkout -- <file>`, `git checkout HEAD`), and rebase conflict resolution is permitted (`git rebase --continue/--abort/--skip`).
-- **Codex** and **OpenCode** block `git checkout` and `git switch` entirely — use `git restore` for file operations.
+## MCP setup
 
-## MCP Setup
-
-Writes per-agent MCP server configs into the sandbox before the agent CLI starts. Currently supported agents: `claude-code`, `codex`, `gemini`, `opencode`, `goose`, `copilot`, `kilo`, `kimi`.
+Writes per-agent MCP server configs into the sandbox before the agent CLI
+starts. Supported agents: `claude-code`, `codex`, `gemini`, `opencode`, `goose`,
+`copilot`, `kilo`, `kimi`. It's a no-op for agents that don't support MCP.
 
 ```ts
-import { setupMcpForAgent } from '@background-agents/agent-configuration'
+import { setupMcpForAgent } from "@background-agents/agent-configuration/mcp"
 
 await setupMcpForAgent(sandbox, {
-  agent: 'claude-code',
+  agent: "claude-code",
   servers: [
     {
-      name: 'github',
-      url: 'https://api.githubcopilot.com/mcp/',
-      bearerToken: '<github-installation-token>',
+      name: "github",
+      url: "https://api.githubcopilot.com/mcp/",
+      bearerToken: "<github-installation-token>",
     },
   ],
 })
 ```
 
-The function is a no-op for agents that don't support MCP. Each agent CLI loads MCP servers from a different config file with a different schema; this helper writes the correct file in the correct format.
+Each agent CLI loads MCP servers from a different config file with a different
+schema; this helper writes the correct file in the correct format. Passing an
+empty `servers` list still writes the config, clearing any stale entries from a
+previous run in a reused sandbox.
 
 ## Exports
 
-### Git Safety
-
 ```ts
+// "@background-agents/agent-configuration/permissions"
 import {
-  // Claude Code
-  setupClaudeHooks,
-  CLAUDE_HOOKS_DIR,
+  type CommandPolicy,
+  type CommandRule,
+  // Claude
+  setupClaudePermissions,
+  renderClaudeHook,
   CLAUDE_HOOK_FILE,
-  CLAUDE_HOOK_CONTENT,
   CLAUDE_SETTINGS_FILE,
   CLAUDE_SETTINGS,
-
   // Codex
-  setupCodexRules,
-  CODEX_RULES_DIR,
+  setupCodexPermissions,
+  renderCodexRules,
   CODEX_RULES_FILE,
-  CODEX_RULES_CONTENT,
-
   // OpenCode
-  OPENCODE_PERMISSION_ENV,
-  OPENCODE_PERMISSION_CONFIG,
-  OPENCODE_PERMISSIONS,
-} from '@background-agents/agent-configuration'
-```
+  renderOpenCodePermissions,
+  renderOpenCodePermissionEnv,
+  OPENCODE_BASELINE_PERMISSIONS,
+} from "@background-agents/agent-configuration/permissions"
 
-### MCP
-
-```ts
+// "@background-agents/agent-configuration/mcp"
 import {
   setupMcpForAgent,
   type AgentMcpServer,
   type SetupMcpOptions,
-} from '@background-agents/agent-configuration'
+} from "@background-agents/agent-configuration/mcp"
 ```
+
+The package root (`.`) re-exports both submodules.
 
 ## License
 
