@@ -1,6 +1,7 @@
 {
   "name": "@background-agents/sandbox-image",
   "version": "0.1.0",
+  "private": true,
   "description": "Custom Daytona sandbox image with pre-installed agent CLIs",
   "main": "src/index.ts",
   "types": "src/index.ts",
