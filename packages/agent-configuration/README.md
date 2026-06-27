@@ -79,7 +79,7 @@ entirely for Codex/OpenCode, and agents are told to use `git restore`).
 Renderers are also exposed as pure functions (`renderClaudeHook`,
 `renderCodexRules`, `renderOpenCodePermissions`) for testing or custom install
 flows. OpenCode additionally merges in `OPENCODE_BASELINE_PERMISSIONS` — the
-non-policy allows (`edit`, `webfetch`, `external_directory`) the agent needs to
+baseline allows (`edit`, `webfetch`, `external_directory`) the agent needs to
 run headlessly.
 
 ## MCP setup
