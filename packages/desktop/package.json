@@ -1,6 +1,7 @@
 {
   "name": "@background-agents/desktop",
   "version": "0.1.0",
+  "private": true,
   "description": "Electron desktop app for Background Agents",
   "main": "dist/main.js",
   "type": "module",
