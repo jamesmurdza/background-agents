@@ -46,6 +46,10 @@ import {
   getDefaultAgent,
   hasOwnAnthropicCredentials,
   sharedClaudePoolEligible,
+  agentUsesSharedPool,
+  agentHasFreeUsage,
+  agentSharedPoolExhausted,
+  agentIsReady,
   hasCredentialsForModel,
   getDefaultModelForAgent,
   getAgentModels,
@@ -54,8 +58,13 @@ import {
   findEndpoint,
   buildEndpointEnv,
   buildCustomModelEnv,
+  buildCodexCustomEnv,
+  buildOpencodeCustomEnv,
   parseCustomHeaders,
   resolveCliModel,
+  resolveModelForAgent,
+  resolveAgent,
+  resolveAgentAndModel,
 } from "@background-agents/common"
 ```
 

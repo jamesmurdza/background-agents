@@ -66,7 +66,7 @@ await sandbox.delete()
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | Kilo | `kilo run --format json --auto -- "prompt" 2>&1` |
 | Kimi | `kimi -m <model> --output-format stream-json -p "prompt"` |
-| OpenCode | `opencode run --format json --variant medium -- "prompt" 2>&1` |
+| OpenCode | `opencode run --format json --print-logs --log-level ERROR --variant medium -- "prompt" 2>&1` |
 | Pi | `pi --mode json -p "prompt"` |
 | Eliza | Built-in deterministic agent (no CLI) |
 
