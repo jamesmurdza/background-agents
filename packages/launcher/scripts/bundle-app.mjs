@@ -1,4 +1,4 @@
-// Builds the Electron app (@background-agents/electron) and copies its compiled
+// Builds the Electron app (@background-agents/desktop) and copies its compiled
 // output + assets into this package's `app/` directory, so the published
 // `background-agents` npm package is fully self-contained.
 //
@@ -25,8 +25,8 @@ const assetsDir = path.join(electronDir, "assets");
 const mainJs = path.join(distDir, "main.js");
 const preloadCjs = path.join(distDir, "preload.cjs");
 
-log("Building @background-agents/electron…");
-execSync("npm run build -w @background-agents/electron", {
+log("Building @background-agents/desktop…");
+execSync("npm run build -w @background-agents/desktop", {
   cwd: repoRoot,
   stdio: "inherit",
 });
@@ -52,7 +52,7 @@ cpSync(assetsDir, path.join(appDir, "assets"), { recursive: true });
 // CRITICAL: main.js is built as ESM (tsup --format esm), but the launcher
 // package is "type": "commonjs". Without this, Electron loads main.js as
 // CommonJS and throws "Cannot use import statement outside a module".
-// Mirror packages/electron (which is "type": "module") by giving the bundled
+// Mirror packages/desktop (which is "type": "module") by giving the bundled
 // app its own ESM scope. preload.cjs stays CommonJS via its .cjs extension.
 writeFileSync(
   path.join(appDir, "package.json"),
@@ -78,7 +78,7 @@ if (missing.length > 0) {
   throw new Error(
     `launcher/package.json is missing runtime deps required by the bundled app: ` +
       `${missing.join(", ")}. Add them to packages/launcher/package.json "dependencies" ` +
-      `(match the versions in packages/electron/package.json).`
+      `(match the versions in packages/desktop/package.json).`
   );
 }
 

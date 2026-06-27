@@ -19,7 +19,7 @@ import {
   internalError,
   serverConfigError,
 } from "@/lib/db/api-helpers"
-import { createGitHubMcpProvider } from "@background-agents/mcp-providers"
+import { createGitHubMcpProvider } from "@background-agents/mcp"
 
 interface ConnectResponse {
   /** True iff the user has installed our GitHub App. */

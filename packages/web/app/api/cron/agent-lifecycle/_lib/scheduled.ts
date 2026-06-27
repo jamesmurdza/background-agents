@@ -2,7 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { format } from "date-fns"
-import { createSandboxGit } from "@background-agents/daytona-git"
+import { createSandboxGit } from "@background-agents/sandbox-git"
 import { getEnvForModel, resolveCliModel, ENDPOINT_MODEL_PREFIX, type Agent } from "@background-agents/common"
 import { getUserEndpoints } from "@/lib/server/custom-endpoints"
 

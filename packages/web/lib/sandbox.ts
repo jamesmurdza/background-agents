@@ -8,8 +8,8 @@
 
 import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
-import { createSandboxGit } from "@background-agents/daytona-git"
-import { installSkills, discoverInstalledSkills } from "@background-agents/skills/sandbox"
+import { createSandboxGit } from "@background-agents/sandbox-git"
+import { installSkills, discoverInstalledSkills } from "@background-agents/sandbox-skills/sandbox"
 import { TOKSCALE_VERSION, getActiveSnapshotName } from "@background-agents/sandbox-image"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"

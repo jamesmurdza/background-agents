@@ -102,7 +102,7 @@ GITHUB_APP_SLUG="..."
 GITHUB_APP_PRIVATE_KEY="..."
 ```
 
-See [`mcp-providers`](../mcp-providers/README.md) for setup.
+See [`mcp`](../mcp/README.md) for setup.
 
 ### Testing
 

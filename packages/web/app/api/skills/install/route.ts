@@ -10,7 +10,7 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { PATHS } from "@/lib/constants"
-import { installSkills } from "@background-agents/skills/sandbox"
+import { installSkills } from "@background-agents/sandbox-skills/sandbox"
 
 // =============================================================================
 // POST - Install skills into a chat's sandbox

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from "vitest"
 import { autoPullBeforeRun } from "./auto-pull"
-import type { ExecuteResult, SandboxLike } from "@background-agents/daytona-git"
+import type { ExecuteResult, SandboxLike } from "@background-agents/sandbox-git"
 
 type Responder = (cmd: string) => ExecuteResult
 

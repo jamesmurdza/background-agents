@@ -15,7 +15,7 @@
  * `app/api/agent/stream/route.ts`.
  */
 
-import { createSandboxGit, type SandboxLike } from "@background-agents/daytona-git"
+import { createSandboxGit, type SandboxLike } from "@background-agents/sandbox-git"
 
 export type AutoPullResult =
   /** Nothing to do — branch already matches origin. */

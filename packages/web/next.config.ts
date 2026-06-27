@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // the string constants, which webpack can tree-shake when not transpiled.
   transpilePackages: [
     "@background-agents/sdk",
-    "@background-agents/agent-configuration",
+    "@background-agents/agent-policy",
     "@background-agents/common",
   ],
   // Keep @daytonaio/sdk on the server side

@@ -4,7 +4,7 @@ import {
   isAuthError,
   badRequest,
 } from "@/lib/db/api-helpers"
-import { searchSkills } from "@background-agents/skills/registry"
+import { searchSkills } from "@background-agents/sandbox-skills/registry"
 
 // =============================================================================
 // GET - Search skills from Skills.sh registry

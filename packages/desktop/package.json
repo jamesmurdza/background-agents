@@ -1,0 +1,77 @@
+{
+  "name": "@background-agents/desktop",
+  "version": "0.1.0",
+  "description": "Electron desktop app for Background Agents",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build && electron dist/main.js",
+    "build": "tsup src/main.ts --format esm --target node18 --external electron && tsup src/preload.ts --format cjs --target node18 --external electron",
+    "clean": "rm -rf dist release",
+    "start": "electron dist/main.js",
+    "package": "npm run build && electron-builder",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
+    "package:linux": "npm run build && electron-builder --linux",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "isomorphic-git": "^1.38.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.3"
+  },
+  "build": {
+    "appId": "com.background-agents.desktop",
+    "productName": "Background Agents",
+    "directories": {
+      "output": "release"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "jamesmurdza",
+      "repo": "background-agents"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "protocols": {
+      "name": "Background Agents",
+      "schemes": [
+        "background-agents"
+      ]
+    }
+  }
+}

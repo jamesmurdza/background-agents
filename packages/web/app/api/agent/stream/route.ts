@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { Daytona } from "@daytonaio/sdk"
-import { createSandboxGit } from "@background-agents/daytona-git"
+import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import {
   cancelBackgroundAgent,

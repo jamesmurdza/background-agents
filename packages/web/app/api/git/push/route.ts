@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { createSandboxGit } from "@background-agents/daytona-git"
+import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
 import { getUserPushOptions } from "@/lib/git/push-options"

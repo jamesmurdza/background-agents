@@ -1,6 +1,6 @@
 import { compareBranches, githubFetch, isGitHubApiError } from "@background-agents/common"
 import { Daytona } from "@daytonaio/sdk"
-import { createSandboxGit } from "@background-agents/daytona-git"
+import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"

@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { setupTerminal, stopTerminal, getTerminalStatus } from "@background-agents/daytona-terminal"
+import { setupTerminal, stopTerminal, getTerminalStatus } from "@background-agents/sandbox-terminal"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { internalError, badRequest } from "@/lib/db/api-helpers"
 

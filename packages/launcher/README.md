@@ -46,7 +46,7 @@ Environment variable `BACKGROUND_AGENTS_URL` does the same as `--url` (the flag 
 
 ## Development
 
-This package lives in the monorepo at `packages/launcher`. Its `app/` directory is generated — it's a copy of the compiled `@background-agents/electron` output.
+This package lives in the monorepo at `packages/launcher`. Its `app/` directory is generated — it's a copy of the compiled `@background-agents/desktop` output.
 
 ```bash
 # From the repo root:
