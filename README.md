@@ -6,9 +6,9 @@ https://github.com/user-attachments/assets/ee6de7e9-a32e-45bd-acfa-3da1763b80ea
 
 ## Packages
 
-### External packages
+### Published packages
 
-Published to npm for use in your own projects.
+On npm — use them in your own projects.
 
 | Package | Description | Maintainer |
 |---------|-------------|------------|
@@ -24,7 +24,7 @@ Published to npm for use in your own projects.
 
 ### Internal packages
 
-Used within this repo (apps and shared internals); not published to npm.
+Not published — apps and shared internals used only in this repo.
 
 | Package | Description | Maintainer |
 |---------|-------------|------------|
