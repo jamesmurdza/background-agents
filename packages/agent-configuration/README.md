@@ -10,19 +10,19 @@ different schema, with a different transport convention. This package takes
 **agent-agnostic inputs** and renders the correct **native config** for whichever
 agent is running, then installs it into the sandbox.
 
-It holds no policy of its own. Callers decide *what* to configure; this layer
-only knows *how* to express it per agent. There are two translation domains:
+There are two translation domains:
 
 1. **MCP servers** — given a list of `{ name, url, bearerToken }` connections,
    write the right config file in the right format for the target agent.
-2. **Command permissions** — given an agent-agnostic `CommandPolicy` (a list of
-   command rules to deny), render it into the agent's native mechanism: a Claude
-   `PreToolUse` bash hook, Codex Starlark `prefix_rule`s, or the OpenCode
-   `OPENCODE_PERMISSION` JSON.
+2. **Command permissions** — given a `CommandPolicy` (a list of command rules to
+   deny), render it into the agent's native mechanism: a Claude `PreToolUse` bash
+   hook, Codex Starlark `prefix_rule`s, or the OpenCode `OPENCODE_PERMISSION` JSON.
 
-> The actual ruleset (e.g. "block `git push`/`rebase`/...") is **policy** and
-> lives with the consumer. In this repo it's defined in
-> `packages/web/lib/git-policy.ts` as `DEFAULT_GIT_POLICY` and passed in.
+You supply the inputs; the package handles the per-agent formats. The command
+ruleset itself (e.g. "block `git push`/`rebase`/...") stays in your app — in this
+repo it lives in `packages/web/lib/git-policy.ts` as `DEFAULT_GIT_POLICY` — so the
+same policy renders identically across every agent and lives in one place to
+edit.
 
 ## Installation
 
