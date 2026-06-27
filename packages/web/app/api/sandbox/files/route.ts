@@ -34,6 +34,12 @@ export async function POST(req: Request) {
     action?: string
     filePath?: string
     maxLines?: number
+    /**
+     * When true, an explicit user action (e.g. the download button) is asking
+     * to boot a stopped sandbox. Passive reads (the file-viewer panel) omit it
+     * so they never resurrect an idle sandbox; see the lifecycle block below.
+     */
+    autoStart?: boolean
   } | null
 
   if (!body) return badRequest("Invalid JSON body")
@@ -57,6 +63,28 @@ export async function POST(req: Request) {
     } catch {
       return Response.json({ error: "SANDBOX_NOT_FOUND" }, { status: 410 })
     }
+    // Per-action sandbox lifecycle. A stopped sandbox must only be booted by an
+    // explicit user action — never by background/passive traffic:
+    //   - `list-servers` is a 5s background poll; a stopped sandbox has no
+    //     listening servers, so we answer `{ ports: [] }` without starting it
+    //     (and without keeping an idle sandbox alive).
+    //   - `read-file`/`read-file-binary` from the file-viewer panel are passive;
+    //     they omit `autoStart` and get a 409 SANDBOX_STOPPED so the UI can offer
+    //     a Resume action instead of silently spinning the sandbox up.
+    // When the sandbox is already started we fall through to the normal
+    // `ensureSandboxStarted` (a no-op start that still runs its usual checks).
+    if (sandbox.state !== "started") {
+      if (action === "list-servers") {
+        return Response.json({ ports: [] })
+      }
+      if (
+        (action === "read-file" || action === "read-file-binary") &&
+        !body.autoStart
+      ) {
+        return Response.json({ error: "SANDBOX_STOPPED" }, { status: 409 })
+      }
+    }
+
     await ensureSandboxStarted(sandbox)
 
     switch (action) {

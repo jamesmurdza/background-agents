@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { FileCode2, Loader2 } from "lucide-react"
+import { FileCode2, Loader2, Play } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { HighlightedCode, getFileTypeFromPath, ImageFullPreview, PdfFullPreview, isMarkdownPath, MarkdownPreview } from "@/lib/file-preview"
 
@@ -10,6 +10,10 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // The sandbox is stopped and this passive read declined to boot it. Bumping
+  // `resumeCount` (via the Resume button) re-runs the load with autoStart=true.
+  const [needsResume, setNeedsResume] = useState(false)
+  const [resumeCount, setResumeCount] = useState(0)
 
   const filePath = item.type === "file" ? item.filePath : ""
   const fileType = getFileTypeFromPath(filePath)
@@ -54,6 +58,11 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
     const loadFile = async () => {
       setLoading(true)
       setError(null)
+      setNeedsResume(false)
+
+      // This is a passive panel read: don't boot a stopped sandbox unless the
+      // user explicitly asked to (Resume button bumps resumeCount).
+      const autoStart = resumeCount > 0
 
       try {
         if (fileType === "image" || fileType === "pdf") {
@@ -61,11 +70,15 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
           const res = await fetch("/api/sandbox/files", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sandboxId, action: "read-file-binary", filePath }),
+            body: JSON.stringify({ sandboxId, action: "read-file-binary", filePath, autoStart }),
           })
 
           if (cancelled) return
 
+          if (res.status === 409) {
+            setNeedsResume(true)
+            return
+          }
           if (!res.ok) {
             const data = await res.json().catch(() => ({}))
             setError(data.error || `Failed to load ${filePath}`)
@@ -82,11 +95,15 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
           const res = await fetch("/api/sandbox/files", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sandboxId, action: "read-file", filePath }),
+            body: JSON.stringify({ sandboxId, action: "read-file", filePath, autoStart }),
           })
 
           if (cancelled) return
 
+          if (res.status === 409) {
+            setNeedsResume(true)
+            return
+          }
           const data = await res.json().catch(() => ({}))
           if (!res.ok) {
             setError(data.error || `Failed to load ${filePath}`)
@@ -115,7 +132,7 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
         URL.revokeObjectURL(blobUrl)
       }
     }
-  }, [sandboxId, filePath, fileType, editSignal])
+  }, [sandboxId, filePath, fileType, editSignal, resumeCount])
 
   // Cleanup blob URL on unmount
   useEffect(() => {
@@ -130,6 +147,22 @@ function FileViewerComponent({ item, sandboxId, messages }: PanelProps) {
     return (
       <div className="h-full flex items-center justify-center text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
+      </div>
+    )
+  }
+
+  if (needsResume) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground">
+        <div>This sandbox is stopped.</div>
+        <button
+          type="button"
+          onClick={() => setResumeCount((c) => c + 1)}
+          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent"
+        >
+          <Play className="h-3.5 w-3.5" />
+          Resume to view
+        </button>
       </div>
     )
   }

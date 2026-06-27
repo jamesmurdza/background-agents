@@ -102,6 +102,8 @@ export function PreviewView({
           sandboxId,
           action: "read-file",
           filePath: item.filePath,
+          // Explicit user action — OK to boot a stopped sandbox to fetch the file.
+          autoStart: true,
         }),
       })
 
