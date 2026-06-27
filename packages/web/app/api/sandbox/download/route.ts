@@ -1,6 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@background-agents/common"
 import { ensureSandboxStarted } from "@/lib/sandbox"
+import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { internalError, badRequest } from "@/lib/db/api-helpers"
 
 export const maxDuration = 60
@@ -31,11 +32,9 @@ export async function POST(req: Request) {
 
   try {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    try {
-      sandbox = await daytona.get(sandboxId)
-    } catch {
-      return Response.json({ error: "SANDBOX_NOT_FOUND" }, { status: 410 })
-    }
+    const resolved = await getSandboxOrExpired(daytona, sandboxId)
+    if (resolved instanceof Response) return resolved
+    sandbox = resolved
 
     await ensureSandboxStarted(sandbox)
 

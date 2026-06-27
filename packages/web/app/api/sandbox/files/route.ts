@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { ensureSandboxStarted } from "@/lib/sandbox"
+import { getSandboxOrExpired, passiveReadGate } from "@/lib/sandbox-lifecycle"
 import { escapeShell } from "@background-agents/sdk"
 import { PATHS } from "@background-agents/common"
 import { IMAGE_MIME_TYPES } from "@/lib/file-preview/types"
@@ -57,32 +58,26 @@ export async function POST(req: Request) {
 
   try {
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    let sandbox
-    try {
-      sandbox = await daytona.get(sandboxId)
-    } catch {
-      return Response.json({ error: "SANDBOX_NOT_FOUND" }, { status: 410 })
-    }
+    const sandbox = await getSandboxOrExpired(daytona, sandboxId)
+    if (sandbox instanceof Response) return sandbox
+
     // Per-action sandbox lifecycle. A stopped sandbox must only be booted by an
     // explicit user action — never by background/passive traffic:
     //   - `list-servers` is a 5s background poll; a stopped sandbox has no
     //     listening servers, so we answer `{ ports: [] }` without starting it
     //     (and without keeping an idle sandbox alive).
     //   - `read-file`/`read-file-binary` from the file-viewer panel are passive;
-    //     they omit `autoStart` and get a 409 SANDBOX_STOPPED so the UI can offer
-    //     a Resume action instead of silently spinning the sandbox up.
+    //     they omit `autoStart` and get a 409 SANDBOX_STOPPED (via
+    //     `passiveReadGate`) so the UI can offer a Resume action instead of
+    //     silently spinning the sandbox up.
     // When the sandbox is already started we fall through to the normal
     // `ensureSandboxStarted` (a no-op start that still runs its usual checks).
-    if (sandbox.state !== "started") {
-      if (action === "list-servers") {
-        return Response.json({ ports: [] })
-      }
-      if (
-        (action === "read-file" || action === "read-file-binary") &&
-        !body.autoStart
-      ) {
-        return Response.json({ error: "SANDBOX_STOPPED" }, { status: 409 })
-      }
+    if (sandbox.state !== "started" && action === "list-servers") {
+      return Response.json({ ports: [] })
+    }
+    if (action === "read-file" || action === "read-file-binary") {
+      const halt = passiveReadGate(sandbox, body.autoStart)
+      if (halt) return halt
     }
 
     await ensureSandboxStarted(sandbox)
