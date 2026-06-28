@@ -35,29 +35,18 @@ describe("claudeAgent.buildCommand", () => {
     expect(args).not.toContain("--")
   })
 
-  // Regression: prompts starting with `-` used to crash the Claude CLI with
-  // "error: unknown option '-hi'" because the CLI's own argument parser
-  // treated the value as a flag.
-  it("regression: prompt '- hi' is placed after the -- sentinel (not treated as a flag)", () => {
-    const { args } = claudeAgent.buildCommand({ prompt: "- hi" })
-    const sepIdx = args.indexOf("--")
-    expect(sepIdx).toBeGreaterThanOrEqual(0)
-    expect(args[sepIdx + 1]).toBe("- hi")
-  })
-
-  it("regression: prompt '-hi' is placed after the -- sentinel", () => {
-    const { args } = claudeAgent.buildCommand({ prompt: "-hi" })
-    const sepIdx = args.indexOf("--")
-    expect(sepIdx).toBeGreaterThanOrEqual(0)
-    expect(args[sepIdx + 1]).toBe("-hi")
-  })
-
-  it("regression: prompt '-' alone is placed after the -- sentinel", () => {
-    const { args } = claudeAgent.buildCommand({ prompt: "-" })
-    const sepIdx = args.indexOf("--")
-    expect(sepIdx).toBeGreaterThanOrEqual(0)
-    expect(args[sepIdx + 1]).toBe("-")
-  })
+  // Prompts starting with `-` must land after the `--` sentinel, otherwise the
+  // Claude CLI's own argument parser treats them as flags and crashes with
+  // "error: unknown option '-hi'".
+  it.each(["- hi", "-hi", "-"])(
+    "places a dash-prefixed prompt %j after the -- sentinel (not treated as a flag)",
+    (prompt) => {
+      const { args } = claudeAgent.buildCommand({ prompt })
+      const sepIdx = args.indexOf("--")
+      expect(sepIdx).toBeGreaterThanOrEqual(0)
+      expect(args[sepIdx + 1]).toBe(prompt)
+    }
+  )
 
   it("includes --system-prompt when systemPrompt is provided", () => {
     const { args } = claudeAgent.buildCommand({
