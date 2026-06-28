@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
+import { adminRetry, fetchAdminJson } from "./adminQuery"
 import type { Plan } from "@/lib/server/usage-budgets"
 
 interface User {
@@ -52,14 +53,7 @@ async function fetchAdminUsers(
   if (options.sortField) params.set("sortField", options.sortField)
   if (options.sortOrder) params.set("sortOrder", options.sortOrder)
 
-  const response = await fetch(`/api/admin/users?${params}`)
-  if (!response.ok) {
-    if (response.status === 403) {
-      throw new Error("Forbidden: Admin access required")
-    }
-    throw new Error("Failed to fetch admin users")
-  }
-  return response.json()
+  return fetchAdminJson<AdminUsersResponse>(`/api/admin/users?${params}`, "users")
 }
 
 export function useAdminUsersQuery(options: UseAdminUsersQueryOptions = {}) {
@@ -72,12 +66,7 @@ export function useAdminUsersQuery(options: UseAdminUsersQueryOptions = {}) {
     queryFn: () => fetchAdminUsers(options),
     enabled: isAuthenticated,
     staleTime: 30 * 1000, // 30 seconds
-    retry: (failureCount, error) => {
-      if (error instanceof Error && error.message.includes("Forbidden")) {
-        return false
-      }
-      return failureCount < 3
-    },
+    retry: adminRetry,
   })
 }
 

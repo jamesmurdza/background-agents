@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
+import { adminRetry, fetchAdminJson } from "./adminQuery"
 
 interface Activity {
   id: string
@@ -60,14 +61,7 @@ async function fetchAdminActivity(
   if (options.dateTo) params.set("dateTo", options.dateTo)
   if (options.includeFilters) params.set("includeFilters", "true")
 
-  const response = await fetch(`/api/admin/activity?${params}`)
-  if (!response.ok) {
-    if (response.status === 403) {
-      throw new Error("Forbidden: Admin access required")
-    }
-    throw new Error("Failed to fetch admin activity")
-  }
-  return response.json()
+  return fetchAdminJson<AdminActivityResponse>(`/api/admin/activity?${params}`, "activity")
 }
 
 export function useAdminActivityQuery(options: UseAdminActivityQueryOptions = {}) {
@@ -87,11 +81,6 @@ export function useAdminActivityQuery(options: UseAdminActivityQueryOptions = {}
     queryFn: () => fetchAdminActivity(options),
     enabled: isAuthenticated,
     staleTime: 15 * 1000, // 15 seconds
-    retry: (failureCount, error) => {
-      if (error instanceof Error && error.message.includes("Forbidden")) {
-        return false
-      }
-      return failureCount < 3
-    },
+    retry: adminRetry,
   })
 }
