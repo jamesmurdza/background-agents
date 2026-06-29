@@ -368,7 +368,7 @@ export function ChatInput({
                   onClick={handleSendWithSpeechStop}
                   title="Queue message (sent after current response)"
                   className={cn(
-                    "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
+                    "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer",
                     isMobile ? "h-9 w-9" : "h-7 w-7"
                   )}
                 >
@@ -378,7 +378,7 @@ export function ChatInput({
                 <button
                   onClick={onStop}
                   className={cn(
-                    "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors",
+                    "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors cursor-pointer",
                     isMobile ? "h-9 w-9" : "h-7 w-7"
                   )}
                 >
@@ -388,7 +388,7 @@ export function ChatInput({
                 <button
                   onClick={handleSendWithSpeechStop}
                   className={cn(
-                    "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors",
+                    "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer",
                     isMobile ? "h-9 w-9" : "h-7 w-7"
                   )}
                 >
