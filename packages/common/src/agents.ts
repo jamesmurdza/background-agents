@@ -322,6 +322,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", requiresKey: "none" },
     { value: "kilo/stepfun/step-3.5-flash:free", label: "Step 3.5 Flash", requiresKey: "none" },
     // Anthropic via Kilo gateway
+    { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
@@ -341,7 +342,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/moonshotai/kimi-k2.6", label: "Kimi K2.6", requiresKey: "kilo" },
     { value: "kilo/qwen/qwen3-coder", label: "Qwen3 Coder", requiresKey: "kilo" },
     { value: "kilo/mistralai/devstral-medium", label: "Devstral Medium", requiresKey: "kilo" },
-    { value: "kilo/x-ai/grok-4.20", label: "Grok 4.20", requiresKey: "kilo" },
+    { value: "kilo/x-ai/grok-4.3", label: "Grok 4.3", requiresKey: "kilo" },
   ],
   "kimi": [
     // Moonshot (Kimi) models, routed through the user's KIMI_API_KEY against
