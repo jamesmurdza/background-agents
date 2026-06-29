@@ -316,11 +316,11 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/kilo-auto/free", label: "Auto Free", requiresKey: "none" },
     { value: "kilo/kilo-auto/balanced", label: "Auto Balanced", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
-    { value: "kilo/kilo-auto/efficient", label: "Auto Efficient", requiresKey: "kilo" },
+    { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
     // Free models
     { value: "kilo/deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash", requiresKey: "none" },
     { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", requiresKey: "none" },
-    { value: "kilo/stepfun/step-3.5-flash:free", label: "Step 3.5 Flash", requiresKey: "none" },
+    { value: "kilo/stepfun/step-3.7-flash:free", label: "Step 3.7 Flash", requiresKey: "none" },
     // Anthropic via Kilo gateway
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
@@ -332,7 +332,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/openai/o3", label: "o3", requiresKey: "kilo" },
     { value: "kilo/openai/o4-mini", label: "o4 Mini", requiresKey: "kilo" },
     // Google via Kilo gateway
-    { value: "kilo/google/gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "kilo" },
+    { value: "kilo/google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "kilo" },
     // DeepSeek via Kilo gateway
