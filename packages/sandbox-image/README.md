@@ -65,6 +65,11 @@ import {
   ALL_SNAPSHOT_NAMES,   // All known snapshot names
   getActiveSnapshotName,// Resolves the ready ("active") snapshot to serve
   SNAPSHOT_RESOURCES,   // { cpu, memory, disk } defaults
+  rebuildSnapshot,      // Rebuilds the snapshot from the current Image spec
+} from "@background-agents/sandbox-image"
+
+import type {
+  RebuildSnapshotOptions, // Options for rebuildSnapshot
 } from "@background-agents/sandbox-image"
 ```
 
