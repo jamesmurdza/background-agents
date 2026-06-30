@@ -17,6 +17,8 @@ Raw JSONL output captured from actual AI coding agent CLI runs. These are **not 
 | `kimi.jsonl` | Kimi Code | Moonshot Kimi Code CLI — chat-completion-shaped stream-json |
 | `kimi-error.jsonl` | Kimi Code | Kimi's plain-text fatal-error output (out-of-credits / 429 insufficient balance) |
 | `opencode.jsonl` | OpenCode | OpenCode CLI |
+| `opencode-usage-limit.jsonl` | OpenCode | OpenCode CLI hitting a monthly usage limit — `ERROR`-level log lines, no JSON event stream |
+| `opencode-usage-limit-logfmt.jsonl` | OpenCode | Same usage-limit failure in OpenCode's logfmt log format |
 | `pi.jsonl` | Pi | Pi Coding Agent CLI |
 
 ## Regenerating
