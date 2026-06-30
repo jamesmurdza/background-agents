@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { MoreHorizontal, Pencil, Trash2, Loader2, ChevronDown, ChevronRight, ArchiveRestore } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2, Loader2, ChevronDown, ChevronRight, Archive, ArchiveRestore } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import type { Chat } from "@/lib/types"
@@ -19,12 +19,14 @@ export interface MobileChatItemProps {
   onToggleExpanded?: () => void
   onSelect: () => void
   onDelete: () => void
+  /** When provided, the row shows an "Archive" action (active, non-archived chats). */
+  onArchive?: () => void
   /** When provided, the row is treated as archived and shows an "Unarchive" action. */
   onUnarchive?: () => void
   onRequestRename: () => void
 }
 
-export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onUnarchive, onRequestRename }: MobileChatItemProps) {
+export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onArchive, onUnarchive, onRequestRename }: MobileChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const displayName = chat.displayName || "Untitled"
@@ -101,6 +103,19 @@ export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0
               <Pencil className="h-3.5 w-3.5" />
               Rename
             </button>
+            {onArchive && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onArchive()
+                  setMenuOpen(false)
+                }}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Archive
+              </button>
+            )}
             {onUnarchive && (
               <button
                 onClick={(e) => {

@@ -15,6 +15,8 @@ interface RenderChatTreeArgs {
   onToggleCollapsed: (id: string) => void
   onSelectChat: (id: string) => void
   onDeleteChat: (id: string) => void
+  /** When provided, rows render an "Archive" action (used by the active section). */
+  onArchive?: (id: string) => void
   /** When provided, rows render an "Unarchive" action (used by the archived section). */
   onUnarchive?: (id: string) => void
   onRenameChat: (id: string, newName: string) => void
@@ -59,6 +61,7 @@ export function renderChatTree(args: RenderChatTreeArgs): React.ReactNode[] {
         onToggleExpanded={() => args.onToggleCollapsed(chat.id)}
         onSelect={() => args.onSelectChat(chat.id)}
         onDelete={() => args.onDeleteChat(chat.id)}
+        onArchive={args.onArchive ? () => args.onArchive!(chat.id) : undefined}
         onUnarchive={args.onUnarchive ? () => args.onUnarchive!(chat.id) : undefined}
         onRename={(newName) => args.onRenameChat(chat.id, newName)}
         onMerge={args.onMerge ? () => args.onMerge!(chat.id) : undefined}

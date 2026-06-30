@@ -31,6 +31,8 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void
   onNewChat: () => void
   onDeleteChat: (chatId: string) => void
+  /** Archive an active chat (and its branches), moving it into the archived section. */
+  onArchiveChat?: (chatId: string) => void
   /** Restore an archived chat (and its branches) back to the active list. */
   onUnarchiveChat?: (chatId: string) => void
   onRenameChat: (chatId: string, newName: string) => void
@@ -72,6 +74,7 @@ export function Sidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onArchiveChat,
   onUnarchiveChat,
   onRenameChat,
   collapsed,
@@ -498,6 +501,7 @@ export function Sidebar({
                     onToggleCollapsed: toggleChatCollapsed,
                     onSelectChat: handleSelectChat,
                     onDeleteChat,
+                    onArchive: onArchiveChat,
                     onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
                   })}
                 </>
@@ -732,6 +736,7 @@ export function Sidebar({
                     onToggleCollapsed: toggleChatCollapsed,
                     onSelectChat,
                     onDeleteChat,
+                    onArchive: onArchiveChat,
                     onRenameChat,
                     onMerge: onRequestMergeChats ? (id) => onRequestMergeChats(id) : undefined,
                     onRebase: onRequestRebaseChat ? (id) => onRequestRebaseChat(id) : undefined,

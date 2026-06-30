@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { MoreHorizontal, Pin, Pencil, Trash2, ChevronDown, ChevronRight, Loader2, GitMerge, GitBranch, ArchiveRestore } from "lucide-react"
+import { MoreHorizontal, Pin, Pencil, Trash2, ChevronDown, ChevronRight, Loader2, GitMerge, GitBranch, Archive, ArchiveRestore } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NEW_REPOSITORY } from "@/lib/types"
 import type { Chat } from "@/lib/types"
@@ -21,6 +21,8 @@ export interface ChatItemProps {
   onToggleExpanded?: () => void
   onSelect: () => void
   onDelete: () => void
+  /** When provided, the row shows an "Archive" action (active, non-archived chats). */
+  onArchive?: () => void
   /** When provided, the row is treated as archived and shows an "Unarchive" action. */
   onUnarchive?: () => void
   onRename: (newName: string) => void
@@ -37,7 +39,7 @@ export interface ChatItemProps {
   onDropRow?: () => void
 }
 
-export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onUnarchive, onRename, onMerge, onRebase, isDragSource, isDropTarget, onDragStartRow, onDragEndRow, onDragEnterRow, onDragOverRow, onDragLeaveRow, onDropRow }: ChatItemProps) {
+export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onArchive, onUnarchive, onRename, onMerge, onRebase, isDragSource, isDropTarget, onDragStartRow, onDragEndRow, onDragEnterRow, onDragOverRow, onDragLeaveRow, onDropRow }: ChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState("")
@@ -233,6 +235,19 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
                   >
                     <GitBranch className="h-3.5 w-3.5" />
                     Rebase
+                  </button>
+                )}
+                {onArchive && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onArchive()
+                      setMenuOpen(false)
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
                   </button>
                 )}
                 {onUnarchive && (
