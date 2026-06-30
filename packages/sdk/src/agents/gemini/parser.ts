@@ -9,7 +9,23 @@
  *   { type: "message", role, content, delta? }
  *   { type: "tool_use", tool_name, tool_id, parameters }   ← tool starts
  *   { type: "tool_result", tool_id, status, output? }      ← tool ends
- *   { type: "result", status, stats }                      ← turn end
+ *   { type: "result", status, error?, stats }              ← turn end
+ *
+ * Failure handling (verified against a real out-of-quota run — see
+ * tests/fixtures/jsonl-reference/gemini-error.jsonl). When a run fails (out of
+ * quota, a paid/Pro model on a free key, bad API key, …) the Gemini CLI:
+ *   1. prints the real reason as a *plain-text* JS error dump on stdout, e.g.
+ *      `Error when talking to Gemini API … TerminalQuotaError: You exceeded
+ *      your current quota …`, then
+ *   2. emits a `result` with `status: "error"`, but whose `error` object is a
+ *      generic `{ type: "unknown", message: "[API Error: …]" }` — the actual
+ *      reason is NOT in the JSON.
+ * The old parser ignored the plain-text line and collapsed *every* `result` to a
+ * bare `end`, so the turn ended with no output and no error — a silent stop. We
+ * now surface the rich plain-text reason as a classified `end.error`, and fall
+ * back to the (generic) `result.error` / non-success status if the text dump is
+ * ever absent. A defensive `error`-event branch is also kept for CLI versions /
+ * configs that emit one as JSON.
  *
  * Legacy schema (older CLI versions — kept for compatibility):
  *   { type: "assistant.delta", text }
@@ -23,6 +39,28 @@ import type { Event } from "../../types/events"
 import type { ParseContext } from "../../core/agent"
 import { createToolStartEvent, normalizeToolName } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
+import {
+  classifyAgentError,
+  extractErrorMessage,
+  resolveAgentError,
+} from "../../utils/errors"
+
+/**
+ * Conservative match for Gemini's plain-text fatal line (the failure never made
+ * it into the JSON stream). Deliberately narrow so the harmless "YOLO mode is
+ * enabled" banner — which is also non-JSON — is never mistaken for an error.
+ */
+const GEMINI_ERROR_LINE =
+  /^error[:\s]|\b(quota exceeded|insufficient\s+balance|resource_exhausted|permission_denied)\b/i
+
+/**
+ * Strip noise from Gemini's plain-text error line before it reaches the user:
+ * the "Full report available at: <sandbox tmp path>" fragment points at a file
+ * inside a throwaway sandbox, so it is useless to surface.
+ */
+function cleanGeminiErrorLine(line: string): string {
+  return line.replace(/Full report available at:\s*\S+\s*/i, "").trim()
+}
 
 /**
  * Raw event types from Gemini's JSON stream
@@ -46,7 +84,17 @@ interface GeminiMessage {
 
 interface GeminiResult {
   type: "result"
-  status: string
+  status?: string
+  /** Present when the turn failed; shape mirrors json-mode `{ type, message, code }`. */
+  error?: unknown
+}
+
+/** Standalone error event (API/system error; may be fatal or a warning). */
+interface GeminiErrorEvent {
+  type: "error"
+  message?: string
+  code?: string | number
+  error?: unknown
 }
 
 /** Current Gemini CLI: tool invocation */
@@ -90,6 +138,7 @@ type GeminiEvent =
   | GeminiAssistantDelta
   | GeminiMessage
   | GeminiResult
+  | GeminiErrorEvent
   | GeminiToolUse
   | GeminiToolResult
   | GeminiToolStart
@@ -111,6 +160,13 @@ export function parseGeminiLine(
 ): Event | Event[] | null {
   const json = safeJsonParse<GeminiEvent>(line)
   if (!json) {
+    // Non-JSON line. Most are the harmless YOLO banner; a fatal failure that
+    // never reached the JSON stream prints a plain-text error line instead.
+    const trimmed = line.trim()
+    if (!context.state.geminiEnded && GEMINI_ERROR_LINE.test(trimmed)) {
+      context.state.geminiEnded = true
+      return { type: "end", error: resolveAgentError(cleanGeminiErrorLine(trimmed), "gemini") }
+    }
     return null
   }
 
@@ -133,8 +189,43 @@ export function parseGeminiLine(
     return null
   }
 
-  // Result event — marks turn completion
+  // Standalone error event. Per the headless docs these can be non-fatal
+  // ("Non-fatal warnings and system errors"), so we normally stash the detail
+  // and let the terminal `result` event decide. But a *recognized* fatal error
+  // (quota, auth, balance, unavailable model) may be the last line before a
+  // clean process exit with no `result` — surface it now so the turn never ends
+  // silently.
+  if (json.type === "error") {
+    const payload = json.error ?? json
+    const message = resolveAgentError(payload, "gemini")
+    context.state.geminiError = message
+    const category = classifyAgentError(extractErrorMessage(payload)).category
+    if (!context.state.geminiEnded && category !== "unknown") {
+      context.state.geminiEnded = true
+      return { type: "end", error: message }
+    }
+    return null
+  }
+
+  // Result event — marks turn completion. A non-"success" status (or an attached
+  // error object, or a stashed error event) means the turn failed; emit the
+  // classified detail rather than a bare end that looks like a silent success.
   if (json.type === "result") {
+    if (context.state.geminiEnded) return null
+    const failed =
+      typeof json.status === "string" && json.status.toLowerCase() !== "success"
+    const stashed =
+      typeof context.state.geminiError === "string"
+        ? (context.state.geminiError as string)
+        : undefined
+    if (failed || json.error != null || stashed) {
+      context.state.geminiEnded = true
+      const error =
+        json.error != null
+          ? resolveAgentError(json.error, "gemini")
+          : (stashed ?? `Gemini ended with status "${json.status ?? "error"}"`)
+      return { type: "end", error }
+    }
     return { type: "end" }
   }
 
