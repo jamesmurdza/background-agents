@@ -6,7 +6,7 @@ import { SettingsModal } from "@/components/modals/SettingsModal"
 import { SignInModal } from "@/components/modals/SignInModal"
 import { ReAuthBanner } from "@/components/modals/ReAuthBanner"
 import { HelpModal } from "@/components/modals/HelpModal"
-import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
+import { ChatActionsDialog } from "@/components/modals/ChatActionsDialog"
 import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
 import { ChatUsageModal } from "@/components/modals/ChatUsageModal"
 import {
@@ -65,6 +65,9 @@ interface AppModalsProps {
   // Delete confirmation — receives the chat id to delete
   onDeleteChat: (chatId: string) => void
 
+  // Archive — receives the chat id to archive
+  onArchiveChat: (chatId: string) => void
+
   // Daily limit reached dialog
   limitReachedState: { show: boolean; resetAt?: Date; provider?: string; used?: number | null; limit?: number | null }
   onDismissLimitReached: () => void
@@ -85,6 +88,7 @@ export function AppModals({
   onScheduledJobSuccess,
   onSlashCommand,
   onDeleteChat,
+  onArchiveChat,
   limitReachedState,
   onDismissLimitReached,
   onContinueWithOpenCode,
@@ -209,26 +213,25 @@ export function AppModals({
         />
       )}
 
-      <ConfirmDialog
-        open={modals.deleteConfirmChatId !== null}
-        onClose={() => modals.setDeleteConfirmChatId(null)}
-        onConfirm={() => {
-          if (modals.deleteConfirmChatId) onDeleteChat(modals.deleteConfirmChatId)
-        }}
-        title="Delete chat"
-        description={
-          <>
-            Delete{" "}
-            <span className="font-medium text-foreground">
-              {chats.find((c) => c.id === modals.deleteConfirmChatId)?.displayName || "this chat"}
-            </span>
-            ? This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete"
-        variant="destructive"
-        isMobile={isMobile}
-      />
+      {(() => {
+        const targetChat = chats.find((c) => c.id === modals.deleteConfirmChatId)
+        return (
+          <ChatActionsDialog
+            open={modals.deleteConfirmChatId !== null}
+            onClose={() => modals.setDeleteConfirmChatId(null)}
+            chatName={targetChat?.displayName}
+            isShared={!!targetChat?.shareId}
+            isArchived={!!targetChat?.archived}
+            onArchive={() => {
+              if (modals.deleteConfirmChatId) onArchiveChat(modals.deleteConfirmChatId)
+            }}
+            onDelete={() => {
+              if (modals.deleteConfirmChatId) onDeleteChat(modals.deleteConfirmChatId)
+            }}
+            isMobile={isMobile}
+          />
+        )
+      })()}
 
       {/* Mobile Rename Modal */}
       <MobileRenameModal

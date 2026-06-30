@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { signInWithGitHub } from "@/lib/auth-utils"
-import { Plus, PanelLeft, X, Loader2, Clock, Search, BarChart3, Settings, HelpCircle, LogOut } from "lucide-react"
+import { Plus, PanelLeft, X, Loader2, Clock, Search, BarChart3, Settings, HelpCircle, LogOut, Archive, ChevronDown, ChevronRight } from "lucide-react"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
@@ -31,6 +31,8 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void
   onNewChat: () => void
   onDeleteChat: (chatId: string) => void
+  /** Restore an archived chat (and its branches) back to the active list. */
+  onUnarchiveChat?: (chatId: string) => void
   onRenameChat: (chatId: string, newName: string) => void
   collapsed: boolean
   onToggleCollapse: () => void
@@ -70,6 +72,7 @@ export function Sidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onUnarchiveChat,
   onRenameChat,
   collapsed,
   onToggleCollapse,
@@ -115,7 +118,7 @@ export function Sidebar({
     const repos = new Set<string>()
     chats.forEach((chat) => {
       const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-      if (hasMessages) {
+      if (hasMessages && !chat.archived) {
         repos.add(chat.repo)
       }
     })
@@ -142,25 +145,37 @@ export function Sidebar({
       .sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
   }, [chats, repoFilter])
 
-  // Build parent → children lookup from the filtered list, preserving sort
-  // order. Root chats are the ones with no visible parent.
-  const visibleIds = useMemo(() => new Set(filteredChats.map((c) => c.id)), [filteredChats])
-  const childrenByParent = useMemo(() => {
-    const m = new Map<string, Chat[]>()
-    for (const chat of filteredChats) {
-      const parentId = chat.parentChatId && visibleIds.has(chat.parentChatId) ? chat.parentChatId : null
+  // Split into the active list and the archived section. Archived chats are
+  // hidden from the main tree and shown in a separate collapsible section.
+  const activeChats = useMemo(() => filteredChats.filter((c) => !c.archived), [filteredChats])
+  const archivedChats = useMemo(() => filteredChats.filter((c) => c.archived), [filteredChats])
+
+  // Build a parent → children lookup + root list for a chat set, preserving the
+  // incoming sort order. A chat is a root when it has no parent within the same
+  // set, so archived and active subtrees each render self-contained.
+  const buildTree = (list: Chat[]) => {
+    const ids = new Set(list.map((c) => c.id))
+    const childrenByParent = new Map<string, Chat[]>()
+    for (const chat of list) {
+      const parentId = chat.parentChatId && ids.has(chat.parentChatId) ? chat.parentChatId : null
       if (parentId) {
-        const list = m.get(parentId) ?? []
-        list.push(chat)
-        m.set(parentId, list)
+        const arr = childrenByParent.get(parentId) ?? []
+        arr.push(chat)
+        childrenByParent.set(parentId, arr)
       }
     }
-    return m
-  }, [filteredChats, visibleIds])
-  const rootChats = useMemo(
-    () => filteredChats.filter((c) => !(c.parentChatId && visibleIds.has(c.parentChatId))),
-    [filteredChats, visibleIds],
+    const roots = list.filter((c) => !(c.parentChatId && ids.has(c.parentChatId)))
+    return { childrenByParent, roots }
+  }
+
+  const { childrenByParent, roots: rootChats } = useMemo(() => buildTree(activeChats), [activeChats])
+  const { childrenByParent: archivedChildrenByParent, roots: archivedRootChats } = useMemo(
+    () => buildTree(archivedChats),
+    [archivedChats],
   )
+
+  // Archived section expand/collapse (collapsed by default).
+  const [archivedExpanded, setArchivedExpanded] = useState(false)
 
   // Drag-to-merge state: which chat is being dragged, and which chat the
   // pointer is currently over (valid target only).
@@ -201,7 +216,7 @@ export function Sidebar({
     let noRepoCount = 0
     chats.forEach((chat) => {
       const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-      if (hasMessages) {
+      if (hasMessages && !chat.archived) {
         total++
         if (chat.repo === NEW_REPOSITORY) {
           noRepoCount++
@@ -307,6 +322,62 @@ export function Sidebar({
       document.body.style.overflow = ""
     }
   }, [isMobile, mobileOpen])
+
+  // Collapsible "Archived" section, shared by the mobile drawer and desktop
+  // sidebar. Renders nothing when there are no archived chats. Archived rows
+  // expose Unarchive (and Delete); drag-to-merge is intentionally omitted.
+  const renderArchivedSection = (variant: "desktop" | "mobile") => {
+    if (archivedChats.length === 0) return null
+    return (
+      <div className="mt-2 pt-2 border-t border-sidebar-border/60">
+        <button
+          onClick={() => setArchivedExpanded((v) => !v)}
+          className={cn(
+            "flex items-center gap-1.5 w-full rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer",
+            variant === "mobile" ? "px-3 py-2" : "px-2 py-1.5",
+          )}
+        >
+          {archivedExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          <Archive className="h-3.5 w-3.5" />
+          <span className={cn("font-medium", variant === "mobile" ? "text-sm" : "text-xs")}>
+            Archived ({archivedChats.length})
+          </span>
+        </button>
+        {archivedExpanded && (
+          <div className={variant === "mobile" ? "space-y-0.5 mt-1" : "space-y-0 mt-0.5"}>
+            {variant === "mobile"
+              ? renderMobileChatTree({
+                  roots: archivedRootChats,
+                  childrenByParent: archivedChildrenByParent,
+                  collapsedChatIds,
+                  currentChatId,
+                  deletingChatIds,
+                  unseenChatIds,
+                  onToggleCollapsed: toggleChatCollapsed,
+                  onSelectChat: handleSelectChat,
+                  onDeleteChat,
+                  onUnarchive: onUnarchiveChat,
+                  onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
+                })
+              : renderChatTree({
+                  roots: archivedRootChats,
+                  childrenByParent: archivedChildrenByParent,
+                  collapsedChatIds,
+                  currentChatId,
+                  deletingChatIds,
+                  unseenChatIds,
+                  sidebarCollapsed: collapsed,
+                  onToggleCollapsed: toggleChatCollapsed,
+                  onSelectChat,
+                  onDeleteChat,
+                  onUnarchive: onUnarchiveChat,
+                  onRenameChat,
+                })}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   // Mobile drawer rendering
   if (isMobile) {
@@ -428,6 +499,7 @@ export function Sidebar({
                   onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
                 })
               )}
+              {!isLoadingChats && renderArchivedSection("mobile")}
             </div>
           </div>
 
@@ -675,6 +747,7 @@ export function Sidebar({
                   },
                 })
               )}
+              {!isLoadingChats && renderArchivedSection("desktop")}
             </div>
           </div>
         </>

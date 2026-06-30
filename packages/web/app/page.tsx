@@ -120,6 +120,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     startNewChat,
     selectChat,
     removeChat,
+    setChatArchived,
     renameChat,
     updateChatRepo,
     updateCurrentChat,
@@ -556,7 +557,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         unseenChatIds={unseenChatIds}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
-        onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
+        onDeleteChat={(chatId) => modals.setDeleteConfirmChatId(chatId)}
+        onUnarchiveChat={(chatId) => setChatArchived(chatId, false)}
         onRenameChat={renameChat}
         isMobile={isMobile}
         collapsed={isMobile ? false : sidebar.collapsed}
@@ -723,6 +725,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         onScheduledJobSuccess={() => setScheduledJobsRefreshKey((k) => k + 1)}
         onSlashCommand={handleSlashCommand}
         onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
+        onArchiveChat={(chatId) => setChatArchived(chatId, true)}
         limitReachedState={limitReachedState}
         onDismissLimitReached={dismissLimitReached}
         onContinueWithOpenCode={retryWithOpenCode}
