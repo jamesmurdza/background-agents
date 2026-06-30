@@ -287,6 +287,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   "copilot": [
     { value: "claude-sonnet-4.5", label: "Claude Sonnet 4.5", requiresKey: "github" },
     { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
+    { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
     { value: "claude-opus-4.6", label: "Claude Opus 4.6", requiresKey: "github" },
     { value: "claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "github" },
     { value: "claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "github" },
