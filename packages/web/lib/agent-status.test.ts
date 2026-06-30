@@ -10,6 +10,7 @@ import {
   agentSharedPoolExhausted,
   agentHasFreeUsage,
   agentIsReady,
+  hasCredentialsForModel,
   type CredentialFlags,
 } from "@background-agents/common"
 
@@ -56,5 +57,27 @@ describe("readiness when the Claude pool is used up", () => {
 
   it("stays ready when the user has their own key despite the limit", () => {
     expect(agentIsReady("claude-code", ownKeyButLimit)).toBe(true)
+  })
+})
+
+describe("shared Claude pool does not leak to non-claude-code agents", () => {
+  // The shared pool / subscription token is only injected server-side for
+  // claude-code (see resolveSendCredentials), so other agents' Claude models
+  // must require a real ANTHROPIC_API_KEY — otherwise the picker shows a green
+  // "ready" dot for an agent that would actually fail to run.
+  const anthropicModel = { value: "claude-sonnet-4-5", label: "Sonnet", requiresKey: "anthropic" as const }
+
+  it("does not treat goose as ready off the shared Claude pool alone", () => {
+    expect(agentIsReady("goose", sharedPoolFresh)).toBe(false)
+    expect(hasCredentialsForModel(anthropicModel, sharedPoolFresh, "goose")).toBe(false)
+  })
+
+  it("treats goose as ready once the user has their own Anthropic key", () => {
+    expect(hasCredentialsForModel(anthropicModel, { ANTHROPIC_API_KEY: true }, "goose")).toBe(true)
+    expect(agentIsReady("goose", { ANTHROPIC_API_KEY: true })).toBe(true)
+  })
+
+  it("still lets claude-code use the shared pool", () => {
+    expect(hasCredentialsForModel(anthropicModel, sharedPoolFresh, "claude-code")).toBe(true)
   })
 })

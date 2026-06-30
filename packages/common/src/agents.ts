@@ -511,8 +511,11 @@ export function hasCredentialsForModel(
   // config, so they need no provider key — they're "none" and return above.
   if (!model.requiresKey || model.requiresKey === "none") return true
   if (model.requiresKey === "anthropic") {
-    // OpenCode and Pi require an API key — they can't drive a subscription session.
-    if (agent === "opencode" || agent === "pi") return !!flags?.ANTHROPIC_API_KEY
+    // Only Claude Code can drive a subscription session or the shared Claude
+    // pool — those credentials are injected server-side for claude-code alone
+    // (see resolveSendCredentials). Every other agent (OpenCode, Pi, Goose, …)
+    // needs a real API key.
+    if (agent !== "claude-code") return !!flags?.ANTHROPIC_API_KEY
     // Claude Code can use either API key, the user's pasted subscription, or the shared pool.
     // But if daily limit is exceeded on the shared pool, don't consider it usable.
     if (flags?.CLAUDE_DAILY_LIMIT_EXCEEDED) {
