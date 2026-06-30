@@ -1,0 +1,35 @@
+Warning: 256-color support not detected. Using a terminal with at least 256-color support is recommended for a better visual experience.
+YOLO mode is enabled. All tool calls will be automatically approved.
+YOLO mode is enabled. All tool calls will be automatically approved.
+{"type":"init","timestamp":"2026-06-30T21:18:24.988Z","session_id":"9face645-ec72-4895-b349-f82f420ba5f4","model":"gemini-2.5-pro"}
+{"type":"message","timestamp":"2026-06-30T21:18:24.989Z","role":"user","content":"Please do the following:\n1. Tell me what 2 + 2 equals\n2. List the files in the current directory using ls\n3. Create a file called hello.txt with the content \"Hello, World!\"\n4. Read the file you just created\nKeep your responses brief."}
+Error when talking to Gemini API Full report available at: /tmp/gemini-client-error-Turn.run-sendMessageStream-2026-06-30T21-18-25-124Z.json TerminalQuotaError: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.5-pro
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.5-pro
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.5-pro
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.5-pro
+Please retry in 34.89668959s.
+    at classifyGoogleError (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:297581:12)
+    at retryWithBackoff (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:298310:31)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async GeminiChat.makeApiCallAndProcessStream (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:321564:28)
+    at async GeminiChat.streamWithRetries (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:321382:29)
+    at async Turn.run (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:322128:24)
+    at async GeminiClient.processTurn (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:335620:22)
+    at async GeminiClient.sendMessageStream (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/chunk-VLV2BYPM.js:335717:14)
+    at async file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/gemini-FSMCKCVD.js:23725:26
+    at async main (file:///usr/local/share/nvm/versions/node/v25.9.0/lib/node_modules/@google/gemini-cli/bundle/gemini-FSMCKCVD.js:29133:5) {
+  cause: {
+    code: 429,
+    message: 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+      '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.5-pro\n' +
+      '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.5-pro\n' +
+      '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.5-pro\n' +
+      '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.5-pro\n' +
+      'Please retry in 34.89668959s.',
+    details: [ [Object], [Object], [Object] ]
+  },
+  retryDelayMs: undefined,
+  reason: undefined
+}
+{"type":"result","timestamp":"2026-06-30T21:18:25.144Z","status":"error","error":{"type":"unknown","message":"[API Error: An unknown error occurred.]"},"stats":{"total_tokens":0,"input_tokens":0,"output_tokens":0,"cached":0,"input":0,"duration_ms":0,"tool_calls":0,"models":{"gemini-2.5-pro":{"total_tokens":0,"input_tokens":0,"output_tokens":0,"cached":0,"input":0}}}}

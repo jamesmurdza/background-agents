@@ -76,7 +76,16 @@ interface ProviderConfig {
   apiKeyEnvVar: string
   apiKey: string | undefined
   model?: string
+  /** Output basename (without .jsonl); defaults to `name`. */
+  outputName?: string
 }
+
+// Optional overrides for capturing failure fixtures (e.g. gemini-error.jsonl):
+//   GEMINI_MODEL=gemini-2.5-pro JSONL_OUTPUT_NAME=gemini-error \
+//     npm run generate:jsonl-refs -w @background-agents/sdk -- gemini
+// Run the Pro model with a FREE-tier GEMINI_API_KEY to capture the quota error.
+const GEMINI_MODEL = process.env.GEMINI_MODEL
+const JSONL_OUTPUT_NAME = process.env.JSONL_OUTPUT_NAME
 
 const providers: ProviderConfig[] = [
   {
@@ -93,6 +102,7 @@ const providers: ProviderConfig[] = [
     name: "gemini",
     apiKeyEnvVar: "GEMINI_API_KEY",
     apiKey: GEMINI_API_KEY,
+    model: GEMINI_MODEL,
   },
   {
     name: "goose",
@@ -204,7 +214,7 @@ async function generateReferenceForProvider(
     const rawJsonl = rawOutput
 
     // Write to file
-    const outputPath = join(FIXTURES_DIR, `${config.name}.jsonl`)
+    const outputPath = join(FIXTURES_DIR, `${config.outputName ?? config.name}.jsonl`)
     writeFileSync(outputPath, rawJsonl, "utf8")
     console.log(`  Written to: ${outputPath}`)
 
@@ -256,6 +266,10 @@ async function main() {
   for (const config of providers) {
     if (filterProvider && config.name !== filterProvider) {
       continue
+    }
+    // JSONL_OUTPUT_NAME only makes sense for a single filtered provider.
+    if (JSONL_OUTPUT_NAME && filterProvider === config.name) {
+      config.outputName = JSONL_OUTPUT_NAME
     }
     await generateReferenceForProvider(daytona, config)
   }

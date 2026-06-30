@@ -160,5 +160,102 @@ describe("parseGeminiLine", () => {
     const ctx = createContext()
     expect(parseGeminiLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
   })
+
+  // ─── Failure handling ──────────────────────────────────────────────────────
+
+  it("ends with a classified error when a recognized fatal error event arrives", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({
+        type: "error",
+        message: "[429] You exceeded your current quota — RESOURCE_EXHAUSTED",
+        code: 429,
+      }),
+      mappings,
+      ctx
+    )
+    expect(event).toMatchObject({ type: "end" })
+    expect((event as { error?: string }).error).toContain("exceeded your current quota")
+    // rate-limit category appends an actionable hint
+    expect((event as { error?: string }).error).toContain("retry")
+  })
+
+  it("stashes a non-fatal error event and surfaces it on the failing result", () => {
+    const ctx = createContext()
+    // An error with no recognizable category should not end the turn on its own…
+    const mid = parseGeminiLine(
+      JSON.stringify({ type: "error", message: "transient backend warning" }),
+      mappings,
+      ctx
+    )
+    expect(mid).toBeNull()
+    // …but the terminal result carries it through instead of a silent end.
+    const end = parseGeminiLine(
+      JSON.stringify({ type: "result", status: "error", stats: {} }),
+      mappings,
+      ctx
+    )
+    expect(end).toEqual({ type: "end", error: "transient backend warning" })
+  })
+
+  it("ends with the error object detail when result.status is not success", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      JSON.stringify({
+        type: "result",
+        status: "error",
+        error: { type: "ApiError", code: 429, message: "insufficient balance" },
+        stats: {},
+      }),
+      mappings,
+      ctx
+    )
+    expect(event).toMatchObject({ type: "end" })
+    expect((event as { error?: string }).error).toContain("insufficient balance")
+    expect((event as { error?: string }).error).toContain("add credits")
+  })
+
+  it("does not treat the YOLO banner line as an error", () => {
+    const ctx = createContext()
+    expect(
+      parseGeminiLine("YOLO mode is enabled. All tool calls will be automatically approved.", mappings, ctx)
+    ).toBeNull()
+  })
+
+  it("recognizes a plain-text fatal line that never reached the JSON stream", () => {
+    const ctx = createContext()
+    const event = parseGeminiLine(
+      "Error: quota exceeded for model gemini-2.5-pro (RESOURCE_EXHAUSTED)",
+      mappings,
+      ctx
+    )
+    expect(event).toMatchObject({ type: "end" })
+    expect((event as { error?: string }).error).toContain("quota exceeded")
+  })
+
+  // ─── Fixture-driven ──────────────────────────────────────────────────────
+
+  it("pro-model-on-free-key stream: surfaces a classified quota error (not a silent end)", () => {
+    const fs = require("fs")
+    const path = require("path")
+    const fixture = fs.readFileSync(
+      path.join(__dirname, "../fixtures/jsonl-reference/gemini-error.jsonl"),
+      "utf-8"
+    )
+    const ctx = createContext()
+    const events = fixture
+      .split("\n")
+      .filter(Boolean)
+      .map((l: string) => parseGeminiLine(l, mappings, ctx))
+      .filter(Boolean)
+      .flat() as { type: string; error?: string }[]
+    const ends = events.filter((e) => e.type === "end")
+    // Exactly one end, and it carries the failure detail + an actionable hint…
+    expect(ends).toHaveLength(1)
+    expect(ends[0].error).toContain("exceeded your current quota")
+    expect(ends[0].error).toMatch(/add credits|retry/)
+    // …with the useless sandbox tmp-file path stripped out.
+    expect(ends[0].error).not.toContain("Full report available at")
+  })
 })
 
