@@ -7,7 +7,6 @@ import {
   Users,
   MessageSquare,
   Activity,
-  TrendingUp,
   Clock,
   Trophy,
   LayoutDashboard,
@@ -355,16 +354,11 @@ export default function AdminDashboard() {
 
                 {/* Metric by Agent/Model */}
                 <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-                      <TrendingUp className="h-4 w-4 text-blue-500" />
-                    </div>
-                    <h3 className="font-medium">{metricName} by Agent/Model</h3>
-                  </div>
                   <MessagesByModelChart
                     agentData={byAgent}
                     modelData={byModel}
                     metric={metric}
+                    metricName={metricName}
                     isHourly={isHourly}
                   />
                 </div>

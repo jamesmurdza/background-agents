@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { TrendingUp } from "lucide-react"
 import {
   AreaChart,
   Area,
@@ -30,7 +31,12 @@ const COLORS = [
   "hsl(25, 95%, 53%)",   // Orange
   "hsl(173, 80%, 40%)",  // Cyan
   "hsl(280, 65%, 60%)",  // Violet
+  "hsl(217, 91%, 60%)",  // Indigo
 ]
+
+// Neutral color for the collapsed long-tail "Other" series.
+const OTHER_KEY = "Other"
+const OTHER_COLOR = "hsl(var(--muted-foreground))"
 
 type ViewMode = "agents" | "models"
 
@@ -38,6 +44,7 @@ interface MessagesByModelChartProps {
   agentData: Array<Record<string, number | string>>
   modelData: Array<Record<string, number | string>>
   metric: StatsMetric
+  metricName: string
   isHourly?: boolean
 }
 
@@ -45,6 +52,7 @@ export function MessagesByModelChart({
   agentData,
   modelData,
   metric,
+  metricName,
   isHourly = false,
 }: MessagesByModelChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("agents")
@@ -52,17 +60,31 @@ export function MessagesByModelChart({
   const data = viewMode === "agents" ? agentData : modelData
   const hasData = data && data.length > 0
 
-  // Extract keys (all keys except "time")
+  // Extract keys (all keys except "time"), keeping "Other" pinned to the end
+  // so the collapsed long-tail series always sorts last in the stack/legend.
   const dataKeys = hasData
     ? Array.from(
         new Set(data.flatMap((entry) => Object.keys(entry).filter((key) => key !== "time")))
-      )
+      ).sort((a, b) => {
+        if (a === OTHER_KEY) return 1
+        if (b === OTHER_KEY) return -1
+        return 0
+      })
     : []
 
   return (
     <div className="space-y-3">
-      {/* Toggle buttons - only view mode, time is controlled globally */}
-      <div className="flex items-center">
+      {/* Header: icon + dynamic title on the left, view-mode toggle on the right */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+            <TrendingUp className="h-4 w-4 text-blue-500" />
+          </div>
+          <h3 className="font-medium">
+            {metricName} by {viewMode === "agents" ? "Agent" : "Model"}
+          </h3>
+        </div>
+        {/* Toggle - only view mode, time is controlled globally */}
         <div className="flex gap-1 rounded-lg bg-muted p-1">
           <button
             onClick={() => setViewMode("agents")}
@@ -126,19 +148,22 @@ export function MessagesByModelChart({
                 isAnimationActive={false}
               />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              {dataKeys.map((key, index) => (
-                <Area
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  name={key}
-                  stackId="1"
-                  stroke={COLORS[index % COLORS.length]}
-                  fill={COLORS[index % COLORS.length]}
-                  fillOpacity={0.6}
-                  isAnimationActive={false}
-                />
-              ))}
+              {dataKeys.map((key, index) => {
+                const color = key === OTHER_KEY ? OTHER_COLOR : COLORS[index % COLORS.length]
+                return (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    name={key}
+                    stackId="1"
+                    stroke={color}
+                    fill={color}
+                    fillOpacity={0.6}
+                    isAnimationActive={false}
+                  />
+                )
+              })}
             </AreaChart>
           </ResponsiveContainer>
         </div>

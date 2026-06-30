@@ -409,20 +409,39 @@ export async function GET(request: NextRequest) {
     const allAgents = new Set<string>()
     const allModels = new Set<string>()
 
+    // Keep the chart legible by showing only the most-used models and
+    // collapsing the long tail into a single "Other" series.
+    const TOP_MODEL_COUNT = 9
+    const OTHER_MODEL_KEY = "Other"
+
+    // First pass: total usage per model so we can pick the top N.
+    const modelTotals: Record<string, number> = {}
+    for (const row of rawData) {
+      const modelName = row.model || "unknown"
+      modelTotals[modelName] = (modelTotals[modelName] || 0) + Number(row.count)
+    }
+    const topModels = new Set(
+      Object.entries(modelTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, TOP_MODEL_COUNT)
+        .map(([model]) => model)
+    )
+
     for (const row of rawData) {
       const timeKey = range === "24h" ? String(row.hour) : row.date!.toISOString().split("T")[0]
       const agentName = row.agent || "unknown"
       const modelName = row.model || "unknown"
+      const modelKey = topModels.has(modelName) ? modelName : OTHER_MODEL_KEY
       const count = Number(row.count)
 
       allAgents.add(agentName)
-      allModels.add(modelName)
+      allModels.add(modelKey)
 
       if (!byAgentMap[timeKey]) byAgentMap[timeKey] = { time: timeKey }
       byAgentMap[timeKey][agentName] = ((byAgentMap[timeKey][agentName] as number) || 0) + count
 
       if (!byModelMap[timeKey]) byModelMap[timeKey] = { time: timeKey }
-      byModelMap[timeKey][modelName] = ((byModelMap[timeKey][modelName] as number) || 0) + count
+      byModelMap[timeKey][modelKey] = ((byModelMap[timeKey][modelKey] as number) || 0) + count
     }
 
     // Fill in missing time slots with 0
