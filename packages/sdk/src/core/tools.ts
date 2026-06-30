@@ -94,6 +94,18 @@ function normalizeToolInput(
 }
 
 /**
+ * Coerce a tool result value into a display string.
+ *
+ * Agents emit tool results as either a plain string or an arbitrary JSON value.
+ * Strings pass through unchanged; everything else is JSON-stringified. `null`
+ * and `undefined` collapse to `undefined` so callers can omit empty output.
+ */
+export function stringifyToolResult(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  return typeof value === "string" ? value : JSON.stringify(value)
+}
+
+/**
  * Create a normalized ToolStartEvent.
  * This is the single point for creating tool_start events.
  */

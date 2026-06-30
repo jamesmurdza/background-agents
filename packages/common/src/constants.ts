@@ -15,14 +15,6 @@ export const PATHS = {
   UPLOADS_DIR: "/home/daytona/uploads",
   /** Directory for agent log files */
   LOGS_DIR: "/tmp/logs",
-  /** Marker file created after clone completes, used as baseline for modified file detection */
-  CLONE_MARKER_FILE: "/tmp/.clone_complete",
-  /** Claude hooks directory */
-  CLAUDE_HOOKS_DIR: "/home/daytona/.claude/hooks",
-  /** Claude settings file */
-  CLAUDE_SETTINGS_FILE: "/home/daytona/.claude/settings.json",
-  /** Agent session ID persistence file */
-  AGENT_SESSION_FILE: "/home/daytona/.agent_session_id",
 } as const
 
 // =============================================================================

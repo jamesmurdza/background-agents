@@ -10,7 +10,7 @@
 
 import type { Event } from "../../types/events"
 import type { ParseContext } from "../../core/agent"
-import { createToolStartEvent } from "../../core/tools"
+import { createToolStartEvent, stringifyToolResult } from "../../core/tools"
 import { safeJsonParse } from "../../utils/json"
 import { resolveAgentError } from "../../utils/errors"
 
@@ -207,12 +207,8 @@ export function parsePiLine(
 
   // Tool execution update - partial results (emit as tool_delta)
   if (json.type === "tool_execution_update") {
-    const partialResult = json.partialResult
-    if (partialResult !== undefined && partialResult !== null) {
-      const text =
-        typeof partialResult === "string"
-          ? partialResult
-          : JSON.stringify(partialResult)
+    const text = stringifyToolResult(json.partialResult)
+    if (text !== undefined) {
       return { type: "tool_delta", text }
     }
     return null
@@ -220,14 +216,7 @@ export function parsePiLine(
 
   // Tool execution end
   if (json.type === "tool_execution_end") {
-    const result = json.result
-    const output =
-      result !== undefined && result !== null
-        ? typeof result === "string"
-          ? result
-          : JSON.stringify(result)
-        : undefined
-    return { type: "tool_end", output }
+    return { type: "tool_end", output: stringifyToolResult(json.result) }
   }
 
   // Agent end - signals completion
