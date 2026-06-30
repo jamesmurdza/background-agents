@@ -156,7 +156,9 @@ export function MessagesByModelChart({
                 formatter={(value) => formatMetricValue(metric, Number(value))}
                 isAnimationActive={false}
               />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              {/* itemSorter={null} keeps the legend in our usage-sorted Area
+                  order instead of recharts' default alphabetical sort. */}
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} itemSorter={null} />
               {dataKeys.map((key, index) => {
                 const color = key === OTHER_KEY ? OTHER_COLOR : COLORS[index % COLORS.length]
                 return (
