@@ -60,15 +60,24 @@ export function MessagesByModelChart({
   const data = viewMode === "agents" ? agentData : modelData
   const hasData = data && data.length > 0
 
-  // Extract keys (all keys except "time"), keeping "Other" pinned to the end
-  // so the collapsed long-tail series always sorts last in the stack/legend.
+  // Total usage per series, used to order the legend/stack by most-used first.
+  const totals: Record<string, number> = {}
+  if (hasData) {
+    for (const entry of data) {
+      for (const key of Object.keys(entry)) {
+        if (key === "time") continue
+        totals[key] = (totals[key] || 0) + Number(entry[key] || 0)
+      }
+    }
+  }
+
+  // Extract keys (all keys except "time"), sorted by total usage descending
+  // and keeping the collapsed long-tail "Other" series pinned to the end.
   const dataKeys = hasData
-    ? Array.from(
-        new Set(data.flatMap((entry) => Object.keys(entry).filter((key) => key !== "time")))
-      ).sort((a, b) => {
+    ? Object.keys(totals).sort((a, b) => {
         if (a === OTHER_KEY) return 1
         if (b === OTHER_KEY) return -1
-        return 0
+        return totals[b] - totals[a]
       })
     : []
 
@@ -110,11 +119,11 @@ export function MessagesByModelChart({
       </div>
 
       {!hasData ? (
-        <div className="flex h-[220px] items-center justify-center text-muted-foreground text-sm">
+        <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
           No {viewMode === "agents" ? "agent" : "model"} usage data available
         </div>
       ) : (
-        <div className="h-[220px] w-full">
+        <div className="h-[250px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={data}
@@ -160,6 +169,7 @@ export function MessagesByModelChart({
                     stroke={color}
                     fill={color}
                     fillOpacity={0.6}
+                    legendType={key === OTHER_KEY ? "diamond" : "rect"}
                     isAnimationActive={false}
                   />
                 )
