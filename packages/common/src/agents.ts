@@ -180,8 +180,10 @@ export interface ModelOption {
 const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/glm-5",
   "opencode-go/glm-5.1",
+  "opencode-go/glm-5.2",
   "opencode-go/kimi-k2.5",
   "opencode-go/kimi-k2.6",
+  "opencode-go/kimi-k2.7-code",
   "opencode-go/mimo-v2.5",
   "opencode-go/mimo-v2.5-pro",
   "opencode-go/minimax-m2.5",
@@ -189,6 +191,7 @@ const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/minimax-m3",
   "opencode-go/qwen3.6-plus",
   "opencode-go/qwen3.7-max",
+  "opencode-go/qwen3.7-plus",
   "opencode-go/deepseek-v4-pro",
   "opencode-go/deepseek-v4-flash",
 ])
@@ -215,8 +218,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // available. These route through Go, not Zen — see SHARED_OPENCODE_ALLOWED.
     { value: "opencode-go/glm-5", label: "GLM-5", requiresKey: "opencode" },
     { value: "opencode-go/glm-5.1", label: "GLM-5.1", requiresKey: "opencode" },
+    { value: "opencode-go/glm-5.2", label: "GLM-5.2", requiresKey: "opencode" },
     { value: "opencode-go/kimi-k2.5", label: "Kimi K2.5", requiresKey: "opencode" },
     { value: "opencode-go/kimi-k2.6", label: "Kimi K2.6", requiresKey: "opencode" },
+    { value: "opencode-go/kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "opencode" },
     { value: "opencode-go/mimo-v2.5", label: "MiMo v2.5", requiresKey: "opencode" },
     { value: "opencode-go/mimo-v2.5-pro", label: "MiMo v2.5 Pro", requiresKey: "opencode" },
     { value: "opencode-go/minimax-m2.5", label: "MiniMax M2.5", requiresKey: "opencode" },
@@ -224,6 +229,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode-go/minimax-m3", label: "MiniMax M3", requiresKey: "opencode" },
     { value: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode" },
     { value: "opencode-go/qwen3.7-max", label: "Qwen3.7 Max", requiresKey: "opencode" },
+    { value: "opencode-go/qwen3.7-plus", label: "Qwen3.7 Plus", requiresKey: "opencode" },
     { value: "opencode-go/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode" },
     { value: "opencode-go/deepseek-v4-flash", label: "DeepSeek V4 Flash", requiresKey: "opencode" },
 
