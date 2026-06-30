@@ -11,10 +11,10 @@ export type Agent = "claude-code" | "opencode" | "codex" | "copilot" | "eliza" |
 
 /**
  * All agent ids, in display order. Agents backed by a server shared pool
- * (claude-code, opencode, gemini) lead, followed by Kilo (free models, no
- * shared pool), then the remaining providers.
+ * (claude-code, opencode, gemini) lead, with Kilo (free models, no shared
+ * pool) placed ahead of Gemini, then the remaining providers.
  */
-export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "gemini", "kilo", "codex", "copilot", "goose", "kimi", "pi", "eliza"]
+export const ALL_AGENTS: Agent[] = ["claude-code", "opencode", "kilo", "gemini", "codex", "copilot", "goose", "kimi", "pi", "eliza"]
 
 /** SDK provider names (must match ProviderName from SDK) */
 export type ProviderName = "claude" | "codex" | "copilot" | "eliza" | "opencode" | "gemini" | "goose" | "kilo" | "kimi" | "pi"
