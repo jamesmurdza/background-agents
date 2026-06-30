@@ -30,7 +30,12 @@ const COLORS = [
   "hsl(25, 95%, 53%)",   // Orange
   "hsl(173, 80%, 40%)",  // Cyan
   "hsl(280, 65%, 60%)",  // Violet
+  "hsl(217, 91%, 60%)",  // Indigo
 ]
+
+// Neutral color for the collapsed long-tail "Other" series.
+const OTHER_KEY = "Other"
+const OTHER_COLOR = "hsl(var(--muted-foreground))"
 
 type ViewMode = "agents" | "models"
 
@@ -52,11 +57,16 @@ export function MessagesByModelChart({
   const data = viewMode === "agents" ? agentData : modelData
   const hasData = data && data.length > 0
 
-  // Extract keys (all keys except "time")
+  // Extract keys (all keys except "time"), keeping "Other" pinned to the end
+  // so the collapsed long-tail series always sorts last in the stack/legend.
   const dataKeys = hasData
     ? Array.from(
         new Set(data.flatMap((entry) => Object.keys(entry).filter((key) => key !== "time")))
-      )
+      ).sort((a, b) => {
+        if (a === OTHER_KEY) return 1
+        if (b === OTHER_KEY) return -1
+        return 0
+      })
     : []
 
   return (
@@ -126,19 +136,22 @@ export function MessagesByModelChart({
                 isAnimationActive={false}
               />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              {dataKeys.map((key, index) => (
-                <Area
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  name={key}
-                  stackId="1"
-                  stroke={COLORS[index % COLORS.length]}
-                  fill={COLORS[index % COLORS.length]}
-                  fillOpacity={0.6}
-                  isAnimationActive={false}
-                />
-              ))}
+              {dataKeys.map((key, index) => {
+                const color = key === OTHER_KEY ? OTHER_COLOR : COLORS[index % COLORS.length]
+                return (
+                  <Area
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    name={key}
+                    stackId="1"
+                    stroke={color}
+                    fill={color}
+                    fillOpacity={0.6}
+                    isAnimationActive={false}
+                  />
+                )
+              })}
             </AreaChart>
           </ResponsiveContainer>
         </div>
