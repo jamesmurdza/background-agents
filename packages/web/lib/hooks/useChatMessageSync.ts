@@ -38,6 +38,8 @@ export function useChatMessageSync({
   updateChatsCache,
 }: UseChatMessageSyncArgs): ChatMessageSync {
   const messagesLoadFailed = useRef<Set<string>>(new Set())
+  
+  const fullyLoaded = useRef<Set<string>>(new Set())
 
   // Load messages for current chat when selected
   useEffect(() => {
@@ -46,8 +48,16 @@ export function useChatMessageSync({
     const chat = chats.find((c) => c.id === currentChatId)
     if (!chat) return
 
-    // Skip if messages already loaded or previous load failed
-    if (chat.messages.length > 0 || messagesLoadFailed.current.has(currentChatId)) {
+    // Skip if we've already fetched this chat or a previous load failed.
+    if (fullyLoaded.current.has(currentChatId) || messagesLoadFailed.current.has(currentChatId)) {
+      return
+    }
+
+    const inheritedLoaded = chat.messages.some((m) => m.inherited)
+    const alreadyLoaded =
+      chat.messages.length > 0 && (!chat.parentChatId || inheritedLoaded)
+    if (alreadyLoaded) {
+      fullyLoaded.current.add(currentChatId)
       return
     }
 
@@ -66,6 +76,10 @@ export function useChatMessageSync({
             }
           })
         )
+        // Mark loaded even when the parent had no displayable messages, so we
+        // don't re-fetch on every render (this effect re-runs whenever `chats`
+        // changes, e.g. during streaming).
+        fullyLoaded.current.add(currentChatId)
       } catch (err) {
         console.error("Failed to load chat messages:", err)
         messagesLoadFailed.current.add(currentChatId)
