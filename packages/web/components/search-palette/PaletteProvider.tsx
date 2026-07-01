@@ -44,6 +44,7 @@ interface PaletteProviderProps {
   onSignIn?: () => void
   onSignOut?: () => void
   onDeleteChat?: () => void
+  onArchiveChat?: () => void
   onOpenInVSCode?: () => void
   onOpenTerminal?: () => void
   onToggleTerminal?: () => void
@@ -56,7 +57,6 @@ interface PaletteProviderProps {
   onCopyCloneCommand?: () => void
   onCopyCheckoutCommand?: () => void
   onOpenEnvVars?: () => void
-  onOpenMcpServers?: () => void
   onOpenSkills?: () => void
   // For Alt+Up/Down chat navigation
   chatIds: string[]
@@ -92,6 +92,7 @@ export function PaletteProvider({
   onSignIn,
   onSignOut,
   onDeleteChat,
+  onArchiveChat,
   onOpenInVSCode,
   onOpenTerminal,
   onToggleTerminal,
@@ -104,7 +105,6 @@ export function PaletteProvider({
   onCopyCloneCommand,
   onCopyCheckoutCommand,
   onOpenEnvVars,
-  onOpenMcpServers,
   onOpenSkills,
   chatIds,
   currentChatId,
@@ -254,6 +254,7 @@ export function PaletteProvider({
         onSignIn={onSignIn}
         onSignOut={onSignOut}
         onDeleteChat={onDeleteChat}
+        onArchiveChat={onArchiveChat}
         onOpenInVSCode={onOpenInVSCode}
         onOpenTerminal={onOpenTerminal}
         servers={servers}
@@ -265,7 +266,6 @@ export function PaletteProvider({
         onCopyCloneCommand={onCopyCloneCommand}
         onCopyCheckoutCommand={onCopyCheckoutCommand}
         onOpenEnvVars={onOpenEnvVars}
-        onOpenMcpServers={onOpenMcpServers}
         onOpenSkills={onOpenSkills}
         chats={chats.map((c) => ({ id: c.id, displayName: c.displayName }))}
         onSelectChat={onSelectChat}

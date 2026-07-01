@@ -34,6 +34,8 @@ interface UsePalettePropsOptions {
   handleCopyCloneCommand: () => void
   handleCopyCheckoutCommand: () => void
   handleOpenEnvVars: () => void
+  /** Archive the given chat (moves it out of the active list). */
+  handleArchiveChat: (chatId: string) => void
 
   // Navigation / chat handlers
   handlePaletteSelectRepo: (repo: GitHubRepo) => void
@@ -82,6 +84,7 @@ export function usePaletteProps({
   handleCopyCloneCommand,
   handleCopyCheckoutCommand,
   handleOpenEnvVars,
+  handleArchiveChat,
   handlePaletteSelectRepo,
   handlePaletteSelectBranch,
   handleRunCommand,
@@ -162,6 +165,10 @@ export function usePaletteProps({
     onDeleteChat: displayCurrentChatId
       ? () => modals.setDeleteConfirmChatId(displayCurrentChatId)
       : undefined,
+    onArchiveChat:
+      displayCurrentChatId && !currentChat?.archived
+        ? () => handleArchiveChat(displayCurrentChatId)
+        : undefined,
     onOpenInVSCode: sandboxId ? handleOpenInVSCode : undefined,
     onOpenTerminal: sandboxId ? openNewTerminal : undefined,
     onToggleTerminal: sandboxId ? toggleTerminal : undefined,
@@ -177,8 +184,6 @@ export function usePaletteProps({
     onCopyCloneCommand: hasRepo ? handleCopyCloneCommand : undefined,
     onCopyCheckoutCommand: currentChat?.branch ? handleCopyCheckoutCommand : undefined,
     onOpenEnvVars: currentChat ? handleOpenEnvVars : undefined,
-    onOpenMcpServers:
-      displayCurrentChatId && session ? () => modals.setMcpServersModalOpen(true) : undefined,
     onOpenSkills: sandboxId && hasRepo ? onToggleSkillsModal : undefined,
     chatIds: displayChats.map((c) => c.id),
     onNavigateChat: handleNavigateChat,
