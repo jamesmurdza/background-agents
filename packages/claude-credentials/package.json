@@ -17,6 +17,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./constants": {
+      "import": {
+        "types": "./dist/constants.d.ts",
+        "default": "./dist/constants.js"
+      },
+      "require": {
+        "types": "./dist/constants.d.cts",
+        "default": "./dist/constants.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -26,7 +36,7 @@
     "@daytonaio/sdk": "^0.170.0"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --sourcemap",
+    "build": "tsup src/index.ts src/constants.ts --format esm,cjs --dts --clean --sourcemap",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "prepare": "npm run build"
