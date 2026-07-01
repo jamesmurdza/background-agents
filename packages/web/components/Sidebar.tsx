@@ -12,6 +12,7 @@ import { useElectron } from "@/lib/hooks/useElectron"
 import { useGitHubUserQuery } from "@/lib/query"
 import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD } from "@/lib/contexts"
 import { clearAllStorage } from "@/lib/storage"
+import { isChatVisibleForFilter } from "@/lib/chat-tree"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import {
@@ -144,22 +145,12 @@ export function Sidebar({
     })
   }, [chats, currentUserLogin])
 
-  // Filter chats by selected repository, sorted newest-first by last activity
+  // Filter chats by selected repository, sorted newest-first by last activity.
+  // Visibility is delegated to the shared isChatVisibleForFilter predicate so
+  // the rendered list can never drift from what keyboard navigation reaches.
   const filteredChats = useMemo(() => {
     return chats
-      .filter((chat) => {
-        // Use messageCount if messages haven't been loaded yet, otherwise use messages.length
-        const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-        // Show empty chats only if they have a parentChatId (were branched)
-        if (!hasMessages && !chat.parentChatId) return false
-        // "Archived chats" filter shows only archived chats (across all repos);
-        // every other filter shows only active (non-archived) chats.
-        if (repoFilter === ARCHIVED_CHATS) return !!chat.archived
-        if (chat.archived) return false
-        if (repoFilter === ALL_REPOSITORIES) return true
-        if (repoFilter === NO_REPOSITORY) return chat.repo === NEW_REPOSITORY
-        return chat.repo === repoFilter
-      })
+      .filter((chat) => isChatVisibleForFilter(chat, repoFilter))
       .sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
   }, [chats, repoFilter])
 

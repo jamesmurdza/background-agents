@@ -6,25 +6,44 @@
 
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
-import { ALL_REPOSITORIES, NO_REPOSITORY } from "@/lib/contexts"
+import { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
+
+/**
+ * THE single source of truth for "is this chat shown under the current sidebar
+ * filter?".
+ *
+ * Both the sidebar's rendered list (Sidebar's `filteredChats`) and the
+ * keyboard-navigation order (`buildTreeOrderedChatIds`) MUST derive visibility
+ * from this one function. Keeping them in a single predicate is what makes a
+ * whole class of bug impossible: a chat you cannot see (e.g. an archived chat
+ * while viewing "Active chats") can never become reachable by Alt+Up/Down,
+ * because "what's navigable" is defined as "what's visible". Do not re-implement
+ * this logic anywhere else — import it.
+ */
+export function isChatVisibleForFilter(chat: Chat, repoFilter: string): boolean {
+  // Empty chats are only shown when branched (they carry a parentChatId).
+  const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
+  if (!hasMessages && !chat.parentChatId) return false
+  // The "Archived chats" view shows only archived chats (across all repos);
+  // every other filter shows only active (non-archived) chats.
+  if (repoFilter === ARCHIVED_CHATS) return !!chat.archived
+  if (chat.archived) return false
+  if (repoFilter === ALL_REPOSITORIES) return true
+  if (repoFilter === NO_REPOSITORY) return chat.repo === NEW_REPOSITORY
+  return chat.repo === repoFilter
+}
 
 /**
  * Build the full tree-ordered id list matching the sidebar, ignoring collapsed
  * state — so keyboard navigation (Alt+Up/Down) can reach every chat, expanding
  * collapsed ancestors along the way.
  *
- * Applies the same repo filter and visibility rules as the Sidebar so the
- * navigation order matches the visual order.
+ * Applies the exact same visibility rule as the Sidebar (via
+ * {@link isChatVisibleForFilter}) so the navigation order can never include a
+ * chat the sidebar is hiding.
  */
 export function buildTreeOrderedChatIds(chats: Chat[], repoFilter: string): string[] {
-  // Show empty chats only if they have a parentChatId (i.e. were branched).
-  const visible = chats.filter((c) => {
-    const hasMessages = c.messages.length > 0 || (c.messageCount ?? 0) > 0
-    if (!hasMessages && !c.parentChatId) return false
-    if (repoFilter === ALL_REPOSITORIES) return true
-    if (repoFilter === NO_REPOSITORY) return c.repo === NEW_REPOSITORY
-    return c.repo === repoFilter
-  })
+  const visible = chats.filter((c) => isChatVisibleForFilter(c, repoFilter))
 
   visible.sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
 
