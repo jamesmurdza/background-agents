@@ -1,3 +1,8 @@
+// Tier-1 (server-only): this module reads Prisma and reaches the heavy
+// @daytonaio/sdk (gRPC, Node-only) generator. The `server-only` import makes
+// the build fail — pointing here — if any client component ever imports it,
+// instead of surfacing as a cryptic gRPC bundling error.
+import "server-only"
 import { generateClaudeCredentials } from "@background-agents/claude-credentials"
 // Constants come from the package's zero-dep `/constants` subpath, so importing
 // them never pulls in @daytonaio/sdk -> @opentelemetry -> @grpc. This module

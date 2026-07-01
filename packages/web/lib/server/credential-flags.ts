@@ -3,6 +3,10 @@
  * Must never be imported from client code.
  */
 
+// Enforces the "server-only" contract above: importing this from a client
+// component fails the build here rather than deep in the transitive
+// Prisma / @daytonaio/sdk chain it pulls in.
+import "server-only"
 import { prisma } from "@/lib/db/prisma"
 import { isSharedPoolAvailable } from "@/lib/claude-credentials"
 import { sumSharedUsage } from "@/lib/db/token-usage"
