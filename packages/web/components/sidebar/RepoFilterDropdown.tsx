@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderGit2, Archive, ChevronDown, Check } from "lucide-react"
+import { FolderGit2, ChevronDown, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -88,7 +88,6 @@ export function RepoFilterDropdown({
             className={itemClassName}
           >
             <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === ARCHIVED_CHATS ? "opacity-100" : "opacity-0")} />
-            <Archive className={cn(`${iconSize} flex-shrink-0 text-muted-foreground`)} />
             <span className="flex-1">Archived chats</span>
             <span className="text-muted-foreground">{repoCounts.archivedCount}</span>
           </button>
@@ -98,25 +97,8 @@ export function RepoFilterDropdown({
             <div className="my-1 border-t border-border" />
           )}
 
-          {/* No repository — sits at the top of the repository section. Uses an
-              icon-sized spacer in place of the folder icon so its label lines
-              up with the repository labels below. */}
-          {uniqueRepos.includes(NEW_REPOSITORY) && (
-            <button
-              onClick={() => {
-                setRepoFilter(NO_REPOSITORY)
-                setRepoDropdownOpen(false)
-              }}
-              className={itemClassName}
-            >
-              <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
-              <span className={cn(iconSize, "flex-shrink-0")} aria-hidden="true" />
-              <span className="truncate flex-1">No repository</span>
-              <span className="text-muted-foreground">{repoCounts.noRepoCount}</span>
-            </button>
-          )}
-
-          {/* Repository list */}
+          {/* Repository list — current user's repos first, then others (the
+              parent already sorts uniqueRepos this way). */}
           {uniqueRepos
             .filter(repo => repo !== NEW_REPOSITORY)
             .map((repo) => (
@@ -134,6 +116,24 @@ export function RepoFilterDropdown({
                 <span className="text-muted-foreground">{repoCounts.counts[repo] || 0}</span>
               </button>
             ))}
+
+          {/* No repository — sits at the bottom of the repository section. Uses
+              an icon-sized spacer in place of the folder icon so its label lines
+              up with the repository labels above. */}
+          {uniqueRepos.includes(NEW_REPOSITORY) && (
+            <button
+              onClick={() => {
+                setRepoFilter(NO_REPOSITORY)
+                setRepoDropdownOpen(false)
+              }}
+              className={itemClassName}
+            >
+              <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
+              <span className={cn(iconSize, "flex-shrink-0")} aria-hidden="true" />
+              <span className="truncate flex-1">No repository</span>
+              <span className="text-muted-foreground">{repoCounts.noRepoCount}</span>
+            </button>
+          )}
         </div>
       )}
     </>

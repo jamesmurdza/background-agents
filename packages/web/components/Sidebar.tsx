@@ -129,13 +129,20 @@ export function Sidebar({
         repos.add(chat.repo)
       }
     })
+    // Repos owned by the current user come first, then everyone else's, then
+    // NEW_REPOSITORY (the "No repository" bucket) last. Within each group they
+    // are sorted alphabetically.
+    const ownedByCurrentUser = (repo: string) =>
+      !!currentUserLogin && repo.toLowerCase().startsWith(`${currentUserLogin.toLowerCase()}/`)
     return Array.from(repos).sort((a, b) => {
-      // Sort NEW_REPOSITORY to the end
       if (a === NEW_REPOSITORY) return 1
       if (b === NEW_REPOSITORY) return -1
+      const aOwned = ownedByCurrentUser(a)
+      const bOwned = ownedByCurrentUser(b)
+      if (aOwned !== bOwned) return aOwned ? -1 : 1
       return a.localeCompare(b)
     })
-  }, [chats])
+  }, [chats, currentUserLogin])
 
   // Filter chats by selected repository, sorted newest-first by last activity
   const filteredChats = useMemo(() => {
