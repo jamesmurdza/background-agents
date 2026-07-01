@@ -93,7 +93,14 @@ export function RepoFilterDropdown({
             <span className="text-muted-foreground">{repoCounts.archivedCount}</span>
           </button>
 
-          {/* No repository option */}
+          {/* Divider before the repository section */}
+          {uniqueRepos.length > 0 && (
+            <div className="my-1 border-t border-border" />
+          )}
+
+          {/* No repository — sits at the top of the repository section. Uses an
+              icon-sized spacer in place of the folder icon so its label lines
+              up with the repository labels below. */}
           {uniqueRepos.includes(NEW_REPOSITORY) && (
             <button
               onClick={() => {
@@ -103,14 +110,10 @@ export function RepoFilterDropdown({
               className={itemClassName}
             >
               <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />
-              <span className="flex-1">No repository</span>
+              <span className={cn(iconSize, "flex-shrink-0")} aria-hidden="true" />
+              <span className="truncate flex-1">No repository</span>
               <span className="text-muted-foreground">{repoCounts.noRepoCount}</span>
             </button>
-          )}
-
-          {/* Divider if there are actual repos */}
-          {uniqueRepos.some(r => r !== NEW_REPOSITORY) && (
-            <div className="my-1 border-t border-border" />
           )}
 
           {/* Repository list */}
