@@ -558,14 +558,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onDeleteChat={(chatId) => {
-          // Only warn (via the manage-chat dialog) when there's a live share
-          // link to break; otherwise delete straight away.
-          const chat = displayChats.find((c) => c.id === chatId)
-          if (chat?.shareId) {
-            modals.setDeleteConfirmChatId(chatId)
-          } else {
-            removeChat(chatId, getNextChatId)
-          }
+          // Always confirm deletions triggered from the sidebar "..." menu.
+          modals.setDeleteConfirmChatId(chatId)
         }}
         onArchiveChat={(chatId) => setChatArchived(chatId, true)}
         onUnarchiveChat={(chatId) => setChatArchived(chatId, false)}
