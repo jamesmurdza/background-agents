@@ -61,10 +61,15 @@ async function main() {
     return
   }
 
-  // Seed mode: delegate to the same service the cron uses so cookie/credential
+  // Seed mode: delegate to the same modules the cron uses so cookie/credential
   // writes stay in one place. Lazy import so test mode never touches Prisma.
-  const { setCookies, refreshCredentials, prismaDisconnect } = await import(
+  // setCookies/prismaDisconnect live in the data-access layer; refreshCredentials
+  // (which reaches the heavy generator) lives in the server orchestration module.
+  const { setCookies, prismaDisconnect } = await import(
     "../lib/claude-credentials"
+  )
+  const { refreshCredentials } = await import(
+    "../lib/server/refresh-claude-credentials"
   )
 
   console.error("→ Upserting cookies row")

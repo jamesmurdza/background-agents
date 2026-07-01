@@ -22,7 +22,8 @@ const WEB_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 // Files/dirs that are allowed to import the heavy main entry because they only
 // ever run on the server (never bundled for the browser).
 const ALLOWLIST = [
-  join("lib", "claude-credentials.ts"), // the single server-side DB<->ccauth chokepoint
+  // the single server-only orchestration module that reaches the generator
+  join("lib", "server", "refresh-claude-credentials.ts"),
   "scripts", // node CLIs (seed:ccauth / test:ccauth)
 ]
 
