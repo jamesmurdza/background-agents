@@ -1,6 +1,6 @@
 "use client"
 
-import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor, Zap, Plug, Gauge } from "lucide-react"
+import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, Plus, GitBranchPlus, Settings, Github, PanelLeft, LogIn, LogOut, FolderGit2, Trash2, Archive, Code2, TerminalSquare, Globe, PanelRightClose, PanelRightOpen, Download, Copy, MessageSquare, Key, Sun, Moon, Monitor, Zap, Gauge } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -59,6 +59,8 @@ interface CommandPaletteProps {
   onSignIn?: () => void
   onSignOut?: () => void
   onDeleteChat?: () => void
+  /** Archive the current chat. Omitted when no chat is active or it's already archived. */
+  onArchiveChat?: () => void
   onOpenInVSCode?: () => void
   onOpenTerminal?: () => void
   servers?: Array<{ port: number; url: string }>
@@ -76,7 +78,6 @@ interface CommandPaletteProps {
   onCopyCheckoutCommand?: () => void
   /** Open environment variables modal. Omitted when no chat is active. */
   onOpenEnvVars?: () => void
-  onOpenMcpServers?: () => void
   /** Open skills manager. Omitted when no sandbox exists. */
   onOpenSkills?: () => void
   /** Chats for search. */
@@ -108,6 +109,7 @@ export function CommandPalette({
   onSignIn,
   onSignOut,
   onDeleteChat,
+  onArchiveChat,
   onOpenInVSCode,
   onOpenTerminal,
   servers = [],
@@ -119,7 +121,6 @@ export function CommandPalette({
   onCopyCloneCommand,
   onCopyCheckoutCommand,
   onOpenEnvVars,
-  onOpenMcpServers,
   onOpenSkills,
   chats = [],
   onSelectChat,
@@ -258,16 +259,16 @@ export function CommandPalette({
               <span>Environment variables</span>
             </CommandItem>
           )}
-          {onOpenMcpServers && (
-            <CommandItem value="mcp servers tools" onSelect={() => run(onOpenMcpServers)}>
-              <Plug className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>MCP servers</span>
-            </CommandItem>
-          )}
           {onOpenSkills && (
             <CommandItem value="manage skills agent" onSelect={() => run(onOpenSkills)}>
               <Zap className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Manage skills</span>
+            </CommandItem>
+          )}
+          {onArchiveChat && (
+            <CommandItem value="archive chat" onSelect={() => run(onArchiveChat)}>
+              <Archive className="mr-2 h-4 w-4 text-muted-foreground" />
+              <span>Archive chat</span>
             </CommandItem>
           )}
           {onDeleteChat && (

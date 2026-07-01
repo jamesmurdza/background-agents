@@ -523,6 +523,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleCopyCloneCommand,
     handleCopyCheckoutCommand,
     handleOpenEnvVars,
+    handleArchiveChat: (chatId) => setChatArchived(chatId, true),
     handlePaletteSelectRepo,
     handlePaletteSelectBranch,
     handleRunCommand,
