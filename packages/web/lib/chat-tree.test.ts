@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
 import { NEW_REPOSITORY, type Chat } from "@/lib/types"
-import { buildTreeOrderedChatIds, isChatVisibleForFilter } from "./chat-tree"
+import {
+  buildTreeOrderedChatIds,
+  getNextChatIdAfterDeletion,
+  isChatVisibleForFilter,
+} from "./chat-tree"
 
 /** Build a minimally-valid Chat with sane defaults, overridable per field. */
 function makeChat(overrides: Partial<Chat> & Pick<Chat, "id">): Chat {
@@ -83,5 +87,39 @@ describe("buildTreeOrderedChatIds", () => {
       const visible = new Set(chats.filter((c) => isChatVisibleForFilter(c, filter)).map((c) => c.id))
       expect(navigable).toEqual(visible)
     }
+  })
+})
+
+// When the open chat is archived it leaves the active view, so selection must
+// move to a still-visible neighbor. This is the pure core of setChatArchived:
+// resolve the neighbor from the pre-archive tree order (the chat is still
+// visible at that instant), then the archive hides it.
+describe("selection after archiving the open chat", () => {
+  const active = [
+    makeChat({ id: "a", lastActiveAt: 3 }),
+    makeChat({ id: "b", lastActiveAt: 2 }),
+    makeChat({ id: "c", lastActiveAt: 1 }),
+  ]
+  const order = () => buildTreeOrderedChatIds(active, ALL_REPOSITORIES) // ["a","b","c"]
+
+  it("selects the following chat when a middle chat is archived", () => {
+    expect(getNextChatIdAfterDeletion(order(), ["b"])).toBe("c")
+  })
+
+  it("selects the previous chat when the last chat is archived", () => {
+    expect(getNextChatIdAfterDeletion(order(), ["c"])).toBe("b")
+  })
+
+  it("always resolves to a still-visible chat", () => {
+    const next = getNextChatIdAfterDeletion(order(), ["a"])
+    expect(next).not.toBeNull()
+    const nextChat = active.find((c) => c.id === next)!
+    expect(isChatVisibleForFilter(nextChat, ALL_REPOSITORIES)).toBe(true)
+  })
+
+  it("resolves to null (empty state) when the only visible chat is archived", () => {
+    const solo = [makeChat({ id: "only" })]
+    const soloOrder = buildTreeOrderedChatIds(solo, ALL_REPOSITORIES)
+    expect(getNextChatIdAfterDeletion(soloOrder, ["only"])).toBeNull()
   })
 })

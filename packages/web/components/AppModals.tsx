@@ -65,9 +65,6 @@ interface AppModalsProps {
   // Delete confirmation — receives the chat id to delete
   onDeleteChat: (chatId: string) => void
 
-  // Archive — receives the chat id to archive
-  onArchiveChat: (chatId: string) => void
-
   // Daily limit reached dialog
   limitReachedState: { show: boolean; resetAt?: Date; provider?: string; used?: number | null; limit?: number | null }
   onDismissLimitReached: () => void

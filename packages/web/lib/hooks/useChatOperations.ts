@@ -53,7 +53,11 @@ export interface ChatOperations {
     chatId: string,
     getNextChatId?: (deletedIds: string[]) => string | null
   ) => Promise<void>
-  setChatArchived: (chatId: string, archived: boolean) => Promise<void>
+  setChatArchived: (
+    chatId: string,
+    archived: boolean,
+    getNextChatId?: (removedIds: string[]) => string | null
+  ) => Promise<void>
 }
 
 export function useChatOperations({
@@ -143,13 +147,33 @@ export function useChatOperations({
     [chats, currentChatId, deleteChatMutation, sandboxDeleteMutation]
   )
 
-  const setChatArchived = useCallback(async (chatId: string, archived: boolean) => {
-    try {
-      await archiveChatMutation.mutateAsync({ chatId, archived })
-    } catch (error) {
-      console.error("Failed to archive chat:", error)
-    }
-  }, [archiveChatMutation])
+  const setChatArchived = useCallback(
+    async (
+      chatId: string,
+      archived: boolean,
+      getNextChatId?: (removedIds: string[]) => string | null
+    ) => {
+      // Toggling archive on the *currently open* chat removes it from the
+      // current view (archiving hides it from active/repo views; unarchiving
+      // hides it from the Archived view). Move selection to a logical neighbor
+      // first — mirroring deletion — so the main pane never lingers on a chat
+      // the sidebar is now hiding. getNextChatId is the tree-ordered,
+      // filter-aware resolver; the fallback deliberately skips the toggled chat
+      // and any archived chat so it never lands on something hidden.
+      if (chatId === currentChatId) {
+        const nextChat = getNextChatId
+          ? getNextChatId([chatId])
+          : chats.find((c) => c.id !== chatId && !c.archived)?.id ?? null
+        useChatSyncStore.getState().setCurrentChatId(nextChat)
+      }
+      try {
+        await archiveChatMutation.mutateAsync({ chatId, archived })
+      } catch (error) {
+        console.error("Failed to archive chat:", error)
+      }
+    },
+    [chats, currentChatId, archiveChatMutation]
+  )
 
   const renameChat = useCallback(async (chatId: string, newName: string) => {
     try {

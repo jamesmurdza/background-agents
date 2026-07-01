@@ -523,7 +523,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleCopyCloneCommand,
     handleCopyCheckoutCommand,
     handleOpenEnvVars,
-    handleArchiveChat: (chatId) => setChatArchived(chatId, true),
+    handleArchiveChat: (chatId) => setChatArchived(chatId, true, getNextChatId),
     handlePaletteSelectRepo,
     handlePaletteSelectBranch,
     handleRunCommand,
@@ -562,8 +562,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           // Always confirm deletions triggered from the sidebar "..." menu.
           modals.setDeleteConfirmChatId(chatId)
         }}
-        onArchiveChat={(chatId) => setChatArchived(chatId, true)}
-        onUnarchiveChat={(chatId) => setChatArchived(chatId, false)}
+        onArchiveChat={(chatId) => setChatArchived(chatId, true, getNextChatId)}
+        onUnarchiveChat={(chatId) => setChatArchived(chatId, false, getNextChatId)}
         onRenameChat={renameChat}
         isMobile={isMobile}
         collapsed={isMobile ? false : sidebar.collapsed}
@@ -730,7 +730,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         onScheduledJobSuccess={() => setScheduledJobsRefreshKey((k) => k + 1)}
         onSlashCommand={handleSlashCommand}
         onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
-        onArchiveChat={(chatId) => setChatArchived(chatId, true)}
         limitReachedState={limitReachedState}
         onDismissLimitReached={dismissLimitReached}
         onContinueWithOpenCode={retryWithOpenCode}
