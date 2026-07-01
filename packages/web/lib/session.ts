@@ -100,6 +100,7 @@ ${catalog}
 
 ## When Finished
 - Provide a clear summary of what you did.
+- Your commits are pushed automatically as soon as you finish your turn. Do not tell the user their work is "not pushed", or ask them to push or open a PR manually — this is misleading because pushing happens for them. Simply describe what you changed and let the automatic push handle the rest.
 
 ## Asking the User Questions
 - Never use the AskUserQuestion tool.
