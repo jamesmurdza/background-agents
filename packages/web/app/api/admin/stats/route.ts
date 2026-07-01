@@ -2,39 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
-
-type TimeRange = "24h" | "7d" | "30d" | "all"
+import { getRangeDays, getRangeInterval, parseTimeRange } from "@/lib/db/time-range"
 
 // Primary metric the dashboard charts are weighted by. "messages" counts
 // ActivityLog rows; "tokens"/"cost" aggregate the TokenUsage ledger.
 const VALID_METRICS = ["tokens", "cost", "messages"] as const
 type Metric = (typeof VALID_METRICS)[number]
-
-function getRangeInterval(range: TimeRange): string {
-  switch (range) {
-    case "24h":
-      return "1 day"
-    case "7d":
-      return "7 days"
-    case "30d":
-      return "30 days"
-    default:
-      return "7 days"
-  }
-}
-
-function getRangeDays(range: TimeRange): number {
-  switch (range) {
-    case "24h":
-      return 1
-    case "7d":
-      return 7
-    case "30d":
-      return 30
-    default:
-      return 7
-  }
-}
 
 // Bucket granularity used for time-series charts. Long ranges (i.e. "all")
 // are down-sampled so the charts stay readable instead of rendering thousands
@@ -98,7 +71,7 @@ export async function GET(request: NextRequest) {
 
   // Parse query parameters
   const { searchParams } = new URL(request.url)
-  const range = (searchParams.get("range") as TimeRange) || "7d"
+  const range = parseTimeRange(searchParams.get("range"), "7d")
   const metricParam = searchParams.get("metric")
   const metric: Metric = VALID_METRICS.includes(metricParam as Metric)
     ? (metricParam as Metric)

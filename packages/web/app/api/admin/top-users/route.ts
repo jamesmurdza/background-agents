@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
+import { getRangeInterval, parseFiniteTimeRange } from "@/lib/db/time-range"
 
 /**
  * GET /api/admin/top-users
@@ -14,22 +15,8 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth
 
   const searchParams = request.nextUrl.searchParams
-  const range = searchParams.get("range") || "30d"
-
-  // Calculate interval based on range
-  let interval: string
-  switch (range) {
-    case "24h":
-      interval = "24 hours"
-      break
-    case "7d":
-      interval = "7 days"
-      break
-    case "30d":
-    default:
-      interval = "30 days"
-      break
-  }
+  const range = parseFiniteTimeRange(searchParams.get("range"), "30d")
+  const interval = getRangeInterval(range)
 
   // Top active users (by message count in the given time range) - from ActivityLog to include deleted
   const topUsersRaw = await prisma.$queryRaw<
