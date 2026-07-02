@@ -35,6 +35,8 @@ interface SidebarProps {
   onDeleteChat: (chatId: string) => void
   /** Pin or unpin a chat, sorting it to the top of the list. */
   onPinChat?: (chatId: string, pinned: boolean) => void
+  /** Branch a new chat from an existing chat (creates a sibling and switches to it). */
+  onBranchChat?: (chatId: string) => void
   /** Archive an active chat (and its branches), moving it into the archived section. */
   onArchiveChat?: (chatId: string) => void
   /** Restore an archived chat (and its branches) back to the active list. */
@@ -79,6 +81,7 @@ export function Sidebar({
   onNewChat,
   onDeleteChat,
   onPinChat,
+  onBranchChat,
   onArchiveChat,
   onUnarchiveChat,
   onRenameChat,
@@ -462,6 +465,7 @@ export function Sidebar({
                   onSelectChat: handleSelectChat,
                   onDeleteChat,
                   onPin: showingArchived ? undefined : onPinChat,
+                  onBranch: showingArchived ? undefined : onBranchChat,
                   onArchive: showingArchived ? undefined : onArchiveChat,
                   onUnarchive: showingArchived ? onUnarchiveChat : undefined,
                   onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
@@ -696,6 +700,7 @@ export function Sidebar({
                   onSelectChat,
                   onDeleteChat,
                   onPin: showingArchived ? undefined : onPinChat,
+                  onBranch: showingArchived ? undefined : onBranchChat,
                   onArchive: showingArchived ? undefined : onArchiveChat,
                   onUnarchive: showingArchived ? onUnarchiveChat : undefined,
                   onRenameChat,

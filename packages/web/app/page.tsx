@@ -402,10 +402,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const {
     canBranch,
     handleBranchChat,
+    handleBranchFromChat,
     handleBranchWithMessage,
     handleBranchQueuedMessage,
   } = useBranching({
     currentChat,
+    chats,
     startNewChat,
     sendMessage,
     removeQueuedMessage,
@@ -565,6 +567,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           modals.setDeleteConfirmChatId(chatId)
         }}
         onPinChat={(chatId, pinned) => setChatPinned(chatId, pinned)}
+        onBranchChat={handleBranchFromChat}
         onArchiveChat={(chatId) => setChatArchived(chatId, true, getNextChatId)}
         onUnarchiveChat={(chatId) => setChatArchived(chatId, false, getNextChatId)}
         onRenameChat={renameChat}

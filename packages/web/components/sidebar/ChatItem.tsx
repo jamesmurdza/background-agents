@@ -23,6 +23,8 @@ export interface ChatItemProps {
   onDelete: () => void
   /** When provided, the row shows a "Pin"/"Unpin" action toggling chat.pinned. */
   onPin?: (pinned: boolean) => void
+  /** When provided, the row shows a "Branch chat" action. */
+  onBranch?: () => void
   /** When provided, the row shows an "Archive" action (active, non-archived chats). */
   onArchive?: () => void
   /** When provided, the row is treated as archived and shows an "Unarchive" action. */
@@ -41,7 +43,7 @@ export interface ChatItemProps {
   onDropRow?: () => void
 }
 
-export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onPin, onArchive, onUnarchive, onRename, onMerge, onRebase, isDragSource, isDropTarget, onDragStartRow, onDragEndRow, onDragEnterRow, onDragOverRow, onDragLeaveRow, onDropRow }: ChatItemProps) {
+export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onPin, onBranch, onArchive, onUnarchive, onRename, onMerge, onRebase, isDragSource, isDropTarget, onDragStartRow, onDragEndRow, onDragEnterRow, onDragOverRow, onDragLeaveRow, onDropRow }: ChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState("")
@@ -224,6 +226,19 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
                   <Pencil className="h-3.5 w-3.5" />
                   Rename
                 </button>
+                {onBranch && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onBranch()
+                      setMenuOpen(false)
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent cursor-pointer"
+                  >
+                    <GitBranch className="h-3.5 w-3.5" />
+                    Branch chat
+                  </button>
+                )}
                 {onMerge && (
                   <button
                     onClick={(e) => {
