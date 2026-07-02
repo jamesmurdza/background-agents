@@ -285,6 +285,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark", requiresKey: "openai" },
   ],
   "copilot": [
+    { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "github" },
     { value: "claude-sonnet-4.5", label: "Claude Sonnet 4.5", requiresKey: "github" },
     { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
