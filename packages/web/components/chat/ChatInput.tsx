@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback, useState } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks, Mic } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Pencil, ListChecks, Mic, GitBranch } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
@@ -24,6 +24,10 @@ interface ChatInputProps {
   input: string
   onInputChange: (value: string) => void
   onSend: () => void
+  /** Branch-and-send: create a sibling chat and dispatch there (Cmd/Alt/Ctrl held). */
+  onBranchSend?: () => void
+  /** Whether branching is currently allowed (drives the send-button modifier affordance). */
+  canBranch?: boolean
   onStop: () => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
@@ -87,6 +91,8 @@ export function ChatInput({
   input,
   onInputChange,
   onSend,
+  onBranchSend,
+  canBranch = false,
   onStop,
   onKeyDown,
   textareaRef,
@@ -147,6 +153,28 @@ export function ChatInput({
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModeSheet, setShowModeSheet] = useState(false)
 
+  // Whether a "branch" modifier (Cmd/Alt/Ctrl) is currently held. When it is —
+  // and branching is possible — the send button turns into a "send to new
+  // branch" affordance (branch icon), and clicking it branches instead of
+  // sending to the current chat. Mirrors the Cmd/Alt/Ctrl+Enter keybinding.
+  const [branchModifierHeld, setBranchModifierHeld] = useState(false)
+  useEffect(() => {
+    const sync = (e: KeyboardEvent) => {
+      setBranchModifierHeld(e.metaKey || e.altKey || e.ctrlKey)
+    }
+    const clear = () => setBranchModifierHeld(false)
+    window.addEventListener("keydown", sync)
+    window.addEventListener("keyup", sync)
+    // Reset when focus leaves the window so a stuck modifier doesn't persist.
+    window.addEventListener("blur", clear)
+    return () => {
+      window.removeEventListener("keydown", sync)
+      window.removeEventListener("keyup", sync)
+      window.removeEventListener("blur", clear)
+    }
+  }, [])
+  const showBranchAffordance = branchModifierHeld && canBranch && !!onBranchSend
+
   // -- Speech-to-text (voice dictation) -------------------------------------
   // Keep the latest input in a ref so the recognition callback (created once
   // per render but invoked asynchronously) always reads the current value.
@@ -195,11 +223,16 @@ export function ChatInput({
     }
   }, [speech])
 
-  // Stop dictation when a message is sent.
-  const handleSendWithSpeechStop = useCallback(() => {
+  // Stop dictation when a message is sent. When a branch modifier is held (and
+  // branching is possible), send to a new branch instead of the current chat.
+  const handleSendWithSpeechStop = useCallback((e?: React.MouseEvent) => {
     if (speech.isListening) speech.stop()
+    if ((e?.metaKey || e?.altKey || e?.ctrlKey) && canBranch && onBranchSend) {
+      onBranchSend()
+      return
+    }
     onSend()
-  }, [speech, onSend])
+  }, [speech, onSend, onBranchSend, canBranch])
 
   // Close mode dropdown when clicking outside (desktop only)
   useEffect(() => {
@@ -387,12 +420,18 @@ export function ChatInput({
               ) : canSend ? (
                 <button
                   onClick={handleSendWithSpeechStop}
+                  title={showBranchAffordance ? "Send to a new branch" : undefined}
+                  aria-label={showBranchAffordance ? "Send to a new branch" : "Send message"}
                   className={cn(
                     "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer",
                     isMobile ? "h-9 w-9" : "h-7 w-7"
                   )}
                 >
-                  <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  {showBranchAffordance ? (
+                    <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  ) : (
+                    <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  )}
                 </button>
               ) : null}
             </div>

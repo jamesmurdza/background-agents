@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import remarkBreaks from "remark-breaks"
 import hljs from "highlight.js/lib/common"
 import { cn } from "@/lib/utils"
 import { CodeBlock } from "./CodeBlock"
@@ -30,7 +31,7 @@ export function MarkdownContent({ text, isMobile = false, constrainWidth = true 
       isMobile ? "prose-base" : "prose-sm prose-p:text-[15px] prose-li:text-[15px]"
     )}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           a: ({ children, ...props }) => (
             <a

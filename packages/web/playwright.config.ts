@@ -6,6 +6,10 @@ import path from "node:path"
 loadEnv({ path: path.resolve(__dirname, ".env.test") })
 loadEnv({ path: path.resolve(__dirname, "../../.env.local") })
 
+// The Eliza test agent is hidden from the picker by default (Developer setting).
+// Force it on for e2e so tests can select it without toggling the setting first.
+process.env.NEXT_PUBLIC_ENABLE_ELIZA = process.env.NEXT_PUBLIC_ENABLE_ELIZA ?? "true"
+
 const port = 4000
 
 export default defineConfig({

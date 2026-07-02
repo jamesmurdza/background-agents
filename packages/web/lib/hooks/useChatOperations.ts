@@ -26,6 +26,7 @@ import {
   useUpdateChatMutation,
   useDeleteChatMutation,
   useArchiveChatMutation,
+  usePinChatMutation,
   useSandboxDeleteMutation,
 } from "@/lib/query"
 
@@ -58,6 +59,7 @@ export interface ChatOperations {
     archived: boolean,
     getNextChatId?: (removedIds: string[]) => string | null
   ) => Promise<void>
+  setChatPinned: (chatId: string, pinned: boolean) => Promise<void>
 }
 
 export function useChatOperations({
@@ -68,6 +70,7 @@ export function useChatOperations({
   const updateChatMutation = useUpdateChatMutation()
   const deleteChatMutation = useDeleteChatMutation()
   const archiveChatMutation = useArchiveChatMutation()
+  const pinChatMutation = usePinChatMutation()
   const sandboxDeleteMutation = useSandboxDeleteMutation()
 
   const startNewChat = useCallback(async (
@@ -175,6 +178,14 @@ export function useChatOperations({
     [chats, currentChatId, archiveChatMutation]
   )
 
+  const setChatPinned = useCallback(async (chatId: string, pinned: boolean) => {
+    try {
+      await pinChatMutation.mutateAsync({ chatId, pinned })
+    } catch (error) {
+      console.error("Failed to pin chat:", error)
+    }
+  }, [pinChatMutation])
+
   const renameChat = useCallback(async (chatId: string, newName: string) => {
     try {
       await updateChatMutation.mutateAsync({ chatId, data: { displayName: newName } })
@@ -237,5 +248,6 @@ export function useChatOperations({
     updateCurrentChat,
     removeChat,
     setChatArchived,
+    setChatPinned,
   }
 }

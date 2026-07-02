@@ -125,7 +125,7 @@ export function CopyCode({ text }: { text: string }) {
 
 /**
  * Generic on/off switch styled to match the settings UI. Used in Git,
- * Experimental, and the auto-detect toggle inside the API Keys section.
+ * Notifications, and the auto-detect toggle inside the API Keys section.
  */
 export function ToggleSwitch({
   checked,

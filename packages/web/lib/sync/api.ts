@@ -29,6 +29,7 @@ export interface ChatResponse {
   shareId?: string | null
   status: string
   archived?: boolean
+  pinned?: boolean
   parentChatId: string | null
   needsSync: boolean
   createdAt: number
@@ -164,6 +165,7 @@ export async function updateChat(
     displayName: string
     status: string
     archived: boolean
+    pinned: boolean
     agent: string
     model: string
     planModeEnabled: boolean
@@ -245,6 +247,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     shareId: serverChat.shareId ?? null,
     status: serverChat.status as Chat["status"],
     archived: serverChat.archived ?? false,
+    pinned: serverChat.pinned ?? false,
     parentChatId: serverChat.parentChatId || undefined,
     needsSync: serverChat.needsSync,
     createdAt: serverChat.createdAt,

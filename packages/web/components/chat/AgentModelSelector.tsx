@@ -42,7 +42,9 @@ interface AgentModelSelectorProps {
   closeDropdowns?: boolean
 }
 
-const agents = ALL_AGENTS
+// Env override so Eliza can be forced on in tests/CI regardless of the stored
+// user setting (which defaults to off). Set NEXT_PUBLIC_ENABLE_ELIZA=true.
+const ELIZA_ENV_OVERRIDE = process.env.NEXT_PUBLIC_ENABLE_ELIZA === "true"
 
 /**
  * Picker status for an agent's readiness dot:
@@ -83,6 +85,14 @@ export function AgentModelSelector({
   // User's custom endpoints — merged into each agent's model list by name.
   const { data: settingsData } = useSettingsQuery()
   const endpoints = settingsData?.customEndpoints
+
+  // Eliza (a deterministic test agent) is hidden from the picker unless the user
+  // enables it in the Developer settings, or the env override is set (tests/CI).
+  const elizaEnabled = (settingsData?.settings?.elizaEnabled ?? false) || ELIZA_ENV_OVERRIDE
+  const agents = useMemo(
+    () => ALL_AGENTS.filter((a) => a !== "eliza" || elizaEnabled),
+    [elizaEnabled]
+  )
 
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
@@ -129,6 +139,10 @@ export function AgentModelSelector({
 
     // Update chat's agent if possible
     if (chat && onUpdateChat) {
+      // Remember the current selection so we can revert if the user opens
+      // Settings for a required key and then closes without entering one.
+      const prevAgent = currentAgent
+      const prevModel = currentModel
       // Pick a model that works right now for the agent we're switching to:
       // honor the user's saved default model when it belongs to this agent and
       // is usable, otherwise the first free/configured model (see resolver).
@@ -139,32 +153,39 @@ export function AgentModelSelector({
       // Check if the new model requires credentials we don't have
       const newModelConfig = models.find(m => m.value === newModel)
       if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, agent)) {
-        // Open settings with the required key highlighted
+        // Open settings with the required key highlighted. If the user dismisses
+        // it without entering a key, restore the previous agent/model.
         const requiredKey = newModelConfig.requiresKey
         if (requiredKey && requiredKey !== "none") {
-          modals.openSettings(requiredKey as HighlightKey)
+          modals.openSettings(requiredKey as HighlightKey, () =>
+            onUpdateChat({ agent: prevAgent, model: prevModel })
+          )
         }
       }
     }
-  }, [chat, currentModel, credentialFlags, endpoints, settingsData, onUpdateChat, showClaudeLimitDialog, modals])
+  }, [chat, currentAgent, currentModel, credentialFlags, endpoints, settingsData, onUpdateChat, showClaudeLimitDialog, modals])
 
   const handleModelChange = useCallback((model: string) => {
     setShowModelDropdown(false)
     setShowModelSheet(false)
     if (chat && onUpdateChat) {
+      const prevModel = currentModel
       onUpdateChat({ model })
 
       // Check if the new model requires credentials we don't have
       const newModelConfig = availableModels.find(m => m.value === model)
       if (newModelConfig && !hasCredentialsForModel(newModelConfig, credentialFlags, currentAgent)) {
-        // Open settings with the required key highlighted
+        // Open settings with the required key highlighted. If the user dismisses
+        // it without entering a key, restore the previous model.
         const requiredKey = newModelConfig.requiresKey
         if (requiredKey && requiredKey !== "none") {
-          modals.openSettings(requiredKey as HighlightKey)
+          modals.openSettings(requiredKey as HighlightKey, () =>
+            onUpdateChat({ model: prevModel })
+          )
         }
       }
     }
-  }, [chat, availableModels, credentialFlags, currentAgent, onUpdateChat, modals])
+  }, [chat, availableModels, credentialFlags, currentAgent, currentModel, onUpdateChat, modals])
 
   // Determine which section heading a model belongs to
   const getModelSection = useCallback((model: ModelOption): string => {

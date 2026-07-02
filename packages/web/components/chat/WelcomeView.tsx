@@ -4,8 +4,6 @@ import { cn } from "@/lib/utils"
 
 interface WelcomeViewProps {
   isMobile: boolean
-  /** Preserves ChatPanel's raw `&&` value (false | 0 | true). */
-  showRapidFireNotification: boolean | number
   onOpenCommandPalette?: () => void
   onOpenHelp: () => void
   /** The composer input element, built by ChatPanel and shared with other views. */
@@ -20,7 +18,6 @@ interface WelcomeViewProps {
  */
 export function WelcomeView({
   isMobile,
-  showRapidFireNotification,
   onOpenCommandPalette,
   onOpenHelp,
   chatInput,
@@ -66,12 +63,6 @@ export function WelcomeView({
             What would you like to build?
           </h2>
         </div>
-        {showRapidFireNotification && (
-          <div className="mt-2 flex items-center justify-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-bottom-1 duration-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Task started
-          </div>
-        )}
         {chatInput}
         <div className={cn(
           "text-muted-foreground mt-4 text-center",

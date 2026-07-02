@@ -30,8 +30,12 @@ interface PaletteProviderProps {
   currentRepo: string | null
   branches: GitHubBranch[]
   chats: PaletteChat[]
+  /** Repositories shown in the sidebar's repository selector. */
+  sidebarRepos: string[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
+  /** Select a repository in the sidebar (sets the repo filter) — no new chat. */
+  onFilterRepo: (repo: string) => void
   onRunCommand: (command: string) => void
   onNewChat: () => void
   onBranchChat?: () => void
@@ -66,10 +70,6 @@ interface PaletteProviderProps {
    *  precedence over the flat chatIds rotation so the parent can walk the
    *  sidebar tree and auto-expand branches. */
   onNavigateChat?: (direction: "up" | "down") => void
-  /** Whether rapid fire mode is on */
-  rapidFireMode?: boolean
-  /** Toggle rapid fire mode */
-  onToggleRapidFire?: () => void
 }
 
 export function PaletteProvider({
@@ -78,8 +78,10 @@ export function PaletteProvider({
   currentRepo,
   branches,
   chats,
+  sidebarRepos,
   onSelectRepo,
   onSelectBranch,
+  onFilterRepo,
   onRunCommand,
   onNewChat,
   onBranchChat,
@@ -110,8 +112,6 @@ export function PaletteProvider({
   currentChatId,
   onSelectChat,
   onNavigateChat,
-  rapidFireMode,
-  onToggleRapidFire,
 }: PaletteProviderProps) {
   const { theme, setTheme } = useTheme()
   const [searchOpen, setSearchOpenState] = useState(false)
@@ -235,9 +235,11 @@ export function PaletteProvider({
         currentRepo={currentRepo}
         branches={branches}
         chats={chats}
+        sidebarRepos={sidebarRepos}
         onSelectRepo={onSelectRepo}
         onSelectBranch={onSelectBranch}
         onSelectChat={onSelectChat}
+        onFilterRepo={onFilterRepo}
       />
       <CommandPalette
         open={commandOpen}
@@ -271,8 +273,6 @@ export function PaletteProvider({
         onSelectChat={onSelectChat}
         currentTheme={(theme as Theme) ?? "system"}
         onThemeChange={(newTheme: Theme) => setTheme(newTheme)}
-        rapidFireMode={rapidFireMode}
-        onToggleRapidFire={onToggleRapidFire}
       />
     </PaletteContext.Provider>
   )

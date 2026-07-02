@@ -181,6 +181,9 @@ export interface Chat {
    *  share link); it is reversible, unlike deletion. */
   archived?: boolean
 
+  /** Pinned chats sort to the top of the sidebar and command palettes. */
+  pinned?: boolean
+
   /** When this chat was branched from another chat, the parent's id. */
   parentChatId?: string
 
@@ -250,13 +253,14 @@ export interface Settings {
   defaultAgent: string | null
   defaultModel: string | null
   theme: Theme
-  rapidFireMode: boolean
   /** When true, run pre-push hooks during autopush (removes --no-verify flag) */
   enablePrepushHooks: boolean
   /** Notify (toast on web, native notification on desktop) when an agent turn finishes */
   notifyOnAgentFinished: boolean
   /** Notify when an agent's auto-push delivers new commits */
   notifyOnAgentCommitted: boolean
+  /** Developer: expose the Eliza test agent in the agent picker (off by default) */
+  elizaEnabled: boolean
   /** Play a sound when a notification is shown */
   notificationSound: boolean
 }

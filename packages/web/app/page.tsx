@@ -121,6 +121,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     selectChat,
     removeChat,
     setChatArchived,
+    setChatPinned,
     renameChat,
     updateChatRepo,
     updateCurrentChat,
@@ -355,17 +356,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   usePageTitle(pageTitle)
 
-  // "User clicked send" flow — owns handleSendMessage, handleRapidFireSend,
-  // the isSendingMessage flag (with its auto-reset effects), and the
-  // rapidFireNotification timestamp.
-  const { handleSendMessage, isSendingMessage, rapidFireNotification } = useSendMessage({
-    rapidFireMode: settings.rapidFireMode,
+  // "User clicked send" flow — owns handleSendMessage and the isSendingMessage
+  // flag (with its auto-reset effects).
+  const { handleSendMessage, isSendingMessage } = useSendMessage({
     sidebar,
     displayCurrentChat,
     currentChatId,
     isDraftMode,
     sendMessage,
-    startNewChat,
     setOptimisticDraft,
     openSignInModal: modals.setSignInModalOpen,
   })
@@ -401,10 +399,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const {
     canBranch,
     handleBranchChat,
+    handleBranchFromChat,
     handleBranchWithMessage,
     handleBranchQueuedMessage,
   } = useBranching({
     currentChat,
+    chats,
     startNewChat,
     sendMessage,
     removeQueuedMessage,
@@ -515,7 +515,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     currentChat,
     availableServers,
     canBranch,
-    rapidFireMode: settings.rapidFireMode,
     githubBranchUrl,
     isDownloading,
     handleOpenInGitHub,
@@ -527,6 +526,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleArchiveChat: (chatId) => setChatArchived(chatId, true, getNextChatId),
     handlePaletteSelectRepo,
     handlePaletteSelectBranch,
+    handleRepoFilterChange,
     handleRunCommand,
     handleNewChat,
     handleBranchChat,
@@ -536,8 +536,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     modals,
     sidebar,
     preview,
-    onToggleRapidFire: () =>
-      updateSettings({ settings: { rapidFireMode: !settings.rapidFireMode } }),
     onToggleSkillsModal: () => setSkillsModalOpen((prev) => !prev),
   })
 
@@ -563,6 +561,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           // Always confirm deletions triggered from the sidebar "..." menu.
           modals.setDeleteConfirmChatId(chatId)
         }}
+        onPinChat={(chatId, pinned) => setChatPinned(chatId, pinned)}
+        onBranchChat={handleBranchFromChat}
         onArchiveChat={(chatId) => setChatArchived(chatId, true, getNextChatId)}
         onUnarchiveChat={(chatId) => setChatArchived(chatId, false, getNextChatId)}
         onRenameChat={renameChat}
@@ -650,8 +650,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onDraftChange={handleDraftChange}
                   isSending={isSendingMessage}
                   isAuthenticated={!!session}
-                  rapidFireMode={settings.rapidFireMode}
-                  rapidFireNotification={rapidFireNotification}
                 />
               )}
             </div>

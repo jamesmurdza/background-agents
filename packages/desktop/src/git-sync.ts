@@ -42,6 +42,13 @@ function settingsPath(): string {
 let settings: GitSyncSettings = { rootDirectory: defaultRootDirectory() };
 let opts: SetupOptions | null = null;
 
+// The branch the user is currently viewing, per repo. Used so that when an
+// agent finishes and pushes, we materialize (check out) the freshly-pushed
+// branch into the working tree if it belongs to the active chat — even the very
+// first time that branch is seen locally (a brand-new chat). Without this, a new
+// chat's changes only appear after switching chats and back.
+const activeBranchByRepo = new Map<string, string>();
+
 function loadSettings(): void {
   try {
     const raw = fs.readFileSync(settingsPath(), "utf8");
@@ -338,6 +345,7 @@ async function doOpenRepoFolder(
 
 async function doSetActiveChat(repo: string, branch: string | null): Promise<void> {
   if (!branch || !isCloned(repo)) return; // only act on opted-in repos
+  activeBranchByRepo.set(repo, branch);
   const dir = repoDir(repo);
   const url = repoUrl(repo);
   emitStatus(repo, "syncing");
@@ -363,8 +371,13 @@ async function doSyncBranch(repo: string, branch: string): Promise<void> {
   emitStatus(repo, "syncing");
   try {
     const token = await getToken();
-    // Update this branch's ref; materialize only if it's the checked-out branch.
-    await fetchAndReconcile(dir, url, token, branch, false);
+    // Update this branch's ref. Materialize (check out) it when it's the branch
+    // the user is currently viewing, so a just-finished agent's changes land in
+    // the working tree immediately — even the first time this branch is seen
+    // locally (a brand-new chat). Otherwise `reconcileBranch` only moves the ref
+    // if the branch already happens to be checked out.
+    const isActive = activeBranchByRepo.get(repo) === branch;
+    await fetchAndReconcile(dir, url, token, branch, isActive);
     emitStatus(repo, "ready");
   } catch (error) {
     handleOpError(repo, branch, error);

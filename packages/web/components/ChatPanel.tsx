@@ -49,13 +49,9 @@ interface ChatPanelProps {
   onOpenCommandPalette?: () => void
   /** Whether the user is authenticated */
   isAuthenticated?: boolean
-  /** Whether rapid fire mode is enabled */
-  rapidFireMode?: boolean
-  /** Timestamp of last rapid fire task creation (0 = no notification) */
-  rapidFireNotification?: number
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, rapidFireMode = false, rapidFireNotification = 0 }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
   const composer = useChatComposer({
     chat,
     settings,
@@ -78,6 +74,8 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     setInput,
     textareaRef,
     handleSend,
+    handleBranchSend,
+    canBranch,
     handleKeyDown,
     messagesEndRef,
     messagesContainerRef,
@@ -124,9 +122,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   // Only show welcome screen if no messages AND not loading messages AND not a child chat
   const isNewChat = chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
 
-  // Rapid fire notification
-  const showRapidFireNotification = rapidFireMode && rapidFireNotification && rapidFireNotification > 0
-
   // File preview modal — built once, shared by the welcome and messages views.
   const filePreviewModal = previewFile ? (
     <FilePreviewModal
@@ -148,6 +143,8 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
       input={input}
       onInputChange={setInput}
       onSend={handleSend}
+      onBranchSend={handleBranchSend}
+      canBranch={canBranch}
       onStop={onStopAgent}
       onKeyDown={handleKeyDown}
       textareaRef={textareaRef}
@@ -219,7 +216,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     return (
       <WelcomeView
         isMobile={isMobile}
-        showRapidFireNotification={showRapidFireNotification}
         onOpenCommandPalette={onOpenCommandPalette}
         onOpenHelp={() => modals.setHelpOpen(true)}
         chatInput={chatInput}
@@ -288,12 +284,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           ? (hasQueued ? "px-[27px] pt-0 pb-3 pb-safe" : "px-[27px] py-3 pb-safe")
           : (hasQueued ? "px-[31px] pt-0 pb-4" : "px-[31px] pb-4 pt-2")
       )}>
-        {showRapidFireNotification && (
-          <div className="mb-2 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 animate-in fade-in slide-in-from-bottom-1 duration-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Task started
-          </div>
-        )}
         {chatInput}
       </div>
 

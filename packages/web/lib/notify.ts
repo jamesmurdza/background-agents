@@ -72,14 +72,25 @@ export function notify({ title, body, chatId, sound }: NotifyOptions): void {
   useToastStore.getState().addToast({ title, body, chatId })
 }
 
-/** Format the "N commits pushed to repo@branch (sha)" fragment. */
-function formatPush(push: {
-  repo?: string
-  branch: string
-  commits: number
-  commitSha?: string
-}): string {
-  const target = push.repo ? `${push.repo}@${push.branch}` : push.branch
+/**
+ * Format the "N commits pushed to <target> (sha)" fragment. Prefers the chat's
+ * human-friendly name over the git branch; falls back to repo@branch (or the
+ * bare branch) only when no chat name is available.
+ */
+function formatPush(
+  push: {
+    repo?: string
+    branch: string
+    commits: number
+    commitSha?: string
+  },
+  chatName?: string
+): string {
+  const target = chatName
+    ? `"${chatName}"`
+    : push.repo
+    ? `${push.repo}@${push.branch}`
+    : push.branch
   const shaSuffix = push.commitSha ? ` (${push.commitSha})` : ""
   // `commits` is best-effort; show the count when known, otherwise a generic
   // message (the push itself is confirmed by the git output).
@@ -123,7 +134,7 @@ export function notifyCompletion(info: {
     title = "New push"
   }
 
-  if (push) parts.push(formatPush(push))
+  if (push) parts.push(formatPush(push, chatName))
 
   notify({ title, body: parts.join(" · "), chatId, sound })
 }

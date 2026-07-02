@@ -15,6 +15,10 @@ interface RenderChatTreeArgs {
   onToggleCollapsed: (id: string) => void
   onSelectChat: (id: string) => void
   onDeleteChat: (id: string) => void
+  /** When provided, rows render a "Pin"/"Unpin" action. */
+  onPin?: (id: string, pinned: boolean) => void
+  /** When provided, rows render a "Branch chat" action. */
+  onBranch?: (id: string) => void
   /** When provided, rows render an "Archive" action (used by the active section). */
   onArchive?: (id: string) => void
   /** When provided, rows render an "Unarchive" action (used by the archived section). */
@@ -61,6 +65,8 @@ export function renderChatTree(args: RenderChatTreeArgs): React.ReactNode[] {
         onToggleExpanded={() => args.onToggleCollapsed(chat.id)}
         onSelect={() => args.onSelectChat(chat.id)}
         onDelete={() => args.onDeleteChat(chat.id)}
+        onPin={args.onPin ? (pinned) => args.onPin!(chat.id, pinned) : undefined}
+        onBranch={args.onBranch ? () => args.onBranch!(chat.id) : undefined}
         onArchive={args.onArchive ? () => args.onArchive!(chat.id) : undefined}
         onUnarchive={args.onUnarchive ? () => args.onUnarchive!(chat.id) : undefined}
         onRename={(newName) => args.onRenameChat(chat.id, newName)}

@@ -9,6 +9,8 @@ import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import { NEW_REPOSITORY, type Chat } from "@/lib/types"
 import type { useModals, useSidebar } from "@/lib/contexts"
 import type { usePreview } from "@/lib/hooks/usePreview"
+import { useGitHubUserQuery } from "@/lib/query"
+import { getChatRepos } from "@/components/sidebar"
 
 /** All props the PaletteProvider takes, minus `children` (supplied by JSX). */
 export type PaletteProps = Omit<React.ComponentProps<typeof PaletteProvider>, "children">
@@ -23,7 +25,6 @@ interface UsePalettePropsOptions {
   currentChat: Chat | null
   availableServers: Array<{ port: number; url: string }>
   canBranch: boolean
-  rapidFireMode: boolean
 
   // Sandbox actions
   githubBranchUrl: string | null
@@ -40,6 +41,8 @@ interface UsePalettePropsOptions {
   // Navigation / chat handlers
   handlePaletteSelectRepo: (repo: GitHubRepo) => void
   handlePaletteSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
+  /** Set the sidebar's repository filter (used by Command P repo selection). */
+  handleRepoFilterChange: (filter: string) => void
   handleRunCommand: (command: string) => void
   handleNewChat: () => void
   handleBranchChat: () => void
@@ -53,7 +56,6 @@ interface UsePalettePropsOptions {
   preview: ReturnType<typeof usePreview>
 
   // Toggles
-  onToggleRapidFire: () => void
   onToggleSkillsModal: () => void
 }
 
@@ -75,7 +77,6 @@ export function usePaletteProps({
   currentChat,
   availableServers,
   canBranch,
-  rapidFireMode,
   githubBranchUrl,
   isDownloading,
   handleOpenInGitHub,
@@ -87,6 +88,7 @@ export function usePaletteProps({
   handleArchiveChat,
   handlePaletteSelectRepo,
   handlePaletteSelectBranch,
+  handleRepoFilterChange,
   handleRunCommand,
   handleNewChat,
   handleBranchChat,
@@ -96,10 +98,14 @@ export function usePaletteProps({
   modals,
   sidebar,
   preview,
-  onToggleRapidFire,
   onToggleSkillsModal,
 }: UsePalettePropsOptions): PaletteProps {
   const { data: session } = useSession()
+  const { data: currentUserLogin } = useGitHubUserQuery()
+
+  // Repositories shown in the sidebar's repository selector — reused so Command
+  // P lists exactly the same repos.
+  const sidebarRepos = getChatRepos(displayChats, currentUserLogin)
 
   const sandboxId = currentChat?.sandboxId ?? null
   const hasRepo = !!currentChat && currentChat.repo !== NEW_REPOSITORY
@@ -139,11 +145,20 @@ export function usePaletteProps({
     repos,
     currentRepo: hasRepo ? currentChat!.repo : null,
     branches,
+    // Ordered by recency (pinned first), matching the sidebar chat list so the
+    // command palettes present chats in the same order the user sees them.
     chats: displayChats
       .filter((c) => c.displayName !== null)
+      .slice()
+      .sort((a, b) => {
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1
+        return (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt)
+      })
       .map((c) => ({ id: c.id, displayName: c.displayName, repo: c.repo })),
+    sidebarRepos,
     onSelectRepo: handlePaletteSelectRepo,
     onSelectBranch: handlePaletteSelectBranch,
+    onFilterRepo: handleRepoFilterChange,
     onRunCommand: handleRunCommand,
     onNewChat: handleNewChat,
     onBranchChat: canBranch ? handleBranchChat : undefined,
@@ -189,7 +204,5 @@ export function usePaletteProps({
     onNavigateChat: handleNavigateChat,
     currentChatId: displayCurrentChatId,
     onSelectChat: handleSelectChat,
-    rapidFireMode,
-    onToggleRapidFire,
   }
 }

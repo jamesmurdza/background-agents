@@ -278,6 +278,18 @@ export function useChatComposer({
     textareaRef.current?.focus()
   }
 
+  // Branch-and-send: create a sibling chat off the current branch and dispatch
+  // the message to it in the background. Triggered by Cmd/Alt/Ctrl+Enter or by
+  // holding one of those modifiers while clicking the send button.
+  const handleBranchSend = () => {
+    if (git.canBranch && input.trim()) {
+      git.handleBranchWithMessage(input.trim(), currentAgent, currentModel)
+      setInput("")
+      clearFiles()
+      textareaRef.current?.focus()
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle slash command menu navigation
     if (slashMenuOpen && filteredCommands.length > 0 && onSlashCommand) {
@@ -323,12 +335,7 @@ export function useChatComposer({
     // Option/Alt+Enter, Command/Meta+Enter, or Ctrl+Enter to branch and send
     if (e.key === "Enter" && (e.altKey || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
-      if (git.canBranch && input.trim()) {
-        git.handleBranchWithMessage(input.trim(), currentAgent, currentModel)
-        setInput("")
-        clearFiles()
-        textareaRef.current?.focus()
-      }
+      handleBranchSend()
       return
     }
 
@@ -348,6 +355,8 @@ export function useChatComposer({
     setInput,
     textareaRef,
     handleSend,
+    handleBranchSend,
+    canBranch: git.canBranch,
     handleKeyDown,
     // scroll
     messagesEndRef,

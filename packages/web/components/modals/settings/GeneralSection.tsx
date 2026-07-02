@@ -27,6 +27,8 @@ interface GeneralSectionProps {
   setDefaultModel: (model: string) => void
   /** Credential availability based on the *current form state* (not saved flags). */
   liveFlags: CredentialFlags
+  /** Whether the Eliza test agent is enabled (hidden from the list otherwise). */
+  elizaEnabled?: boolean
 }
 
 /** General settings: default agent + default model dropdowns. */
@@ -37,8 +39,14 @@ export function GeneralSection({
   defaultModel,
   setDefaultModel,
   liveFlags,
+  elizaEnabled = false,
 }: GeneralSectionProps) {
   const availableModels = agentModels[defaultAgent] ?? []
+  // Keep the currently-selected agent visible even if it's Eliza (so the value
+  // never renders blank), but otherwise hide Eliza unless it's enabled.
+  const agentChoices = ALL_AGENTS.filter(
+    (a) => a !== "eliza" || elizaEnabled || defaultAgent === "eliza"
+  )
 
   return (
     <div>
@@ -49,7 +57,7 @@ export function GeneralSection({
             <SelectValue placeholder="Select agent" />
           </SelectTrigger>
           <SelectContent>
-            {ALL_AGENTS.map((agent) => (
+            {agentChoices.map((agent) => (
               <SelectItem key={agent} value={agent}>
                 {agentLabels[agent]}
               </SelectItem>

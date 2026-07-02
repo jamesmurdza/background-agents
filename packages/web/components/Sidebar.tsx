@@ -20,6 +20,7 @@ import {
   RepoFilterDropdown,
   renderChatTree,
   renderMobileChatTree,
+  getChatRepos,
 } from "./sidebar"
 
 // Re-export from context for backward compatibility
@@ -33,6 +34,10 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void
   onNewChat: () => void
   onDeleteChat: (chatId: string) => void
+  /** Pin or unpin a chat, sorting it to the top of the list. */
+  onPinChat?: (chatId: string, pinned: boolean) => void
+  /** Branch a new chat from an existing chat (creates a sibling and switches to it). */
+  onBranchChat?: (chatId: string) => void
   /** Archive an active chat (and its branches), moving it into the archived section. */
   onArchiveChat?: (chatId: string) => void
   /** Restore an archived chat (and its branches) back to the active list. */
@@ -76,6 +81,8 @@ export function Sidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onPinChat,
+  onBranchChat,
   onArchiveChat,
   onUnarchiveChat,
   onRenameChat,
@@ -121,37 +128,23 @@ export function Sidebar({
   const [repoDropdownOpen, setRepoDropdownOpen] = useState(false)
   const repoDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Get unique repositories from chats
-  const uniqueRepos = useMemo(() => {
-    const repos = new Set<string>()
-    chats.forEach((chat) => {
-      const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-      if (hasMessages && !chat.archived) {
-        repos.add(chat.repo)
-      }
-    })
-    // Repos owned by the current user come first, then everyone else's, then
-    // NEW_REPOSITORY (the "No repository" bucket) last. Within each group they
-    // are sorted alphabetically.
-    const ownedByCurrentUser = (repo: string) =>
-      !!currentUserLogin && repo.toLowerCase().startsWith(`${currentUserLogin.toLowerCase()}/`)
-    return Array.from(repos).sort((a, b) => {
-      if (a === NEW_REPOSITORY) return 1
-      if (b === NEW_REPOSITORY) return -1
-      const aOwned = ownedByCurrentUser(a)
-      const bOwned = ownedByCurrentUser(b)
-      if (aOwned !== bOwned) return aOwned ? -1 : 1
-      return a.localeCompare(b)
-    })
-  }, [chats, currentUserLogin])
+  // Get unique repositories from chats (shared with the command palette).
+  const uniqueRepos = useMemo(
+    () => getChatRepos(chats, currentUserLogin),
+    [chats, currentUserLogin]
+  )
 
-  // Filter chats by selected repository, sorted newest-first by last activity.
-  // Visibility is delegated to the shared isChatVisibleForFilter predicate so
-  // the rendered list can never drift from what keyboard navigation reaches.
+  // Filter chats by selected repository. Pinned chats sort to the top; within
+  // each group, newest-first by last activity. Visibility is delegated to the
+  // shared isChatVisibleForFilter predicate so the rendered list can never drift
+  // from what keyboard navigation reaches.
   const filteredChats = useMemo(() => {
     return chats
       .filter((chat) => isChatVisibleForFilter(chat, repoFilter))
-      .sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt))
+      .sort((a, b) => {
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1
+        return (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt)
+      })
   }, [chats, repoFilter])
 
   // Whether the archived view is currently active — archived rows expose
@@ -454,6 +447,8 @@ export function Sidebar({
                   onToggleCollapsed: toggleChatCollapsed,
                   onSelectChat: handleSelectChat,
                   onDeleteChat,
+                  onPin: showingArchived ? undefined : onPinChat,
+                  onBranch: showingArchived ? undefined : onBranchChat,
                   onArchive: showingArchived ? undefined : onArchiveChat,
                   onUnarchive: showingArchived ? onUnarchiveChat : undefined,
                   onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
@@ -687,6 +682,8 @@ export function Sidebar({
                   onToggleCollapsed: toggleChatCollapsed,
                   onSelectChat,
                   onDeleteChat,
+                  onPin: showingArchived ? undefined : onPinChat,
+                  onBranch: showingArchived ? undefined : onBranchChat,
                   onArchive: showingArchived ? undefined : onArchiveChat,
                   onUnarchive: showingArchived ? onUnarchiveChat : undefined,
                   onRenameChat,

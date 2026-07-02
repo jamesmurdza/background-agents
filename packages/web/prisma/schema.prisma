@@ -136,6 +136,9 @@ model Chat {
   displayName String?
   status      String  @default("pending") // pending, creating, ready, running, error
 
+  // Pinned chats are sorted to the top of the sidebar and command palettes.
+  pinned Boolean @default(false)
+
   // Archived chats are hidden from the main sidebar list (shown in a separate
   // "Archived" section) but otherwise fully preserved — including their public
   // share link, which keeps working. Distinct from deletion, which is permanent.

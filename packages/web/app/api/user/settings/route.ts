@@ -49,10 +49,10 @@ function readSettings(raw: unknown): Settings {
     defaultAgent: s.defaultAgent ?? null,
     defaultModel: s.defaultModel ?? null,
     theme: s.theme ?? DEFAULT_SETTINGS.theme,
-    rapidFireMode: s.rapidFireMode ?? DEFAULT_SETTINGS.rapidFireMode,
     enablePrepushHooks: s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks,
     notifyOnAgentFinished: s.notifyOnAgentFinished ?? DEFAULT_SETTINGS.notifyOnAgentFinished,
     notifyOnAgentCommitted: s.notifyOnAgentCommitted ?? DEFAULT_SETTINGS.notifyOnAgentCommitted,
+    elizaEnabled: s.elizaEnabled ?? DEFAULT_SETTINGS.elizaEnabled,
     notificationSound: s.notificationSound ?? DEFAULT_SETTINGS.notificationSound,
   }
 }
