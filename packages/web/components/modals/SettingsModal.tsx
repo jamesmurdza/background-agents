@@ -50,6 +50,8 @@ interface SettingsModalProps {
   highlightKey?: HighlightKey
   /** Which section to show by default */
   defaultSection?: SectionKey
+  /** Called if the modal is dismissed without providing the highlighted key. */
+  onDismissWithoutKey?: (() => void) | null
   isMobile?: boolean
 }
 
@@ -77,7 +79,7 @@ function getSections(isDesktopApp: boolean): SectionDef[] {
   return out
 }
 
-export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, defaultSection = "general", isMobile = false }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, defaultSection = "general", onDismissWithoutKey, isMobile = false }: SettingsModalProps) {
   const { setTheme } = useTheme()
   const { isDesktopApp, getClaudeLicenseAutoDetect, getLicenseDetectSettings, setLicenseDetectSettings } = useElectron()
 
@@ -312,8 +314,17 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const handleClose = useCallback(() => {
     const data = buildSaveData()
     if (data) void onSave(data)
+    // If the modal was opened to collect a required API key (highlightKey) and
+    // the user closed it without entering one, run the revert callback (e.g.
+    // restore the previously-selected agent that didn't need a key).
+    if (highlightKey && onDismissWithoutKey) {
+      const target = CREDENTIAL_KEYS.find((c) => c.provider === highlightKey)
+      const entered = target ? credValues[target.id] : undefined
+      const provided = !!entered && entered !== MASK
+      if (!provided) onDismissWithoutKey()
+    }
     onClose()
-  }, [buildSaveData, onSave, onClose])
+  }, [buildSaveData, onSave, onClose, highlightKey, onDismissWithoutKey, credValues])
   // Keep the drag-to-dismiss ref pointing at the latest handleClose.
   handleCloseRef.current = handleClose
 

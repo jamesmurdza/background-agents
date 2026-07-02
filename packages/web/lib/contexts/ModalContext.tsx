@@ -17,7 +17,9 @@ export interface ModalContextValue {
   setSettingsOpen: (open: boolean) => void
   settingsHighlightKey: HighlightKey
   settingsDefaultSection: SectionKey
-  openSettings: (highlightKey?: HighlightKey) => void
+  /** Called when Settings is dismissed without providing the highlighted API key. */
+  settingsDismissRevert: (() => void) | null
+  openSettings: (highlightKey?: HighlightKey, onDismissWithoutKey?: () => void) => void
   openSettingsSection: (section?: SectionKey) => void
   closeSettings: () => void
 
@@ -78,6 +80,9 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsHighlightKey, setSettingsHighlightKey] = useState<HighlightKey>(null)
   const [settingsDefaultSection, setSettingsDefaultSection] = useState<SectionKey>("general")
+  // Revert callback invoked if Settings is dismissed without the highlighted key
+  // (e.g. the user picked an agent that needs a key, then closed without one).
+  const [settingsDismissRevert, setSettingsDismissRevert] = useState<(() => void) | null>(null)
 
   // Help & Sign-in modals
   const [helpOpen, setHelpOpen] = useState(false)
@@ -108,10 +113,13 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
   const openChatUsage = useCallback((chatId: string) => setChatUsageChatId(chatId), [])
   const closeChatUsage = useCallback(() => setChatUsageChatId(null), [])
 
-  // Handler for opening settings (optionally with a highlighted API key field)
-  const openSettings = useCallback((highlightKey?: HighlightKey) => {
+  // Handler for opening settings (optionally with a highlighted API key field
+  // and a revert callback for when it's dismissed without providing that key)
+  const openSettings = useCallback((highlightKey?: HighlightKey, onDismissWithoutKey?: () => void) => {
     setSettingsHighlightKey(highlightKey ?? null)
     setSettingsDefaultSection("general")
+    // Store the callback itself (wrap so useState doesn't treat it as an updater).
+    setSettingsDismissRevert(() => onDismissWithoutKey ?? null)
     setSettingsOpen(true)
     // Close mobile sidebar when opening settings
     if (isMobile) {
@@ -122,6 +130,7 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
   // Handler for opening settings to a specific section (used by command palette)
   const openSettingsSection = useCallback((section?: SectionKey) => {
     setSettingsHighlightKey(null)
+    setSettingsDismissRevert(null)
     setSettingsDefaultSection(section ?? "general")
     setSettingsOpen(true)
     if (isMobile) {
@@ -133,6 +142,7 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
   const closeSettings = useCallback(() => {
     setSettingsOpen(false)
     setSettingsHighlightKey(null)
+    setSettingsDismissRevert(null)
   }, [])
 
   const value: ModalContextValue = {
@@ -145,6 +155,7 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
     setSettingsOpen,
     settingsHighlightKey,
     settingsDefaultSection,
+    settingsDismissRevert,
     openSettings,
     openSettingsSection,
     closeSettings,
