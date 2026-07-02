@@ -30,8 +30,12 @@ interface PaletteProviderProps {
   currentRepo: string | null
   branches: GitHubBranch[]
   chats: PaletteChat[]
+  /** Repositories shown in the sidebar's repository selector. */
+  sidebarRepos: string[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
+  /** Select a repository in the sidebar (sets the repo filter) — no new chat. */
+  onFilterRepo: (repo: string) => void
   onRunCommand: (command: string) => void
   onNewChat: () => void
   onBranchChat?: () => void
@@ -78,8 +82,10 @@ export function PaletteProvider({
   currentRepo,
   branches,
   chats,
+  sidebarRepos,
   onSelectRepo,
   onSelectBranch,
+  onFilterRepo,
   onRunCommand,
   onNewChat,
   onBranchChat,
@@ -235,9 +241,11 @@ export function PaletteProvider({
         currentRepo={currentRepo}
         branches={branches}
         chats={chats}
+        sidebarRepos={sidebarRepos}
         onSelectRepo={onSelectRepo}
         onSelectBranch={onSelectBranch}
         onSelectChat={onSelectChat}
+        onFilterRepo={onFilterRepo}
       />
       <CommandPalette
         open={commandOpen}

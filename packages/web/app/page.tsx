@@ -530,6 +530,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleArchiveChat: (chatId) => setChatArchived(chatId, true, getNextChatId),
     handlePaletteSelectRepo,
     handlePaletteSelectBranch,
+    handleRepoFilterChange,
     handleRunCommand,
     handleNewChat,
     handleBranchChat,

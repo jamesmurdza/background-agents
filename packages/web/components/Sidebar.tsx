@@ -20,6 +20,7 @@ import {
   RepoFilterDropdown,
   renderChatTree,
   renderMobileChatTree,
+  getChatRepos,
 } from "./sidebar"
 
 // Re-export from context for backward compatibility
@@ -127,29 +128,11 @@ export function Sidebar({
   const [repoDropdownOpen, setRepoDropdownOpen] = useState(false)
   const repoDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Get unique repositories from chats
-  const uniqueRepos = useMemo(() => {
-    const repos = new Set<string>()
-    chats.forEach((chat) => {
-      const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-      if (hasMessages && !chat.archived) {
-        repos.add(chat.repo)
-      }
-    })
-    // Repos owned by the current user come first, then everyone else's, then
-    // NEW_REPOSITORY (the "No repository" bucket) last. Within each group they
-    // are sorted alphabetically.
-    const ownedByCurrentUser = (repo: string) =>
-      !!currentUserLogin && repo.toLowerCase().startsWith(`${currentUserLogin.toLowerCase()}/`)
-    return Array.from(repos).sort((a, b) => {
-      if (a === NEW_REPOSITORY) return 1
-      if (b === NEW_REPOSITORY) return -1
-      const aOwned = ownedByCurrentUser(a)
-      const bOwned = ownedByCurrentUser(b)
-      if (aOwned !== bOwned) return aOwned ? -1 : 1
-      return a.localeCompare(b)
-    })
-  }, [chats, currentUserLogin])
+  // Get unique repositories from chats (shared with the command palette).
+  const uniqueRepos = useMemo(
+    () => getChatRepos(chats, currentUserLogin),
+    [chats, currentUserLogin]
+  )
 
   // Filter chats by selected repository. Pinned chats sort to the top; within
   // each group, newest-first by last activity. Visibility is delegated to the

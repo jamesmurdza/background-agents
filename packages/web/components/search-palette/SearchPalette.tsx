@@ -23,9 +23,13 @@ interface SearchPaletteProps {
   currentRepo: string | null // "owner/repo"
   branches: GitHubBranch[]
   chats: PaletteChat[]
+  /** Repositories shown in the sidebar's repository selector ("owner/repo" or NEW_REPOSITORY). */
+  sidebarRepos: string[]
   onSelectRepo: (repo: GitHubRepo) => void
   onSelectBranch: (repo: GitHubRepo, branch: GitHubBranch) => void
   onSelectChat: (chatId: string) => void
+  /** Select a repository in the sidebar (sets the repo filter) — does not create a chat. */
+  onFilterRepo: (repo: string) => void
 }
 
 export function SearchPalette({
@@ -35,9 +39,11 @@ export function SearchPalette({
   currentRepo,
   branches,
   chats,
+  sidebarRepos,
   onSelectRepo,
   onSelectBranch,
   onSelectChat,
+  onFilterRepo,
 }: SearchPaletteProps) {
   const recentItems = useMemo(() => getRecentItems(), [open])
 
@@ -45,17 +51,6 @@ export function SearchPalette({
     () => repos.find((r) => `${r.owner.login}/${r.name}` === currentRepo) ?? null,
     [repos, currentRepo]
   )
-
-  const handleSelectRepo = (repo: GitHubRepo) => {
-    addRecentItem({
-      id: `repo:${repo.owner.login}/${repo.name}`,
-      type: "repo",
-      repoOwner: repo.owner.login,
-      repoName: repo.name,
-    })
-    onSelectRepo(repo)
-    onOpenChange(false)
-  }
 
   const handleSelectBranch = (branch: GitHubBranch) => {
     if (!currentRepoData) return
@@ -72,6 +67,13 @@ export function SearchPalette({
 
   const handleSelectChat = (chat: PaletteChat) => {
     onSelectChat(chat.id)
+    onOpenChange(false)
+  }
+
+  // Selecting a repository filters the sidebar to it (mirrors the sidebar's
+  // repository selector); it does NOT create a new chat.
+  const handleFilterRepo = (repo: string) => {
+    onFilterRepo(repo)
     onOpenChange(false)
   }
 
@@ -150,21 +152,22 @@ export function SearchPalette({
           </CommandGroup>
         )}
 
-        {/* Repositories */}
-        <CommandGroup heading="Repositories">
-          {repos.map((repo) => (
-            <CommandItem
-              key={repo.id}
-              value={`repo:${repo.owner.login}/${repo.name}`}
-              onSelect={() => handleSelectRepo(repo)}
-            >
-              <FolderGit2 className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>
-                {repo.owner.login}/{repo.name}
-              </span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
+        {/* Repositories — same set as the sidebar's repository selector.
+            Selecting one filters the sidebar to that repo (no new chat). */}
+        {sidebarRepos.length > 0 && (
+          <CommandGroup heading="Repositories">
+            {sidebarRepos.map((repo) => (
+              <CommandItem
+                key={repo}
+                value={`repo:${repo}`}
+                onSelect={() => handleFilterRepo(repo)}
+              >
+                <FolderGit2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>{repo === NEW_REPOSITORY ? "No repository" : repo}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {/* Branches from current repo */}
         {currentRepoData && branches.length > 0 && (
