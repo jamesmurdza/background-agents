@@ -96,6 +96,9 @@ export function PreviewView({
   const menuJustOpenedRef = useRef(false)
   // Track the currently displayed item to detect when the user switches previews
   const prevItemKeyRef = useRef<string | null>(null)
+  // The panel body, used to locate the live preview iframe so the external-link
+  // button can open the URL the frame has actually navigated to.
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   // Download a file that's not in the repo
   const handleDownloadFile = async () => {
@@ -176,6 +179,24 @@ export function PreviewView({
   // External URL for opening in new tab (files -> GitHub, servers -> preview URL)
   const externalUrl = fileGithubUrl ?? (item.type === "server" ? item.url : null)
   const externalLinkTitle = item.type === "server" ? "Open in new tab" : "Open on GitHub"
+
+  // Open the external link. For server previews, prefer the URL the iframe has
+  // actually navigated to over the original preview URL, so deep-links the user
+  // clicked through to are preserved. Reading `contentWindow.location.href` only
+  // works when the frame is same-origin; cross-origin frames throw a
+  // SecurityError, in which case we fall back to the original preview URL.
+  const handleOpenExternal = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (item.type !== "server") return // files: let the default <a> navigation run
+    let target = item.url
+    try {
+      const current = bodyRef.current?.querySelector("iframe")?.contentWindow?.location.href
+      if (current && current !== "about:blank") target = current
+    } catch {
+      // Cross-origin frame — current URL is not readable; keep the original URL.
+    }
+    e.preventDefault()
+    window.open(target, "_blank", "noopener,noreferrer")
+  }
 
   const handleRefresh = () => {
     if (item.type === "terminal") {
@@ -318,6 +339,7 @@ export function PreviewView({
               href={externalUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handleOpenExternal}
               className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
               title={externalLinkTitle}
               aria-label={externalLinkTitle}
@@ -360,7 +382,7 @@ export function PreviewView({
         </div>
 
         {/* Body - render the plugin component */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div ref={bodyRef} className="flex-1 min-h-0 overflow-hidden">
           <Component
             key={`${getItemKey(item)}-${refreshNonce}`}
             item={item}
