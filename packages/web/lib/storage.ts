@@ -63,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enablePrepushHooks: false,
   notifyOnAgentFinished: true,
   notifyOnAgentCommitted: true,
+  elizaEnabled: false,
   notificationSound: true,
 }
 

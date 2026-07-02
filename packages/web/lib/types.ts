@@ -259,6 +259,8 @@ export interface Settings {
   notifyOnAgentFinished: boolean
   /** Notify when an agent's auto-push delivers new commits */
   notifyOnAgentCommitted: boolean
+  /** Developer: expose the Eliza test agent in the agent picker (off by default) */
+  elizaEnabled: boolean
   /** Play a sound when a notification is shown */
   notificationSound: boolean
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, Gauge, Server } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, Gauge, Server, Wrench } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -24,6 +24,7 @@ import {
   NotificationsSection,
   LocalSyncSection,
   AppearanceSection,
+  DeveloperSection,
   initialCredValues,
   MASK,
   type HighlightKey,
@@ -33,7 +34,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "usage" | "git" | "notifications" | "local-sync" | "appearance"
+export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "usage" | "git" | "notifications" | "local-sync" | "appearance" | "developer"
 
 interface SettingsModalProps {
   open: boolean
@@ -62,6 +63,7 @@ const baseSections: SectionDef[] = [
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "git", label: "Git", icon: GitBranch },
   { key: "notifications", label: "Notifications", icon: Bell },
+  { key: "developer", label: "Developer", icon: Wrench },
 ]
 
 const localSyncSection: SectionDef = { key: "local-sync", label: "Local Sync", icon: FolderDown }
@@ -136,6 +138,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [notifyOnAgentFinished, setNotifyOnAgentFinished] = useState(settings.notifyOnAgentFinished)
   const [notifyOnAgentCommitted, setNotifyOnAgentCommitted] = useState(settings.notifyOnAgentCommitted)
   const [notificationSound, setNotificationSound] = useState(settings.notificationSound)
+  const [elizaEnabled, setElizaEnabled] = useState(settings.elizaEnabled)
   const [activeSection, setActiveSection] = useState<SectionKey>(defaultSection)
 
   // Drag to dismiss (mobile only)
@@ -166,6 +169,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setNotifyOnAgentFinished(settings.notifyOnAgentFinished)
       setNotifyOnAgentCommitted(settings.notifyOnAgentCommitted)
       setNotificationSound(settings.notificationSound)
+      setElizaEnabled(settings.elizaEnabled)
       setActiveSection(defaultSection)
     }
   }, [open, settings, credentialFlags, initialEndpoints, initialDefaultAgent, initialDefaultModel, defaultSection])
@@ -269,7 +273,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     enablePrepushHooks !== settings.enablePrepushHooks ||
     notifyOnAgentFinished !== settings.notifyOnAgentFinished ||
     notifyOnAgentCommitted !== settings.notifyOnAgentCommitted ||
-    notificationSound !== settings.notificationSound
+    notificationSound !== settings.notificationSound ||
+    elizaEnabled !== settings.elizaEnabled
 
   // Check if auto-detected credentials should be saved (desktop only)
   const autoDetectHasNewCredentials = isDesktopApp &&
@@ -320,6 +325,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (notifyOnAgentFinished !== settings.notifyOnAgentFinished) settingsPatch.notifyOnAgentFinished = notifyOnAgentFinished
     if (notifyOnAgentCommitted !== settings.notifyOnAgentCommitted) settingsPatch.notifyOnAgentCommitted = notifyOnAgentCommitted
     if (notificationSound !== settings.notificationSound) settingsPatch.notificationSound = notificationSound
+    if (elizaEnabled !== settings.elizaEnabled) settingsPatch.elizaEnabled = elizaEnabled
 
     // Only send credential fields the user actually changed. Sending the
     // mask back ("***") would otherwise overwrite the real key.
@@ -392,6 +398,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             defaultModel={defaultModel}
             setDefaultModel={setDefaultModel}
             liveFlags={liveFlags}
+            elizaEnabled={elizaEnabled}
           />
         )
       case "api-keys":
@@ -448,6 +455,14 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             isMobile={isMobile}
             selectedTheme={selectedTheme}
             onThemeChange={handleThemeChange}
+          />
+        )
+      case "developer":
+        return (
+          <DeveloperSection
+            isMobile={isMobile}
+            elizaEnabled={elizaEnabled}
+            setElizaEnabled={setElizaEnabled}
           />
         )
     }
