@@ -76,6 +76,7 @@ interface ChatWithMessagesResponse {
   shareId: string | null
   status: string
   archived: boolean
+  pinned: boolean
   parentChatId: string | null
   needsSync: boolean
   createdAt: number
@@ -191,6 +192,7 @@ export async function GET(
       shareId: chat.shareId,
       status: chat.status,
       archived: chat.archived,
+      pinned: chat.pinned,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
       createdAt: chat.createdAt.getTime(),
@@ -231,6 +233,7 @@ interface PatchChatBody {
   displayName?: string
   status?: string
   archived?: boolean
+  pinned?: boolean
   agent?: string
   model?: string
   planModeEnabled?: boolean
@@ -269,6 +272,7 @@ export async function PATCH(
     if (body.displayName !== undefined) updateData.displayName = body.displayName
     if (body.status !== undefined) updateData.status = body.status
     if (body.archived !== undefined) updateData.archived = body.archived
+    if (body.pinned !== undefined) updateData.pinned = body.pinned
     if (body.agent !== undefined) updateData.agent = body.agent
     if (body.model !== undefined) updateData.model = body.model
     if (body.planModeEnabled !== undefined) updateData.planModeEnabled = body.planModeEnabled
@@ -322,6 +326,7 @@ export async function PATCH(
       shareId: updatedChat.shareId,
       status: updatedChat.status,
       archived: updatedChat.archived,
+      pinned: updatedChat.pinned,
       parentChatId: updatedChat.parentChatId,
       needsSync: updatedChat.needsSync,
       createdAt: updatedChat.createdAt.getTime(),

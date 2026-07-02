@@ -181,6 +181,9 @@ export interface Chat {
    *  share link); it is reversible, unlike deletion. */
   archived?: boolean
 
+  /** Pinned chats sort to the top of the sidebar and command palettes. */
+  pinned?: boolean
+
   /** When this chat was branched from another chat, the parent's id. */
   parentChatId?: string
 

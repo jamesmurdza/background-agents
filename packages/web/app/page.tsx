@@ -121,6 +121,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     selectChat,
     removeChat,
     setChatArchived,
+    setChatPinned,
     renameChat,
     updateChatRepo,
     updateCurrentChat,
@@ -563,6 +564,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
           // Always confirm deletions triggered from the sidebar "..." menu.
           modals.setDeleteConfirmChatId(chatId)
         }}
+        onPinChat={(chatId, pinned) => setChatPinned(chatId, pinned)}
         onArchiveChat={(chatId) => setChatArchived(chatId, true, getNextChatId)}
         onUnarchiveChat={(chatId) => setChatArchived(chatId, false, getNextChatId)}
         onRenameChat={renameChat}
