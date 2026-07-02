@@ -85,7 +85,7 @@ ENCRYPTION_KEY="<openssl rand -hex 32>"
 CRON_SECRET="<random-secret>"
 ```
 
-Deploys to Vercel via `vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database.
+Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database.
 
 To enable remote MCP servers from the [Smithery](https://smithery.ai) registry, set:
 

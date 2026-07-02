@@ -118,12 +118,14 @@ import {
   // Claude
   setupClaudePermissions,
   renderClaudeHook,
+  CLAUDE_HOOKS_DIR,
   CLAUDE_HOOK_FILE,
   CLAUDE_SETTINGS_FILE,
   CLAUDE_SETTINGS,
   // Codex
   setupCodexPermissions,
   renderCodexRules,
+  CODEX_RULES_DIR,
   CODEX_RULES_FILE,
   // OpenCode
   renderOpenCodePermissions,
