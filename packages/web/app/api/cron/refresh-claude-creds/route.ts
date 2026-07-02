@@ -12,7 +12,13 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  const result = await refreshCredentials()
+  // `?force=1` bypasses the skip-while-fresh threshold so a token can be
+  // regenerated on demand for testing. The hourly cron never sets it.
+  const force = ["1", "true"].includes(
+    new URL(req.url).searchParams.get("force") ?? "",
+  )
+
+  const result = await refreshCredentials({ force })
 
   switch (result.status) {
     case "skipped":
