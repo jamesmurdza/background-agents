@@ -98,3 +98,22 @@ export async function refreshCredentials(
   await writeCredentials(JSON.stringify(creds))
   return { status: "refreshed", expiresAt: creds.claudeAiOauth.expiresAt }
 }
+
+/**
+ * Maps a {@link RefreshResult} to the JSON HTTP response shared by every route
+ * that triggers a refresh (the hourly cron and the admin panel action), so the
+ * response shape stays in one place.
+ */
+export function refreshResultToResponse(result: RefreshResult): Response {
+  switch (result.status) {
+    case "skipped":
+      return Response.json({ skipped: true, expiresAt: result.expiresAt })
+    case "refreshed":
+      return Response.json({ refreshed: true, expiresAt: result.expiresAt })
+    case "error":
+      return Response.json(
+        { error: result.code, message: result.message },
+        { status: 500 },
+      )
+  }
+}

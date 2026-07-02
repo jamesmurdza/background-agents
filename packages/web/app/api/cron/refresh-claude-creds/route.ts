@@ -1,4 +1,7 @@
-import { refreshCredentials } from "@/lib/server/refresh-claude-credentials"
+import {
+  refreshCredentials,
+  refreshResultToResponse,
+} from "@/lib/server/refresh-claude-credentials"
 
 // Daytona's first build of the ccauth image can take a few minutes; after the
 // snapshot is cached, subsequent runs are fast. 300s fits Pro plan limits;
@@ -19,16 +22,5 @@ export async function GET(req: Request) {
   )
 
   const result = await refreshCredentials({ force })
-
-  switch (result.status) {
-    case "skipped":
-      return Response.json({ skipped: true, expiresAt: result.expiresAt })
-    case "refreshed":
-      return Response.json({ refreshed: true, expiresAt: result.expiresAt })
-    case "error":
-      return Response.json(
-        { error: result.code, message: result.message },
-        { status: 500 },
-      )
-  }
+  return refreshResultToResponse(result)
 }

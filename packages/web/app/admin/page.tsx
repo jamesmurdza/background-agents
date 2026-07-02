@@ -10,11 +10,13 @@ import {
   Clock,
   Trophy,
   LayoutDashboard,
+  KeyRound,
   Menu,
   X,
   ArrowLeft,
 } from "lucide-react"
 import { ActivityFeed } from "@/components/admin/ActivityFeed"
+import { ClaudeCredentials } from "@/components/admin/ClaudeCredentials"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart"
 import { MessagesByModelChart } from "@/components/admin/charts/MessagesByModelChart"
@@ -37,12 +39,13 @@ const METRIC_OPTIONS: { key: StatsMetric; label: string }[] = [
   { key: "messages", label: "Messages" },
 ]
 
-type SectionKey = "overview" | "users" | "activity"
+type SectionKey = "overview" | "users" | "activity" | "credentials"
 
 const sections: { key: SectionKey; label: string; icon: typeof Users }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "users", label: "Users", icon: Users },
   { key: "activity", label: "Activity", icon: Activity },
+  { key: "credentials", label: "Credentials", icon: KeyRound },
 ]
 
 export default function AdminDashboard() {
@@ -133,7 +136,7 @@ export default function AdminDashboard() {
           <div className="p-4">
             <div className="h-7 w-20 bg-muted animate-pulse rounded mb-6" />
             <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
+              {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-9 bg-muted animate-pulse rounded-md" />
               ))}
             </div>
@@ -466,6 +469,9 @@ export default function AdminDashboard() {
               </div>
             </section>
           )}
+
+          {/* Credentials Section */}
+          {activeSection === "credentials" && <ClaudeCredentials />}
         </div>
       </main>
     </div>

@@ -22,3 +22,8 @@ export { useAdminStatsQuery } from "./useAdminStatsQuery"
 export type { StatsTimeRange } from "./useAdminStatsQuery"
 export { useAdminActivityQuery } from "./useAdminActivityQuery"
 export { useAdminUsersQuery, useUpdateUserMutation } from "./useAdminUsersQuery"
+export { useRefreshClaudeCredsMutation } from "./useRefreshClaudeCredsMutation"
+export type {
+  RefreshClaudeCredsParams,
+  RefreshClaudeCredsResult,
+} from "./useRefreshClaudeCredsMutation"
