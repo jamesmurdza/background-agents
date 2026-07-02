@@ -25,7 +25,6 @@ interface UsePalettePropsOptions {
   currentChat: Chat | null
   availableServers: Array<{ port: number; url: string }>
   canBranch: boolean
-  rapidFireMode: boolean
 
   // Sandbox actions
   githubBranchUrl: string | null
@@ -57,7 +56,6 @@ interface UsePalettePropsOptions {
   preview: ReturnType<typeof usePreview>
 
   // Toggles
-  onToggleRapidFire: () => void
   onToggleSkillsModal: () => void
 }
 
@@ -79,7 +77,6 @@ export function usePaletteProps({
   currentChat,
   availableServers,
   canBranch,
-  rapidFireMode,
   githubBranchUrl,
   isDownloading,
   handleOpenInGitHub,
@@ -101,7 +98,6 @@ export function usePaletteProps({
   modals,
   sidebar,
   preview,
-  onToggleRapidFire,
   onToggleSkillsModal,
 }: UsePalettePropsOptions): PaletteProps {
   const { data: session } = useSession()
@@ -208,7 +204,5 @@ export function usePaletteProps({
     onNavigateChat: handleNavigateChat,
     currentChatId: displayCurrentChatId,
     onSelectChat: handleSelectChat,
-    rapidFireMode,
-    onToggleRapidFire,
   }
 }

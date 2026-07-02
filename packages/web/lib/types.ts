@@ -253,7 +253,6 @@ export interface Settings {
   defaultAgent: string | null
   defaultModel: string | null
   theme: Theme
-  rapidFireMode: boolean
   /** When true, run pre-push hooks during autopush (removes --no-verify flag) */
   enablePrepushHooks: boolean
   /** Notify (toast on web, native notification on desktop) when an agent turn finishes */

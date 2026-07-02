@@ -356,17 +356,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   usePageTitle(pageTitle)
 
-  // "User clicked send" flow — owns handleSendMessage, handleRapidFireSend,
-  // the isSendingMessage flag (with its auto-reset effects), and the
-  // rapidFireNotification timestamp.
-  const { handleSendMessage, isSendingMessage, rapidFireNotification } = useSendMessage({
-    rapidFireMode: settings.rapidFireMode,
+  // "User clicked send" flow — owns handleSendMessage and the isSendingMessage
+  // flag (with its auto-reset effects).
+  const { handleSendMessage, isSendingMessage } = useSendMessage({
     sidebar,
     displayCurrentChat,
     currentChatId,
     isDraftMode,
     sendMessage,
-    startNewChat,
     setOptimisticDraft,
     openSignInModal: modals.setSignInModalOpen,
   })
@@ -518,7 +515,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     currentChat,
     availableServers,
     canBranch,
-    rapidFireMode: settings.rapidFireMode,
     githubBranchUrl,
     isDownloading,
     handleOpenInGitHub,
@@ -540,8 +536,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     modals,
     sidebar,
     preview,
-    onToggleRapidFire: () =>
-      updateSettings({ settings: { rapidFireMode: !settings.rapidFireMode } }),
     onToggleSkillsModal: () => setSkillsModalOpen((prev) => !prev),
   })
 
@@ -656,8 +650,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onDraftChange={handleDraftChange}
                   isSending={isSendingMessage}
                   isAuthenticated={!!session}
-                  rapidFireMode={settings.rapidFireMode}
-                  rapidFireNotification={rapidFireNotification}
                 />
               )}
             </div>

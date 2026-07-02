@@ -60,7 +60,6 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultAgent: null,
   defaultModel: null,
   theme: "system",
-  rapidFireMode: false,
   enablePrepushHooks: false,
   notifyOnAgentFinished: true,
   notifyOnAgentCommitted: true,

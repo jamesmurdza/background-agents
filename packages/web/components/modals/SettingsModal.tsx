@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FlaskConical, FolderDown, Bell, Gauge, Server } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, Gauge, Server } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -24,7 +24,6 @@ import {
   NotificationsSection,
   LocalSyncSection,
   AppearanceSection,
-  ExperimentalSection,
   initialCredValues,
   MASK,
   type HighlightKey,
@@ -34,7 +33,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "usage" | "git" | "notifications" | "local-sync" | "appearance" | "experimental"
+export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "usage" | "git" | "notifications" | "local-sync" | "appearance"
 
 interface SettingsModalProps {
   open: boolean
@@ -63,7 +62,6 @@ const baseSections: SectionDef[] = [
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "git", label: "Git", icon: GitBranch },
   { key: "notifications", label: "Notifications", icon: Bell },
-  { key: "experimental", label: "Experimental", icon: FlaskConical },
 ]
 
 const localSyncSection: SectionDef = { key: "local-sync", label: "Local Sync", icon: FolderDown }
@@ -134,7 +132,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [defaultAgent, setDefaultAgent] = useState<Agent>(initialDefaultAgent)
   const [defaultModel, setDefaultModel] = useState(initialDefaultModel)
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
-  const [rapidFireMode, setRapidFireMode] = useState(settings.rapidFireMode)
   const [enablePrepushHooks, setEnablePrepushHooks] = useState(settings.enablePrepushHooks)
   const [notifyOnAgentFinished, setNotifyOnAgentFinished] = useState(settings.notifyOnAgentFinished)
   const [notifyOnAgentCommitted, setNotifyOnAgentCommitted] = useState(settings.notifyOnAgentCommitted)
@@ -165,7 +162,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setDefaultAgent(initialDefaultAgent)
       setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
-      setRapidFireMode(settings.rapidFireMode)
       setEnablePrepushHooks(settings.enablePrepushHooks)
       setNotifyOnAgentFinished(settings.notifyOnAgentFinished)
       setNotifyOnAgentCommitted(settings.notifyOnAgentCommitted)
@@ -270,7 +266,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     defaultAgent !== initialDefaultAgent ||
     defaultModel !== initialDefaultModel ||
     selectedTheme !== settings.theme ||
-    rapidFireMode !== settings.rapidFireMode ||
     enablePrepushHooks !== settings.enablePrepushHooks ||
     notifyOnAgentFinished !== settings.notifyOnAgentFinished ||
     notifyOnAgentCommitted !== settings.notifyOnAgentCommitted ||
@@ -321,7 +316,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (defaultAgent !== initialDefaultAgent) settingsPatch.defaultAgent = defaultAgent
     if (defaultModel !== initialDefaultModel) settingsPatch.defaultModel = defaultModel
     if (selectedTheme !== settings.theme) settingsPatch.theme = selectedTheme
-    if (rapidFireMode !== settings.rapidFireMode) settingsPatch.rapidFireMode = rapidFireMode
     if (enablePrepushHooks !== settings.enablePrepushHooks) settingsPatch.enablePrepushHooks = enablePrepushHooks
     if (notifyOnAgentFinished !== settings.notifyOnAgentFinished) settingsPatch.notifyOnAgentFinished = notifyOnAgentFinished
     if (notifyOnAgentCommitted !== settings.notifyOnAgentCommitted) settingsPatch.notifyOnAgentCommitted = notifyOnAgentCommitted
@@ -454,14 +448,6 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             isMobile={isMobile}
             selectedTheme={selectedTheme}
             onThemeChange={handleThemeChange}
-          />
-        )
-      case "experimental":
-        return (
-          <ExperimentalSection
-            isMobile={isMobile}
-            rapidFireMode={rapidFireMode}
-            setRapidFireMode={setRapidFireMode}
           />
         )
     }
