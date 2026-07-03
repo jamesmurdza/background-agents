@@ -12,8 +12,10 @@
 // Enforces the server-only contract and, more importantly, quarantines the
 // gRPC-heavy generator import to this file.
 import "server-only"
-import { generateClaudeCredentials } from "@background-agents/claude-credentials"
-import { CLAUDE_COOKIES_KEY } from "@background-agents/claude-credentials/constants"
+import {
+  generateClaudeCredentials,
+  CLAUDE_COOKIES_KEY,
+} from "@background-agents/claude-credentials"
 import {
   readCredentials,
   writeCredentials,
