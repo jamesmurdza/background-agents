@@ -80,6 +80,14 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     placeholder: "sk-...",
   },
   {
+    id: "FACTORY_API_KEY",
+    provider: "factory",
+    label: "Factory (Droid)",
+    helpUrl: "https://app.factory.ai/settings/api-keys",
+    placeholder: "fk-...",
+    description: "Optional. Droid runs BYOK on your Anthropic/OpenAI key — no Factory key needed. Only set this to route through Factory's hosted platform.",
+  },
+  {
     id: "GEMINI_API_KEY",
     provider: "gemini",
     label: "Google AI (Gemini)",

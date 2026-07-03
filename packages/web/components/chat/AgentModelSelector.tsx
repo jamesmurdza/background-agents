@@ -214,6 +214,7 @@ export function AgentModelSelector({
       case "gemini": return "Google"
       case "github": return "GitHub"
       case "kimi": return "Moonshot"
+      case "factory": return "Factory"
       case "kilo": return "Kilo"
       case "opencode": return "OpenCode"
       default: return "Other"
