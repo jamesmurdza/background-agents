@@ -79,10 +79,10 @@ export function adaptDaytonaSandbox(
         return
       }
 
-      // goose and kimi install outside the default PATH; check their known
-      // binary locations too (goose: ~/.local/bin, kimi: ~/.kimi-code/bin).
+      // goose, droid and kimi install outside the default PATH; check their known
+      // binary locations too (goose/droid: ~/.local/bin, kimi: ~/.kimi-code/bin).
       const checkCommand =
-        name === "goose"
+        name === "goose" || name === "droid"
           ? `which ${name} || test -x "$HOME/.local/bin/${name}"`
           : name === "kimi"
             ? `which ${name} || test -x "$HOME/.kimi-code/bin/${name}"`
@@ -114,6 +114,14 @@ export function adaptDaytonaSandbox(
 
       if (name === "gemini") {
         await sandbox.process.executeCommand("mkdir -p ~/.gemini", undefined, undefined, 30)
+      }
+
+      // Droid installs to ~/.local/bin; ensure it's on PATH for later runs.
+      if (name === "droid") {
+        await sandbox.process.executeCommand(
+          `grep -q 'HOME/.local/bin' ~/.bashrc || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc`,
+          undefined, undefined, 10
+        )
       }
 
       // Kimi installs to ~/.kimi-code/bin; ensure it's on PATH for later runs.

@@ -8,6 +8,7 @@ const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
   copilot: "@github/copilot",
+  droid: "", // droid uses a shell script installer, not npm
   eliza: "", // eliza is built-in, no installation needed
   goose: "", // goose uses shell script installer, not npm
   kilo: "@kilocode/cli",
@@ -31,6 +32,9 @@ const PROVIDER_SHELL_INSTALLERS: Partial<Record<ProviderName, string>> = {
   // Kimi Code: official install script. Drops the `kimi` binary into the user's
   // local bin (PATH must include ~/.local/bin). Runs non-interactively.
   kimi: `curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash`,
+  // Factory Droid: official install script. Drops the `droid` binary into
+  // ~/.local/bin (PATH must include it). Runs non-interactively.
+  droid: `curl -fsSL https://app.factory.ai/cli | sh`,
 }
 
 /**

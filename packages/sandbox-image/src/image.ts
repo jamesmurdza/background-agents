@@ -176,6 +176,15 @@ export function getAgentSandboxImage(): Image {
           "chown -R daytona:daytona /home/daytona/.kimi-code"
       )
       .runCommands(
+        // Install Factory Droid CLI. Shell-script installer, not npm — run with
+        // HOME pointed at the daytona user so the `droid` binary lands in
+        // /home/daytona/.local/bin (already on PATH via .bashrc below), then hand
+        // ownership to the daytona user.
+        "export HOME=/home/daytona && " +
+          "curl -fsSL https://app.factory.ai/cli | sh && " +
+          "chown -R daytona:daytona /home/daytona/.local /home/daytona/.factory 2>/dev/null || true"
+      )
+      .runCommands(
         // Install tokscale (token/cost metering). Binary embeds at build time
         // via @tokscale/cli's platform optionalDependency — no runtime download.
         `npm install -g tokscale@${TOKSCALE_VERSION}`
