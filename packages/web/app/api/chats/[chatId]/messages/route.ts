@@ -180,13 +180,8 @@ export async function POST(
         uploadedFilePaths.map((p) => `- ${p}`).join("\n")
     }
 
-    // Decide what prior conversation to replay (agent switch / chat fork /
-    // non-resumable agent).
-    const { history, isAgentSwitch, disableResume } = await buildAgentHistory(
-      chatId,
-      chat,
-      payload
-    )
+    // Decide what prior conversation to replay (agent switch / chat fork).
+    const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
 
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
     const env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
@@ -212,11 +207,8 @@ export async function POST(
     const bgSession = await createBackgroundAgentSession(sandbox, {
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
-      // Don't pass a stored sessionId when (a) switching agents — it would crash
-      // the new CLI, or (b) the agent can't resume natively (droid) — context is
-      // replayed via `history` instead.
-      sessionId:
-        isAgentSwitch || disableResume ? undefined : (chat.sessionId ?? undefined),
+      // On agent switch, don't pass the old agent's sessionId — it would crash the new CLI
+      sessionId: isAgentSwitch ? undefined : (chat.sessionId ?? undefined),
       agent: payload.agent as Agent,
       model: resolveCliModel(payload.model, customEndpoints),
       env: Object.keys(env).length > 0 ? env : undefined,

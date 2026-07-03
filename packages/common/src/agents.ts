@@ -426,27 +426,6 @@ export const agentSupportsPlanMode: Record<Agent, boolean> = {
   "pi": false,
 }
 
-/**
- * Whether each agent supports native session resume (continuing a prior turn via
- * its own session id / `-s` flag). When false, the web layer must replay prior
- * conversation as injected history each turn instead of passing a stored
- * sessionId. droid is false: `droid exec -s <id>` hard-crashes (exit 1, no
- * output) on v0.164, so we never resume it.
- */
-export const agentSupportsResume: Record<Agent, boolean> = {
-  "claude-code": true,
-  "opencode": true,
-  "codex": true,
-  "copilot": true,
-  "droid": false,
-  "eliza": true,
-  "gemini": true,
-  "goose": true,
-  "kilo": true,
-  "kimi": true,
-  "pi": true,
-}
-
 // =============================================================================
 // Credential queries
 // =============================================================================

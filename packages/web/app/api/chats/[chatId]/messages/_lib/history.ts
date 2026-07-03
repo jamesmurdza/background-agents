@@ -1,4 +1,3 @@
-import { agentSupportsResume, type Agent } from "@background-agents/common"
 import { prisma } from "@/lib/db/prisma"
 import type { ChatRecord, MessagePayload } from "./types"
 
@@ -8,11 +7,6 @@ export interface AgentHistoryResult {
   history: AgentHistory | undefined
   /** True when the incoming agent differs from the one that produced the last assistant message. */
   isAgentSwitch: boolean
-  /**
-   * True when the agent can't natively resume (e.g. droid), so this turn must NOT
-   * pass a stored sessionId — continuity comes from the replayed `history` above.
-   */
-  disableResume: boolean
 }
 
 /**
@@ -40,13 +34,9 @@ export async function buildAgentHistory(
   const isAgentSwitch =
     !!lastAssistant?.agent && lastAssistant.agent !== payload.agent
 
-  // Agents that can't resume natively (droid — `droid exec -s` crashes) must
-  // replay the full conversation every turn, exactly like an agent switch.
-  const disableResume = agentSupportsResume[payload.agent as Agent] === false
-
   let history: AgentHistory | undefined
 
-  if (isAgentSwitch || disableResume) {
+  if (isAgentSwitch) {
     const messages = await prisma.message.findMany({
       where: { chatId },
       orderBy: { timestamp: "asc" },
@@ -65,8 +55,7 @@ export async function buildAgentHistory(
     if (history.length === 0) history = undefined
     else
       console.log(
-        `[chats/messages] Replaying ${history.length} history messages ` +
-          `(${isAgentSwitch ? "agent switch" : "non-resumable agent"})`
+        `[chats/messages] Agent switch detected: injecting ${history.length} history messages`
       )
   }
 
@@ -96,5 +85,5 @@ export async function buildAgentHistory(
       )
   }
 
-  return { history, isAgentSwitch, disableResume }
+  return { history, isAgentSwitch }
 }
