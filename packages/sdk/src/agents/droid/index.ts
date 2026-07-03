@@ -40,6 +40,9 @@ const FACTORY_CONFIG_FILE = "$HOME/.factory/settings.json"
 /** Stable id we assign the single BYOK custom model (see sessionDefaultSettings). */
 const BYOK_MODEL_ID = "custom:byok-0"
 
+/** agentModels.droid marks Factory-hosted (built-in catalog) models `factory/<id>`. */
+const FACTORY_PREFIX = "factory/"
+
 type DroidProvider = "anthropic" | "openai" | "generic-chat-completion-api"
 
 interface CustomModel {
@@ -136,19 +139,18 @@ export const droidAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    // Select the BYOK model by its `custom:` id (verified against droid v0.164:
-    // `droid exec -m custom:byok-0` routes to the customModels entry and the
-    // user's own key). Passing the RAW upstream id (or omitting `-m`) instead
-    // makes droid fall back to its built-in default `claude-opus-4-8`.
-    const args: string[] = [
-      "exec",
-      "--output-format",
-      "stream-json",
-      "--auto",
-      "high",
-      "-m",
-      BYOK_MODEL_ID,
-    ]
+    const model = options.model ?? "claude-sonnet-4-5-20250929"
+    // A `factory/<id>` value means the Factory-hosted path: pass the raw built-in
+    // catalog id straight to `-m`, with NO customModels entry, so droid routes it
+    // through Factory's platform on the FACTORY_API_KEY. Anything else is BYOK:
+    // select `custom:byok-0` (verified on droid v0.164 — the raw id or no `-m`
+    // falls back to the built-in default), backed by a settings.json we write.
+    const factoryModel = model.startsWith(FACTORY_PREFIX)
+      ? model.slice(FACTORY_PREFIX.length)
+      : null
+
+    const args: string[] = ["exec", "--output-format", "stream-json", "--auto", "high"]
+    args.push("-m", factoryModel ?? BYOK_MODEL_ID)
 
     // Continue a prior turn by FORKING its session. droid's `-s`/--session-id
     // resume hard-crashes headless (exit 1, zero output — verified live on
@@ -166,21 +168,24 @@ export const droidAgent: AgentDefinition = {
 
     const droidCmd = ["droid", ...args].map(quote).join(" ")
 
-    // Write settings.json for the selected BYOK model, then run droid. A quoted
-    // heredoc ('DROID_EOF') keeps the shell from expanding the ${ANTHROPIC_API_KEY}
-    // / ${OPENAI_API_KEY} refs — droid resolves those itself at runtime.
-    const settingsJson = buildSettingsJson(options.model ?? "claude-sonnet-4-5-20250929")
-    const script = [
-      `export PATH="$HOME/.local/bin:$PATH"`,
-      `mkdir -p "${FACTORY_CONFIG_DIR}"`,
-      `cat > "${FACTORY_CONFIG_FILE}" <<'DROID_EOF'\n${settingsJson}\nDROID_EOF`,
-      `chmod 600 "${FACTORY_CONFIG_FILE}"`,
-      droidCmd,
-    ].join("\n")
+    // Factory-hosted needs no settings file — just run droid (it reads
+    // FACTORY_API_KEY from the env). BYOK writes a settings.json declaring the
+    // custom model; a quoted heredoc ('DROID_EOF') keeps the shell from expanding
+    // the ${…_API_KEY} refs so droid resolves them itself at runtime.
+    const lines = [`export PATH="$HOME/.local/bin:$PATH"`]
+    if (!factoryModel) {
+      const settingsJson = buildSettingsJson(model)
+      lines.push(
+        `mkdir -p "${FACTORY_CONFIG_DIR}"`,
+        `cat > "${FACTORY_CONFIG_FILE}" <<'DROID_EOF'\n${settingsJson}\nDROID_EOF`,
+        `chmod 600 "${FACTORY_CONFIG_FILE}"`
+      )
+    }
+    lines.push(droidCmd)
 
     return {
       cmd: "bash",
-      args: ["-c", script],
+      args: ["-c", lines.join("\n")],
       env: { ...options.env },
     }
   },

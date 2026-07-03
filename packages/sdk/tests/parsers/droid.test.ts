@@ -5,12 +5,48 @@
  * error fixtures are captured from / modeled on real droid runs. No mocks, no I/O.
  */
 import { describe, it, expect } from "vitest"
-import { parseDroidLine, DROID_TOOL_MAPPINGS } from "../../src/agents/index.js"
+import {
+  parseDroidLine,
+  DROID_TOOL_MAPPINGS,
+  droidAgent,
+} from "../../src/agents/index.js"
 import type { Event } from "../../src/types/events.js"
 
 const mappings = DROID_TOOL_MAPPINGS
 const flat = (ev: Event | Event[] | null): Event[] =>
   ev == null ? [] : Array.isArray(ev) ? ev : [ev]
+
+describe("droidAgent.buildCommand", () => {
+  const script = (model?: string, sessionId?: string) =>
+    droidAgent.buildCommand({ prompt: "hi", model, sessionId }).args[1]
+
+  // `quote()` wraps individual args, so assert on token presence, not adjacency.
+  it("BYOK: writes settings.json and selects the custom model id", () => {
+    const s = script("claude-sonnet-4-5-20250929")
+    expect(s).toContain(".factory/settings.json")
+    expect(s).toContain("custom:byok-0") // both the settings entry and the -m target
+  })
+
+  it("Factory-hosted: passes the raw catalog id and writes NO settings.json", () => {
+    const s = script("factory/claude-opus-4-8")
+    expect(s).toContain("claude-opus-4-8") // raw built-in id as the -m target
+    expect(s).not.toContain("settings.json")
+    expect(s).not.toContain("custom:byok-0")
+    expect(s).not.toContain("factory/") // prefix is stripped before -m
+  })
+
+  it("resumes via --fork (never -s), for both paths", () => {
+    for (const [model, sid] of [
+      ["claude-haiku-4-5", "sess-1"],
+      ["factory/gpt-5.5", "sess-2"],
+    ] as const) {
+      const s = script(model, sid)
+      expect(s).toContain("--fork")
+      expect(s).toContain(sid)
+      expect(s).not.toContain("--session-id")
+    }
+  })
+})
 
 describe("parseDroidLine", () => {
   it("returns null for non-JSON, non-error lines", () => {
