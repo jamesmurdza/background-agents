@@ -128,11 +128,8 @@ export const droidAgent: AgentDefinition = {
     // droid exec has no --system-prompt flag we rely on here; use the synthetic
     // prefix. (droid does expose --append-system-prompt; wire it later if needed.)
     supportsSystemPrompt: false,
-    // NOT resumable: `droid exec -s <id>` hard-crashes (exit 1, zero output —
-    // verified live on v0.164). Callers must replay history into the prompt
-    // instead (the web layer keys this off agentSupportsResume). buildCommand also
-    // ignores options.sessionId below so no caller can trip the crash.
-    supportsResume: false,
+    // Resumable — but via `--fork`, not `-s` (see buildCommand).
+    supportsResume: true,
     supportsPlanMode: false,
     // No setup(): settings.json depends on the per-run model, so it's written in
     // buildCommand's shell instead.
@@ -143,10 +140,6 @@ export const droidAgent: AgentDefinition = {
     // `droid exec -m custom:byok-0` routes to the customModels entry and the
     // user's own key). Passing the RAW upstream id (or omitting `-m`) instead
     // makes droid fall back to its built-in default `claude-opus-4-8`.
-    //
-    // NOTE: we deliberately never pass `-s`/--session-id — droid's resume path
-    // hard-crashes (see supportsResume above). Multi-turn context comes from
-    // replayed history in the prompt, not native session resume.
     const args: string[] = [
       "exec",
       "--output-format",
@@ -156,6 +149,15 @@ export const droidAgent: AgentDefinition = {
       "-m",
       BYOK_MODEL_ID,
     ]
+
+    // Continue a prior turn by FORKING its session. droid's `-s`/--session-id
+    // resume hard-crashes headless (exit 1, zero output — verified live on
+    // v0.164), but `--fork <id>` works and carries the full prior context. A fork
+    // mints a NEW session id (emitted on the next init line and captured by the
+    // parser), so each turn forks from the latest id to chain the conversation.
+    if (options.sessionId) {
+      args.push("--fork", options.sessionId)
+    }
 
     // Prompt is the positional query argument.
     if (options.prompt) {
