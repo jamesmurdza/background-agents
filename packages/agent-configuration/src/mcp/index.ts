@@ -43,6 +43,7 @@ const MCP_SUPPORTED_AGENTS = [
   "copilot",
   "kilo",
   "kimi",
+  "droid",
 ] as const
 
 type McpSupportedAgent = (typeof MCP_SUPPORTED_AGENTS)[number]
@@ -229,6 +230,28 @@ function generateKimiConfig(servers: AgentMcpServer[]): McpConfigFile {
   }
 }
 
+/**
+ * Factory Droid: ~/.factory/mcp.json — `mcpServers.<name>` with `type: "http"`.
+ * Separate file from ~/.factory/settings.json (customModels/BYOK), which the
+ * droid agent overwrites per run — so the two never collide. `type: "http"` is
+ * droid's Streamable-HTTP transport; remote auth goes in `headers`.
+ */
+function generateDroidConfig(servers: AgentMcpServer[]): McpConfigFile {
+  const mcpServers: Record<string, unknown> = {}
+  for (const s of servers) {
+    mcpServers[s.name] = {
+      type: "http",
+      url: s.url,
+      headers: { Authorization: `Bearer ${s.bearerToken}` },
+    }
+  }
+  return {
+    filePath: "/home/daytona/.factory/mcp.json",
+    content: JSON.stringify({ mcpServers }, null, 2),
+    format: "json",
+  }
+}
+
 function generateMcpConfigForAgent(
   agent: string,
   servers: AgentMcpServer[]
@@ -253,6 +276,8 @@ function generateMcpConfigForAgent(
       return generateKiloConfig(servers)
     case "kimi":
       return generateKimiConfig(servers)
+    case "droid":
+      return generateDroidConfig(servers)
   }
 }
 
