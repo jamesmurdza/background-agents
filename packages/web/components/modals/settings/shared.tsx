@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeOff, Copy, Check } from "lucide-react"
+import { Eye, EyeOff, Copy, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 import { Input } from "@/components/ui/input"
@@ -93,10 +93,23 @@ export function PasswordInput({
         data-bwignore="true"
         data-form-type="other"
         className={cn(
-          "pr-8 font-mono",
+          // Extra right padding to accommodate both Clear and Show/Hide buttons.
+          "pr-16 font-mono",
           highlight && "border-red-500 focus:border-red-500 focus:ring-red-500/30"
         )}
       />
+      {/* Clear button (only shown when there's a value) */}
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute right-7 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          aria-label="Clear value"
+          title="Clear"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => setShow(!show)}

@@ -284,9 +284,13 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
 
     // If auto-detect is enabled and credentials were found, include them
     if (isDesktopApp && licenseAutoDetectEnabled && licenseDetectResult?.found && licenseDetectResult.credentials) {
-      // Only include if user hasn't manually entered a different value
+      // Only include if user hasn't manually entered a different value.
+      // Treat an explicit empty string as a CLEAR request and do NOT override it.
       const manualValue = credValues["CLAUDE_CODE_CREDENTIALS"]
-      if (!manualValue || manualValue === MASK || manualValue === initialCreds["CLAUDE_CODE_CREDENTIALS"]) {
+      if (
+        manualValue === MASK ||
+        manualValue === initialCreds["CLAUDE_CODE_CREDENTIALS"]
+      ) {
         credentialsPatch["CLAUDE_CODE_CREDENTIALS"] = licenseDetectResult.credentials
       }
     }
