@@ -361,22 +361,44 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kimi-k2.5", label: "Kimi K2.5", requiresKey: "kimi" },
   ],
   "droid": [
-    // BYOK only. droid runs entirely on the user's own Anthropic/OpenAI/Gemini
-    // key — it needs NO Factory account or login; keys stay local
-    // (https://docs.factory.ai/cli/byok/overview). At run time the droid SDK agent
-    // writes the selected model as a `custom:byok-0` entry in
-    // ~/.factory/settings.json and selects it with `droid exec -m custom:byok-0`
-    // (verified live on droid v0.164; omitting `-m` falls back to droid's built-in
-    // `claude-opus-4-8`).
+    // Two paths, both selectable here:
     //
-    // Each value is the exact upstream API model id (it becomes the customModels
-    // `model` field POSTed to api.anthropic.com / api.openai.com / Gemini's
-    // OpenAI-compatible endpoint), so it must be a real provider id.
+    // 1. BYOK (requiresKey anthropic|openai|gemini) — droid runs on the user's OWN
+    //    key, no Factory account needed. The droid SDK agent writes the model as a
+    //    `custom:byok-0` entry in ~/.factory/settings.json and selects it with
+    //    `droid exec -m custom:byok-0`. Each value is the exact upstream API model
+    //    id (POSTed to api.anthropic.com / api.openai.com / Gemini's OpenAI-compat
+    //    endpoint), so it must be a real provider id.
+    //
+    // 2. Factory-hosted (requiresKey factory) — routed through Factory's platform
+    //    on the user's FACTORY_API_KEY. Value is `factory/<catalog-id>`; the SDK
+    //    strips the prefix and passes the raw built-in id (no customModels entry).
+    //    These are droid's built-in catalog ids — Factory bills the inference.
+    //
+    // ── BYOK: Anthropic (ids per the claude-api reference) ──
+    { value: "claude-opus-4-8", label: "Claude Opus 4.8", requiresKey: "anthropic" },
+    { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "anthropic" },
     { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
+    { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
+    // ── BYOK: OpenAI ──
     { value: "gpt-5", label: "GPT-5", requiresKey: "openai" },
-    // Gemini via Google's OpenAI-compatible endpoint (droid's
-    // generic-chat-completion-api provider on the user's GEMINI_API_KEY).
+    { value: "gpt-5-mini", label: "GPT-5 Mini", requiresKey: "openai" },
+    { value: "gpt-5-codex", label: "GPT-5 Codex", requiresKey: "openai" },
+    { value: "gpt-4.1", label: "GPT-4.1", requiresKey: "openai" },
+    { value: "gpt-4o", label: "GPT-4o", requiresKey: "openai" },
+    { value: "o3", label: "o3", requiresKey: "openai" },
+    { value: "o4-mini", label: "o4 Mini", requiresKey: "openai" },
+    // ── BYOK: Gemini (Google's OpenAI-compatible endpoint) ──
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini" },
+    { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", requiresKey: "gemini" },
+    // ── Factory-hosted (FACTORY_API_KEY; droid's built-in catalog) ──
+    { value: "factory/claude-opus-4-8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
+    { value: "factory/claude-sonnet-5", label: "Claude Sonnet 5 (Factory)", requiresKey: "factory" },
+    { value: "factory/gpt-5.5", label: "GPT-5.5 (Factory)", requiresKey: "factory" },
+    { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
+    { value: "factory/glm-5.2", label: "GLM 5.2 (Factory)", requiresKey: "factory" },
+    { value: "factory/kimi-k2.7-code", label: "Kimi K2.7 Code (Factory)", requiresKey: "factory" },
   ],
   "pi": [
     // Anthropic models (default provider)
