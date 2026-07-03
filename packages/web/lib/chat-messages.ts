@@ -42,7 +42,9 @@ export type SendMessageResult =
       resetAt?: string
       /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
       provider?: string
-      /** Tokens used / daily budget for that provider, from the 429 body. */
+      /** Unit the budget is measured in (tokens | cost | messages). */
+      unit?: "tokens" | "cost" | "messages"
+      /** Amount used / daily budget for that provider, in `unit`, from the 429 body. */
       used?: number
       limit?: number
     }
@@ -112,6 +114,7 @@ export async function sendMessageToApi(
       isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
       resetAt: err.resetAt,
       provider: err.provider,
+      unit: err.unit,
       used: err.used,
       limit: err.limit,
     }

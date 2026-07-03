@@ -52,6 +52,7 @@ export async function resolveSendCredentials(
         error: "DAILY_LIMIT_EXCEEDED",
         message: usageCheck.error,
         provider: usageCheck.provider,
+        unit: usageCheck.unit,
         used: usageCheck.used,
         remaining: usageCheck.remaining,
         limit: usageCheck.limit,

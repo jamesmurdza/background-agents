@@ -66,7 +66,7 @@ interface AppModalsProps {
   onDeleteChat: (chatId: string) => void
 
   // Daily limit reached dialog
-  limitReachedState: { show: boolean; resetAt?: Date; provider?: string; used?: number | null; limit?: number | null }
+  limitReachedState: { show: boolean; resetAt?: Date; provider?: string; unit?: "tokens" | "cost" | "messages"; used?: number | null; limit?: number | null }
   onDismissLimitReached: () => void
   onContinueWithOpenCode: () => void
 }
@@ -250,6 +250,7 @@ export function AppModals({
         open={limitReachedState.show}
         onClose={onDismissLimitReached}
         provider={limitReachedState.provider}
+        unit={limitReachedState.unit}
         used={limitReachedState.used}
         limit={limitReachedState.limit}
         onContinueWithOpenCode={onContinueWithOpenCode}
