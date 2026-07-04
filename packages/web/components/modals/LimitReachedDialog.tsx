@@ -15,7 +15,9 @@ interface LimitReachedDialogProps {
   onUpgradeToPro: () => void
   /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
   provider?: string
-  /** Tokens used / daily budget for that provider. */
+  /** Unit the budget is measured in; falls back to the provider's default. */
+  unit?: BudgetUnit
+  /** Amount used / daily budget for that provider, in `unit`. */
   used?: number | null
   limit?: number | null
   resetAt?: Date
@@ -35,6 +37,25 @@ function fmtTokens(n: number): string {
   return String(n)
 }
 
+type BudgetUnit = "tokens" | "cost" | "messages"
+
+/** Map provider to its budget unit. Mirrors server usage-budgets. */
+function unitForProvider(provider?: string): BudgetUnit {
+  if (provider === "opencode") return "cost"
+  if (provider === "gemini") return "messages"
+  return "tokens"
+}
+
+/** Format an amount in the provider's budget unit. */
+function fmtAmount(n: number, unit: BudgetUnit): string {
+  if (unit === "cost") return `$${n.toFixed(2)}`
+  if (unit === "messages") {
+    const m = Math.round(n)
+    return `${m} ${m === 1 ? "message" : "messages"}`
+  }
+  return `${fmtTokens(n)} tokens`
+}
+
 export function LimitReachedDialog({
   open,
   onClose,
@@ -42,6 +63,7 @@ export function LimitReachedDialog({
   onAddApiKey,
   onUpgradeToPro,
   provider,
+  unit: unitProp,
   used,
   limit,
   resetAt,
@@ -51,6 +73,8 @@ export function LimitReachedDialog({
   // Don't offer "switch to OpenCode" when OpenCode itself is the limited pool.
   const canSwitchToOpenCode = provider !== "opencode"
   const primaryButtonRef = useRef<HTMLButtonElement>(null)
+  // Prefer the server-provided unit; fall back to the provider's default.
+  const unit = unitProp ?? unitForProvider(provider)
 
   // Focus the primary button when modal opens
   useEffect(() => {
@@ -117,9 +141,9 @@ export function LimitReachedDialog({
             <div className="text-sm text-muted-foreground">
               You've reached your daily{" "}
               <span className="font-medium text-foreground">{providerLabel}</span> limit
-              {typeof limit === "number" ? ` of ${fmtTokens(limit)} tokens` : ""}
+              {typeof limit === "number" ? ` of ${fmtAmount(limit, unit)}` : ""}
               {typeof used === "number" && typeof limit === "number"
-                ? ` (${fmtTokens(used)} used)`
+                ? ` (${fmtAmount(used, unit)} used)`
                 : ""}
               . It resets at{" "}
               <span className="font-medium text-foreground">{resetTimeString}</span>.

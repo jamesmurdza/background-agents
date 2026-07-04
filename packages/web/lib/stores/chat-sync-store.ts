@@ -46,7 +46,9 @@ export interface LimitReachedState {
   }
   /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
   provider?: string
-  /** Tokens used / daily budget for that provider. */
+  /** Unit the budget is measured in (tokens | cost | messages). */
+  unit?: "tokens" | "cost" | "messages"
+  /** Amount used / daily budget for that provider, in `unit`. */
   used?: number | null
   limit?: number | null
   resetAt?: Date

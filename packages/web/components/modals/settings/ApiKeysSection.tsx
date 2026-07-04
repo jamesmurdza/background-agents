@@ -1,6 +1,6 @@
 "use client"
 
-import { Key, Check, RefreshCw } from "lucide-react"
+import { Key, Check, RefreshCw, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -170,20 +170,33 @@ export function ApiKeysSection({
                 {/* Manual input — shown when auto-detect is off OR credentials not found */}
                 {(!licenseAutoDetectEnabled || !licenseDetectResult?.found) && (
                   <>
-                    <Textarea
-                      ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
-                      value={value}
-                      onChange={(e) => setCredValue(field.id, e.target.value)}
-                      placeholder={field.placeholder}
-                      rows={3}
-                      autoComplete="off"
-                      spellCheck={false}
-                      data-lpignore="true"
-                      data-1p-ignore="true"
-                      data-bwignore="true"
-                      data-form-type="other"
-                      className="font-mono text-xs"
-                    />
+                    <div className="relative">
+                      <Textarea
+                        ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
+                        value={value}
+                        onChange={(e) => setCredValue(field.id, e.target.value)}
+                        placeholder={field.placeholder}
+                        rows={3}
+                        autoComplete="off"
+                        spellCheck={false}
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
+                        data-form-type="other"
+                        className="font-mono text-xs pr-8"
+                      />
+                      {value && (
+                        <button
+                          type="button"
+                          onClick={() => setCredValue(field.id, "")}
+                          className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                          aria-label="Clear value"
+                          title="Clear"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                     <ClaudeCredentialsHint />
                   </>
                 )}
@@ -201,20 +214,33 @@ export function ApiKeysSection({
           // Default multiline handling (non-CLAUDE_CODE_CREDENTIALS or web app)
           return (
             <SettingsRow key={field.id} label={field.label} description={description} stacked>
-              <Textarea
-                ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
-                value={value}
-                onChange={(e) => setCredValue(field.id, e.target.value)}
-                placeholder={field.placeholder}
-                rows={3}
-                autoComplete="off"
-                spellCheck={false}
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                className="font-mono text-xs"
-              />
+              <div className="relative">
+                <Textarea
+                  ref={setInputRef(field.id) as (el: HTMLTextAreaElement | null) => void}
+                  value={value}
+                  onChange={(e) => setCredValue(field.id, e.target.value)}
+                  placeholder={field.placeholder}
+                  rows={3}
+                  autoComplete="off"
+                  spellCheck={false}
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
+                  data-form-type="other"
+                  className="font-mono text-xs pr-8"
+                />
+                {value && (
+                  <button
+                    type="button"
+                    onClick={() => setCredValue(field.id, "")}
+                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear value"
+                    title="Clear"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               {field.id === "CLAUDE_CODE_CREDENTIALS" && <ClaudeCredentialsHint />}
             </SettingsRow>
           )
