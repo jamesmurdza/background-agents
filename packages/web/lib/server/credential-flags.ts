@@ -45,6 +45,37 @@ export interface EffectiveFlags {
  *
  * The resulting flags can be passed directly to getDefaultAgent/hasCredentialsForModel.
  */
+/**
+ * Server-config-only credential flags — the shared pools available to everyone,
+ * derived purely from server env / rotating credential state with no user
+ * context. Safe to expose to logged-out visitors so the agent picker can show
+ * the shared-pool "ready" dots (Claude Code, Gemini, OpenCode) before sign-in.
+ *
+ * Only booleans about server configuration are returned — never key values.
+ * getEffectiveCredentialFlags layers the user's own stored credentials and the
+ * daily-limit state on top of these same signals for an authenticated user.
+ */
+export async function getSharedPoolFlags(): Promise<CredentialFlags> {
+  const flags: CredentialFlags = {}
+
+  // Server env keys back the shared OpenCode / Gemini pools. Mark both the
+  // presence flag (so hasCredentialsForModel treats the provider as available)
+  // and the `_SHARED` origin flag (so the UI knows it isn't a user-owned key).
+  if (process.env.OPENCODE_API_KEY) {
+    flags.OPENCODE_API_KEY = true
+    flags.OPENCODE_API_KEY_SHARED = true
+  }
+  if (process.env.GEMINI_API_KEY) {
+    flags.GEMINI_API_KEY = true
+    flags.GEMINI_API_KEY_SHARED = true
+  }
+  if (await isSharedPoolAvailable()) {
+    flags.CLAUDE_SHARED_POOL_AVAILABLE = true
+  }
+
+  return flags
+}
+
 export async function getEffectiveCredentialFlags(userId: string): Promise<EffectiveFlags> {
   const user = await prisma.user.findUnique({
     where: { id: userId },

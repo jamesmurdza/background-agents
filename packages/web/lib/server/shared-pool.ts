@@ -17,6 +17,7 @@
 import {
   agentToProvider,
   ENDPOINT_MODEL_PREFIX,
+  modelRequiresKey,
   type Agent,
   type Credentials,
   type ProviderName,
@@ -34,6 +35,18 @@ export function isSharedPoolAgent(agent: Agent): agent is SharedPoolAgent {
 /** Internal provider id for an agent (stored as TokenUsage.provider). */
 export function providerForAgent(agent: Agent): ProviderName {
   return agentToProvider[agent]
+}
+
+/**
+ * Internal provider a specific run is billed to. Usually the agent's own
+ * provider, but a Gemini model selected under a BYOK agent (Pi, Droid) runs on
+ * the shared Gemini key, so it meters against the Gemini pool. Mirrors the
+ * Gemini rule in {@link resolvePool}, so the two stay in agreement about which
+ * runs count as shared Gemini usage.
+ */
+export function providerForRun(agent: Agent, model?: string): ProviderName {
+  if (modelRequiresKey(agent, model) === "gemini") return "gemini"
+  return providerForAgent(agent)
 }
 
 /**
@@ -63,6 +76,11 @@ export function resolvePool(
     case "opencode":
       return storedCreds.OPENCODE_API_KEY ? "user" : "shared"
     default:
+      // A Gemini model under a BYOK agent (Pi, Droid) runs on the shared Gemini
+      // key unless the user stored their own — meter those as the Gemini pool.
+      if (modelRequiresKey(agent, model) === "gemini") {
+        return storedCreds.GEMINI_API_KEY ? "user" : "shared"
+      }
       return "user"
   }
 }
@@ -83,7 +101,7 @@ export function buildUsageMeta(
   storedCreds: Credentials,
   model?: string
 ): UsageMeta {
-  return { pool: resolvePool(agent, storedCreds, model), provider: providerForAgent(agent) }
+  return { pool: resolvePool(agent, storedCreds, model), provider: providerForRun(agent, model) }
 }
 
 /**

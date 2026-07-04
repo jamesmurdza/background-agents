@@ -627,6 +627,22 @@ export function hasCredentialsForModel(
 }
 
 /**
+ * The provider key a given agent+model requires ("anthropic" / "gemini" / …),
+ * "none" for no-key models, or undefined when the model isn't in the agent's
+ * list. The lookup is agent-scoped because the same model id can require a
+ * different key under different agents. Used server-side to decide which shared
+ * pool a run draws from (e.g. a Gemini model under Pi/Droid uses the shared
+ * Gemini key — see resolvePool / providerForRun).
+ */
+export function modelRequiresKey(
+  agent: Agent,
+  model: string | undefined
+): ProviderId | "none" | undefined {
+  if (!model) return undefined
+  return (agentModels[agent] ?? []).find((m) => m.value === model)?.requiresKey
+}
+
+/**
  * Get the default model for an agent based on available credentials.
  * Falls back to free models if no API keys are configured.
  */

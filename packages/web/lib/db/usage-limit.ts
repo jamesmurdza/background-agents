@@ -15,7 +15,7 @@ import type { Agent, ProviderName } from "@background-agents/common"
 
 import { prisma } from "./prisma"
 import { sumSharedUsage, countSharedMessages } from "./token-usage"
-import { isSharedPoolAgent, providerForAgent, resolvePool } from "@/lib/server/shared-pool"
+import { providerForRun, resolvePool } from "@/lib/server/shared-pool"
 import { decryptUserCredentials } from "./api-helpers"
 import {
   getProviderBudget,
@@ -53,7 +53,7 @@ export async function checkSharedPoolUsage(
   agent: Agent,
   model?: string
 ): Promise<UsageLimitResult> {
-  const provider = providerForAgent(agent)
+  const provider = providerForRun(agent, model)
   const resetAt = getNextUtcDayReset()
 
   const user = await prisma.user.findUnique({
@@ -65,8 +65,9 @@ export async function checkSharedPoolUsage(
   const storedCreds = decryptUserCredentials(
     user?.credentials as Record<string, unknown> | null
   )
-  // A custom-endpoint run uses the user's own endpoint, not the shared pool, so
-  // it should never be rate-limited as shared.
+  // resolvePool folds in the model: custom endpoints and own-key runs read as
+  // "user" (never rate-limited), and a Gemini model under a BYOK agent (Pi,
+  // Droid) reads as the shared Gemini pool.
   const pool = resolvePool(agent, storedCreds, model)
 
   const budget = getProviderBudget(provider, plan)
@@ -80,8 +81,10 @@ export async function checkSharedPoolUsage(
     resetAt,
   }
 
-  // Not a shared-pool run → unlimited.
-  if (!isSharedPoolAgent(agent) || pool === "user") {
+  // Not a shared-pool run → unlimited. resolvePool returns "shared" only for a
+  // genuine shared-pool run (incl. a Gemini model under Pi/Droid), so gating on
+  // the resolved pool covers every case without an agent allowlist.
+  if (pool === "user") {
     return { ...base, allowed: true, limit: null, remaining: null }
   }
 

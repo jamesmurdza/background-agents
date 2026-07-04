@@ -47,6 +47,7 @@ export {
   agentSharedPoolExhausted,
   agentIsReady,
   hasCredentialsForModel,
+  modelRequiresKey,
   getDefaultModelForAgent,
   resolveModelForAgent,
   resolveAgent,
