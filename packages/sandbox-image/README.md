@@ -17,6 +17,7 @@ Pre-installed agents:
 - **Pi** (`@mariozechner/pi-coding-agent`)
 - **Goose** (binary from GitHub releases)
 - **Kimi** (shell-script installer from `code.kimi.com`)
+- **Droid** (Factory, shell-script installer from `app.factory.ai/cli`)
 
 The image also pre-installs [`tokscale`](https://www.npmjs.com/package/tokscale) (pinned via `TOKSCALE_VERSION`) for post-turn token/cost metering.
 
