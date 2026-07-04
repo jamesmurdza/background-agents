@@ -268,6 +268,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isDraftChatId,
     selectChat,
     startNewChat,
+    startAgentDraft: (agent) =>
+      startNewChat(NEW_REPOSITORY, "main", undefined, true, "pending", agent),
     setViewMode: sidebar.setViewMode,
     setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
   })

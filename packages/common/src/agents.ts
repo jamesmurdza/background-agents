@@ -465,6 +465,40 @@ export function getDefaultAgent(): Agent {
   return "opencode"
 }
 
+/**
+ * Friendly URL slugs → agent id, for deep links like `/agent/factory`.
+ *
+ * Every canonical agent id maps to itself, plus a few human-friendly aliases
+ * (e.g. `factory` → `droid`, `claude` → `claude-code`). Lookups via
+ * `resolveAgentSlug` are case-insensitive.
+ */
+export const agentSlugs: Record<string, Agent> = {
+  // Canonical ids (each id is a valid slug)
+  "claude-code": "claude-code",
+  "opencode": "opencode",
+  "codex": "codex",
+  "copilot": "copilot",
+  "droid": "droid",
+  "eliza": "eliza",
+  "gemini": "gemini",
+  "goose": "goose",
+  "kilo": "kilo",
+  "kimi": "kimi",
+  "pi": "pi",
+  // Friendly aliases
+  "claude": "claude-code",
+  "factory": "droid",
+}
+
+/**
+ * Resolve a URL slug to an agent id, case-insensitively. Returns `null` for
+ * unknown slugs so callers can fall back to the default agent.
+ */
+export function resolveAgentSlug(slug: string | null | undefined): Agent | null {
+  if (!slug) return null
+  return agentSlugs[slug.toLowerCase()] ?? null
+}
+
 /** Whether the user has their own Anthropic credentials (API key or subscription token). */
 export function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undefined): boolean {
   return !!flags?.ANTHROPIC_API_KEY || !!flags?.CLAUDE_CODE_CREDENTIALS

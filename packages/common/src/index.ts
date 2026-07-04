@@ -31,6 +31,7 @@ export {
   ALL_AGENTS,
   agentLabels,
   agentToProvider,
+  agentSlugs,
   agentModels,
   defaultAgentModel,
   agentSupportsPlanMode,
@@ -38,6 +39,7 @@ export {
   ENDPOINT_MODEL_PREFIX,
   // Functions
   getDefaultAgent,
+  resolveAgentSlug,
   hasOwnAnthropicCredentials,
   sharedClaudePoolEligible,
   agentUsesSharedPool,

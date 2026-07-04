@@ -136,8 +136,16 @@ export function useDraftChat({
     // Case 1: Unauthenticated user - use local draft state
     // This applies when there's no session AND either no chat ID or the chat ID is a draft
     if (!session && (!currentChatId || isDraftChatId(currentChatId))) {
+      // Local dropdown state wins; fall back to the store draft config so a
+      // preselected agent (e.g. from an /agent/:slug deep link, baked in via
+      // enterDraftMode) still applies before the user touches anything.
       const { agent: resolvedAgent, model: resolvedModel } =
-        resolveAgentAndModel(draftAgent, draftModel, settings, credentialFlags)
+        resolveAgentAndModel(
+          draftAgent ?? draftChatConfig?.agent,
+          draftModel ?? draftChatConfig?.model,
+          settings,
+          credentialFlags
+        )
       return {
         id: currentChatId ?? unauthDraftIdRef.current,
         repo: NEW_REPOSITORY,

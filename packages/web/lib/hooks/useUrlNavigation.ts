@@ -28,6 +28,14 @@ export const ROUTES = {
     match: (path: string): RouteMatch<Record<string, never>> =>
       path === "/chat/new" ? {} : null,
   },
+  agent: {
+    path: "/agent/:slug",
+    build: (slug: string) => `/agent/${slug}` as const,
+    match: (path: string): RouteMatch<{ slug: string }> => {
+      const m = path.match(/^\/agent\/([^/]+)$/)
+      return m ? { slug: m[1] } : null
+    },
+  },
   jobs: {
     path: "/jobs",
     build: () => "/jobs" as const,
@@ -59,6 +67,7 @@ export const ROUTES = {
 export function matchRoute(path: string):
   | { route: "newChat" }
   | { route: "chat"; chatId: string }
+  | { route: "agent"; slug: string }
   | { route: "jobRun"; jobId: string; runId: string }
   | { route: "job"; jobId: string }
   | { route: "jobs" }
@@ -69,6 +78,11 @@ export function matchRoute(path: string):
   // newChat must be before chat (since /chat/new would match /chat/:chatId)
   if (ROUTES.newChat.match(path)) {
     return { route: "newChat" }
+  }
+
+  const agentMatch = ROUTES.agent.match(path)
+  if (agentMatch) {
+    return { route: "agent", slug: agentMatch.slug }
   }
 
   const chatMatch = ROUTES.chat.match(path)

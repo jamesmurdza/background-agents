@@ -11,6 +11,7 @@ import {
   resolveModelForAgent,
   resolveAgent,
   resolveAgentAndModel,
+  resolveAgentSlug,
   getDefaultAgent,
   type CustomEndpoint,
 } from "@background-agents/common"
@@ -100,5 +101,30 @@ describe("resolveAgentAndModel", () => {
       { GEMINI_API_KEY: true }
     )
     expect(result).toEqual({ agent: "gemini", model: "gemini-2.5-flash" })
+  })
+})
+
+describe("resolveAgentSlug", () => {
+  it("maps friendly aliases to their agent ids", () => {
+    expect(resolveAgentSlug("factory")).toBe("droid")
+    expect(resolveAgentSlug("claude")).toBe("claude-code")
+  })
+
+  it("maps canonical ids to themselves", () => {
+    expect(resolveAgentSlug("kimi")).toBe("kimi")
+    expect(resolveAgentSlug("opencode")).toBe("opencode")
+    expect(resolveAgentSlug("claude-code")).toBe("claude-code")
+  })
+
+  it("is case-insensitive", () => {
+    expect(resolveAgentSlug("Factory")).toBe("droid")
+    expect(resolveAgentSlug("KIMI")).toBe("kimi")
+  })
+
+  it("returns null for unknown or empty slugs", () => {
+    expect(resolveAgentSlug("bogus")).toBeNull()
+    expect(resolveAgentSlug("")).toBeNull()
+    expect(resolveAgentSlug(null)).toBeNull()
+    expect(resolveAgentSlug(undefined)).toBeNull()
   })
 })
