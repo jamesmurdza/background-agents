@@ -250,12 +250,15 @@ export function AgentModelSelector({
       targetMap.get(section)!.push(model)
     }
 
-    const result: { label: string; models: ModelOption[] }[] = []
+    // The same provider label can appear in both groups (e.g. Google: Flash is
+    // available on the shared pool while Pro is locked), so the render key must
+    // fold in ready/locked to stay unique — the label alone is not.
+    const result: { key: string; label: string; models: ModelOption[] }[] = []
     for (const label of readyOrder) {
-      result.push({ label, models: readySections.get(label)! })
+      result.push({ key: `ready:${label}`, label, models: readySections.get(label)! })
     }
     for (const label of lockedOrder) {
-      result.push({ label, models: lockedSections.get(label)! })
+      result.push({ key: `locked:${label}`, label, models: lockedSections.get(label)! })
     }
     return result
   }, [availableModels, search, credentialFlags, currentAgent, getModelSection])
@@ -425,7 +428,7 @@ export function AgentModelSelector({
             <CommandList>
               <CommandEmpty>No models found</CommandEmpty>
               {modelSections.map((section) => (
-                <CommandGroup key={section.label} heading={section.label}>
+                <CommandGroup key={section.key} heading={section.label}>
                   {section.models.map((model) => {
                     const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
                     const needsKey = model.requiresKey !== "none" && !modelHasCredentials

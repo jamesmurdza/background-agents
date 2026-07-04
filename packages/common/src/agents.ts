@@ -198,6 +198,19 @@ const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/deepseek-v4-flash",
 ])
 
+/**
+ * Pro-tier Gemini models (requiresKey "gemini") that the server-shared Gemini
+ * pool must NOT unlock, across every agent that exposes them (Gemini, Pi,
+ * Droid). The shared key backs only the cheaper Flash tier for free usage;
+ * running Pro requires the user's own stored GEMINI_API_KEY. New Flash models
+ * stay available by default — only the ids listed here are gated.
+ */
+const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
+  "gemini-2.5-pro",
+  "gemini-3-pro-preview",
+  "google/gemini-2.5-pro",
+])
+
 export const agentModels: Record<Agent, ModelOption[]> = {
   "claude-code": [
     { value: "default", label: "Default", requiresKey: "anthropic" },
@@ -621,6 +634,16 @@ export function hasCredentialsForModel(
       return SHARED_OPENCODE_ALLOWED.has(model.value)
     }
     return false
+  }
+  if (model.requiresKey === "gemini") {
+    // When only the server-shared Gemini key is available (no user-owned key),
+    // the free pool backs only the cheaper Flash tier — Pro-tier Gemini models
+    // stay locked across every agent until the user adds their own key.
+    if (flags?.GEMINI_API_KEY_SHARED && !flags?.GEMINI_API_KEY_USER) {
+      return !SHARED_GEMINI_POOL_PRO_MODELS.has(model.value)
+    }
+    // Otherwise the user's own Gemini key unlocks every Gemini model.
+    return !!flags?.GEMINI_API_KEY
   }
 
   return PROVIDER_ENV[model.requiresKey].some((id) => flags?.[id])

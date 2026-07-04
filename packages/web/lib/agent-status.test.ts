@@ -81,3 +81,35 @@ describe("shared Claude pool does not leak to non-claude-code agents", () => {
     expect(hasCredentialsForModel(anthropicModel, sharedPoolFresh, "claude-code")).toBe(true)
   })
 })
+
+describe("shared Gemini pool unlocks Flash but not Pro", () => {
+  // The server-shared Gemini key backs only the cheaper Flash tier for free
+  // usage; Pro-tier Gemini models must stay locked until the user adds their
+  // own key. This holds across every agent that exposes a Gemini model.
+  const geminiShared: CredentialFlags = { GEMINI_API_KEY: true, GEMINI_API_KEY_SHARED: true }
+  const geminiOwnKey: CredentialFlags = {
+    GEMINI_API_KEY: true,
+    GEMINI_API_KEY_USER: true,
+  }
+  const flash = { value: "gemini-2.5-flash", label: "Flash", requiresKey: "gemini" as const }
+  const pro = { value: "gemini-2.5-pro", label: "Pro", requiresKey: "gemini" as const }
+  const pro3 = { value: "gemini-3-pro-preview", label: "Pro 3", requiresKey: "gemini" as const }
+  const piPro = { value: "google/gemini-2.5-pro", label: "Pro", requiresKey: "gemini" as const }
+
+  it("allows Flash models on the shared pool", () => {
+    expect(hasCredentialsForModel(flash, geminiShared, "gemini")).toBe(true)
+  })
+
+  it("blocks Pro models on the shared pool across agents", () => {
+    expect(hasCredentialsForModel(pro, geminiShared, "gemini")).toBe(false)
+    expect(hasCredentialsForModel(pro3, geminiShared, "gemini")).toBe(false)
+    expect(hasCredentialsForModel(pro, geminiShared, "droid")).toBe(false)
+    expect(hasCredentialsForModel(piPro, geminiShared, "pi")).toBe(false)
+  })
+
+  it("unlocks Pro once the user brings their own Gemini key", () => {
+    expect(hasCredentialsForModel(pro, geminiOwnKey, "gemini")).toBe(true)
+    expect(hasCredentialsForModel(pro3, geminiOwnKey, "gemini")).toBe(true)
+    expect(hasCredentialsForModel(piPro, geminiOwnKey, "pi")).toBe(true)
+  })
+})
