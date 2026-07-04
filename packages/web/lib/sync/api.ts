@@ -210,6 +210,14 @@ export async function fetchSettings(): Promise<SettingsResponse> {
 }
 
 /**
+ * Fetch the public shared-pool flags (no auth). Used for logged-out visitors so
+ * the agent picker can show shared-pool "ready" dots before sign-in.
+ */
+export async function fetchSharedPoolFlags(): Promise<{ credentialFlags: CredentialFlags }> {
+  return fetchApi<{ credentialFlags: CredentialFlags }>("/api/shared-pool")
+}
+
+/**
  * Update user settings
  */
 export async function updateSettings(data: {
