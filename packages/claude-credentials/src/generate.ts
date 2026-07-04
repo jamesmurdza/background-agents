@@ -251,6 +251,13 @@ export async function generateClaudeCredentials(
           volumes: [{ volumeId: volume.id, mountPath: PATCHRIGHT_PROFILE_PATH }],
           autoStopInterval: 5,
         },
+        // Note: the SDK's snapshot-based create() overload only accepts
+        // `{ timeout }` — `onSnapshotCreateLogs` exists solely on the
+        // image-based overload and is rejected here by the type system. No build
+        // happens on this path anyway; the image build logs (same `[ccauth-image]`
+        // prefix) are streamed via snapshot.create's `onLogs` in
+        // ensureCCAuthSnapshot, so no log output is lost.
+        //
         // No client-side timeout: starting from a cold snapshot can occasionally
         // exceed the SDK's 60s default; the cron route's maxDuration is the real
         // ceiling. A genuine start failure still surfaces via the `error` state.
