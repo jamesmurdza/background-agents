@@ -20,6 +20,7 @@ import {
   readCredentials,
   writeCredentials,
   getCookies,
+  recordCcAuthRun,
 } from "@/lib/claude-credentials"
 
 // Skip refresh while the live credential still has at least this much life.
@@ -50,9 +51,40 @@ export type RefreshResult =
  *   - CCAUTH_FAILED       — ccauth couldn't mint a token (often expired cookies).
  */
 export async function refreshCredentials(
-  opts: { force?: boolean } = {},
+  opts: {
+    force?: boolean
+    /** Who triggered this run, recorded in the audit log. Defaults to "cron". */
+    trigger?: "cron" | "admin"
+    /** Whether the caller rotated the stored cookies just before this run. */
+    cookiesUpdated?: boolean
+  } = {},
 ): Promise<RefreshResult> {
-  if (!opts.force) {
+  const startedAt = Date.now()
+  const result = await runRefresh(opts.force ?? false)
+  const durationMs = Date.now() - startedAt
+
+  // Append to the audit log powering the admin "Credentials" tab. Never let a
+  // logging failure mask the actual refresh outcome.
+  try {
+    await recordCcAuthRun({
+      status: result.status,
+      code: result.status === "error" ? result.code : null,
+      message: result.status === "error" ? result.message : null,
+      trigger: opts.trigger ?? "cron",
+      forced: opts.force ?? false,
+      cookiesUpdated: opts.cookiesUpdated ?? false,
+      durationMs,
+      expiresAt: result.status === "error" ? null : result.expiresAt,
+    })
+  } catch (err) {
+    console.error("[refresh-claude-credentials] Failed to record run:", err)
+  }
+
+  return result
+}
+
+async function runRefresh(force: boolean): Promise<RefreshResult> {
+  if (!force) {
     const existing = await readCredentials()
     if (existing) {
       try {

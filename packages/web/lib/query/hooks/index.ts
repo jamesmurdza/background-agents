@@ -28,3 +28,5 @@ export type {
   RefreshClaudeCredsParams,
   RefreshClaudeCredsResult,
 } from "./useRefreshClaudeCredsMutation"
+export { useCcAuthRunsQuery } from "./useCcAuthRunsQuery"
+export type { CcAuthRun } from "./useCcAuthRunsQuery"

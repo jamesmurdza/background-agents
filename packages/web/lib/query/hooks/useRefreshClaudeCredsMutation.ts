@@ -1,6 +1,7 @@
 "use client"
 
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { queryKeys } from "../keys"
 
 export interface RefreshClaudeCredsParams {
   /** Bypass the skip-while-fresh threshold and regenerate the token now. */
@@ -37,5 +38,16 @@ async function refreshClaudeCreds(
 }
 
 export function useRefreshClaudeCredsMutation() {
-  return useMutation({ mutationFn: refreshClaudeCreds })
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: refreshClaudeCreds,
+    // Every refresh appends an audit-log row — refresh the log view regardless
+    // of success/failure (failed runs are logged too).
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.ccAuthRuns(),
+      })
+    },
+  })
 }

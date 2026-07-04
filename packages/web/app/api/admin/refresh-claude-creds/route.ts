@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
-import { setCookies } from "@/lib/claude-credentials"
+import { setCookies, listCcAuthRuns } from "@/lib/claude-credentials"
 import {
   refreshCredentials,
   refreshResultToResponse,
@@ -9,6 +9,20 @@ import {
 // Mirrors the cron route's budget — the first ccauth run in Daytona can take a
 // few minutes before the snapshot is cached.
 export const maxDuration = 300
+
+/**
+ * GET /api/admin/refresh-claude-creds
+ *
+ * Returns the recent credential-refresh audit log (cron + admin runs) for the
+ * admin "Credentials" tab, newest first.
+ */
+export async function GET() {
+  const auth = await requireAdmin()
+  if (isAuthError(auth)) return auth
+
+  const runs = await listCcAuthRuns(50)
+  return NextResponse.json({ runs })
+}
 
 /**
  * POST /api/admin/refresh-claude-creds
@@ -30,6 +44,7 @@ export async function POST(request: NextRequest) {
   }
   const force = body.force === true
   const cookies = typeof body.cookies === "string" ? body.cookies.trim() : ""
+  let cookiesUpdated = false
 
   if (cookies) {
     try {
@@ -41,8 +56,13 @@ export async function POST(request: NextRequest) {
       )
     }
     await setCookies(cookies)
+    cookiesUpdated = true
   }
 
-  const result = await refreshCredentials({ force })
+  const result = await refreshCredentials({
+    force,
+    trigger: "admin",
+    cookiesUpdated,
+  })
   return refreshResultToResponse(result)
 }

@@ -279,6 +279,30 @@ model CcAuthInfo {
 }
 
 // =============================================================================
+// CcAuthRun - audit log of every Claude credential refresh attempt
+// =============================================================================
+// One row per call to refreshCredentials() (hourly cron or admin panel action).
+// Powers the "Credentials" admin tab so operators can see refresh history,
+// durations, and failures at a glance. `durationMs` is the wall-clock time of
+// the whole attempt (the ccauth run in Daytona dominates real refreshes; skips
+// are near-instant).
+
+model CcAuthRun {
+  id             String    @id @default(cuid())
+  status         String // "skipped" | "refreshed" | "error"
+  code           String? // error code when status = "error": "COOKIES_UNAVAILABLE" | "CCAUTH_FAILED"
+  message        String?   @db.Text // error message when status = "error"
+  trigger        String // "cron" | "admin"
+  forced         Boolean   @default(false) // whether the skip-while-fresh threshold was bypassed
+  cookiesUpdated Boolean   @default(false) // whether this run also rotated the stored cookies
+  durationMs     Int // wall-clock duration of the attempt
+  expiresAt      DateTime? // resulting token expiry, when known (skipped/refreshed)
+  createdAt      DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+// =============================================================================
 // ActivityLog - tracks user actions for admin analytics
 // =============================================================================
 
