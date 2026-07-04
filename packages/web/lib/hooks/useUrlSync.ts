@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
+import { type Agent, resolveAgentSlug } from "@background-agents/common"
 import { ROUTES, matchRoute } from "@/lib/hooks/useUrlNavigation"
 
 // =============================================================================
@@ -21,6 +22,9 @@ interface UseUrlSyncOptions {
   isDraftChatId: (chatId: string | null) => boolean
   selectChat: (chatId: string | null) => void
   startNewChat: () => Promise<string | null> | void
+  // Enter a fresh draft chat with the given agent preselected. Used by the
+  // /agent/:slug deep link so the agent is baked into the draft at creation.
+  startAgentDraft: (agent: Agent) => void
   setViewMode: (mode: "chat" | "scheduled-jobs") => void
   setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
 }
@@ -31,6 +35,7 @@ export function useUrlSync({
   isDraftChatId,
   selectChat,
   startNewChat,
+  startAgentDraft,
   setViewMode,
   setSelectedScheduledJob,
 }: UseUrlSyncOptions) {
@@ -75,6 +80,23 @@ export function useUrlSync({
           window.history.replaceState(null, "", ROUTES.home.build())
           break
 
+        case "agent": {
+          // Deep link like /agent/factory or /agent/kimi: preselect the agent on
+          // a fresh draft chat, then normalize the URL to "/" like newChat does.
+          setViewMode("chat")
+          const agent = resolveAgentSlug(matched.slug)
+          if (agent) {
+            // Bake the agent into a new draft so it applies for both
+            // authenticated (draft config) and unauthenticated (local) drafts.
+            startAgentDraft(agent)
+          } else if (!currentChatId || !isDraftChatId(currentChatId)) {
+            // Unknown slug — fall back to a normal draft with the default agent.
+            startNewChat()
+          }
+          window.history.replaceState(null, "", ROUTES.home.build())
+          break
+        }
+
         case "chat": {
           const urlChatId = matched.chatId
           setViewMode("chat")
@@ -112,7 +134,7 @@ export function useUrlSync({
           break
       }
     },
-    [currentChatId, isDraftChatId, selectChat, startNewChat, setViewMode, setSelectedScheduledJob]
+    [currentChatId, isDraftChatId, selectChat, startNewChat, startAgentDraft, setViewMode, setSelectedScheduledJob]
   )
 
   // Track if we've done initial sync
