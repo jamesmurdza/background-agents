@@ -15,11 +15,10 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { requireAuth, isAuthError } from "@/lib/db/api-helpers"
+import { escapeHtml } from "@/lib/html"
 
 function closingPage(opts: { ok: boolean; message: string }): Response {
-  const safe = opts.message.replace(/[<>&]/g, (c) =>
-    c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;"
-  )
+  const safe = escapeHtml(opts.message)
   const body = `<!doctype html>
 <html><head><meta charset="utf-8"><title>GitHub setup ${opts.ok ? "complete" : "failed"}</title>
 <style>

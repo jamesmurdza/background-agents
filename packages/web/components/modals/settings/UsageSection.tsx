@@ -5,13 +5,7 @@ import { Gauge } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MobileSectionHeader } from "./shared"
 import type { UsageResponse, PoolUsage } from "@/app/api/user/usage/route"
-
-/** Compact token count: 950 → "950", 12_345 → "12.3K", 1_200_000 → "1.2M". */
-function fmtTokens(n: number): string {
-  if (n < 1000) return String(n)
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
-  return `${(n / 1_000_000).toFixed(1)}M`
-}
+import { fmtTokens } from "@/lib/format"
 
 /** Format an amount in a pool's budget unit (tokens / USD cost / messages). */
 function fmtUsage(n: number, unit: PoolUsage["unit"]): string {

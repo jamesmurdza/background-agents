@@ -8,18 +8,12 @@ import { useModals } from "@/lib/contexts"
 import { AgentIcon } from "@/components/icons/agent-icons"
 import { ALL_AGENTS, agentToProvider, type Agent } from "@background-agents/common"
 import type { ChatUsageResponse } from "@/app/api/chats/[chatId]/usage/route"
+import { fmtTokens } from "@/lib/format"
 
 /** Reverse map: SDK provider id → agent (for the provider's icon). */
 const PROVIDER_TO_AGENT: Record<string, Agent> = Object.fromEntries(
   ALL_AGENTS.map((agent) => [agentToProvider[agent], agent])
 )
-
-/** Compact token count: 12_345 → "12.3K", 1_200_000 → "1.2M". */
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
-  return String(n)
-}
 
 /** Render a usage amount in its budget unit (tokens / USD cost / messages). */
 function fmtUsage(value: number, unit: ChatUsageResponse["providers"][number]["unit"]) {

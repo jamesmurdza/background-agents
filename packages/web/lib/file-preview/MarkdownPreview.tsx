@@ -6,7 +6,7 @@ import hljs from "highlight.js/lib/common"
 import { Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCopyToClipboard, extractCodeText } from "@/lib/hooks/useCopyToClipboard"
-import { escapeHtml } from "./escape-html"
+import { escapeHtml } from "@/lib/html"
 
 interface MarkdownPreviewProps {
   /** The markdown content to render */

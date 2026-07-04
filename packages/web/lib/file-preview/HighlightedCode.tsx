@@ -2,7 +2,7 @@
 
 import hljs from "highlight.js/lib/common"
 import { detectLang } from "./detect"
-import { escapeHtml } from "./escape-html"
+import { escapeHtml } from "@/lib/html"
 
 interface HighlightedCodeProps {
   /** The code content to highlight */
