@@ -23,6 +23,10 @@ const SNAPSHOT_NAME_PREFIX = "ccauth"
 // and rebuilding it ourselves.
 const SNAPSHOT_BUILD_TIMEOUT_MS = 10 * 60 * 1000
 const SNAPSHOT_POLL_INTERVAL_MS = 2000
+// Deletion is asynchronous: a deleted snapshot sits in `removing` for a bit
+// before its name is free again. Recreating with the same name before then 409s,
+// so we wait this long for the record to disappear.
+const SNAPSHOT_DELETE_TIMEOUT_MS = 60 * 1000
 
 // Substrings Daytona surfaces when a sandbox references a snapshot whose backing
 // registry image has been garbage-collected. The control plane still has the
@@ -152,29 +156,72 @@ export async function ensureCCAuthSnapshot(
     console.error(
       `[claude-credentials] rebuilding snapshot ${name} (was '${existing.state}')`,
     )
-    try {
-      await daytona.snapshot.delete(existing)
-    } catch (err) {
-      console.error("[claude-credentials] snapshot.delete failed:", err)
+    // `removing` means a delete is already in flight — don't re-issue it.
+    if (existing.state !== "removing") {
+      try {
+        await daytona.snapshot.delete(existing)
+      } catch (err) {
+        console.error("[claude-credentials] snapshot.delete failed:", err)
+      }
+    }
+    // Deletion is async: wait for the name to free up before recreating, or
+    // create() 409s with "already exists".
+    if (!(await waitForSnapshotGone(daytona, name))) {
+      console.error(
+        `[claude-credentials] snapshot ${name} still not gone after ${SNAPSHOT_DELETE_TIMEOUT_MS}ms; attempting build anyway`,
+      )
     }
   } else {
     console.error(`[claude-credentials] building snapshot ${name}`)
   }
 
-  try {
-    await daytona.snapshot.create(
-      { name, image },
-      {
-        timeout: 0,
-        onLogs: (chunk) => console.error(`[ccauth-image] ${chunk}`),
-      },
-    )
-  } catch (err) {
-    // Lost a create race with a concurrent builder: if the winner produced an
-    // active snapshot, we're done; otherwise surface the failure.
+  // Build. Retry once on a name conflict: that means an old record was still
+  // being deleted (or a concurrent run is mid-build) — wait for it to settle and
+  // try again, accepting an active snapshot a concurrent builder may have won.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await daytona.snapshot.create(
+        { name, image },
+        {
+          timeout: 0,
+          onLogs: (chunk) => console.error(`[ccauth-image] ${chunk}`),
+        },
+      )
+      return
+    } catch (err) {
+      const snap = await daytona.snapshot.get(name).catch(() => undefined)
+      if (snap?.state === "active") return // Concurrent builder produced it.
+
+      const msg = err instanceof Error ? err.message : String(err)
+      const isConflict =
+        msg.includes("already exists") ||
+        (err as { statusCode?: number })?.statusCode === 409
+      if (isConflict && attempt < 2) {
+        console.error(
+          `[claude-credentials] snapshot ${name} create conflicted (record still clearing); waiting and retrying`,
+        )
+        await waitForSnapshotGone(daytona, name)
+        continue
+      }
+      throw err
+    }
+  }
+}
+
+/**
+ * Polls until the named snapshot no longer exists (get 404s). Returns true when
+ * it's gone, false if the deadline passes first (still `removing`).
+ */
+async function waitForSnapshotGone(
+  daytona: Daytona,
+  name: string,
+): Promise<boolean> {
+  const deadline = Date.now() + SNAPSHOT_DELETE_TIMEOUT_MS
+  for (;;) {
     const snap = await daytona.snapshot.get(name).catch(() => undefined)
-    if (snap?.state === "active") return
-    throw err
+    if (!snap) return true
+    if (Date.now() >= deadline) return false
+    await new Promise((r) => setTimeout(r, SNAPSHOT_POLL_INTERVAL_MS))
   }
 }
 

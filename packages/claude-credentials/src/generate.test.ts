@@ -32,12 +32,27 @@ function makeFakeDaytona(opts: {
   initial?: FakeState
   /** State to report after a (re)build completes. Defaults to "active". */
   afterCreate?: FakeState
+  /**
+   * Model Daytona's asynchronous deletion: delete() moves the snapshot to
+   * `removing` and it lingers there for this many get() reads before the name
+   * frees up. 0 (default) = synchronous delete.
+   */
+  removingReads?: number
+  /** Number of initial create() calls that throw a 409 "already exists". */
+  conflictOnCreate?: number
 }) {
   const calls: string[] = []
   let state: FakeState | undefined = opts.initial
+  let removingLeft = 0
+  let conflictsLeft = opts.conflictOnCreate ?? 0
 
   const snapshot = {
     async get(name: string) {
+      // Consume the `removing` lifetime, then the name frees up.
+      if (state === "removing") {
+        if (removingLeft > 0) removingLeft--
+        if (removingLeft === 0) state = undefined
+      }
       calls.push(`get:${state ?? "missing"}`)
       if (state === undefined) {
         throw new Error(`Snapshot ${name} not found (404)`)
@@ -46,10 +61,23 @@ function makeFakeDaytona(opts: {
     },
     async delete(_snap: { id: string }) {
       calls.push(`delete`)
-      state = undefined
+      if (opts.removingReads && opts.removingReads > 0) {
+        state = "removing"
+        removingLeft = opts.removingReads
+      } else {
+        state = undefined
+      }
     },
     async create({ name }: { name: string }) {
       calls.push(`create`)
+      if (conflictsLeft > 0) {
+        conflictsLeft--
+        const err = new Error(
+          `Snapshot with name "${name}" already exists for this organization`,
+        ) as Error & { statusCode?: number }
+        err.statusCode = 409
+        throw err
+      }
       state = opts.afterCreate ?? "active"
       return { id: `id-${name}`, name, state }
     },
@@ -89,7 +117,8 @@ describe("ensureCCAuthSnapshot", () => {
     const { daytona, calls, getState } = makeFakeDaytona({ initial: "error" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await ensureCCAuthSnapshot(daytona as any, "ccauth-x", fakeImage)
-    expect(calls).toEqual(["get:error", "delete", "create"])
+    // delete → wait-for-gone (get:missing) → create
+    expect(calls).toEqual(["get:error", "delete", "get:missing", "create"])
     expect(getState()).toBe("active")
   })
 
@@ -104,6 +133,35 @@ describe("ensureCCAuthSnapshot", () => {
       fakeImage,
       { rebuild: true },
     )
-    expect(calls).toEqual(["get:active", "delete", "create"])
+    expect(calls).toEqual(["get:active", "delete", "get:missing", "create"])
+  })
+
+  it("waits out asynchronous deletion (removing) before recreating", async () => {
+    // Regression: Daytona deletion is async — the snapshot sits in `removing`
+    // before the name frees up. Recreating too early 409s. Verified end-to-end
+    // against real Daytona, where delete() returned `removing`.
+    const { daytona, calls, getState } = makeFakeDaytona({
+      initial: "error",
+      removingReads: 2, // report `removing` once, then the name frees up
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await ensureCCAuthSnapshot(daytona as any, "ccauth-x", fakeImage)
+    // It must observe `removing` and wait for `missing` before creating.
+    expect(calls).toContain("get:removing")
+    expect(calls.indexOf("get:removing")).toBeLessThan(calls.lastIndexOf("create"))
+    expect(getState()).toBe("active")
+  })
+
+  it("retries the build once when create() 409s on a still-clearing name", async () => {
+    // Regression: even after we wait, a race can make the first create() conflict.
+    // We should wait and retry rather than surface a hard failure.
+    const { daytona, calls, getState } = makeFakeDaytona({
+      initial: "error",
+      conflictOnCreate: 1, // first create() throws 409, second succeeds
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await ensureCCAuthSnapshot(daytona as any, "ccauth-x", fakeImage)
+    expect(calls.filter((c) => c === "create")).toHaveLength(2)
+    expect(getState()).toBe("active")
   })
 })
