@@ -15,7 +15,11 @@
  * `app/api/agent/stream/route.ts`.
  */
 
-import { createSandboxGit, type SandboxLike } from "@background-agents/daytona-git"
+import {
+  createSandboxGit,
+  shellEscape as esc,
+  type SandboxLike,
+} from "@background-agents/daytona-git"
 
 export type AutoPullResult =
   /** Nothing to do — branch already matches origin. */
@@ -41,11 +45,6 @@ export type AutoPullResult =
    * push then surfaces the divergence. `message` is the raw git output.
    */
   | { status: "error"; message: string }
-
-/** Quote a shell argument to prevent injection (matches commands.ts `esc`). */
-function esc(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`
-}
 
 /**
  * Install a `pre-commit` hook that blocks commits containing unresolved conflict

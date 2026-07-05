@@ -46,6 +46,9 @@ export {
 // Auth
 export { withAuth } from "./auth"
 
+// Shell
+export { shellEscape } from "./shell"
+
 // Parsers
 export {
   parseGitStatus,
