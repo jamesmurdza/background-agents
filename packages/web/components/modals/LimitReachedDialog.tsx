@@ -3,6 +3,7 @@
 import { useCallback, useRef, useEffect } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { cn } from "@/lib/utils"
+import { fmtTokens } from "@/lib/format"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { Crown, Key, Zap } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
@@ -26,13 +27,6 @@ const PROVIDER_LABEL: Record<string, string> = {
   claude: "Claude",
   gemini: "Gemini",
   opencode: "OpenCode",
-}
-
-/** Compact token count: 12_345 → "12K", 1_200_000 → "1.2M". */
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1000) return `${Math.round(n / 1000)}K`
-  return String(n)
 }
 
 export function LimitReachedDialog({
