@@ -11,6 +11,7 @@ import { randomUUID } from "crypto"
 import { createSandboxGit } from "@background-agents/daytona-git"
 import { installSkills, discoverInstalledSkills } from "@background-agents/skills/sandbox"
 import { TOKSCALE_VERSION, getActiveSnapshotName } from "@background-agents/sandbox-image"
+import { getUser } from "@background-agents/common"
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
@@ -226,17 +227,9 @@ export async function createSandboxForChat(
     let gitName = "Simple Chat Agent"
     let gitEmail = "noreply@example.com"
     try {
-      const ghRes = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-      })
-      if (ghRes.ok) {
-        const ghUser = await ghRes.json()
-        gitName = ghUser.name || ghUser.login
-        gitEmail = `${ghUser.login}@users.noreply.github.com`
-      }
+      const ghUser = await getUser(githubToken!)
+      gitName = ghUser.name || ghUser.login
+      gitEmail = `${ghUser.login}@users.noreply.github.com`
     } catch {
       /* use defaults */
     }
