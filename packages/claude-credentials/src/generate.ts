@@ -337,8 +337,20 @@ export async function generateClaudeCredentials(
     // ccauth always emits JSON on stdout: {"claudeAiOauth": {...}} on success
     // (exit 0) or {"error": ..., extra} on failure (exit 1). Verbose logs go
     // to stderr.
+    //
+    // IMPORTANT: clear the persistent profile's cookie database before running
+    // ccauth. The patchright profile at ~/.ccauth/patchright-profile accumulates
+    // cookies across runs — after the first successful OAuth flow, patchright
+    // saves cookies Claude set during authorization into the profile. On the
+    // next run, those stale cookies load into the browser context BEFORE our
+    // fresh cookies are injected, causing conflicts that make the OAuth flow
+    // fail (Timed out waiting for OAuth callback). Deleting just the cookie
+    // database preserves the Turnstile trust signals (localStorage, fingerprint,
+    // browser cache) while ensuring a clean cookie injection every time.
+    const COOKIES_DB_PATH = `${PATCHRIGHT_PROFILE_PATH}/Default/Cookies`
+    const COOKIES_JOURNAL_PATH = `${PATCHRIGHT_PROFILE_PATH}/Default/Cookies-journal`
     const res = await sandbox.process.executeCommand(
-      `xvfb-run -a ccauth --cookies ${COOKIES_REMOTE_PATH}`,
+      `rm -f ${COOKIES_DB_PATH} ${COOKIES_JOURNAL_PATH} && xvfb-run -a ccauth --cookies ${COOKIES_REMOTE_PATH}`,
       undefined,
       undefined,
       300,
