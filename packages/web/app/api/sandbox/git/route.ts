@@ -1,5 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/daytona-git"
+import { deleteBranchRef } from "@background-agents/common"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
@@ -438,19 +439,9 @@ export async function POST(req: Request) {
           return Response.json({ error: "Missing required fields for delete-remote-branch" }, { status: 400 })
         }
         // Delete remote branch via GitHub API
-        const deleteRes = await fetch(
-          `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${currentBranch}`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${githubToken}`,
-              Accept: "application/vnd.github.v3+json",
-            },
-          }
-        )
-        if (!deleteRes.ok && deleteRes.status !== 404) {
-          const deleteData = await deleteRes.json().catch(() => ({}))
-          return Response.json({ error: "Delete failed: " + ((deleteData as { message?: string }).message || deleteRes.status) }, { status: 500 })
+        const del = await deleteBranchRef(githubToken, repoOwner, repoApiName, currentBranch)
+        if (!del.ok) {
+          return Response.json({ error: "Delete failed: " + (del.message || del.status) }, { status: 500 })
         }
         return Response.json({ success: true })
       }

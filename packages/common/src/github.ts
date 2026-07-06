@@ -252,6 +252,36 @@ export async function createFileCommit(
 }
 
 /**
+ * Delete a branch ref via the Git refs API.
+ * Treats a 404 (ref already gone) as success, matching the "make sure this
+ * branch no longer exists" intent of every caller.
+ * @returns `{ ok }` plus the raw `status` and any API error `message` so
+ *   callers can surface a failure without re-parsing the response.
+ */
+export async function deleteBranchRef(
+  token: string,
+  owner: string,
+  repo: string,
+  branch: string
+): Promise<{ ok: boolean; status: number; message?: string }> {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    }
+  )
+  if (response.ok || response.status === 404) {
+    return { ok: true, status: response.status }
+  }
+  const data = await response.json().catch(() => ({}))
+  return { ok: false, status: response.status, message: (data as { message?: string }).message }
+}
+
+/**
  * Fork a repository to the authenticated user's account.
  * Returns the forked repository info. Note: forking is async on GitHub's side,
  * so the returned repo may not be immediately ready for cloning.

@@ -1,4 +1,5 @@
 import { createSandboxGit, type SandboxLike } from "@background-agents/daytona-git"
+import { deleteBranchRef } from "@background-agents/common"
 import { getUserPushOptions } from "@/lib/git/push-options"
 
 /**
@@ -102,17 +103,8 @@ export async function pushViaTemporaryBranch(params: {
   )
 
   for (let i = 0; i < 3; i++) {
-    const deleteRes = await fetch(
-      `https://api.github.com/repos/${repoOwner}/${repoApiName}/git/refs/heads/${tempBranch}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-      }
-    )
-    if (deleteRes.ok || deleteRes.status === 404) break
+    const del = await deleteBranchRef(githubToken, repoOwner, repoApiName, tempBranch)
+    if (del.ok) break
     if (i < 2) await new Promise((r) => setTimeout(r, 500 * (i + 1)))
   }
 

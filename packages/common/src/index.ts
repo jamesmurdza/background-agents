@@ -68,6 +68,7 @@ export {
   createPullRequest,
   createFileCommit,
   forkRepo,
+  deleteBranchRef,
 } from "./github"
 
 // Branch utilities
