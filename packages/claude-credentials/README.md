@@ -4,7 +4,7 @@ Claude Code OAuth credential generation via [ccauth](https://github.com/synacktr
 
 ## Overview
 
-This package provides automated generation of Claude Code OAuth credentials from claude.ai session cookies. It runs the ccauth tool inside an ephemeral Daytona sandbox with a persistent volume for Cloudflare Turnstile trust accumulation.
+This package provides automated generation of Claude Code OAuth credentials — either from claude.ai session cookies (a full browser OAuth flow) or from an existing refresh token (a plain HTTP renewal). Both run the ccauth tool inside an ephemeral Daytona sandbox.
 
 ## Installation
 
@@ -17,24 +17,35 @@ npm install @background-agents/claude-credentials
 ```typescript
 import { generateClaudeCredentials } from "@background-agents/claude-credentials"
 
-// Generate credentials from claude.ai cookies
-const cookies = '...' // Your claude.ai session cookies JSON
-const credentials = await generateClaudeCredentials(cookies, {
-  apiKey: process.env.DAYTONA_API_KEY,
-})
+// From claude.ai cookies — full browser OAuth flow (heavy image + Turnstile).
+const cookies = "..." // claude.ai session cookies JSON (Cookie-Editor export)
+const credentials = await generateClaudeCredentials(
+  { cookies },
+  { apiKey: process.env.DAYTONA_API_KEY },
+)
 
-// Use credentials with Claude Code
+// From an existing refresh token — no browser, lightweight image.
+const renewed = await generateClaudeCredentials(
+  { refreshToken: "sk-ant-ort01-..." },
+  { apiKey: process.env.DAYTONA_API_KEY },
+)
+
 // credentials.claudeAiOauth contains accessToken, refreshToken, expiresAt, etc.
 ```
 
 ## How It Works
 
 1. Resolves the latest ccauth commit SHA from GitHub
-2. Creates a Daytona sandbox with the ccauth image (Debian + Chrome + patchright)
-3. Mounts a persistent volume for Turnstile trust signal accumulation
-4. Uploads cookies and runs `ccauth --cookies <path>` with xvfb
-5. Parses and returns the OAuth credentials JSON
-6. Cleans up the ephemeral sandbox
+2. Creates an ephemeral Daytona sandbox with the image for the chosen mode:
+   - `{ cookies }` → heavy image (Debian + Chrome + patchright) with a persistent
+     volume for Cloudflare Turnstile trust, running `ccauth --cookies` under xvfb
+   - `{ refreshToken }` → lightweight image (no browser, no volume), running
+     `ccauth --refresh` (a plain `grant_type=refresh_token` HTTP call)
+3. Parses and returns the OAuth credentials JSON (same shape for both modes)
+4. Cleans up the ephemeral sandbox
+
+The `{ refreshToken }` form throws `RefreshTokenExpiredError` when the refresh
+token is rejected, so callers can fall back to the `{ cookies }` form.
 
 ## Exports
 
@@ -69,10 +80,11 @@ import {
 
 ```typescript
 import {
-  generateClaudeCredentials,        // Main entry point
+  generateClaudeCredentials,        // Main entry point ({ cookies } | { refreshToken })
   resolveLatestCCAuthSha,           // Get latest ccauth commit SHA
-  getCCAuthImage,                   // Build Daytona Image spec
+  getCCAuthImage,                   // Build Daytona Image spec (sha, refreshMode?)
   isClaudeOAuthCredentials,         // Type guard
+  RefreshTokenExpiredError,         // Thrown when the refresh token is expired/revoked
   type GenerateCredentialsOptions,  // Options for generateClaudeCredentials
 } from "@background-agents/claude-credentials"
 ```

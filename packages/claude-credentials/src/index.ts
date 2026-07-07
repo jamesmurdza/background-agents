@@ -18,5 +18,6 @@ export {
   getCCAuthImage,
   isClaudeOAuthCredentials,
   generateClaudeCredentials,
+  RefreshTokenExpiredError,
   type GenerateCredentialsOptions,
 } from "./generate"

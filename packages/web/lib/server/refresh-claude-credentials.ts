@@ -14,7 +14,10 @@
 import "server-only"
 import {
   generateClaudeCredentials,
+  RefreshTokenExpiredError,
+  isClaudeOAuthCredentials,
   CLAUDE_COOKIES_KEY,
+  type ClaudeOAuthCredentials,
 } from "@background-agents/claude-credentials"
 import {
   readCredentials,
@@ -33,7 +36,7 @@ export type RefreshResult =
   | { status: "refreshed"; expiresAt: number }
   | {
       status: "error"
-      code: "COOKIES_UNAVAILABLE" | "CCAUTH_FAILED"
+      code: "COOKIES_UNAVAILABLE" | "CCAUTH_FAILED" | "REFRESH_FAILED"
       message: string
     }
 
@@ -84,30 +87,57 @@ export async function refreshCredentials(
 }
 
 async function runRefresh(force: boolean): Promise<RefreshResult> {
-  if (!force) {
-    const existing = await readCredentials()
-    if (existing) {
-      try {
-        const parsed = JSON.parse(existing) as {
-          claudeAiOauth?: { expiresAt?: number }
+  const existing = await readCredentials()
+
+  let current: ClaudeOAuthCredentials | null = null
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing)
+      if (isClaudeOAuthCredentials(parsed)) {
+        current = parsed
+        if (!force && current.claudeAiOauth.expiresAt - Date.now() > SKIP_THRESHOLD_MS) {
+          return { status: "skipped", expiresAt: current.claudeAiOauth.expiresAt }
         }
-        const expiresAt = parsed.claudeAiOauth?.expiresAt
-        if (
-          typeof expiresAt === "number" &&
-          expiresAt - Date.now() > SKIP_THRESHOLD_MS
-        ) {
-          return { status: "skipped", expiresAt }
-        }
-      } catch (err) {
-        // Malformed row — fall through and overwrite.
+      }
+    } catch (err) {
+      // Malformed row — fall through and overwrite.
+      console.warn(
+        "[refresh-claude-credentials] Existing creds row unparseable:",
+        err,
+      )
+    }
+  }
+
+  // Preferred path: renew from the refresh token — a plain grant_type=refresh_token
+  // call in a lightweight sandbox, no browser/Cloudflare. Only when the refresh
+  // token itself is expired do we fall through to the full cookie-based flow.
+  const refreshToken = current?.claudeAiOauth.refreshToken
+  if (refreshToken) {
+    try {
+      const creds = await generateClaudeCredentials({ refreshToken })
+      await writeCredentials(JSON.stringify(creds))
+      return { status: "refreshed", expiresAt: creds.claudeAiOauth.expiresAt }
+    } catch (err) {
+      if (err instanceof RefreshTokenExpiredError) {
         console.warn(
-          "[refresh-claude-credentials] Existing creds row unparseable:",
-          err,
+          "[refresh-claude-credentials] refresh token expired; falling back to ccauth:",
+          err.message,
         )
+        // fall through to the cookie flow below
+      } else {
+        // Transient refresh failure — don't spin up the heavy ccauth browser
+        // flow; let the next run retry the cheap refresh.
+        console.error("[refresh-claude-credentials] token refresh failed:", err)
+        return {
+          status: "error",
+          code: "REFRESH_FAILED",
+          message: err instanceof Error ? err.message : String(err),
+        }
       }
     }
   }
 
+  // Fallback: full cookie-based OAuth flow (first run, or refresh token expired).
   const cookies = await getCookies()
   if (!cookies) {
     return {
@@ -119,7 +149,7 @@ async function runRefresh(force: boolean): Promise<RefreshResult> {
 
   let creds
   try {
-    creds = await generateClaudeCredentials(cookies)
+    creds = await generateClaudeCredentials({ cookies })
   } catch (err) {
     console.error("[refresh-claude-credentials] ccauth failed:", err)
     return {

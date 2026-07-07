@@ -1,13 +1,19 @@
 /**
- * Run ccauth in a Daytona sandbox against a local cookies file.
+ * Run ccauth in a Daytona sandbox to mint Claude credentials.
+ *
+ * Exactly one input is required:
+ *   --cookies-path <path>    claude.ai cookies JSON → cookie-based (browser) flow
+ *   --refresh-token <token>  existing refresh token → refresh flow (no browser)
  *
  * Modes:
- *   default       generate creds, print JSON to stdout (no DB)
- *   --seed        also upsert cookies + creds rows into the CcAuthInfo table
+ *   default   generate creds, print JSON to stdout (no DB)
+ *   --seed    also upsert the resulting creds row (and, in cookie mode, the
+ *             cookies row) into the CcAuthInfo table
  *
  * Usage:
- *   npm run test:ccauth -- ./cookies.json
- *   npm run seed:ccauth -- ./cookies.json
+ *   npm run test:ccauth -- --cookies-path ./cookies.json
+ *   npm run test:ccauth -- --refresh-token sk-ant-ort01-...
+ *   npm run seed:ccauth -- --cookies-path ./cookies.json
  *
  * Required env (loaded via tsx --env-file=.env.local):
  *   DAYTONA_API_KEY
@@ -16,17 +22,38 @@
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { generateClaudeCredentials, CLAUDE_CREDS_KEY, CLAUDE_COOKIES_KEY } from "@background-agents/claude-credentials"
+import {
+  generateClaudeCredentials,
+  CLAUDE_CREDS_KEY,
+  CLAUDE_COOKIES_KEY,
+} from "@background-agents/claude-credentials"
+
+const USAGE =
+  "usage: tsx scripts/run-ccauth.ts (--cookies-path <path> | --refresh-token <token>) [--seed]"
+
+/** Reads `--flag value` or `--flag=value`; ignores a following token that is itself a flag. */
+function getFlag(args: string[], name: string): string | undefined {
+  const eq = args.find((a) => a.startsWith(`${name}=`))
+  if (eq) return eq.slice(name.length + 1)
+  const i = args.indexOf(name)
+  if (i !== -1 && i + 1 < args.length && !args[i + 1].startsWith("--")) {
+    return args[i + 1]
+  }
+  return undefined
+}
 
 async function main() {
   const args = process.argv.slice(2)
   const seed = args.includes("--seed")
-  const cookiesPath = args.find((a) => !a.startsWith("--"))
+  const cookiesPath = getFlag(args, "--cookies-path")
+  const refreshToken = getFlag(args, "--refresh-token")
 
-  if (!cookiesPath) {
-    console.error(
-      "usage: tsx scripts/run-ccauth.ts <path-to-cookies.json> [--seed]",
-    )
+  if (!cookiesPath && !refreshToken) {
+    console.error(`At least one of --cookies-path or --refresh-token is required.\n${USAGE}`)
+    process.exit(1)
+  }
+  if (cookiesPath && refreshToken) {
+    console.error(`Provide only one of --cookies-path or --refresh-token.\n${USAGE}`)
     process.exit(1)
   }
   if (!process.env.DAYTONA_API_KEY) {
@@ -40,8 +67,12 @@ async function main() {
     process.exit(1)
   }
 
-  const cookies = readFileSync(resolve(cookiesPath), "utf8")
-  JSON.parse(cookies) // sanity check before sending into a sandbox
+  // Cookie mode: read + sanity-check the cookies file before sending it into a sandbox.
+  let cookies: string | undefined
+  if (cookiesPath) {
+    cookies = readFileSync(resolve(cookiesPath), "utf8")
+    JSON.parse(cookies)
+  }
 
   // Lazy: only import (and connect to) Prisma in --seed mode so test mode
   // doesn't require DATABASE_URL.
@@ -56,16 +87,19 @@ async function main() {
     })
   }
 
-  if (seed) {
+  // Seed the cookies row up front — cookie mode only; refresh mode has no cookies.
+  if (seed && cookies) {
     console.error(`→ Upserting cookies row (${CLAUDE_COOKIES_KEY})`)
     await upsert(CLAUDE_COOKIES_KEY, cookies)
   }
 
   console.error(
-    "→ Running ccauth in Daytona (first run can take a few minutes)",
+    `→ Running ccauth in Daytona (${cookiesPath ? "cookie-based" : "refresh"} flow; first run can take a few minutes)`,
   )
   const t0 = Date.now()
-  const creds = await generateClaudeCredentials(cookies)
+  const creds = cookiesPath
+    ? await generateClaudeCredentials({ cookies: cookies! })
+    : await generateClaudeCredentials({ refreshToken: refreshToken! })
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
 
   if (seed) {
