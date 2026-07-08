@@ -15,6 +15,11 @@ import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { getUserPushOptions } from "@/lib/git/push-options"
+import {
+  getConflictState,
+  isRebaseInProgress,
+  hasMergeHead,
+} from "@/lib/git/sandbox-git-ops"
 
 /**
  * Check if the repository is in a conflict state (merge or rebase in progress)
@@ -24,23 +29,10 @@ async function isInConflictState(
   repoPath: string
 ): Promise<boolean> {
   try {
-    // Check for rebase in progress
-    const rebaseCheck = await sandbox.process.executeCommand(
-      `test -d ${repoPath}/.git/rebase-merge -o -d ${repoPath}/.git/rebase-apply && echo "yes" || echo "no"`
+    return (
+      (await isRebaseInProgress(sandbox, repoPath)) ||
+      (await hasMergeHead(sandbox, repoPath))
     )
-    if (rebaseCheck.result.trim() === "yes") {
-      return true
-    }
-
-    // Check for merge in progress
-    const mergeHeadCheck = await sandbox.process.executeCommand(
-      `test -f ${repoPath}/.git/MERGE_HEAD && echo "yes" || echo "no"`
-    )
-    if (mergeHeadCheck.result.trim() === "yes") {
-      return true
-    }
-
-    return false
   } catch {
     // If we can't determine conflict state, assume no conflict
     return false
@@ -388,25 +380,7 @@ export async function GET(req: Request) {
             // This allows the frontend to update the warning icon after agent resolves conflicts
             let conflictState: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] } | undefined
             try {
-              const rebaseCheck = await sandbox.process.executeCommand(
-                `test -d ${sessionOpts.repoPath}/.git/rebase-merge -o -d ${sessionOpts.repoPath}/.git/rebase-apply && echo "yes" || echo "no"`
-              )
-              const inRebase = rebaseCheck.result.trim() === "yes"
-
-              const mergeHeadCheck = await sandbox.process.executeCommand(
-                `test -f ${sessionOpts.repoPath}/.git/MERGE_HEAD && echo "yes" || echo "no"`
-              )
-              const inMerge = mergeHeadCheck.result.trim() === "yes"
-
-              let conflictedFiles: string[] = []
-              if (inRebase || inMerge) {
-                const conflictResult = await sandbox.process.executeCommand(
-                  `cd ${sessionOpts.repoPath} && git diff --name-only --diff-filter=U 2>&1`
-                )
-                conflictedFiles = conflictResult.result.trim().split("\n").filter(Boolean)
-              }
-
-              conflictState = { inRebase, inMerge, conflictedFiles }
+              conflictState = await getConflictState(sandbox, sessionOpts.repoPath)
             } catch {
               // Best effort - don't fail the complete event if we can't check conflict state
             }

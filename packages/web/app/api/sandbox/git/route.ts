@@ -6,6 +6,8 @@ import { createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
 import {
   getConflictedFiles,
+  getConflictState,
+  hasMergeHead,
   pushViaTemporaryBranch,
   type TempBranchPushResult,
 } from "@/lib/git/sandbox-git-ops"
@@ -160,12 +162,7 @@ export async function POST(req: Request) {
               `cd ${repoPath} && git merge origin/${currentBranch} 2>&1`
             )
 
-            const mergeHeadCheck = await sandbox.process.executeCommand(
-              `test -f ${repoPath}/.git/MERGE_HEAD && echo "yes" || echo "no"`
-            )
-            const hasMergeHead = mergeHeadCheck.result.trim() === "yes"
-
-            if (hasMergeHead) {
+            if (await hasMergeHead(sandbox, repoPath)) {
               const conflictedFiles = await getConflictedFiles(sandbox, repoPath)
 
               if (chatId) {
@@ -371,21 +368,10 @@ export async function POST(req: Request) {
       }
 
       case "check-rebase-status": {
-        const rebaseCheck = await sandbox.process.executeCommand(
-          `test -d ${repoPath}/.git/rebase-merge -o -d ${repoPath}/.git/rebase-apply && echo "yes" || echo "no"`
+        const { inRebase, inMerge, conflictedFiles } = await getConflictState(
+          sandbox,
+          repoPath
         )
-        const inRebase = rebaseCheck.result.trim() === "yes"
-
-        const mergeHeadCheck = await sandbox.process.executeCommand(
-          `test -f ${repoPath}/.git/MERGE_HEAD && echo "yes" || echo "no"`
-        )
-        const inMerge = mergeHeadCheck.result.trim() === "yes"
-
-        let conflictedFiles: string[] = []
-        if (inRebase || inMerge) {
-          conflictedFiles = await getConflictedFiles(sandbox, repoPath)
-        }
-
         return Response.json({ inRebase, inMerge, conflictedFiles })
       }
 

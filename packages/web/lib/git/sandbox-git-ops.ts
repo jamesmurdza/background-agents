@@ -17,6 +17,56 @@ export async function getConflictedFiles(
   return res.result.trim().split("\n").filter(Boolean)
 }
 
+/**
+ * True when a rebase (interactive `rebase-merge` or `git am`-style
+ * `rebase-apply`) is currently in progress in the sandbox repo.
+ */
+export async function isRebaseInProgress(
+  sandbox: SandboxLike,
+  repoPath: string
+): Promise<boolean> {
+  const res = await sandbox.process.executeCommand(
+    `test -d ${repoPath}/.git/rebase-merge -o -d ${repoPath}/.git/rebase-apply && echo "yes" || echo "no"`
+  )
+  return res.result.trim() === "yes"
+}
+
+/**
+ * True when a merge is currently in progress in the sandbox repo
+ * (i.e. `.git/MERGE_HEAD` exists).
+ */
+export async function hasMergeHead(
+  sandbox: SandboxLike,
+  repoPath: string
+): Promise<boolean> {
+  const res = await sandbox.process.executeCommand(
+    `test -f ${repoPath}/.git/MERGE_HEAD && echo "yes" || echo "no"`
+  )
+  return res.result.trim() === "yes"
+}
+
+export interface ConflictState {
+  inRebase: boolean
+  inMerge: boolean
+  conflictedFiles: string[]
+}
+
+/**
+ * Inspect a sandbox repo's merge/rebase conflict state in one call: whether a
+ * rebase or merge is in progress, plus the still-conflicted files (only queried
+ * when a rebase/merge is actually underway).
+ */
+export async function getConflictState(
+  sandbox: SandboxLike,
+  repoPath: string
+): Promise<ConflictState> {
+  const inRebase = await isRebaseInProgress(sandbox, repoPath)
+  const inMerge = await hasMergeHead(sandbox, repoPath)
+  const conflictedFiles =
+    inRebase || inMerge ? await getConflictedFiles(sandbox, repoPath) : []
+  return { inRebase, inMerge, conflictedFiles }
+}
+
 /** Which step of {@link pushViaTemporaryBranch} failed. */
 export type TempBranchPushStage = "head" | "create-branch" | "push" | "patch-ref"
 
