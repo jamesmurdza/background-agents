@@ -3,7 +3,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 
 // Squash operation timeout - 60 seconds
 export const maxDuration = 60
@@ -34,12 +34,20 @@ export async function POST(req: Request) {
   const ghAuth = await requireGitHubAuth()
   if (isGitHubAuthError(ghAuth)) return ghAuth
   const githubToken = ghAuth.token
+  const userId = ghAuth.userId
 
   const body: SquashRequestBody = await req.json()
   const { owner, repo, head, base, sandboxId, chatId } = body
 
   if (!owner || !repo || !head || !base || !sandboxId) {
     return Response.json({ error: "Missing required fields: owner, repo, head, base, sandboxId" }, { status: 400 })
+  }
+
+  // Ownership gate: the sandbox-sync step runs `git checkout` + `git reset --hard`
+  // inside sandboxId, so a caller who doesn't own it could wipe another user's
+  // uncommitted work.
+  if (!(await verifySandboxOwnership(userId, sandboxId))) {
+    return forbidden()
   }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY

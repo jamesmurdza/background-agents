@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
-import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 import { getUserPushOptions } from "@/lib/git/push-options"
 
 /**
@@ -27,6 +27,13 @@ export async function POST(req: Request) {
   }
   const githubToken = ghAuth.token
   const userId = ghAuth.userId
+
+  // Ownership gate: signing in isn't enough — the caller must own this sandbox,
+  // otherwise they could point another user's sandbox at their own repo and push
+  // that user's working tree to it.
+  if (!(await verifySandboxOwnership(userId, sandboxId))) {
+    return forbidden()
+  }
 
   // 3. Get Daytona API key
   const daytonaApiKey = process.env.DAYTONA_API_KEY

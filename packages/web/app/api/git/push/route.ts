@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
-import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 import { getUserPushOptions } from "@/lib/git/push-options"
 
 export async function POST(req: Request) {
@@ -13,23 +13,27 @@ export async function POST(req: Request) {
     return badRequest("Missing required fields: sandboxId, repoName, branch")
   }
 
-  // 2. Get GitHub token from request body first (for API access)
-  // Fall back to DB token (for browser access)
+  // 2. Require a session and verify sandbox ownership before operating on it.
+  // A body-supplied githubToken must NOT bypass this — otherwise any caller with
+  // some GitHub token could run git operations inside another user's sandbox.
+  const auth = await requireAuth()
+  if (isAuthError(auth)) {
+    return Response.json({ error: "Unauthorized - sign in to push" }, { status: 401 })
+  }
+  const userId = auth.userId
+
+  if (!(await verifySandboxOwnership(userId, sandboxId))) {
+    return forbidden()
+  }
+
+  // GitHub token: honor a body-provided token (API access), else the DB token.
   let githubToken = body.githubToken
-  let userId: string | undefined
   if (!githubToken) {
     const ghAuth = await requireGitHubAuth()
     if (isGitHubAuthError(ghAuth)) {
-      return Response.json({ error: "Unauthorized - provide githubToken in body or sign in" }, { status: 401 })
+      return Response.json({ error: "Unauthorized - provide githubToken in body or link GitHub" }, { status: 401 })
     }
     githubToken = ghAuth.token
-    userId = ghAuth.userId
-  } else {
-    // If token provided in body, still try to get userId for settings
-    const auth = await requireAuth()
-    if (!isAuthError(auth)) {
-      userId = auth.userId
-    }
   }
 
   // 3. Get Daytona API key
