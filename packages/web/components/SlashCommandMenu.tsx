@@ -4,7 +4,12 @@ import { useEffect, useRef, useCallback } from "react"
 import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, FolderGit2, GitBranchPlus, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
-import { filterSlashCommandsWithConflict, type SlashCommand } from "@background-agents/common"
+import {
+  filterSlashCommandsWithConflict,
+  filterSingleCommand,
+  CREATE_REPO_COMMAND,
+  type SlashCommand,
+} from "@background-agents/common"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,
@@ -37,20 +42,6 @@ interface SlashCommandMenuProps {
   inConflict?: boolean
   /** Mobile mode */
   isMobile?: boolean
-}
-
-const CREATE_REPO_COMMAND: SlashCommand = {
-  name: "repo",
-  label: "Repository",
-  description: "Create repository",
-  icon: "FolderGit2",
-}
-
-function filterSingleCommand(input: string, cmd: SlashCommand): SlashCommand[] {
-  const filter = input.startsWith("/") ? input.slice(1).toLowerCase() : input.toLowerCase()
-  if (!filter) return [cmd]
-  // Match typed-in prefix against the command name.
-  return cmd.name.toLowerCase().startsWith(filter) ? [cmd] : []
 }
 
 export function SlashCommandMenu({

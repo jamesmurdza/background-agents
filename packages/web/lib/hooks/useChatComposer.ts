@@ -25,7 +25,11 @@ import {
   getDefaultModelForAgent,
   agentSupportsPlanMode,
 } from "@/lib/types"
-import { filterSlashCommandsWithConflict } from "@background-agents/common"
+import {
+  filterSlashCommandsWithConflict,
+  filterSingleCommand,
+  CREATE_REPO_COMMAND,
+} from "@background-agents/common"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useFileUpload } from "@/lib/hooks/useFileUpload"
 
@@ -219,10 +223,7 @@ export function useChatComposer({
   // the slash menu swaps in a single "Create repository" entry.
   const filteredCommands = useMemo(() => {
     if (hasLinkedRepo) return filterSlashCommandsWithConflict(input, inConflict)
-    const filter = input.startsWith("/") ? input.slice(1).toLowerCase() : input.toLowerCase()
-    const repoCmd = { name: "repo", description: "Create repository", icon: "FolderGit2" }
-    if (!filter || repoCmd.name.startsWith(filter)) return [repoCmd]
-    return []
+    return filterSingleCommand(input, CREATE_REPO_COMMAND)
   }, [input, hasLinkedRepo, inConflict])
 
   // Handle slash command selection
