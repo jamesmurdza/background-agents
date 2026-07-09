@@ -322,7 +322,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   "gemini": [
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini" },
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
-    { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
+    { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
     { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini" },
   ],
   "goose": [
@@ -337,7 +337,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/kilo-auto/free", label: "Auto Free", requiresKey: "none" },
     { value: "kilo/kilo-auto/balanced", label: "Auto Balanced", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
-    { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
+    { value: "kilo/kilo-auto/efficient", label: "Auto Efficient", requiresKey: "kilo" },
     // Free models
     { value: "kilo/deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash", requiresKey: "none" },
     { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", requiresKey: "none" },
