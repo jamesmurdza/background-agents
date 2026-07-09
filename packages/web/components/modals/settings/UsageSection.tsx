@@ -5,13 +5,12 @@ import { Gauge } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MobileSectionHeader } from "./shared"
 import type { UsageResponse, PoolUsage } from "@/app/api/user/usage/route"
-import { fmtTokens } from "@/lib/format"
+import { formatUsageParts } from "@/lib/format"
 
 /** Format an amount in a pool's budget unit (tokens / USD cost / messages). */
 function fmtUsage(n: number, unit: PoolUsage["unit"]): string {
-  if (unit === "cost") return `$${n.toFixed(2)}`
-  if (unit === "messages") return `${Math.round(n)} ${Math.round(n) === 1 ? "message" : "messages"}`
-  return `${fmtTokens(n)} tokens`
+  const { value, label } = formatUsageParts(n, unit)
+  return label ? `${value} ${label}` : value
 }
 
 /** Tailwind classes for the bar fill based on how close to the limit we are. */
