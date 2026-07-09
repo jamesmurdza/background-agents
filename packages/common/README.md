@@ -38,7 +38,6 @@ import {
   agentSlugs,
   agentLabels,
   agentToProvider,
-  agentSlugs,
   agentModels,
   defaultAgentModel,
   agentSupportsPlanMode,
@@ -68,7 +67,6 @@ import {
   resolveCliModel,
   resolveModelForAgent,
   resolveAgent,
-  resolveAgentSlug,
   resolveAgentAndModel,
 } from "@background-agents/common"
 ```
