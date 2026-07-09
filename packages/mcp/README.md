@@ -114,6 +114,7 @@ await smithery.deleteConnection(connectionId)
 ```typescript
 import type {
   McpServerConfig,
+  IMcpProvider,
   ITokenMintingProvider,
   IConnectionProvider,
   ConnectionResult,
@@ -126,11 +127,15 @@ import type {
 Helper functions for working with MCP servers.
 
 ```typescript
-import { safeServerName } from "@background-agents/mcp"
+import { safeServerName, isSmitheryServer } from "@background-agents/mcp"
 
 // Convert qualified server names (e.g. "github/github") to safe identifiers
 // for use in file names, IDs, etc.
 safeServerName("github/github")  // "github-github"
+
+// Check whether a URL points at a Smithery-hosted server (server.smithery.ai)
+isSmitheryServer("https://server.smithery.ai/foo/mcp")  // true
+isSmitheryServer("https://api.githubcopilot.com/mcp/")  // false
 ```
 
 ## Constants
