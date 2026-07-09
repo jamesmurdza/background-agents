@@ -35,6 +35,7 @@ import {
   type CustomEndpointType,
   // Data
   ALL_AGENTS,
+  agentSlugs,
   agentLabels,
   agentToProvider,
   agentSlugs,
@@ -67,6 +68,7 @@ import {
   resolveCliModel,
   resolveModelForAgent,
   resolveAgent,
+  resolveAgentSlug,
   resolveAgentAndModel,
 } from "@background-agents/common"
 ```

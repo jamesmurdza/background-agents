@@ -6,9 +6,13 @@ Reads cron configuration from `vercel.json` and runs the endpoints locally on th
 
 ## Usage
 
+From the repo root:
+
 ```bash
-npm run dev
+npm run dev:cron
 ```
+
+(Or `npm run dev` from within `packages/dev-cron/`.)
 
 All environment variables (below) are optional — sensible defaults are used.
 
@@ -18,7 +22,7 @@ All environment variables (below) are optional — sensible defaults are used.
 |----------|---------|-------------|
 | `BASE_URL` | `http://localhost:4000` | Base URL for the dev server |
 | `CRON_SECRET` | (none) | Bearer token for cron endpoint auth |
-| `VERCEL_JSON` | `./vercel.json` | Path to vercel.json |
+| `VERCEL_JSON` | (auto-detected) | Path to `vercel.json`. If unset, the simulator searches `./vercel.json`, then the repo root, then `packages/web/vercel.json` (where the config actually lives). |
 
 ## Example Output
 
