@@ -17,6 +17,7 @@ import type {
 } from "@background-agents/sdk"
 import type { ContentBlock, ToolCall } from "./types"
 import { PATHS, SANDBOX_CONFIG } from "./constants"
+import { basename } from "@/lib/utils"
 
 // =============================================================================
 // Tool Name Mapping (SDK uses lowercase, UI expects PascalCase)
@@ -152,7 +153,7 @@ function getToolDetail(toolName: string, input: unknown): ToolDetailResult {
   }
   if (["Read", "Edit", "Write"].includes(mappedName) && inp.file_path) {
     const path = String(inp.file_path)
-    const filename = path.split("/").pop() || path
+    const filename = basename(path)
     if (filename !== path) {
       return { summary: filename, fullDetail: path, filePath: path }
     }

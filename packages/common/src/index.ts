@@ -75,7 +75,7 @@ export {
 export { generateBranchName } from "./branch"
 
 // Common utilities
-export { cn } from "./utils"
+export { cn, basename } from "./utils"
 
 // Slash commands
 export {

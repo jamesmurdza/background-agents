@@ -12,6 +12,7 @@ import { useEffect, useCallback, useMemo, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Chat, ChatStatus } from "@/lib/types"
+import { basename } from "@/lib/utils"
 import { getDefaultModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
@@ -277,7 +278,7 @@ export function useChatWithSync() {
   useEffect(() => {
     onMarkdownFileWriteRef.current = (chatId: string, filePath: string) => {
       const chatPreviewItems = localChatState.previewStates[chatId]?.items ?? []
-      const filename = filePath.split("/").pop() || filePath
+      const filename = basename(filePath)
       // Avoid duplicates
       if (!chatPreviewItems.find((i) => i.type === "file" && i.filePath === filePath)) {
         updateChatById(chatId, {

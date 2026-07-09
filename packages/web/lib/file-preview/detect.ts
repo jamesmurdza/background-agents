@@ -3,13 +3,7 @@
  */
 
 import { FileType, EXT_TO_LANG, CODE_EXTENSIONS, TEXT_EXTENSIONS, IMAGE_EXTENSIONS } from './types'
-
-/**
- * Get the base filename from a path
- */
-function getFilename(filePath: string): string {
-  return filePath.split('/').pop() ?? filePath
-}
+import { basename as getFilename } from '@background-agents/common'
 
 /**
  * Get the file extension from a filename or path

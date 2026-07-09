@@ -16,6 +16,7 @@ import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
 import { usePreview } from "@/lib/hooks/usePreview"
+import { basename } from "@/lib/utils"
 import { usePageTitle } from "@/lib/hooks/usePageTitle"
 import { useUrlSync } from "@/lib/hooks/useUrlSync"
 import { useSandboxActions } from "@/lib/hooks/useSandboxActions"
@@ -625,7 +626,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onUpdateChat={handleUpdateChatProp}
                   onSlashCommand={handleSlashCommand}
                   onOpenFile={(filePath) => {
-                    const filename = filePath.split("/").pop() || filePath
+                    const filename = basename(filePath)
                     preview.openPreview({ type: "file", filePath, filename })
                   }}
                   onOpenEnvVars={handleOpenEnvVars}
