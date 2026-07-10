@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { ensureSandboxStarted } from "@/lib/sandbox"
-import { PATHS } from "@/lib/constants"
+import { isSafeRepoPath, isSafeBranchName, isSafeRepoSegment } from "@/lib/git/ref-validation"
 import { clearPushFailureMessages, createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 import {
@@ -81,6 +81,28 @@ export async function POST(req: Request) {
   // against another user's sandbox/repo.
   if (!(await verifySandboxOwnership(userId, sandboxId))) {
     return forbidden()
+  }
+
+  // Reject any interpolated value carrying shell/URL metacharacters before it
+  // reaches a command or GitHub URL below (see the injection-guard helpers).
+  if (!isSafeRepoPath(repoPath)) {
+    return Response.json({ error: "Invalid repoPath" }, { status: 400 })
+  }
+  for (const [name, value] of [
+    ["currentBranch", currentBranch],
+    ["targetBranch", targetBranch],
+  ] as const) {
+    if (value !== undefined && !isSafeBranchName(value)) {
+      return Response.json({ error: `Invalid ${name}` }, { status: 400 })
+    }
+  }
+  for (const [name, value] of [
+    ["repoOwner", repoOwner],
+    ["repoApiName", repoApiName],
+  ] as const) {
+    if (value !== undefined && !isSafeRepoSegment(value)) {
+      return Response.json({ error: `Invalid ${name}` }, { status: 400 })
+    }
   }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
