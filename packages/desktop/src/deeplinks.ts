@@ -1,14 +1,19 @@
 import { app } from "electron";
+import path from "node:path";
 
 const PROTOCOL = "background-agents";
 
 export function setupDeepLinks(handler: (url: string) => void) {
   // Register protocol handler
   if (process.defaultApp) {
-    // Development: pass the script path
+    // Development: register electron + the app script as the launch command.
+    // Use an ABSOLUTE script path — the OS launches the protocol handler from
+    // an arbitrary working directory, so a relative `process.argv[1]` (e.g.
+    // "dist/main.js" when started via `electron dist/main.js`) fails to resolve
+    // and Windows reports "error launching app with path".
     if (process.argv.length >= 2) {
       app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [
-        process.argv[1],
+        path.resolve(process.argv[1]),
       ]);
     }
   } else {
