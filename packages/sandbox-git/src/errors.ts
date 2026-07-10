@@ -38,20 +38,6 @@ export class GitNotFoundError extends GitError {
 }
 
 /**
- * Merge/rebase conflict
- */
-export class GitConflictError extends GitError {
-  constructor(
-    command: string,
-    output: string,
-    public readonly conflictedFiles: string[]
-  ) {
-    super("Git conflict", command, 1, output)
-    this.name = "GitConflictError"
-  }
-}
-
-/**
  * Check if output indicates an auth error
  */
 export function isAuthError(output: string): boolean {

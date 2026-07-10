@@ -37,7 +37,6 @@ export {
   GitError,
   GitAuthError,
   GitNotFoundError,
-  GitConflictError,
   isAuthError,
   isNotFoundError,
   createGitError,
