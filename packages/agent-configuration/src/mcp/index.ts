@@ -117,8 +117,13 @@ function generateGeminiConfig(servers: AgentMcpServer[]): McpConfigFile {
 }
 
 /**
- * OpenCode: <project>/opencode.json — `mcp.<name>` with `type: "remote"`.
- * The `.opencode/` directory is for agents/commands/plugins, not config.
+ * OpenCode: ~/.config/opencode/opencode.json (global) — `mcp.<name>` with
+ * `type: "remote"`. Must NOT go in the project root: OpenCode also reads a
+ * `<project>/opencode.json`, but writing there dirties the repo working tree in
+ * the sandbox (it shows up in `git status` and can get swept into the agent's
+ * commit). OpenCode merges the global config, so servers still load. The
+ * custom-endpoint provider config (opencodeSetup) shares this same file and
+ * preserves the `mcp` section on write.
  */
 function generateOpenCodeConfig(servers: AgentMcpServer[]): McpConfigFile {
   const mcp: Record<string, unknown> = {}
@@ -131,7 +136,7 @@ function generateOpenCodeConfig(servers: AgentMcpServer[]): McpConfigFile {
     }
   }
   return {
-    filePath: "/home/daytona/project/opencode.json",
+    filePath: "/home/daytona/.config/opencode/opencode.json",
     content: JSON.stringify(
       { $schema: "https://opencode.ai/config.json", mcp },
       null,

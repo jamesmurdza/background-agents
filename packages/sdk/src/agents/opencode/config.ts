@@ -29,13 +29,20 @@ export interface OpencodeCustomConfig {
 /** Provider id used for the synthesized custom provider in opencode.json. */
 export const OPENCODE_CUSTOM_PROVIDER_ID = "custom"
 
+/** JSON `$schema` URL used by OpenCode config files. */
+export const OPENCODE_CONFIG_SCHEMA = "https://opencode.ai/config.json"
+
 /**
- * Build a ~/.config/opencode/opencode.json that routes the custom model through
- * an OpenAI-compatible provider (`@ai-sdk/openai-compatible`). The Authorization
+ * Build the `provider` map that routes the custom model through an
+ * OpenAI-compatible provider (`@ai-sdk/openai-compatible`). The Authorization
  * header is supplied as `options.apiKey` via `{env:...}`; any other headers pass
- * through as `options.headers`.
+ * through as `options.headers`. Returned as a `{ [id]: {...} }` object so callers
+ * can merge it into an existing opencode.json without clobbering other keys
+ * (e.g. the `mcp` section).
  */
-export function buildOpencodeConfigJson(cfg: OpencodeCustomConfig): string {
+export function buildOpencodeProvider(
+  cfg: OpencodeCustomConfig
+): Record<string, unknown> {
   const id = OPENCODE_CUSTOM_PROVIDER_ID
 
   const options: Record<string, unknown> = { baseURL: cfg.baseUrl }
@@ -49,16 +56,26 @@ export function buildOpencodeConfigJson(cfg: OpencodeCustomConfig): string {
     options.headers = Object.fromEntries(headerPairs)
   }
 
-  const config = {
-    $schema: "https://opencode.ai/config.json",
-    provider: {
-      [id]: {
-        npm: "@ai-sdk/openai-compatible",
-        name: "Custom",
-        options,
-        models: { [cfg.model]: { name: cfg.model } },
-      },
+  return {
+    [id]: {
+      npm: "@ai-sdk/openai-compatible",
+      name: "Custom",
+      options,
+      models: { [cfg.model]: { name: cfg.model } },
     },
+  }
+}
+
+/**
+ * Build a standalone ~/.config/opencode/opencode.json that routes the custom
+ * model through an OpenAI-compatible provider. Prefer merging
+ * {@link buildOpencodeProvider} into the existing file (see opencodeSetup); this
+ * whole-file form is retained for callers/tests that want the full document.
+ */
+export function buildOpencodeConfigJson(cfg: OpencodeCustomConfig): string {
+  const config = {
+    $schema: OPENCODE_CONFIG_SCHEMA,
+    provider: buildOpencodeProvider(cfg),
   }
 
   return JSON.stringify(config, null, 2) + "\n"
