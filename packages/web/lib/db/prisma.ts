@@ -22,13 +22,18 @@ function createPrismaClient() {
     )
   }
 
-  // Use pg adapter for local PostgreSQL, Neon adapter for serverless PostgreSQL
-  const isLocalPostgres =
-    connectionString.includes("localhost") ||
-    connectionString.includes("127.0.0.1")
+  // Neon requires its WebSocket adapter; local Postgres AND Supabase are
+  // standard Postgres and use the node-postgres (pg) adapter.
+  const isNeon = connectionString.includes("neon.tech")
 
-  if (isLocalPostgres) {
-    const pool = new pg.Pool({ connectionString })
+  if (!isNeon) {
+    // Keep the per-instance pool small in production: on serverless each warm
+    // instance holds its own pool, and Supabase's transaction pooler (Supavisor)
+    // does the real connection fan-in.
+    const pool = new pg.Pool({
+      connectionString,
+      max: process.env.NODE_ENV === "production" ? 1 : 10,
+    })
     const adapter = new PrismaPg(pool)
     return new PrismaClient({
       adapter,
