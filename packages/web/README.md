@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 
 - **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives
 - **Authentication**: NextAuth.js with GitHub OAuth provider and Prisma adapter
-- **Database**: PostgreSQL with Prisma ORM (supports local and Neon serverless)
+- **Database**: PostgreSQL with Prisma ORM (local, Supabase, or Neon serverless)
 - **Agent SDK**: Uses [`@background-agents/sdk`](../sdk) for agent session management
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
@@ -71,7 +71,15 @@ Deploy the app to Vercel. Uses a real GitHub OAuth app and requires `ENCRYPTION_
 Env:
 
 ```bash
-DATABASE_URL="postgresql://..."     # production database
+DATABASE_URL="postgresql://..."     # production database (may be a pooled connection)
+
+# Migrations must run over a direct/session connection (port 5432), NOT a
+# transaction pooler (port 6543). If DATABASE_URL points at a pooler (e.g.
+# Supabase or Neon), set the direct connection here so `prisma migrate deploy`
+# can take its advisory lock during the Vercel build. `POSTGRES_URL_NON_POOLING`
+# (the Neon/Vercel integration variable) is also accepted.
+DIRECT_URL="postgresql://...:5432/..."
+
 DAYTONA_API_KEY="dtn_..."
 NEXTAUTH_URL="https://your-domain.com"
 NEXTAUTH_SECRET="<random-secret>"
@@ -85,7 +93,7 @@ ENCRYPTION_KEY="<openssl rand -hex 32>"
 CRON_SECRET="<random-secret>"
 ```
 
-Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database.
+Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database. It connects using the first of `DIRECT_URL`, `POSTGRES_URL_NON_POOLING`, or `DATABASE_URL` that is set, and refuses to run through a transaction pooler (port 6543) because `prisma migrate deploy` takes a session-level advisory lock that hangs behind PgBouncer.
 
 To enable remote MCP servers from the [Smithery](https://smithery.ai) registry, set:
 
