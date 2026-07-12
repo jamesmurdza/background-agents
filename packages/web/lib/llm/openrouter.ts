@@ -9,11 +9,6 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const OPENROUTER_MODEL = "openai/gpt-oss-20b"
 
-/** Whether an OpenRouter key is configured (LLM generation is available). */
-export function isOpenRouterConfigured(): boolean {
-  return !!OPENROUTER_API_KEY
-}
-
 /**
  * Generate text via OpenRouter. Returns the trimmed model output, or the
  * provided `fallback` when OpenRouter isn't configured, the call errors, or the

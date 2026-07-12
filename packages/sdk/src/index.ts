@@ -118,7 +118,6 @@ export { registry, getAgent, agentSupportsPlanMode } from "./core/registry"
 export {
   normalizeToolName,
   createToolStartEvent,
-  CANONICAL_DISPLAY_NAMES,
 } from "./core/tools"
 
 // ─────────────────────────────────────────────────────────────────────────────
