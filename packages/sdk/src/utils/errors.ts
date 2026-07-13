@@ -117,7 +117,7 @@ export function extractErrorMessage(input: unknown): string {
 const RULES: { category: AgentErrorCategory; test: RegExp; hint: string }[] = [
   {
     category: "balance",
-    test: /insufficient\s+(balance|credit|funds)|no\s+balance|out\s+of\s+(credit|balance)|payment\s+required|\b402\b|\bbilling\b/i,
+    test: /insufficient\s+(balance|credit|funds)|no\s+balance|out\s+of\s+(credit|balance)|credit\s+balance|payment\s+required|\b402\b|\bbilling\b/i,
     hint: "switch to a free model or add credits / an API key",
   },
   {

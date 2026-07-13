@@ -88,5 +88,43 @@ describe("parseClaudeLine", () => {
   it("returns null for unknown event types", () => {
     expect(parseClaudeLine('{"type": "unknown_event"}', mappings)).toBeNull()
   })
+
+  // Provider failures (e.g. billing) can arrive as a result with subtype
+  // "success" but is_error: true — it must still end with a classified error,
+  // not look like a clean success.
+  it("ends with a classified error when result.is_error is true (subtype success)", () => {
+    const event = parseClaudeLine(
+      JSON.stringify({
+        type: "result",
+        subtype: "success",
+        is_error: true,
+        result: "Credit balance is too low",
+        session_id: "abc-123",
+      }),
+      mappings
+    )
+    expect(event).toMatchObject({ type: "end" })
+    expect((event as { error?: string }).error).toContain("Credit balance is too low")
+    // "credit balance" classifies as a balance failure and appends a hint
+    expect((event as { error?: string }).error).toContain("add credits")
+  })
+
+  it("no-credit fixture: surfaces the billing failure (not a silent end)", () => {
+    const fs = require("fs")
+    const path = require("path")
+    const fixture = fs.readFileSync(
+      path.join(__dirname, "../fixtures/jsonl-reference/claude-error.jsonl"),
+      "utf-8"
+    )
+    const events = fixture
+      .split("\n")
+      .filter(Boolean)
+      .map((l: string) => parseClaudeLine(l, mappings))
+      .filter(Boolean)
+      .flat() as { type: string; error?: string }[]
+    const ends = events.filter((e) => e.type === "end")
+    expect(ends).toHaveLength(1)
+    expect(ends[0].error).toContain("Credit balance is too low")
+  })
 })
 
