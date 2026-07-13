@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { addMinutes, differenceInMinutes } from "date-fns"
 
 import { prisma } from "@/lib/db/prisma"
+import { logLlmProviderError } from "@/lib/db/activity-log"
 
 import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constants"
 import { monitorAgent, stopAgent } from "./_lib/monitor"
@@ -148,7 +149,16 @@ export async function GET(req: Request) {
             await finalizeInteractiveChat(chat, snapshot, daytona)
             results.completedInteractive++
           },
-          onError: async (error) => {
+          onError: async (error, errorKind) => {
+            logLlmProviderError({
+              userId: chat.userId,
+              agent: chat.agent,
+              model: chat.model,
+              chatId: chat.id,
+              source: "cron-interactive",
+              error,
+              errorKind,
+            })
             await markChatError(chat.id, error)
           },
         })
@@ -187,7 +197,16 @@ export async function GET(req: Request) {
               await finalizeScheduledRun(run, snapshot, daytona)
               results.completedScheduled++
             },
-            onError: async (error) => {
+            onError: async (error, errorKind) => {
+              logLlmProviderError({
+                userId: run.job.userId,
+                agent: run.job.agent,
+                model: run.job.model,
+                jobRunId: run.id,
+                source: "cron-scheduled",
+                error,
+                errorKind,
+              })
               await failScheduledRun(run, error, daytona)
             },
           })

@@ -16,6 +16,7 @@ import {
   Bot,
   Cpu,
   Calendar,
+  AlertTriangle,
 } from "lucide-react"
 
 interface Activity {
@@ -65,6 +66,7 @@ const ACTION_CONFIG: Record<
   settings_updated: { icon: Settings, label: "updated settings", color: "text-orange-600" },
   admin_promoted: { icon: ShieldCheck, label: "promoted user to admin", color: "text-green-600" },
   admin_demoted: { icon: ShieldOff, label: "removed admin status", color: "text-red-600" },
+  llm_provider_error: { icon: AlertTriangle, label: "hit an LLM provider error", color: "text-red-600" },
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -79,6 +81,7 @@ const ACTION_LABELS: Record<string, string> = {
   sandbox_created: "Sandbox Created",
   sandbox_deleted: "Sandbox Deleted",
   daily_limit_reached: "Daily Limit Reached",
+  llm_provider_error: "LLM Provider Error",
 }
 
 function ActivityItem({ activity }: { activity: Activity }) {
@@ -93,6 +96,9 @@ function ActivityItem({ activity }: { activity: Activity }) {
   const agent = metadata?.agent
   const model = metadata?.model
   const details = metadata?.repo || metadata?.targetUserName || metadata?.chatId
+  // llm_provider_error carries the failure category + the raw error text.
+  const errorCategory = metadata?.category
+  const errorMessage = metadata?.message
 
   return (
     <div className="flex items-start gap-3 py-3">
@@ -111,8 +117,8 @@ function ActivityItem({ activity }: { activity: Activity }) {
             <span className="text-muted-foreground"> - {details}</span>
           )}
         </p>
-        {(agent || model) && (
-          <div className="mt-1 flex gap-2">
+        {(agent || model || errorCategory) && (
+          <div className="mt-1 flex flex-wrap gap-2">
             {agent && (
               <span className="inline-flex items-center gap-1 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
                 <Bot className="h-3 w-3" />
@@ -125,7 +131,18 @@ function ActivityItem({ activity }: { activity: Activity }) {
                 {model}
               </span>
             )}
+            {errorCategory && (
+              <span className="inline-flex items-center gap-1 rounded bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-600">
+                <AlertTriangle className="h-3 w-3" />
+                {errorCategory}
+              </span>
+            )}
           </div>
+        )}
+        {errorMessage && (
+          <p className="mt-1 break-words text-xs text-muted-foreground">
+            {errorMessage}
+          </p>
         )}
         <p className="mt-1 text-xs text-muted-foreground">
           {formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}

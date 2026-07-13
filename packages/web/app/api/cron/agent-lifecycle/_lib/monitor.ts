@@ -22,7 +22,7 @@ export async function monitorAgent(
   daytona: Daytona,
   handlers: {
     onComplete: (snapshot: AgentSnapshot) => Promise<void>
-    onError: (error: string) => Promise<void>
+    onError: (error: string, errorKind?: AgentSnapshot["errorKind"]) => Promise<void>
   }
 ) {
   try {
@@ -43,7 +43,7 @@ export async function monitorAgent(
       await cancelBackgroundAgent(sandbox, backgroundSessionId, {
         repoPath: `${PATHS.SANDBOX_HOME}/project`,
       })
-      await handlers.onError(snapshot.error ?? "Unknown error")
+      await handlers.onError(snapshot.error ?? "Unknown error", snapshot.errorKind)
     }
     // else still running, check again next cycle
   } catch (err) {

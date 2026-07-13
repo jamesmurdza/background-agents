@@ -9,6 +9,7 @@ import {
   type AgentSnapshot,
 } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
+import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
@@ -183,6 +184,28 @@ export async function GET(req: Request) {
             // exited (the common completed/crashed case).
             if (lastSnap.status === "error") {
               await cancelBackgroundAgent(sandbox, backgroundSessionId, sessionOpts)
+
+              // Record the provider failure so it's visible in aggregate — we
+              // otherwise have no view over which models/providers are failing.
+              try {
+                const chatRow = chatId
+                  ? await prisma.chat.findUnique({
+                      where: { id: chatId },
+                      select: { agent: true, model: true },
+                    })
+                  : null
+                logLlmProviderError({
+                  userId: auth.userId,
+                  agent: chatRow?.agent,
+                  model: chatRow?.model,
+                  chatId: chatId ?? undefined,
+                  source: "stream",
+                  error: lastSnap.error ?? "Unknown error",
+                  errorKind: lastSnap.errorKind,
+                })
+              } catch (err) {
+                console.error("[agent/stream] logLlmProviderError failed:", err)
+              }
             }
 
             await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
