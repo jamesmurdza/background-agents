@@ -21,19 +21,6 @@ export type CanonicalToolName =
   | "web_search"
 
 /**
- * Reverse mapping: canonical -> display name (for UI)
- */
-export const CANONICAL_DISPLAY_NAMES: Record<CanonicalToolName, string> = {
-  read: "Read",
-  write: "Write",
-  edit: "Edit",
-  glob: "Glob",
-  grep: "Grep",
-  shell: "Bash",
-  web_search: "Web Search",
-}
-
-/**
  * Normalize a provider-specific tool name to canonical form.
  * Uses agent's mappings first, then falls back to lowercase.
  */

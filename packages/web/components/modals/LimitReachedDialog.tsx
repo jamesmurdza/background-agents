@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { Crown, Key, Zap } from "lucide-react"
 import { AgentIcon } from "@/components/icons/agent-icons"
+import { fmtBudgetAmount } from "@/lib/format"
 
 interface LimitReachedDialogProps {
   open: boolean
@@ -30,13 +31,6 @@ const PROVIDER_LABEL: Record<string, string> = {
   opencode: "OpenCode",
 }
 
-/** Compact token count: 12_345 → "12K", 1_200_000 → "1.2M". */
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1000) return `${Math.round(n / 1000)}K`
-  return String(n)
-}
-
 type BudgetUnit = "tokens" | "cost" | "messages"
 
 /** Map provider to its budget unit. Mirrors server usage-budgets. */
@@ -44,16 +38,6 @@ function unitForProvider(provider?: string): BudgetUnit {
   if (provider === "opencode") return "cost"
   if (provider === "gemini") return "messages"
   return "tokens"
-}
-
-/** Format an amount in the provider's budget unit. */
-function fmtAmount(n: number, unit: BudgetUnit): string {
-  if (unit === "cost") return `$${n.toFixed(2)}`
-  if (unit === "messages") {
-    const m = Math.round(n)
-    return `${m} ${m === 1 ? "message" : "messages"}`
-  }
-  return `${fmtTokens(n)} tokens`
 }
 
 export function LimitReachedDialog({
@@ -141,9 +125,9 @@ export function LimitReachedDialog({
             <div className="text-sm text-muted-foreground">
               You've reached your daily{" "}
               <span className="font-medium text-foreground">{providerLabel}</span> limit
-              {typeof limit === "number" ? ` of ${fmtAmount(limit, unit)}` : ""}
+              {typeof limit === "number" ? ` of ${fmtBudgetAmount(limit, unit)}` : ""}
               {typeof used === "number" && typeof limit === "number"
-                ? ` (${fmtAmount(used, unit)} used)`
+                ? ` (${fmtBudgetAmount(used, unit)} used)`
                 : ""}
               . It resets at{" "}
               <span className="font-medium text-foreground">{resetTimeString}</span>.

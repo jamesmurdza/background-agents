@@ -26,11 +26,6 @@ import type { UsagePool } from "@/lib/db/token-usage"
 
 /** Agents backed by a shared (server-provided) credential pool. */
 export const SHARED_POOL_AGENTS = ["claude-code", "gemini", "opencode"] as const
-export type SharedPoolAgent = (typeof SHARED_POOL_AGENTS)[number]
-
-export function isSharedPoolAgent(agent: Agent): agent is SharedPoolAgent {
-  return (SHARED_POOL_AGENTS as readonly string[]).includes(agent)
-}
 
 /** Internal provider id for an agent (stored as TokenUsage.provider). */
 export function providerForAgent(agent: Agent): ProviderName {

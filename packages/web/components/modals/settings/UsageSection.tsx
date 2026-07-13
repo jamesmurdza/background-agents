@@ -5,14 +5,7 @@ import { Gauge } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MobileSectionHeader } from "./shared"
 import type { UsageResponse, PoolUsage } from "@/app/api/user/usage/route"
-import { fmtTokens } from "@/lib/format"
-
-/** Format an amount in a pool's budget unit (tokens / USD cost / messages). */
-function fmtUsage(n: number, unit: PoolUsage["unit"]): string {
-  if (unit === "cost") return `$${n.toFixed(2)}`
-  if (unit === "messages") return `${Math.round(n)} ${Math.round(n) === 1 ? "message" : "messages"}`
-  return `${fmtTokens(n)} tokens`
-}
+import { fmtBudgetAmount } from "@/lib/format"
 
 /** Tailwind classes for the bar fill based on how close to the limit we are. */
 function fillClass(pct: number): string {
@@ -34,12 +27,12 @@ function PoolBar({ pool }: { pool: PoolUsage }) {
             "Your own key"
           ) : unlimited ? (
             <>
-              {fmtUsage(pool.used, pool.unit)}{" "}
+              {fmtBudgetAmount(pool.used, pool.unit)}{" "}
               <span className="text-primary">· Unlimited</span>
             </>
           ) : (
             <>
-              {fmtUsage(pool.used, pool.unit)} / {fmtUsage(pool.limit!, pool.unit)}
+              {fmtBudgetAmount(pool.used, pool.unit)} / {fmtBudgetAmount(pool.limit!, pool.unit)}
             </>
           )}
         </span>
@@ -61,7 +54,7 @@ function PoolBar({ pool }: { pool: PoolUsage }) {
         <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
           {pool.ownKey
             ? "Using your own key — shared pool not used"
-            : `${fmtUsage(Math.max(0, pool.limit! - pool.used), pool.unit)} left`}
+            : `${fmtBudgetAmount(Math.max(0, pool.limit! - pool.used), pool.unit)} left`}
         </div>
       )}
     </div>

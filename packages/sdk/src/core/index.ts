@@ -15,6 +15,5 @@ export { registry, getAgent, getAgentNames, agentSupportsPlanMode } from "./regi
 export {
   normalizeToolName,
   createToolStartEvent,
-  CANONICAL_DISPLAY_NAMES,
   type CanonicalToolName,
 } from "./tools"
