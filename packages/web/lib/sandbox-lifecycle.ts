@@ -30,12 +30,12 @@ export const SANDBOX_ERROR = {
 // =============================================================================
 
 /** 409 — the sandbox is stopped and the request was passive (no autoStart). */
-export function sandboxStoppedResponse(): Response {
+function sandboxStoppedResponse(): Response {
   return Response.json({ error: SANDBOX_ERROR.STOPPED }, { status: SANDBOX_HTTP.STOPPED })
 }
 
 /** 410 — the sandbox no longer exists. */
-export function sandboxExpiredResponse(): Response {
+function sandboxExpiredResponse(): Response {
   return Response.json({ error: SANDBOX_ERROR.NOT_FOUND }, { status: SANDBOX_HTTP.EXPIRED })
 }
 

@@ -41,7 +41,7 @@ export function metricLabel(metric: StatsMetric): string {
 }
 
 /** Compact large numbers, e.g. 1234 -> "1.2k", 2_500_000 -> "2.5M". */
-export function formatCompactNumber(value: number): string {
+function formatCompactNumber(value: number): string {
   const abs = Math.abs(value)
   if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`
   if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
@@ -50,7 +50,7 @@ export function formatCompactNumber(value: number): string {
 }
 
 /** Format a USD amount with precision scaled to its magnitude. */
-export function formatCost(value: number): string {
+function formatCost(value: number): string {
   if (value === 0) return "$0"
   if (Math.abs(value) < 0.01) return `$${value.toFixed(4)}`
   if (Math.abs(value) < 1) return `$${value.toFixed(3)}`

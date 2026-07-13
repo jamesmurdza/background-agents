@@ -5,7 +5,7 @@ import type { Agent } from "@/lib/types"
 // =============================================================================
 
 /** Get the user's timezone offset in hours (e.g., -8 for PST) */
-export function getTimezoneOffset(): number {
+function getTimezoneOffset(): number {
   return -new Date().getTimezoneOffset() / 60
 }
 

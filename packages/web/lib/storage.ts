@@ -119,7 +119,7 @@ export function loadLocalState(): LocalState {
   }
 }
 
-export function saveLocalState(state: LocalState): void {
+function saveLocalState(state: LocalState): void {
   writeJSON(LOCAL_STATE_KEY, state, "local state")
 }
 

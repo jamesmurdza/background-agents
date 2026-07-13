@@ -14,7 +14,7 @@ function getFilename(filePath: string): string {
 /**
  * Get the file extension from a filename or path
  */
-export function getFileExtension(filenameOrPath: string): string {
+function getFileExtension(filenameOrPath: string): string {
   const name = getFilename(filenameOrPath).toLowerCase()
   const dot = name.lastIndexOf('.')
   if (dot < 0) return ''
