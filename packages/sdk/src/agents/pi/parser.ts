@@ -141,6 +141,33 @@ interface PiQueueUpdate {
   followUp?: string[]
 }
 
+/**
+ * Pi reports provider/model failures (auth, insufficient balance, quota,
+ * unavailable model, …) not as a standalone `{type:"error"}` event but as an
+ * assistant message whose `stopReason` is "error" with the raw provider text on
+ * `errorMessage`. These ride on message_end / turn_end / agent_end. Pull that
+ * string out so the terminal `end` can carry a classified error instead of
+ * looking like a silent success.
+ */
+function piMessageError(message: unknown): string | undefined {
+  if (!message || typeof message !== "object") return undefined
+  const m = message as { stopReason?: unknown; errorMessage?: unknown }
+  if (m.stopReason === "error" && typeof m.errorMessage === "string" && m.errorMessage.trim()) {
+    return m.errorMessage.trim()
+  }
+  return undefined
+}
+
+/** Last errored assistant message in an agent_end `messages` array, if any. */
+function piEndError(messages: unknown): string | undefined {
+  if (!Array.isArray(messages)) return undefined
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const err = piMessageError(messages[i])
+    if (err) return err
+  }
+  return undefined
+}
+
 type PiEvent =
   | PiSessionHeader
   | PiAgentStart
@@ -171,7 +198,7 @@ type PiEvent =
 export function parsePiLine(
   line: string,
   toolMappings: Record<string, string>,
-  _context: ParseContext
+  context: ParseContext
 ): Event | Event[] | null {
   const json = safeJsonParse<PiEvent>(line)
   if (!json) {
@@ -219,24 +246,53 @@ export function parsePiLine(
     return { type: "tool_end", output: stringifyToolResult(json.result) }
   }
 
-  // Agent end - signals completion
+  // message_end / turn_end carry the assistant message. On a provider failure Pi
+  // sets stopReason "error" + errorMessage here (ahead of the terminal
+  // agent_end). Stash the latest so agent_end can surface it even if its own
+  // messages array doesn't; a successful stop clears any stale stash.
+  if (json.type === "message_end" || json.type === "turn_end") {
+    const message = (json as { message?: unknown }).message
+    const err = piMessageError(message)
+    if (err) {
+      context.state.piError = err
+    } else if (
+      message &&
+      typeof message === "object" &&
+      (message as { stopReason?: unknown }).stopReason === "stop"
+    ) {
+      context.state.piError = undefined
+    }
+    return null
+  }
+
+  // Agent end - terminal completion for the turn. Surface a provider error when
+  // the final assistant message failed (auth, balance, quota, …); otherwise a
+  // clean end. Deduped via `piEnded` so Pi's per-retry agent_end events (each
+  // attempt emits one) don't produce multiple end events.
   if (json.type === "agent_end") {
-    return { type: "end" }
+    if (context.state.piEnded) return null
+    context.state.piEnded = true
+    const err = piEndError(json.messages) ?? (context.state.piError as string | undefined)
+    return err ? { type: "end", error: resolveAgentError(err, "pi") } : { type: "end" }
   }
 
   // Error events
   if (json.type === "error") {
+    if (context.state.piEnded) return null
+    context.state.piEnded = true
     return { type: "end", error: resolveAgentError(json.error ?? json.message ?? json, "pi") }
   }
 
   // Auto retry end with failure
   if (json.type === "auto_retry_end" && !json.success) {
+    if (context.state.piEnded) return null
+    context.state.piEnded = true
     return { type: "end", error: resolveAgentError(json.finalError ?? "Auto retry failed", "pi") }
   }
 
   // These events are informational, we can ignore them:
-  // - agent_start, turn_start, turn_end
-  // - message_start, message_end
+  // - agent_start, turn_start
+  // - message_start
   // - compaction_start, compaction_end
   // - auto_retry_start
   // - queue_update

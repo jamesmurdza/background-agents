@@ -329,5 +329,57 @@ describe("parseGooseLine", () => {
     )
     expect(event).toEqual({ type: "token", text: "Hello" })
   })
+
+  // Goose wraps provider failures in an assistant message ("Ran into this
+  // error: …") + a plain `complete`, not a {type:"error"} event. The wrapped
+  // detail must surface on the terminal end rather than pass as normal text.
+  it("surfaces a wrapped provider error on complete instead of a silent end", () => {
+    const ctx = createContext()
+    const mid = parseGooseLine(
+      JSON.stringify({
+        type: "message",
+        message: {
+          id: null,
+          role: "assistant",
+          created: 1,
+          content: [
+            {
+              type: "text",
+              text:
+                "Ran into this error: Request failed: Bad request (400): Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits..\n\nPlease retry if you think this is a transient or recoverable error.",
+            },
+          ],
+        },
+      }),
+      mappings,
+      ctx
+    )
+    // The wrapper text is not emitted as ordinary assistant output…
+    expect(mid).toBeNull()
+    // …it rides through to the terminal end as a classified error.
+    const end = parseGooseLine(JSON.stringify({ type: "complete", total_tokens: null }), mappings, ctx)
+    expect(end).toMatchObject({ type: "end" })
+    expect((end as { error?: string }).error).toContain("credit balance is too low")
+    expect((end as { error?: string }).error).toContain("add credits")
+  })
+
+  it("no-credit fixture: surfaces the billing failure (not a silent end)", () => {
+    const fs = require("fs")
+    const path = require("path")
+    const fixture = fs.readFileSync(
+      path.join(__dirname, "../fixtures/jsonl-reference/goose-error.jsonl"),
+      "utf-8"
+    )
+    const ctx = createContext()
+    const events = fixture
+      .split("\n")
+      .filter(Boolean)
+      .map((l: string) => parseGooseLine(l, mappings, ctx))
+      .filter(Boolean)
+      .flat() as { type: string; error?: string }[]
+    const ends = events.filter((e) => e.type === "end")
+    expect(ends).toHaveLength(1)
+    expect(ends[0].error).toContain("credit balance is too low")
+  })
 })
 

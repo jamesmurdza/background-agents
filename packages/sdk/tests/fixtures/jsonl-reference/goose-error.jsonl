@@ -1,0 +1,6 @@
+
+    __( O)>  ● new session · anthropic claude-sonnet-4-20250514
+   \____)    20260713_1 · /home/daytona
+     L L     goose is ready
+{"type":"message","message":{"id":null,"role":"assistant","created":1783949133,"content":[{"type":"text","text":"Ran into this error: Request failed: Bad request (400): Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits..\n\nPlease retry if you think this is a transient or recoverable error."}],"metadata":{"userVisible":true,"agentVisible":true}}}
+{"type":"complete","total_tokens":null}

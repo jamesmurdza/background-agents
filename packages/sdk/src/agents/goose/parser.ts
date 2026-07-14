@@ -77,6 +77,17 @@ interface GooseErrorEvent {
 type GooseEvent = GooseMessageEvent | GooseCompleteEvent | GooseErrorEvent
 
 /**
+ * Goose doesn't emit a `{type:"error"}` event for provider/model failures (auth,
+ * balance, quota, …). Instead it wraps them in an assistant message whose text
+ * is `Ran into this error: <detail>. Please retry if you think this is a
+ * transient or recoverable error.` and then emits a plain `complete`. This
+ * captures `<detail>` (dropping the retry boilerplate) so `complete` can surface
+ * a real error instead of looking like a clean, empty success.
+ */
+const GOOSE_ERROR_TEXT =
+  /^\s*Ran into this error:\s*([\s\S]+?)\.?\s*(?:Please retry if you think this is a transient or recoverable error\.?)?\s*$/i
+
+/**
  * Parse a line of Goose CLI output into event(s).
  *
  * @param line - Raw line from CLI output
@@ -120,6 +131,13 @@ export function parseGooseLine(
     for (const block of msg.content) {
       // Text content from assistant
       if (block.type === "text" && msg.role === "assistant") {
+        // A wrapped provider error: stash the detail for `complete` to surface
+        // rather than emitting it as ordinary assistant text.
+        const errMatch = context && block.text.match(GOOSE_ERROR_TEXT)
+        if (errMatch) {
+          context!.state.gooseError = errMatch[1].trim()
+          continue
+        }
         events.push({ type: "token", text: block.text })
       }
 
@@ -154,9 +172,11 @@ export function parseGooseLine(
     return events.length > 0 ? (events.length === 1 ? events[0] : events) : null
   }
 
-  // Complete event marks successful completion
+  // Complete event marks end of the turn. Surface a wrapped provider error
+  // stashed from an earlier assistant message, if any; otherwise a clean end.
   if (json.type === "complete") {
-    return { type: "end" }
+    const err = context?.state.gooseError as string | undefined
+    return err ? { type: "end", error: resolveAgentError(err, "goose") } : { type: "end" }
   }
 
   // Error event

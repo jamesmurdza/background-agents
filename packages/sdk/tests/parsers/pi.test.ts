@@ -329,5 +329,122 @@ describe("parsePiLine", () => {
     const ctx = createContext()
     expect(parsePiLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
   })
+
+  // ─── Provider-failure handling ─────────────────────────────────────────────
+  // Pi carries provider failures (auth, balance, quota, …) on an assistant
+  // message with stopReason "error" + errorMessage, riding on message_end /
+  // turn_end / agent_end — NOT as a standalone {type:"error"} event. Without
+  // special handling agent_end looked like a silent success and the failure was
+  // never surfaced or logged.
+
+  it("surfaces a classified provider error carried on agent_end's messages", () => {
+    const ctx = createContext()
+    const event = parsePiLine(
+      JSON.stringify({
+        type: "agent_end",
+        messages: [
+          { role: "user", content: [{ type: "text", text: "hi" }] },
+          {
+            role: "assistant",
+            content: [],
+            stopReason: "error",
+            errorMessage:
+              '400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}',
+          },
+        ],
+      }),
+      mappings,
+      ctx
+    )
+    expect(event).toMatchObject({ type: "end" })
+    expect((event as { error?: string }).error).toContain("credit balance is too low")
+    // balance category appends an actionable hint
+    expect((event as { error?: string }).error).toContain("add credits")
+  })
+
+  it("surfaces an error stashed on message_end when agent_end has no messages", () => {
+    const ctx = createContext()
+    // The failing assistant message arrives first on message_end…
+    expect(
+      parsePiLine(
+        JSON.stringify({
+          type: "message_end",
+          message: { role: "assistant", stopReason: "error", errorMessage: "429 quota exceeded" },
+        }),
+        mappings,
+        ctx
+      )
+    ).toBeNull()
+    // …and the terminal agent_end (no messages) still carries it through.
+    const end = parsePiLine(JSON.stringify({ type: "agent_end" }), mappings, ctx)
+    expect(end).toMatchObject({ type: "end" })
+    expect((end as { error?: string }).error).toContain("quota exceeded")
+  })
+
+  it("emits a clean end (no error) for a successful agent_end", () => {
+    const ctx = createContext()
+    const event = parsePiLine(
+      JSON.stringify({
+        type: "agent_end",
+        messages: [{ role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" }],
+      }),
+      mappings,
+      ctx
+    )
+    expect(event).toEqual({ type: "end" })
+  })
+
+  it("emits exactly one end across Pi's per-retry agent_end events", () => {
+    const ctx = createContext()
+    const errored = {
+      type: "agent_end",
+      messages: [{ role: "assistant", stopReason: "error", errorMessage: "429 RESOURCE_EXHAUSTED" }],
+    }
+    const first = parsePiLine(JSON.stringify(errored), mappings, ctx)
+    const second = parsePiLine(JSON.stringify(errored), mappings, ctx)
+    expect(first).toMatchObject({ type: "end" })
+    expect((first as { error?: string }).error).toContain("RESOURCE_EXHAUSTED")
+    // Retry attempts each emit their own agent_end; downstream takes the first
+    // `end`, so later ones must be suppressed rather than duplicated.
+    expect(second).toBeNull()
+  })
+
+  // ─── Fixture-driven (real captured Pi runs) ────────────────────────────────
+
+  const parseFixture = (name: string) => {
+    const fs = require("fs")
+    const path = require("path")
+    const fixture = fs.readFileSync(
+      path.join(__dirname, `../fixtures/jsonl-reference/${name}.jsonl`),
+      "utf-8"
+    )
+    const ctx = createContext()
+    return fixture
+      .split("\n")
+      .filter(Boolean)
+      .map((l: string) => parsePiLine(l, mappings, ctx))
+      .filter(Boolean)
+      .flat() as { type: string; error?: string }[]
+  }
+
+  it.each([
+    ["pi-anthropic-error", /credit balance is too low/, /add credits/],
+    ["pi-openai-error", /exceeded your current quota/, /add credits/],
+    ["pi-gemini-error", /exceeded your current quota/, /add credits|retry/],
+  ])("%s: surfaces a single classified provider error (not a silent end)", (name, detail, hint) => {
+    const events = parseFixture(name as string)
+    const ends = events.filter((e) => e.type === "end")
+    expect(ends).toHaveLength(1)
+    expect(ends[0].error).toBeDefined()
+    expect(ends[0].error).toMatch(detail as RegExp)
+    expect(ends[0].error).toMatch(hint as RegExp)
+  })
+
+  it("pi-gemini (success): ends cleanly with no error", () => {
+    const events = parseFixture("pi-gemini")
+    const ends = events.filter((e) => e.type === "end")
+    expect(ends).toHaveLength(1)
+    expect(ends[0].error).toBeUndefined()
+  })
 })
 

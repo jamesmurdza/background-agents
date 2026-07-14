@@ -36,6 +36,12 @@ interface ClaudeAssistantMessage {
 interface ClaudeResult {
   type: "result"
   subtype?: "success" | "error" | "error_during_execution" | "error_max_turns"
+  /**
+   * True when the turn failed even though `subtype` stays "success" — e.g. a
+   * billing error surfaces as `{subtype:"success", is_error:true, result:"Credit
+   * balance is too low"}`. Must be honored or the failure looks like a clean end.
+   */
+  is_error?: boolean
   result?: string
   error?: string
   session_id: string
@@ -148,14 +154,14 @@ export function parseClaudeLine(
 
   // Result event marks end of interaction (success or CLI error)
   if (json.type === "result") {
+    const result = json as ClaudeResult
     const isError =
-      (json as ClaudeResult).subtype === "error_during_execution" ||
-      (json as ClaudeResult).subtype === "error"
+      result.subtype === "error_during_execution" ||
+      result.subtype === "error" ||
+      result.subtype === "error_max_turns" ||
+      result.is_error === true
     const err = isError
-      ? resolveAgentError(
-          (json as ClaudeResult).error ?? (json as ClaudeResult).result ?? json,
-          "claude"
-        )
+      ? resolveAgentError(result.error ?? result.result ?? json, "claude")
       : undefined
     return { type: "end", ...(err ? { error: err } : {}) }
   }

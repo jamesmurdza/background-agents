@@ -1,0 +1,5 @@
+Reading additional input from stdin...
+{"type":"thread.started","thread_id":"019f5ba7-fd74-7103-978c-71a8f0d3fb25"}
+{"type":"turn.started"}
+{"type":"error","message":"Quota exceeded. Check your plan and billing details."}
+{"type":"turn.failed","error":{"message":"Quota exceeded. Check your plan and billing details."}}
