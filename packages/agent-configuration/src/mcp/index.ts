@@ -79,6 +79,13 @@ function generateClaudeConfig(servers: AgentMcpServer[]): McpConfigFile {
 /**
  * Codex: ~/.codex/config.toml — `[mcp_servers.<name>]` (underscore, not dot).
  * Presence of `url` selects Streamable-HTTP; no `type` field exists.
+ *
+ * This file is shared with Codex's provider/routing config: setupMcpForAgent
+ * runs first and writes only these `[mcp_servers.*]` sections, then the SDK's
+ * codexSetup runs and rewrites the provider config while carrying these sections
+ * over (see extractTomlSections in @background-agents/sdk). That ordering is what
+ * lets this whole-file write coexist with the provider config — don't reorder
+ * the two setups without preserving sections on both sides.
  */
 function generateCodexConfig(servers: AgentMcpServer[]): McpConfigFile {
   const lines: string[] = []
