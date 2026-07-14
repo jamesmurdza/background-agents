@@ -27,17 +27,3 @@ export function setupDeepLinks(handler: (url: string) => void) {
     });
   }
 }
-
-export function getProtocol(): string {
-  return PROTOCOL;
-}
-
-// Deep link URL builders
-export const deepLinks = {
-  chat: (chatId: string) => `${PROTOCOL}://chat?id=${chatId}`,
-  newChat: (repo?: string) =>
-    `${PROTOCOL}://new-chat${repo ? `?repo=${encodeURIComponent(repo)}` : ""}`,
-  settings: () => `${PROTOCOL}://settings`,
-  auth: (token: string) =>
-    `${PROTOCOL}://auth?token=${encodeURIComponent(token)}`,
-};

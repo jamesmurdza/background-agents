@@ -79,15 +79,3 @@ export function setupAutoUpdater(mainWindow: BrowserWindow) {
     console.error("Auto-updater error:", err);
   });
 }
-
-export function checkForUpdates() {
-  return autoUpdater.checkForUpdates();
-}
-
-export function downloadUpdate() {
-  return autoUpdater.downloadUpdate();
-}
-
-export function installUpdate() {
-  autoUpdater.quitAndInstall(false, true);
-}
