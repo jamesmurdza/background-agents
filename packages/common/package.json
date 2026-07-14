@@ -1,6 +1,7 @@
 {
   "name": "@background-agents/common",
   "version": "0.1.0",
+  "private": true,
   "description": "Shared utilities and types for upstream-agents packages",
   "main": "src/index.ts",
   "types": "src/index.ts",
