@@ -8,11 +8,8 @@ const DEFAULT_SHORTCUTS = {
 };
 
 let registeredShortcuts: string[] = [];
-let mainWindowRef: BrowserWindow | null = null;
 
 export function registerShortcuts(mainWindow: BrowserWindow) {
-  mainWindowRef = mainWindow;
-
   // Toggle window (global, works even when app not focused)
   const toggleRet = globalShortcut.register(
     DEFAULT_SHORTCUTS["toggle-window"],
@@ -80,63 +77,4 @@ export function unregisterShortcuts() {
     globalShortcut.unregister(shortcut);
   }
   registeredShortcuts = [];
-  mainWindowRef = null;
-}
-
-export function updateShortcut(
-  action: keyof typeof DEFAULT_SHORTCUTS,
-  newShortcut: string
-): boolean {
-  if (!mainWindowRef) return false;
-
-  const oldShortcut = DEFAULT_SHORTCUTS[action];
-
-  // Unregister old shortcut
-  if (registeredShortcuts.includes(oldShortcut)) {
-    globalShortcut.unregister(oldShortcut);
-    registeredShortcuts = registeredShortcuts.filter((s) => s !== oldShortcut);
-  }
-
-  // Register new shortcut
-  const handler = getShortcutHandler(action, mainWindowRef);
-  const ret = globalShortcut.register(newShortcut, handler);
-
-  if (ret) {
-    registeredShortcuts.push(newShortcut);
-    return true;
-  }
-
-  // If failed, re-register old shortcut
-  globalShortcut.register(oldShortcut, handler);
-  registeredShortcuts.push(oldShortcut);
-  return false;
-}
-
-function getShortcutHandler(
-  action: keyof typeof DEFAULT_SHORTCUTS,
-  mainWindow: BrowserWindow
-): () => void {
-  switch (action) {
-    case "toggle-window":
-      return () => {
-        if (mainWindow.isVisible() && mainWindow.isFocused()) {
-          mainWindow.hide();
-        } else {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      };
-    case "new-chat":
-      return () => {
-        mainWindow.show();
-        mainWindow.focus();
-        mainWindow.webContents.send("shortcut", "new-chat");
-      };
-    case "search":
-      return () => {
-        mainWindow.show();
-        mainWindow.focus();
-        mainWindow.webContents.send("shortcut", "search");
-      };
-  }
 }

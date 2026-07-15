@@ -11,19 +11,10 @@ import {
   CommandShortcut,
   CommandSeparator,
 } from "@/components/ui/command"
-import { cn } from "@/lib/utils"
+import { VariableIcon } from "@/components/icons/variable-icon"
 import { SLASH_COMMANDS } from "@background-agents/common"
 import type { SectionKey } from "@/components/modals/SettingsModal"
 import type { Theme } from "@/lib/types"
-
-/** Custom italic x icon for variables */
-function VariableIcon({ className }: { className?: string }) {
-  return (
-    <span className={cn("flex items-center justify-center italic font-serif", className)}>
-      𝑥
-    </span>
-  )
-}
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   GitMerge,

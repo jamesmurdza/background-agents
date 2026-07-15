@@ -112,16 +112,3 @@ export function updateTrayMenu(mainWindow: BrowserWindow, isHidden: boolean) {
     tray.setContextMenu(contextMenu);
   }
 }
-
-export function setTrayTooltip(tooltip: string) {
-  if (tray) {
-    tray.setToolTip(tooltip);
-  }
-}
-
-export function destroyTray() {
-  if (tray) {
-    tray.destroy();
-    tray = null;
-  }
-}

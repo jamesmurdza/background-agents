@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { X, Plus, Trash2, FolderGit2, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { VariableIcon } from "@/components/icons/variable-icon"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
@@ -26,15 +27,6 @@ interface EnvironmentVariablesModalProps {
 }
 
 type TabKey = "chat" | "repository"
-
-/** Custom italic x icon for variables */
-function VariableIcon({ className }: { className?: string }) {
-  return (
-    <span className={cn("flex items-center justify-center italic font-serif", className)}>
-      𝑥
-    </span>
-  )
-}
 
 type TabIcon = LucideIcon | typeof VariableIcon
 
