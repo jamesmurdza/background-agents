@@ -35,7 +35,11 @@ const renewed = await generateClaudeCredentials(
 
 ## How It Works
 
-1. Resolves the latest ccauth commit SHA from GitHub
+1. Uses a **pinned** ccauth commit SHA (`CCAUTH_PINNED_SHA`) to build the image.
+   We pin rather than resolve `master` on every run because the generator runs
+   on an hourly cron and the unauthenticated GitHub API rate limit (60 req/h per
+   IP) would 403. To roll ccauth forward, bump `CCAUTH_PINNED_SHA` in
+   `src/generate.ts` (use `resolveLatestCCAuthSha()` to find the latest SHA).
 2. Creates an ephemeral Daytona sandbox with the image for the chosen mode:
    - `{ cookies }` → heavy image (Debian + Chrome + patchright) with a persistent
      volume for Cloudflare Turnstile trust, running `ccauth --cookies` under xvfb
@@ -81,7 +85,8 @@ import {
 ```typescript
 import {
   generateClaudeCredentials,        // Main entry point ({ cookies } | { refreshToken })
-  resolveLatestCCAuthSha,           // Get latest ccauth commit SHA
+  CCAUTH_PINNED_SHA,                // Pinned ccauth commit the image is built from
+  resolveLatestCCAuthSha,           // Manual helper: latest ccauth SHA (for bumping the pin)
   getCCAuthImage,                   // Build Daytona Image spec (sha, refreshMode?)
   isClaudeOAuthCredentials,         // Type guard
   RefreshTokenExpiredError,         // Thrown when the refresh token is expired/revoked

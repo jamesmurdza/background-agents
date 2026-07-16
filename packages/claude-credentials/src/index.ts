@@ -14,6 +14,7 @@ export { CLAUDE_CREDS_KEY, CLAUDE_COOKIES_KEY } from "./constants"
 
 // Generation logic
 export {
+  CCAUTH_PINNED_SHA,
   resolveLatestCCAuthSha,
   getCCAuthImage,
   isClaudeOAuthCredentials,

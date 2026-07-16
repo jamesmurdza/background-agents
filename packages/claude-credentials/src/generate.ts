@@ -15,10 +15,27 @@ const CCAUTH_REPO = "synacktraa/ccauth"
 const CCAUTH_BRANCH = "master"
 
 /**
- * Resolves the latest commit SHA on `master` so the pip install command becomes
- * `git+...@<sha>`. When the SHA changes, the Image spec hash changes, and
- * Daytona rebuilds the snapshot — picking up any ccauth fix automatically
- * without manual SHA bumps.
+ * Pinned ccauth commit used to build the sandbox image.
+ *
+ * We deliberately pin instead of resolving `master` on every run. The generator
+ * runs on an hourly cron, and resolving the latest SHA hit the unauthenticated
+ * GitHub API rate limit (60 req/h per IP → HTTP 403), which surfaced as
+ * `REFRESH_FAILED` and blocked credential refresh entirely.
+ *
+ * To adopt a newer ccauth commit, bump this to the desired SHA — e.g. run
+ * `resolveLatestCCAuthSha()` (or `git ls-remote https://github.com/${CCAUTH_REPO}
+ * master`) and paste its output here. Changing this value changes the Image spec
+ * hash, so Daytona rebuilds the snapshot on the next run and picks up the fix.
+ */
+export const CCAUTH_PINNED_SHA = "59d36167e65f9d49724049a8d4aee72c3f9585e3"
+
+/**
+ * Resolves the latest commit SHA on `master` via the GitHub API.
+ *
+ * NOTE: this is no longer called on the hot path — the generator uses the pinned
+ * {@link CCAUTH_PINNED_SHA} to avoid hammering the (rate-limited) GitHub API on
+ * every cron run. Keep this as a manual helper for finding the SHA to pin when
+ * bumping ccauth.
  */
 export async function resolveLatestCCAuthSha(): Promise<string> {
   const res = await fetch(
@@ -169,7 +186,10 @@ export async function generateClaudeCredentials(
   if (!apiKey) throw new Error("DAYTONA_API_KEY is not set")
 
   const refreshMode = "refreshToken" in input
-  const ccauthSha = await resolveLatestCCAuthSha()
+  // Use the pinned SHA rather than resolving `master` per run: the hourly cron
+  // otherwise exhausts the unauthenticated GitHub API rate limit (see
+  // CCAUTH_PINNED_SHA). Bump that constant to roll ccauth forward.
+  const ccauthSha = CCAUTH_PINNED_SHA
   console.error(
     `[claude-credentials] using ccauth (${refreshMode ? "refresh" : "cookie-based"} flow) ${ccauthSha.slice(0, 12)}`,
   )
