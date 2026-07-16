@@ -12,13 +12,7 @@ import type { SandboxProcess, GitStatus, PushResult } from "./types"
 import { withAuth } from "./auth"
 import { createGitError } from "./errors"
 import { parseGitStatus } from "./parsers"
-
-/**
- * Escape a shell argument to prevent injection
- */
-function esc(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`
-}
+import { esc } from "./shell"
 
 /**
  * Execute a command in the sandbox and throw on failure

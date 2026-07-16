@@ -4,6 +4,8 @@
  * Token is passed via git -c flag and never persisted.
  */
 
+import { esc } from "./shell"
+
 // Declare globals for environments (Node.js Buffer, browser btoa)
 declare const Buffer:
   | { from(str: string): { toString(encoding: string): string } }
@@ -21,10 +23,6 @@ function base64Encode(str: string): string {
     return btoa(str)
   }
   throw new Error("No base64 encoding available")
-}
-
-function esc(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`
 }
 
 /**
