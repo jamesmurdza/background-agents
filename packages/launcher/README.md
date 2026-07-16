@@ -65,7 +65,7 @@ Two ways:
 
 ### Automatic — on a version tag (GitHub Actions)
 
-Pushing a `v*` tag runs the publish workflow, which sets the package version from the tag and publishes to npm (requires the `NPM_TOKEN` repo secret).
+Pushing a `v*` tag runs the publish workflow, which sets the launcher's version from the tag and publishes it to npm (requires the `NPM_TOKEN` repo secret). The same workflow has a second job that publishes the reusable `@background-agents/*` libraries — each versioned from its own `package.json` and skipped if that version is already on npm, so the job is idempotent.
 
 ```bash
 git tag v1.0.1 && git push origin v1.0.1

@@ -126,7 +126,7 @@ export interface StartJobOptions {
  * File layout, one directory per job:
  * ```
  * <root>/<jobId>/
- *   meta.json     { jobId, pgid, outputFile, exitFile, cgroup, createdAt, version }
+ *   meta.json     { jobId, pgid, processName, outputFile, exitFile, dir, createdAt, version }
  *   output.log    combined stdout+stderr, byte-exact, append-only
  *   exit          integer $?, present ONLY once the process finishes
  * ```
