@@ -45,7 +45,7 @@ npm run test:e2e
 
 ### Debug a failing E2E test
 
-`dev:test` boots a dev server with the test env profile (test DB, `/api/test/auth` route enabled, placeholder OAuth) so you can manually reproduce a failure:
+`dev:test` boots a dev server with the test env profile (test DB, `/api/test/auth` route enabled, placeholder OAuth) so you can manually reproduce a failure. Run it from the repo root (it's a root-only script):
 
 ```bash
 npm run dev:test
