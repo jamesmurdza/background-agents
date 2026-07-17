@@ -214,6 +214,7 @@ const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
 export const agentModels: Record<Agent, ModelOption[]> = {
   "claude-code": [
     { value: "default", label: "Default", requiresKey: "anthropic" },
+    { value: "best", label: "Best", requiresKey: "anthropic" },
     { value: "fable", label: "Fable", requiresKey: "anthropic" },
     { value: "sonnet", label: "Sonnet", requiresKey: "anthropic" },
     { value: "opus", label: "Opus", requiresKey: "anthropic" },
@@ -263,6 +264,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-5-nano", label: "GPT-5 Nano", requiresKey: "opencode" },
     { value: "opencode/gpt-5.4", label: "GPT-5.4", requiresKey: "opencode" },
     { value: "opencode/gpt-5.5", label: "GPT-5.5", requiresKey: "opencode" },
+    { value: "opencode/gpt-5.6-sol", label: "GPT-5.6 Sol", requiresKey: "opencode" },
+    { value: "opencode/gpt-5.6-terra", label: "GPT-5.6 Terra", requiresKey: "opencode" },
+    { value: "opencode/gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "opencode" },
     { value: "opencode/gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "opencode" },
@@ -350,6 +354,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", requiresKey: "none" },
     { value: "kilo/stepfun/step-3.7-flash:free", label: "Step 3.7 Flash", requiresKey: "none" },
     // Anthropic via Kilo gateway
+    { value: "kilo/anthropic/claude-fable-5", label: "Claude Fable 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
@@ -357,15 +362,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // OpenAI via Kilo gateway
     { value: "kilo/openai/gpt-5.5", label: "GPT-5.5", requiresKey: "kilo" },
     { value: "kilo/openai/gpt-5.4", label: "GPT-5.4", requiresKey: "kilo" },
-    { value: "kilo/openai/o3", label: "o3", requiresKey: "kilo" },
-    { value: "kilo/openai/o4-mini", label: "o4 Mini", requiresKey: "kilo" },
     // Google via Kilo gateway
     { value: "kilo/google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "kilo" },
     // DeepSeek via Kilo gateway
     { value: "kilo/deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "kilo" },
-    { value: "kilo/deepseek/deepseek-r1-0528", label: "DeepSeek R1", requiresKey: "kilo" },
     // Other notable models
     { value: "kilo/moonshotai/kimi-k2.6", label: "Kimi K2.6", requiresKey: "kilo" },
     { value: "kilo/qwen/qwen3-coder", label: "Qwen3 Coder", requiresKey: "kilo" },
@@ -420,6 +422,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini" },
     // ── Factory-hosted (FACTORY_API_KEY; droid's built-in catalog). There is NO
     // free/no-key tier — verified: every built-in model 401s without a Factory key.
+    { value: "factory/claude-fable-5", label: "Claude Fable 5 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-opus-4-8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
