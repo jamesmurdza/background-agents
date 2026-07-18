@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn · Background Agents</title>
+<script>
+/* Sync to the app's theme (next-themes: localStorage 'theme' + system). Runs early to avoid flash. */
+(function(){try{
+  var t=localStorage.getItem("theme");
+  var dark=t==="dark"||((!t||t==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);
+  if(dark)document.documentElement.classList.add("dark");
+}catch(e){}})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Tokens mirror the app's globals.css exactly. */
+  :root{
+    --background:oklch(0.99 0.001 285);
+    --foreground:oklch(0.15 0.005 285);
+    --card:oklch(1 0 0);
+    --primary:oklch(0.55 0.15 145);
+    --primary-foreground:oklch(1 0 0);
+    --muted:oklch(0.95 0.005 285);
+    --muted-foreground:oklch(0.5 0 0);
+    --accent:oklch(0.96 0.005 285);
+    --border:oklch(0.88 0.005 285);
+    --sidebar:oklch(0.95 0.005 285);
+    --sidebar-border:oklch(0.92 0.003 285);
+    --destructive:oklch(0.55 0.2 25);
+    --warning:oklch(0.66 0.14 65);
+    --radius:0.5rem;
+    --font-sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  .dark{
+    --background:oklch(0.13 0.005 285);
+    --foreground:oklch(0.95 0 0);
+    --card:oklch(0.16 0.005 285);
+    --primary:oklch(0.65 0.15 145);
+    --primary-foreground:oklch(0.13 0.005 285);
+    --muted:oklch(0.20 0.005 285);
+    --muted-foreground:oklch(0.63 0 0);
+    --accent:oklch(0.22 0.008 285);
+    --border:oklch(0.30 0.005 285);
+    --sidebar:oklch(0.11 0.005 285);
+    --sidebar-border:oklch(0.25 0.005 285);
+    --destructive:oklch(0.60 0.20 25);
+    --warning:oklch(0.72 0.15 70);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
+  a{color:var(--primary);text-decoration:none}
+  a:hover{text-decoration:underline}
+  ::selection{background:color-mix(in oklab,var(--primary) 22%,transparent)}
+
+  /* Top bar */
+  header.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;height:52px;padding:0 20px;background:color-mix(in oklab,var(--background) 82%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:baseline;gap:8px;font-weight:600;color:var(--foreground);letter-spacing:-.01em}
+  .brand:hover{text-decoration:none}
+  .brand .sep{color:var(--muted-foreground);font-weight:400}
+  .brand .docs{color:var(--muted-foreground);font-weight:500}
+  .topbar .spacer{flex:1}
+  .topbar a.app-link{font-size:13px;color:var(--muted-foreground)}
+  .topbar a.app-link:hover{color:var(--foreground);text-decoration:none}
+  .icon-btn{cursor:pointer;background:transparent;border:none;color:var(--muted-foreground);width:32px;height:32px;border-radius:var(--radius);display:inline-flex;align-items:center;justify-content:center}
+  .icon-btn:hover{background:var(--accent);color:var(--foreground)}
+  .icon-btn svg{width:16px;height:16px}
+  #themeBtn .moon{display:block}#themeBtn .sun{display:none}
+  .dark #themeBtn .moon{display:none}.dark #themeBtn .sun{display:block}
+  #menuBtn{display:none}
+
+  /* Layout */
+  .layout{display:grid;grid-template-columns:240px minmax(0,1fr) 200px;max-width:1500px;margin:0 auto}
+  nav.sidebar{position:sticky;top:52px;align-self:start;height:calc(100vh - 52px);overflow-y:auto;padding:24px 12px 60px;background:var(--sidebar);border-right:1px solid var(--sidebar-border)}
+  nav.sidebar .group{margin-bottom:22px}
+  nav.sidebar .group-title{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted-foreground);font-weight:600;padding:0 10px 6px}
+  nav.sidebar a.nav-item{display:block;padding:5px 10px;border-radius:var(--radius);color:var(--muted-foreground);font-size:13.5px;line-height:1.5}
+  nav.sidebar a.nav-item:hover{background:var(--accent);color:var(--foreground);text-decoration:none}
+  nav.sidebar a.nav-item.active{background:var(--accent);color:var(--foreground);font-weight:500;box-shadow:inset 2px 0 0 var(--primary)}
+
+  main{min-width:0;padding:40px 44px 120px}
+  article{max-width:860px}
+  article h1{font-size:1.8rem;font-weight:650;letter-spacing:-.02em;margin:.1em 0 .5em;line-height:1.25}
+  article h2{font-size:1.3rem;font-weight:600;letter-spacing:-.01em;margin:2em 0 .5em;line-height:1.3}
+  article h3{font-size:1.05rem;font-weight:600;margin:1.6em 0 .4em}
+  article p{margin:.75em 0}
+  article strong{font-weight:600}
+  article ul,article ol{margin:.6em 0;padding-left:1.35em}
+  article li{margin:.3em 0}
+  article li::marker{color:var(--muted-foreground)}
+  article code{background:var(--muted);padding:.12em .4em;border-radius:5px;font-size:.85em;font-family:var(--font-mono)}
+  article pre{background:var(--muted);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;overflow-x:auto;margin:1.1em 0}
+  article pre code{background:none;padding:0;font-size:.82rem;line-height:1.6}
+  article hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+  article blockquote{margin:1em 0;padding:.3em 1em;border-left:2px solid var(--border);color:var(--muted-foreground)}
+  article table{border-collapse:collapse;width:100%;margin:1.1em 0;font-size:.9rem;display:block;overflow-x:auto}
+  article th,article td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+  article th{background:var(--muted);font-weight:600}
+
+  /* Callouts — quiet, GitHub-style alerts */
+  .callout{margin:1.2em 0;padding:12px 15px;border-radius:var(--radius);background:var(--muted);border:1px solid var(--border);border-left:3px solid var(--muted-foreground)}
+  .callout-title{font-weight:600;font-size:.85rem;margin-bottom:2px}
+  .callout-body{color:var(--foreground);font-size:.92rem}
+  .callout-tip,.callout-note{border-left-color:var(--primary)}
+  .callout-warning{border-left-color:var(--warning)}
+  .callout-important,.callout-caution{border-left-color:var(--destructive)}
+
+  /* Media */
+  figure.media{margin:1.5em 0}
+  figure.media .media-el{width:100%;display:block;border-radius:var(--radius);border:1px solid var(--border);background:var(--muted)}
+  figure.media figcaption{margin-top:9px;font-size:.83rem;color:var(--muted-foreground);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;line-height:1.5}
+  .media-badge{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap;color:var(--muted-foreground);border:1px solid var(--border);background:var(--card)}
+
+  /* Landing cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:1.5em 0}
+  .card{display:block;padding:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card)}
+  .card:hover{text-decoration:none;border-color:var(--primary)}
+  .card .kicker{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-foreground)}
+  .card h3{margin:.4em 0 .3em;font-size:1rem;font-weight:600;color:var(--foreground)}
+  .card p{margin:0;font-size:.85rem;color:var(--muted-foreground);line-height:1.55}
+
+  /* Right TOC */
+  aside.toc{position:sticky;top:52px;align-self:start;height:calc(100vh - 52px);overflow-y:auto;padding:44px 16px;font-size:.82rem}
+  aside.toc .toc-title{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted-foreground);font-weight:600;margin-bottom:8px}
+  aside.toc a{display:block;color:var(--muted-foreground);padding:3px 0;line-height:1.4}
+  aside.toc a.lvl3{padding-left:12px}
+  aside.toc a:hover{color:var(--foreground);text-decoration:none}
+
+  /* Prev / next */
+  .pager{display:flex;justify-content:space-between;gap:12px;margin-top:48px;padding-top:22px;border-top:1px solid var(--border)}
+  .pager a{flex:1;max-width:48%;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:var(--card)}
+  .pager a:hover{border-color:var(--primary);text-decoration:none}
+  .pager .dir{font-size:11px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.05em}
+  .pager .t{font-weight:500;color:var(--foreground)}
+  .pager a.next{text-align:right;margin-left:auto}
+
+  .backdrop{display:none}
+  @media (max-width:1100px){.layout{grid-template-columns:248px minmax(0,1fr)}aside.toc{display:none}}
+  @media (max-width:820px){
+    #menuBtn{display:inline-flex}
+    .layout{grid-template-columns:1fr}
+    main{padding:28px 22px 100px}
+    nav.sidebar{position:fixed;top:52px;left:0;width:272px;transform:translateX(-100%);transition:transform .2s ease;z-index:40}
+    body.nav-open nav.sidebar{transform:translateX(0)}
+    body.nav-open .backdrop{display:block;position:fixed;inset:52px 0 0;background:rgba(0,0,0,.45);z-index:35}
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="menuBtn" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <a class="brand" href="#/getting-started">Background Agents <span class="sep">/</span> <span class="docs">Docs</span></a>
+    <span class="spacer"></span>
+    <a class="app-link" href="/">Back to app</a>
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle theme" title="Toggle theme">
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </header>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar"></nav>
+    <main><article id="content">Loading…</article>
+      <div class="pager" id="pager"></div>
+    </main>
+    <aside class="toc" id="toc"></aside>
+  </div>
+
+<!-- Runtime media config (auto-generated from NEXT_PUBLIC_LEARN_MEDIA_BASE; may 404 if
+     the dev/build step hasn't run — that's fine, the viewer falls back to local media). -->
+<script src="media-config.js"></script>
+<script>
+/* ------------------------------------------------------------------ *
+ * Navigation manifest. `file` is fetched from ./content/<file>.
+ * ------------------------------------------------------------------ */
+const NAV = [
+  { title:"Get started", items:[
+    { slug:"getting-started", label:"Overview", file:"getting-started.md" },
+  ]},
+  { title:"Projects", items:[
+    { slug:"issue-to-pr",   label:"Issue → pull request", file:"project-issue-to-pr.md" },
+    { slug:"email-digest",  label:"Daily email digest",       file:"project-email-digest.md" },
+    { slug:"mini-game",           label:"Build a mini-game",   file:"project-mini-game.md" },
+    { slug:"agent-battle",        label:"Agent Battle",        file:"project-agent-battle.md" },
+  ]},
+  { title:"Features", items:[
+    { slug:"github",           label:"Connect a repository", file:"feature-github.md" },
+    { slug:"jobs",             label:"Jobs",              file:"feature-jobs.md" },
+    { slug:"mcp",              label:"MCP servers",       file:"feature-mcp.md" },
+    { slug:"github-mcp",       label:"GitHub MCP",        file:"feature-github-mcp.md" },
+    { slug:"skills",           label:"Skills",            file:"feature-skills.md" },
+    { slug:"custom-endpoints", label:"Custom endpoints",  file:"feature-custom-endpoints.md" },
+  ]},
+];
+const FLAT = NAV.flatMap(g => g.items);
+const BY_SLUG = Object.fromEntries(FLAT.map(i => [i.slug, i]));
+const DEFAULT = "getting-started";
+/* Big media (videos + GIFs) is served from a Cloudflare R2 public bucket to keep the git
+ * repo lightweight; screenshots (PNG) and placeholder SVGs stay local under media/.
+ * The base URL comes from NEXT_PUBLIC_LEARN_MEDIA_BASE via the generated media-config.js
+ * (window.LEARN_MEDIA_BASE). Empty/absent -> everything is served locally from media/. */
+const R2_BASE = ((typeof window !== "undefined" && window.LEARN_MEDIA_BASE) || "").replace(/\/+$/, "");
+function mediaUrl(file){
+  // Big media lives on R2 under /videos and /gifs; screenshots stay local under media/.
+  if(R2_BASE && /\.mp4$/i.test(file)) return `${R2_BASE}/videos/${file}`;
+  if(R2_BASE && /\.gif$/i.test(file)) return `${R2_BASE}/gifs/${file}`;
+  return `media/${file}`;
+}
+const TOKEN = "\u0000"; // collision-safe placeholder (never appears in prose; stripped before output)
+
+/* ------------------------------------------------------------------ *
+ * Tiny Markdown renderer (headings, code, lists, tables, blockquote/
+ * callouts, raw HTML passthrough, and a :::media directive).
+ * ------------------------------------------------------------------ */
+function escapeHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function escapeAttr(s){return escapeHtml(s).replace(/"/g,"&quot;")}
+function slugify(s){return s.toLowerCase().replace(/<[^>]+>/g,"").replace(/[^\w\s-]/g,"").trim().replace(/\s+/g,"-")}
+
+function inline(text){
+  const codes=[];
+  text=text.replace(/`([^`]+)`/g,(_,c)=>{codes.push("<code>"+escapeHtml(c)+"</code>");return TOKEN+(codes.length-1)+TOKEN});
+  text=escapeHtml(text);
+  text=text.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,(_,alt,src,t)=>`<img src="${src}" alt="${escapeAttr(alt)}"${t?` title="${escapeAttr(t)}"`:""}>`);
+  text=text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,(_,tx,href,t)=>{
+    const ext=/^https?:/.test(href);
+    return `<a href="${href}"${t?` title="${escapeAttr(t)}"`:""}${ext?' target="_blank" rel="noopener"':""}>${tx}</a>`;
+  });
+  text=text.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  text=text.replace(/(^|[^*\w])\*([^*]+)\*/g,"$1<em>$2</em>");
+  text=text.replace(new RegExp(TOKEN+"(\\d+)"+TOKEN,"g"),(_,i)=>codes[+i]);
+  return text;
+}
+function parseAttrs(s){const o={};const re=/(\w+)="([^"]*)"/g;let m;while((m=re.exec(s)))o[m[1]]=m[2];return o}
+function renderMedia(a,caption){
+  const type=a.type||"image", file=a.file||"";
+  const dur=a.duration?` · ${escapeHtml(a.duration)}`:"";
+  const badge={video:"Video · voiceover",gif:"GIF · silent",image:"Screenshot"}[type]||type;
+  const ph="media/placeholder-"+(type==="video"?"video":type==="gif"?"gif":"image")+".svg";
+  let inner;
+  if(type==="video"){
+    // With a real file, load just enough metadata to show the actual first
+    // frame (via the #t media fragment) instead of the gray placeholder poster.
+    // Without a file, fall back to the placeholder poster and load nothing.
+    inner=file
+      ? `<video class="media-el" controls preload="metadata" src="${mediaUrl(file)}#t=0.1"></video>`
+      : `<video class="media-el" controls preload="none" poster="${ph}"></video>`;
+  }else{
+    inner=`<img class="media-el" loading="lazy" src="${file?mediaUrl(file):ph}" onerror="this.onerror=null;this.src='${ph}'" alt="${escapeAttr(caption)}">`;
+  }
+  return `<figure class="media">${inner}<figcaption><span class="media-badge">${badge}${file?` · ${escapeHtml(file)}`:""}${dur}</span> <span>${inline(caption)}</span></figcaption></figure>`;
+}
+function renderQuote(buf){
+  const m=buf[0].match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
+  if(m){
+    const type=m[1].toLowerCase();
+    const title=(m[2].trim())||(type[0].toUpperCase()+type.slice(1));
+    return `<div class="callout callout-${type}"><div class="callout-title">${inline(title)}</div><div class="callout-body">${inline(buf.slice(1).join(" "))}</div></div>`;
+  }
+  return `<blockquote>${inline(buf.join(" "))}</blockquote>`;
+}
+function splitRow(r){return r.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim())}
+function renderTable(buf){
+  const head=splitRow(buf[0]);
+  const rows=buf.slice(2).map(splitRow);
+  let h="<table><thead><tr>"+head.map(c=>`<th>${inline(c)}</th>`).join("")+"</tr></thead><tbody>";
+  for(const r of rows) h+="<tr>"+r.map(c=>`<td>${inline(c)}</td>`).join("")+"</tr>";
+  return h+"</tbody></table>";
+}
+function isBlockStart(l){
+  return /^\s*$/.test(l)||/^#{1,6}\s/.test(l)||/^```/.test(l)||/^:::/.test(l)||/^>\s?/.test(l)||
+         /^(-{3,}|\*{3,})\s*$/.test(l)||/^\s*([-*+])\s+/.test(l)||/^\s*\d+\.\s+/.test(l)||/^\s*</.test(l);
+}
+function render(md){
+  const lines=md.replace(/\r\n?/g,"\n").split("\n");
+  let html="",i=0;const N=lines.length;
+  while(i<N){
+    const line=lines[i];
+    if(/^\s*$/.test(line)){i++;continue}
+    if(/^```/.test(line)){
+      const lang=line.replace(/^```/,"").trim();const buf=[];i++;
+      while(i<N&&!/^```/.test(lines[i])){buf.push(lines[i]);i++} i++;
+      html+=`<pre><code${lang?` class="lang-${lang}"`:""}>${escapeHtml(buf.join("\n"))}</code></pre>`;continue;
+    }
+    if(/^:::media/.test(line)){
+      const attrs=parseAttrs(line.slice(8));const cap=[];i++;
+      while(i<N&&!/^:::\s*$/.test(lines[i])){cap.push(lines[i]);i++} i++;
+      html+=renderMedia(attrs,cap.join(" ").trim());continue;
+    }
+    const h=line.match(/^(#{1,6})\s+(.*)$/);
+    if(h){const lvl=h[1].length,id=slugify(h[2]);html+=`<h${lvl} id="${id}">${inline(h[2])}</h${lvl}>`;i++;continue}
+    if(/^(-{3,}|\*{3,})\s*$/.test(line)){html+="<hr>";i++;continue}
+    if(/^>\s?/.test(line)){const buf=[];while(i<N&&/^>\s?/.test(lines[i])){buf.push(lines[i].replace(/^>\s?/,""));i++}html+=renderQuote(buf);continue}
+    if(line.includes("|")&&i+1<N&&/^\s*\|?[\s:-]*-[\s:|-]*$/.test(lines[i+1])&&lines[i+1].includes("|")){
+      const buf=[line];i++;while(i<N&&lines[i].includes("|")&&!/^\s*$/.test(lines[i])){buf.push(lines[i]);i++}
+      html+=renderTable(buf);continue;
+    }
+    if(/^\s*</.test(line)){const buf=[];while(i<N&&!/^\s*$/.test(lines[i])){buf.push(lines[i]);i++}html+=buf.join("\n");continue}
+    if(/^\s*([-*+])\s+/.test(line)){const buf=[];while(i<N&&/^\s*([-*+])\s+/.test(lines[i])){buf.push(lines[i].replace(/^\s*([-*+])\s+/,""));i++}html+="<ul>"+buf.map(x=>`<li>${inline(x)}</li>`).join("")+"</ul>";continue}
+    if(/^\s*\d+\.\s+/.test(line)){const buf=[];while(i<N&&/^\s*\d+\.\s+/.test(lines[i])){buf.push(lines[i].replace(/^\s*\d+\.\s+/,""));i++}html+="<ol>"+buf.map(x=>`<li>${inline(x)}</li>`).join("")+"</ol>";continue}
+    const buf=[line];i++;while(i<N&&!isBlockStart(lines[i])){buf.push(lines[i]);i++}
+    html+="<p>"+inline(buf.join(" "))+"</p>";
+  }
+  return html;
+}
+
+/* ------------------------------------------------------------------ *
+ * Router + rendering
+ * ------------------------------------------------------------------ */
+const cache={};
+async function loadPage(slug){
+  const item=BY_SLUG[slug]||BY_SLUG[DEFAULT];
+  const el=document.getElementById("content");
+  try{
+    if(!cache[item.slug]){
+      const res=await fetch("content/"+item.file,{cache:"no-cache"});
+      if(!res.ok) throw new Error(res.status+" "+res.statusText);
+      cache[item.slug]=await res.text();
+    }
+    el.innerHTML=render(cache[item.slug]);
+  }catch(err){
+    el.innerHTML=`<h1>Couldn't load this page</h1><p>Failed to fetch <code>content/${item.file}</code> (${escapeHtml(String(err.message||err))}).</p><p>Open this site through a running server — e.g. <code>http://localhost:4000/learn/index.html</code> — not via <code>file://</code>.</p>`;
+  }
+  buildToc(item.slug);
+  buildPager(item.slug);
+  document.querySelectorAll("nav.sidebar a.nav-item").forEach(a=>a.classList.toggle("active",a.dataset.slug===item.slug));
+  document.title=item.label+" · Background Agents Docs";
+  window.scrollTo(0,0);
+  document.body.classList.remove("nav-open");
+}
+function buildToc(slug){
+  const toc=document.getElementById("toc");
+  const hs=[...document.querySelectorAll("#content h2, #content h3")];
+  if(hs.length<2){toc.innerHTML="";return}
+  toc.innerHTML='<div class="toc-title">On this page</div>'+hs.map(h=>`<a class="${h.tagName==="H3"?"lvl3":""}" href="#/${slug}" onclick="event.preventDefault();document.getElementById('${h.id}').scrollIntoView({behavior:'smooth'})">${h.textContent}</a>`).join("");
+}
+function buildPager(slug){
+  const idx=FLAT.findIndex(i=>i.slug===slug);
+  const prev=FLAT[idx-1],next=FLAT[idx+1];
+  document.getElementById("pager").innerHTML=
+    (prev?`<a class="prev" href="#/${prev.slug}"><span class="dir">Previous</span><br><span class="t">${prev.label}</span></a>`:"<span></span>")+
+    (next?`<a class="next" href="#/${next.slug}"><span class="dir">Next</span><br><span class="t">${next.label}</span></a>`:"<span></span>");
+}
+function currentSlug(){const h=location.hash.replace(/^#\//,"").split("#")[0];return h||DEFAULT}
+function renderSidebar(){
+  document.getElementById("sidebar").innerHTML=NAV.map(g=>
+    `<div class="group"><div class="group-title">${g.title}</div>`+
+    g.items.map(i=>`<a class="nav-item" data-slug="${i.slug}" href="#/${i.slug}">${i.label}</a>`).join("")+
+    `</div>`).join("");
+}
+function route(){loadPage(currentSlug())}
+
+/* Theme: keep in sync with the app (localStorage 'theme') + system changes. */
+function applyTheme(){
+  let t; try{t=localStorage.getItem("theme")}catch(e){}
+  const dark=t==="dark"||((!t||t==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark",dark);
+}
+document.getElementById("themeBtn").onclick=()=>{
+  const dark=document.documentElement.classList.toggle("dark");
+  try{localStorage.setItem("theme",dark?"dark":"light")}catch(e){}
+};
+addEventListener("storage",e=>{if(e.key==="theme")applyTheme()});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",applyTheme);
+document.getElementById("menuBtn").onclick=()=>document.body.classList.toggle("nav-open");
+document.getElementById("backdrop").onclick=()=>document.body.classList.remove("nav-open");
+
+renderSidebar();
+window.addEventListener("hashchange",route);
+if(!location.hash) location.replace("#/"+DEFAULT);
+route();
+</script>
+</body>
+</html>
