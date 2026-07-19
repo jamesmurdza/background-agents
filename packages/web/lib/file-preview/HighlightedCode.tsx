@@ -1,8 +1,7 @@
 "use client"
 
-import hljs from "highlight.js/lib/common"
 import { detectLang } from "./detect"
-import { escapeHtml } from "@/lib/html"
+import { highlightCode } from "./highlight"
 
 interface HighlightedCodeProps {
   /** The code content to highlight */
@@ -31,16 +30,7 @@ export function HighlightedCode({
   const lines = code.split("\n")
   const lang = detectLang(filename)
 
-  let html: string
-  try {
-    if (lang && hljs.getLanguage(lang)) {
-      html = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
-    } else {
-      html = hljs.highlightAuto(code).value
-    }
-  } catch {
-    html = escapeHtml(code)
-  }
+  const html = highlightCode(code, lang)
 
   const lineHtmls = html.split("\n")
 

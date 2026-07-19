@@ -2,11 +2,10 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import hljs from "highlight.js/lib/common"
 import { Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCopyToClipboard, extractCodeText } from "@/lib/hooks/useCopyToClipboard"
-import { escapeHtml } from "@/lib/html"
+import { highlightCode } from "./highlight"
 
 interface MarkdownPreviewProps {
   /** The markdown content to render */
@@ -251,16 +250,7 @@ export function MarkdownPreview({
                 const code = String(children).replace(/\n$/, "")
                 const lang = match[1]
 
-                let highlighted: string
-                try {
-                  if (hljs.getLanguage(lang)) {
-                    highlighted = hljs.highlight(code, { language: lang }).value
-                  } else {
-                    highlighted = hljs.highlightAuto(code).value
-                  }
-                } catch {
-                  highlighted = escapeHtml(code)
-                }
+                const highlighted = highlightCode(code, lang)
 
                 return (
                   <code
