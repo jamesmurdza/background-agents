@@ -20,11 +20,25 @@ server as-is. (Open it through the server, not as a `file://` — the viewer fet
 learn/
   index.html            The whole viewer: sidebar, router, Markdown renderer, :::media directive.
   content/*.md          One Markdown file per page. Source of truth. Portable to any docs platform.
-  media/                Images, GIFs, and videos. Ships with 3 placeholder SVGs.
+  media/                Screenshots (PNG) + 3 placeholder SVGs. Videos (MP4) and GIFs are hosted on
+                        Cloudflare R2, not committed (see "Media hosting" below).
+  media-config.js       Auto-generated at dev/build with the R2 base URL. Gitignored.
   README.md             This file.
 ```
 
 To add or reorder pages, edit the `NAV` array near the top of the `<script>` in `index.html`.
+
+## Media hosting
+
+Big media (videos + GIFs) is served from a Cloudflare R2 bucket rather than committed to git —
+`media/.gitignore` excludes `*.mp4` and `*.gif`. Screenshots (PNG) and the placeholder SVGs stay in `media/`.
+
+- Set `NEXT_PUBLIC_LEARN_MEDIA_BASE` to the bucket URL (e.g. `https://pub-<hash>.r2.dev`, no trailing slash).
+- On `predev`/`prebuild`, `scripts/gen-learn-media-config.mjs` materializes `media-config.js`, which sets
+  `window.LEARN_MEDIA_BASE`. The viewer reads it as `R2_BASE` and resolves `*.mp4` → `${R2_BASE}/videos/<file>`
+  and `*.gif` → `${R2_BASE}/gifs/<file>`.
+- If the var is unset/empty, `media-config.js` holds an empty base and the viewer falls back to serving
+  everything locally from `./media/`.
 
 ## The `:::media` directive
 
@@ -37,15 +51,16 @@ Caption describing what the clip shows.
 ```
 
 - `type` is `video`, `gif`, or `image`.
-- Until the real file exists in `media/`, a labeled **placeholder** renders automatically.
-- **Drop the real file into `media/` with the exact `file` name and it appears — no Markdown edits.**
+- Until the real file resolves, a labeled **placeholder** renders automatically.
+- **Add the real file with the exact `file` name and it appears — no Markdown edits.** Images (PNG) go in
+  `media/`; videos (MP4) and GIFs resolve from R2 when `NEXT_PUBLIC_LEARN_MEDIA_BASE` is set, else from `media/`.
   (Images/GIFs fall back to the placeholder via `onerror`; videos use the placeholder as their poster.)
 
 ## Media status
 
-Drop a file into `media/` with the exact name below and it appears — no Markdown edits.
+Screenshots below are committed to `media/`. Videos and GIFs are hosted on R2 (see "Media hosting").
 
-### Captured — videos (narrated MP4)
+### Videos (narrated MP4) — hosted on R2 under `/videos/`
 
 | File | Page | Shows |
 |------|------|-------|
@@ -55,7 +70,7 @@ Drop a file into `media/` with the exact name below and it appears — no Markdo
 | `gravity-game.mp4` | Build a mini-game | Prompt → agent builds a physics sandbox → playable in preview |
 | `multi-agent-final.mp4` | Agent Battle | One "build Snake" prompt across Claude Code, Kimi Code, OpenCode |
 
-### Captured — GIFs (silent, looping)
+### GIFs (silent, looping) — hosted on R2 under `/gifs/`
 
 | File | Page | Shows |
 |------|------|-------|
@@ -66,7 +81,7 @@ Drop a file into `media/` with the exact name below and it appears — no Markdo
 | `skill-install.gif` | Skills | Search skills.sh → install → skill available |
 | `add-custom-endpoint.gif` | Custom endpoints | Add endpoint → fill fields → appears in model dropdown |
 
-### Still placeholder — screenshots to capture (optional, PNG)
+### Screenshots (PNG) — committed in `media/`
 
 | File | Page(s) |
 |------|---------|
@@ -75,7 +90,8 @@ Drop a file into `media/` with the exact name below and it appears — no Markdo
 | `scheduled-job-form.png` | Jobs |
 | `webhook-url-panel.png` | Jobs, Issue → pull request |
 | `schedule-daily-9am.png` | Daily email digest |
-| `run-detail.png` | Jobs, Issue → pull request, Daily email digest |
+| `run-detail.png` | Jobs, Issue → pull request |
+| `run-detail-email.png` | Daily email digest |
 | `branch-agents.png` | Agent Battle |
 | `preview-running.png` | Build a mini-game |
 | `mcp-panel.png` | MCP servers |
