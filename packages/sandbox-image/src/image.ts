@@ -93,20 +93,6 @@ export const AGENT_PACKAGES = {
 export const TOKSCALE_VERSION = "3.1.2"
 
 /**
- * Shell command to install Goose binary (not available via npm).
- */
-const GOOSE_INSTALL_CMD = `
-  mkdir -p ~/.local/bin ~/.goose_tmp &&
-  curl -fsSL "https://github.com/block/goose/releases/download/stable/goose-x86_64-unknown-linux-gnu.tar.bz2" |
-  tar -xjf - --no-same-owner --no-same-permissions -C ~/.goose_tmp &&
-  mv ~/.goose_tmp/goose ~/.local/bin/goose &&
-  chmod +x ~/.local/bin/goose &&
-  rm -rf ~/.goose_tmp
-`
-  .trim()
-  .replace(/\n\s*/g, " ")
-
-/**
  * Builds the Daytona Image spec with all agent CLIs pre-installed.
  *
  * Pre-installed agents:
