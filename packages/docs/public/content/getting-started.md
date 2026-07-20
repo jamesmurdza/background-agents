@@ -4,8 +4,8 @@ Background Agents runs AI coding agents — Claude, Codex, Copilot, Droid, Gemin
 
 These docs pair a **feature** reference with worked **examples**. The feature pages cover each building block on its own; the examples put them together into things worth building — automations that turn issues into pull requests or summarize your inbox while you sleep, and small apps you can ship in a single session.
 
-:::media type="video" file="overview.mp4" duration="~2 min"
-A 2-minute tour: create a chat, pick an agent, watch it work in a sandbox, and open a PR.
+:::media type="video" file="overview.mp4" duration="~1m45s"
+A quick tour: create a chat, pick an agent, watch it work in a sandbox, and open a PR.
 :::
 
 ## The building blocks
@@ -47,7 +47,7 @@ The chat view: conversation on the left, the agent's tools and terminal output i
 
 Any chat can be shared with a public link — hand someone a read-only view of the conversation, the agent's work, and the result without giving them access to your account.
 
-:::media type="gif" file="share-link.gif" duration="~10s"
+:::media type="gif" file="share-link.gif" duration="~25s"
 Creating a share link for a chat and opening the public, read-only view.
 :::
 

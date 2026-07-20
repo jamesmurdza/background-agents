@@ -4,7 +4,7 @@
 
 This showcases multi-agent support, per-chat model selection, and branching one chat into parallel attempts.
 
-:::media type="video" file="multi-agent-final.mp4" duration="~2 min"
+:::media type="video" file="multi-agent-final.mp4" duration="~2m30s"
 One prompt — "build Snake" — branched to three agents (Claude Code, Kimi Code, OpenCode) running side by side. Watch them diverge, then compare the results and pick a winner.
 :::
 

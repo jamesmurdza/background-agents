@@ -4,7 +4,7 @@
 
 This is the flagship automation. It uses a **Via webhook** agent: a job that fires when an external app POSTs to a URL you own. Here that external app is GitHub itself, sending an `issues` event.
 
-:::media type="video" file="coding-automation.mp4" duration="~2–3 min"
+:::media type="video" file="coding-automation.mp4" duration="~2m10s"
 End to end: open an issue on GitHub, watch the agent fire, read the issue in a sandbox, implement the change, and open a pull request that closes it. The voiceover explains each step.
 :::
 

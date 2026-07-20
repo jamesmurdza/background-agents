@@ -4,7 +4,7 @@ Custom endpoints let you point an agent at **your own, self-hosted, or proxied**
 
 Use them for an internal gateway, an OpenRouter or other proxy, a self-hosted model, or a provider variant that isn't listed out of the box.
 
-:::media type="gif" file="add-custom-endpoint.gif" duration="~15s"
+:::media type="gif" file="add-custom-endpoint.gif" duration="~30s"
 Adding a custom endpoint in Settings — name, type, base URL, headers — then picking it from the model dropdown in a chat.
 :::
 

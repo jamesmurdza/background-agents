@@ -2,7 +2,7 @@
 
 Sign in with GitHub and connect a repository to a chat. The app clones it into the chat's sandbox on a fresh branch — isolated from your local checkout and from `main` — so an agent can edit the code, run it, and commit without ever touching your machine.
 
-:::media type="gif" file="connect-repo.gif" duration="~10s"
+:::media type="gif" file="connect-repo.gif" duration="~20s"
 Connecting a GitHub repository to a chat and seeing the new working branch.
 :::
 

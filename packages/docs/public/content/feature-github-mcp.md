@@ -23,7 +23,7 @@ Because tokens are minted per request and are short-lived, no long-lived GitHub 
 
 With the GitHub App configured for the deployment, connect the GitHub MCP server to a chat (or a job) from the MCP panel. Once connected, its tools are available to the agent.
 
-:::media type="gif" file="github-mcp-connect.gif" duration="~12s"
+:::media type="gif" file="github-mcp-connect.gif" duration="~48s"
 Connecting the GitHub MCP server and the agent using an issue/PR tool.
 :::
 

@@ -4,7 +4,7 @@
 
 This is the fun one. It shows off sandbox isolation, the built-in terminal, and branch-per-chat without touching your machine.
 
-:::media type="video" file="gravity-game.mp4" duration="~2 min"
+:::media type="video" file="gravity-game.mp4" duration="~2m10s"
 From a one-line prompt to a playable toy: the agent scaffolds a self-contained page, starts a static server in the sandbox terminal, and the gravity sandbox loads in preview — drag to spawn shapes, watch them fall and collide.
 :::
 

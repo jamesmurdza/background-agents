@@ -4,7 +4,7 @@
 
 This one shows a different side of the platform: agents doing **knowledge work** through [MCP tools](#/mcp), on a schedule, with no Git repo attached at all. It's an **On a schedule**, **repo-less** agent.
 
-:::media type="video" file="repo-less.mp4" duration="~2 min"
+:::media type="video" file="repo-less.mp4" duration="~2m20s"
 Configure a repo-less scheduled agent with the Gmail and Notion MCP servers attached, then open a completed run and the Notion page it produced — a digest of the last 24 hours of email with draft replies.
 :::
 

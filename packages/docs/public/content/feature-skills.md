@@ -4,7 +4,7 @@ Skills are packaged, repo-scoped abilities you install into a project from the [
 
 Where [MCP servers](#/mcp) give an agent new *tools*, skills give it new *procedures* — packaged instructions for a specific kind of task.
 
-:::media type="gif" file="skill-install.gif" duration="~10s"
+:::media type="gif" file="skill-install.gif" duration="~25s"
 Searching the skills.sh marketplace, installing a skill into the repo, and seeing it become available to the agent.
 :::
 

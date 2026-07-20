@@ -7,7 +7,7 @@ Servers come from the **[Smithery](https://smithery.ai) registry**, a marketplac
 > [!NOTE]
 > GitHub has its own hosted MCP server that works a little differently — it's authenticated with short-lived installation tokens and needs a GitHub App. It gets its own page: [GitHub MCP](#/github-mcp).
 
-:::media type="gif" file="Smithry-Mcp-connect.gif" duration="~12s"
+:::media type="gif" file="Smithry-Mcp-connect.gif" duration="~34s"
 Connecting an MCP server to a chat: search Smithery, connect, approve OAuth, and the new tools become available to the agent.
 :::
 
