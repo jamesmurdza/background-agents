@@ -2,24 +2,15 @@
 
 Background Agents runs AI coding agents — Claude, Codex, Copilot, Droid, Gemini, Goose, Kilo, Kimi, OpenCode, and Pi — inside isolated [Daytona](https://daytona.io) sandboxes. Every chat is tied to its own Git branch, so an agent can edit code, run it, and open a pull request without ever touching your machine.
 
-These docs are **project-first**. Instead of walking every menu, they teach the platform by building things worth building: automations that turn issues into pull requests or summarize your inbox while you sleep, and small apps you can ship in a single session. Each project links out to the deeper **feature** pages when you want the reference.
+These docs pair a **feature** reference with worked **examples**. The feature pages cover each building block on its own; the examples put them together into things worth building — automations that turn issues into pull requests or summarize your inbox while you sleep, and small apps you can ship in a single session.
 
 :::media type="video" file="overview.mp4" duration="~2 min"
 A 2-minute tour: create a chat, pick an agent, watch it work in a sandbox, and open a PR.
 :::
 
-## Start with a project
-
-<div class="cards">
-  <a class="card" href="#/issue-to-pr"><span class="kicker">Automation</span><h3>Issue → pull request</h3><p>A new GitHub issue fires an agent that implements it in a sandbox and opens a PR.</p></a>
-  <a class="card" href="#/email-digest"><span class="kicker">Automation</span><h3>Daily email digest</h3><p>A repo-less scheduled agent reads your inbox and writes a morning summary to Notion.</p></a>
-  <a class="card" href="#/mini-game"><span class="kicker">Build</span><h3>Build a mini-game</h3><p>Have an agent build and preview an interactive browser toy inside a sandbox.</p></a>
-  <a class="card" href="#/agent-battle"><span class="kicker">Explore</span><h3>Agent Battle</h3><p>Send one prompt to several agents and compare how each one solves it.</p></a>
-</div>
-
 ## The building blocks
 
-Every project above leans on one or more of these features. Read them standalone whenever you need the details.
+Each feature works standalone — read whichever one you need.
 
 | Feature | What it does | Page |
 |---------|--------------|------|
@@ -29,6 +20,17 @@ Every project above leans on one or more of these features. Read them standalone
 | **GitHub MCP** | The special, GitHub-authenticated MCP server for issue/PR/repo tools. | [GitHub MCP](#/github-mcp) |
 | **Skills** | Install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace. | [Skills](#/skills) |
 | **Custom endpoints** | Point an agent at your own, self-hosted, or proxied model API. | [Custom endpoints](#/custom-endpoints) |
+
+## Start with an example
+
+Each example leans on one or more of the features above and walks the whole thing end to end.
+
+<div class="cards">
+  <a class="card" href="#/issue-to-pr"><span class="kicker">Automation</span><h3>Issue → pull request</h3><p>A new GitHub issue fires an agent that implements it in a sandbox and opens a PR.</p></a>
+  <a class="card" href="#/email-digest"><span class="kicker">Automation</span><h3>Daily email digest</h3><p>A repo-less scheduled agent reads your inbox and writes a morning summary to Notion.</p></a>
+  <a class="card" href="#/mini-game"><span class="kicker">Build</span><h3>Build a mini-game</h3><p>Have an agent build and preview an interactive browser toy inside a sandbox.</p></a>
+  <a class="card" href="#/agent-battle"><span class="kicker">Explore</span><h3>Agent Battle</h3><p>Send one prompt to several agents and compare how each one solves it.</p></a>
+</div>
 
 ## How a chat works
 
@@ -49,12 +51,13 @@ Any chat can be shared with a public link — hand someone a read-only view of t
 Creating a share link for a chat and opening the public, read-only view.
 :::
 
-## Prerequisites
+## What you need
 
-- A running instance of the app (`npm run dev`, then open `http://localhost:4000`).
-- A `DAYTONA_API_KEY` for sandboxes.
 - Sign in with GitHub to connect repositories.
 - At least one model credential — a provider API key, a Claude subscription, or a [custom endpoint](#/custom-endpoints).
+
+> [!NOTE]
+> Running your own instance? Setup and configuration live in the [repository README](https://github.com/jamesmurdza/background-agents#readme).
 
 > [!TIP]
 > New here? Do [Issue → pull request](#/issue-to-pr) first. It touches sandboxes, GitHub, PRs, and the Jobs engine in one go, so everything else will feel familiar afterward.

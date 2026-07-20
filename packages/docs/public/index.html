@@ -187,12 +187,6 @@ const NAV = [
   { title:"Get started", items:[
     { slug:"getting-started", label:"Overview", file:"getting-started.md" },
   ]},
-  { title:"Projects", items:[
-    { slug:"issue-to-pr",   label:"Issue → pull request", file:"project-issue-to-pr.md" },
-    { slug:"email-digest",  label:"Daily email digest",       file:"project-email-digest.md" },
-    { slug:"mini-game",           label:"Build a mini-game",   file:"project-mini-game.md" },
-    { slug:"agent-battle",        label:"Agent Battle",        file:"project-agent-battle.md" },
-  ]},
   { title:"Features", items:[
     { slug:"github",           label:"Connect a repository", file:"feature-github.md" },
     { slug:"jobs",             label:"Jobs",              file:"feature-jobs.md" },
@@ -200,6 +194,12 @@ const NAV = [
     { slug:"github-mcp",       label:"GitHub MCP",        file:"feature-github-mcp.md" },
     { slug:"skills",           label:"Skills",            file:"feature-skills.md" },
     { slug:"custom-endpoints", label:"Custom endpoints",  file:"feature-custom-endpoints.md" },
+  ]},
+  { title:"Examples", items:[
+    { slug:"issue-to-pr",   label:"Issue → pull request", file:"example-issue-to-pr.md" },
+    { slug:"email-digest",  label:"Daily email digest",   file:"example-email-digest.md" },
+    { slug:"mini-game",     label:"Build a mini-game",    file:"example-mini-game.md" },
+    { slug:"agent-battle",  label:"Agent Battle",         file:"example-agent-battle.md" },
   ]},
 ];
 const FLAT = NAV.flatMap(g => g.items);
