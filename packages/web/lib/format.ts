@@ -2,6 +2,14 @@
  * Shared display formatting helpers for Simple Chat.
  */
 
+/**
+ * The final path segment of a file path, for display.
+ * "src/lib/foo.ts" → "foo.ts". Falls back to the input when there is no slash.
+ */
+export function basename(path: string): string {
+  return path.split("/").pop() || path
+}
+
 /** Compact token count: 950 → "950", 12_345 → "12.3K", 1_200_000 → "1.2M". */
 export function fmtTokens(n: number): string {
   if (n < 1000) return String(n)

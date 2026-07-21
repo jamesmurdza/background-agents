@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { Chat, ChatStatus, CustomEndpoint } from "@/lib/types"
 import { getDefaultModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
+import { basename } from "@/lib/format"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import {
@@ -279,7 +280,7 @@ export function useChatWithSync() {
   useEffect(() => {
     onMarkdownFileWriteRef.current = (chatId: string, filePath: string) => {
       const chatPreviewItems = localChatState.previewStates[chatId]?.items ?? []
-      const filename = filePath.split("/").pop() || filePath
+      const filename = basename(filePath)
       // Avoid duplicates
       if (!chatPreviewItems.find((i) => i.type === "file" && i.filePath === filePath)) {
         updateChatById(chatId, {

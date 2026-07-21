@@ -4,6 +4,7 @@ import { useMemo, memo } from "react"
 import { GitMerge, FileText, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/types"
+import { basename } from "@/lib/format"
 import {
   MarkdownContent,
   SystemMessage,
@@ -55,7 +56,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
                 isMobile ? "text-sm" : "text-[13px]"
               )}>
                 {message.uploadedFiles!.map((filePath, index) => {
-                  const fileName = filePath.split("/").pop() || filePath
+                  const fileName = basename(filePath)
                   return (
                     <div key={index} className="flex items-center gap-1 truncate">
                       <FileText className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "shrink-0")} />

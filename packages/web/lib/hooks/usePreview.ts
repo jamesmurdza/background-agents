@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { PreviewItem } from "@/components/PreviewView"
 import type { Chat } from "@/lib/types"
+import { basename } from "@/lib/format"
 
 interface UsePreviewOptions {
   currentChat: Chat | null
@@ -175,7 +176,7 @@ export function usePreview({ currentChat, updateCurrentChat, availableServers }:
     const handler = (e: Event) => {
       const filePath = (e as CustomEvent<{ filePath: string }>).detail?.filePath
       if (!filePath) return
-      const filename = filePath.split("/").pop() || filePath
+      const filename = basename(filePath)
       openPreview({ type: "file", filePath, filename })
     }
     window.addEventListener("open-preview-file", handler)

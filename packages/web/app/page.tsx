@@ -12,6 +12,7 @@ import { useGitDialogs } from "@/components/modals/git-dialogs"
 import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
+import { basename } from "@/lib/format"
 import { useChatWithSync } from "@/lib/hooks/useChatWithSync"
 import { useMobile } from "@/lib/hooks/useMobile"
 import { useGitHubTokenCheck } from "@/lib/hooks/useGitHubTokenCheck"
@@ -640,7 +641,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onUpdateChat={handleUpdateChatProp}
                   onSlashCommand={handleSlashCommand}
                   onOpenFile={(filePath) => {
-                    const filename = filePath.split("/").pop() || filePath
+                    const filename = basename(filePath)
                     preview.openPreview({ type: "file", filePath, filename })
                   }}
                   onOpenEnvVars={handleOpenEnvVars}
