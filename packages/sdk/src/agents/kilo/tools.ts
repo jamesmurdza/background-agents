@@ -1,11 +1,10 @@
 /**
  * Kilo tool name mappings
  *
- * Maps Kilo tool names to canonical tool names.
- * Kilo is a fork of OpenCode, so tool names are identical.
+ * Kilo is a fork of OpenCode, so its tool names are identical. Reuse
+ * OpenCode's canonical mapping rather than keeping a second copy in sync.
  */
 
-export const KILO_TOOL_MAPPINGS: Record<string, string> = {
-  bash: "shell",
-  // Most Kilo tools use canonical names already (read, write, edit, glob, grep)
-}
+import { OPENCODE_TOOL_MAPPINGS } from "../opencode/tools"
+
+export const KILO_TOOL_MAPPINGS: Record<string, string> = OPENCODE_TOOL_MAPPINGS
