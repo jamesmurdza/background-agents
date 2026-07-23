@@ -348,7 +348,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/kilo-auto/free", label: "Auto Free", requiresKey: "none" },
     { value: "kilo/kilo-auto/balanced", label: "Auto Balanced", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
-    { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
+    { value: "kilo/kilo-auto/efficient", label: "Auto Efficient", requiresKey: "kilo" },
     // Free models
     { value: "kilo/deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash", requiresKey: "none" },
     { value: "kilo/nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", requiresKey: "none" },
@@ -382,7 +382,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "kimi" },
     { value: "kimi-k2.7-code-highspeed", label: "Kimi K2.7 Code Highspeed", requiresKey: "kimi" },
     { value: "kimi-k2.6", label: "Kimi K2.6", requiresKey: "kimi" },
-    { value: "kimi-k2.5", label: "Kimi K2.5", requiresKey: "kimi" },
   ],
   "droid": [
     // Two paths, both selectable here:
