@@ -98,10 +98,14 @@ export const TOKSCALE_VERSION = "3.1.2"
  * Pre-installed agents:
  * - Claude (@anthropic-ai/claude-code)
  * - Codex (@openai/codex)
+ * - Copilot (@github/copilot)
+ * - Kilo (@kilocode/cli)
  * - OpenCode (opencode-ai)
  * - Gemini (@google/gemini-cli)
  * - Pi (@mariozechner/pi-coding-agent)
  * - Goose (binary from GitHub releases)
+ * - Kimi (shell-script installer from code.kimi.com)
+ * - Droid (Factory, shell-script installer from app.factory.ai/cli)
  *
  * Also pre-installs tokscale (token/cost metering CLI; see TOKSCALE_VERSION).
  *
