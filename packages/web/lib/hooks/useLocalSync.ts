@@ -18,13 +18,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useElectron } from "@/lib/hooks/useElectron"
 import { useChatOptional } from "@/lib/contexts"
 import { useLocalSyncStore, type RepoStatus } from "@/lib/stores/local-sync-store"
-import { NEW_REPOSITORY } from "@/lib/types"
+import { isRealRepo } from "@/lib/types"
 import type { Chat } from "@/lib/types"
-
-/** A repo string that maps to a real GitHub repo (not a draft / new-repo chat). */
-function isRealRepo(repo: string | undefined | null): repo is string {
-  return !!repo && repo !== NEW_REPOSITORY
-}
 
 /** Unique, defined branches across the chats belonging to a repo. */
 function agentBranchesForRepo(chats: Chat[], repo: string): string[] {

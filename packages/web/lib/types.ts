@@ -110,6 +110,11 @@ export interface Message {
 // Special value for new repository (local git repo, no GitHub)
 export const NEW_REPOSITORY = "__new__"
 
+/** A repo string that maps to a real GitHub repo (not a draft / new-repo chat). */
+export function isRealRepo(repo: string | undefined | null): repo is string {
+  return !!repo && repo !== NEW_REPOSITORY
+}
+
 // =============================================================================
 // Skills
 // =============================================================================

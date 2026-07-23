@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react"
 import { PATHS } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
-import { NEW_REPOSITORY } from "@/lib/types"
+import { isRealRepo } from "@/lib/types"
 
 // =============================================================================
 // useSandboxActions — actions that operate on the current chat's sandbox/repo:
@@ -47,7 +47,7 @@ export function useSandboxActions({
       const repoData = repoRes.ok ? await repoRes.json() : { repoEnvironmentVariables: {} }
 
       const chat = chats.find((c) => c.id === currentChatId)
-      const repoName = chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
+      const repoName = isRealRepo(chat?.repo) ? chat?.repo : undefined
 
       setEnvVarsChatEnvVars(chatData.environmentVariables || {})
       setEnvVarsRepoEnvVars(repoName && repoData.repoEnvironmentVariables?.[repoName] || {})
@@ -62,7 +62,7 @@ export function useSandboxActions({
     if (!currentChatId || isDraftChatId(currentChatId)) return
 
     const chat = chats.find((c) => c.id === currentChatId)
-    const repoName = chat?.repo !== NEW_REPOSITORY ? chat?.repo : undefined
+    const repoName = isRealRepo(chat?.repo) ? chat?.repo : undefined
 
     // Save chat env vars
     await fetch(`/api/chats/${currentChatId}/env`, {
@@ -117,7 +117,7 @@ export function useSandboxActions({
 
   // Open the current chat's branch on GitHub (available once the branch is pushed).
   const githubBranchUrl =
-    currentChat?.branch && currentChat.sandboxId && currentChat.repo !== NEW_REPOSITORY
+    currentChat?.branch && currentChat.sandboxId && isRealRepo(currentChat.repo)
       ? `https://github.com/${currentChat.repo}/tree/${currentChat.branch}`
       : null
   const handleOpenInGitHub = useCallback(() => {
@@ -126,7 +126,7 @@ export function useSandboxActions({
 
   // Copy git clone command to clipboard
   const handleCopyCloneCommand = useCallback(() => {
-    if (currentChat?.repo && currentChat.repo !== NEW_REPOSITORY) {
+    if (isRealRepo(currentChat?.repo)) {
       const command = `git clone git@github.com:${currentChat.repo}.git`
       navigator.clipboard.writeText(command)
     }
