@@ -6,7 +6,7 @@ import { signInWithGitHub } from "@/lib/auth-utils"
 import { clearAllStorage } from "@/lib/storage"
 import { PaletteProvider } from "@/components/search-palette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
-import { NEW_REPOSITORY, type Chat } from "@/lib/types"
+import { NEW_REPOSITORY, isRealRepo, type Chat } from "@/lib/types"
 import type { useModals, useSidebar } from "@/lib/contexts"
 import type { usePreview } from "@/lib/hooks/usePreview"
 import { useGitHubUserQuery } from "@/lib/query"
@@ -108,7 +108,7 @@ export function usePaletteProps({
   const sidebarRepos = getChatRepos(displayChats, currentUserLogin)
 
   const sandboxId = currentChat?.sandboxId ?? null
-  const hasRepo = !!currentChat && currentChat.repo !== NEW_REPOSITORY
+  const hasRepo = isRealRepo(currentChat?.repo)
 
   // Find or create a uniquely-numbered terminal id for this sandbox. We scan
   // existing terminal preview items, pull the trailing `-<n>` suffix from each,

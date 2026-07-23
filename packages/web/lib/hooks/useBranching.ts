@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import { useSession } from "next-auth/react"
-import { NEW_REPOSITORY, type Chat, type ChatStatus } from "@/lib/types"
+import { NEW_REPOSITORY, isRealRepo, type Chat, type ChatStatus } from "@/lib/types"
 import { savePendingMessage } from "@/lib/pending-message"
 
 interface UseBranchingOptions {
@@ -87,7 +87,7 @@ export function useBranching({
   // Use the working branch if the sandbox is up; otherwise the base branch the
   // chat was configured with (before any messages were sent).
   const branchForNewChat = currentChat?.branch || currentChat?.baseBranch
-  const canBranch = !!(branchForNewChat && currentChat?.repo !== NEW_REPOSITORY)
+  const canBranch = !!branchForNewChat && isRealRepo(currentChat?.repo)
 
   // Shared helper: create the new chat (optionally) and dispatch a message to
   // it. Branches off `sourceChat` (defaults to the current chat). Returns false

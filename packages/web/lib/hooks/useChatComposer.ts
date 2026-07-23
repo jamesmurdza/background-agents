@@ -18,7 +18,7 @@ import {
 import { useModals, useGit } from "@/lib/contexts"
 import type { Chat, Settings, CredentialFlags } from "@/lib/types"
 import {
-  NEW_REPOSITORY,
+  isRealRepo,
   agentModels,
   hasCredentialsForModel,
   resolveAgent,
@@ -204,7 +204,7 @@ export function useChatComposer({
   }, [input, isMobile])
 
   // Update slash menu visibility based on input.
-  const hasLinkedRepo = !!(chat?.repo && chat.repo !== NEW_REPOSITORY)
+  const hasLinkedRepo = isRealRepo(chat?.repo)
   useEffect(() => {
     if (input.startsWith("/")) {
       setSlashMenuOpen(true)
