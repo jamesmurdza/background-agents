@@ -22,7 +22,7 @@ import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { SkillSearchView } from "@/components/skills/SkillSearchView"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useModals, useGit, useChat } from "@/lib/contexts"
-import { NEW_REPOSITORY } from "@/lib/types"
+import { isRealRepo } from "@/lib/types"
 
 // =============================================================================
 // AppModals — renders the application's modal/dialog "farm".
@@ -119,7 +119,7 @@ export function AppModals({
         open={modals.envVarsModalOpen}
         onClose={() => modals.setEnvVarsModalOpen(false)}
         chatId={currentChatId || ""}
-        repoName={currentChat?.repo !== NEW_REPOSITORY ? currentChat?.repo : undefined}
+        repoName={isRealRepo(currentChat?.repo) ? currentChat?.repo : undefined}
         onSave={onSaveEnvVars}
         initialChatEnvVars={envVarsChatEnvVars}
         initialRepoEnvVars={envVarsRepoEnvVars}
@@ -127,7 +127,7 @@ export function AppModals({
       />
 
       {/* Skills Search Modal */}
-      {currentChat?.sandboxId && currentChat.repo !== NEW_REPOSITORY && (
+      {currentChat?.sandboxId && isRealRepo(currentChat.repo) && (
         <SkillSearchView
           open={skillsModalOpen}
           onOpenChange={onSkillsModalOpenChange}
@@ -204,7 +204,7 @@ export function AppModals({
           open={modals.mobileCommandsOpen}
           onClose={() => modals.setMobileCommandsOpen(false)}
           onSlashCommand={onSlashCommand}
-          hasLinkedRepo={!!(currentChat && currentChat.repo !== NEW_REPOSITORY)}
+          hasLinkedRepo={isRealRepo(currentChat?.repo)}
           inConflict={!!(gitDialogs.rebaseConflict?.inRebase || gitDialogs.rebaseConflict?.inMerge)}
           chat={currentChat}
         />

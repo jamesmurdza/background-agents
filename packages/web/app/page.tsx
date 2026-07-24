@@ -457,6 +457,20 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const displayChats = isHydrated ? chats : []
   const displayCurrentChatId = isHydrated ? currentChatId : null
 
+  // Props shared by the desktop split-pane and mobile full-screen PreviewView.
+  // Only style/className differ between the two layouts.
+  const previewCommonProps = {
+    item: preview.previewItem,
+    sandboxId: currentChat?.sandboxId ?? null,
+    repo: currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? currentChat.repo : null,
+    branch: currentChat?.branch ?? currentChat?.baseBranch ?? null,
+    onClose: preview.closePreview,
+    allItems: preview.previewItems,
+    onSelectItem: preview.selectPreviewItem,
+    onCloseItem: preview.closePreviewItem,
+    messages: currentChat?.messages,
+  }
+
   // Build context values for child components
   const chatContextValue: ChatContextValue = useMemo(() => ({
     currentChat: displayCurrentChat,
@@ -669,15 +683,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                 <PreviewView
                   style={{ width: preview.previewWidth }}
                   className="flex-shrink-0"
-                  item={preview.previewItem}
-                  sandboxId={currentChat?.sandboxId ?? null}
-                  repo={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? currentChat.repo : null}
-                  branch={currentChat?.branch ?? currentChat?.baseBranch ?? null}
-                  onClose={preview.closePreview}
-                  allItems={preview.previewItems}
-                  onSelectItem={preview.selectPreviewItem}
-                  onCloseItem={preview.closePreviewItem}
-                  messages={currentChat?.messages}
+                  {...previewCommonProps}
                 />
               </>
             )}
@@ -689,15 +695,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         <div className="fixed inset-0 z-50 flex flex-col bg-card pt-safe">
           <PreviewView
             className="flex-1 min-h-0"
-            item={preview.previewItem}
-            sandboxId={currentChat?.sandboxId ?? null}
-            repo={currentChat?.repo && currentChat.repo !== NEW_REPOSITORY ? currentChat.repo : null}
-            branch={currentChat?.branch ?? currentChat?.baseBranch ?? null}
-            onClose={preview.closePreview}
-            allItems={preview.previewItems}
-            onSelectItem={preview.selectPreviewItem}
-            onCloseItem={preview.closePreviewItem}
-            messages={currentChat?.messages}
+            {...previewCommonProps}
           />
         </div>
       )}

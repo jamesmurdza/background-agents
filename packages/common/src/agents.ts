@@ -825,16 +825,28 @@ export interface ParsedCustomHeaders {
  * `anthropic-version` is dropped (the CLI manages it). Everything else passes
  * through as additional request headers. Malformed/empty lines are ignored.
  */
+/**
+ * Parse a single `Name: Value` header line into its (case-folded) name, the
+ * original-cased name, and the trimmed value. Returns null for blank lines or
+ * lines without a `name:` prefix.
+ */
+function parseHeaderLine(line: string): { name: string; rawName: string; value: string } | null {
+  const trimmed = line.trim()
+  if (!trimmed) return null
+  const idx = trimmed.indexOf(":")
+  if (idx <= 0) return null // no name, or no colon
+  const rawName = trimmed.slice(0, idx).trim()
+  return { name: rawName.toLowerCase(), rawName, value: trimmed.slice(idx + 1).trim() }
+}
+
 export function parseCustomHeaders(raw: string): ParsedCustomHeaders {
   let apiKey: string | undefined
   let authToken: string | undefined
   const kept: string[] = []
-  for (const line of raw.split("\n").map((l) => l.trim())) {
-    if (!line) continue
-    const idx = line.indexOf(":")
-    if (idx <= 0) continue // no name, or no colon
-    const name = line.slice(0, idx).trim().toLowerCase()
-    const value = line.slice(idx + 1).trim()
+  for (const line of raw.split("\n")) {
+    const parsed = parseHeaderLine(line)
+    if (!parsed) continue
+    const { name, rawName, value } = parsed
     if (!value) continue
     if (name === "x-api-key") {
       apiKey = value
@@ -843,7 +855,7 @@ export function parseCustomHeaders(raw: string): ParsedCustomHeaders {
     } else if (name === "anthropic-version") {
       // Managed by the CLI — ignore.
     } else {
-      kept.push(`${line.slice(0, idx).trim()}: ${value}`)
+      kept.push(`${rawName}: ${value}`)
     }
   }
   return { apiKey, authToken, headers: kept.length > 0 ? kept.join("\n") : undefined }
@@ -887,13 +899,10 @@ export function buildCustomModelEnv(endpoint: CustomEndpoint): Record<string, st
 function extractHeaderValue(raw: string, headerName: string): string | undefined {
   const target = headerName.toLowerCase()
   for (const line of raw.split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const idx = trimmed.indexOf(":")
-    if (idx <= 0) continue
-    if (trimmed.slice(0, idx).trim().toLowerCase() === target) {
-      return trimmed.slice(idx + 1).trim() || undefined
-    }
+    if (line.trim().startsWith("#")) continue // comment line
+    const parsed = parseHeaderLine(line)
+    if (!parsed) continue
+    if (parsed.name === target) return parsed.value || undefined
   }
   return undefined
 }

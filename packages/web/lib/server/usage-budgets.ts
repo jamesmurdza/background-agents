@@ -32,7 +32,7 @@ export interface ProviderBudget {
 export const PRO_BUDGET_MULTIPLIER = 2
 
 /** Free-tier daily budget per shared-pool provider, with its unit. */
-export const FREE_DAILY_BUDGETS: Partial<Record<ProviderName, ProviderBudget>> = {
+const FREE_DAILY_BUDGETS: Partial<Record<ProviderName, ProviderBudget>> = {
   // TODO(token-budgets): replace placeholders with tuned values.
   claude: { unit: "tokens", limit: 100_000 },
   opencode: { unit: "cost", limit: 0.5 },
@@ -78,7 +78,7 @@ export function getDailyTokenBudget(
  * Matching is by tokscale's `model` id: this explicit set OR a `-free`/`:free`
  * suffix (the common convention) — so new free models are auto-caught.
  */
-export const FREE_MODELS: ReadonlySet<string> = new Set([
+const FREE_MODELS: ReadonlySet<string> = new Set([
   "big-pickle",
   "deepseek-v4-flash-free",
   "nemotron-3-ultra-free",
