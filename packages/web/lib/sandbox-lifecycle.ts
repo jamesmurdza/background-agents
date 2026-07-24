@@ -12,7 +12,7 @@ import type { Daytona, Sandbox } from "@daytonaio/sdk"
 export type SandboxState = "ready" | "stopped" | "expired"
 
 /** HTTP status codes that carry lifecycle meaning. */
-export const SANDBOX_HTTP = {
+const SANDBOX_HTTP = {
   /** Sandbox exists but is not running, and the caller didn't ask to boot it. */
   STOPPED: 409,
   /** Sandbox no longer exists (deleted / auto-expired). */
@@ -20,7 +20,7 @@ export const SANDBOX_HTTP = {
 } as const
 
 /** Machine-readable error codes returned in the JSON body. */
-export const SANDBOX_ERROR = {
+const SANDBOX_ERROR = {
   STOPPED: "SANDBOX_STOPPED",
   NOT_FOUND: "SANDBOX_NOT_FOUND",
 } as const
