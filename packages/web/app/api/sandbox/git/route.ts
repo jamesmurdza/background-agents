@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { getDaytonaClient } from "@/lib/daytona"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { PATHS } from "@/lib/constants"
@@ -83,13 +83,9 @@ export async function POST(req: Request) {
     return forbidden()
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
-  }
-
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
+    const daytona = getDaytonaClient()
+    if (daytona instanceof Response) return daytona
     const sandbox = await daytona.get(sandboxId)
     const git = createSandboxGit(sandbox)
 

@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { getDaytonaClient } from "@/lib/daytona"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { getSandboxOrExpired, passiveReadGate } from "@/lib/sandbox-lifecycle"
 import { escapeShell } from "@background-agents/sdk"
@@ -54,13 +54,9 @@ export async function POST(req: Request) {
   const owner = await requireSandboxOwner(sandboxId)
   if (owner instanceof Response) return owner
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
-  }
-
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
+    const daytona = getDaytonaClient()
+    if (daytona instanceof Response) return daytona
     const sandbox = await getSandboxOrExpired(daytona, sandboxId)
     if (sandbox instanceof Response) return sandbox
 

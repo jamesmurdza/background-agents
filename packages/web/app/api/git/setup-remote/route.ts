@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { getDaytonaClient } from "@/lib/daytona"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
@@ -35,21 +35,13 @@ export async function POST(req: Request) {
     return forbidden()
   }
 
-  // 3. Get Daytona API key
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json(
-      { error: "Daytona API key not configured" },
-      { status: 500 }
-    )
-  }
-
   try {
-    // 4. Get user settings for push options
+    // 3. Get user settings for push options
     const pushOptions = await getUserPushOptions(userId)
 
-    // 5. Get sandbox from Daytona
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
+    // 4. Get sandbox from Daytona
+    const daytona = getDaytonaClient()
+    if (daytona instanceof Response) return daytona
     const sandbox = await daytona.get(sandboxId)
 
     // 6. Always use "project" as the directory name - sandbox/create always uses this
