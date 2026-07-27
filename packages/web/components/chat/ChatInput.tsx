@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowUp, Square, ChevronDown, Github, X, Paperclip, Penc
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
+import { useBranchModifier } from "@/lib/hooks/useBranchModifier"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
@@ -153,26 +154,9 @@ export function ChatInput({
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModeSheet, setShowModeSheet] = useState(false)
 
-  // Whether a "branch" modifier (Cmd/Alt/Ctrl) is currently held. When it is —
-  // and branching is possible — the send button turns into a "send to new
-  // branch" affordance (branch icon), and clicking it branches instead of
-  // sending to the current chat. Mirrors the Cmd/Alt/Ctrl+Enter keybinding.
-  const [branchModifierHeld, setBranchModifierHeld] = useState(false)
-  useEffect(() => {
-    const sync = (e: KeyboardEvent) => {
-      setBranchModifierHeld(e.metaKey || e.altKey || e.ctrlKey)
-    }
-    const clear = () => setBranchModifierHeld(false)
-    window.addEventListener("keydown", sync)
-    window.addEventListener("keyup", sync)
-    // Reset when focus leaves the window so a stuck modifier doesn't persist.
-    window.addEventListener("blur", clear)
-    return () => {
-      window.removeEventListener("keydown", sync)
-      window.removeEventListener("keyup", sync)
-      window.removeEventListener("blur", clear)
-    }
-  }, [])
+  // When a "branch" modifier is held and branching is possible, the send
+  // button turns into a "send to new branch" affordance (branch icon).
+  const branchModifierHeld = useBranchModifier()
   const showBranchAffordance = branchModifierHeld && canBranch && !!onBranchSend
 
   // -- Speech-to-text (voice dictation) -------------------------------------
