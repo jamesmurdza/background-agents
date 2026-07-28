@@ -265,10 +265,10 @@ export interface Settings {
   notificationSound: boolean
 }
 
-export type { CredentialId, Credentials, CredentialFlags } from "./credentials"
+export type { Credentials, CredentialFlags } from "./credentials"
 
 // Re-export GitHub types from common
-export type { GitHubRepo, GitHubBranch, GitHubUser } from "@background-agents/common"
+export type { GitHubRepo, GitHubBranch } from "@background-agents/common"
 
 // File upload types
 export interface PendingFile {
