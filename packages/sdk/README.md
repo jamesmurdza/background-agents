@@ -264,7 +264,7 @@ type Event =
 | **Gemini** | `model: "gemini-2.5-flash"`, `model: "gemini-2.5-pro"`, `model: "gemini-3-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
 | **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://block.github.io/goose/docs/getting-started/providers) |
 | **Kilo** | `model: "kilo/kilo-auto/free"`, `model: "kilo/anthropic/claude-opus-4.7"` | [Kilo](https://kilo.codes/docs/) |
-| **Kimi** | `model: "kimi-k2.7-code"`, `model: "kimi-k2.7-code-highspeed"`, `model: "kimi-k2.6"` | [Kimi Code](https://code.kimi.com/) |
+| **Kimi** | `model: "kimi-k3"`, `model: "kimi-k2.7-code"`, `model: "kimi-k2.6"` | [Kimi Code](https://code.kimi.com/) |
 | **OpenCode** | `model: "opencode/big-pickle"` (free), `model: "anthropic/claude-sonnet-4-5"` | [OpenCode models](https://opencode.ai/docs/models/) |
 | **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"`, `model: "google/gemini-2.5-pro"` | [Pi CLI models](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#providers--models) |
 
