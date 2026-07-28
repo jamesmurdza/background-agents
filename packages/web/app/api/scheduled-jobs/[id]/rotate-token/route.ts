@@ -9,6 +9,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { toScheduledJobResponse } from "@/lib/scheduled-jobs/types"
+import { getScheduledJobWithAuth } from "@/lib/scheduled-jobs/auth"
 
 // =============================================================================
 // POST - Rotate the incoming-webhook token for a scheduled job
@@ -27,12 +28,11 @@ export async function POST(
 
   try {
     const { id } = await params
-    const job = await prisma.scheduledJob.findUnique({
-      where: { id },
+    const job = await getScheduledJobWithAuth(id, userId, {
       select: { userId: true, triggerType: true },
     })
 
-    if (!job || job.userId !== userId) {
+    if (!job) {
       return notFound("Scheduled job not found")
     }
 

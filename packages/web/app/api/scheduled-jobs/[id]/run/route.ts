@@ -7,6 +7,7 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
+import { getScheduledJobWithAuth } from "@/lib/scheduled-jobs/auth"
 
 // =============================================================================
 // POST - Trigger immediate run of a scheduled job
@@ -24,8 +25,7 @@ export async function POST(
     const { id } = await params
 
     // Get job with auth check
-    const job = await prisma.scheduledJob.findUnique({
-      where: { id },
+    const job = await getScheduledJobWithAuth(id, userId, {
       include: {
         runs: {
           where: { status: "running" },
@@ -34,7 +34,7 @@ export async function POST(
       },
     })
 
-    if (!job || job.userId !== userId) {
+    if (!job) {
       return notFound("Scheduled job not found")
     }
 

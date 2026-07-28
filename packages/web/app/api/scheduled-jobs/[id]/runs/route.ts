@@ -7,6 +7,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { toScheduledJobRunResponse } from "@/lib/scheduled-jobs/types"
+import { getScheduledJobWithAuth } from "@/lib/scheduled-jobs/auth"
 
 // =============================================================================
 // GET - List runs for a scheduled job
@@ -24,12 +25,11 @@ export async function GET(
     const { id } = await params
 
     // Verify job ownership
-    const job = await prisma.scheduledJob.findUnique({
-      where: { id },
+    const job = await getScheduledJobWithAuth(id, userId, {
       select: { userId: true },
     })
 
-    if (!job || job.userId !== userId) {
+    if (!job) {
       return notFound("Scheduled job not found")
     }
 

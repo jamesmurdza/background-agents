@@ -10,29 +10,17 @@ import {
 } from "@/lib/db/api-helpers"
 import { addMinutes, addYears } from "date-fns"
 import { toScheduledJobResponse, UUID_RE } from "@/lib/scheduled-jobs/types"
+import { getScheduledJobWithAuth } from "@/lib/scheduled-jobs/auth"
 import { cleanupSmitheryConnections } from "@/lib/mcp/connections"
 
-// =============================================================================
-// Helper: Get job with auth check
-// =============================================================================
-
-async function getJobWithAuth(jobId: string, userId: string) {
-  const job = await prisma.scheduledJob.findUnique({
-    where: { id: jobId },
-    include: {
-      runs: {
-        orderBy: { startedAt: "desc" },
-        take: 1,
-      },
+const WITH_LATEST_RUN = {
+  include: {
+    runs: {
+      orderBy: { startedAt: "desc" },
+      take: 1,
     },
-  })
-
-  if (!job || job.userId !== userId) {
-    return null
-  }
-
-  return job
-}
+  },
+} as const
 
 // =============================================================================
 // GET - Get a single scheduled job
@@ -48,7 +36,7 @@ export async function GET(
 
   try {
     const { id } = await params
-    const job = await getJobWithAuth(id, userId)
+    const job = await getScheduledJobWithAuth(id, userId, WITH_LATEST_RUN)
 
     if (!job) {
       return notFound("Scheduled job not found")
@@ -93,7 +81,7 @@ export async function PATCH(
 
   try {
     const { id } = await params
-    const job = await getJobWithAuth(id, userId)
+    const job = await getScheduledJobWithAuth(id, userId, WITH_LATEST_RUN)
 
     if (!job) {
       return notFound("Scheduled job not found")
@@ -236,12 +224,11 @@ export async function DELETE(
 
   try {
     const { id } = await params
-    const job = await prisma.scheduledJob.findUnique({
-      where: { id },
+    const job = await getScheduledJobWithAuth(id, userId, {
       select: { userId: true },
     })
 
-    if (!job || job.userId !== userId) {
+    if (!job) {
       return notFound("Scheduled job not found")
     }
 
