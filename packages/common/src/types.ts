@@ -17,18 +17,3 @@ export interface ToolCall {
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_calls"; toolCalls: ToolCall[] }
-
-// =============================================================================
-// Agent Status
-// =============================================================================
-
-export type AgentStatus = "running" | "completed" | "error"
-
-export interface AgentStatusResponse {
-  status: AgentStatus
-  content: string
-  toolCalls: ToolCall[]
-  contentBlocks: ContentBlock[]
-  error?: string
-  sessionId?: string
-}
