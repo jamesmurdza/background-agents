@@ -53,8 +53,6 @@ export {
   getAgentModels,
   getModelLabel,
   getEnvForModel,
-  findEndpoint,
-  buildEndpointEnv,
   buildCustomModelEnv,
   buildCodexCustomEnv,
   buildOpencodeCustomEnv,
