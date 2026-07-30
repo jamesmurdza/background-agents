@@ -1,9 +1,10 @@
 import { Fragment } from "react"
-import { MoreHorizontal, GitBranch, GitBranchPlus, Trash2, ArrowDown } from "lucide-react"
+import { MoreHorizontal, GitBranchPlus, Trash2, ArrowDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ErrorBanner } from "./ErrorBanner"
+import { BranchDivider } from "./BranchDivider"
 import { MessageBubble } from "../MessageBubble"
 import {
   DropdownMenu,
@@ -83,7 +84,7 @@ export function ChatMessageList({
               !message.inherited && !!chat.messages[index - 1]?.inherited
             return (
               <Fragment key={message.id}>
-                {isBranchStart && <BranchDivider isMobile={isMobile} />}
+                {isBranchStart && <BranchDivider />}
                 <div className={cn(message.inherited && "opacity-60")}>
                   <MessageBubble
                     message={message}
@@ -101,7 +102,7 @@ export function ChatMessageList({
               inherited history so it's clear the user continues below it. */}
           {chat.messages.length > 0 &&
             chat.messages[chat.messages.length - 1]?.inherited && (
-              <BranchDivider isMobile={isMobile} />
+              <BranchDivider />
             )}
           {/* Show loading indicator when sandbox is being created */}
           {isCreating && (
@@ -230,19 +231,6 @@ export function ChatMessageList({
           <ArrowDown className="h-4 w-4" />
         </button>
       )}
-    </div>
-  )
-}
-
-/**
- * Marks where the inherited parent history (shown for context, rendered muted)
- * ends and this branch's own conversation begins. Minimal centered divider.
- */
-function BranchDivider({ isMobile: _isMobile }: { isMobile: boolean }) {
-  return (
-    <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
-      <GitBranch className="h-3 w-3 shrink-0" />
-      <span>History above is inherited from the parent chat</span>
     </div>
   )
 }

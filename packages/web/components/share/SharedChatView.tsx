@@ -1,21 +1,12 @@
 "use client"
 
 import { Fragment } from "react"
-import { Github, GitBranch } from "lucide-react"
+import { Github } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/types"
 import type { SharedChat } from "@/lib/server/shared-chat"
 import { MessageBubble } from "@/components/MessageBubble"
-
-/** Minimal centered divider marking where inherited parent history ends. */
-function BranchDivider() {
-  return (
-    <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
-      <GitBranch className="h-3 w-3 shrink-0" />
-      <span>History above is inherited from the parent chat</span>
-    </div>
-  )
-}
+import { BranchDivider } from "@/components/chat/BranchDivider"
 
 // =============================================================================
 // SharedChatView — public, read-only rendering of a shared chat
