@@ -334,7 +334,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-3.6-flash", label: "Gemini 3.6 Flash", requiresKey: "github" },
     { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "github" },
     { value: "gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "github" },
-    { value: "gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "github" },
   ],
   "gemini": [
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini" },
@@ -429,8 +428,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── Factory-hosted (FACTORY_API_KEY; droid's built-in catalog). There is NO
     // free/no-key tier — verified: every built-in model 401s without a Factory key.
     { value: "factory/claude-fable-5", label: "Claude Fable 5 (Factory)", requiresKey: "factory" },
-    { value: "factory/claude-opus-4-8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
-    { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
+    { value: "factory/claude-opus-4.8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
+    { value: "factory/claude-sonnet-4.6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Factory)", requiresKey: "factory" },
