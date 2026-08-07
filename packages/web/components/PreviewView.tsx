@@ -4,6 +4,7 @@ import { useState, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { RefreshCw, X, ExternalLink, ChevronsUpDown, Download } from "lucide-react"
 import { PATHS } from "@background-agents/common"
+import { basename } from "@/lib/format"
 import { getPanelPlugin } from "@/lib/plugins/registry"
 import { disposeTerminalSession } from "@/lib/plugins/panels/terminal"
 import {
@@ -124,7 +125,7 @@ export function PreviewView({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = item.filePath.split("/").pop() || "download"
+      a.download = basename(item.filePath) || "download"
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

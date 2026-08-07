@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchAllRepos } from "@/lib/github"
+import { basename } from "@/lib/format"
 import { signInWithGitHub } from "@/lib/auth-utils"
 import type { GitHubRepo } from "@/lib/types"
 import {
@@ -133,7 +134,7 @@ export function RepoCombobox({
   }, [repos, search])
 
   // Get display label for current value
-  const displayLabel = value ? value.split("/").pop() : "Repository"
+  const displayLabel = value ? basename(value) : "Repository"
 
   const handleSelectRepo = (repo: GitHubRepo) => {
     onChange(repo.full_name, repo.default_branch)

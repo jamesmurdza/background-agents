@@ -7,6 +7,7 @@ import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { basename } from "@/lib/format"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { RepoCombobox } from "./RepoCombobox"
@@ -570,7 +571,7 @@ export function ChatInput({
               >
                 <Github className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 <span className={cn(isMobile ? "hidden @[16rem]/row1:inline" : "hidden @[32rem]:inline")}>
-                  {chat.repo?.split("/").pop()}
+                  {chat.repo ? basename(chat.repo) : undefined}
                 </span>
               </a>
             )}
