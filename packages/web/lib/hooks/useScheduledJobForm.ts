@@ -12,6 +12,12 @@ import {
   localHourToUtc,
   type IntervalUnit,
 } from "@/components/scheduled-jobs/form-config"
+import {
+  getFirstInvalidScheduledJobField,
+  validateScheduledJobForm,
+  type ScheduledJobFormErrors,
+  type ScheduledJobFormField,
+} from "@/lib/scheduled-jobs/form-validation"
 
 interface UseScheduledJobFormArgs {
   open: boolean
@@ -52,6 +58,7 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<ScheduledJobFormErrors>({})
 
   // In create mode, the form may "materialize" the job into the DB the first
   // time the user clicks the MCP picker, so MCP server connections have a real
@@ -117,6 +124,7 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
       setAutoPR(job?.autoPR ?? true)
       setContinueFromLastRun(job?.continueFromLastRun ?? false)
       setError(null)
+      setFieldErrors({})
       setMaterializedJobId(null)
       setIncomingToken(job?.incomingToken ?? null)
       setRotating(false)
@@ -151,23 +159,7 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
-  /**
-   * Build the request body for create/update from current form state.
-   * Returns `null` and sets the visible error if required fields are missing.
-   */
-  function buildPayload(): Record<string, unknown> | null {
-    if (!name.trim()) {
-      setError("Name is required")
-      return null
-    }
-    if (!prompt.trim()) {
-      setError("Prompt is required")
-      return null
-    }
-    if (triggerType === "interval" && effectiveIntervalMinutes < 10) {
-      setError("Interval must be at least 10 minutes")
-      return null
-    }
+  function buildPayload(): Record<string, unknown> {
     const runAtHourUtc = localHourToUtc(runAtHourLocal)
     return {
       name: name.trim(),
@@ -258,12 +250,29 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
   }
 
   // Handle form submit
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
 
+    const validationErrors = validateScheduledJobForm({
+      name,
+      prompt,
+      triggerType,
+      intervalMinutes: effectiveIntervalMinutes,
+    })
+    setFieldErrors(validationErrors)
+
+    const firstInvalidField = getFirstInvalidScheduledJobField(validationErrors)
+    if (firstInvalidField) {
+      const form = e.currentTarget
+      requestAnimationFrame(() => {
+        const field = form.elements.namedItem(firstInvalidField)
+        if (field instanceof HTMLElement) field.focus()
+      })
+      return
+    }
+
     const payload = buildPayload()
-    if (!payload) return
 
     setLoading(true)
 
@@ -386,6 +395,15 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     setShowModelDropdown(false)
   }
 
+  const clearFieldError = (field: ScheduledJobFormField) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }
+
   return {
     // identity / mode
     isEditing,
@@ -409,6 +427,7 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     continueFromLastRun,
     loading,
     error,
+    fieldErrors,
     materializedJobId,
     showAgentDropdown,
     showModelDropdown,
@@ -449,5 +468,6 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     handleRotateToken,
     handleAgentChange,
     handleModelChange,
+    clearFieldError,
   }
 }

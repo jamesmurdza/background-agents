@@ -9,6 +9,7 @@ import {
   inferIntervalMode,
   type IntervalUnit,
 } from "./form-config"
+import { cn } from "@/lib/utils"
 
 interface ScheduleFieldsProps {
   isCustomInterval: boolean
@@ -26,6 +27,8 @@ interface ScheduleFieldsProps {
   setCustomIntervalUnit: (v: IntervalUnit) => void
   setRunAtDay: (v: number) => void
   setRunAtHourLocal: (v: number) => void
+  error?: string
+  onIntervalChange: () => void
 }
 
 export function ScheduleFields({
@@ -43,7 +46,15 @@ export function ScheduleFields({
   setCustomIntervalUnit,
   setRunAtDay,
   setRunAtHourLocal,
+  error,
+  onIntervalChange,
 }: ScheduleFieldsProps) {
+  const intervalError = error ?? (
+    isCustomInterval && effectiveIntervalMinutes < 10
+      ? "Interval must be at least 10 minutes"
+      : undefined
+  )
+
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -51,6 +62,7 @@ export function ScheduleFields({
         <select
           value={isCustomInterval ? CUSTOM_INTERVAL : intervalMinutes}
           onChange={(e) => {
+            onIntervalChange()
             const val = parseInt(e.target.value, 10)
             if (val === CUSTOM_INTERVAL) {
               // Seed custom inputs from the current preset so the
@@ -78,19 +90,31 @@ export function ScheduleFields({
         {isCustomInterval && (
           <>
             <input
+              id="scheduled-job-interval"
+              name="interval"
               type="number"
               min={customIntervalUnit === "minutes" ? 10 : 1}
               step={1}
               value={customIntervalValue}
               onChange={(e) => {
+                onIntervalChange()
                 const n = parseInt(e.target.value, 10)
                 setCustomIntervalValue(Number.isFinite(n) ? Math.max(1, n) : 1)
               }}
-              className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="Custom interval"
+              aria-invalid={!!intervalError}
+              aria-describedby={intervalError ? "scheduled-job-interval-error" : undefined}
+              className={cn(
+                "w-16 rounded-md border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+                intervalError ? "border-destructive" : "border-border"
+              )}
             />
             <select
               value={customIntervalUnit}
-              onChange={(e) => setCustomIntervalUnit(e.target.value as IntervalUnit)}
+              onChange={(e) => {
+                onIntervalChange()
+                setCustomIntervalUnit(e.target.value as IntervalUnit)
+              }}
               className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {INTERVAL_UNITS.map((u) => (
@@ -140,9 +164,9 @@ export function ScheduleFields({
         )}
       </div>
 
-      {isCustomInterval && effectiveIntervalMinutes < 10 && (
-        <p className="text-xs text-destructive">
-          Interval must be at least 10 minutes.
+      {intervalError && (
+        <p id="scheduled-job-interval-error" className="text-xs text-destructive">
+          {intervalError}
         </p>
       )}
     </div>

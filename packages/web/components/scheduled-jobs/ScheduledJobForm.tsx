@@ -52,6 +52,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     continueFromLastRun,
     loading,
     error,
+    fieldErrors,
     materializedJobId,
     showAgentDropdown,
     showModelDropdown,
@@ -88,7 +89,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     handleRotateToken,
     handleAgentChange,
     handleModelChange,
+    clearFieldError,
   } = useScheduledJobForm({ open, job, onClose, onSuccess })
+
+  const fieldErrorMessages = Object.values(fieldErrors)
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
@@ -119,21 +123,49 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           {/* Form */}
           <form id="scheduled-job-form" onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto flex-1">
             {error && (
-              <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
+              </div>
+            )}
+
+            {fieldErrorMessages.length > 0 && (
+              <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <p className="font-medium">Please fix the following fields:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {fieldErrorMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
               </div>
             )}
 
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <label htmlFor="scheduled-job-name" className="block text-sm font-medium mb-1">Name</label>
               <input
+                id="scheduled-job-name"
+                name="name"
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setName(value)
+                  if (value.trim()) clearFieldError("name")
+                }}
                 placeholder="e.g., Dependency Updates"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-required="true"
+                aria-invalid={!!fieldErrors.name}
+                aria-describedby={fieldErrors.name ? "scheduled-job-name-error" : undefined}
+                className={cn(
+                  "w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+                  fieldErrors.name ? "border-destructive" : "border-border"
+                )}
               />
+              {fieldErrors.name && (
+                <p id="scheduled-job-name-error" className="mt-1 text-xs text-destructive">
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
             {/* Trigger Type - Segmented Control. Always editable — PATCH
@@ -146,7 +178,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                   <button
                     key={t.value}
                     type="button"
-                    onClick={() => setTriggerType(t.value)}
+                    onClick={() => {
+                      setTriggerType(t.value)
+                      if (t.value === "incoming") clearFieldError("interval")
+                    }}
                     className={cn(
                       "px-3 py-1 text-sm rounded-md transition-colors cursor-pointer",
                       triggerType === t.value
@@ -177,6 +212,8 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 setCustomIntervalUnit={setCustomIntervalUnit}
                 setRunAtDay={setRunAtDay}
                 setRunAtHourLocal={setRunAtHourLocal}
+                error={fieldErrors.interval}
+                onIntervalChange={() => clearFieldError("interval")}
               />
             )}
 
@@ -231,19 +268,29 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
 
             {/* Prompt Field - styled like ChatInput */}
             <div>
-              <label className="block text-sm font-medium mb-1">Prompt</label>
+              <label htmlFor="scheduled-job-prompt" className="block text-sm font-medium mb-1">Prompt</label>
               <div className={cn(
-                "relative flex flex-col border shadow-sm bg-card border-border",
+                "relative flex flex-col border shadow-sm bg-card",
+                fieldErrors.prompt ? "border-destructive" : "border-border",
                 isMobile ? "rounded-xl" : "rounded-2xl",
                 "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20"
               )}>
                 {/* Textarea */}
                 <div className={cn(isMobile ? "px-3 py-2" : "px-4 py-3")}>
                   <textarea
+                    id="scheduled-job-prompt"
+                    name="prompt"
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setPrompt(value)
+                      if (value.trim()) clearFieldError("prompt")
+                    }}
                     placeholder="What should the agent do?"
                     rows={4}
+                    aria-required="true"
+                    aria-invalid={!!fieldErrors.prompt}
+                    aria-describedby={fieldErrors.prompt ? "scheduled-job-prompt-error" : undefined}
                     className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none resize-none"
                   />
                 </div>
@@ -389,6 +436,11 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                   </div>
                 </div>
               </div>
+              {fieldErrors.prompt && (
+                <p id="scheduled-job-prompt-error" className="mt-1 text-xs text-destructive">
+                  {fieldErrors.prompt}
+                </p>
+              )}
             </div>
 
             {/* Options Section — hidden when neither option applies (e.g. an
