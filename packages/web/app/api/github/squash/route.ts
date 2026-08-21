@@ -1,9 +1,8 @@
 import { compareBranches, githubFetch, isGitHubApiError } from "@background-agents/common"
-import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, requireDaytona, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 
 // Squash operation timeout - 60 seconds
 export const maxDuration = 60
@@ -50,10 +49,8 @@ export async function POST(req: Request) {
     return forbidden()
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
     // First, verify there are commits to squash
@@ -177,7 +174,6 @@ export async function POST(req: Request) {
 
       // Step 5: Sync sandbox with the new squashed state
       try {
-        const daytona = new Daytona({ apiKey: daytonaApiKey })
         const sandbox = await daytona.get(sandboxId)
         const repoPath = `${PATHS.SANDBOX_HOME}/project`
 

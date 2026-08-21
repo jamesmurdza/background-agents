@@ -1,7 +1,6 @@
-import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
-import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest, requireDaytona, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 import { getUserPushOptions } from "@/lib/git/push-options"
 
 export async function POST(req: Request) {
@@ -36,21 +35,15 @@ export async function POST(req: Request) {
     githubToken = ghAuth.token
   }
 
-  // 3. Get Daytona API key
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json(
-      { error: "Daytona API key not configured" },
-      { status: 500 }
-    )
-  }
+  // 3. Get Daytona client
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
     // 4. Get user settings for push options
     const pushOptions = await getUserPushOptions(userId)
 
     // 5. Get sandbox from Daytona
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
     const git = createSandboxGit(sandbox)
 

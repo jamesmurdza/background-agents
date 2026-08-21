@@ -1,9 +1,8 @@
-import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { isSafeRepoPath, isSafeBranchName, isSafeRepoSegment } from "@/lib/git/ref-validation"
 import { clearPushFailureMessages, createGitOperationMessage } from "@/lib/db/git-messages"
-import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, requireDaytona, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
 import {
   getConflictedFiles,
   pushViaTemporaryBranch,
@@ -105,13 +104,10 @@ export async function POST(req: Request) {
     }
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
     const git = createSandboxGit(sandbox)
 

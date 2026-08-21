@@ -1,7 +1,7 @@
-import { Daytona } from "@daytonaio/sdk"
 import { addMinutes, differenceInMinutes } from "date-fns"
 
 import { prisma } from "@/lib/db/prisma"
+import { requireDaytona } from "@/lib/db/api-helpers"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 
 import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constants"
@@ -29,13 +29,10 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "DAYTONA_API_KEY not configured" }, { status: 500 })
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   const now = new Date()
-  const daytona = new Daytona({ apiKey: daytonaApiKey })
 
   const results = {
     dispatchedJobs: 0,

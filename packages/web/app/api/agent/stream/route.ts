@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto"
-import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
 import {
   cancelBackgroundAgent,
@@ -10,7 +9,7 @@ import {
 } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
-import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
+import { isAuthError, requireChatStreamAccess, requireDaytona } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
@@ -57,10 +56,8 @@ export async function GET(req: Request) {
     })
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return jsonResponse(500, { error: "Daytona API key not configured" })
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   const encoder = new TextEncoder()
   let isStreamClosed = false
@@ -120,7 +117,6 @@ export async function GET(req: Request) {
       }
 
       try {
-        const daytona = new Daytona({ apiKey: daytonaApiKey })
         const sandbox = await daytona.get(sandboxId)
         const sessionOpts = {
           repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,

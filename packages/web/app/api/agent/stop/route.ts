@@ -1,4 +1,3 @@
-import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
 import { cancelBackgroundAgent } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
@@ -6,7 +5,7 @@ import {
   isAuthError,
   requireAuth,
   badRequest,
-  serverConfigError,
+  requireDaytona,
   internalError,
 } from "@/lib/db/api-helpers"
 
@@ -54,13 +53,10 @@ export async function POST(req: Request) {
     return Response.json({ success: true, message: "Agent not running" })
   }
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return serverConfigError("DAYTONA_API_KEY")
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(chat.sandboxId)
 
     const sessionOpts = {

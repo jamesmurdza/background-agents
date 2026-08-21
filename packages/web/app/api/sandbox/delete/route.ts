@@ -1,5 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
-import { badRequest, requireSandboxOwner } from "@/lib/db/api-helpers"
+import { badRequest, requireDaytona, requireSandboxOwner } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -12,16 +11,10 @@ export async function POST(req: Request) {
   const owner = await requireSandboxOwner(sandboxId)
   if (owner instanceof Response) return owner
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json(
-      { error: "Daytona API key not configured" },
-      { status: 500 }
-    )
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(sandboxId)
     await sandbox.delete()
 

@@ -1,5 +1,5 @@
-import { Daytona } from "@daytonaio/sdk"
 import { rebuildSnapshot } from "@background-agents/sandbox-image"
+import { requireDaytona } from "@/lib/db/api-helpers"
 
 // Manual, on-demand zero-downtime snapshot rebuild. Not on a cron schedule —
 // trigger it yourself when you need a fresh image. It runs two serial image
@@ -14,15 +14,8 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  const apiKey = process.env.DAYTONA_API_KEY
-  if (!apiKey) {
-    return Response.json(
-      { error: "DAYTONA_API_KEY not configured" },
-      { status: 500 }
-    )
-  }
-
-  const daytona = new Daytona({ apiKey })
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
     const snapshot = await rebuildSnapshot(daytona, {

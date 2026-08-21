@@ -1,4 +1,3 @@
-import { Daytona } from "@daytonaio/sdk"
 import { NextRequest } from "next/server"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -10,7 +9,7 @@ import {
   isAuthError,
   notFound,
   requireAuth,
-  serverConfigError,
+  requireDaytona,
 } from "@/lib/db/api-helpers"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { logActivityAsync } from "@/lib/db/activity-log"
@@ -108,8 +107,8 @@ export async function POST(
   if (parsed instanceof Response) return parsed
   const { payload, files } = parsed
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) return serverConfigError("DAYTONA_API_KEY")
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   // Resolve GitHub token + agent credentials and enforce the shared-pool budget.
   const resolved = await resolveSendCredentials(userId, payload)
@@ -119,8 +118,6 @@ export async function POST(
   // The user's custom endpoints — used to resolve an `endpoint:<id>` model into
   // the right env vars and --model arg.
   const customEndpoints = await getUserEndpoints(userId)
-
-  const daytona = new Daytona({ apiKey: daytonaApiKey })
 
   // Seeded from the chat row; kept in sync by ensureSandboxForChat so the
   // catch below can tear down a sandbox newly created during this request.

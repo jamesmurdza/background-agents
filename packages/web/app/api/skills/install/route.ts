@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server"
-import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/db/prisma"
 import {
   requireAuth,
@@ -7,7 +6,7 @@ import {
   badRequest,
   notFound,
   internalError,
-  serverConfigError,
+  requireDaytona,
 } from "@/lib/db/api-helpers"
 import { PATHS } from "@/lib/constants"
 import { installSkills } from "@background-agents/sandbox-skills/sandbox"
@@ -26,8 +25,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (isAuthError(authResult)) return authResult
   const { userId } = authResult
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) return serverConfigError("DAYTONA_API_KEY")
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   try {
     const body: InstallBody = await req.json()
@@ -69,7 +68,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     // Connect to sandbox
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
     const sandbox = await daytona.get(chat.sandboxId)
 
     const repoPath = `${PATHS.SANDBOX_HOME}/project`

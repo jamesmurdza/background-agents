@@ -2,7 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@background-agents/common"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
-import { internalError, badRequest, requireSandboxOwner } from "@/lib/db/api-helpers"
+import { internalError, badRequest, requireDaytona, requireSandboxOwner } from "@/lib/db/api-helpers"
 
 export const maxDuration = 60
 
@@ -22,10 +22,8 @@ export async function POST(req: Request) {
   const owner = await requireSandboxOwner(sandboxId)
   if (owner instanceof Response) return owner
 
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
-  }
+  const daytona = requireDaytona()
+  if (daytona instanceof Response) return daytona
 
   // Generate unique temp filename to avoid collisions
   const timestamp = Date.now()
@@ -34,7 +32,6 @@ export async function POST(req: Request) {
   let sandbox: Awaited<ReturnType<Daytona["get"]>> | null = null
 
   try {
-    const daytona = new Daytona({ apiKey: daytonaApiKey })
     const resolved = await getSandboxOrExpired(daytona, sandboxId)
     if (resolved instanceof Response) return resolved
     sandbox = resolved

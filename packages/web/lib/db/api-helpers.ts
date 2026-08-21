@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth"
+import { Daytona } from "@daytonaio/sdk"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db/prisma"
 import { decrypt } from "@/lib/db/encryption"
@@ -68,6 +69,25 @@ export function serverConfigError(varName?: string) {
 export function internalError(error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error"
   return Response.json({ error: message }, { status: 500 })
+}
+
+// =============================================================================
+// Daytona Client Helper
+// =============================================================================
+
+/**
+ * Resolves a Daytona client from the DAYTONA_API_KEY env var, or returns a 500
+ * server-config-error Response when the key is missing. Mirrors the requireAuth
+ * pattern so routes stop repeating the env-check + client-construction boilerplate:
+ *
+ *   const daytona = requireDaytona()
+ *   if (daytona instanceof Response) return daytona
+ *   // ...use daytona
+ */
+export function requireDaytona(): Daytona | Response {
+  const apiKey = process.env.DAYTONA_API_KEY
+  if (!apiKey) return serverConfigError("DAYTONA_API_KEY")
+  return new Daytona({ apiKey })
 }
 
 // =============================================================================
