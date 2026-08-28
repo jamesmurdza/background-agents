@@ -272,24 +272,17 @@ export async function getGitHubToken(userId: string): Promise<string | null> {
  * Returns userId and token or an error Response
  */
 export async function requireGitHubAuth(): Promise<GitHubAuthResult | Response> {
-  const session = await getServerSession(authOptions)
-  const userId = session?.user?.id ?? null
-
+  const userId = await getAuthUserId()
   if (!userId) {
     return unauthorized()
   }
 
-  // Get the GitHub account access token
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: "github" },
-    select: { access_token: true },
-  })
-
-  if (!account?.access_token) {
+  const token = await getGitHubToken(userId)
+  if (!token) {
     return Response.json({ error: "GitHub account not linked" }, { status: 401 })
   }
 
-  return { userId, token: account.access_token }
+  return { userId, token }
 }
 
 /**
