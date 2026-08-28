@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth"
 import { Daytona } from "@daytonaio/sdk"
+import type { Chat } from "@prisma/client"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db/prisma"
 import { decrypt } from "@/lib/db/encryption"
@@ -360,31 +361,7 @@ export async function getUserCredentials(userId: string): Promise<Credentials> {
 export async function getChatWithAuth(
   chatId: string,
   userId: string
-): Promise<{
-  id: string
-  userId: string
-  repo: string
-  baseBranch: string
-  branch: string | null
-  sandboxId: string | null
-  sessionId: string | null
-  previewUrlPattern: string | null
-  backgroundSessionId: string | null
-  agent: string
-  model: string | null
-  planModeEnabled: boolean
-  displayName: string | null
-  shareId: string | null
-  status: string
-  archived: boolean
-  pinned: boolean
-  parentChatId: string | null
-  needsSync: boolean
-  environmentVariables: unknown
-  createdAt: Date
-  updatedAt: Date
-  lastActiveAt: Date
-} | null> {
+): Promise<Chat | null> {
   const chat = await prisma.chat.findUnique({
     where: { id: chatId },
   })
