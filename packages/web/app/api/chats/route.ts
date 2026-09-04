@@ -7,6 +7,8 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
+import { toChatResponse } from "@/lib/db/serializers"
+import type { ChatResponse } from "@/lib/sync/api"
 import {
   agentModels,
   getDefaultAgent,
@@ -16,36 +18,6 @@ import {
   type Agent,
 } from "@background-agents/common"
 import { getEffectiveCredentialFlags } from "@/lib/server/credential-flags"
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface ChatResponse {
-  id: string
-  repo: string
-  baseBranch: string
-  branch: string | null
-  sandboxId: string | null
-  sessionId: string | null
-  previewUrlPattern: string | null
-  backgroundSessionId: string | null
-  agent: string
-  model: string | null
-  planModeEnabled: boolean
-  displayName: string | null
-  shareId: string | null
-  status: string
-  archived: boolean
-  pinned: boolean
-  parentChatId: string | null
-  needsSync: boolean
-  createdAt: number
-  updatedAt: number
-  lastActiveAt: number
-  messageCount: number
-  lastMessageId: string | null
-}
 
 // =============================================================================
 // GET - List all chats for user
@@ -83,27 +55,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     })
 
     const response: ChatResponse[] = chats.map((chat) => ({
-      id: chat.id,
-      repo: chat.repo,
-      baseBranch: chat.baseBranch,
-      branch: chat.branch,
-      sandboxId: chat.sandboxId,
-      sessionId: chat.sessionId,
-      previewUrlPattern: chat.previewUrlPattern,
-      backgroundSessionId: chat.backgroundSessionId,
-      agent: chat.agent,
-      model: chat.model,
-      planModeEnabled: chat.planModeEnabled,
-      displayName: chat.displayName,
-      shareId: chat.shareId,
-      status: chat.status,
-      archived: chat.archived,
-      pinned: chat.pinned,
-      parentChatId: chat.parentChatId,
-      needsSync: chat.needsSync,
-      createdAt: chat.createdAt.getTime(),
-      updatedAt: chat.updatedAt.getTime(),
-      lastActiveAt: chat.lastActiveAt.getTime(),
+      ...toChatResponse(chat),
       messageCount: chat._count.messages,
       lastMessageId: chat.messages[0]?.id ?? null,
     }))
@@ -187,27 +139,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     })
 
     const response: ChatResponse = {
-      id: chat.id,
-      repo: chat.repo,
-      baseBranch: chat.baseBranch,
-      branch: chat.branch,
-      sandboxId: chat.sandboxId,
-      sessionId: chat.sessionId,
-      previewUrlPattern: chat.previewUrlPattern,
-      backgroundSessionId: chat.backgroundSessionId,
-      agent: chat.agent,
-      model: chat.model,
-      planModeEnabled: chat.planModeEnabled,
-      displayName: chat.displayName,
-      shareId: chat.shareId,
-      status: chat.status,
-      archived: chat.archived,
-      pinned: chat.pinned,
-      parentChatId: chat.parentChatId,
-      needsSync: chat.needsSync,
-      createdAt: chat.createdAt.getTime(),
-      updatedAt: chat.updatedAt.getTime(),
-      lastActiveAt: chat.lastActiveAt.getTime(),
+      ...toChatResponse(chat),
       messageCount: 0,
       lastMessageId: null,
     }

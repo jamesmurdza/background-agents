@@ -9,6 +9,8 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
+import { toChatResponse, toMessageResponse } from "@/lib/db/serializers"
+import type { ChatWithMessagesResponse, MessageResponse } from "@/lib/sync/api"
 
 // =============================================================================
 // Helpers
@@ -36,54 +38,6 @@ async function collectChatSubtreeIds(rootId: string, userId: string): Promise<st
   }
 
   return ids
-}
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface MessageResponse {
-  id: string
-  role: string
-  content: string
-  timestamp: number
-  messageType: string | null
-  isError: boolean
-  toolCalls: unknown
-  contentBlocks: unknown
-  uploadedFiles: unknown
-  linkBranch: string | null
-  metadata: unknown
-  agent: string | null
-  model: string | null
-  /** Carried over from the parent chat (branch context); read-only in the UI. */
-  inherited?: boolean
-}
-
-interface ChatWithMessagesResponse {
-  id: string
-  repo: string
-  baseBranch: string
-  branch: string | null
-  sandboxId: string | null
-  sessionId: string | null
-  previewUrlPattern: string | null
-  backgroundSessionId: string | null
-  agent: string
-  model: string | null
-  planModeEnabled: boolean
-  displayName: string | null
-  shareId: string | null
-  status: string
-  archived: boolean
-  pinned: boolean
-  parentChatId: string | null
-  needsSync: boolean
-  createdAt: number
-  updatedAt: number
-  lastActiveAt: number
-  messages: MessageResponse[]
-  messageCount: number
 }
 
 // =============================================================================
@@ -159,63 +113,18 @@ export async function GET(
       inheritedMessages = parentMessages
         .filter((m) => m.content.trim().length > 0)
         .map((m) => ({
+          ...toMessageResponse(m),
           id: `inherited-${m.id}`,
-          role: m.role,
-          content: m.content,
-          timestamp: Number(m.timestamp),
-          messageType: m.messageType,
-          isError: m.isError,
-          toolCalls: m.toolCalls,
-          contentBlocks: m.contentBlocks,
-          uploadedFiles: m.uploadedFiles,
-          linkBranch: m.linkBranch,
-          metadata: m.metadata,
-          agent: m.agent,
-          model: m.model,
           inherited: true,
         }))
     }
 
     const response: ChatWithMessagesResponse = {
-      id: chat.id,
-      repo: chat.repo,
-      baseBranch: chat.baseBranch,
-      branch: chat.branch,
-      sandboxId: chat.sandboxId,
-      sessionId: chat.sessionId,
-      previewUrlPattern: chat.previewUrlPattern,
-      backgroundSessionId: chat.backgroundSessionId,
-      agent: chat.agent,
-      model: chat.model,
-      planModeEnabled: chat.planModeEnabled,
-      displayName: chat.displayName,
-      shareId: chat.shareId,
-      status: chat.status,
-      archived: chat.archived,
-      pinned: chat.pinned,
-      parentChatId: chat.parentChatId,
-      needsSync: chat.needsSync,
-      createdAt: chat.createdAt.getTime(),
-      updatedAt: chat.updatedAt.getTime(),
-      lastActiveAt: chat.lastActiveAt.getTime(),
+      ...toChatResponse(chat),
       messageCount,
       messages: [
         ...inheritedMessages,
-        ...messages.map((m) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: Number(m.timestamp),
-          messageType: m.messageType,
-          isError: m.isError,
-          toolCalls: m.toolCalls,
-          contentBlocks: m.contentBlocks,
-          uploadedFiles: m.uploadedFiles,
-          linkBranch: m.linkBranch,
-          metadata: m.metadata,
-          agent: m.agent,
-          model: m.model,
-        })),
+        ...messages.map(toMessageResponse),
       ],
     }
 
