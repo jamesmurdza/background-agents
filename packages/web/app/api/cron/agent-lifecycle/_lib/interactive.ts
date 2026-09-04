@@ -1,11 +1,10 @@
 import { Daytona } from "@daytonaio/sdk"
-import { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/db/prisma"
 import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
-import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
+import { persistFinalizedAssistantMessage } from "./persist"
 
 import { autoPushChat } from "@/lib/git/auto-push"
 import type { ChatWithMessages } from "./types"
@@ -25,24 +24,7 @@ export async function finalizeInteractiveChat(
   const assistantMessage = chat.messages[0]
 
   if (assistantMessage) {
-    try {
-      await prisma.message.update({
-        where: { id: assistantMessage.id },
-        data: {
-          content: stripNullBytes(snapshot.content),
-          toolCalls:
-            snapshot.toolCalls.length > 0
-              ? (stripNullBytesDeep(snapshot.toolCalls) as unknown as Prisma.InputJsonValue)
-              : undefined,
-          contentBlocks:
-            snapshot.contentBlocks.length > 0
-              ? (stripNullBytesDeep(snapshot.contentBlocks) as unknown as Prisma.InputJsonValue)
-              : undefined,
-        },
-      })
-    } catch (err) {
-      console.error(`[agent-lifecycle] Failed to persist message for chat ${chat.id}:`, err)
-    }
+    await persistFinalizedAssistantMessage(assistantMessage.id, snapshot, `chat ${chat.id}`)
   }
 
   // 2. Finalize the turn
