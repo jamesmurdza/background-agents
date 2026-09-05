@@ -33,6 +33,14 @@ export async function monitorAgent(
       repoPath: `${PATHS.SANDBOX_HOME}/project`,
     })
 
+    if (snapshot.transientReadFailure) {
+      // Reading the session failed transiently (network blip, brief file-read
+      // race) — this is not evidence the agent errored, just that we
+      // couldn't read its state this tick. Don't cancel a possibly-healthy
+      // agent or record a spurious failure; just check again next cycle.
+      return
+    }
+
     if (snapshot.status === "completed") {
       await handlers.onComplete(snapshot)
     } else if (snapshot.status === "error") {
