@@ -199,3 +199,98 @@ describe("toResolvedEnvironment", () => {
     expect(resolved.networkMode).toBe("full")
   })
 })
+
+describe("toEnvironmentDTO", () => {
+  it("decrypts variables, derives hasSetupScript, and serializes updatedAt as a number", async () => {
+    const { toEnvironmentDTO } = await import("./environments")
+    const encrypted = encryptEnvironmentVariables({ FOO: "bar" })
+    const now = new Date("2026-01-01T00:00:00.000Z")
+
+    const dto = toEnvironmentDTO({
+      id: "env_1",
+      name: "Default",
+      repo: "acme/app",
+      isDefault: true,
+      networkMode: "full",
+      allowedDomains: [],
+      environmentVariables: encrypted,
+      setupScript: "echo hi",
+      setupScriptUpdatedBy: "agent",
+      updatedAt: now,
+    })
+
+    expect(dto).toEqual({
+      id: "env_1",
+      repo: "acme/app",
+      name: "Default",
+      isDefault: true,
+      networkMode: "full",
+      allowedDomains: [],
+      variables: { FOO: "bar" },
+      hasSetupScript: true,
+      setupScript: "echo hi",
+      setupScriptUpdatedBy: "agent",
+      updatedAt: now.getTime(),
+    })
+  })
+
+  it("reports hasSetupScript false and setupScriptUpdatedBy null for a fresh environment", async () => {
+    const { toEnvironmentDTO } = await import("./environments")
+    const dto = toEnvironmentDTO({
+      id: "env_2",
+      name: "Default",
+      repo: "acme/app",
+      isDefault: true,
+      networkMode: "full",
+      allowedDomains: [],
+      environmentVariables: null,
+      setupScript: null,
+      setupScriptUpdatedBy: null,
+      updatedAt: new Date(),
+    })
+
+    expect(dto.hasSetupScript).toBe(false)
+    expect(dto.setupScriptUpdatedBy).toBeNull()
+  })
+
+  it("narrows an unrecognized setupScriptUpdatedBy value to null", async () => {
+    const { toEnvironmentDTO } = await import("./environments")
+    const dto = toEnvironmentDTO({
+      id: "env_3",
+      name: "Default",
+      repo: "acme/app",
+      isDefault: true,
+      networkMode: "full",
+      allowedDomains: [],
+      environmentVariables: null,
+      setupScript: null,
+      setupScriptUpdatedBy: "garbage",
+      updatedAt: new Date(),
+    })
+
+    expect(dto.setupScriptUpdatedBy).toBeNull()
+  })
+})
+
+describe("getOwnedEnvironment", () => {
+  it("scopes the lookup to the given userId", async () => {
+    const { getOwnedEnvironment } = await import("./environments")
+    environment.findFirst.mockResolvedValueOnce({ id: "env_1", userId: "u1" })
+
+    const result = await getOwnedEnvironment("u1", "env_1")
+
+    expect(environment.findFirst).toHaveBeenCalledWith({
+      where: { id: "env_1", userId: "u1" },
+    })
+    expect(result).toEqual({ id: "env_1", userId: "u1" })
+  })
+
+  it("returns null when the environment belongs to another user or does not exist", async () => {
+    const { getOwnedEnvironment } = await import("./environments")
+    environment.findFirst.mockResolvedValueOnce(null)
+
+    const result = await getOwnedEnvironment("u1", "env_owned_by_someone_else")
+
+    expect(result).toBeNull()
+  })
+})

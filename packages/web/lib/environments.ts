@@ -90,6 +90,60 @@ export function toResolvedEnvironment(row: EnvironmentRow): ResolvedEnvironment 
 }
 
 /**
+ * The wire shape the /environments UI (Task 7) and its API client consume.
+ * Plain serializable data only: no Date, no Decimal, no Prisma JsonValue, so
+ * this stays safe for client components to import with `import type`.
+ */
+export interface EnvironmentDTO {
+  id: string
+  repo: string
+  name: string
+  isDefault: boolean
+  networkMode: NetworkMode
+  allowedDomains: string[]
+  /** Decrypted. */
+  variables: Record<string, string>
+  hasSetupScript: boolean
+  setupScript: string | null
+  setupScriptUpdatedBy: "user" | "agent" | null
+  updatedAt: number
+}
+
+type EnvironmentDTORow = EnvironmentRow & {
+  setupScriptUpdatedBy: string | null
+  updatedAt: Date
+}
+
+export function toEnvironmentDTO(row: EnvironmentDTORow): EnvironmentDTO {
+  return {
+    id: row.id,
+    repo: row.repo,
+    name: row.name,
+    isDefault: row.isDefault,
+    networkMode: toNetworkMode(row.networkMode),
+    allowedDomains: row.allowedDomains,
+    variables: decryptEnvironmentVariables(row.environmentVariables),
+    hasSetupScript: !!row.setupScript,
+    setupScript: row.setupScript,
+    setupScriptUpdatedBy:
+      row.setupScriptUpdatedBy === "user" || row.setupScriptUpdatedBy === "agent"
+        ? row.setupScriptUpdatedBy
+        : null,
+    updatedAt: row.updatedAt.getTime(),
+  }
+}
+
+/**
+ * An environment scoped to its owner. Returns null when it doesn't exist OR
+ * belongs to a different user, so callers can return a single 404 without
+ * distinguishing "not found" from "not yours" (that distinction is exactly
+ * what would let another user's id be probed for existence).
+ */
+export async function getOwnedEnvironment(userId: string, id: string) {
+  return prisma.environment.findFirst({ where: { id, userId } })
+}
+
+/**
  * The repo's default environment, created empty if it doesn't exist yet.
  *
  * The create races with itself when two requests hit a repo that has never had
