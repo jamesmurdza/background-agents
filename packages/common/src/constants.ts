@@ -31,3 +31,39 @@ export const SANDBOX_CONFIG = {
   /** Timeout in seconds for starting sandbox */
   START_TIMEOUT_SECONDS: 120,
 } as const
+
+// =============================================================================
+// Network baseline
+// =============================================================================
+
+/**
+ * Domains always reachable from a sandbox, even in "restricted" network mode.
+ *
+ * Without these, restricting an environment breaks things the user never chose:
+ * the git clone, the tokscale install at bring-up, and the agent CLI's own API
+ * calls — all of which originate *inside* the sandbox. The environment editor
+ * shows these as non-removable entries so the behavior is visible rather than
+ * surprising.
+ *
+ * A user on a custom endpoint (User.customEndpoints) needs that host appended
+ * at sandbox-creation time; see resolveDomainAllowList.
+ */
+export const BASELINE_DOMAINS = [
+  // Source control
+  "github.com",
+  "api.github.com",
+  "codeload.github.com",
+  "objects.githubusercontent.com",
+  // Package registries
+  "registry.npmjs.org",
+  "pypi.org",
+  "files.pythonhosted.org",
+  // Agent API hosts
+  "api.anthropic.com",
+  "console.anthropic.com",
+  "api.openai.com",
+  "generativelanguage.googleapis.com",
+  "opencode.ai",
+  "server.smithery.ai",
+  "registry.smithery.ai",
+] as const

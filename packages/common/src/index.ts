@@ -4,7 +4,7 @@
  */
 
 // Constants
-export { PATHS, SANDBOX_CONFIG } from "./constants"
+export { PATHS, SANDBOX_CONFIG, BASELINE_DOMAINS } from "./constants"
 
 // Types
 export type {
