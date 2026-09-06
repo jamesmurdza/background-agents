@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
+import { resolveEnvironmentForChat } from "@/lib/environments"
 import {
   createSandboxForChat,
   ensureSandboxStarted,
@@ -110,6 +111,14 @@ export async function ensureSandboxForChat(params: {
     const restoreExistingBranch = !!branch
     const newBranch = branch ?? payload.newBranch ?? `agent/${randomUUID().slice(0, 8)}`
 
+    // Resolve the chat's environment (pinned, or the repo's default). Null only
+    // for NEW_REPOSITORY chats.
+    const environment = await resolveEnvironmentForChat({
+      userId,
+      repo: chat.repo,
+      environmentId: chat.environmentId ?? null,
+    })
+
     const created = await createSandboxForChat({
       daytona,
       repo: chat.repo,
@@ -118,6 +127,7 @@ export async function ensureSandboxForChat(params: {
       githubToken: githubToken ?? undefined,
       userId,
       restoreExistingBranch,
+      environment,
     })
 
     sandbox = created.sandbox

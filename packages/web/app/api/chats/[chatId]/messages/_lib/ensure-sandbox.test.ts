@@ -29,6 +29,14 @@ vi.mock("@/lib/sandbox", () => ({
     installSkillsForRepo(s, u, r),
 }))
 
+// This suite only exercises sandbox-lifecycle branching, not environment
+// resolution (that's covered by lib/environments.test.ts and
+// lib/sandbox-create-params.test.ts), so stub it out to a fixed value.
+const resolveEnvironmentForChat = vi.fn()
+vi.mock("@/lib/environments", () => ({
+  resolveEnvironmentForChat: (args: unknown) => resolveEnvironmentForChat(args),
+}))
+
 import { ensureSandboxForChat, type SandboxState } from "./ensure-sandbox"
 
 const freshSandbox = { id: "sbx-new", state: "started" }
@@ -102,6 +110,7 @@ beforeEach(() => {
   })
   ensureSandboxStarted.mockReset().mockResolvedValue(undefined)
   installSkillsForRepo.mockReset().mockResolvedValue({ installed: 0, total: 0 })
+  resolveEnvironmentForChat.mockReset().mockResolvedValue(null)
 })
 
 describe("ensureSandboxForChat — first-time creation", () => {
