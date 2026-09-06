@@ -15,6 +15,7 @@ import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { getOrCreateDefaultEnvironment } from "@/lib/environments"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
 import {
   createBackgroundAgentSession,
@@ -152,6 +153,10 @@ export async function startJobExecution(
 
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
   //    skips the clone path, so we don't need the GitHub token in that case.
+  // Scheduled jobs have no per-job environment picker (job.repo is always a
+  // real "owner/repo", never NEW_REPOSITORY), so resolve the repo's default
+  // environment directly rather than through resolveEnvironmentForChat.
+  const environment = await getOrCreateDefaultEnvironment(job.userId, job.repo)
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
   const { sandbox, sandboxId, previewUrlPattern } = await createSandboxForChat({
     daytona,
@@ -160,6 +165,7 @@ export async function startJobExecution(
     newBranch: branch,
     githubToken: account?.access_token ?? undefined,
     userId: job.userId,
+    environment,
   })
 
   // 6. Update chat with sandbox info

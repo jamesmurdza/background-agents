@@ -205,7 +205,7 @@ export async function createSandboxForChat(
       repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
       branch: newBranch,
       environment: options.environment ?? null,
-    }) as Parameters<Daytona["create"]>[0]
+    })
   )
 
   await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)

@@ -95,6 +95,7 @@ function createArg() {
     newBranch: string
     restoreExistingBranch: boolean
     repo: string
+    environment: unknown
   }
 }
 
@@ -124,6 +125,30 @@ describe("ensureSandboxForChat — first-time creation", () => {
     expect(createArg().restoreExistingBranch).toBe(false)
     expect(chat.sessionId).toBeNull()
     expect(readyUpdate()!.data).toHaveProperty("sessionId", null)
+  })
+
+  it("resolves the chat's environment and forwards it to createSandboxForChat", async () => {
+    const resolvedEnvironment = {
+      id: "env_123",
+      name: "Staging",
+      repo: "octocat/hello",
+      isDefault: false,
+      networkMode: "full",
+      allowedDomains: [],
+      variables: { NPM_TOKEN: "tok" },
+      setupScript: null,
+    }
+    resolveEnvironmentForChat.mockResolvedValue(resolvedEnvironment)
+    const { params } = setup()
+
+    await ensureSandboxForChat(params)
+
+    expect(resolveEnvironmentForChat).toHaveBeenCalledWith({
+      userId: "user-1",
+      repo: "octocat/hello",
+      environmentId: null,
+    })
+    expect(createArg().environment).toBe(resolvedEnvironment)
   })
 })
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
 
-// sandbox-create-params.ts imports resolveDomainAllowList from ./environments,
+// sandbox-create-params.ts imports ResolvedEnvironment from ./environments,
 // which imports the prisma singleton. lib/db/prisma.ts constructs a
 // PrismaClient at module scope and throws without DATABASE_URL, so it must be
 // mocked even though nothing in this test touches it. Same pattern as
@@ -8,7 +8,6 @@ import { describe, it, expect, vi } from "vitest"
 vi.mock("@/lib/db/prisma", () => ({ prisma: {} }))
 
 import { buildSandboxCreateParams } from "./sandbox-create-params"
-import { BASELINE_DOMAINS } from "@background-agents/common"
 import type { ResolvedEnvironment } from "./environments"
 
 function env(overrides: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
@@ -33,24 +32,33 @@ const base = {
 }
 
 describe("buildSandboxCreateParams", () => {
-  it("omits domainAllowList in full mode", () => {
+  it("emits no network-restriction field in full mode", () => {
     const params = buildSandboxCreateParams({ ...base, environment: env() })
     expect(params).not.toHaveProperty("domainAllowList")
+    expect(params).not.toHaveProperty("networkAllowList")
+    expect(params).not.toHaveProperty("networkBlockAll")
   })
 
-  it("omits domainAllowList when there is no environment at all", () => {
+  it("emits no network-restriction field when there is no environment at all", () => {
     const params = buildSandboxCreateParams({ ...base, environment: null })
     expect(params).not.toHaveProperty("domainAllowList")
+    expect(params).not.toHaveProperty("networkAllowList")
+    expect(params).not.toHaveProperty("networkBlockAll")
   })
 
-  it("sets domainAllowList to baseline plus user domains in restricted mode", () => {
-    const params = buildSandboxCreateParams({
-      ...base,
-      environment: env({ networkMode: "restricted", allowedDomains: ["example.com"] }),
-    })
-    const domains = String(params.domainAllowList).split(",")
-    expect(domains).toContain("example.com")
-    for (const baseline of BASELINE_DOMAINS) expect(domains).toContain(baseline)
+  // The installed @daytonaio/sdk (0.170.0) has no domain-allowlist field,
+  // only networkBlockAll and a CIDR-only networkAllowList, neither of which
+  // can express "allow these hostnames" for CDN-backed services with
+  // rotating IPs. Emitting a field the SDK ignores would silently produce an
+  // unrestricted sandbox despite the "restricted" setting, so restricted mode
+  // is refused outright rather than under-enforced.
+  it("throws for restricted mode, since the installed Daytona SDK cannot enforce a domain allowlist", () => {
+    expect(() =>
+      buildSandboxCreateParams({
+        ...base,
+        environment: env({ networkMode: "restricted", allowedDomains: ["example.com"] }),
+      })
+    ).toThrow(/restricted network/i)
   })
 
   it("passes the environment's variables as sandbox envVars", () => {
