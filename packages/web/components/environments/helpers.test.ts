@@ -11,6 +11,7 @@ function makeEnv(overrides: Partial<EnvironmentDTO>): EnvironmentDTO {
     networkMode: "full",
     allowedDomains: [],
     variables: {},
+    variableCount: 0,
     hasSetupScript: false,
     setupScript: null,
     setupScriptUpdatedBy: null,

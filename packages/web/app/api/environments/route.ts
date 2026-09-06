@@ -33,12 +33,21 @@ export async function GET(req: NextRequest): Promise<Response> {
   const { userId } = authResult
 
   try {
-    const repo = new URL(req.url).searchParams.get("repo")
+    const { searchParams } = new URL(req.url)
+    const repo = searchParams.get("repo")
+    // Full variables are plaintext once decrypted, so this endpoint omits them
+    // by default: every render that lists environments (the combobox, the
+    // environments list) needs only names, defaults and a count, not secrets
+    // sitting in the SPA's memory on every load. Only a caller that actually
+    // edits variables (the environments editor) asks for them explicitly.
+    const includeVariables = searchParams.get("include") === "variables"
     const rows = await prisma.environment.findMany({
       where: { userId, ...(repo && { repo }) },
       orderBy: [{ repo: "asc" }, { isDefault: "desc" }, { name: "asc" }],
     })
-    return Response.json({ environments: rows.map(toEnvironmentDTO) })
+    return Response.json({
+      environments: rows.map((row) => toEnvironmentDTO(row, { includeVariables })),
+    })
   } catch (error) {
     return internalError(error)
   }

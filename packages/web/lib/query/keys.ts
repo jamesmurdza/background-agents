@@ -22,7 +22,13 @@ export const queryKeys = {
   // Environments
   environments: {
     all: ["environments"] as const,
-    list: (repo?: string) => [...queryKeys.environments.all, "list", repo ?? "*"] as const,
+    list: (repo?: string, includeVariables?: boolean) =>
+      [
+        ...queryKeys.environments.all,
+        "list",
+        repo ?? "*",
+        includeVariables ? "with-variables" : "no-variables",
+      ] as const,
     detail: (id: string) => [...queryKeys.environments.all, "detail", id] as const,
     usage: (id: string) => [...queryKeys.environments.all, "usage", id] as const,
   },

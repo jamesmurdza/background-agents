@@ -100,7 +100,9 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
   // That also means a mutation's query-invalidation refetch (new environment
   // object, same id) never silently overwrites unsaved edits mid-session.
   const [name, setName] = useState(environment.name)
-  const [variables, setVariables] = useState<EnvVar[]>(recordToEnvVars(environment.variables))
+  const [variables, setVariables] = useState<EnvVar[]>(
+    recordToEnvVars(environment.variables ?? {})
+  )
   const [newVarId, setNewVarId] = useState<string | null>(null)
   const [setupScript, setSetupScript] = useState(environment.setupScript ?? "")
   const [error, setError] = useState<string | null>(null)

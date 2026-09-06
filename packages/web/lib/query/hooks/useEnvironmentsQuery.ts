@@ -15,13 +15,27 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
-/** All environments for the user, or just one repo's when `repo` is given. */
-export function useEnvironmentsQuery(repo?: string) {
+/**
+ * All environments for the user, or just one repo's when `repo` is given.
+ *
+ * `includeVariables` asks the server to decrypt and return each
+ * environment's `variables` too (see GET /api/environments). Leave it false
+ * (the default) for anything that only displays names/counts, like the
+ * combobox and the list view: without it, decrypted secrets for every
+ * environment on a repo would sit in the SPA's memory on every render that
+ * merely shows a picker. Only the environments editor, which actually reads
+ * and writes variables, should pass true.
+ */
+export function useEnvironmentsQuery(repo?: string, includeVariables = false) {
   const { status } = useSession()
   return useQuery({
-    queryKey: queryKeys.environments.list(repo),
+    queryKey: queryKeys.environments.list(repo, includeVariables),
     queryFn: async () => {
-      const url = repo ? `/api/environments?repo=${encodeURIComponent(repo)}` : "/api/environments"
+      const params = new URLSearchParams()
+      if (repo) params.set("repo", repo)
+      if (includeVariables) params.set("include", "variables")
+      const qs = params.toString()
+      const url = qs ? `/api/environments?${qs}` : "/api/environments"
       const data = await json<{ environments: EnvironmentDTO[] }>(await fetch(url))
       return data.environments
     },

@@ -76,7 +76,7 @@ beforeEach(() => {
 })
 
 describe("GET /api/environments", () => {
-  it("lists the caller's environments, decrypted", async () => {
+  it("omits variables by default, returning only a count", async () => {
     const encrypted = encryptEnvironmentVariables({ FOO: "bar" })
     environment.findMany.mockResolvedValueOnce([row({ environmentVariables: encrypted })])
 
@@ -88,8 +88,20 @@ describe("GET /api/environments", () => {
       orderBy: [{ repo: "asc" }, { isDefault: "desc" }, { name: "asc" }],
     })
     expect(body.environments).toHaveLength(1)
-    expect(body.environments[0].variables).toEqual({ FOO: "bar" })
+    expect(body.environments[0].variables).toBeUndefined()
+    expect(body.environments[0].variableCount).toBe(1)
     expect(body.environments[0].updatedAt).toBe(row().updatedAt.getTime())
+  })
+
+  it("includes decrypted variables when the caller asks for them via ?include=variables", async () => {
+    const encrypted = encryptEnvironmentVariables({ FOO: "bar" })
+    environment.findMany.mockResolvedValueOnce([row({ environmentVariables: encrypted })])
+
+    const res = await GET(makeRequest("http://localhost/api/environments?include=variables"))
+    const body = await res.json()
+
+    expect(body.environments[0].variables).toEqual({ FOO: "bar" })
+    expect(body.environments[0].variableCount).toBe(1)
   })
 
   it("filters by repo when a repo query param is given", async () => {
