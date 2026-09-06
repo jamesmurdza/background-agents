@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import {
   requireAuth,
@@ -7,7 +8,11 @@ import {
   notFound,
   internalError,
 } from "@/lib/db/api-helpers"
-import { toEnvironmentDTO, type EnvironmentDTO } from "@/lib/environments"
+import {
+  toEnvironmentDTO,
+  environmentUniqueConstraintMessage,
+  type EnvironmentDTO,
+} from "@/lib/environments"
 
 export type { EnvironmentDTO }
 
@@ -97,8 +102,13 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     return Response.json({ environment: toEnvironmentDTO(created) }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Unique constraint")) {
-      return badRequest("An environment with that name already exists for this repo")
+    // Environment has two unique constraints that both throw P2002: the named
+    // (userId, repo, name) one and the partial default-per-repo index that
+    // the isDefault: existingCount === 0 create above can race against.
+    // environmentUniqueConstraintMessage tells them apart; anything that
+    // isn't a P2002 is a real error and must not become a 400.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return badRequest(environmentUniqueConstraintMessage(error))
     }
     return internalError(error)
   }

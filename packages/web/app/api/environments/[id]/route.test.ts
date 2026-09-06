@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 // Mock the prisma singleton so route logic can be exercised without a DB.
 // `vi.hoisted` lets the factory (which is hoisted above imports) see the mocks.
-const { environment } = vi.hoisted(() => ({
+const { environment, transaction } = vi.hoisted(() => ({
   environment: {
     findFirst: vi.fn(),
     update: vi.fn(),
@@ -10,9 +10,10 @@ const { environment } = vi.hoisted(() => ({
     delete: vi.fn(),
     count: vi.fn(),
   },
+  transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 }))
 vi.mock("@/lib/db/prisma", () => ({
-  prisma: { environment, $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)) },
+  prisma: { environment, $transaction: transaction },
 }))
 
 vi.mock("@/lib/db/api-helpers", () => ({
@@ -25,8 +26,30 @@ vi.mock("@/lib/db/api-helpers", () => ({
   ),
 }))
 
+import { Prisma } from "@prisma/client"
 import { GET, PATCH, DELETE } from "./route"
 import { decryptEnvironmentVariables } from "@/lib/environments"
+
+// Shape copied from a real P2002 forced against the scratch DB via
+// @prisma/adapter-pg (Prisma 7.8.0). See task-6-report.md's smoke-test
+// section for the transcript that produced this.
+function p2002(fields: string[]): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+    code: "P2002",
+    clientVersion: "test",
+    meta: {
+      modelName: "Environment",
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "23505",
+          kind: "UniqueConstraintViolation",
+          constraint: { fields },
+        },
+      },
+    },
+  })
+}
 
 function makeRequest(body?: unknown) {
   return new Request("http://localhost/api/environments/env_1", {
@@ -63,6 +86,9 @@ beforeEach(() => {
   environment.updateMany.mockReset()
   environment.delete.mockReset()
   environment.count.mockReset()
+  // mockClear (not mockReset): this mock's real job is to actually run its
+  // ops (`Promise.all(ops)`), so clearing must not wipe that implementation.
+  transaction.mockClear()
 })
 
 describe("GET /api/environments/[id]", () => {
@@ -175,6 +201,12 @@ describe("PATCH /api/environments/[id]", () => {
     const res = await PATCH(makeRequest({ isDefault: true }), params())
     const body = await res.json()
 
+    // The two ordered statements must actually run inside prisma.$transaction,
+    // as an array of exactly two operations, not merely be called somewhere.
+    expect(transaction).toHaveBeenCalledTimes(1)
+    const [ops] = transaction.mock.calls[0]
+    expect(ops).toHaveLength(2)
+
     expect(environment.updateMany).toHaveBeenCalledWith({
       where: { userId: "u1", repo: "acme/app", isDefault: true },
       data: { isDefault: false },
@@ -183,6 +215,16 @@ describe("PATCH /api/environments/[id]", () => {
       where: { id: "env_1" },
       data: { isDefault: true },
     })
+
+    // Ordering: the clear (updateMany) must have been INVOKED before the
+    // promotion's set (this update call), not just both present in the
+    // transaction array. invocationCallOrder is a global counter across all
+    // mocks, so comparing it across the two different mock functions is valid
+    // and would catch the array being built in the wrong order.
+    expect(environment.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      environment.update.mock.invocationCallOrder[0]
+    )
+
     expect(res.status).toBe(200)
     expect(body.environment.isDefault).toBe(true)
   })
@@ -196,13 +238,37 @@ describe("PATCH /api/environments/[id]", () => {
     expect(environment.updateMany).not.toHaveBeenCalled()
   })
 
-  it("maps a unique-constraint violation to a 400", async () => {
+  it("maps a (userId, repo, name) P2002 to a 400 naming the collision", async () => {
     environment.findFirst.mockResolvedValueOnce(row())
-    environment.update.mockRejectedValueOnce(new Error("Unique constraint failed on the fields"))
+    environment.update.mockRejectedValueOnce(p2002(['"userId"', "repo", "name"]))
 
     const res = await PATCH(makeRequest({ name: "Taken" }), params())
+    const body = await res.json()
 
     expect(res.status).toBe(400)
+    expect(body.error).toContain("environment with that name already exists")
+  })
+
+  it("maps a partial default-per-repo-index P2002 (a concurrent promotion race) to a distinct 400", async () => {
+    environment.findFirst.mockResolvedValueOnce(row({ isDefault: false }))
+    environment.updateMany.mockResolvedValueOnce({ count: 1 })
+    environment.update.mockRejectedValueOnce(p2002(['"userId"', "repo"]))
+
+    const res = await PATCH(makeRequest({ isDefault: true }), params())
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).not.toContain("name already exists")
+    expect(body.error.toLowerCase()).toContain("default")
+  })
+
+  it("does not turn a non-P2002 error into a 400", async () => {
+    environment.findFirst.mockResolvedValueOnce(row())
+    environment.update.mockRejectedValueOnce(new Error("connection refused"))
+
+    const res = await PATCH(makeRequest({ name: "Renamed" }), params())
+
+    expect(res.status).toBe(500)
   })
 })
 

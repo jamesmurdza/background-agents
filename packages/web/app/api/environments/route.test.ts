@@ -22,11 +22,33 @@ vi.mock("@/lib/db/api-helpers", () => ({
   ),
 }))
 
+import { Prisma } from "@prisma/client"
 import { GET, POST } from "./route"
 import { encryptEnvironmentVariables } from "@/lib/environments"
 
 function makeRequest(url: string, init?: RequestInit) {
   return new Request(url, init) as unknown as import("next/server").NextRequest
+}
+
+// Shape copied from a real P2002 forced against the scratch DB via
+// @prisma/adapter-pg (Prisma 7.8.0). See task-6-report.md's smoke-test
+// section for the transcript that produced this.
+function p2002(fields: string[]): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+    code: "P2002",
+    clientVersion: "test",
+    meta: {
+      modelName: "Environment",
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "23505",
+          kind: "UniqueConstraintViolation",
+          constraint: { fields },
+        },
+      },
+    },
+  })
 }
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
@@ -191,15 +213,44 @@ describe("POST /api/environments", () => {
     expect(data.setupScript).toBe("echo hi")
   })
 
-  it("maps a unique-constraint violation on (userId, repo, name) to a 400", async () => {
+  it("maps a (userId, repo, name) P2002 to a 400 naming the collision", async () => {
     environment.count.mockResolvedValueOnce(0)
-    environment.create.mockRejectedValueOnce(new Error("Unique constraint failed on the fields"))
+    environment.create.mockRejectedValueOnce(p2002(['"userId"', "repo", "name"]))
+
+    const res = await POST(makeRequest("http://localhost/api/environments", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/app", name: "Default" }),
+    }))
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("environment with that name already exists")
+  })
+
+  it("maps a partial default-per-repo-index P2002 (a concurrent first-create race) to a distinct 400", async () => {
+    environment.count.mockResolvedValueOnce(0)
+    environment.create.mockRejectedValueOnce(p2002(['"userId"', "repo"]))
+
+    const res = await POST(makeRequest("http://localhost/api/environments", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/app", name: "Default" }),
+    }))
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).not.toContain("name already exists")
+    expect(body.error.toLowerCase()).toContain("default")
+  })
+
+  it("does not turn a non-P2002 error into a 400", async () => {
+    environment.count.mockResolvedValueOnce(0)
+    environment.create.mockRejectedValueOnce(new Error("connection refused"))
 
     const res = await POST(makeRequest("http://localhost/api/environments", {
       method: "POST",
       body: JSON.stringify({ repo: "acme/app", name: "Default" }),
     }))
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(500)
   })
 })

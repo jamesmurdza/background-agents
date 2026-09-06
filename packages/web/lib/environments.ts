@@ -144,6 +144,55 @@ export async function getOwnedEnvironment(userId: string, id: string) {
 }
 
 /**
+ * `Environment` has two unique constraints that both surface as Prisma P2002:
+ * `@@unique([userId, repo, name])` and the hand-written partial index
+ * `Environment_one_default_per_repo` on `(userId, repo) WHERE isDefault`. A
+ * bare "Unique constraint failed" message can't tell them apart, and they
+ * mean very different things to a caller (a name collision they typed vs. a
+ * concurrent request that changed the repo's default out from under them),
+ * so this inspects which fields Prisma actually reports as violated.
+ *
+ * Confirmed against a real violation of each constraint via
+ * `@prisma/adapter-pg` (Prisma 7.8.0, driver-adapter engine): the violated
+ * field list lives at `error.meta.driverAdapterError.cause.constraint.fields`
+ * (e.g. `["\"userId\"", "repo"]` for the partial index, `["\"userId\"",
+ * "repo", "name"]` for the named-uniqueness one), NOT the classic
+ * `error.meta.target` some Prisma engine versions report. That classic shape
+ * is kept as a fallback in case a different adapter or a future engine
+ * reports it that way instead.
+ */
+export function violatedEnvironmentUniqueFields(
+  error: Prisma.PrismaClientKnownRequestError
+): string[] {
+  const meta = error.meta as Record<string, unknown> | undefined
+  const driverAdapterError = meta?.driverAdapterError as { cause?: unknown } | undefined
+  const cause = driverAdapterError?.cause as { constraint?: { fields?: unknown } } | undefined
+  const adapterFields = cause?.constraint?.fields
+  if (Array.isArray(adapterFields)) {
+    return adapterFields.map((field) => String(field).replace(/"/g, ""))
+  }
+
+  const target = meta?.target
+  if (Array.isArray(target)) return target.map(String)
+  if (typeof target === "string") return target.split(",").map((s) => s.trim())
+  return []
+}
+
+/** A user-facing message for a P2002 on the Environment model, above. */
+export function environmentUniqueConstraintMessage(
+  error: Prisma.PrismaClientKnownRequestError
+): string {
+  const fields = violatedEnvironmentUniqueFields(error)
+  if (fields.includes("name")) {
+    return "An environment with that name already exists for this repo"
+  }
+  // No "name" among the violated fields means the partial default-per-repo
+  // index was hit instead: another request created or promoted a default
+  // for this repo at the same time.
+  return "Another request just changed this repo's default environment. Refresh and try again."
+}
+
+/**
  * The repo's default environment, created empty if it doesn't exist yet.
  *
  * The create races with itself when two requests hit a repo that has never had

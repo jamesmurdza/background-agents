@@ -294,3 +294,73 @@ describe("getOwnedEnvironment", () => {
     expect(result).toBeNull()
   })
 })
+
+describe("environmentUniqueConstraintMessage / violatedEnvironmentUniqueFields", () => {
+  // Shapes below are copy-pasted from a real P2002 forced against the scratch
+  // DB via @prisma/adapter-pg (Prisma 7.8.0), not guessed:
+  //   node force_conflict.mjs  ->  meta.driverAdapterError.cause.constraint.fields
+  // See task-6-report.md's smoke-test section for the full transcript.
+
+  function p2002(fields: string[]): Prisma.PrismaClientKnownRequestError {
+    return new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+      code: "P2002",
+      clientVersion: "test",
+      meta: {
+        modelName: "Environment",
+        driverAdapterError: {
+          name: "DriverAdapterError",
+          cause: {
+            originalCode: "23505",
+            kind: "UniqueConstraintViolation",
+            constraint: { fields },
+          },
+        },
+      },
+    })
+  }
+
+  it("recognizes the (userId, repo, name) violation from its adapter-reported fields", async () => {
+    const { violatedEnvironmentUniqueFields, environmentUniqueConstraintMessage } = await import(
+      "./environments"
+    )
+    const error = p2002(['"userId"', "repo", "name"])
+
+    expect(violatedEnvironmentUniqueFields(error)).toEqual(["userId", "repo", "name"])
+    expect(environmentUniqueConstraintMessage(error)).toContain(
+      "environment with that name already exists"
+    )
+  })
+
+  it("recognizes the partial default-per-repo index violation, distinct from a name collision", async () => {
+    const { violatedEnvironmentUniqueFields, environmentUniqueConstraintMessage } = await import(
+      "./environments"
+    )
+    const error = p2002(['"userId"', "repo"])
+
+    expect(violatedEnvironmentUniqueFields(error)).toEqual(["userId", "repo"])
+    const message = environmentUniqueConstraintMessage(error)
+    expect(message).not.toContain("name already exists")
+    expect(message.toLowerCase()).toContain("default")
+  })
+
+  it("falls back to the classic meta.target array when no driverAdapterError is present", async () => {
+    const { violatedEnvironmentUniqueFields } = await import("./environments")
+    const error = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "test",
+      meta: { target: ["userId", "repo", "name"] },
+    })
+
+    expect(violatedEnvironmentUniqueFields(error)).toEqual(["userId", "repo", "name"])
+  })
+
+  it("returns an empty field list when meta carries neither shape", async () => {
+    const { violatedEnvironmentUniqueFields } = await import("./environments")
+    const error = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "test",
+    })
+
+    expect(violatedEnvironmentUniqueFields(error)).toEqual([])
+  })
+})
