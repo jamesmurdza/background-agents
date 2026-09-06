@@ -46,7 +46,7 @@ await sandbox.delete()
 | Provider | Status | Auth |
 |----------|--------|------|
 | [Claude](https://docs.anthropic.com/en/docs/claude-code) | ✅ | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_CREDENTIALS` |
-| [Codex](https://developers.openai.com/codex/cli) | ✅ | `OPENAI_API_KEY` |
+| [Codex](https://developers.openai.com/codex/cli) | ✅ | `OPENAI_API_KEY` or `CODEX_CREDENTIALS` |
 | [Copilot](https://docs.github.com/en/copilot) | ✅ | `COPILOT_GITHUB_TOKEN` |
 | [Droid](https://docs.factory.ai/cli/) | ✅ | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` (BYOK), or `FACTORY_API_KEY` for Factory-hosted models |
 | [Gemini](https://geminicli.com/docs/) | ✅ | `GEMINI_API_KEY` |
@@ -322,6 +322,14 @@ Then retrieve your credentials:
 | Windows | `type %USERPROFILE%\.claude\.credentials.json` |
 
 Pass the output as `CLAUDE_CODE_CREDENTIALS`. The SDK automatically writes it to `~/.claude/.credentials.json` in the sandbox.
+
+---
+
+## Codex OAuth credentials
+
+Codex can authenticate via `OPENAI_API_KEY` or `CODEX_CREDENTIALS`. Unlike `CLAUDE_CODE_CREDENTIALS`, `CODEX_CREDENTIALS` is not something you retrieve locally and pass through as-is: it's a complete `auth.json` that the caller renders server-side and the SDK writes verbatim to `~/.codex/auth.json` in the sandbox.
+
+Its `refresh_token` field is deliberately a placeholder. The caller is expected to inject an access token with days of validity plus a fresh `last_refresh`, so the CLI never has reason to refresh — token rotation stays entirely on the caller's side, and no sandbox can ever mint a new refresh token that rotates (and could invalidate) the user's real grant.
 
 ---
 
