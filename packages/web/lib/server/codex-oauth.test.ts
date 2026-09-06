@@ -60,6 +60,20 @@ describe("refreshCodexTokens", () => {
     const err = await refreshCodexTokens("rt.SUPER_SECRET").catch((e) => e)
     expect(String(err.message)).not.toContain("SUPER_SECRET")
   })
+
+  it("never leaks a token via a malformed 200 body's JSON.parse error", async () => {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => "not json rt.SUPER_SECRET_SHOULD_NOT_LEAK",
+    })
+    vi.stubGlobal("fetch", fn)
+
+    const err = await refreshCodexTokens("rt.ok").catch((e) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(CodexReconnectRequiredError)
+    expect(String(err.message)).not.toContain("SUPER_SECRET_SHOULD_NOT_LEAK")
+  })
 })
 
 describe("revokeCodexToken", () => {

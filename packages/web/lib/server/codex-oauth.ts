@@ -66,7 +66,15 @@ export async function refreshCodexTokens(refreshToken: string): Promise<CodexTok
     throw new Error(`Codex token refresh failed (HTTP ${res.status}, ${code})`)
   }
 
-  const parsed = JSON.parse(text) as Partial<CodexTokenResponse>
+  let parsed: Partial<CodexTokenResponse>
+  try {
+    parsed = JSON.parse(text) as Partial<CodexTokenResponse>
+  } catch {
+    // Never let JSON.parse's SyntaxError propagate here — on this branch
+    // `text` is the token-bearing success body, and V8 embeds a snippet of
+    // the offending input in that message.
+    throw new Error("Codex token refresh returned a malformed response body")
+  }
   if (!parsed.access_token || !parsed.refresh_token || !parsed.id_token || !parsed.expires_in) {
     throw new Error("Codex token refresh returned an incomplete response")
   }
