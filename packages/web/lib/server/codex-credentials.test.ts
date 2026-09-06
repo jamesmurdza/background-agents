@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-// `vi.hoisted` lets the factory (which is hoisted above imports) see these.
 const { refreshCodexTokens, revokeCodexToken } = vi.hoisted(() => ({
   refreshCodexTokens: vi.fn(),
   revokeCodexToken: vi.fn().mockResolvedValue(true),
@@ -11,45 +10,85 @@ vi.mock("./codex-oauth", async () => {
   return { ...actual, refreshCodexTokens, revokeCodexToken }
 })
 
-// In-memory stand-in for the User.credentials JSONB column.
-const store = new Map<string, Record<string, string>>()
+// In-memory stand-in for the User.credentials JSONB column, plus the mutable
+// bits tests use to steer the mock's behavior (a per-user lock map, and a
+// one-shot failure to inject into `user.update`).
+const testState = vi.hoisted(() => ({
+  store: new Map<string, Record<string, string>>(),
+  locks: new Map<string, Promise<unknown>>(),
+  failNextUpdate: null as Error | null,
+}))
 
 /**
- * Transactions are serialized here on purpose. `SELECT ... FOR UPDATE` makes
- * concurrent transactions for one user run one at a time in Postgres, and the
- * race test below is only meaningful against a mock that reproduces that. If
- * transactions were allowed to interleave, the second caller would read the
- * pre-refresh credential and refresh again — which is exactly the bug the real
- * lock prevents.
+ * Locking is keyed by userId and only engaged when `$queryRaw` is actually
+ * called — i.e. only transactions that call `withUserLock`'s row lock
+ * serialize against each other for that user. This mock reproduces the
+ * concurrency behavior `SELECT ... FOR UPDATE` gives us in real Postgres:
+ * two transactions racing to lock the SAME user's row run one at a time;
+ * transactions for different users, or a transaction that never locks
+ * (a plain read), do not wait on each other at all.
+ *
+ * This is deliberately lock-aware rather than a blanket "serialize every
+ * transaction" stand-in: an earlier version of this mock serialized every
+ * `$transaction` call unconditionally, which accidentally granted mutual
+ * exclusion the implementation never asked for — deleting `lockUser` from
+ * the real module left every test passing. Verified directly against this
+ * version: the race test below passes against the real implementation, and
+ * fails (refreshCodexTokens called more than once) when `lockUserRow`'s call
+ * is temporarily removed from codex-credentials.ts. Reading the credential
+ * OUTSIDE the transaction still breaks the race test too, which is the other
+ * property this suite exists to catch.
  */
-let txChain: Promise<unknown> = Promise.resolve()
-
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
-    $transaction: (fn: (tx: unknown) => unknown) => {
-      const run = txChain.then(() =>
-        fn({
-          $queryRaw: async () => [{ id: "u1" }],
-          user: {
-            findUnique: async ({ where }: { where: { id: string } }) => ({
-              credentials: store.get(where.id) ?? null,
-            }),
-            update: async ({
-              where,
-              data,
-            }: {
-              where: { id: string }
-              data: { credentials: Record<string, string> }
-            }) => {
-              store.set(where.id, data.credentials)
-            },
+    $transaction: (fn: (tx: unknown) => unknown, _options?: unknown) => {
+      // Held in an object (not a bare closure variable) so a release set
+      // deep inside `$queryRaw` is visible in the `finally` below without
+      // TS narrowing the outer binding back to its initial `null`.
+      const released: { fn: (() => void) | null } = { fn: null }
+      const tx = {
+        $queryRaw: async (_strings: TemplateStringsArray, ...vals: string[]) => {
+          const uid = vals[0]
+          const prev = testState.locks.get(uid) ?? Promise.resolve()
+          let resolveMine: () => void = () => {}
+          const mine = new Promise<void>((resolve) => {
+            resolveMine = resolve
+          })
+          testState.locks.set(
+            uid,
+            prev.then(() => mine)
+          )
+          await prev
+          released.fn = resolveMine
+          return [{ id: uid }]
+        },
+        user: {
+          findUnique: async ({ where }: { where: { id: string } }) => ({
+            credentials: testState.store.get(where.id) ?? null,
+          }),
+          update: async ({
+            where,
+            data,
+          }: {
+            where: { id: string }
+            data: { credentials: Record<string, string> }
+          }) => {
+            if (testState.failNextUpdate) {
+              const err = testState.failNextUpdate
+              testState.failNextUpdate = null
+              throw err
+            }
+            testState.store.set(where.id, data.credentials)
           },
-        })
-      )
-      // Keep the chain alive regardless of outcome, or one rejection would
-      // wedge every later transaction in the suite.
-      txChain = run.catch(() => undefined)
-      return run
+        },
+      }
+      return (async () => {
+        try {
+          return await fn(tx)
+        } finally {
+          released.fn?.()
+        }
+      })()
     },
   },
 }))
@@ -58,6 +97,7 @@ import {
   resolveCodexAuthJson,
   storeCodexCredential,
   readCodexCredential,
+  disconnectCodex,
   refreshCodexCredentialForUser,
 } from "./codex-credentials"
 import { CodexReconnectRequiredError } from "./codex-oauth"
@@ -80,9 +120,11 @@ function cred(overrides: Partial<CodexStoredCredential> = {}): CodexStoredCreden
 }
 
 beforeEach(() => {
-  store.clear()
-  txChain = Promise.resolve()
+  testState.store.clear()
+  testState.locks.clear()
+  testState.failNextUpdate = null
   refreshCodexTokens.mockReset()
+  revokeCodexToken.mockReset().mockResolvedValue(true)
 })
 
 describe("resolveCodexAuthJson", () => {
@@ -162,6 +204,27 @@ describe("resolveCodexAuthJson", () => {
     expect(JSON.parse(blob!).tokens.access_token).toBe("at.stored")
     expect((await readCodexCredential("u1"))?.status).toBe("connected")
   })
+
+  it("propagates a write failure after a successful refresh instead of mislabeling it transient", async () => {
+    await storeCodexCredential("u1", cred({ earliest_refresh_at: nowSec() - 1 }))
+    refreshCodexTokens.mockResolvedValue({
+      access_token: "at.fresh",
+      refresh_token: "rt.rotated",
+      id_token: "id.fresh",
+      expires_in: 864000,
+      earliest_refresh_at: nowSec() + 777600,
+    })
+    testState.failNextUpdate = new Error("db write failed")
+
+    await expect(resolveCodexAuthJson("u1")).rejects.toThrow("db write failed")
+
+    // The write never landed, so what's on disk is whatever storeCodexCredential
+    // wrote at the top of this test — untouched, and NOT marked needs_reconnect:
+    // a lost write here is not a terminal OAuth failure.
+    const stored = await readCodexCredential("u1")
+    expect(stored?.status).toBe("connected")
+    expect(stored?.refresh_token).toBe("rt.stored")
+  })
 })
 
 describe("refreshCodexCredentialForUser", () => {
@@ -178,5 +241,37 @@ describe("refreshCodexCredentialForUser", () => {
     await storeCodexCredential("u1", cred({ earliest_refresh_at: nowSec() - 1 }))
     refreshCodexTokens.mockRejectedValue(new CodexReconnectRequiredError("invalid_grant"))
     expect(await refreshCodexCredentialForUser("u1")).toBe("needs_reconnect")
+  })
+
+  it("reports 'transient_failure' rather than 'skipped' when refresh fails transiently on a still-valid token", async () => {
+    await storeCodexCredential("u1", cred({ earliest_refresh_at: nowSec() - 1 }))
+    refreshCodexTokens.mockRejectedValue(new Error("HTTP 503"))
+    expect(await refreshCodexCredentialForUser("u1")).toBe("transient_failure")
+  })
+})
+
+describe("disconnectCodex", () => {
+  it("deletes the stored credential", async () => {
+    await storeCodexCredential("u1", cred())
+    await disconnectCodex("u1")
+    expect(await readCodexCredential("u1")).toBeNull()
+  })
+
+  it("revokes the stored refresh token", async () => {
+    await storeCodexCredential("u1", cred({ refresh_token: "rt.to-revoke" }))
+    await disconnectCodex("u1")
+    expect(revokeCodexToken).toHaveBeenCalledWith("rt.to-revoke")
+  })
+
+  it("still succeeds when revocation fails", async () => {
+    await storeCodexCredential("u1", cred())
+    revokeCodexToken.mockResolvedValue(false)
+    await expect(disconnectCodex("u1")).resolves.toBeUndefined()
+    expect(await readCodexCredential("u1")).toBeNull()
+  })
+
+  it("is a no-op (no revocation call) when there is nothing stored", async () => {
+    await disconnectCodex("u1")
+    expect(revokeCodexToken).not.toHaveBeenCalled()
   })
 })

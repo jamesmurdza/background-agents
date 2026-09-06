@@ -44,6 +44,12 @@ export async function refreshCodexTokens(refreshToken: string): Promise<CodexTok
   const res = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    // Bounds how long a caller can hold a transaction-scoped row lock open
+    // for this call. Does NOT prevent a lost rotation on its own — OpenAI may
+    // already have processed the request by the time this fires — but it
+    // turns a hang into a fast, catchable transient failure well before the
+    // caller's own transaction timeout would abort mid-flight.
+    signal: AbortSignal.timeout(8000),
     body: JSON.stringify({
       grant_type: "refresh_token",
       client_id: CODEX_OAUTH_CLIENT_ID,
