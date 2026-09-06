@@ -22,7 +22,6 @@ vi.mock("@/lib/db/api-helpers", () => ({
 }))
 
 import { GET, PATCH } from "./route"
-import { buildRepoEnvVarsResponse } from "./route"
 import { encryptEnvironmentVariables, decryptEnvironmentVariables } from "@/lib/environments"
 
 beforeEach(() => {
@@ -32,26 +31,12 @@ beforeEach(() => {
   environment.update.mockReset()
 })
 
-describe("buildRepoEnvVarsResponse", () => {
-  it("shapes the response from default environments only, decrypted", () => {
-    const encrypted = encryptEnvironmentVariables({ FOO: "bar" })
-    const result = buildRepoEnvVarsResponse([
-      { repo: "acme/app", environmentVariables: encrypted },
-      { repo: "acme/other", environmentVariables: null },
-    ])
-
-    expect(result).toEqual({
-      "acme/app": { FOO: "bar" },
-      "acme/other": {},
-    })
-  })
-})
-
 describe("GET /api/user/repo-env", () => {
-  it("returns repoEnvironmentVariables shaped from default environments", async () => {
+  it("returns repoEnvironmentVariables shaped from default environments only, decrypted", async () => {
     const encrypted = encryptEnvironmentVariables({ FOO: "bar" })
     environment.findMany.mockResolvedValueOnce([
       { repo: "acme/app", environmentVariables: encrypted },
+      { repo: "acme/other", environmentVariables: null },
     ])
 
     const res = await GET()
@@ -62,7 +47,10 @@ describe("GET /api/user/repo-env", () => {
       select: { repo: true, environmentVariables: true },
     })
     expect(body).toEqual({
-      repoEnvironmentVariables: { "acme/app": { FOO: "bar" } },
+      repoEnvironmentVariables: {
+        "acme/app": { FOO: "bar" },
+        "acme/other": {},
+      },
     })
   })
 })

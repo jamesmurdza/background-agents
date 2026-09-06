@@ -26,24 +26,6 @@ interface PatchRepoEnvVarsBody {
 }
 
 // =============================================================================
-// Shaping helper (pure, unit-tested)
-// =============================================================================
-
-/**
- * Builds the GET response shape from every default Environment a user has,
- * keyed by repo, with variables decrypted.
- */
-export function buildRepoEnvVarsResponse(
-  defaultEnvironments: { repo: string; environmentVariables: unknown }[]
-): Record<string, Record<string, string>> {
-  const out: Record<string, Record<string, string>> = {}
-  for (const env of defaultEnvironments) {
-    out[env.repo] = decryptEnvironmentVariables(env.environmentVariables)
-  }
-  return out
-}
-
-// =============================================================================
 // GET - Fetch all repository environment variables for the user (decrypted)
 // =============================================================================
 //
@@ -64,9 +46,12 @@ export async function GET(): Promise<Response> {
       select: { repo: true, environmentVariables: true },
     })
 
-    const response: RepoEnvVarsResponse = {
-      repoEnvironmentVariables: buildRepoEnvVarsResponse(defaultEnvironments),
+    const repoEnvironmentVariables: Record<string, Record<string, string>> = {}
+    for (const env of defaultEnvironments) {
+      repoEnvironmentVariables[env.repo] = decryptEnvironmentVariables(env.environmentVariables)
     }
+
+    const response: RepoEnvVarsResponse = { repoEnvironmentVariables }
 
     return Response.json(response)
   } catch (error) {
