@@ -1,18 +1,48 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import { Prisma } from "@prisma/client"
 
 // Mock the prisma singleton: lib/db/prisma.ts constructs a PrismaClient at
-// module scope and throws when DATABASE_URL is unset. The functions under
-// test here are pure and never touch this mock.
-vi.mock("@/lib/db/prisma", () => ({ prisma: {} }))
+// module scope and throws when DATABASE_URL is unset. Most tests in this file
+// are pure and never touch this mock; getOrCreateDefaultEnvironment's race
+// handling does, so `environment` needs real jest-fn behavior rather than an
+// empty object. `vi.hoisted` lets the factory (which is hoisted above
+// imports) see the mocks.
+const { environment } = vi.hoisted(() => ({
+  environment: {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    updateMany: vi.fn(),
+    update: vi.fn(),
+  },
+}))
+vi.mock("@/lib/db/prisma", () => ({
+  prisma: { environment, $transaction: vi.fn(async (ops: unknown[]) => ops) },
+}))
 
 import {
   decryptEnvironmentVariables,
   encryptEnvironmentVariables,
   resolveDomainAllowList,
+  getOrCreateDefaultEnvironment,
   type ResolvedEnvironment,
 } from "./environments"
 import { encrypt } from "./db/encryption"
 import { BASELINE_DOMAINS } from "@background-agents/common"
+
+/** A P2002 error the way Prisma actually throws it. */
+function uniqueConstraintError(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "test",
+  })
+}
+
+beforeEach(() => {
+  environment.findFirst.mockReset()
+  environment.create.mockReset()
+  environment.updateMany.mockReset()
+  environment.update.mockReset()
+})
 
 function env(overrides: Partial<ResolvedEnvironment> = {}): ResolvedEnvironment {
   return {
@@ -85,5 +115,70 @@ describe("resolveDomainAllowList", () => {
     )
     const occurrences = result!.split(",").filter((d) => d === "github.com")
     expect(occurrences).toHaveLength(1)
+  })
+})
+
+describe("getOrCreateDefaultEnvironment", () => {
+  it("propagates a non-P2002 error unchanged instead of masking it as a lost race", async () => {
+    environment.findFirst.mockResolvedValueOnce(null) // no existing default
+    const connectionError = new Error("connection refused")
+    environment.create.mockRejectedValueOnce(connectionError)
+
+    await expect(getOrCreateDefaultEnvironment("u1", "acme/app")).rejects.toBe(connectionError)
+  })
+
+  it("returns the winner on P2002 followed by a successful re-read", async () => {
+    environment.findFirst
+      .mockResolvedValueOnce(null) // no existing default: attempt create
+      .mockResolvedValueOnce({
+        // the re-read after losing the race
+        id: "env_winner",
+        name: "Default",
+        repo: "acme/app",
+        isDefault: true,
+        networkMode: "full",
+        allowedDomains: [],
+        environmentVariables: null,
+        setupScript: null,
+      })
+    environment.create.mockRejectedValueOnce(uniqueConstraintError())
+
+    const result = await getOrCreateDefaultEnvironment("u1", "acme/app")
+
+    expect(result.id).toBe("env_winner")
+    expect(result.isDefault).toBe(true)
+  })
+
+  it("promotes a name-collision row to default when no row is marked default", async () => {
+    environment.findFirst
+      .mockResolvedValueOnce(null) // no existing default: attempt create
+      .mockResolvedValueOnce(null) // re-read for isDefault: true finds nothing
+      .mockResolvedValueOnce({
+        // lookup by name finds the un-promoted collision row
+        id: "env_collided",
+        name: "Default",
+        repo: "acme/app",
+        isDefault: false,
+        networkMode: "full",
+        allowedDomains: [],
+        environmentVariables: null,
+        setupScript: null,
+      })
+    environment.create.mockRejectedValueOnce(uniqueConstraintError())
+    environment.updateMany.mockResolvedValueOnce({ count: 0 })
+    environment.update.mockResolvedValueOnce({})
+
+    const result = await getOrCreateDefaultEnvironment("u1", "acme/app")
+
+    expect(result.id).toBe("env_collided")
+    expect(result.isDefault).toBe(true)
+    expect(environment.updateMany).toHaveBeenCalledWith({
+      where: { userId: "u1", repo: "acme/app", isDefault: true },
+      data: { isDefault: false },
+    })
+    expect(environment.update).toHaveBeenCalledWith({
+      where: { id: "env_collided" },
+      data: { isDefault: true },
+    })
   })
 })

@@ -9,6 +9,7 @@
  * empty default if the repo has never had one.
  */
 
+import { Prisma } from "@prisma/client"
 import { BASELINE_DOMAINS } from "@background-agents/common"
 import { prisma } from "@/lib/db/prisma"
 import { encrypt, decrypt } from "@/lib/db/encryption"
@@ -109,14 +110,47 @@ export async function getOrCreateDefaultEnvironment(
       data: { userId, repo, name: DEFAULT_ENVIRONMENT_NAME, isDefault: true },
     })
     return toResolvedEnvironment(created)
-  } catch {
-    // Lost the race (unique index on either (userId, repo, name) or the partial
-    // default index). Whoever won has created it; read theirs.
+  } catch (error) {
+    // Only a unique-constraint violation means "lost a race"; anything else
+    // (connection failure, validation error, ...) is a real error and must
+    // propagate with its original stack intact.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+      throw error
+    }
+
+    // Lost the race on the partial default index. Whoever won has created it;
+    // read theirs.
     const winner = await prisma.environment.findFirst({
       where: { userId, repo, isDefault: true },
     })
-    if (!winner) throw new Error(`Failed to create default environment for ${repo}`)
-    return toResolvedEnvironment(winner)
+    if (winner) return toResolvedEnvironment(winner)
+
+    // No row is marked default, so the collision was instead on the
+    // (userId, repo, name) unique constraint: a row named "Default" already
+    // exists for this repo but was never promoted. This shouldn't happen
+    // through the app today, but self-heal rather than throwing forever for
+    // this repo — promote that row to default.
+    const collided = await prisma.environment.findFirst({
+      where: { userId, repo, name: DEFAULT_ENVIRONMENT_NAME },
+    })
+    if (collided) {
+      // Two ordered statements in a transaction: Postgres checks the partial
+      // unique index per statement, not deferred, so clearing any existing
+      // default and setting this row's default cannot be a single updateMany.
+      await prisma.$transaction([
+        prisma.environment.updateMany({
+          where: { userId, repo, isDefault: true },
+          data: { isDefault: false },
+        }),
+        prisma.environment.update({
+          where: { id: collided.id },
+          data: { isDefault: true },
+        }),
+      ])
+      return toResolvedEnvironment({ ...collided, isDefault: true })
+    }
+
+    throw new Error(`Failed to create default environment for ${repo}`, { cause: error })
   }
 }
 
