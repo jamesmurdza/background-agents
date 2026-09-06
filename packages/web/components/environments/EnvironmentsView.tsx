@@ -1,8 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { EnvironmentsList } from "./EnvironmentsList"
 import { EnvironmentEditor } from "./EnvironmentEditor"
-import { useEnvironmentsQuery } from "@/lib/query/hooks/useEnvironmentsQuery"
+import {
+  useEnvironmentsQuery,
+  useCreateEnvironmentMutation,
+} from "@/lib/query/hooks/useEnvironmentsQuery"
 
 interface EnvironmentsViewProps {
   /** Environment id from the URL. Null shows the list. */
@@ -11,8 +15,35 @@ interface EnvironmentsViewProps {
 }
 
 export function EnvironmentsView({ urlEnvironmentId, onNavigate }: EnvironmentsViewProps) {
-  const { data: environments = [], isLoading, error } = useEnvironmentsQuery()
+  // includeVariables: true because this view is also where EnvironmentEditor
+  // reads and writes variables (selected below). EnvironmentsList only shows
+  // names and counts from the same result, so it does not need its own query.
+  const { data: environments = [], isLoading, error } = useEnvironmentsQuery(undefined, true)
   const selected = environments.find((e) => e.id === urlEnvironmentId) ?? null
+
+  const create = useCreateEnvironmentMutation()
+  const [creatingRepo, setCreatingRepo] = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const handleCreate = async (repo: string) => {
+    setCreateError(null)
+    setCreatingRepo(repo)
+    try {
+      // A plain, renamable default: the editor's name field is the place to
+      // actually name it, so this only needs to be unique enough not to
+      // collide with an existing name in the repo.
+      const siblingCount = environments.filter((e) => e.repo === repo).length
+      const created = await create.mutateAsync({
+        repo,
+        name: `New environment ${siblingCount + 1}`,
+      })
+      onNavigate(created.id)
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create environment")
+    } finally {
+      setCreatingRepo(null)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -60,7 +91,24 @@ export function EnvironmentsView({ urlEnvironmentId, onNavigate }: EnvironmentsV
             onDuplicated={(id) => onNavigate(id)}
           />
         ) : (
-          <EnvironmentsList environments={environments} onSelect={(id) => onNavigate(id)} />
+          <div className="flex flex-col min-h-0 h-full">
+            {createError && (
+              <div
+                role="alert"
+                className="mx-4 mt-3 px-3 py-2 text-sm rounded-md bg-destructive/10 text-destructive shrink-0"
+              >
+                {createError}
+              </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <EnvironmentsList
+                environments={environments}
+                onSelect={(id) => onNavigate(id)}
+                onCreate={handleCreate}
+                creatingRepo={creatingRepo}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>

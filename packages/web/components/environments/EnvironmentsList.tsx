@@ -1,6 +1,6 @@
 "use client"
 
-import { Boxes, Globe, Lock, FileCode } from "lucide-react"
+import { Boxes, Globe, Lock, FileCode, Plus, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { groupEnvironmentsByRepo } from "./helpers"
 // Type-only: EnvironmentDTO's module imports @/lib/db/prisma.
@@ -9,6 +9,11 @@ import type { EnvironmentDTO } from "@/lib/environments"
 interface EnvironmentsListProps {
   environments: EnvironmentDTO[]
   onSelect: (id: string) => void
+  /** Create a new environment for this repo and navigate to it. */
+  onCreate: (repo: string) => void
+  /** The repo currently being created for, if any, so its button can show a
+   *  spinner and the others stay clickable. */
+  creatingRepo?: string | null
 }
 
 function NetworkModeBadge({ env }: { env: EnvironmentDTO }) {
@@ -27,7 +32,12 @@ function NetworkModeBadge({ env }: { env: EnvironmentDTO }) {
   )
 }
 
-export function EnvironmentsList({ environments, onSelect }: EnvironmentsListProps) {
+export function EnvironmentsList({
+  environments,
+  onSelect,
+  onCreate,
+  creatingRepo = null,
+}: EnvironmentsListProps) {
   if (environments.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center gap-2 text-muted-foreground p-6">
@@ -44,7 +54,22 @@ export function EnvironmentsList({ environments, onSelect }: EnvironmentsListPro
     <div className="p-4 space-y-6">
       {Object.entries(byRepo).map(([repo, envs]) => (
         <section key={repo}>
-          <h2 className="text-xs font-mono text-muted-foreground mb-2">{repo}</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-mono text-muted-foreground">{repo}</h2>
+            <button
+              type="button"
+              onClick={() => onCreate(repo)}
+              disabled={creatingRepo === repo}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {creatingRepo === repo ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
+              New
+            </button>
+          </div>
 
           {/* Mobile card layout */}
           <div className="space-y-2 md:hidden">
@@ -65,8 +90,8 @@ export function EnvironmentsList({ environments, onSelect }: EnvironmentsListPro
                 <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
                   <NetworkModeBadge env={env} />
                   <span>
-                    {Object.keys(env.variables).length}{" "}
-                    {Object.keys(env.variables).length === 1 ? "variable" : "variables"}
+                    {env.variableCount}{" "}
+                    {env.variableCount === 1 ? "variable" : "variables"}
                   </span>
                   {env.hasSetupScript && (
                     <span className="inline-flex items-center gap-1">
@@ -95,8 +120,8 @@ export function EnvironmentsList({ environments, onSelect }: EnvironmentsListPro
                 <span className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
                   <NetworkModeBadge env={env} />
                   <span>
-                    {Object.keys(env.variables).length}{" "}
-                    {Object.keys(env.variables).length === 1 ? "variable" : "variables"}
+                    {env.variableCount}{" "}
+                    {env.variableCount === 1 ? "variable" : "variables"}
                   </span>
                   {env.hasSetupScript && (
                     <span className="inline-flex items-center gap-1">
