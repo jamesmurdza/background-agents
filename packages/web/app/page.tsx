@@ -103,21 +103,28 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // isEnvironmentsRoute is derived from pathname purely for the page title
   // (matching isJobsRoute's role above): it must NOT drive view switching.
-  // usePathname() does not reliably update on the raw window.history.pushState
-  // calls this app uses for in-app navigation (confirmed: after pushState-ing
-  // away from /environments, pathname stayed "/environments" indefinitely, not
-  // just for one render), so an effect keyed on it got permanently stuck
-  // showing the environments view after visiting it once. The actual view
-  // switch instead goes through sidebar.viewMode, kept correct by
-  // useChatNavigation's handlers (handleOpenEnvironments,
-  // handleNavigateToEnvironment) and useUrlSync's popstate-driven route table:
-  // the same mechanism jobs already uses.
+  // An earlier version of this code used an effect keyed on isEnvironmentsRoute
+  // to set sidebar.viewMode, and that got permanently stuck showing the
+  // environments view after leaving it via the sidebar. The cause was not
+  // pathname going stale (Next's router does patch pushState and update it);
+  // it was that SidebarContext's value object was rebuilt unmemoized on every
+  // render, so the effect's `[isEnvironmentsRoute, sidebar]` dependency array
+  // changed identity constantly and the effect re-ran on renders that had
+  // nothing to do with the route. handleOpenScheduledJobs's pushState triggers
+  // exactly such a render (its own setViewMode call) before the pathname
+  // update from that pushState lands, and the effect re-firing in that window
+  // stomped setViewMode("chat"/"scheduled-jobs") back to "environments" with
+  // no corresponding reset in the other direction. The fix was twofold: fold
+  // environments into the same ROUTES/matchRoute table useUrlSync already uses
+  // for jobs (view switching now goes through sidebar.viewMode, kept correct
+  // by useChatNavigation's handlers and useUrlSync's popstate sync, the same
+  // mechanism jobs already uses) and memoize SidebarContext's value so no
+  // other effect keyed on the whole context object can suffer the same bug.
   const isEnvironmentsRoute = pathname?.startsWith("/environments") ?? false
 
   // For jobs and environments, the ID is derived from sidebar state (kept in
-  // sync by the navigate handlers and useUrlSync), not from pathname: pushState
-  // navigation doesn't reliably update usePathname(), so anything driving a
-  // view off pathname directly can get stuck. See isEnvironmentsRoute above.
+  // sync by the navigate handlers and useUrlSync), the same way
+  // isEnvironmentsRoute above is derived from pathname for display only.
   // Use ?? null so these are always string | null (never undefined); this
   // keeps ScheduledJobsView/EnvironmentsView in URL-controlled mode so row
   // clicks work.

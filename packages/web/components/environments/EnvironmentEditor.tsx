@@ -131,15 +131,25 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
   }
 
   const askDelete = async () => {
+    // Await the usage count before opening the dialog. ConfirmDialog has no
+    // disabled/loading affordance and auto-focuses its confirm button on
+    // open, so opening it first and filling in the count afterward would
+    // leave a window where an enabled, auto-focused Delete (reachable by a
+    // single click or a single Enter keypress) fires before the count the
+    // whole dialog exists to show has arrived. The Delete button in the
+    // header is disabled for this same window so a second click can't start
+    // an overlapping fetch, but that alone doesn't protect the dialog itself
+    // once it's open, which is why the dialog must not open until we know
+    // what to tell the user.
     setError(null)
     setUsage({ status: "loading" })
-    setConfirmDelete(true)
     try {
       const chatCount = await fetchEnvironmentUsage(environment.id)
       setUsage({ status: "known", chatCount })
     } catch {
       setUsage({ status: "unknown" })
     }
+    setConfirmDelete(true)
   }
 
   const confirmDeleteNow = async () => {
