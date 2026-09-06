@@ -9,6 +9,8 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
+import { getOrCreateDefaultEnvironment } from "@/lib/environments"
+import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================
 // Helpers
@@ -72,6 +74,7 @@ interface ChatWithMessagesResponse {
   agent: string
   model: string | null
   planModeEnabled: boolean
+  environmentId: string | null
   displayName: string | null
   shareId: string | null
   status: string
@@ -188,6 +191,7 @@ export async function GET(
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
+      environmentId: chat.environmentId,
       displayName: chat.displayName,
       shareId: chat.shareId,
       status: chat.status,
@@ -242,6 +246,7 @@ interface PatchChatBody {
   branch?: string
   needsSync?: boolean
   lastActiveAt?: number
+  environmentId?: string
   // NOTE: sandboxId, sessionId, previewUrlPattern and backgroundSessionId are
   // intentionally NOT accepted here. They are server-managed — written only by
   // the message/stream flow (ensure-sandbox, persist-turn, persist-snapshot) —
@@ -289,6 +294,30 @@ export async function PATCH(
     if (body.needsSync !== undefined) updateData.needsSync = body.needsSync
     if (body.lastActiveAt !== undefined) updateData.lastActiveAt = new Date(body.lastActiveAt)
 
+    if (body.environmentId !== undefined) {
+      // An explicit environment must belong to this user AND to the repo the
+      // chat will end up on (its new repo if one is also being set in this
+      // same PATCH, otherwise its current one), otherwise a chat could be
+      // pinned to another repo's variables.
+      const targetRepo = body.repo ?? chat.repo
+      const requested = await prisma.environment.findFirst({
+        where: { id: body.environmentId, userId, repo: targetRepo },
+        select: { id: true },
+      })
+      if (!requested) return badRequest("Invalid environmentId")
+      updateData.environmentId = requested.id
+    } else if (body.repo !== undefined && body.repo !== chat.repo) {
+      // Changing repo without an explicit environment invalidates whatever
+      // was pinned for the old repo (an environment id is only ever valid
+      // for the repo it belongs to). Re-resolve exactly like POST /api/chats
+      // does rather than leaving the chat pointed at another repo's
+      // environment and its variables.
+      updateData.environmentId =
+        body.repo === NEW_REPOSITORY
+          ? null
+          : (await getOrCreateDefaultEnvironment(userId, body.repo)).id
+    }
+
     if (Object.keys(updateData).length === 0) {
       return badRequest("No valid fields to update")
     }
@@ -325,6 +354,7 @@ export async function PATCH(
       agent: updatedChat.agent,
       model: updatedChat.model,
       planModeEnabled: updatedChat.planModeEnabled,
+      environmentId: updatedChat.environmentId,
       displayName: updatedChat.displayName,
       shareId: updatedChat.shareId,
       status: updatedChat.status,
