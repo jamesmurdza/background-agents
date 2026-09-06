@@ -153,10 +153,15 @@ export async function startJobExecution(
 
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
   //    skips the clone path, so we don't need the GitHub token in that case.
-  // Scheduled jobs have no per-job environment picker (job.repo is always a
-  // real "owner/repo", never NEW_REPOSITORY), so resolve the repo's default
-  // environment directly rather than through resolveEnvironmentForChat.
-  const environment = await getOrCreateDefaultEnvironment(job.userId, job.repo)
+  // Scheduled jobs have no per-job environment picker, so resolve the repo's
+  // default environment directly rather than through resolveEnvironmentForChat
+  // (which exists for the pinned-vs-default Chat case). Repo-less jobs
+  // (isRepoLess, job.repo === NEW_REPOSITORY) have no repo to scope an
+  // environment to, so they resolve to none, matching the reasoning in
+  // resolveEnvironmentForChat.
+  const environment = isRepoLess
+    ? null
+    : await getOrCreateDefaultEnvironment(job.userId, job.repo)
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
   const { sandbox, sandboxId, previewUrlPattern } = await createSandboxForChat({
     daytona,
