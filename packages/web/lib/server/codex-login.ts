@@ -57,10 +57,18 @@ const PROMPT_POLL_MAX_ITERATIONS = 60
 const STORE_CREDENTIAL_RETRY_ATTEMPTS = 3
 const STORE_CREDENTIAL_RETRY_DELAY_MS = 250
 
-/** Strip ANSI colour codes so the CLI's decorated output can be parsed. */
+/**
+ * Strip ANSI colour codes so the CLI's decorated output can be parsed.
+ *
+ * The leading ESC (0x1b) is part of the sequence and MUST be matched: without
+ * it the brackets go but the ESC bytes stay, and since `\x1b` is not `\s` in
+ * JavaScript the anchored one-time-code regex in parseDeviceCodePrompt never
+ * matches a coloured line — turning a perfectly good login into
+ * DEVICE_AUTH_UNAVAILABLE:unknown on the feature's very first interaction.
+ */
 function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
-  return s.replace(/\[[0-9;]*m/g, "")
+  return s.replace(/\x1b\[[0-9;]*m/g, "")
 }
 
 /**
@@ -132,11 +140,51 @@ function parseLoginSessionRow(value: string): LoginSessionRow | null {
 }
 
 async function readLoginSession(userId: string): Promise<LoginSessionRow | null> {
+  return (await readLoginSessionRaw(userId))?.session ?? null
+}
+
+/**
+ * Read the session AND the exact stored JSON it was parsed from.
+ *
+ * The raw string is what makes the claim in pollCodexDeviceLogin atomic: the
+ * delete matches on `value` as well as `id`, so it can only ever remove the
+ * very row this caller read. A login that was superseded in between (a second
+ * `startCodexDeviceLogin` overwrote the row) has a different value and is
+ * therefore left alone rather than eaten by a stale poll.
+ */
+async function readLoginSessionRaw(
+  userId: string
+): Promise<{ session: LoginSessionRow; raw: string } | null> {
   const row = await prisma.ccAuthInfo.findUnique({
     where: { id: loginRowId(userId) },
     select: { value: true },
   })
-  return row ? parseLoginSessionRow(row.value) : null
+  if (!row) return null
+  const session = parseLoginSessionRow(row.value)
+  return session ? { session, raw: row.value } : null
+}
+
+/**
+ * Atomically claim the right to spend this login's refresh token.
+ *
+ * The token the CLI wrote into the sandbox is single-use: `refreshCodexTokens`
+ * rotates it, and a second refresh of the same token comes back
+ * invalid_grant / refresh_token_reused, which this module treats as terminal.
+ * The poll runs on a 2s client interval with an 8s fetch budget behind it, so
+ * overlapping polls (a slow round trip, or two browser tabs sharing a
+ * sessionId) are ordinary, not exotic — without a claim they both read the
+ * same auth.json and both refresh, and the loser destroys a login the user
+ * just completed.
+ *
+ * Deleting the row IS the claim: exactly one caller can observe count === 1.
+ * Everyone else backs off reporting "pending" and — crucially — does not touch
+ * the winner's sandbox.
+ */
+async function claimLoginSession(userId: string, raw: string): Promise<boolean> {
+  const { count } = await prisma.ccAuthInfo.deleteMany({
+    where: { id: loginRowId(userId), value: raw },
+  })
+  return count === 1
 }
 
 async function writeLoginSession(userId: string, session: LoginSessionRow): Promise<void> {
@@ -296,13 +344,14 @@ export async function pollCodexDeviceLogin(
   userId: string,
   sessionId: string
 ): Promise<{ status: "pending" | "connected" | "failed"; reason?: string }> {
-  const session = await readLoginSession(userId)
+  const stored = await readLoginSessionRaw(userId)
   // Compare the client's sessionId against the stored one so a stale client
   // (polling a login that a fresh one has since superseded) can't read
   // another session's result.
-  if (!session || session.sessionId !== sessionId) {
+  if (!stored || stored.session.sessionId !== sessionId) {
     return { status: "failed", reason: "unknown_session" }
   }
+  const session = stored.session
 
   const daytona = daytonaClient()
 
@@ -328,13 +377,21 @@ export async function pollCodexDeviceLogin(
     return { status: "failed", reason: "sandbox_unavailable" }
   }
 
-  const cleanup = async () => {
-    await deleteLoginSession(userId)
-    await sandbox.delete().catch(() => {})
-  }
-
   const tokens = credentialFromCliAuthFile((read.result ?? "").trim())
   if (!tokens) return { status: "pending" }
+
+  // Claim before spending. A caller that loses the claim has NOT rotated
+  // anything and must not tear down the winner's sandbox, so it simply reports
+  // pending; the winner's own result reaches the client on its next poll.
+  if (!(await claimLoginSession(userId, stored.raw))) {
+    return { status: "pending" }
+  }
+
+  // The claim already removed the session row, so teardown from here on is
+  // just the sandbox.
+  const cleanup = async () => {
+    await sandbox.delete().catch(() => {})
+  }
 
   try {
     // Refresh immediately: this populates expires_at / earliest_refresh_at,

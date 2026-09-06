@@ -27,6 +27,19 @@ vi.mock("@/lib/db/prisma", () => ({
       delete: vi.fn(async ({ where }: { where: { id: string } }) => {
         ccAuthStore.delete(where.id)
       }),
+      // Honours the `value` filter, which is the whole point of the claim:
+      // the delete only lands when the row still holds exactly what the
+      // caller read, so a second poll (or a superseding login) cannot claim
+      // a session it did not observe.
+      deleteMany: vi.fn(
+        async ({ where }: { where: { id: string; value?: string } }) => {
+          const current = ccAuthStore.get(where.id)
+          if (current === undefined) return { count: 0 }
+          if (where.value !== undefined && current !== where.value) return { count: 0 }
+          ccAuthStore.delete(where.id)
+          return { count: 1 }
+        }
+      ),
     },
     user: {},
     $transaction: vi.fn(),
@@ -51,17 +64,21 @@ import {
   pollCodexDeviceLogin,
 } from "./codex-login"
 
-// Real output from `codex login --device-auth`, ANSI colour codes included.
-const REAL_OUTPUT = `Welcome to Codex [v[90m0.153.4[0m]
-[90mOpenAI's command-line coding agent[0m
+// Real output from `codex login --device-auth`, ANSI colour codes included —
+// with the actual ESC (0x1b) bytes, which is what makes this a real test of
+// stripAnsi. Written with literal `[90m`-style brackets and no ESC, every
+// assertion below still passed against a stripAnsi regex that could not
+// strip a real escape sequence at all.
+const REAL_OUTPUT = `Welcome to Codex [v\x1b[90m0.153.4\x1b[0m]
+\x1b[90mOpenAI's command-line coding agent\x1b[0m
 
 Follow these steps to sign in with ChatGPT using device code authorization:
 
 1. Open this link in your browser and sign in to your account
-   [94mhttps://auth.openai.com/codex/device[0m
+   \x1b[94mhttps://auth.openai.com/codex/device\x1b[0m
 
-2. Enter this one-time code [90m(expires in 15 minutes)[0m
-   [94mX2BM-0QC5V[0m
+2. Enter this one-time code \x1b[90m(expires in 15 minutes)\x1b[0m
+   \x1b[94mX2BM-0QC5V\x1b[0m
 `
 
 describe("parseDeviceCodePrompt", () => {
@@ -97,7 +114,11 @@ describe("classifyDeviceAuthFailure", () => {
 
 describe("hasCliStarted", () => {
   it("is true once the CLI has printed its startup banner, even with no prompt yet", () => {
-    expect(hasCliStarted("Welcome to Codex [v[90m0.153.4[0m]\n[90mOpenAI's command-line coding agent[0m\n")).toBe(
+    expect(
+      hasCliStarted(
+        "Welcome to Codex [v\x1b[90m0.153.4\x1b[0m]\n\x1b[90mOpenAI's command-line coding agent\x1b[0m\n"
+      )
+    ).toBe(
       true
     )
   })
@@ -197,6 +218,75 @@ describe("pollCodexDeviceLogin", () => {
 
     expect(result).toEqual({ status: "failed", reason: "sandbox_unavailable" })
     expect(ccAuthStore.has("codex-login:user-1")).toBe(false)
+  })
+
+  it("lets only one of two overlapping polls spend the single-use refresh token", async () => {
+    // The client polls every 2s while a poll's own fetch is bounded at 8s, so
+    // overlap is routine — and two tabs can share a sessionId. The refresh
+    // token the CLI wrote is single-use: a second refresh of it comes back
+    // invalid_grant / refresh_token_reused, which this module treats as
+    // terminal, so an unclaimed double-spend destroys a login the user just
+    // completed. The loser must back off as "pending" AND must not tear down
+    // the winner's sandbox.
+    seedSession()
+    const sandbox = makeSandbox(AUTH_JSON)
+    daytonaGet.mockResolvedValue(sandbox)
+    refreshCodexTokens.mockResolvedValue({
+      access_token: "at-new",
+      refresh_token: "rt-new",
+      id_token: "it-new",
+      expires_in: 3600,
+    })
+    storeCodexCredential.mockResolvedValue(undefined)
+
+    const first = await pollCodexDeviceLogin(USER_ID, SESSION_ID)
+    expect(first).toEqual({ status: "connected" })
+
+    // Simulate the overlapping poll: it read the same session row before the
+    // winner claimed it, so re-seed and re-run against a row the winner has
+    // already consumed.
+    const claimedRow = ccAuthStore.get("codex-login:user-1")
+    expect(claimedRow).toBeUndefined()
+
+    refreshCodexTokens.mockClear()
+    storeCodexCredential.mockClear()
+    sandbox.delete.mockClear()
+
+    const second = await pollCodexDeviceLogin(USER_ID, SESSION_ID)
+    // The winner already consumed the row, so this poll never even reaches the
+    // claim: it falls out at the superseded-session check with unknown_session,
+    // which is the pre-existing behavior for a poll whose session is gone. What
+    // matters is that it spends nothing and leaves the sandbox alone.
+    expect(second).toEqual({ status: "failed", reason: "unknown_session" })
+    expect(refreshCodexTokens).not.toHaveBeenCalled()
+    expect(storeCodexCredential).not.toHaveBeenCalled()
+    expect(sandbox.delete).not.toHaveBeenCalled()
+  })
+
+  it("returns pending, spends nothing, and spares the winner's sandbox when it loses the claim", async () => {
+    // The precise race: both polls read the SAME live row, then a winner
+    // claims it between this caller's read and its own claim. Modelled by
+    // dropping the row while the auth.json read is in flight.
+    seedSession()
+    const sandbox = {
+      process: {
+        executeCommand: vi.fn(async () => {
+          // The winner claims (deletes) the row right here.
+          ccAuthStore.delete("codex-login:user-1")
+          return { result: AUTH_JSON }
+        }),
+      },
+      delete: vi.fn().mockResolvedValue(undefined),
+    }
+    daytonaGet.mockResolvedValue(sandbox)
+
+    const result = await pollCodexDeviceLogin(USER_ID, SESSION_ID)
+
+    expect(result).toEqual({ status: "pending" })
+    expect(refreshCodexTokens).not.toHaveBeenCalled()
+    expect(storeCodexCredential).not.toHaveBeenCalled()
+    // Critically: the loser does NOT tear down the sandbox the winner is using.
+    expect(sandbox.delete).not.toHaveBeenCalled()
   })
 
   it("returns unknown_session for a stale sessionId, without touching Daytona", async () => {

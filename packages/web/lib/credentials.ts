@@ -9,6 +9,7 @@
  * (getEffectiveCredentialFlags) lives in lib/server/credential-flags.ts.
  */
 
+import { parseCodexCredential } from "@/lib/codex-credentials"
 import {
   type CredentialId,
   type CredentialFlags,
@@ -129,9 +130,29 @@ export function isClientWritableCredential(id: CredentialId): boolean {
   return !SERVER_MANAGED_IDS.has(id)
 }
 
+/**
+ * Presence flags per credential id.
+ *
+ * CODEX_CREDENTIALS is the one id where presence is NOT the right signal. Its
+ * stored value is a JSON credential with a lifecycle: a grant OpenAI has
+ * rejected is kept on the row marked `needs_reconnect` (deliberately — never
+ * retried, never silently dropped) rather than deleted. Flagging that as
+ * available makes hasCredentialsForModel unlock the Codex models for a user
+ * whose subscription cannot actually serve a run, so they pick a model and get
+ * an opaque agent-side failure instead of the "reconnect" prompt Settings is
+ * ready to show them. Derive from the PARSED status instead: a value that does
+ * not parse as a complete credential, or parses as `needs_reconnect`, is not a
+ * usable subscription.
+ *
+ * Every other id keeps plain presence semantics.
+ */
 export function flagsFromCredentials(credentials: Credentials): CredentialFlags {
   const out: CredentialFlags = {}
   for (const { id } of CREDENTIAL_KEYS) {
+    if (id === "CODEX_CREDENTIALS") {
+      out[id] = parseCodexCredential(credentials[id])?.status === "connected"
+      continue
+    }
     out[id] = !!credentials[id]
   }
   return out

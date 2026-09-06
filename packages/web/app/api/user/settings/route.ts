@@ -175,7 +175,14 @@ export async function PATCH(req: NextRequest): Promise<Response> {
           newSettings,
           priorCustomEndpoints: user?.customEndpoints,
         }
-      }
+      },
+      // Prisma's default interactive-transaction timeout is 5s, but a Codex
+      // refresh holds this same row lock under a 15s budget (see
+      // lib/server/codex-credentials.ts) while it waits on OpenAI. Left at the
+      // default, a settings save that lands during a slow refresh would wait
+      // out the 5s and 500 the user for something entirely unrelated to Codex.
+      // Sit above the refresh path's worst case instead.
+      { timeout: 20000 }
     )
 
     // After updating credentials, recompute effective flags
