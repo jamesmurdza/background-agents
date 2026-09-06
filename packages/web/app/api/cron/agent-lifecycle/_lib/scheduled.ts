@@ -11,6 +11,8 @@ import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { resolveCodexAuthJson } from "@/lib/server/codex-credentials"
+import { CODEX_SUBSCRIPTION_ENABLED } from "@/lib/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { PATHS } from "@/lib/constants"
@@ -190,6 +192,21 @@ export async function startJobExecution(
       }
     } catch (err) {
       console.error(`[agent-lifecycle] Failed to get shared Claude creds:`, err)
+    }
+  }
+
+  // Codex ChatGPT subscription: mint a fresh access token and render the
+  // auth.json the sandbox will receive. A custom endpoint supplies its own
+  // auth, so it never takes this path. Returns null when the user has no
+  // usable subscription, leaving OPENAI_API_KEY to serve the run.
+  if (
+    CODEX_SUBSCRIPTION_ENABLED &&
+    job.agent === "codex" &&
+    !job.model?.startsWith(ENDPOINT_MODEL_PREFIX)
+  ) {
+    const authJson = await resolveCodexAuthJson(job.userId)
+    if (authJson) {
+      credentials = { ...credentials, CODEX_CREDENTIALS: authJson }
     }
   }
 
