@@ -8,7 +8,11 @@ import { SettingsRow } from "./shared"
 type Phase =
   | { kind: "loading" }
   | { kind: "disconnected" }
-  | { kind: "connected"; needsReconnect: boolean }
+  // `error` here is set only when a Disconnect click fails - the row must
+  // keep showing Connected/Disconnect (not the generic error phase, which
+  // renders a Connect button and would hide the Disconnect the user needs
+  // to retry with).
+  | { kind: "connected"; needsReconnect: boolean; error?: string }
   | { kind: "awaiting"; url: string; code: string; sessionId: string }
   | { kind: "error"; message: string }
 
@@ -22,6 +26,9 @@ type Phase =
  * but we failed to persist the credential after retrying, so the copy must
  * say that plainly rather than reading like a generic failure.
  */
+const DISABLED_COPY =
+  "ChatGPT subscription login isn't enabled on this deployment. Use an OpenAI API key instead."
+
 const REASON_COPY: Record<string, string> = {
   device_auth_disabled:
     "Device code login is off for your account. Turn it on in ChatGPT under Settings, Security, then Allow device code login, and try again.",
@@ -67,6 +74,11 @@ export function CodexConnectionRow({
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" })
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Guards every `setState` that follows an `await` against firing after the
+  // row has unmounted (e.g. the user closes Settings while a request is in
+  // flight). A single ref covers the mount fetch, connect, and disconnect -
+  // all three await a fetch before touching state.
+  const mountedRef = useRef(true)
 
   function clearPoll() {
     if (pollRef.current) {
@@ -76,11 +88,11 @@ export function CodexConnectionRow({
   }
 
   useEffect(() => {
-    let cancelled = false
+    mountedRef.current = true
     fetch("/api/user/codex-auth")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (cancelled) return
+        if (!mountedRef.current) return
         if (!d) return setPhase({ kind: "disconnected" })
         setPhase(
           d.connected
@@ -89,10 +101,10 @@ export function CodexConnectionRow({
         )
       })
       .catch(() => {
-        if (!cancelled) setPhase({ kind: "disconnected" })
+        if (mountedRef.current) setPhase({ kind: "disconnected" })
       })
     return () => {
-      cancelled = true
+      mountedRef.current = false
       // Unmount is a terminal state for whatever's in flight - always clear.
       clearPoll()
     }
@@ -104,8 +116,18 @@ export function CodexConnectionRow({
     try {
       const res = await fetch("/api/user/codex-auth", { method: "POST" })
       const data = await res.json()
+      // The POST can take ~30s (sandbox cold start, maxDuration 60) - the
+      // user may have closed Settings before it resolves. Bail before
+      // touching state or starting the poll interval; the mount effect's
+      // cleanup already ran and cleared nothing because pollRef was still
+      // null at that point.
+      if (!mountedRef.current) return
       if (!res.ok) {
-        setPhase({ kind: "error", message: reasonMessage(data.reason) })
+        if (data.error === "CODEX_SUBSCRIPTION_DISABLED") {
+          setPhase({ kind: "error", message: DISABLED_COPY })
+        } else {
+          setPhase({ kind: "error", message: reasonMessage(data.reason) })
+        }
         return
       }
       setPhase({ kind: "awaiting", url: data.url, code: data.code, sessionId: data.sessionId })
@@ -121,6 +143,7 @@ export function CodexConnectionRow({
           const p = await fetch(
             `/api/user/codex-auth?sessionId=${encodeURIComponent(data.sessionId)}`
           )
+          if (!mountedRef.current) return
           if (!p.ok) return // transient server error - keep polling, don't tear down
           const status = await p.json()
           if (status.status === "connected") {
@@ -136,23 +159,48 @@ export function CodexConnectionRow({
         }
       }, 2000)
     } catch {
-      setPhase({ kind: "error", message: REASON_COPY.unknown })
+      if (mountedRef.current) setPhase({ kind: "error", message: REASON_COPY.unknown })
     }
   }
 
   async function disconnect() {
+    // Preserve needsReconnect so a failed Disconnect restores exactly the
+    // state the user was looking at, not a fresh "connected, all good" one.
+    const prevNeedsReconnect = phase.kind === "connected" && phase.needsReconnect
     clearPoll()
     setPhase({ kind: "loading" })
     try {
-      await fetch("/api/user/codex-auth", { method: "DELETE" })
-    } finally {
-      setPhase({ kind: "disconnected" })
+      const res = await fetch("/api/user/codex-auth", { method: "DELETE" })
+      if (!mountedRef.current) return
+      if (res.ok) {
+        setPhase({ kind: "disconnected" })
+      } else {
+        // Only a 200 counts as disconnected. On failure, go back to the
+        // connected state (not the generic error phase, which renders a
+        // Connect button and hides Disconnect) with an inline error so the
+        // user can see what happened and still has the Disconnect control
+        // to retry with.
+        setPhase({
+          kind: "connected",
+          needsReconnect: prevNeedsReconnect,
+          error: "Couldn't disconnect. Please try again.",
+        })
+      }
+    } catch {
+      if (mountedRef.current) {
+        setPhase({
+          kind: "connected",
+          needsReconnect: prevNeedsReconnect,
+          error: "Couldn't disconnect. Please try again.",
+        })
+      }
     }
   }
 
   const isBusy = phase.kind === "loading"
   const isAwaiting = phase.kind === "awaiting"
   const needsReconnect = phase.kind === "connected" && phase.needsReconnect
+  const disconnectError = phase.kind === "connected" ? phase.error : undefined
 
   return (
     <SettingsRow label={label} description={description} stacked>
@@ -212,6 +260,10 @@ export function CodexConnectionRow({
         <p className="mt-2 text-xs text-amber-600">
           This connection expired. Reconnect to keep using Codex on your plan.
         </p>
+      )}
+
+      {disconnectError && (
+        <p className="mt-2 text-xs text-red-600 dark:text-red-400">{disconnectError}</p>
       )}
 
       {isAwaiting && (
