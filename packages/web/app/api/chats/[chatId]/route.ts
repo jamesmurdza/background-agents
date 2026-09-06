@@ -276,6 +276,25 @@ export async function PATCH(
       return notFound("Chat not found")
     }
 
+    // Once a chat has a sandbox, its environment is fixed: resolveEnvironmentForChat
+    // (agent-env.ts) re-resolves the environment fresh on every turn, but network
+    // mode is baked into the sandbox only at creation time. Letting an explicit
+    // environmentId, or a repo change that re-resolves one, through after the
+    // sandbox exists would inject a different environment's variables into a
+    // sandbox still running under the old one's network mode on the very next
+    // turn, a split-brain state reachable with one PATCH. The client already
+    // disables the picker at this point; this is the server-side half of that.
+    if (
+      chat.sandboxId &&
+      (body.environmentId !== undefined || (body.repo !== undefined && body.repo !== chat.repo))
+    ) {
+      return badRequest("Cannot change repo or environmentId once the chat has a sandbox")
+    }
+
+    if (body.environmentId !== undefined && typeof body.environmentId !== "string") {
+      return badRequest("environmentId must be a string")
+    }
+
     // Build update data
     const updateData: Record<string, unknown> = {}
 

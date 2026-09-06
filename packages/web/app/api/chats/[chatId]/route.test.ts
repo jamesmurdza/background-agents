@@ -173,4 +173,57 @@ describe("PATCH /api/chats/[chatId]: environmentId", () => {
     expect(environment.findFirst).not.toHaveBeenCalled()
     expect(getOrCreateDefaultEnvironment).not.toHaveBeenCalled()
   })
+
+  it("rejects a non-string environmentId (including null) with a 400, not an internal error", async () => {
+    getChatWithAuth.mockResolvedValueOnce(existingChat())
+
+    const res = await callPatch("chat_1", { environmentId: null })
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("environmentId")
+    expect(environment.findFirst).not.toHaveBeenCalled()
+    expect(chat.update).not.toHaveBeenCalled()
+  })
+
+  describe("once the chat has a sandbox", () => {
+    it("rejects an explicit environmentId change with a 400", async () => {
+      getChatWithAuth.mockResolvedValueOnce(existingChat({ sandboxId: "sb_1" }))
+
+      const res = await callPatch("chat_1", { environmentId: "env_new" })
+
+      expect(res.status).toBe(400)
+      expect(environment.findFirst).not.toHaveBeenCalled()
+      expect(chat.update).not.toHaveBeenCalled()
+    })
+
+    it("rejects a repo change that would re-resolve environmentId with a 400", async () => {
+      getChatWithAuth.mockResolvedValueOnce(existingChat({ sandboxId: "sb_1", repo: "acme/app" }))
+
+      const res = await callPatch("chat_1", { repo: "acme/other" })
+
+      expect(res.status).toBe(400)
+      expect(getOrCreateDefaultEnvironment).not.toHaveBeenCalled()
+      expect(chat.update).not.toHaveBeenCalled()
+    })
+
+    it("still allows an unrelated field update (no repo or environmentId in the body)", async () => {
+      getChatWithAuth.mockResolvedValueOnce(existingChat({ sandboxId: "sb_1" }))
+      chat.update.mockResolvedValueOnce(updatedChatRow({ sandboxId: "sb_1", displayName: "Renamed" }))
+
+      const res = await callPatch("chat_1", { displayName: "Renamed" })
+
+      expect(res.status).toBe(200)
+    })
+
+    it("still allows setting repo to its own current value (no-op repo, no environment re-resolution)", async () => {
+      getChatWithAuth.mockResolvedValueOnce(existingChat({ sandboxId: "sb_1", repo: "acme/app" }))
+      chat.update.mockResolvedValueOnce(updatedChatRow({ sandboxId: "sb_1", repo: "acme/app" }))
+
+      const res = await callPatch("chat_1", { repo: "acme/app", baseBranch: "main" })
+
+      expect(res.status).toBe(200)
+      expect(getOrCreateDefaultEnvironment).not.toHaveBeenCalled()
+    })
+  })
 })
