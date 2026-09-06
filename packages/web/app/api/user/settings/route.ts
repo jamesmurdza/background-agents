@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/api-helpers"
 import {
   isCredentialId,
+  isClientWritableCredential,
   normalizeStoredCredentials,
   type CredentialFlags,
   type Credentials,
@@ -126,6 +127,8 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     if (body.credentials) {
       for (const [key, value] of Object.entries(body.credentials)) {
         if (!isCredentialId(key)) continue
+        // Server-managed credentials are never accepted from the client.
+        if (!isClientWritableCredential(key)) continue
         // The literal "***" is the UI mask for an existing key — never a real
         // credential value. Reject defensively in case a stale client sends it.
         if (value === "***") continue

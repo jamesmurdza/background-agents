@@ -114,6 +114,21 @@ export function isCredentialId(value: string): value is CredentialId {
   return CREDENTIAL_IDS.has(value)
 }
 
+const SERVER_MANAGED_IDS = new Set<string>(
+  CREDENTIAL_KEYS.filter((c) => c.serverManaged).map((c) => c.id)
+)
+
+/**
+ * Whether a credential may be set by a client PATCH. Server-managed
+ * credentials (the Codex ChatGPT subscription) are established by an OAuth
+ * flow and rotated by the server; accepting a pasted value would both corrupt
+ * the stored shape and reintroduce the shared-token-lineage problem the OAuth
+ * flow exists to avoid.
+ */
+export function isClientWritableCredential(id: CredentialId): boolean {
+  return !SERVER_MANAGED_IDS.has(id)
+}
+
 export function flagsFromCredentials(credentials: Credentials): CredentialFlags {
   const out: CredentialFlags = {}
   for (const { id } of CREDENTIAL_KEYS) {
