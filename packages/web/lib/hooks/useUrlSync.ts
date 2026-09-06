@@ -27,6 +27,7 @@ interface UseUrlSyncOptions {
   startAgentDraft: (agent: Agent) => void
   setViewMode: (mode: "chat" | "scheduled-jobs" | "environments") => void
   setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
+  setSelectedEnvironmentId: (id: string | null) => void
 }
 
 export function useUrlSync({
@@ -38,6 +39,7 @@ export function useUrlSync({
   startAgentDraft,
   setViewMode,
   setSelectedScheduledJob,
+  setSelectedEnvironmentId,
 }: UseUrlSyncOptions) {
   // Sync URL to state - used for initial load and browser back/forward
   const syncUrlToState = useCallback(
@@ -67,6 +69,18 @@ export function useUrlSync({
           // Set selected job with ID (name will be updated when job data loads)
           setSelectedScheduledJob({ id: matched.jobId, name: matched.jobId })
           // TODO: Handle run selection when runs view is implemented
+          break
+
+        case "environments":
+          setViewMode("environments")
+          if (!isInitialSync) selectChat(null)
+          setSelectedEnvironmentId(null)
+          break
+
+        case "environment":
+          setViewMode("environments")
+          if (!isInitialSync) selectChat(null)
+          setSelectedEnvironmentId(matched.environmentId)
           break
 
         case "newChat":
@@ -134,7 +148,16 @@ export function useUrlSync({
           break
       }
     },
-    [currentChatId, isDraftChatId, selectChat, startNewChat, startAgentDraft, setViewMode, setSelectedScheduledJob]
+    [
+      currentChatId,
+      isDraftChatId,
+      selectChat,
+      startNewChat,
+      startAgentDraft,
+      setViewMode,
+      setSelectedScheduledJob,
+      setSelectedEnvironmentId,
+    ]
   )
 
   // Track if we've done initial sync

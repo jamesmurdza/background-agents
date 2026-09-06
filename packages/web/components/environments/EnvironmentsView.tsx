@@ -47,7 +47,13 @@ export function EnvironmentsView({ urlEnvironmentId, onNavigate }: EnvironmentsV
             </button>
           </div>
         ) : selected ? (
+          // Keyed by id so switching environments mounts a fresh
+          // EnvironmentEditor instance (fresh useState) instead of reusing one
+          // whose local edit state would need reconciling against new props:
+          // that reconciliation effect was also what let a mutation's
+          // query-invalidation refetch silently overwrite unsaved typing.
           <EnvironmentEditor
+            key={selected.id}
             environment={selected}
             onBack={() => onNavigate(null)}
             onDeleted={() => onNavigate(null)}

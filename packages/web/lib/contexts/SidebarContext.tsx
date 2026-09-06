@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react"
 
 // =============================================================================
 // SidebarContext - Provides sidebar UI state to avoid prop drilling
@@ -35,6 +35,11 @@ export interface SidebarContextValue {
   setViewMode: (mode: "chat" | "scheduled-jobs" | "environments") => void
   selectedScheduledJob: { id: string; name: string } | null
   setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
+
+  // Environments view: id from the URL, kept in sync by useUrlSync (initial
+  // load + browser back/forward) and the navigate handlers (in-app clicks).
+  selectedEnvironmentId: string | null
+  setSelectedEnvironmentId: (id: string | null) => void
 }
 
 interface SidebarProviderProps {
@@ -97,26 +102,49 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   // View mode (chat vs scheduled jobs)
   const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs" | "environments">("chat")
   const [selectedScheduledJob, setSelectedScheduledJob] = useState<{ id: string; name: string } | null>(null)
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null)
 
-  const value: SidebarContextValue = {
-    collapsed,
-    setCollapsed,
-    toggleCollapse,
-    width,
-    setWidth,
-    mobileSidebarOpen,
-    setMobileSidebarOpen,
-    closeMobileSidebar,
-    repoFilter,
-    setRepoFilter,
-    collapsedChatIds,
-    toggleChatCollapsed,
-    expandChatAndAncestors,
-    viewMode,
-    setViewMode,
-    selectedScheduledJob,
-    setSelectedScheduledJob,
-  }
+  // Memoized so consumers that depend on the whole context object (rather
+  // than a single field) don't re-run on every render this provider takes for
+  // an unrelated reason: an effect keyed on `[sidebar]` would otherwise fire
+  // on every render, not just when a field actually changes.
+  const value: SidebarContextValue = useMemo(
+    () => ({
+      collapsed,
+      setCollapsed,
+      toggleCollapse,
+      width,
+      setWidth,
+      mobileSidebarOpen,
+      setMobileSidebarOpen,
+      closeMobileSidebar,
+      repoFilter,
+      setRepoFilter,
+      collapsedChatIds,
+      toggleChatCollapsed,
+      expandChatAndAncestors,
+      viewMode,
+      setViewMode,
+      selectedScheduledJob,
+      setSelectedScheduledJob,
+      selectedEnvironmentId,
+      setSelectedEnvironmentId,
+    }),
+    [
+      collapsed,
+      toggleCollapse,
+      width,
+      mobileSidebarOpen,
+      closeMobileSidebar,
+      repoFilter,
+      collapsedChatIds,
+      toggleChatCollapsed,
+      expandChatAndAncestors,
+      viewMode,
+      selectedScheduledJob,
+      selectedEnvironmentId,
+    ]
+  )
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>
 }

@@ -61,7 +61,6 @@ export function NetworkModeFields({ networkMode, allowedDomains }: NetworkModeFi
             name="networkMode"
             checked={networkMode === "restricted"}
             disabled
-            readOnly
             className="mt-1"
           />
           <span className="text-sm">

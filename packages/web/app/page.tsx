@@ -101,21 +101,28 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
 
-  // Environments route state. Unlike jobs (which drives its selected-id state
-  // through the sidebar context, updated via pushState handlers and the
-  // popstate-driven useUrlSync), environments derives its id straight from the
-  // pathname: there's no equivalent name-caching need since EnvironmentsView
-  // already has the full EnvironmentDTO list loaded to look the name up from.
+  // isEnvironmentsRoute is derived from pathname purely for the page title
+  // (matching isJobsRoute's role above): it must NOT drive view switching.
+  // usePathname() does not reliably update on the raw window.history.pushState
+  // calls this app uses for in-app navigation (confirmed: after pushState-ing
+  // away from /environments, pathname stayed "/environments" indefinitely, not
+  // just for one render), so an effect keyed on it got permanently stuck
+  // showing the environments view after visiting it once. The actual view
+  // switch instead goes through sidebar.viewMode, kept correct by
+  // useChatNavigation's handlers (handleOpenEnvironments,
+  // handleNavigateToEnvironment) and useUrlSync's popstate-driven route table:
+  // the same mechanism jobs already uses.
   const isEnvironmentsRoute = pathname?.startsWith("/environments") ?? false
-  const urlEnvironmentId = isEnvironmentsRoute
-    ? (pathname?.split("/")[2] ?? null) || null
-    : null
 
-  // For jobs, we derive the ID from sidebar state since we use pushState for navigation
-  // The sidebar.selectedScheduledJob is updated by handleNavigateToJob
-  // Use ?? null to ensure urlJobId is always string | null (never undefined)
-  // This keeps ScheduledJobsView in URL-controlled mode so row clicks work
+  // For jobs and environments, the ID is derived from sidebar state (kept in
+  // sync by the navigate handlers and useUrlSync), not from pathname: pushState
+  // navigation doesn't reliably update usePathname(), so anything driving a
+  // view off pathname directly can get stuck. See isEnvironmentsRoute above.
+  // Use ?? null so these are always string | null (never undefined); this
+  // keeps ScheduledJobsView/EnvironmentsView in URL-controlled mode so row
+  // clicks work.
   const urlJobId = sidebar.selectedScheduledJob?.id ?? null
+  const urlEnvironmentId = sidebar.selectedEnvironmentId
 
   const {
     chats,
@@ -319,6 +326,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       startNewChat(NEW_REPOSITORY, "main", undefined, true, "pending", agent),
     setViewMode: sidebar.setViewMode,
     setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
+    setSelectedEnvironmentId: sidebar.setSelectedEnvironmentId,
   })
 
   // =============================================================================
@@ -361,6 +369,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleRepoFilterChange,
     handleOpenScheduledJobs,
     handleNavigateToJob,
+    handleOpenEnvironments,
+    handleNavigateToEnvironment,
     handleNavigateChat,
     handleRequestMergeChats,
     handleRequestRebaseChat,
@@ -413,28 +423,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     sidebar.selectedScheduledJob?.name,
   ])
 
-  // Keep sidebar.viewMode following the URL when a hard load or browser
-  // navigation lands directly on /environments (or a specific environment).
-  // Every other viewMode transition already goes through an explicit handler
-  // (handleSelectChat, handleOpenScheduledJobs, useUrlSync's popstate sync);
-  // environments isn't wired into that popstate-driven route table, so this
-  // effect is the one path that keeps it in sync with the URL.
-  useEffect(() => {
-    if (isEnvironmentsRoute) sidebar.setViewMode("environments")
-  }, [isEnvironmentsRoute, sidebar])
-
   usePageTitle(pageTitle)
-
-  // Sidebar entry point for the environments list. Mirrors
-  // useChatNavigation's handleOpenScheduledJobs: switch view mode, drop any
-  // selected chat/job, and push the URL without a Next.js navigation (so the
-  // page doesn't remount).
-  const handleOpenEnvironments = useCallback(() => {
-    sidebar.setViewMode("environments")
-    sidebar.setSelectedScheduledJob(null)
-    selectChat(null)
-    window.history.pushState(null, "", "/environments")
-  }, [sidebar, selectChat])
 
   // "User clicked send" flow — owns handleSendMessage and the isSendingMessage
   // flag (with its auto-reset effects).
@@ -714,9 +703,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
               {sidebar.viewMode === "environments" ? (
                 <EnvironmentsView
                   urlEnvironmentId={urlEnvironmentId}
-                  onNavigate={(id) => {
-                    window.history.pushState(null, "", id ? `/environments/${id}` : "/environments")
-                  }}
+                  onNavigate={handleNavigateToEnvironment}
                 />
               ) : sidebar.viewMode === "scheduled-jobs" ? (
                 <ScheduledJobsView

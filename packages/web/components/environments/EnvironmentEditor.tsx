@@ -77,27 +77,44 @@ function EnvVarRow({
   )
 }
 
+/**
+ * Usage-count fetch result for the delete confirmation.
+ * - "idle": haven't asked yet (initial state; the Delete button must NOT be
+ *   disabled here, or it could never be clicked to start a fetch at all).
+ * - "loading": the /usage request is in flight; the Delete button is
+ *   disabled so a fast double-click can't open two overlapping fetches.
+ * - "unknown": the /usage request failed, distinct from a genuine 0, since
+ *   the whole point of this number is telling the user what a destructive
+ *   action will affect.
+ */
+type UsageState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "known"; chatCount: number }
+  | { status: "unknown" }
+
 export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated }: EnvironmentEditorProps) {
+  // No re-seed effect: EnvironmentsView keys this component by environment.id,
+  // so switching environments mounts a fresh instance (fresh useState calls)
+  // instead of reusing one whose state would need reconciling against props.
+  // That also means a mutation's query-invalidation refetch (new environment
+  // object, same id) never silently overwrites unsaved edits mid-session.
   const [name, setName] = useState(environment.name)
   const [variables, setVariables] = useState<EnvVar[]>(recordToEnvVars(environment.variables))
   const [newVarId, setNewVarId] = useState<string | null>(null)
   const [setupScript, setSetupScript] = useState(environment.setupScript ?? "")
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleteChatCount, setDeleteChatCount] = useState(0)
+  const [usage, setUsage] = useState<UsageState>({ status: "idle" })
+  const [confirmPromote, setConfirmPromote] = useState(false)
 
+  // Separate mutation instances for save vs. promote so their `isPending`
+  // flags don't cross-contaminate each other's button (promoting default
+  // shouldn't make the Save button read "Saving", and vice versa).
   const update = useUpdateEnvironmentMutation()
+  const promote = useUpdateEnvironmentMutation()
   const remove = useDeleteEnvironmentMutation()
   const create = useCreateEnvironmentMutation()
-
-  // Re-seed local state when a different environment is selected.
-  useEffect(() => {
-    setName(environment.name)
-    setVariables(recordToEnvVars(environment.variables))
-    setNewVarId(null)
-    setSetupScript(environment.setupScript ?? "")
-    setError(null)
-  }, [environment])
 
   const save = async () => {
     setError(null)
@@ -115,9 +132,14 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
 
   const askDelete = async () => {
     setError(null)
-    const chatCount = await fetchEnvironmentUsage(environment.id).catch(() => 0)
-    setDeleteChatCount(chatCount)
+    setUsage({ status: "loading" })
     setConfirmDelete(true)
+    try {
+      const chatCount = await fetchEnvironmentUsage(environment.id)
+      setUsage({ status: "known", chatCount })
+    } catch {
+      setUsage({ status: "unknown" })
+    }
   }
 
   const confirmDeleteNow = async () => {
@@ -129,6 +151,19 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
       // so a failure (e.g. "promote another environment to default first")
       // has to surface on the main editor, not inside the closed dialog.
       setError(err instanceof Error ? err.message : "Failed to delete")
+    }
+  }
+
+  const confirmPromoteNow = async () => {
+    setError(null)
+    try {
+      await promote.mutateAsync({ id: environment.id, isDefault: true })
+    } catch (err) {
+      // Same reasoning as confirmDeleteNow: ConfirmDialog closes itself
+      // immediately regardless of the async result, so a failed promotion
+      // (e.g. the P2002 race the API reports a specific message for) has to
+      // surface on the main editor rather than vanish with the dialog.
+      setError(err instanceof Error ? err.message : "Failed to make default")
     }
   }
 
@@ -165,8 +200,8 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {!environment.isDefault && (
             <button
-              onClick={() => update.mutate({ id: environment.id, isDefault: true })}
-              disabled={update.isPending}
+              onClick={() => setConfirmPromote(true)}
+              disabled={promote.isPending}
               className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-md border border-border hover:bg-accent transition-colors cursor-pointer disabled:opacity-50"
             >
               <Star className="w-3.5 h-3.5" /> Make default
@@ -181,7 +216,8 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
           </button>
           <button
             onClick={askDelete}
-            className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-md border border-border hover:bg-accent text-destructive transition-colors cursor-pointer"
+            disabled={usage.status === "loading"}
+            className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-md border border-border hover:bg-accent text-destructive transition-colors cursor-pointer disabled:opacity-50"
           >
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
@@ -284,13 +320,26 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
         onClose={() => setConfirmDelete(false)}
         title={`Delete "${environment.name}"?`}
         description={
-          deleteChatCount > 0
-            ? `${deleteChatCount} ${deleteChatCount === 1 ? "chat uses" : "chats use"} this environment and will fall back to the repo's default on their next sandbox.`
-            : "No chats use this environment."
+          usage.status === "idle" || usage.status === "loading"
+            ? "Checking how many chats use this environment..."
+            : usage.status === "unknown"
+              ? "Could not determine how many chats use this environment. Deleting it will still move any that do to the repo's default on their next sandbox."
+              : usage.chatCount > 0
+                ? `${usage.chatCount} ${usage.chatCount === 1 ? "chat uses" : "chats use"} this environment and will fall back to the repo's default on their next sandbox.`
+                : "No chats use this environment."
         }
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={confirmDeleteNow}
+      />
+
+      <ConfirmDialog
+        open={confirmPromote}
+        onClose={() => setConfirmPromote(false)}
+        title={`Make "${environment.name}" the default for ${environment.repo}?`}
+        description="Every future chat on this repo that doesn't pin a specific environment will be built from this one from now on."
+        confirmLabel="Make default"
+        onConfirm={confirmPromoteNow}
       />
     </div>
   )

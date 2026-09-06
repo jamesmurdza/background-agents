@@ -1,6 +1,6 @@
 "use client"
 
-import { Boxes, Globe, Lock, FileCode, Star } from "lucide-react"
+import { Boxes, Globe, Lock, FileCode } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { groupEnvironmentsByRepo } from "./helpers"
 // Type-only: EnvironmentDTO's module imports @/lib/db/prisma.
@@ -49,15 +49,17 @@ export function EnvironmentsList({ environments, onSelect }: EnvironmentsListPro
           {/* Mobile card layout */}
           <div className="space-y-2 md:hidden">
             {envs.map((env) => (
-              <div
+              <button
                 key={env.id}
                 onClick={() => onSelect(env.id)}
-                className="rounded-lg border border-border bg-white/50 dark:bg-white/5 p-3 cursor-pointer"
+                className="w-full text-left rounded-lg border border-border bg-white/50 dark:bg-white/5 p-3 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate">{env.name}</span>
                   {env.isDefault && (
-                    <Star className="w-3 h-3 text-muted-foreground shrink-0" aria-label="Default" />
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                      Default
+                    </span>
                   )}
                 </div>
                 <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
@@ -72,7 +74,7 @@ export function EnvironmentsList({ environments, onSelect }: EnvironmentsListPro
                     </span>
                   )}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
 
