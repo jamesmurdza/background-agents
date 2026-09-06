@@ -10,6 +10,7 @@ import { PreviewView } from "@/components/PreviewView"
 import { AppModals } from "@/components/AppModals"
 import { useGitDialogs } from "@/components/modals/git-dialogs"
 import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
+import { EnvironmentsView } from "@/components/environments/EnvironmentsView"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
 import { basename } from "@/lib/format"
@@ -99,6 +100,16 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Derived route state for page title (uses Next.js pathname for SSR compatibility)
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
+
+  // Environments route state. Unlike jobs (which drives its selected-id state
+  // through the sidebar context, updated via pushState handlers and the
+  // popstate-driven useUrlSync), environments derives its id straight from the
+  // pathname: there's no equivalent name-caching need since EnvironmentsView
+  // already has the full EnvironmentDTO list loaded to look the name up from.
+  const isEnvironmentsRoute = pathname?.startsWith("/environments") ?? false
+  const urlEnvironmentId = isEnvironmentsRoute
+    ? (pathname?.split("/")[2] ?? null) || null
+    : null
 
   // For jobs, we derive the ID from sidebar state since we use pushState for navigation
   // The sidebar.selectedScheduledJob is updated by handleNavigateToJob
@@ -380,6 +391,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Dynamic page title based on current view
   const pageTitle = useMemo(() => {
+    if (isEnvironmentsRoute) {
+      return "Environments"
+    }
     if (isJobsRoute) {
       return sidebar.selectedScheduledJob?.name ?? "Scheduled Agents"
     }
@@ -390,9 +404,37 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       return "New Chat"
     }
     return null
-  }, [isJobsRoute, isNewChatRoute, isDraftMode, displayCurrentChat?.displayName, sidebar.selectedScheduledJob?.name])
+  }, [
+    isEnvironmentsRoute,
+    isJobsRoute,
+    isNewChatRoute,
+    isDraftMode,
+    displayCurrentChat?.displayName,
+    sidebar.selectedScheduledJob?.name,
+  ])
+
+  // Keep sidebar.viewMode following the URL when a hard load or browser
+  // navigation lands directly on /environments (or a specific environment).
+  // Every other viewMode transition already goes through an explicit handler
+  // (handleSelectChat, handleOpenScheduledJobs, useUrlSync's popstate sync);
+  // environments isn't wired into that popstate-driven route table, so this
+  // effect is the one path that keeps it in sync with the URL.
+  useEffect(() => {
+    if (isEnvironmentsRoute) sidebar.setViewMode("environments")
+  }, [isEnvironmentsRoute, sidebar])
 
   usePageTitle(pageTitle)
+
+  // Sidebar entry point for the environments list. Mirrors
+  // useChatNavigation's handleOpenScheduledJobs: switch view mode, drop any
+  // selected chat/job, and push the URL without a Next.js navigation (so the
+  // page doesn't remount).
+  const handleOpenEnvironments = useCallback(() => {
+    sidebar.setViewMode("environments")
+    sidebar.setSelectedScheduledJob(null)
+    selectChat(null)
+    window.history.pushState(null, "", "/environments")
+  }, [sidebar, selectChat])
 
   // "User clicked send" flow — owns handleSendMessage and the isSendingMessage
   // flag (with its auto-reset effects).
@@ -641,6 +683,15 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         }
         scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
         selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
+        onOpenEnvironments={
+          isMobile
+            ? () => {
+                handleOpenEnvironments()
+                sidebar.setMobileSidebarOpen(false)
+              }
+            : handleOpenEnvironments
+        }
+        environmentsActive={sidebar.viewMode === "environments"}
         isLoadingChats={!isHydrated || (isLoading && displayChats.length === 0)}
       />
 
@@ -660,7 +711,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              {sidebar.viewMode === "scheduled-jobs" ? (
+              {sidebar.viewMode === "environments" ? (
+                <EnvironmentsView
+                  urlEnvironmentId={urlEnvironmentId}
+                  onNavigate={(id) => {
+                    window.history.pushState(null, "", id ? `/environments/${id}` : "/environments")
+                  }}
+                />
+              ) : sidebar.viewMode === "scheduled-jobs" ? (
                 <ScheduledJobsView
                   onOpenForm={() => modals.setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}

@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { signInWithGitHub } from "@/lib/auth-utils"
-import { Plus, PanelLeft, X, Loader2, Clock, Search, BarChart3, Settings, HelpCircle, LogOut, BookOpen } from "lucide-react"
+import { Plus, PanelLeft, X, Loader2, Clock, Search, BarChart3, Settings, HelpCircle, LogOut, BookOpen, Boxes } from "lucide-react"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
@@ -72,6 +72,10 @@ interface SidebarProps {
   scheduledJobsActive?: boolean
   /** Currently selected scheduled job (shown as indented item) */
   selectedScheduledJob?: { id: string; name: string } | null
+  /** Open the environments view */
+  onOpenEnvironments?: () => void
+  /** Whether the environments view is active */
+  environmentsActive?: boolean
   /** Whether chats are still being loaded from storage/server */
   isLoadingChats?: boolean
 }
@@ -105,6 +109,8 @@ export function Sidebar({
   onOpenScheduledJobs,
   scheduledJobsActive = false,
   selectedScheduledJob,
+  onOpenEnvironments,
+  environmentsActive = false,
   isLoadingChats = false,
 }: SidebarProps) {
   const modals = useModals()
@@ -412,6 +418,26 @@ export function Sidebar({
               <span className="text-base text-foreground">Scheduled Agents</span>
             </button>
 
+            {/* Environments Button */}
+            <button
+              onClick={() => {
+                if (onOpenEnvironments) {
+                  onOpenEnvironments()
+                } else {
+                  router.push("/environments")
+                }
+              }}
+              className={cn(
+                "flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target",
+                environmentsActive
+                  ? "bg-accent text-accent-foreground"
+                  : "hover:bg-accent/50 active:bg-accent"
+              )}
+            >
+              <Boxes className={cn("h-5 w-5", environmentsActive ? "text-foreground" : "text-muted-foreground")} />
+              <span className="text-base text-foreground">Environments</span>
+            </button>
+
             {/* Docs Link */}
             <a
               href={DOCS_URL}
@@ -653,6 +679,26 @@ export function Sidebar({
         >
           <Clock className={cn("h-4 w-4", scheduledJobsActive && !selectedScheduledJob ? "text-foreground" : "text-muted-foreground")} />
           {!collapsed && <span className="text-sm text-foreground">Scheduled Agents</span>}
+        </button>
+
+        {/* Environments Button */}
+        <button
+          onClick={() => {
+            if (onOpenEnvironments) {
+              onOpenEnvironments()
+            } else {
+              router.push("/environments")
+            }
+          }}
+          title={collapsed ? "Environments" : undefined}
+          className={cn(
+            "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
+            collapsed ? "p-1.5" : "w-full px-2 py-[7px]",
+            environmentsActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+          )}
+        >
+          <Boxes className={cn("h-4 w-4", environmentsActive ? "text-foreground" : "text-muted-foreground")} />
+          {!collapsed && <span className="text-sm text-foreground">Environments</span>}
         </button>
 
         {/* Docs Link */}

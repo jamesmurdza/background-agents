@@ -31,8 +31,8 @@ export interface SidebarContextValue {
   expandChatAndAncestors: (targetId: string, byId: Map<string, { parentChatId?: string | null }>) => void
 
   // Scheduled jobs view
-  viewMode: "chat" | "scheduled-jobs"
-  setViewMode: (mode: "chat" | "scheduled-jobs") => void
+  viewMode: "chat" | "scheduled-jobs" | "environments"
+  setViewMode: (mode: "chat" | "scheduled-jobs" | "environments") => void
   selectedScheduledJob: { id: string; name: string } | null
   setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
 }
@@ -95,7 +95,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   }, [])
 
   // View mode (chat vs scheduled jobs)
-  const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
+  const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs" | "environments">("chat")
   const [selectedScheduledJob, setSelectedScheduledJob] = useState<{ id: string; name: string } | null>(null)
 
   const value: SidebarContextValue = {

@@ -25,7 +25,7 @@ interface UseUrlSyncOptions {
   // Enter a fresh draft chat with the given agent preselected. Used by the
   // /agent/:slug deep link so the agent is baked into the draft at creation.
   startAgentDraft: (agent: Agent) => void
-  setViewMode: (mode: "chat" | "scheduled-jobs") => void
+  setViewMode: (mode: "chat" | "scheduled-jobs" | "environments") => void
   setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
 }
 
