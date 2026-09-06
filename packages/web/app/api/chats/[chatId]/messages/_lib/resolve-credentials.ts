@@ -2,8 +2,7 @@ import { getGitHubToken, getUserCredentials } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
-import { resolveCodexAuthJson } from "@/lib/server/codex-credentials"
-import { CODEX_SUBSCRIPTION_ENABLED } from "@/lib/codex-credentials"
+import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { ENDPOINT_MODEL_PREFIX } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
 import type { Credentials } from "@/lib/credentials"
@@ -100,20 +99,16 @@ export async function resolveSendCredentials(
     }
   }
 
-  // Codex ChatGPT subscription: mint a fresh access token and render the
-  // auth.json the sandbox will receive. A custom endpoint supplies its own
-  // auth, so it never takes this path. Returns null when the user has no
-  // usable subscription, leaving OPENAI_API_KEY to serve the run.
-  if (
-    CODEX_SUBSCRIPTION_ENABLED &&
-    payload.agent === "codex" &&
-    !payload.model?.startsWith(ENDPOINT_MODEL_PREFIX)
-  ) {
-    const authJson = await resolveCodexAuthJson(userId)
-    if (authJson) {
-      credentials = { ...credentials, CODEX_CREDENTIALS: authJson }
-    }
-  }
+  // Codex ChatGPT subscription. This ALWAYS strips the stored CODEX_CREDENTIALS
+  // blob (which carries the user's real refresh token) and only then re-adds a
+  // freshly rendered auth.json when the subscription applies to this run. See
+  // applyCodexSubscription for why the strip must be unconditional.
+  credentials = await applyCodexSubscription(
+    credentials,
+    userId,
+    payload.agent,
+    payload.model
+  )
 
   return { credentials, githubToken, useSharedClaude }
 }

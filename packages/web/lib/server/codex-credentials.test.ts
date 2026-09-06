@@ -93,8 +93,27 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }))
 
+// CODEX_SUBSCRIPTION_ENABLED is read from process.env at module-eval time and
+// is off in CI, which would freeze applyCodexSubscription's guard on one
+// branch. Keep every other export real (parseCodexCredential /
+// buildCodexAuthJson are load-bearing here) and make just the flag a live
+// getter so both branches are genuinely exercised.
+const codexFlagState = vi.hoisted(() => ({ enabled: true }))
+vi.mock("@/lib/codex-credentials", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/codex-credentials")>(
+    "@/lib/codex-credentials"
+  )
+  return {
+    ...actual,
+    get CODEX_SUBSCRIPTION_ENABLED() {
+      return codexFlagState.enabled
+    },
+  }
+})
+
 import {
   resolveCodexAuthJson,
+  applyCodexSubscription,
   storeCodexCredential,
   readCodexCredential,
   disconnectCodex,
@@ -125,6 +144,105 @@ beforeEach(() => {
   testState.failNextUpdate = null
   refreshCodexTokens.mockReset()
   revokeCodexToken.mockReset().mockResolvedValue(true)
+  codexFlagState.enabled = true
+})
+
+/**
+ * The one invariant this whole module exists for: the REAL refresh token must
+ * never appear in the credentials handed to a sandbox.
+ *
+ * `getUserCredentials` decrypts CODEX_CREDENTIALS like any other credential,
+ * so what arrives here is the stored blob containing the live grant. Every
+ * assertion below searches the SERIALIZED credentials for the secret rather
+ * than merely checking that the key is undefined — the leak is about the
+ * value, not the key name.
+ *
+ * Verified by mutation: commenting out the `delete next.CODEX_CREDENTIALS`
+ * line in applyCodexSubscription makes the flag-off, no-subscription,
+ * non-codex and custom-endpoint cases below all fail.
+ */
+describe("applyCodexSubscription", () => {
+  const REAL = "rt.REAL-USER-GRANT-MUST-NOT-LEAK"
+
+  /** What getUserCredentials returns for a connected user: the decrypted blob. */
+  function storedBlob(overrides: Partial<CodexStoredCredential> = {}) {
+    return JSON.stringify(cred({ refresh_token: REAL, ...overrides }))
+  }
+
+  const leaks = (creds: unknown) => JSON.stringify(creds).includes(REAL)
+
+  it("strips the stored blob when the feature flag is off", async () => {
+    codexFlagState.enabled = false
+    await storeCodexCredential("u1", cred({ refresh_token: REAL }))
+    const out = await applyCodexSubscription(
+      { OPENAI_API_KEY: "sk-1", CODEX_CREDENTIALS: storedBlob() },
+      "u1",
+      "codex",
+      "gpt-5.1-codex"
+    )
+    expect(leaks(out)).toBe(false)
+    expect(out.CODEX_CREDENTIALS).toBeUndefined()
+    expect(out.OPENAI_API_KEY).toBe("sk-1")
+  })
+
+  it("strips the stored blob when the user has no usable subscription", async () => {
+    // needs_reconnect: resolveCodexAuthJson returns null, but the row (and the
+    // still-live refresh token in it) is deliberately kept.
+    await storeCodexCredential("u1", cred({ refresh_token: REAL, status: "needs_reconnect" }))
+    const out = await applyCodexSubscription(
+      { CODEX_CREDENTIALS: storedBlob({ status: "needs_reconnect" }) },
+      "u1",
+      "codex",
+      "gpt-5.1-codex"
+    )
+    expect(leaks(out)).toBe(false)
+    expect(out.CODEX_CREDENTIALS).toBeUndefined()
+  })
+
+  it("strips the stored blob for a non-codex agent", async () => {
+    await storeCodexCredential("u1", cred({ refresh_token: REAL }))
+    const out = await applyCodexSubscription(
+      { CODEX_CREDENTIALS: storedBlob() },
+      "u1",
+      "claude-code",
+      "sonnet"
+    )
+    expect(leaks(out)).toBe(false)
+  })
+
+  it("strips the stored blob for a custom codex endpoint", async () => {
+    await storeCodexCredential("u1", cred({ refresh_token: REAL }))
+    const out = await applyCodexSubscription(
+      { CODEX_CREDENTIALS: storedBlob() },
+      "u1",
+      "codex",
+      "endpoint:c1"
+    )
+    expect(leaks(out)).toBe(false)
+  })
+
+  it("re-adds a rendered auth.json carrying the placeholder, never the real token", async () => {
+    await storeCodexCredential("u1", cred({ refresh_token: REAL }))
+    const out = await applyCodexSubscription(
+      { CODEX_CREDENTIALS: storedBlob() },
+      "u1",
+      "codex",
+      "gpt-5.1-codex"
+    )
+    expect(leaks(out)).toBe(false)
+    expect(out.CODEX_CREDENTIALS).toContain(CODEX_PLACEHOLDER_REFRESH_TOKEN)
+  })
+
+  it("leaves every other credential untouched", async () => {
+    const out = await applyCodexSubscription(
+      { OPENAI_API_KEY: "sk-1", ANTHROPIC_API_KEY: "sk-ant" },
+      "u1",
+      "codex",
+      "gpt-5.1-codex"
+    )
+    expect(out.OPENAI_API_KEY).toBe("sk-1")
+    expect(out.ANTHROPIC_API_KEY).toBe("sk-ant")
+  })
 })
 
 describe("resolveCodexAuthJson", () => {
@@ -247,6 +365,16 @@ describe("refreshCodexCredentialForUser", () => {
     await storeCodexCredential("u1", cred({ earliest_refresh_at: nowSec() - 1 }))
     refreshCodexTokens.mockRejectedValue(new Error("HTTP 503"))
     expect(await refreshCodexCredentialForUser("u1")).toBe("transient_failure")
+  })
+
+  it("reports 'transient_failure', not 'needs_reconnect', when the outage hits an already-expired token", async () => {
+    // The DB was not mutated here — the grant may well be perfectly alive and
+    // OpenAI simply unavailable. Reporting needs_reconnect would tell the
+    // operator the user has to redo device-code login, which is a lie.
+    await storeCodexCredential("u1", cred({ expires_at: nowSec() - 10, earliest_refresh_at: nowSec() - 100 }))
+    refreshCodexTokens.mockRejectedValue(new Error("HTTP 503"))
+    expect(await refreshCodexCredentialForUser("u1")).toBe("transient_failure")
+    expect((await readCodexCredential("u1"))?.status).toBe("connected")
   })
 })
 

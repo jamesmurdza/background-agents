@@ -14,7 +14,9 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { encrypt, decrypt } from "@/lib/db/encryption"
 import { normalizeStoredCredentials } from "@/lib/credentials"
+import type { Credentials } from "@/lib/credentials"
 import {
+  CODEX_SUBSCRIPTION_ENABLED,
   parseCodexCredential,
   credentialFromTokenResponse,
   needsRefresh,
@@ -22,7 +24,7 @@ import {
   type CodexStoredCredential,
 } from "@/lib/codex-credentials"
 import { refreshCodexTokens, revokeCodexToken, CodexReconnectRequiredError } from "./codex-oauth"
-import type { CredentialId } from "@background-agents/common"
+import { ENDPOINT_MODEL_PREFIX, type Agent, type CredentialId } from "@background-agents/common"
 
 // Typed as CredentialId, not string: normalizeStoredCredentials returns a
 // Record keyed by CredentialId, and a widened string index will not compile.
@@ -110,6 +112,53 @@ export async function resolveCodexAuthJson(userId: string): Promise<string | nul
   return buildCodexAuthJson(cred, Date.now())
 }
 
+/**
+ * Produce the credentials a run may actually receive, with respect to the
+ * Codex ChatGPT subscription.
+ *
+ * The stored CODEX_CREDENTIALS value is a CodexStoredCredential carrying the
+ * REAL refresh token — the one thing that must never reach a sandbox, because
+ * the Codex CLI would rotate it and sign the user out on their own machine.
+ * `getUserCredentials` decrypts and returns it like any other credential, so
+ * every path that builds sandbox env from it has to remove it FIRST and
+ * unconditionally: not only when the subscription feature is on, not only
+ * when the agent is codex, and not only when a fresh auth.json was
+ * successfully rendered. A conditional overwrite leaves the raw stored blob in
+ * place whenever the condition does not fire (feature flag off, status
+ * needs_reconnect, a transient refresh failure) — which is exactly how the
+ * real token leaks.
+ *
+ * Only after the strip is the rendered auth.json (placeholder refresh token)
+ * added back, and only when the subscription actually applies to this run.
+ *
+ * Both the interactive send path and the scheduled-job path call this; keeping
+ * it in one place is what stops the two copies from drifting apart again.
+ */
+export async function applyCodexSubscription(
+  credentials: Credentials,
+  userId: string,
+  agent: Agent | string | undefined,
+  model: string | null | undefined
+): Promise<Credentials> {
+  // Unconditional, and before anything else can return.
+  const next: Credentials = { ...credentials }
+  delete next.CODEX_CREDENTIALS
+
+  // A custom endpoint (`endpoint:<id>`) supplies its own auth, so it never
+  // takes the subscription path.
+  if (
+    !CODEX_SUBSCRIPTION_ENABLED ||
+    agent !== "codex" ||
+    model?.startsWith(ENDPOINT_MODEL_PREFIX)
+  ) {
+    return next
+  }
+
+  const authJson = await resolveCodexAuthJson(userId)
+  if (authJson) next.CODEX_CREDENTIALS = authJson
+  return next
+}
+
 interface FreshCredentialResult {
   cred: CodexStoredCredential | null
   /**
@@ -187,8 +236,13 @@ export async function refreshCodexCredentialForUser(
   if (!needsRefresh(before, Date.now())) return "skipped"
 
   const { cred: after, transientFailure } = await withFreshCredential(userId)
-  if (!after) return "needs_reconnect"
+  // Transient first: a refresh that failed against an ALREADY-expired access
+  // token returns no usable credential, but the stored credential was not
+  // mutated and is not known to be dead. Reporting "needs_reconnect" there
+  // would tell the operator (and any alerting built on this) that the user
+  // must redo device-code login, when in fact OpenAI simply had a bad minute.
   if (transientFailure) return "transient_failure"
+  if (!after) return "needs_reconnect"
   return after.refresh_token === before.refresh_token ? "skipped" : "refreshed"
 }
 
