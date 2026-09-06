@@ -24,7 +24,11 @@ import "server-only"
 import { Daytona } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
 import { getActiveSnapshotName } from "@background-agents/sandbox-image"
-import { credentialFromCliAuthFile, credentialFromTokenResponse } from "@/lib/codex-credentials"
+import {
+  credentialFromCliAuthFile,
+  credentialFromTokenResponse,
+  type CodexStoredCredential,
+} from "@/lib/codex-credentials"
 import { refreshCodexTokens } from "./codex-oauth"
 import { storeCodexCredential } from "./codex-credentials"
 import { prisma } from "@/lib/db/prisma"
@@ -34,6 +38,24 @@ const LOGIN_LOG = "/home/daytona/codex-login.log"
 
 /** The device code expires in 15 minutes; never hold a sandbox longer. */
 const LOGIN_TTL_MS = 15 * 60 * 1000
+
+/** How often to check the CLI's log for the device-code prompt. */
+const PROMPT_POLL_INTERVAL_MS = 500
+
+/**
+ * 30s total. A cold sandbox boot (image pull, CLI startup) can genuinely take
+ * several seconds before the CLI prints anything at all — this window has to
+ * be generous enough that a slow start is never mistaken for the CLI having
+ * started and then hit a real error. `hasCliStarted` is what lets the loop
+ * tell those two cases apart before the window even matters.
+ */
+const PROMPT_POLL_MAX_ITERATIONS = 60
+
+/** How many times to retry persisting a freshly-rotated credential before
+ * giving up. See storeCredentialWithRetry for why this matters more than a
+ * typical "best effort" retry. */
+const STORE_CREDENTIAL_RETRY_ATTEMPTS = 3
+const STORE_CREDENTIAL_RETRY_DELAY_MS = 250
 
 /** Strip ANSI colour codes so the CLI's decorated output can be parsed. */
 function stripAnsi(s: string): string {
@@ -63,6 +85,20 @@ export function classifyDeviceAuthFailure(
     return "device_auth_disabled"
   }
   return "unknown"
+}
+
+/**
+ * Whether the CLI has printed anything at all yet, as distinct from whether
+ * it has reached the device-code prompt. The poll loop in
+ * startCodexDeviceLogin uses this to tell "still cold-starting" apart from
+ * "started, but failed": without it, a slow sandbox boot and a genuine
+ * account-level block both fall through to classifyDeviceAuthFailure after
+ * the same timeout, and a slow boot gets misreported to the user as "your
+ * account can't use device auth" — the first thing a user does with this
+ * feature, so a false negative here is expensive.
+ */
+export function hasCliStarted(output: string): boolean {
+  return stripAnsi(output).trim().length > 0
 }
 
 /** CcAuthInfo row id for a user's in-flight login. Embeds the userId so a
@@ -169,17 +205,31 @@ export async function startCodexDeviceLogin(
       `nohup codex login --device-auth -c cli_auth_credentials_store=file > ${LOGIN_LOG} 2>&1 &`
     )
 
-    // Poll briefly for the prompt; the CLI prints it within a second or two.
+    // Poll for the prompt; the CLI usually prints it within a second or two,
+    // but a cold sandbox boot can take longer, so we wait up to 30s total.
     let prompt: { url: string; code: string } | null = null
-    for (let i = 0; i < 20 && !prompt; i++) {
-      await new Promise((r) => setTimeout(r, 500))
+    let lastOutput = ""
+    for (let i = 0; i < PROMPT_POLL_MAX_ITERATIONS && !prompt; i++) {
+      await new Promise((r) => setTimeout(r, PROMPT_POLL_INTERVAL_MS))
       const res = await sandbox.process.executeCommand(`cat ${LOGIN_LOG} 2>/dev/null || true`)
-      prompt = parseDeviceCodePrompt(res.result ?? "")
+      lastOutput = res.result ?? ""
+      prompt = parseDeviceCodePrompt(lastOutput)
+      if (prompt) break
+
+      if (!hasCliStarted(lastOutput)) {
+        // Nothing printed yet at all — this is a cold start, not a failure.
+        // Keep waiting rather than classifying an error that hasn't happened.
+        continue
+      }
+
+      // The CLI has started but hasn't reached the prompt yet. If it has
+      // already printed a real, recognizable failure, stop now instead of
+      // burning the rest of the 30s window.
+      if (classifyDeviceAuthFailure(lastOutput) !== "unknown") break
     }
 
     if (!prompt) {
-      const res = await sandbox.process.executeCommand(`cat ${LOGIN_LOG} 2>/dev/null || true`)
-      const reason = classifyDeviceAuthFailure(res.result ?? "")
+      const reason = classifyDeviceAuthFailure(lastOutput)
       throw new Error(`DEVICE_AUTH_UNAVAILABLE:${reason}`)
     }
 
@@ -192,6 +242,50 @@ export async function startCodexDeviceLogin(
     await sandbox.delete().catch(() => {})
     throw err
   }
+}
+
+/**
+ * Persist a freshly-rotated credential, retrying a few times before giving up.
+ *
+ * This is not a routine "best effort" retry: by the time this is called,
+ * refreshCodexTokens has already rotated the refresh token with OpenAI,
+ * invalidating the OLD one — and pollCodexDeviceLogin's cleanup() is about to
+ * delete the sandbox that holds the only copy of that old token. If a
+ * transient DB or lock failure makes storeCodexCredential throw right here, a
+ * naive single attempt would delete the sandbox anyway, permanently losing
+ * both the old token (invalidated) and the new one (never persisted) — the
+ * user completed a real browser approval and their only path forward is
+ * redoing the entire device-code flow. A few retries with backoff make that
+ * failure mode rare rather than "one hiccup away".
+ */
+async function storeCredentialWithRetry(
+  userId: string,
+  cred: CodexStoredCredential
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= STORE_CREDENTIAL_RETRY_ATTEMPTS; attempt++) {
+    try {
+      await storeCodexCredential(userId, cred)
+      return true
+    } catch (err) {
+      if (attempt === STORE_CREDENTIAL_RETRY_ATTEMPTS) {
+        // Loud and specific on purpose: this is the one failure in this
+        // module that is NOT recoverable by a later cron sweep or retry — the
+        // sandbox holding the rotated grant is about to be deleted by the
+        // caller, so once this line fires the user's only path forward is a
+        // fresh device-code login.
+        console.error(
+          `[codex-login] CRITICAL: rotated Codex credential for user ${userId} could not be ` +
+            `persisted after ${STORE_CREDENTIAL_RETRY_ATTEMPTS} attempts. OpenAI has already ` +
+            "invalidated the previous refresh token and the login sandbox is being torn down " +
+            "— this grant is now unrecoverable without redoing device-code login.",
+          err
+        )
+        return false
+      }
+      await new Promise((r) => setTimeout(r, STORE_CREDENTIAL_RETRY_DELAY_MS * attempt))
+    }
+  }
+  return false
 }
 
 /**
@@ -211,19 +305,34 @@ export async function pollCodexDeviceLogin(
   }
 
   const daytona = daytonaClient()
-  const sandbox = await daytona.get(session.sandboxId)
+
+  if (Date.now() - session.startedAt > LOGIN_TTL_MS) {
+    await deleteLoginSession(userId)
+    await deleteSandboxById(daytona, session.sandboxId)
+    return { status: "failed", reason: "code_expired" }
+  }
+
+  // Every exit path must tear the sandbox down, including one we can't even
+  // get a handle to (or read from) — wrap both calls so a Daytona hiccup here
+  // fails closed instead of throwing past cleanup and leaving the login
+  // stuck until the next TTL sweep.
+  let sandbox: Awaited<ReturnType<Daytona["get"]>>
+  let read: { result?: string }
+  try {
+    sandbox = await daytona.get(session.sandboxId)
+    read = await sandbox.process.executeCommand(`cat ${AUTH_FILE} 2>/dev/null || true`)
+  } catch (err) {
+    console.error("[codex-login] failed to reach sandbox during poll:", session.sandboxId, err)
+    await deleteLoginSession(userId)
+    await deleteSandboxById(daytona, session.sandboxId)
+    return { status: "failed", reason: "sandbox_unavailable" }
+  }
 
   const cleanup = async () => {
     await deleteLoginSession(userId)
     await sandbox.delete().catch(() => {})
   }
 
-  if (Date.now() - session.startedAt > LOGIN_TTL_MS) {
-    await cleanup()
-    return { status: "failed", reason: "code_expired" }
-  }
-
-  const read = await sandbox.process.executeCommand(`cat ${AUTH_FILE} 2>/dev/null || true`)
   const tokens = credentialFromCliAuthFile((read.result ?? "").trim())
   if (!tokens) return { status: "pending" }
 
@@ -232,8 +341,10 @@ export async function pollCodexDeviceLogin(
     // which the CLI's file does not carry, and validates the grant now rather
     // than at the user's first run.
     const res = await refreshCodexTokens(tokens.refresh_token)
-    await storeCodexCredential(userId, credentialFromTokenResponse(res, tokens.account_id, Date.now()))
+    const cred = credentialFromTokenResponse(res, tokens.account_id, Date.now())
+    const stored = await storeCredentialWithRetry(userId, cred)
     await cleanup()
+    if (!stored) return { status: "failed", reason: "credential_lost" }
     return { status: "connected" }
   } catch (err) {
     await cleanup()
