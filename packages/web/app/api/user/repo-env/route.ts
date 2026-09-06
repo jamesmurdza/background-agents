@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     const encrypted = encryptEnvironmentVariables(body.environmentVariables)
 
     // An empty environmentVariables clears the values but must not delete the
-    // Environment row — that would take its name, network mode, and setup
+    // Environment row: that would take its name, network mode, and setup
     // script with it.
     await prisma.environment.update({
       where: { id: defaultEnv.id },

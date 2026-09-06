@@ -33,14 +33,14 @@ ALTER TABLE "Chat" ADD CONSTRAINT "Chat_environmentId_fkey" FOREIGN KEY ("enviro
 ALTER TABLE "Environment" ADD CONSTRAINT "Environment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Exactly one default environment per (userId, repo). Prisma can't express a
--- partial unique index, so it goes in by hand — same as the
+-- partial unique index, so it goes in by hand: same as the
 -- McpServerConnection CHECK constraint.
 CREATE UNIQUE INDEX "Environment_one_default_per_repo"
     ON "Environment"("userId", "repo")
     WHERE "isDefault";
 
 -- Backfill: one "Default" environment per repo that already has variables in
--- User.repoEnvironmentVariables. The ciphertext is copied verbatim — no
+-- User.repoEnvironmentVariables. The ciphertext is copied verbatim: no
 -- decrypt/re-encrypt round trip, so values never exist in plaintext here and
 -- the app's decrypt() reads them unchanged.
 INSERT INTO "Environment" (

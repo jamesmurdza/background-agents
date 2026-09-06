@@ -41,7 +41,7 @@ export const SANDBOX_CONFIG = {
  *
  * Without these, restricting an environment breaks things the user never chose:
  * the git clone, the tokscale install at bring-up, and the agent CLI's own API
- * calls — all of which originate *inside* the sandbox. The environment editor
+ * calls: all of which originate *inside* the sandbox. The environment editor
  * shows these as non-removable entries so the behavior is visible rather than
  * surprising.
  *

@@ -157,7 +157,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     // Pin the chat to an environment. An explicit id must belong to this user
-    // and to the same repo — otherwise a chat could be built from another
+    // and to the same repo: otherwise a chat could be built from another
     // repo's variables. Anything else falls back to the repo's default.
     let environmentId: string | null = null
     if (body.repo !== NEW_REPOSITORY) {
