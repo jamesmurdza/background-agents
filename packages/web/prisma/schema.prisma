@@ -84,6 +84,7 @@ model User {
   skills             Skill[]
   tokenUsages        TokenUsage[]
   creditTransactions CreditTransaction[]
+  environments       Environment[]
 }
 
 // =============================================================================
@@ -150,6 +151,12 @@ model Chat {
   model           String?
   planModeEnabled Boolean @default(false)
 
+  // Which environment this chat's sandbox is built from. Null for legacy chats
+  // and NEW_REPOSITORY chats; resolveEnvironmentForChat falls back to the
+  // repo's default. SetNull (not Cascade) so deleting an environment never
+  // destroys chat history.
+  environmentId String?
+
   // Display
   displayName String?
   status      String  @default("pending") // pending, creating, ready, running, error
@@ -185,9 +192,10 @@ model Chat {
   environmentVariables Json?
 
   // Relations
-  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages   Message[]
-  mcpServers McpServerConnection[]
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  environment Environment?          @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  messages    Message[]
+  mcpServers  McpServerConnection[]
 
   // Link back to scheduled run (if this chat belongs to one)
   scheduledJobRun ScheduledJobRun?
@@ -583,5 +591,44 @@ model Skill {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, repo, fullHandle])
+  @@index([userId, repo])
+}
+
+// =============================================================================
+// Environment - named, per-repo sandbox configuration
+// =============================================================================
+// Supersedes User.repoEnvironmentVariables. Exactly one row per (userId, repo)
+// has isDefault = true; Prisma can't express a partial unique index, so the
+// migration adds it by hand (same approach as McpServerConnection's CHECK).
+
+model Environment {
+  id     String @id @default(cuid())
+  userId String
+  repo   String // "owner/repo"
+
+  name      String
+  isDefault Boolean @default(false)
+
+  // "full" | "restricted". Restricted = BASELINE_DOMAINS + allowedDomains.
+  networkMode    String   @default("full")
+  allowedDomains String[] @default([])
+
+  // Encrypted at rest: { "KEY": "encrypted_value", ... }
+  environmentVariables Json?
+
+  // Stored plaintext, unlike environmentVariables: the sync-back diff in Part 2
+  // needs to compare and display it, and a setup script is normally not secret.
+  // The editor tells users to put secrets in variables instead.
+  setupScript          String? @db.Text
+  setupScriptPrevious  String? @db.Text
+  setupScriptUpdatedBy String? // "user" | "agent"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chats Chat[]
+
+  @@unique([userId, repo, name])
   @@index([userId, repo])
 }
