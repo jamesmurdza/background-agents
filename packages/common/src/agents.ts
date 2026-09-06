@@ -63,6 +63,7 @@ export type ProviderId = "anthropic" | "github" | "openai" | "opencode" | "gemin
 export type CredentialId =
   | "ANTHROPIC_API_KEY"
   | "CLAUDE_CODE_CREDENTIALS"
+  | "CODEX_CREDENTIALS"
   | "COPILOT_GITHUB_TOKEN"
   | "OPENAI_API_KEY"
   | "OPENCODE_API_KEY"
@@ -748,6 +749,13 @@ export function hasCredentialsForModel(
     // Otherwise the user's own Gemini key unlocks every Gemini model.
     return !!flags?.GEMINI_API_KEY
   }
+  if (model.requiresKey === "openai") {
+    // A ChatGPT subscription only drives the Codex CLI — the blob is written to
+    // ~/.codex/auth.json, which no other agent reads. Every other agent needs a
+    // real platform API key. Mirrors the claude-code rule above.
+    if (agent !== "codex") return !!flags?.OPENAI_API_KEY
+    return !!(flags?.OPENAI_API_KEY || flags?.CODEX_CREDENTIALS)
+  }
 
   return PROVIDER_ENV[model.requiresKey].some((id) => flags?.[id])
 }
@@ -914,6 +922,13 @@ export function getEnvForModel(
   // Claude Code: subscription token wins over API key.
   if ((!agent || agent === "claude-code") && credentials.CLAUDE_CODE_CREDENTIALS) {
     return { CLAUDE_CODE_CREDENTIALS: credentials.CLAUDE_CODE_CREDENTIALS }
+  }
+
+  // Codex: subscription blob wins over API key. The value is a complete
+  // auth.json rendered by the web layer (lib/codex-credentials), already
+  // carrying a placeholder refresh token.
+  if (agent === "codex" && credentials.CODEX_CREDENTIALS) {
+    return { CODEX_CREDENTIALS: credentials.CODEX_CREDENTIALS }
   }
 
   // Droid runs BYOK: each model routes to the user's own key via the customModels

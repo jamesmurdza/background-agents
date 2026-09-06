@@ -26,6 +26,12 @@ export interface CredentialField {
   placeholder?: string
   multiline?: boolean
   description?: string
+  /**
+   * Server-written credentials. These are never rendered as a text input and
+   * never accepted from a client write — they're established by an OAuth flow
+   * and refreshed by the server.
+   */
+  serverManaged?: boolean
 }
 
 export const CREDENTIAL_KEYS: readonly CredentialField[] = [
@@ -58,6 +64,13 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     label: "OpenAI",
     helpUrl: "https://platform.openai.com/api-keys",
     placeholder: "sk-...",
+  },
+  {
+    id: "CODEX_CREDENTIALS",
+    provider: "openai",
+    label: "ChatGPT Subscription",
+    description: "Codex only. Connected by signing in, not by pasting a value.",
+    serverManaged: true,
   },
   {
     id: "OPENCODE_API_KEY",
