@@ -227,11 +227,36 @@ describe("toEnvironmentDTO", () => {
       networkMode: "full",
       allowedDomains: [],
       variables: { FOO: "bar" },
+      variableCount: 1,
       hasSetupScript: true,
       setupScript: "echo hi",
       setupScriptUpdatedBy: "agent",
       updatedAt: now.getTime(),
     })
+  })
+
+  it("omits variables but still reports variableCount when includeVariables is false", async () => {
+    const { toEnvironmentDTO } = await import("./environments")
+    const encrypted = encryptEnvironmentVariables({ FOO: "bar", BAZ: "qux" })
+
+    const dto = toEnvironmentDTO(
+      {
+        id: "env_1",
+        name: "Default",
+        repo: "acme/app",
+        isDefault: true,
+        networkMode: "full",
+        allowedDomains: [],
+        environmentVariables: encrypted,
+        setupScript: null,
+        setupScriptUpdatedBy: null,
+        updatedAt: new Date(),
+      },
+      { includeVariables: false }
+    )
+
+    expect(dto.variables).toBeUndefined()
+    expect(dto.variableCount).toBe(2)
   })
 
   it("reports hasSetupScript false and setupScriptUpdatedBy null for a fresh environment", async () => {
@@ -362,5 +387,17 @@ describe("environmentUniqueConstraintMessage / violatedEnvironmentUniqueFields",
     })
 
     expect(violatedEnvironmentUniqueFields(error)).toEqual([])
+  })
+
+  it("covers both possible causes when the violated fields can't be identified", async () => {
+    const { environmentUniqueConstraintMessage } = await import("./environments")
+    const error = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "test",
+    })
+
+    const message = environmentUniqueConstraintMessage(error)
+    expect(message).toContain("name already exists")
+    expect(message.toLowerCase()).toContain("default")
   })
 })

@@ -101,8 +101,16 @@ export interface EnvironmentDTO {
   isDefault: boolean
   networkMode: NetworkMode
   allowedDomains: string[]
-  /** Decrypted. */
-  variables: Record<string, string>
+  /**
+   * Decrypted. Only present when the caller asked for it (see
+   * toEnvironmentDTO's includeVariables option): absent, not an empty
+   * object, when it wasn't requested, so "no variables" and "not fetched"
+   * stay distinguishable in the type.
+   */
+  variables?: Record<string, string>
+  /** How many variables this environment has, independent of whether
+   *  `variables` itself was included. Safe to show without decrypting. */
+  variableCount: number
   hasSetupScript: boolean
   setupScript: string | null
   setupScriptUpdatedBy: "user" | "agent" | null
@@ -114,7 +122,24 @@ type EnvironmentDTORow = EnvironmentRow & {
   updatedAt: Date
 }
 
-export function toEnvironmentDTO(row: EnvironmentDTORow): EnvironmentDTO {
+function countEnvironmentVariables(raw: unknown): number {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return 0
+  return Object.keys(raw as Record<string, unknown>).length
+}
+
+/**
+ * `includeVariables` defaults to true so existing single-environment callers
+ * (GET/PATCH /api/environments/[id], POST /api/environments) keep returning
+ * full variables without change. The list endpoint (GET /api/environments)
+ * is the one caller that passes includeVariables: false by default, since
+ * every environment on a repo doesn't need its secrets decrypted just to
+ * render names in a picker or a list.
+ */
+export function toEnvironmentDTO(
+  row: EnvironmentDTORow,
+  options: { includeVariables?: boolean } = {}
+): EnvironmentDTO {
+  const includeVariables = options.includeVariables ?? true
   return {
     id: row.id,
     repo: row.repo,
@@ -122,7 +147,8 @@ export function toEnvironmentDTO(row: EnvironmentDTORow): EnvironmentDTO {
     isDefault: row.isDefault,
     networkMode: toNetworkMode(row.networkMode),
     allowedDomains: row.allowedDomains,
-    variables: decryptEnvironmentVariables(row.environmentVariables),
+    ...(includeVariables && { variables: decryptEnvironmentVariables(row.environmentVariables) }),
+    variableCount: countEnvironmentVariables(row.environmentVariables),
     hasSetupScript: !!row.setupScript,
     setupScript: row.setupScript,
     setupScriptUpdatedBy:
@@ -186,10 +212,16 @@ export function environmentUniqueConstraintMessage(
   if (fields.includes("name")) {
     return "An environment with that name already exists for this repo"
   }
-  // No "name" among the violated fields means the partial default-per-repo
-  // index was hit instead: another request created or promoted a default
-  // for this repo at the same time.
-  return "Another request just changed this repo's default environment. Refresh and try again."
+  if (fields.length > 0) {
+    // No "name" among the violated fields means the partial default-per-repo
+    // index was hit instead: another request created or promoted a default
+    // for this repo at the same time.
+    return "Another request just changed this repo's default environment. Refresh and try again."
+  }
+  // The violated fields couldn't be identified from the error metadata, so
+  // either constraint could be the real cause; don't assert one over the
+  // other.
+  return "Either an environment with that name already exists for this repo, or another request just changed this repo's default environment. Refresh and try again."
 }
 
 /**
@@ -232,7 +264,7 @@ export async function getOrCreateDefaultEnvironment(
     // (userId, repo, name) unique constraint: a row named "Default" already
     // exists for this repo but was never promoted. This shouldn't happen
     // through the app today, but self-heal rather than throwing forever for
-    // this repo — promote that row to default.
+    // this repo: promote that row to default.
     const collided = await prisma.environment.findFirst({
       where: { userId, repo, name: DEFAULT_ENVIRONMENT_NAME },
     })

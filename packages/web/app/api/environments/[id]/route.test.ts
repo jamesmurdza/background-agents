@@ -191,6 +191,23 @@ describe("PATCH /api/environments/[id]", () => {
     })
   })
 
+  it("leaves setupScriptPrevious untouched when setupScript is resent unchanged", async () => {
+    environment.findFirst.mockResolvedValueOnce(
+      row({ setupScript: "echo old", setupScriptPrevious: "echo ancient" })
+    )
+    environment.update.mockResolvedValueOnce(row())
+
+    await PATCH(makeRequest({ setupScript: "echo old", name: "Renamed" }), params())
+
+    expect(environment.update).toHaveBeenCalledWith({
+      where: { id: "env_1" },
+      data: {
+        name: "Renamed",
+        setupScript: "echo old",
+      },
+    })
+  })
+
   it("promotes to default with an ordered clear-then-set transaction, not a single combined update", async () => {
     environment.findFirst.mockResolvedValueOnce(row({ isDefault: false }))
     environment.updateMany.mockResolvedValueOnce({ count: 1 })

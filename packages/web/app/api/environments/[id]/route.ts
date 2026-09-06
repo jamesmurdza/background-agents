@@ -114,8 +114,15 @@ export async function PATCH(
         }),
         ...(body.setupScript !== undefined && {
           setupScript: body.setupScript,
-          setupScriptPrevious: existing.setupScript,
-          setupScriptUpdatedBy: "user",
+          // Only rotate the undo slot when the script actually changed. Saving
+          // an unrelated field (a variable, the name) always resends the
+          // current setupScript unchanged; rotating on every save would
+          // overwrite setupScriptPrevious with the current value and destroy
+          // the single-level undo the Part 2 script-rewriting flow depends on.
+          ...(body.setupScript !== existing.setupScript && {
+            setupScriptPrevious: existing.setupScript,
+            setupScriptUpdatedBy: "user",
+          }),
         }),
       },
     })
