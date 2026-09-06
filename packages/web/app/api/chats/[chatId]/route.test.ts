@@ -225,5 +225,27 @@ describe("PATCH /api/chats/[chatId]: environmentId", () => {
       expect(res.status).toBe(200)
       expect(getOrCreateDefaultEnvironment).not.toHaveBeenCalled()
     })
+
+    it("allows a NEW_REPOSITORY chat with a sandbox to publish to a real repo, pinning the new repo's default environment", async () => {
+      getChatWithAuth.mockResolvedValueOnce(
+        existingChat({ sandboxId: "sb_1", repo: "__new__", environmentId: null })
+      )
+      getOrCreateDefaultEnvironment.mockResolvedValueOnce({ id: "env_acme_app_default" })
+      chat.update.mockResolvedValueOnce(
+        updatedChatRow({
+          sandboxId: "sb_1",
+          repo: "acme/app",
+          environmentId: "env_acme_app_default",
+        })
+      )
+
+      const res = await callPatch("chat_1", { repo: "acme/app" })
+      const body = await res.json()
+
+      expect(getOrCreateDefaultEnvironment).toHaveBeenCalledWith("u1", "acme/app")
+      expect(chat.update.mock.calls[0][0].data.environmentId).toBe("env_acme_app_default")
+      expect(res.status).toBe(200)
+      expect(body.repo).toBe("acme/app")
+    })
   })
 })

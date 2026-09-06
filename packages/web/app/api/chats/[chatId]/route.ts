@@ -284,8 +284,17 @@ export async function PATCH(
     // sandbox still running under the old one's network mode on the very next
     // turn, a split-brain state reachable with one PATCH. The client already
     // disables the picker at this point; this is the server-side half of that.
+    //
+    // Exempt the NEW_REPOSITORY -> real repo transition: a "__new__" chat's
+    // sandbox was created with environment: null (full network, no vars), and
+    // full is the only reachable network mode today, so re-resolving to the
+    // new repo's default on the next turn matches pre-branch behavior exactly.
+    // This exemption needs revisiting if restricted mode ever becomes
+    // enforceable, since a repo's default environment could then carry a
+    // network mode the already-running sandbox never agreed to.
     if (
       chat.sandboxId &&
+      chat.repo !== NEW_REPOSITORY &&
       (body.environmentId !== undefined || (body.repo !== undefined && body.repo !== chat.repo))
     ) {
       return badRequest("Cannot change repo or environmentId once the chat has a sandbox")
