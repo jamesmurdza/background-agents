@@ -182,3 +182,20 @@ describe("getOrCreateDefaultEnvironment", () => {
     })
   })
 })
+
+describe("toResolvedEnvironment", () => {
+  it("narrows an unrecognized networkMode to full rather than trusting the column", async () => {
+    const { toResolvedEnvironment } = await import("./environments")
+    const resolved = toResolvedEnvironment({
+      id: "e",
+      name: "n",
+      repo: "acme/app",
+      isDefault: true,
+      networkMode: "something-else",
+      allowedDomains: [],
+      environmentVariables: null,
+      setupScript: null,
+    })
+    expect(resolved.networkMode).toBe("full")
+  })
+})
