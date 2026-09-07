@@ -36,6 +36,8 @@ export { useAdminActivityQuery } from "./useAdminActivityQuery"
 export { useAdminUsersQuery, useUpdateUserMutation } from "./useAdminUsersQuery"
 export { useAdminTopupsQuery } from "./useAdminTopupsQuery"
 export type { AdminTopups, TopupUser, TopupSeriesPoint } from "./useAdminTopupsQuery"
+export { useAdminTopUpCreditsMutation } from "./useAdminTopUpCreditsMutation"
+export type { TopUpCreditsParams, TopUpCreditsResult } from "./useAdminTopUpCreditsMutation"
 export { useRefreshClaudeCredsMutation } from "./useRefreshClaudeCredsMutation"
 export type {
   RefreshClaudeCredsParams,

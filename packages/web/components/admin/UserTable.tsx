@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, ArrowUp, ArrowDown, ArrowUpDown, Crown, Mail, Github } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, ArrowUp, ArrowDown, ArrowUpDown, Crown, Mail, Github, Wallet, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Plan } from "@/lib/server/usage-budgets"
+import { useAdminTopUpCreditsMutation } from "@/lib/query/hooks"
+import { TopUpCreditsDialog } from "./TopUpCreditsDialog"
 
 interface User {
   id: string
@@ -14,10 +16,19 @@ interface User {
   githubId: string | null
   isAdmin: boolean
   plan: Plan
+  creditBalanceUsd: number
   totalMessages: number
   lastActivityAt: string | null
   lastActivityAction: string | null
   createdAt: string
+}
+
+/** Pill styling for the credit balance, mirroring the low/empty tiers used
+ * elsewhere for a user's own balance (see lib/server/credits#creditTier). */
+function creditBalanceStyle(balanceUsd: number): string {
+  if (balanceUsd <= 0) return "text-destructive"
+  if (balanceUsd <= 0.1) return "text-amber-600 dark:text-amber-400"
+  return "text-foreground"
 }
 
 /** Admin-cycle order for the plan control: free → pro → unlimited → free. */
@@ -109,12 +120,14 @@ function MobileUserCard({
   user,
   onToggleAdmin,
   onPlanChange,
+  onTopUp,
   isUpdating,
   currentUserId,
 }: {
   user: User
   onToggleAdmin: (userId: string, isAdmin: boolean) => void
   onPlanChange: (userId: string, plan: Plan) => void
+  onTopUp: (user: User) => void
   isUpdating?: string | null
   currentUserId?: string
 }) {
@@ -164,6 +177,21 @@ function MobileUserCard({
             ? formatDistanceToNow(new Date(user.lastActivityAt), { addSuffix: true })
             : "Never active"}
         </span>
+      </div>
+
+      {/* Credits row */}
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className={cn("inline-flex items-center gap-1.5 font-medium", creditBalanceStyle(user.creditBalanceUsd))}>
+          <Wallet className="h-3.5 w-3.5" />
+          ${user.creditBalanceUsd.toFixed(2)} credits
+        </span>
+        <button
+          onClick={() => onTopUp(user)}
+          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" />
+          Top up
+        </button>
       </div>
 
       {/* Actions row */}
@@ -225,10 +253,25 @@ export function UserTable({
   currentUserId,
 }: UserTableProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery)
+  const [topUpUser, setTopUpUser] = useState<User | null>(null)
+  const topUpMutation = useAdminTopUpCreditsMutation()
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSearchChange(localSearch)
+  }
+
+  const handleTopUpSubmit = (amountUsd: number, note?: string) => {
+    if (!topUpUser) return
+    topUpMutation.mutate(
+      { userId: topUpUser.id, amountUsd, note },
+      { onSuccess: () => setTopUpUser(null) }
+    )
+  }
+
+  const closeTopUp = () => {
+    setTopUpUser(null)
+    topUpMutation.reset()
   }
 
   return (
@@ -283,6 +326,7 @@ export function UserTable({
               user={user}
               onToggleAdmin={onToggleAdmin}
               onPlanChange={onPlanChange}
+              onTopUp={setTopUpUser}
               isUpdating={isUpdating}
               currentUserId={currentUserId}
             />
@@ -302,6 +346,7 @@ export function UserTable({
                 <SortHeader label="Last Active" field="lastActivityAt" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} />
                 <SortHeader label="Joined" field="createdAt" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} />
                 <th className="px-4 py-3 text-center font-medium">Plan</th>
+                <th className="px-4 py-3 text-center font-medium">Credits</th>
                 <th className="px-4 py-3 text-center font-medium">Admin</th>
               </tr>
             </thead>
@@ -331,13 +376,16 @@ export function UserTable({
                       <div className="mx-auto h-6 w-12 rounded bg-muted animate-pulse" />
                     </td>
                     <td className="px-4 py-3 text-center">
+                      <div className="mx-auto h-6 w-16 rounded bg-muted animate-pulse" />
+                    </td>
+                    <td className="px-4 py-3 text-center">
                       <div className="mx-auto h-6 w-12 rounded bg-muted animate-pulse" />
                     </td>
                   </tr>
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No users found
                   </td>
                 </tr>
@@ -413,6 +461,21 @@ export function UserTable({
                         {PLAN_LABEL[user.plan]}
                       </button>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className={cn("font-medium", creditBalanceStyle(user.creditBalanceUsd))}>
+                          ${user.creditBalanceUsd.toFixed(2)}
+                        </span>
+                        <button
+                          onClick={() => setTopUpUser(user)}
+                          className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                          title="Top up credits"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Top up
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => onToggleAdmin(user.id, !user.isAdmin)}
@@ -481,6 +544,18 @@ export function UserTable({
             </button>
           </div>
         </div>
+      )}
+
+      {topUpUser && (
+        <TopUpCreditsDialog
+          open
+          onClose={closeTopUp}
+          userName={topUpUser.name || topUpUser.email || "user"}
+          balanceUsd={topUpUser.creditBalanceUsd}
+          onSubmit={handleTopUpSubmit}
+          isSubmitting={topUpMutation.isPending}
+          error={topUpMutation.error?.message ?? null}
+        />
       )}
     </div>
   )

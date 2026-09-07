@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
 import { parsePaginationParams, buildPagination } from "@/lib/db/pagination"
+import { microToUsd } from "@/lib/server/credits"
 
 /**
  * GET /api/admin/users
@@ -148,6 +149,7 @@ export async function GET(request: NextRequest) {
       isAdmin: true,
       plan: true,
       createdAt: true,
+      creditBalanceMicroUsd: true,
     },
   })
 
@@ -189,6 +191,7 @@ export async function GET(request: NextRequest) {
         githubId: user.githubId,
         isAdmin: user.isAdmin,
         plan: user.plan,
+        creditBalanceUsd: microToUsd(user.creditBalanceMicroUsd),
         totalMessages: messageCountMap.get(user.id) ?? 0,
         lastActivityAt: lastActivity?.createdAt.toISOString() ?? null,
         lastActivityAction: lastActivity?.action ?? null,

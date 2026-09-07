@@ -14,6 +14,7 @@ interface User {
   githubId: string | null
   isAdmin: boolean
   plan: Plan
+  creditBalanceUsd: number
   totalMessages: number
   lastActivityAt: string | null
   lastActivityAction: string | null
