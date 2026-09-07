@@ -38,3 +38,17 @@ export function envVarsToRecord(envVars: EnvVar[]): Record<string, string> {
   }
   return record
 }
+
+/** A plain, renamable default name for a newly created environment: the
+ *  editor's name field is the place to actually name it, so this only needs
+ *  to be the first "New environment N" (starting at 1) not already taken by
+ *  a sibling in that repo. Names are compared trimmed and case-insensitively,
+ *  so "new environment 1" or " New environment 1 " both count as taken. */
+export function nextEnvironmentName(existingNames: string[]): string {
+  const taken = new Set(existingNames.map((name) => name.trim().toLowerCase()))
+  let n = 1
+  while (taken.has(`new environment ${n}`)) {
+    n++
+  }
+  return `New environment ${n}`
+}

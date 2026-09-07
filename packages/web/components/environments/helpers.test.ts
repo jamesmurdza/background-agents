@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { groupEnvironmentsByRepo, recordToEnvVars, envVarsToRecord } from "./helpers"
+import {
+  groupEnvironmentsByRepo,
+  recordToEnvVars,
+  envVarsToRecord,
+  nextEnvironmentName,
+} from "./helpers"
 import type { EnvironmentDTO } from "@/lib/environments"
 
 function makeEnv(overrides: Partial<EnvironmentDTO>): EnvironmentDTO {
@@ -72,5 +77,30 @@ describe("recordToEnvVars / envVarsToRecord round trip", () => {
 
   it("returns an empty object for an empty list", () => {
     expect(envVarsToRecord([])).toEqual({})
+  })
+})
+
+describe("nextEnvironmentName", () => {
+  it("returns 'New environment 1' when there are no existing names", () => {
+    expect(nextEnvironmentName([])).toBe("New environment 1")
+  })
+
+  it("fills a gap left by a deleted or renamed environment", () => {
+    expect(nextEnvironmentName(["New environment 2"])).toBe("New environment 1")
+  })
+
+  it("does not propose a name already taken by a sibling (regression)", () => {
+    const name = nextEnvironmentName(["Default", "New environment 3"])
+    expect(name).not.toBe("New environment 3")
+    expect(name).toBe("New environment 1")
+  })
+
+  it("ignores unrelated names when picking the next number", () => {
+    expect(nextEnvironmentName(["Default", "Staging", "prod"])).toBe("New environment 1")
+  })
+
+  it("treats names as taken when they differ only by surrounding whitespace or case", () => {
+    expect(nextEnvironmentName([" new environment 1 "])).toBe("New environment 2")
+    expect(nextEnvironmentName(["NEW ENVIRONMENT 1"])).toBe("New environment 2")
   })
 })

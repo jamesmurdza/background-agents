@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { EnvironmentsList } from "./EnvironmentsList"
 import { EnvironmentEditor } from "./EnvironmentEditor"
+import { nextEnvironmentName } from "./helpers"
 import {
   useEnvironmentsQuery,
   useCreateEnvironmentMutation,
@@ -30,12 +31,13 @@ export function EnvironmentsView({ urlEnvironmentId, onNavigate }: EnvironmentsV
     setCreatingRepo(repo)
     try {
       // A plain, renamable default: the editor's name field is the place to
-      // actually name it, so this only needs to be unique enough not to
-      // collide with an existing name in the repo.
-      const siblingCount = environments.filter((e) => e.repo === repo).length
+      // actually name it, so this picks the first "New environment N" not
+      // already taken by a sibling in the repo, avoiding a collision with
+      // the API's per-repo name uniqueness check.
+      const siblingNames = environments.filter((e) => e.repo === repo).map((e) => e.name)
       const created = await create.mutateAsync({
         repo,
-        name: `New environment ${siblingCount + 1}`,
+        name: nextEnvironmentName(siblingNames),
       })
       onNavigate(created.id)
     } catch (err) {
