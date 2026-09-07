@@ -12,6 +12,9 @@ import {
   collapseEntriesByModel,
   cursorForModel,
   sumCumulatives,
+  chatPredatesMetering,
+  realAssistantTurnFilter,
+  METERING_START,
   ZERO_CUMULATIVE,
   type SessionCumulative,
 } from "./usage-cursor"
@@ -152,5 +155,67 @@ describe("collapseEntriesByModel", () => {
       collapsed: 0,
       conflicted: [],
     })
+  })
+})
+
+/**
+ * The baseline gate. A backdated row is a free row, so every case here is
+ * really the question "does this chat get its next turn for nothing?".
+ */
+describe("chatPredatesMetering", () => {
+  const before = new Date(METERING_START.getTime() - 1)
+  const after = new Date(METERING_START.getTime() + 1)
+
+  it("is true only for a chat older than the day metering began", () => {
+    expect(chatPredatesMetering(before)).toBe(true)
+    expect(chatPredatesMetering(after)).toBe(false)
+  })
+
+  it("excludes a chat created exactly at the boundary", () => {
+    // Metering was running from this instant, so there is no backlog.
+    expect(chatPredatesMetering(METERING_START)).toBe(false)
+  })
+
+  it("is false for every chat created since — the regression that leaked $1,241.70", () => {
+    // The old test would have backdated all of these the moment a crashed or
+    // errored first turn left the session without a usage row.
+    expect(chatPredatesMetering(new Date("2026-09-05T20:00:09.085Z"))).toBe(false)
+    expect(chatPredatesMetering(new Date("2026-07-01T00:00:00.000Z"))).toBe(false)
+  })
+
+  it("treats an unknown creation date as recent, so the turn is charged", () => {
+    // Charging a turn that should have been free is recoverable; giving one
+    // away silently is not.
+    expect(chatPredatesMetering(null)).toBe(false)
+    expect(chatPredatesMetering(undefined)).toBe(false)
+  })
+
+  it("honours an injected boundary, so the rule is not pinned to one date", () => {
+    const start = new Date("2026-01-01T00:00:00.000Z")
+    expect(chatPredatesMetering(new Date("2025-12-31T23:59:59Z"), start)).toBe(true)
+    expect(chatPredatesMetering(new Date("2026-01-02T00:00:00Z"), start)).toBe(false)
+  })
+})
+
+describe("realAssistantTurnFilter", () => {
+  it("counts only assistant messages that could have spent tokens", () => {
+    // Each exclusion is a way production produced an assistant row with no LLM
+    // call behind it; counting any of them let one failed turn pass for a
+    // pre-metering backlog.
+    expect(realAssistantTurnFilter("chat_1")).toEqual({
+      chatId: "chat_1",
+      role: "assistant",
+      isError: false,
+      content: { not: "" },
+      OR: [{ messageType: null }, { messageType: { not: "git-operation" } }],
+    })
+  })
+
+  it("keeps messages whose messageType is null — an ordinary chat turn", () => {
+    // `{ not: "git-operation" }` alone compiles to SQL `<>`, and
+    // `NULL <> 'git-operation'` is NULL, so the terse form drops every normal
+    // message and disables the backlog check completely.
+    const { OR } = realAssistantTurnFilter("chat_1")
+    expect(OR).toContainEqual({ messageType: null })
   })
 })

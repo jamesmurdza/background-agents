@@ -56,6 +56,8 @@ export const queryKeys = {
     users: (page: number, search?: string, sortField?: string, sortOrder?: string) =>
       [...queryKeys.admin.all, "users", { page, search, sortField, sortOrder }] as const,
     topUsers: (range: string) => [...queryKeys.admin.all, "topUsers", range] as const,
+    topups: (range?: string, excludeAdmins?: boolean) =>
+      [...queryKeys.admin.all, "topups", range, excludeAdmins] as const,
     ccAuthRuns: () => [...queryKeys.admin.all, "ccAuthRuns"] as const,
   },
 }

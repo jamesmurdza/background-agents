@@ -50,3 +50,26 @@ export function parseTimeRange(value: string | null, fallback: TimeRange): TimeR
   if (value === "all" || value === "24h" || value === "7d" || value === "30d") return value
   return fallback
 }
+
+/** Time-series bucket granularity. Long windows are down-sampled so charts stay
+ * readable instead of plotting thousands of daily points. */
+export type Bucket = "day" | "week" | "month"
+
+/** Picks a bucket size for a window spanning `days` days. */
+export function getBucket(days: number): Bucket {
+  if (days <= 90) return "day"
+  if (days <= 730) return "week"
+  return "month"
+}
+
+/** Postgres interval-literal step between buckets, for `generate_series`. */
+export function getBucketStep(bucket: Bucket): string {
+  switch (bucket) {
+    case "week":
+      return "1 week"
+    case "month":
+      return "1 month"
+    default:
+      return "1 day"
+  }
+}

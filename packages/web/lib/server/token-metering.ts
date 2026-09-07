@@ -35,6 +35,8 @@ import { isFreeModel, type Plan } from "@/lib/server/usage-budgets"
 import {
   collapseEntriesByModel,
   cursorForModel,
+  chatPredatesMetering,
+  realAssistantTurnFilter,
 } from "@/lib/server/usage-cursor"
 import { priceClaudeTurn } from "@/lib/server/claude-pricing"
 import { readUsageMeta } from "@/lib/server/shared-pool"
@@ -218,15 +220,26 @@ async function meterTurnUsage(
         // cursor (getSessionCumulatives has no date filter) but fall outside
         // every budget window (sumSharedUsage filters createdAt >= start of
         // day). Only turns after the baseline charge.
+        //
+        // Age is the decisive test and is checked first, so a chat created
+        // once metering was running can never be backdated however broken its
+        // message history looks — see chatPredatesMetering for why the old
+        // message-count-only test gave away 482 chats.
         let baselineAt: Date | undefined
         if (prior.size === 0) {
-          const assistantTurns = await tx.message.count({
-            where: { chatId, role: "assistant" },
+          const chat = await tx.chat.findUnique({
+            where: { id: chatId },
+            select: { createdAt: true },
           })
-          // >1 ⇒ turns existed before this one (and before metering) ⇒
-          // pre-existing chat. Exactly 1 ⇒ this is the chat's first turn ⇒
-          // charge normally.
-          if (assistantTurns > 1) baselineAt = new Date(0)
+          if (chatPredatesMetering(chat?.createdAt)) {
+            const priorTurns = await tx.message.count({
+              where: realAssistantTurnFilter(chatId),
+            })
+            // >1 ⇒ real turns existed before this one (and before metering) ⇒
+            // pre-existing chat. Exactly 1 ⇒ this is the chat's first turn ⇒
+            // charge normally.
+            if (priorTurns > 1) baselineAt = new Date(0)
+          }
         }
 
         const rows: TokenUsageInsert[] = []

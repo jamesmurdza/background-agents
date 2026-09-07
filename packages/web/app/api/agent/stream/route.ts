@@ -21,6 +21,12 @@ export const maxDuration = 300
 const BACKEND_POLL_INTERVAL = 500
 const HEARTBEAT_INTERVAL = 15000
 const DB_PERSIST_INTERVAL = 5000
+// A snapshot read can fail transiently (sandbox/network blip, a brief race
+// reading the output file — notably possible right as the agent process
+// crashes). Retry silently for a few seconds before giving up, instead of
+// immediately broadcasting/persisting the empty fallback snapshot as if the
+// agent's output were actually gone.
+const MAX_CONSECUTIVE_SNAPSHOT_FAILURES = 10
 
 const jsonResponse = (status: number, body: object) =>
   new Response(JSON.stringify(body), {
@@ -137,12 +143,38 @@ export async function GET(req: Request) {
         // state — the snapshot is re-derived from the file each time, so a
         // new SSE connection (reconnect) automatically reconstructs full state.
         let lastSnap: AgentSnapshot | null = null
+        let consecutiveSnapshotFailures = 0
         while (!isStreamClosed) {
-          lastSnap = await snapshotBackgroundAgent(
+          const snap = await snapshotBackgroundAgent(
             sandbox,
             backgroundSessionId,
-            sessionOpts
+            sessionOpts,
+            lastSnap
           )
+
+          if (snap.transientReadFailure) {
+            consecutiveSnapshotFailures += 1
+            if (consecutiveSnapshotFailures < MAX_CONSECUTIVE_SNAPSHOT_FAILURES) {
+              // Don't broadcast or persist a fabricated state — the snapshot
+              // read just failed, the agent's own output hasn't changed.
+              // Retry on the next tick instead.
+              await new Promise((resolve) =>
+                setTimeout(resolve, BACKEND_POLL_INTERVAL)
+              )
+              continue
+            }
+            // Retries exhausted — surface a real error, but keep whatever
+            // content/toolCalls/contentBlocks we last knew about instead of
+            // the empty fallback snapshot.
+            lastSnap = {
+              ...snap,
+              status: "error",
+              error: snap.error || "Lost connection to the agent session",
+            }
+          } else {
+            consecutiveSnapshotFailures = 0
+            lastSnap = snap
+          }
 
           // Hash the full wire payload so any mutation that would change
           // what we'd send (including in-place tool_end output attachment,

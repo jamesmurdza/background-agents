@@ -666,17 +666,21 @@ export function agentSharedPoolExhausted(
 /**
  * Whether picking this agent gives free usage out of the box — either a
  * server-provided shared pool (see agentUsesSharedPool) or always-free models
- * that need no API key. Kilo qualifies via its free auto-router and free model
- * tier, which stay available even when the user adds their own Kilo key. Used to
- * surface the "Free usage available" green dot in the agent picker. Returns
- * false once a metered shared pool is exhausted (see agentSharedPoolExhausted).
+ * that need no API key (see getFreeModelForAgent). Kilo qualifies via its free
+ * auto-router and free model tier; OpenCode qualifies via its no-key models
+ * (opencode/big-pickle, etc.) — both stay available even when the user adds
+ * their own key for that agent, and even once a metered shared pool is
+ * exhausted, since they never draw on it. Used to surface the "Free usage
+ * available" green dot in the agent picker. For agents without an always-free
+ * model, this returns false once their shared pool is exhausted (see
+ * agentSharedPoolExhausted).
  */
 export function agentHasFreeUsage(
   agent: Agent,
   flags: CredentialFlags | null | undefined
 ): boolean {
+  if (getFreeModelForAgent(agent)) return true
   if (agentSharedPoolExhausted(agent, flags)) return false
-  if (agent === "kilo") return true
   return agentUsesSharedPool(agent, flags)
 }
 

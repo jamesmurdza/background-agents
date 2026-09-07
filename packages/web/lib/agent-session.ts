@@ -213,6 +213,14 @@ export interface AgentSnapshot {
    *  model-not-available) stay undefined. */
   errorKind?: "crash" | "incomplete"
   sessionId?: string
+  /** True only when this snapshot is a fallback produced after
+   *  snapshotBackgroundAgent FAILED to read/parse the session (a transient
+   *  sandbox/network hiccup), rather than a fresh read of the event log. It
+   *  is NOT evidence that the agent crashed or that its output is gone —
+   *  callers should retry a bounded number of times instead of immediately
+   *  broadcasting/persisting this as a real terminal state. See
+   *  snapshotBackgroundAgent's `previous` param. */
+  transientReadFailure?: boolean
 }
 
 /**
@@ -350,11 +358,24 @@ export async function cancelBackgroundAgent(
  * Read cumulative state by re-parsing the entire event log on disk in the
  * sandbox. Use on connect, on reconnect, and for any persistence write
  * where you need the full snapshot. Does not advance the session's cursor.
+ *
+ * @param previous The last snapshot this caller successfully observed for
+ * this session (if any). If the read below throws — a transient hiccup
+ * talking to the sandbox (network blip, a brief race reading the output
+ * file, notably possible right as a process crashes) rather than the agent
+ * log actually reporting a crash — we fall back to `previous` (tagged
+ * `transientReadFailure: true`) instead of fabricating an empty snapshot.
+ * Callers that broadcast/persist snapshots MUST check `transientReadFailure`
+ * and retry rather than treating the fallback as real content loss: without
+ * `previous`, a bare read failure used to return `content: ""` with
+ * `status: "error"`, which streamed as a wire update and got persisted as
+ * the final message body — wiping a transcript that was still on disk.
  */
 export async function snapshotBackgroundAgent(
   sandbox: DaytonaSandbox,
   backgroundSessionId: string,
-  options: AgentSessionOptions
+  options: AgentSessionOptions,
+  previous?: AgentSnapshot | null
 ): Promise<AgentSnapshot> {
   try {
     const bgSession = await getBackgroundSession(
@@ -378,12 +399,16 @@ export async function snapshotBackgroundAgent(
     return summarizeEvents(result.events, running, result.sessionId)
   } catch (err) {
     console.error("[snapshotBackgroundAgent] Error:", err)
+    if (previous) {
+      return { ...previous, transientReadFailure: true }
+    }
     return {
       status: "error",
       content: "",
       toolCalls: [],
       contentBlocks: [],
       error: formatAgentError(err),
+      transientReadFailure: true,
     }
   }
 }
