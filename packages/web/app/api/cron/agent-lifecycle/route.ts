@@ -149,8 +149,20 @@ export async function GET(req: Request) {
 
         // Hard timeout: 25 minutes
         if (totalMinutes > INTERACTIVE_HARD_TIMEOUT) {
-          await stopAgent(chat.sandboxId!, chat.backgroundSessionId!, daytona)
-          await markChatError(chat.id, "Run exceeded 25 minute limit")
+          // stopAgent reads the agent session id before it cancels, which is
+          // the only chance to learn it: a 25-minute run is the most expensive
+          // kind of failure to leave unbilled.
+          const agentSessionId = await stopAgent(
+            chat.sandboxId!,
+            chat.backgroundSessionId!,
+            daytona
+          )
+          await markChatError(
+            chat,
+            "Run exceeded 25 minute limit",
+            daytona,
+            agentSessionId
+          )
           results.timedOutInteractive++
           continue
         }
@@ -161,7 +173,7 @@ export async function GET(req: Request) {
             await finalizeInteractiveChat(chat, snapshot, daytona)
             results.completedInteractive++
           },
-          onError: async (error, errorKind) => {
+          onError: async (error, errorKind, snapshot) => {
             logLlmProviderError({
               userId: chat.userId,
               agent: chat.agent,
@@ -171,7 +183,7 @@ export async function GET(req: Request) {
               error,
               errorKind,
             })
-            await markChatError(chat.id, error)
+            await markChatError(chat, error, daytona, snapshot.sessionId)
           },
         })
       } catch (err) {
@@ -195,10 +207,21 @@ export async function GET(req: Request) {
 
         // Hard timeout: 20 minutes
         if (runningMinutes > SCHEDULED_HARD_TIMEOUT) {
+          let agentSessionId: string | undefined
           if (run.sandboxId && run.backgroundSessionId) {
-            await stopAgent(run.sandboxId, run.backgroundSessionId, daytona)
+            agentSessionId = await stopAgent(
+              run.sandboxId,
+              run.backgroundSessionId,
+              daytona
+            )
           }
-          await failScheduledRun(run, "Run timed out after 20 minutes", daytona)
+          await failScheduledRun(
+            run,
+            "Run timed out after 20 minutes",
+            daytona,
+            {},
+            agentSessionId
+          )
           results.timedOutScheduled++
           continue
         }
@@ -209,7 +232,7 @@ export async function GET(req: Request) {
               await finalizeScheduledRun(run, snapshot, daytona)
               results.completedScheduled++
             },
-            onError: async (error, errorKind) => {
+            onError: async (error, errorKind, snapshot) => {
               logLlmProviderError({
                 userId: run.job.userId,
                 agent: run.job.agent,
@@ -219,7 +242,7 @@ export async function GET(req: Request) {
                 error,
                 errorKind,
               })
-              await failScheduledRun(run, error, daytona)
+              await failScheduledRun(run, error, daytona, {}, snapshot.sessionId)
             },
           })
         }

@@ -6,6 +6,7 @@ import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
+import { meterDyingTurn } from "./meter-dying-turn"
 
 import { autoPushChat } from "@/lib/git/auto-push"
 import type { ChatWithMessages } from "./types"
@@ -13,6 +14,20 @@ import type { ChatWithMessages } from "./types"
 // =============================================================================
 // Interactive Chat Finalization
 // =============================================================================
+
+/**
+ * What markChatError needs to bill a turn before tearing it down. Narrower than
+ * ChatWithMessages on purpose, so callers holding any chat-shaped row can pass
+ * it without loading the messages relation.
+ */
+type DyingChat = {
+  id: string
+  userId: string
+  agent: string
+  sandboxId: string | null
+  /** The persisted agent-session resume pointer, used as a fallback id. */
+  sessionId: string | null
+}
 
 export async function finalizeInteractiveChat(
   chat: ChatWithMessages,
@@ -94,10 +109,35 @@ export async function finalizeInteractiveChat(
   })
 }
 
-export async function markChatError(chatId: string, reason: string) {
+export async function markChatError(
+  chat: DyingChat,
+  reason: string,
+  daytona?: Daytona,
+  /**
+   * The agent CLI's session id, from whichever snapshot saw the failure. The
+   * chat row cannot supply it: Chat.backgroundSessionId is the Daytona handle,
+   * a different namespace entirely. Without this the turn cannot be billed.
+   */
+  agentSessionId?: string
+) {
+  // Bill what the turn already spent BEFORE the update below clears
+  // backgroundSessionId. A failed turn is not a free turn: the model produced
+  // tokens right up to the moment it errored or was stopped, and once the
+  // session id is gone there is no cursor left to diff them against. See
+  // meter-dying-turn.
+  await meterDyingTurn({
+    userId: chat.userId,
+    chatId: chat.id,
+    agent: chat.agent,
+    sandboxId: chat.sandboxId,
+    agentSessionId,
+    fallbackSessionId: chat.sessionId,
+    daytona,
+  })
+
   // Update chat status
   await prisma.chat.update({
-    where: { id: chatId },
+    where: { id: chat.id },
     data: {
       status: "error",
       backgroundSessionId: null,
@@ -107,7 +147,7 @@ export async function markChatError(chatId: string, reason: string) {
   // Create error message
   await prisma.message.create({
     data: {
-      chatId,
+      chatId: chat.id,
       role: "assistant",
       content: `Agent stopped: ${reason}`,
       timestamp: BigInt(Date.now()),

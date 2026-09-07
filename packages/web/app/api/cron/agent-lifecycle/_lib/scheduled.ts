@@ -12,6 +12,7 @@ import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { meterDyingTurn } from "./meter-dying-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -595,8 +596,27 @@ export async function failScheduledRun(
    * about the job itself — a spent daily balance, which clears at UTC midnight
    * — so a couple of capped days can't silently disable it.
    */
-  { countFailure = true }: { countFailure?: boolean } = {}
+  { countFailure = true }: { countFailure?: boolean } = {},
+  /** Agent CLI session id from the snapshot that saw the failure — see
+   * _lib/meter-dying-turn for why backgroundSessionId will not do. */
+  agentSessionId?: string
 ) {
+  // Bill what the run already spent, before the chat update below clears
+  // backgroundSessionId and — worse — before the sandbox is deleted at the end
+  // of this function. Once that sandbox is gone there is no tokscale left to
+  // ask, so a failed run's tokens are unrecoverable rather than merely late.
+  // See _lib/meter-dying-turn.
+  if (run.chatId) {
+    await meterDyingTurn({
+      userId: run.job.userId,
+      chatId: run.chatId,
+      agent: run.job.agent,
+      sandboxId: run.sandboxId,
+      agentSessionId,
+      daytona,
+    })
+  }
+
   // Update run status
   await prisma.scheduledJobRun.update({
     where: { id: run.id },

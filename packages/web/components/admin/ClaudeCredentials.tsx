@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   AlertCircle,
   History,
+  Save,
 } from "lucide-react"
 import {
   useRefreshClaudeCredsMutation,
+  useSetClaudeCredsMutation,
   useCcAuthRunsQuery,
   type CcAuthRun,
 } from "@/lib/query/hooks"
@@ -51,8 +53,10 @@ function StatusBadge({ status }: { status: string }) {
 
 export function ClaudeCredentials() {
   const [cookies, setCookies] = useState("")
+  const [credentials, setCredentials] = useState("")
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const mutation = useRefreshClaudeCredsMutation()
+  const saveMutation = useSetClaudeCredsMutation()
   const runsQuery = useCcAuthRunsQuery()
 
   const run = (force: boolean) => {
@@ -79,9 +83,29 @@ export function ClaudeCredentials() {
     )
   }
 
-  const pending = mutation.isPending
-  const pendingForce = pending && mutation.variables?.force === true
-  const pendingNormal = pending && mutation.variables?.force !== true
+  const save = () => {
+    setOutcome(null)
+    saveMutation.mutate(credentials.trim(), {
+      onSuccess: (data) => {
+        setOutcome({
+          ok: true,
+          label: "Credentials saved.",
+          expiresAt: data.expiresAt,
+        })
+        // Don't leave the token sitting in the form once it's stored.
+        setCredentials("")
+      },
+      onError: (err) =>
+        setOutcome({
+          ok: false,
+          message: err instanceof Error ? err.message : String(err),
+        }),
+    })
+  }
+
+  const pending = mutation.isPending || saveMutation.isPending
+  const pendingForce = mutation.isPending && mutation.variables?.force === true
+  const pendingNormal = mutation.isPending && mutation.variables?.force !== true
 
   const runs = runsQuery.data?.runs ?? []
 
@@ -152,11 +176,48 @@ export function ClaudeCredentials() {
           </button>
         </div>
 
-        {pending && (
+        {mutation.isPending && (
           <p className="text-xs text-muted-foreground">
             Running ccauth in Daytona — the first run can take a few minutes…
           </p>
         )}
+
+        <div className="space-y-2 border-t pt-4">
+          <label
+            htmlFor="claude-credentials"
+            className="flex items-center gap-2 text-sm font-medium"
+          >
+            <Save className="h-4 w-4 text-muted-foreground" />
+            Set credentials directly
+          </label>
+          <p className="text-xs text-muted-foreground">
+            For when neither refresh can run: paste the contents of a working{" "}
+            <code>~/.claude/.credentials.json</code> and it&apos;s stored as-is.
+          </p>
+          <textarea
+            id="claude-credentials"
+            value={credentials}
+            onChange={(e) => setCredentials(e.target.value)}
+            placeholder='{"claudeAiOauth":{"accessToken":"sk-ant-oat01-...","refreshToken":"sk-ant-ort01-...","expiresAt":1788716247372,...}}'
+            spellCheck={false}
+            rows={5}
+            className="w-full resize-y rounded-lg border bg-background px-3 py-2 font-mono text-xs shadow-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={pending || !credentials.trim()}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+              "hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            <Save
+              className={cn("h-4 w-4", saveMutation.isPending && "animate-pulse")}
+            />
+            Save credentials
+          </button>
+        </div>
 
         {outcome && (
           <div

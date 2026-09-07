@@ -265,6 +265,24 @@ describe("free models survive a spent balance", () => {
     expect(hasCredentialsForModel(paid, spentWithSharedOpencode, "opencode")).toBe(false)
     expect(modelRequiresKey("opencode", paid.value)).toBe("opencode")
   })
+
+  // The picker dot (AgentModelSelector.getAgentStatus) paints red only when
+  // agentSharedPoolExhausted is true AND the agent has no always-free model to
+  // fall back to. OpenCode always has one, so its dot must stay green even
+  // though the metered shared pool itself is correctly reported as exhausted.
+  it("keeps agentSharedPoolExhausted true (the metered pool really is closed)", () => {
+    expect(agentSharedPoolExhausted("opencode", spentWithSharedOpencode)).toBe(true)
+  })
+
+  it("still reports free usage and readiness despite the exhausted metered pool", () => {
+    expect(agentHasFreeUsage("opencode", spentWithSharedOpencode)).toBe(true)
+    expect(agentIsReady("opencode", spentWithSharedOpencode)).toBe(true)
+  })
+
+  it("reports free usage even with no credentials at all, since the free tier needs none", () => {
+    expect(agentHasFreeUsage("opencode", {})).toBe(true)
+    expect(agentIsReady("opencode", {})).toBe(true)
+  })
 })
 
 /**

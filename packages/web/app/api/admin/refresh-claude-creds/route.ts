@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
-import { setCookies, listCcAuthRuns } from "@/lib/claude-credentials"
+import {
+  setCookies,
+  writeCredentials,
+  listCcAuthRuns,
+} from "@/lib/claude-credentials"
 import {
   refreshCredentials,
   refreshResultToResponse,
@@ -65,4 +69,60 @@ export async function POST(request: NextRequest) {
     cookiesUpdated,
   })
   return refreshResultToResponse(result)
+}
+
+/**
+ * PUT /api/admin/refresh-claude-creds
+ *
+ * Stores a credentials blob pasted by hand, for when neither refresh path can
+ * run (expired cookies, ccauth blocked) but a working token is available from
+ * somewhere else — previously this meant editing the row in the database.
+ * Body: { credentials: string } — the contents of ~/.claude/.credentials.json.
+ *
+ * The blob is stored as pasted, so every field it carries (expiresAt, scopes,
+ * subscriptionType, …) reaches the sandbox exactly as Claude Code wrote it.
+ */
+export async function PUT(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (isAuthError(auth)) return auth
+
+  const body = (await request.json().catch(() => ({}))) as {
+    credentials?: unknown
+  }
+  const raw = typeof body.credentials === "string" ? body.credentials.trim() : ""
+
+  let parsed: { claudeAiOauth?: Record<string, unknown> }
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return NextResponse.json(
+      { error: "INVALID_CREDENTIALS", message: "Credentials must be valid JSON." },
+      { status: 400 },
+    )
+  }
+
+  const oauth = parsed?.claudeAiOauth
+  if (
+    !oauth ||
+    typeof oauth.accessToken !== "string" ||
+    typeof oauth.refreshToken !== "string"
+  ) {
+    return NextResponse.json(
+      {
+        error: "INVALID_CREDENTIALS",
+        message:
+          "Expected {\"claudeAiOauth\":{\"accessToken\":\"…\",\"refreshToken\":\"…\"}}.",
+      },
+      { status: 400 },
+    )
+  }
+
+  // Re-stringify rather than storing `raw`: the value is echoed into a shell
+  // command when the sandbox writes .credentials.json, so it must be one line.
+  await writeCredentials(JSON.stringify(parsed))
+
+  return NextResponse.json({
+    saved: true,
+    expiresAt: typeof oauth.expiresAt === "number" ? oauth.expiresAt : undefined,
+  })
 }

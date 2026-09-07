@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
-import { getRangeDays, getRangeInterval, parseTimeRange } from "@/lib/db/time-range"
+import { getBucket, getBucketStep, getRangeDays, getRangeInterval, parseTimeRange } from "@/lib/db/time-range"
 
 // Primary metric the dashboard charts are weighted by. "messages" counts
 // ActivityLog rows; "tokens"/"cost" aggregate the TokenUsage ledger.
@@ -15,28 +15,6 @@ type Metric = (typeof VALID_METRICS)[number]
 // to "shared" so the dashboard answers "what do we pay" without being asked.
 const VALID_POOLS = ["shared", "user", "all"] as const
 type PoolFilter = (typeof VALID_POOLS)[number]
-
-// Bucket granularity used for time-series charts. Long ranges (i.e. "all")
-// are down-sampled so the charts stay readable instead of rendering thousands
-// of daily points.
-type Bucket = "day" | "week" | "month"
-
-function getBucket(days: number): Bucket {
-  if (days <= 90) return "day"
-  if (days <= 730) return "week"
-  return "month"
-}
-
-function getBucketStep(bucket: Bucket): string {
-  switch (bucket) {
-    case "week":
-      return "1 week"
-    case "month":
-      return "1 month"
-    default:
-      return "1 day"
-  }
-}
 
 /**
  * For the "all" range there is no fixed window, so derive the interval/days

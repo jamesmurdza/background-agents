@@ -5,7 +5,7 @@ import { ChevronDown, Cpu, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
-import { getAgentModels, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, agentSharedPoolExhausted, agentUsesSharedPool, resolveModelForAgent, sharedPoolProviderForModel, formatTokenRate, ALL_AGENTS } from "@/lib/types"
+import { getAgentModels, getFreeModelForAgent, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, agentSharedPoolExhausted, agentUsesSharedPool, resolveModelForAgent, sharedPoolProviderForModel, formatTokenRate, ALL_AGENTS } from "@/lib/types"
 import { creditTier, discountDivisorFor } from "@/lib/server/credits"
 import { fmtCreditAmount } from "@/lib/format"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
@@ -62,6 +62,11 @@ const ELIZA_ENV_OVERRIDE = process.env.NEXT_PUBLIC_ENABLE_ELIZA === "true"
  * the balance passed in, so a rounding difference in the float can never leave
  * the dot green on a send the server is about to refuse. `balanceUsd` decides
  * only the advisory yellow, which has no server counterpart.
+ *
+ * An exhausted shared pool never turns the dot red for an agent that also has
+ * an always-free, no-key model (OpenCode's opencode/big-pickle & co., like
+ * Kilo's free auto-router) — that route never touches the balance, so the
+ * agent stays fully usable and the dot stays green.
  */
 type AgentStatusTone = "ready" | "low" | "depleted"
 
@@ -70,7 +75,7 @@ function getAgentStatus(
   flags: CredentialFlags,
   balanceUsd: number | null | undefined
 ): { tone: AgentStatusTone; label: string } | null {
-  if (agentSharedPoolExhausted(agent, flags)) {
+  if (agentSharedPoolExhausted(agent, flags) && !getFreeModelForAgent(agent)) {
     return { tone: "depleted", label: "Out of credits" }
   }
   if (agentUsesSharedPool(agent, flags) && creditTier(balanceUsd) === "low") {
@@ -178,8 +183,10 @@ export function AgentModelSelector({
 
     // Block switching to any agent whose only route is a shared pool the user
     // has no balance left for. agentSharedPoolExhausted is per-agent, so an
-    // agent the user has their own key for stays selectable at zero balance.
-    if (agentSharedPoolExhausted(agent, credentialFlags)) {
+    // agent the user has their own key for stays selectable at zero balance —
+    // and so does an agent with an always-free, no-key model (OpenCode), whose
+    // free tier never touches the balance.
+    if (agentSharedPoolExhausted(agent, credentialFlags) && !getFreeModelForAgent(agent)) {
       showClaudeLimitDialog()
       return
     }

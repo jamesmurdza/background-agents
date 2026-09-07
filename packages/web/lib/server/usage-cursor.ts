@@ -131,3 +131,70 @@ export function cursorForModel(
     rawKey !== key ? prior.get(rawKey) : undefined
   )
 }
+
+// =============================================================================
+// The baseline: where a session's cursor starts
+// =============================================================================
+// A session whose first capture finds no prior rows has no cursor, so the delta
+// is tokscale's whole cumulative. For a chat that ran before metering existed,
+// that cumulative covers a backlog nobody was ever charged for, and billing it
+// as one turn would empty a day's budget in a single send. Such rows are
+// written backdated to the epoch: they still advance the cursor (the cursor sum
+// has no date filter) but sit outside every budget window, and they are not
+// debited.
+//
+// The danger is the opposite error. Backdating a chat that does NOT have a
+// backlog hands its first real turn away for nothing, and that is exactly what
+// happened: the test used to be "no rows for this session AND more than one
+// assistant message", which treats a missing usage row as evidence of age. It
+// is not evidence of anything. A brand-new chat has no rows the moment its
+// first turn fails to produce one — a crash, an error notice, a git-operation
+// message, or tokscale not having flushed yet — and the next turn then satisfied
+// both halves. 482 chats and $1,241.70 went unbilled that way.
+
+/**
+ * When token metering went live in production: the oldest real TokenUsage row
+ * (2026-06-15 17:54 UTC), rounded down to the day.
+ */
+export const METERING_START = new Date("2026-06-15T00:00:00.000Z")
+
+/**
+ * Whether a chat can possibly hold usage that was never recorded.
+ *
+ * Age is the only sound test. A chat created once metering was running has been
+ * metered since its first turn, so it has no backlog to forgive however broken
+ * its message history looks. An unknown creation date is treated as recent —
+ * charging a turn is recoverable, giving one away silently is not.
+ */
+export function chatPredatesMetering(
+  chatCreatedAt: Date | null | undefined,
+  meteringStart: Date = METERING_START
+): boolean {
+  if (!chatCreatedAt) return false
+  return chatCreatedAt.getTime() < meteringStart.getTime()
+}
+
+/**
+ * Prisma filter for assistant messages that could actually have spent tokens.
+ *
+ * Error notices (`markChatError`), git-operation messages and the empty shell
+ * left by a crashed turn are all `role: "assistant"` rows. Counting them is
+ * what let one failed turn pass for a pre-metering backlog, so they are all
+ * excluded here.
+ *
+ * The messageType clause is spelled as an explicit null-or-not-git OR rather
+ * than a bare `{ not: "git-operation" }`, because that compiles to SQL `<>`,
+ * and `NULL <> 'git-operation'` is NULL, not true. An ordinary chat message
+ * has no messageType at all, so the terse version excludes very nearly every
+ * real turn — it silently disabled the backlog check entirely, which the
+ * pre-metering control in scripts/repro-metering-bugs.ts caught.
+ */
+export function realAssistantTurnFilter(chatId: string) {
+  return {
+    chatId,
+    role: "assistant",
+    isError: false,
+    content: { not: "" },
+    OR: [{ messageType: null }, { messageType: { not: "git-operation" } }],
+  }
+}
