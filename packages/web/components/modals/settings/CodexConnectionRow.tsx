@@ -6,7 +6,11 @@ import { cn } from "@/lib/utils"
 import { SettingsRow } from "./shared"
 
 type Phase =
-  | { kind: "loading" }
+  // `context: "connect"` marks the wait that follows a Connect click, which is
+  // long enough (a sandbox has to boot and run the CLI) to need its own copy.
+  // The mount fetch and Disconnect also use this phase but resolve quickly, so
+  // they stay bare.
+  | { kind: "loading"; context?: "connect" }
   | { kind: "disconnected" }
   // `error` here is set only when a Disconnect click fails - the row must
   // keep showing Connected/Disconnect (not the generic error phase, which
@@ -48,6 +52,17 @@ const REASON_COPY: Record<string, string> = {
  * would be misleading. */
 const POLL_FALLBACK = "Something went wrong finishing the sign-in. Please try again."
 
+/**
+ * Copy for the wait after a Connect click. A sandbox has to boot and run the
+ * Codex CLI before there is a code to show, which is far longer than a bare
+ * spinner can carry without reading as broken.
+ */
+const CONNECT_WAIT_COPY = "Setting up a secure sign-in. This takes a little while."
+/** Shown once the wait has run long enough that the line above looks stuck. */
+const CONNECT_WAIT_LONG_COPY = "Still setting things up. Hang tight."
+/** How long to wait before swapping in the reassurance copy. */
+const SLOW_CONNECT_NOTICE_MS = 12000
+
 function reasonMessage(reason: unknown, fallback = REASON_COPY.unknown): string {
   if (typeof reason === "string" && REASON_COPY[reason]) return REASON_COPY[reason]
   return fallback
@@ -79,11 +94,22 @@ export function CodexConnectionRow({
   // flight). A single ref covers the mount fetch, connect, and disconnect -
   // all three await a fetch before touching state.
   const mountedRef = useRef(true)
+  // Flips on once a Connect wait has run long enough that a static line starts
+  // to look frozen, so the copy can acknowledge it is still working.
+  const [connectRunningLong, setConnectRunningLong] = useState(false)
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function clearPoll() {
     if (pollRef.current) {
       clearInterval(pollRef.current)
       pollRef.current = null
+    }
+  }
+
+  function clearSlowTimer() {
+    if (slowTimerRef.current) {
+      clearTimeout(slowTimerRef.current)
+      slowTimerRef.current = null
     }
   }
 
@@ -107,12 +133,18 @@ export function CodexConnectionRow({
       mountedRef.current = false
       // Unmount is a terminal state for whatever's in flight - always clear.
       clearPoll()
+      clearSlowTimer()
     }
   }, [])
 
   async function connect() {
     clearPoll()
-    setPhase({ kind: "loading" })
+    clearSlowTimer()
+    setConnectRunningLong(false)
+    setPhase({ kind: "loading", context: "connect" })
+    slowTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) setConnectRunningLong(true)
+    }, SLOW_CONNECT_NOTICE_MS)
     try {
       const res = await fetch("/api/user/codex-auth", { method: "POST" })
       const data = await res.json()
@@ -122,6 +154,9 @@ export function CodexConnectionRow({
       // cleanup already ran and cleared nothing because pollRef was still
       // null at that point.
       if (!mountedRef.current) return
+      // The wait is over on every branch below, so retire the notice timer
+      // here rather than repeating it in each one.
+      clearSlowTimer()
       if (!res.ok) {
         if (data.error === "CODEX_SUBSCRIPTION_DISABLED") {
           setPhase({ kind: "error", message: DISABLED_COPY })
@@ -159,6 +194,7 @@ export function CodexConnectionRow({
         }
       }, 2000)
     } catch {
+      clearSlowTimer()
       if (mountedRef.current) setPhase({ kind: "error", message: REASON_COPY.unknown })
     }
   }
@@ -168,6 +204,7 @@ export function CodexConnectionRow({
     // state the user was looking at, not a fresh "connected, all good" one.
     const prevNeedsReconnect = phase.kind === "connected" && phase.needsReconnect
     clearPoll()
+    clearSlowTimer()
     setPhase({ kind: "loading" })
     try {
       const res = await fetch("/api/user/codex-auth", { method: "DELETE" })
@@ -198,6 +235,7 @@ export function CodexConnectionRow({
   }
 
   const isBusy = phase.kind === "loading"
+  const isConnecting = phase.kind === "loading" && phase.context === "connect"
   const isAwaiting = phase.kind === "awaiting"
   const needsReconnect = phase.kind === "connected" && phase.needsReconnect
   const disconnectError = phase.kind === "connected" ? phase.error : undefined
@@ -219,6 +257,11 @@ export function CodexConnectionRow({
           )}
           {phase.kind === "disconnected" && (
             <span className="text-muted-foreground">Not connected</span>
+          )}
+          {isConnecting && (
+            <span className="text-muted-foreground">
+              {connectRunningLong ? CONNECT_WAIT_LONG_COPY : CONNECT_WAIT_COPY}
+            </span>
           )}
         </div>
 
