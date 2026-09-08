@@ -53,6 +53,7 @@ function happyPath() {
   })
   messageFindFirst.mockResolvedValue({
     id: "msg_user",
+    role: "user",
     content: "fix the build",
     agent: "claude-code",
     model: "sonnet",
@@ -262,10 +263,42 @@ describe("dispatchQueuedTurn", () => {
     })
   })
 
+  it("refuses to re-dispatch a user message that already has an answer", async () => {
+    updateMany.mockResolvedValue({ count: 1 })
+    // The newest user/assistant row is an assistant reply, so the last user
+    // message was already answered: this is a recreated sandbox whose
+    // `setting_up` write landed but whose queued message never did.
+    messageFindFirst.mockResolvedValue({
+      id: "msg_assistant",
+      role: "assistant",
+      content: "already answered",
+      agent: "claude-code",
+      model: "sonnet",
+      uploadedFiles: null,
+    })
+
+    const dispatched = await dispatchQueuedTurn({
+      chatId: "chat_1",
+      userId: "user_1",
+      setupRun: { ...RECORD, state: "exited", exitCode: 0 },
+      logTail: "",
+    })
+
+    expect(runQueuedTurnForChat).not.toHaveBeenCalled()
+    // Owned the exit, and unsticks the chat rather than leaving it 409-busy.
+    // Ready rather than error: nothing is broken, there is just nothing to run.
+    expect(dispatched).toBe(true)
+    expect(chatUpdate).toHaveBeenCalledWith({
+      where: { id: "chat_1" },
+      data: { status: "ready" },
+    })
+  })
+
   it("passes the persisted message straight through as the agent prompt", async () => {
     updateMany.mockResolvedValue({ count: 1 })
     messageFindFirst.mockResolvedValue({
       id: "msg_user",
+      role: "user",
       content: "fix it\n\n---\nUploaded files:\n- /a.png",
       agent: "claude-code",
       model: "sonnet",

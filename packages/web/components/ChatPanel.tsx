@@ -29,6 +29,10 @@ interface ChatPanelProps {
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
   /** Refresh the chat history after the SSE stream died (status === "disconnected"). */
   onReload?: (chatId: string) => Promise<void> | void
+  /** Called when the setup script finishes. Separate from onReload because the
+   *  held turn has just been dispatched: the chat's status and session have to
+   *  come from the server, not be forced to `ready`. */
+  onSetupFinished?: (chatId: string) => Promise<void> | void
   onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
   onResumeQueue?: () => void
@@ -57,7 +61,7 @@ interface ChatPanelProps {
   isAuthenticated?: boolean
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onSetupFinished, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
   const composer = useChatComposer({
     chat,
     settings,
@@ -330,7 +334,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
               <SetupBlock
                 chatId={chat.id}
                 active={chat.status === "setting_up"}
-                onFinished={() => onReload?.(chat.id)}
+                onFinished={() => (onSetupFinished ?? onReload)?.(chat.id)}
               />
             )}
             {showScriptNotice && notice && (

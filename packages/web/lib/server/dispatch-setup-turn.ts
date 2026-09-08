@@ -38,6 +38,22 @@ import { runQueuedTurnForChat } from "./run-queued-turn"
 export const DISPATCH_CLAIM_TTL_MS = 5 * 60 * 1000
 
 /**
+ * Thrown when the chat's last user message already has a reply, so there is no
+ * queued turn to run.
+ *
+ * Reachable on a recreated sandbox: recreation goes back through the setup
+ * path, so an invocation killed between the `setting_up` write and
+ * `persistQueuedUserMessage` leaves a chat whose newest message is the previous
+ * turn's answer. Dispatching that would silently re-run an answered message.
+ */
+export class AlreadyAnsweredError extends Error {
+  constructor() {
+    super("Latest user message already has an answer")
+    this.name = "AlreadyAnsweredError"
+  }
+}
+
+/**
  * The claim guard. Exported so it can be exercised against a real database:
  * whether an absent `claimedAt` key matches `Prisma.DbNull` on a JSON path is
  * database behavior, not something a mocked client can tell you.
@@ -85,6 +101,16 @@ export async function dispatchQueuedTurn(args: {
   try {
     await startQueuedTurn(chatId, userId, note)
   } catch (err) {
+    // Nothing failed: there was simply no unanswered turn to dispatch. Move
+    // the chat to `ready` so it stops being 409-busy and stops being
+    // re-claimed every tick.
+    if (err instanceof AlreadyAnsweredError) {
+      console.warn(`[dispatch-setup-turn] chat ${chatId}: no queued turn to dispatch`)
+      await prisma.chat
+        .update({ where: { id: chatId }, data: { status: "ready" } })
+        .catch(() => {})
+      return true
+    }
     // Move the chat off `setting_up` so it stops being 409-busy and stops
     // being re-claimed every tick: this failure is not transient enough to
     // retry blindly. Never log `logTail`: it is unredacted script output.
@@ -116,11 +142,18 @@ async function startQueuedTurn(
   if (!chat) throw new Error("Chat not found")
   if (!chat.sandboxId) throw new Error("Chat has no sandbox")
 
-  const userMessage = await prisma.message.findFirst({
-    where: { chatId, role: "user" },
+  // The newest user-or-assistant row, not the newest *user* row: a queued turn
+  // is always the last thing written (no assistant placeholder is persisted for
+  // it), so an assistant row on top means the last user message was already
+  // answered and there is nothing to dispatch. Roles other than these two are
+  // ignored so a non-conversational row could never mask the answer.
+  const latest = await prisma.message.findFirst({
+    where: { chatId, role: { in: ["user", "assistant"] } },
     orderBy: { timestamp: "desc" },
   })
-  if (!userMessage) throw new Error("No queued user message to dispatch")
+  if (!latest) throw new Error("No queued user message to dispatch")
+  if (latest.role !== "user") throw new AlreadyAnsweredError()
+  const userMessage = latest
 
   const payload: MessagePayload = {
     // Already the fully built prompt: the pull-conflict note and the uploaded

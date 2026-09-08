@@ -7,6 +7,7 @@ import {
   notFound,
   requireAuth,
 } from "@/lib/db/api-helpers"
+import { ensureSandboxStarted } from "@/lib/sandbox"
 import { isSetupRunRecord, tailLines, type SetupRunRecord } from "@/lib/setup-script"
 import { dispatchQueuedTurn, finishSetupRecord } from "@/lib/server/dispatch-setup-turn"
 
@@ -22,12 +23,15 @@ const POLL_INTERVAL_MS = 1500
 /**
  * Streams a chat's setup-script output, then dispatches the queued agent turn.
  *
- * Reads the job log incrementally by byte cursor, so a client that connects
- * late, refreshes, or opens a second device picks up the whole log and then
- * follows along. The job's state lives in the sandbox filesystem, never in
- * this process. That also covers the function's own 5-minute ceiling, which is
- * shorter than SETUP_TIMEOUT_SECONDS: a script that outlives the stream is
- * resumed by a reconnect, and its exit is caught by the cron either way.
+ * Each connection reads the job log from byte 0 and then follows it by byte
+ * cursor within that connection, so a client that connects late, refreshes, or
+ * opens a second device gets the whole log and then follows along. There is no
+ * cross-connection resume: a reconnect replays from the start, and the client
+ * replaces its buffer rather than appending (see appendSetupLog). The job's
+ * state lives in the sandbox filesystem, never in this process, which is what
+ * covers the function's own 5-minute ceiling, shorter than
+ * SETUP_TIMEOUT_SECONDS: a script that outlives the stream is picked up again
+ * by a reconnect, and its exit is caught by the cron either way.
  */
 export async function GET(
   _req: Request,
@@ -62,9 +66,16 @@ export async function GET(
     if (!daytonaApiKey) return internalError(new Error("DAYTONA_API_KEY not configured"))
 
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    const jobs = handle
-      ? createSandboxJobs(await daytona.get(chat.sandboxId))
-      : null
+    let jobs: ReturnType<typeof createSandboxJobs> | null = null
+    if (handle) {
+      const sandbox = await daytona.get(chat.sandboxId)
+      // A tab reopened after autoStopInterval finds the sandbox stopped, and a
+      // stopped sandbox cannot be polled: without this the client would get
+      // three fast errors and land on "Connection lost" for a job that is
+      // simply parked. The cron's phase 5 does the same before it polls.
+      await ensureSandboxStarted(sandbox)
+      jobs = createSandboxJobs(sandbox)
+    }
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({

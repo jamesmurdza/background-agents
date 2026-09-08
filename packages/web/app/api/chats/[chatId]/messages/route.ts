@@ -13,7 +13,7 @@ import {
 import { getUserEndpoints } from "@/lib/server/custom-endpoints"
 import { runQueuedTurnForChat } from "@/lib/server/run-queued-turn"
 import { deleteSandboxQuietly, uploadFilesToSandbox } from "@/lib/sandbox"
-import type { SuccessResponse } from "./_lib/types"
+import type { SetupHeldResponse, SuccessResponse } from "./_lib/types"
 import { parseMessageRequest } from "./_lib/parse-request"
 import { resolveSendCredentials } from "./_lib/resolve-credentials"
 import { ensureSandboxForChat, type SandboxState } from "./_lib/ensure-sandbox"
@@ -179,11 +179,14 @@ export async function POST(
         agentPrompt,
         uploadedFilePaths,
       })
-      return Response.json({
+      const held: SetupHeldResponse = {
         status: "setting_up",
-        chatId,
-        setupRun: ensured.setupRun,
-      })
+        sandboxId,
+        branch,
+        previewUrlPattern,
+        uploadedFiles: uploadedFilePaths,
+      }
+      return Response.json(held)
     }
 
     // ── Stages 4–6: start the agent turn ───────────────────────────────────
@@ -204,6 +207,7 @@ export async function POST(
     })
 
     const response: SuccessResponse = {
+      status: "started",
       sandboxId,
       branch,
       previewUrlPattern,

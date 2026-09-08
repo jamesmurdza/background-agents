@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useRef, useState } from "react"
+import { appendSetupLog } from "@/lib/setup-log"
 import { SetupLogPanel, type SetupLogState } from "./SetupLogPanel"
 
 interface SetupBlockProps {
@@ -38,7 +39,9 @@ const RECONNECT_BASE_DELAY_MS = 1000
  * block immediately instead of leaving it waiting for log lines that will
  * never come. A broken *connection* (as opposed to a `done` event reporting a
  * real script failure) is retried with a bounded backoff rather than reported
- * as a failure; see the State comment above.
+ * as a failure; see the State comment above. A reconnect re-reads the log from
+ * the start, so its first chunk replaces the panel contents rather than being
+ * appended to them.
  */
 export function SetupBlock({ chatId, active, onFinished }: SetupBlockProps) {
   const [output, setOutput] = useState("")
@@ -66,10 +69,17 @@ export function SetupBlock({ chatId, active, onFinished }: SetupBlockProps) {
     setExpanded(false)
 
     const connect = () => {
+      // The route reads the job log from byte 0 on every connection, so the
+      // first chunk after a reconnect is a replay of everything already shown.
+      // Replace on that chunk instead of appending; see appendSetupLog.
+      let firstChunk = true
       source = new EventSource(`/api/chats/${chatId}/setup`)
 
       source.addEventListener("output", (event) => {
-        setOutput((prev) => prev + (JSON.parse((event as MessageEvent).data).raw as string))
+        const raw = JSON.parse((event as MessageEvent).data).raw as string
+        const replaces = firstChunk
+        firstChunk = false
+        setOutput((prev) => appendSetupLog(prev, raw, replaces))
       })
       source.addEventListener("done", (event) => {
         const { exitCode, state: jobState } = JSON.parse((event as MessageEvent).data) as {

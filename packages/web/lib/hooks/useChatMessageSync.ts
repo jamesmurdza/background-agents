@@ -28,6 +28,7 @@ export interface ChatMessageSync {
   reloadMessages: (chatId: string) => Promise<void>
   refetchMessages: (chatId: string) => Promise<void>
   reloadChat: (chatId: string) => Promise<void>
+  reloadChatAfterSetup: (chatId: string) => Promise<void>
   addMessageToChat: (chatId: string, message: Message) => void
 }
 
@@ -166,5 +167,42 @@ export function useChatMessageSync({
     }
   }, [updateChatsCache])
 
-  return { reloadMessages, refetchMessages, reloadChat, addMessageToChat }
+  // Reload a chat whose setup script has just finished.
+  //
+  // Deliberately not `reloadChat`: that one forces `ready`, which is right for
+  // a dropped stream but wrong here. By the time the setup stream emits `done`
+  // the server has already dispatched the held turn, so the row is `running`
+  // with a backgroundSessionId and a freshly persisted assistant message (the
+  // client's optimistic placeholder was never sent to the server). Adopting
+  // the server's own status/session/sandbox is what lets the resume-streaming
+  // effect in useChatWithSync pick the turn up immediately instead of the chat
+  // sitting silent until the next chat-list poll.
+  const reloadChatAfterSetup = useCallback(async (chatId: string) => {
+    try {
+      const chatData = await fetchChat(chatId)
+      const incomingMessages = chatData.messages.map(toMessageType)
+      updateChatsCache((old) =>
+        old.map((c) => {
+          if (c.id !== chatId) return c
+          return {
+            ...c,
+            messages: incomingMessages.length > 0
+              ? mergeMessages(c.messages, incomingMessages)
+              : c.messages,
+            status: chatData.status as Chat["status"],
+            backgroundSessionId: chatData.backgroundSessionId || undefined,
+            sandboxId: chatData.sandboxId ?? c.sandboxId,
+            branch: chatData.branch ?? c.branch,
+            previewUrlPattern: chatData.previewUrlPattern || c.previewUrlPattern,
+            scriptUpdateNotice: chatData.scriptUpdateNotice ?? c.scriptUpdateNotice,
+            errorMessage: undefined,
+          }
+        })
+      )
+    } catch (err) {
+      console.error("Failed to reload chat after setup:", err)
+    }
+  }, [updateChatsCache])
+
+  return { reloadMessages, refetchMessages, reloadChat, reloadChatAfterSetup, addMessageToChat }
 }

@@ -160,6 +160,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     updateChatById,
     refetchMessages,
     reloadChat,
+    reloadChatAfterSetup,
     drafts,
     updateDraft,
     clearDraft,
@@ -729,6 +730,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   }}
                   onSendMessage={handleSendMessage}
                   onReload={reloadChat}
+                  onSetupFinished={reloadChatAfterSetup}
                   onEnqueueMessage={enqueueMessage}
                   onRemoveQueuedMessage={removeQueuedMessage}
                   onResumeQueue={resumeQueue}
