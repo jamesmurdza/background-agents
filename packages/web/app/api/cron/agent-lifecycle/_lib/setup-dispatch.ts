@@ -28,9 +28,12 @@ export async function dispatchFinishedSetups(
   results: SetupDispatchResults
 ): Promise<void> {
   // The /setup SSE endpoint normally does this; this covers a client that
-  // disconnected. Polling here is also what keeps a watched-then-abandoned
-  // sandbox from hitting autoStopInterval mid-script, since every status
-  // check is sandbox activity.
+  // disconnected. Polling here is also intended to keep a watched-then-
+  // abandoned sandbox from hitting autoStopInterval mid-script, on the
+  // assumption that every status check counts as sandbox activity, but that
+  // assumption has not been confirmed against a real Daytona sandbox. See
+  // the "Staging verification checklist" item 1 in
+  // docs/superpowers/specs/2026-09-05-cloud-environments-design.md.
   //
   // It is also the recovery path for a dispatch that was claimed and then
   // killed: the claim leaves the chat in `setting_up` and only stamps

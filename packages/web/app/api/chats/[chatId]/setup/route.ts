@@ -12,8 +12,11 @@ import { dispatchQueuedTurn, finishSetupRecord } from "@/lib/server/dispatch-set
 
 export const maxDuration = 300
 
-/** Gap between polls. Each poll is also sandbox activity, which is what keeps
- *  autoStopInterval from stopping a sandbox mid-script while a client watches. */
+/** Gap between polls. Each poll is intended to also count as sandbox activity,
+ *  which would keep autoStopInterval from stopping a sandbox mid-script while a
+ *  client watches, but this has not been confirmed against a real Daytona
+ *  sandbox. See the "Staging verification checklist" item 1 in
+ *  docs/superpowers/specs/2026-09-05-cloud-environments-design.md. */
 const POLL_INTERVAL_MS = 1500
 
 /**
