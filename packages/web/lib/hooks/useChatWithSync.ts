@@ -166,6 +166,7 @@ export function useChatWithSync() {
         model: config.model,
         status: options?.status ?? "pending",
         planModeEnabled: config.planMode,
+        environmentId: config.environmentId ?? undefined,
       })
 
       // Migrate local state from draft ID to real ID, clear the draft config,

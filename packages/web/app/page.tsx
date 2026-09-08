@@ -10,6 +10,7 @@ import { PreviewView } from "@/components/PreviewView"
 import { AppModals } from "@/components/AppModals"
 import { useGitDialogs } from "@/components/modals/git-dialogs"
 import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
+import { EnvironmentsView } from "@/components/environments/EnvironmentsView"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
 import { basename } from "@/lib/format"
@@ -100,11 +101,35 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
 
-  // For jobs, we derive the ID from sidebar state since we use pushState for navigation
-  // The sidebar.selectedScheduledJob is updated by handleNavigateToJob
-  // Use ?? null to ensure urlJobId is always string | null (never undefined)
-  // This keeps ScheduledJobsView in URL-controlled mode so row clicks work
+  // isEnvironmentsRoute is derived from pathname purely for the page title
+  // (matching isJobsRoute's role above): it must NOT drive view switching.
+  // An earlier version of this code used an effect keyed on isEnvironmentsRoute
+  // to set sidebar.viewMode, and that got permanently stuck showing the
+  // environments view after leaving it via the sidebar. The cause was not
+  // pathname going stale (Next's router does patch pushState and update it);
+  // it was that SidebarContext's value object was rebuilt unmemoized on every
+  // render, so the effect's `[isEnvironmentsRoute, sidebar]` dependency array
+  // changed identity constantly and the effect re-ran on renders that had
+  // nothing to do with the route. handleOpenScheduledJobs's pushState triggers
+  // exactly such a render (its own setViewMode call) before the pathname
+  // update from that pushState lands, and the effect re-firing in that window
+  // stomped setViewMode("chat"/"scheduled-jobs") back to "environments" with
+  // no corresponding reset in the other direction. The fix was twofold: fold
+  // environments into the same ROUTES/matchRoute table useUrlSync already uses
+  // for jobs (view switching now goes through sidebar.viewMode, kept correct
+  // by useChatNavigation's handlers and useUrlSync's popstate sync, the same
+  // mechanism jobs already uses) and memoize SidebarContext's value so no
+  // other effect keyed on the whole context object can suffer the same bug.
+  const isEnvironmentsRoute = pathname?.startsWith("/environments") ?? false
+
+  // For jobs and environments, the ID is derived from sidebar state (kept in
+  // sync by the navigate handlers and useUrlSync), the same way
+  // isEnvironmentsRoute above is derived from pathname for display only.
+  // Use ?? null so these are always string | null (never undefined); this
+  // keeps ScheduledJobsView/EnvironmentsView in URL-controlled mode so row
+  // clicks work.
   const urlJobId = sidebar.selectedScheduledJob?.id ?? null
+  const urlEnvironmentId = sidebar.selectedEnvironmentId
 
   const {
     chats,
@@ -308,6 +333,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       startNewChat(NEW_REPOSITORY, "main", undefined, true, "pending", agent),
     setViewMode: sidebar.setViewMode,
     setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
+    setSelectedEnvironmentId: sidebar.setSelectedEnvironmentId,
   })
 
   // =============================================================================
@@ -350,6 +376,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleRepoFilterChange,
     handleOpenScheduledJobs,
     handleNavigateToJob,
+    handleOpenEnvironments,
+    handleNavigateToEnvironment,
     handleNavigateChat,
     handleRequestMergeChats,
     handleRequestRebaseChat,
@@ -380,6 +408,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Dynamic page title based on current view
   const pageTitle = useMemo(() => {
+    if (isEnvironmentsRoute) {
+      return "Environments"
+    }
     if (isJobsRoute) {
       return sidebar.selectedScheduledJob?.name ?? "Scheduled Agents"
     }
@@ -390,7 +421,14 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       return "New Chat"
     }
     return null
-  }, [isJobsRoute, isNewChatRoute, isDraftMode, displayCurrentChat?.displayName, sidebar.selectedScheduledJob?.name])
+  }, [
+    isEnvironmentsRoute,
+    isJobsRoute,
+    isNewChatRoute,
+    isDraftMode,
+    displayCurrentChat?.displayName,
+    sidebar.selectedScheduledJob?.name,
+  ])
 
   usePageTitle(pageTitle)
 
@@ -641,6 +679,15 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         }
         scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
         selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
+        onOpenEnvironments={
+          isMobile
+            ? () => {
+                handleOpenEnvironments()
+                sidebar.setMobileSidebarOpen(false)
+              }
+            : handleOpenEnvironments
+        }
+        environmentsActive={sidebar.viewMode === "environments"}
         isLoadingChats={!isHydrated || (isLoading && displayChats.length === 0)}
       />
 
@@ -660,7 +707,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              {sidebar.viewMode === "scheduled-jobs" ? (
+              {sidebar.viewMode === "environments" ? (
+                <EnvironmentsView
+                  urlEnvironmentId={urlEnvironmentId}
+                  onNavigate={handleNavigateToEnvironment}
+                />
+              ) : sidebar.viewMode === "scheduled-jobs" ? (
                 <ScheduledJobsView
                   onOpenForm={() => modals.setScheduledJobFormOpen(true)}
                   refreshKey={scheduledJobsRefreshKey}

@@ -25,6 +25,7 @@ export interface ChatResponse {
   agent: string
   model: string | null
   planModeEnabled: boolean
+  environmentId?: string | null
   displayName: string | null
   shareId?: string | null
   status: string
@@ -150,6 +151,7 @@ export async function createChat(data: {
   model?: string
   status?: string
   planModeEnabled?: boolean
+  environmentId?: string
 }): Promise<ChatResponse> {
   return fetchApi<ChatResponse>("/api/chats", {
     method: "POST",
@@ -175,6 +177,7 @@ export async function updateChat(
     branch: string | null
     needsSync: boolean
     lastActiveAt: number
+    environmentId: string
     // sandboxId / sessionId / previewUrlPattern / backgroundSessionId are
     // server-managed and rejected by PATCH /api/chats/[chatId] — never send them.
   }>
@@ -250,6 +253,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     agent: serverChat.agent,
     model: serverChat.model || undefined,
     planModeEnabled: serverChat.planModeEnabled,
+    environmentId: serverChat.environmentId ?? null,
     displayName: serverChat.displayName,
     shareId: serverChat.shareId ?? null,
     status: serverChat.status as Chat["status"],

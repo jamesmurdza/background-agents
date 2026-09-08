@@ -58,6 +58,20 @@ export const ROUTES = {
       return m ? { jobId: m[1], runId: m[2] } : null
     },
   },
+  environments: {
+    path: "/environments",
+    build: () => "/environments" as const,
+    match: (path: string): RouteMatch<Record<string, never>> =>
+      path === "/environments" ? {} : null,
+  },
+  environment: {
+    path: "/environments/:environmentId",
+    build: (environmentId: string) => `/environments/${environmentId}` as const,
+    match: (path: string): RouteMatch<{ environmentId: string }> => {
+      const m = path.match(/^\/environments\/([^/]+)$/)
+      return m ? { environmentId: m[1] } : null
+    },
+  },
 } as const
 
 /**
@@ -71,6 +85,8 @@ export function matchRoute(path: string):
   | { route: "jobRun"; jobId: string; runId: string }
   | { route: "job"; jobId: string }
   | { route: "jobs" }
+  | { route: "environment"; environmentId: string }
+  | { route: "environments" }
   | { route: "home" }
   | null {
   // Check in order of specificity (more specific patterns first)
@@ -103,6 +119,17 @@ export function matchRoute(path: string):
 
   if (ROUTES.jobs.match(path)) {
     return { route: "jobs" }
+  }
+
+  // environment must be before environments (since /environments/:id would
+  // match /environments first).
+  const environmentMatch = ROUTES.environment.match(path)
+  if (environmentMatch) {
+    return { route: "environment", environmentId: environmentMatch.environmentId }
+  }
+
+  if (ROUTES.environments.match(path)) {
+    return { route: "environments" }
   }
 
   if (ROUTES.home.match(path)) {

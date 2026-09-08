@@ -24,6 +24,18 @@ describe("matchRoute", () => {
     expect(matchRoute("/chat/abc123")).toEqual({ route: "chat", chatId: "abc123" })
     expect(matchRoute("/jobs")).toEqual({ route: "jobs" })
   })
+
+  it("matches the environments list and a specific environment", () => {
+    expect(matchRoute("/environments")).toEqual({ route: "environments" })
+    expect(matchRoute("/environments/env-123")).toEqual({
+      route: "environment",
+      environmentId: "env-123",
+    })
+  })
+
+  it("does not treat nested environment paths as a single environment route", () => {
+    expect(matchRoute("/environments/env-123/extra")).toBeNull()
+  })
 })
 
 describe("ROUTES.agent", () => {

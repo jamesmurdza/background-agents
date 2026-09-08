@@ -45,3 +45,16 @@ export { useCcAuthRunsQuery } from "./useCcAuthRunsQuery"
 export type { CcAuthRun } from "./useCcAuthRunsQuery"
 export { useSetClaudeCredsMutation } from "./useSetClaudeCredsMutation"
 export type { SetClaudeCredsResult } from "./useSetClaudeCredsMutation"
+
+// Environments
+export {
+  useEnvironmentsQuery,
+  useCreateEnvironmentMutation,
+  useUpdateEnvironmentMutation,
+  useDeleteEnvironmentMutation,
+  fetchEnvironmentUsage,
+} from "./useEnvironmentsQuery"
+export type {
+  CreateEnvironmentInput,
+  UpdateEnvironmentInput,
+} from "./useEnvironmentsQuery"

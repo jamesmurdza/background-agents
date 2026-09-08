@@ -16,6 +16,8 @@ import {
   type Agent,
 } from "@background-agents/common"
 import { getEffectiveCredentialFlags } from "@/lib/server/credential-flags"
+import { getOrCreateDefaultEnvironment } from "@/lib/environments"
+import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================
 // Types
@@ -33,6 +35,7 @@ interface ChatResponse {
   agent: string
   model: string | null
   planModeEnabled: boolean
+  environmentId: string | null
   displayName: string | null
   shareId: string | null
   status: string
@@ -94,6 +97,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
+      environmentId: chat.environmentId,
       displayName: chat.displayName,
       shareId: chat.shareId,
       status: chat.status,
@@ -126,6 +130,7 @@ interface CreateChatBody {
   model?: string
   status?: string
   planModeEnabled?: boolean
+  environmentId?: string
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -148,6 +153,23 @@ export async function POST(req: NextRequest): Promise<Response> {
       })
       if (!parentChat || parentChat.userId !== userId) {
         return badRequest("Invalid parentChatId")
+      }
+    }
+
+    // Pin the chat to an environment. An explicit id must belong to this user
+    // and to the same repo: otherwise a chat could be built from another
+    // repo's variables. Anything else falls back to the repo's default.
+    let environmentId: string | null = null
+    if (body.repo !== NEW_REPOSITORY) {
+      if (body.environmentId) {
+        const requested = await prisma.environment.findFirst({
+          where: { id: body.environmentId, userId, repo: body.repo },
+          select: { id: true },
+        })
+        if (!requested) return badRequest("Invalid environmentId")
+        environmentId = requested.id
+      } else {
+        environmentId = (await getOrCreateDefaultEnvironment(userId, body.repo)).id
       }
     }
 
@@ -183,6 +205,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         model: finalModel,
         status: body.status ?? "pending",
         planModeEnabled: body.planModeEnabled ?? false,
+        environmentId,
       },
     })
 
@@ -198,6 +221,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
+      environmentId: chat.environmentId,
       displayName: chat.displayName,
       shareId: chat.shareId,
       status: chat.status,

@@ -28,6 +28,7 @@ function applyChatUpdate(chat: Chat, data: UpdateChatData): Chat {
   if (data.repo !== undefined) updated.repo = data.repo
   if (data.baseBranch !== undefined) updated.baseBranch = data.baseBranch
   if (data.branch !== undefined) updated.branch = data.branch
+  if (data.environmentId !== undefined) updated.environmentId = data.environmentId
   // sandboxId / sessionId / previewUrlPattern / backgroundSessionId are
   // server-managed (see updateChat type) and never part of `data` here.
   if (data.needsSync !== undefined) updated.needsSync = data.needsSync

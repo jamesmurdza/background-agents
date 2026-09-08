@@ -146,6 +146,10 @@ export interface Chat {
   repo: string           // "owner/repo" or NEW_REPOSITORY for local repo
   baseBranch: string     // "main" - what we branched FROM (ignored for NEW_REPOSITORY)
 
+  /** The environment this chat's sandbox is built from. Null for NEW_REPOSITORY
+   *  chats (no repo to scope one to). Fixed once the chat has a sandbox. */
+  environmentId?: string | null
+
   // Created on first message
   branch: string | null         // "swift-lunar-abc1" - the NEW branch we created
   sandboxId: string | null      // Daytona sandbox ID

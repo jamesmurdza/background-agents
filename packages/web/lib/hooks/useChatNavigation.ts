@@ -60,6 +60,8 @@ interface UseChatNavigationResult {
   handleRepoFilterChange: (filter: string) => void
   handleOpenScheduledJobs: () => void
   handleNavigateToJob: (jobId: string | null, jobName?: string) => void
+  handleOpenEnvironments: () => void
+  handleNavigateToEnvironment: (environmentId: string | null) => void
   handleNavigateChat: (direction: "up" | "down") => void
   handleRequestMergeChats: (sourceId: string, targetId?: string) => void
   handleRequestRebaseChat: (sourceId: string) => void
@@ -95,6 +97,7 @@ export function useChatNavigation({
       selectChat(chatId)
       sidebar.setViewMode("chat")
       sidebar.setSelectedScheduledJob(null)
+      sidebar.setSelectedEnvironmentId(null)
       // Update URL without triggering Next.js navigation (which causes remount).
       // Using window.history.pushState avoids the component remount router.push causes.
       window.history.pushState(null, "", ROUTES.chat.build(chatId))
@@ -127,6 +130,7 @@ export function useChatNavigation({
     // Switch to chat view
     sidebar.setViewMode("chat")
     sidebar.setSelectedScheduledJob(null) // Clear selected job when switching to chat
+    sidebar.setSelectedEnvironmentId(null)
     // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
@@ -157,6 +161,7 @@ export function useChatNavigation({
   const handleOpenScheduledJobs = useCallback(() => {
     sidebar.setViewMode("scheduled-jobs")
     sidebar.setSelectedScheduledJob(null)
+    sidebar.setSelectedEnvironmentId(null)
     selectChat(null)
     window.history.pushState(null, "", ROUTES.jobs.build())
   }, [sidebar, selectChat])
@@ -172,6 +177,34 @@ export function useChatNavigation({
         sidebar.setSelectedScheduledJob(null)
         window.history.pushState(null, "", ROUTES.jobs.build())
       }
+    },
+    [sidebar]
+  )
+
+  // Handler for opening the environments view. Mirrors handleOpenScheduledJobs:
+  // switch the view mode, drop any selected chat/job, and push the URL through
+  // the shared ROUTES table so browser back/forward (and useUrlSync's initial
+  // sync) parse it the same way this push produces it.
+  const handleOpenEnvironments = useCallback(() => {
+    sidebar.setViewMode("environments")
+    sidebar.setSelectedScheduledJob(null)
+    sidebar.setSelectedEnvironmentId(null)
+    selectChat(null)
+    window.history.pushState(null, "", ROUTES.environments.build())
+  }, [sidebar, selectChat])
+
+  // Handler for navigating to a specific environment (updates URL and sidebar
+  // state). Mirrors handleNavigateToJob, but environments has no name-caching
+  // need: EnvironmentsView already has the full environment list loaded (from
+  // useEnvironmentsQuery) to look the row up by id.
+  const handleNavigateToEnvironment = useCallback(
+    (environmentId: string | null) => {
+      sidebar.setSelectedEnvironmentId(environmentId)
+      window.history.pushState(
+        null,
+        "",
+        environmentId ? ROUTES.environment.build(environmentId) : ROUTES.environments.build()
+      )
     },
     [sidebar]
   )
@@ -282,6 +315,8 @@ export function useChatNavigation({
     handleRepoFilterChange,
     handleOpenScheduledJobs,
     handleNavigateToJob,
+    handleOpenEnvironments,
+    handleNavigateToEnvironment,
     handleNavigateChat,
     handleRequestMergeChats,
     handleRequestRebaseChat,
