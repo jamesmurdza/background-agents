@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma"
 import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { syncSetupScript } from "@/lib/server/sync-setup-script"
 import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
 import { meterDyingTurn } from "./meter-dying-turn"
 
@@ -79,6 +80,15 @@ export async function finalizeInteractiveChat(
         agent: chat.agent,
         sessionId: snapshot.sessionId,
       })
+
+      // 2c. Persist any edit the agent made to the setup script. Best-effort
+      // and isolated: a failure here must not skip the auto-push or status
+      // reset below.
+      try {
+        await syncSetupScript(sandbox, chat.id)
+      } catch (err) {
+        console.error(`[agent-lifecycle] syncSetupScript failed for chat ${chat.id}:`, err)
+      }
 
       // 3. Auto-push before the status reset below releases the chat. Same
       //    backend routine the SSE stream calls — conflict guard, deduped

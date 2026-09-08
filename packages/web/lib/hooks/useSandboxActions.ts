@@ -13,6 +13,26 @@ import { isRealRepo } from "@/lib/types"
 // Owns the small bits of state these actions need (download in-flight, the
 // fetched env-var snapshots) so page.tsx doesn't have to.
 
+/**
+ * PATCH a JSON body and throw with the server's error message on a non-2xx
+ * response. Exported (rather than kept private) so the reject path is
+ * directly testable without a DOM: before this, handleSaveEnvVars awaited
+ * both PATCHes without checking `response.ok`, so a 400 (for example an
+ * invalid environment variable name) was silently swallowed and the modal
+ * reported success anyway.
+ */
+export async function patchJsonOrThrow(url: string, body: unknown): Promise<void> {
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({}))
+    throw new Error(errorBody.error ?? errorBody.message ?? `Request failed (${res.status})`)
+  }
+}
+
 interface UseSandboxActionsOptions {
   currentChat: Chat | null
   currentChatId: string | null
@@ -65,18 +85,15 @@ export function useSandboxActions({
     const repoName = isRealRepo(chat?.repo) ? chat?.repo : undefined
 
     // Save chat env vars
-    await fetch(`/api/chats/${currentChatId}/env`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmentVariables: chatEnvVars }),
+    await patchJsonOrThrow(`/api/chats/${currentChatId}/env`, {
+      environmentVariables: chatEnvVars,
     })
 
     // Save repo env vars if applicable
     if (repoName) {
-      await fetch("/api/user/repo-env", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo: repoName, environmentVariables: repoEnvVars }),
+      await patchJsonOrThrow("/api/user/repo-env", {
+        repo: repoName,
+        environmentVariables: repoEnvVars,
       })
     }
   }, [currentChatId, isDraftChatId, chats])

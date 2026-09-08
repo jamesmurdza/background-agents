@@ -19,6 +19,7 @@ function makeEnv(overrides: Partial<EnvironmentDTO>): EnvironmentDTO {
     variableCount: 0,
     hasSetupScript: false,
     setupScript: null,
+    setupScriptPrevious: null,
     setupScriptUpdatedBy: null,
     updatedAt: 0,
     ...overrides,

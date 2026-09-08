@@ -10,6 +10,10 @@ export type {
 } from "@background-agents/common"
 
 import type { ContentBlock } from "@background-agents/common"
+// Type-only: lib/setup-script's module imports @background-agents/sandbox-jobs
+// (a server-only package). A plain value import here would pull it into the
+// browser bundle, same reasoning as EnvironmentDTO's import in lib/environments.
+import type { ScriptUpdateNotice } from "@/lib/setup-script"
 
 // Re-export agent types
 export type { Agent, ModelOption, CustomEndpoint, CustomEndpointType } from "@background-agents/common"
@@ -150,6 +154,13 @@ export interface Chat {
    *  chats (no repo to scope one to). Fixed once the chat has a sandbox. */
   environmentId?: string | null
 
+  /** Set when this chat's last completed turn saved an agent's edit to the
+   *  setup script (see ScriptUpdateNotice). Drives the "agent updated the
+   *  script" notice directly, never inferred from comparing timestamps
+   *  across two different rows, which can't be kept in sync with the order
+   *  turns actually complete in. */
+  scriptUpdateNotice?: ScriptUpdateNotice | null
+
   // Created on first message
   branch: string | null         // "swift-lunar-abc1" - the NEW branch we created
   sandboxId: string | null      // Daytona sandbox ID
@@ -239,6 +250,10 @@ export interface Chat {
 export type ChatStatus =
   | "pending"
   | "creating"
+  /** The environment's setup script is running; the queued turn has not started
+   *  yet. Recovery: the /setup SSE endpoint or the agent-lifecycle cron
+   *  dispatches the turn when the job exits. */
+  | "setting_up"
   | "ready"
   | "running"
   /** The agent itself returned an error. Recovery: resend the last message (Retry). */
@@ -330,4 +345,7 @@ export interface SSECompleteEvent {
     commits: number
     commitSha?: string
   }
+  /** Set when this turn's sync-back saved an agent edit to the setup script.
+   *  Carried straight through to Chat.scriptUpdateNotice by the SSE handler. */
+  scriptUpdateNotice?: ScriptUpdateNotice | null
 }

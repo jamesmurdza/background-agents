@@ -128,7 +128,7 @@ export function useChatWithSync() {
 
   // Message fetching/merging (load-on-select, reload, refetch delta-sync,
   // reload-after-disconnect, client-side append) lives in its own hook.
-  const { reloadMessages, refetchMessages, reloadChat, addMessageToChat } =
+  const { reloadMessages, refetchMessages, reloadChat, reloadChatAfterSetup, addMessageToChat } =
     useChatMessageSync({ chats, currentChatId, isHydrated, updateChatsCache })
 
   // Helper to check if a chat ID is a draft
@@ -368,6 +368,7 @@ export function useChatWithSync() {
     resumeQueue,
     refetchMessages,
     reloadChat,
+    reloadChatAfterSetup,
     drafts: localChatState.drafts,
     updateDraft,
     clearDraft,

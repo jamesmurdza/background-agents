@@ -85,7 +85,11 @@ export function useSendMessage({
   // Clear isSendingMessage once the chat status changes (server responded with
   // optimistic update) or when the user switches to a different chat.
   useEffect(() => {
-    if (displayCurrentChat?.status === "creating" || displayCurrentChat?.status === "running") {
+    if (
+      displayCurrentChat?.status === "creating" ||
+      displayCurrentChat?.status === "setting_up" ||
+      displayCurrentChat?.status === "running"
+    ) {
       setIsSendingMessage(false)
     }
   }, [displayCurrentChat?.status])

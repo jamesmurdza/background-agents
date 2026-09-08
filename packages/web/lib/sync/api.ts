@@ -8,6 +8,8 @@
 
 import type { Chat, Message, Settings, CustomEndpoint } from "@/lib/types"
 import type { Credentials, CredentialFlags } from "@/lib/credentials"
+// Type-only, same reasoning as lib/types.ts's own import of this.
+import type { ScriptUpdateNotice } from "@/lib/setup-script"
 
 // =============================================================================
 // Types
@@ -38,6 +40,7 @@ export interface ChatResponse {
   lastActiveAt: number
   messageCount?: number
   lastMessageId?: string | null
+  scriptUpdateNotice?: ScriptUpdateNotice | null
 }
 
 export interface MessageResponse {
@@ -266,6 +269,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     lastActiveAt: serverChat.lastActiveAt,
     messages: [], // Messages loaded separately
     messageCount: serverChat.messageCount ?? 0, // For filtering before messages are loaded
+    scriptUpdateNotice: serverChat.scriptUpdateNotice ?? null,
   }
 }
 

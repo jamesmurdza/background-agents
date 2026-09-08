@@ -168,7 +168,10 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
           </div>
 
           <div className="relative" ref={menuRef}>
-            {chat.status === "running" || chat.status === "creating" || (chat.queuedMessages && chat.queuedMessages.length > 0) ? (
+            {chat.status === "running" ||
+            chat.status === "creating" ||
+            chat.status === "setting_up" ||
+            (chat.queuedMessages && chat.queuedMessages.length > 0) ? (
               <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
                 <Loader2 className="h-2.5 w-2.5 animate-spin text-foreground/90" />
               </div>

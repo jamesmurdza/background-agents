@@ -18,6 +18,7 @@ import {
 import { getEffectiveCredentialFlags } from "@/lib/server/credential-flags"
 import { getOrCreateDefaultEnvironment } from "@/lib/environments"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { readScriptUpdateNotice, type ScriptUpdateNotice } from "@/lib/setup-script"
 
 // =============================================================================
 // Types
@@ -48,6 +49,7 @@ interface ChatResponse {
   lastActiveAt: number
   messageCount: number
   lastMessageId: string | null
+  scriptUpdateNotice: ScriptUpdateNotice | null
 }
 
 // =============================================================================
@@ -110,6 +112,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount: chat._count.messages,
       lastMessageId: chat.messages[0]?.id ?? null,
+      scriptUpdateNotice: readScriptUpdateNotice(chat.setupRun),
     }))
 
     return Response.json({ chats: response })
@@ -234,6 +237,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount: 0,
       lastMessageId: null,
+      scriptUpdateNotice: null,
     }
 
     // Log activity (fire and forget)

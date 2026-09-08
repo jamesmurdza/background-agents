@@ -9,6 +9,7 @@ import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constan
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
+import { dispatchFinishedSetups } from "./_lib/setup-dispatch"
 
 // Vercel Pro plan allows up to 5 minutes for cron jobs
 export const maxDuration = 300
@@ -16,11 +17,12 @@ export const maxDuration = 300
 // =============================================================================
 // Main Handler
 // =============================================================================
-// Orchestrates the four phases of the agent lifecycle each cron tick:
+// Orchestrates the five phases of the agent lifecycle each cron tick:
 //   1. Dispatch due scheduled jobs (create pending run records)
 //   2. Start pending scheduled runs (spin up sandboxes + agents)
 //   3. Monitor running interactive chats (complete / error / timeout)
 //   4. Monitor running scheduled job runs (complete / error / timeout)
+//   5. Dispatch turns held by a finished setup script
 // The heavy lifting for each phase lives in ./_lib.
 
 export async function GET(req: Request) {
@@ -48,6 +50,7 @@ export async function GET(req: Request) {
     timedOutInteractive: 0,
     timedOutScheduled: 0,
     skippedOverLimit: 0,
+    dispatchedAfterSetup: 0,
     errors: [] as string[],
   }
 
@@ -250,6 +253,11 @@ export async function GET(req: Request) {
         results.errors.push(`Failed to monitor run ${run.id}: ${err}`)
       }
     }
+
+    // =========================================
+    // 5. Dispatch turns held by a finished setup script
+    // =========================================
+    await dispatchFinishedSetups(daytona, now, results)
   } catch (err) {
     results.errors.push(`Top-level error: ${err}`)
   }

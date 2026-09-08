@@ -5,6 +5,7 @@ import { requireAuth, isAuthError, badRequest, notFound, internalError } from "@
 import {
   encryptEnvironmentVariables,
   environmentUniqueConstraintMessage,
+  findInvalidEnvVarKey,
   getOwnedEnvironment,
   toEnvironmentDTO,
   NETWORK_MODES,
@@ -86,6 +87,16 @@ export async function PATCH(
     }
     if (body.name !== undefined && !body.name.trim()) {
       return badRequest("name cannot be empty")
+    }
+
+    if (body.variables !== undefined) {
+      const invalidKey = findInvalidEnvVarKey(body.variables)
+      if (invalidKey !== null) {
+        return badRequest(
+          `Invalid environment variable name: "${invalidKey}". Names must match ` +
+            `^[A-Za-z_][A-Za-z0-9_]*$ (letters, digits, and underscore only; cannot start with a digit).`
+        )
+      }
     }
 
     // Promotion runs as two ordered statements inside a transaction. Postgres

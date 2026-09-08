@@ -82,4 +82,16 @@ describe("buildSandboxCreateParams", () => {
     expect(params.autoDeleteInterval).toBe(5760)
     expect(params.labels).toMatchObject({ repo: "acme/app", branch: "agent/1234" })
   })
+
+  // A throwaway validation sandbox (run-setup) overrides this so a leaked
+  // sandbox (its own invocation killed before it can clean up) is reaped in
+  // minutes rather than the default four days.
+  it("uses autoDeleteIntervalMinutes when given, instead of the 4-day default", () => {
+    const params = buildSandboxCreateParams({
+      ...base,
+      environment: env(),
+      autoDeleteIntervalMinutes: 15,
+    })
+    expect(params.autoDeleteInterval).toBe(15)
+  })
 })

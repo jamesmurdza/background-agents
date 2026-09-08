@@ -30,6 +30,7 @@ import {
   applyOptimisticSend,
   removeOptimisticMessages,
   applySendSuccess,
+  applySetupHeld,
   applySendError,
   type SendMessagePayload,
 } from "@/lib/chat-messages"
@@ -141,7 +142,7 @@ export function useMessageDispatch({
     if (sendInFlight.current.has(chatId)) return
     if (stopInFlight.current.has(chatId)) return
     if (useStreamStore.getState().isStreaming(chatId)) return
-    if (chat.status === "creating" || chat.status === "running") return
+    if (chat.status === "creating" || chat.status === "setting_up" || chat.status === "running") return
 
     sendInFlight.current.add(chatId)
 
@@ -234,6 +235,27 @@ export function useMessageDispatch({
         }
 
         const { data } = result
+
+        if (data.status === "setting_up") {
+          // The environment's setup script is still running, so the server
+          // persisted the user's message and is holding the turn. There is no
+          // session to stream: the /setup SSE stream (SetupBlock, mounted by
+          // this `setting_up` status) dispatches the turn when the script
+          // exits, and reloads the chat so the real assistant message and its
+          // session are picked up by the resume-streaming effect. The
+          // optimistic assistant placeholder is dropped here; see
+          // applySetupHeld.
+          updateChatsCache((old) => old.map((c) =>
+            c.id === chatId
+              ? applySetupHeld(c, data, selectedAgent, selectedModel, userMessage.id, assistantMessage.id)
+              : c
+          ))
+          if (isFirstMessage) {
+            suggestNameMutation.mutate({ chatId, prompt: content })
+          }
+          return
+        }
+
         updateChatsCache((old) => old.map((c) =>
           c.id === chatId ? applySendSuccess(c, data, selectedAgent, selectedModel, userMessage.id) : c
         ))

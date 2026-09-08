@@ -165,6 +165,12 @@ export async function startJobExecution(
     ? null
     : await getOrCreateDefaultEnvironment(job.userId, job.repo)
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
+  // Scheduled runs get the environment's variables but not its setup script:
+  // gating the turn on setup completion needs the same setting_up-plus-poll-
+  // plus-dispatch machinery the interactive chat path uses, and duplicating
+  // that here would be a second, divergent implementation of the hardest part
+  // of the feature. This is deliberate pending a follow-up that teaches the
+  // cron to wait on the job the same way chats do.
   const { sandbox, sandboxId, previewUrlPattern } = await createSandboxForChat({
     daytona,
     repo: job.repo,
@@ -173,6 +179,7 @@ export async function startJobExecution(
     githubToken: account?.access_token ?? undefined,
     userId: job.userId,
     environment,
+    runSetupScript: false,
   })
 
   // 6. Update chat with sandbox info

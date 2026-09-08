@@ -17,6 +17,7 @@ import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import type { ResolvedEnvironment } from "@/lib/environments"
 import { buildSandboxCreateParams } from "@/lib/sandbox-create-params"
+import { writeSetupScript, startSetupJob, type SetupRunRecord } from "@/lib/setup-script"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -86,6 +87,20 @@ async function ensureTokscaleInstalled(sandbox: Sandbox): Promise<void> {
  * If the sandbox is already starting (409 Conflict), retries with backoff
  * until the start succeeds or times out.
  */
+/**
+ * Whether an error from the Daytona API means the sandbox genuinely no longer
+ * exists, as opposed to the API being briefly unreachable.
+ *
+ * The distinction decides whether a caller may give up on a chat. A 5xx, a
+ * network timeout, or a rotated API key must NOT be read as "gone": treating
+ * them that way would discard live work on one bad minute of upstream weather.
+ * Matches the shape used by ensureSandboxStarted's 409 check below.
+ */
+export function isSandboxGoneError(err: unknown): boolean {
+  if ((err as { statusCode?: number } | null)?.statusCode === 404) return true
+  return err instanceof Error && /not found/i.test(err.message)
+}
+
 export async function ensureSandboxStarted(
   sandbox: Sandbox,
   timeoutSeconds = 120
@@ -149,6 +164,32 @@ export interface CreateSandboxOptions {
    * to scope an environment to.
    */
   environment?: ResolvedEnvironment | null
+  /**
+   * Whether to write and run the environment's setup script. Defaults to true.
+   * Scheduled jobs pass false: gating a turn on setup completion needs the same
+   * setting_up-plus-poll-plus-dispatch machinery the interactive chat path uses,
+   * and duplicating that inside the cron would be a second, divergent
+   * implementation of the hardest part of the feature. So scheduled runs still
+   * get the environment's variables, just not its setup script, until that
+   * follow-up lands.
+   */
+  runSetupScript?: boolean
+  /**
+   * Overrides the setup script's own job timeout (default
+   * SETUP_TIMEOUT_SECONDS). The run-setup validation route passes
+   * VALIDATION_SETUP_TIMEOUT_SECONDS here so the script cannot outlive that
+   * route's maxDuration and strand the sandbox it owns.
+   */
+  setupScriptTimeoutSeconds?: number
+  /**
+   * Overrides the sandbox's auto-delete interval, in minutes (default 5760 =
+   * 4 days, set in buildSandboxCreateParams). The run-setup validation route
+   * passes a short interval here as a backstop: if that route's own
+   * invocation gets killed before its cleanup can run (see
+   * setupScriptTimeoutSeconds above), Daytona still reaps the sandbox on its
+   * own within minutes instead of days.
+   */
+  autoDeleteIntervalMinutes?: number
 }
 
 export interface CreatedSandbox {
@@ -163,6 +204,12 @@ export interface CreatedSandbox {
    * successfully fetched from remote (true) or created fresh (false).
    */
   branchRestored?: boolean
+  /**
+   * The setup-script job started for this sandbox, or null when the environment
+   * has no script. Not awaited: a dependency install routinely outlives the
+   * request that started it, so the handle is persisted and polled instead.
+   */
+  setupRun?: SetupRunRecord | null
 }
 
 function generateSandboxName(userId?: string): string {
@@ -205,8 +252,68 @@ export async function createSandboxForChat(
       repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
       branch: newBranch,
       environment: options.environment ?? null,
+      autoDeleteIntervalMinutes: options.autoDeleteIntervalMinutes,
     })
   )
+
+  // Everything from here on operates on a sandbox that already exists and
+  // costs money/quota. A throw anywhere in this span (clone, branch setup,
+  // writing or starting the setup script) used to leave that sandbox behind
+  // with its id recorded nowhere: the caller's `createSandboxForChat` call
+  // never resolves, so `ensure-sandbox.ts` never gets an id to clean up. Wrap
+  // the whole span so any failure deletes the sandbox it just created before
+  // rethrowing the original error unchanged: the caller's error handling
+  // (marking the chat `error`) depends on seeing that original error.
+  try {
+    return await finishCreatingSandbox({
+      sandbox,
+      isNewRepo,
+      repoName,
+      owner,
+      repoApiName,
+      baseBranch,
+      newBranch,
+      githubToken,
+      restoreExistingBranch,
+      environment: options.environment ?? null,
+      runSetupScript: options.runSetupScript ?? true,
+      setupScriptTimeoutSeconds: options.setupScriptTimeoutSeconds,
+    })
+  } catch (err) {
+    await deleteSandboxQuietly(daytona, sandbox.id)
+    throw err
+  }
+}
+
+async function finishCreatingSandbox(params: {
+  sandbox: Awaited<ReturnType<Daytona["create"]>>
+  isNewRepo: boolean
+  repoName: string
+  owner: string | undefined
+  repoApiName: string | undefined
+  baseBranch: string
+  newBranch: string
+  githubToken: string | undefined
+  restoreExistingBranch: boolean | undefined
+  environment: ResolvedEnvironment | null
+  runSetupScript: boolean
+  setupScriptTimeoutSeconds: number | undefined
+}): Promise<CreatedSandbox> {
+  const {
+    sandbox,
+    isNewRepo,
+    repoName,
+    owner,
+    repoApiName,
+    baseBranch,
+    newBranch,
+    githubToken,
+    restoreExistingBranch,
+    environment,
+    runSetupScript,
+    setupScriptTimeoutSeconds,
+  } = params
+  let branchRestored: boolean | undefined
 
   await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)
 
@@ -304,6 +411,46 @@ export async function createSandboxForChat(
     /* preview URLs not available */
   }
 
+  // Materialize the setup script and start it detached. The file is written
+  // even when the script is empty, so the assisted-setup flow has something for
+  // the agent to edit from its very first turn instead of guessing the path.
+  // Skipped entirely when runSetupScript is false (scheduled jobs): those runs
+  // still get the environment's variables, just not its setup script, until the
+  // cron gets its own setting_up-equivalent gating.
+  let setupRun: SetupRunRecord | null = null
+  if (environment && runSetupScript) {
+    const script = environment.setupScript ?? ""
+    const writtenHash = await writeSetupScript(sandbox, script)
+
+    if (script.trim()) {
+      const handle = await startSetupJob(
+        sandbox,
+        repoPath,
+        environment.variables,
+        setupScriptTimeoutSeconds
+      )
+      setupRun = {
+        handle,
+        environmentId: environment.id,
+        writtenHash,
+        startedAt: Date.now(),
+        state: "running",
+      }
+    } else {
+      // No script to run, so no job and no handle. Still record the hash so a
+      // later agent edit to the empty file is recognized as a change worth
+      // saving, rather than fabricating a placeholder handle nothing can poll.
+      setupRun = {
+        environmentId: environment.id,
+        writtenHash,
+        startedAt: Date.now(),
+        state: "exited",
+        exitCode: 0,
+        finishedAt: Date.now(),
+      }
+    }
+  }
+
   return {
     sandbox,
     sandboxId: sandbox.id,
@@ -311,6 +458,7 @@ export async function createSandboxForChat(
     previewUrlPattern,
     repoName,
     branchRestored,
+    setupRun,
   }
 }
 

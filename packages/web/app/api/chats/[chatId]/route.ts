@@ -11,6 +11,7 @@ import {
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { getOrCreateDefaultEnvironment } from "@/lib/environments"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { readScriptUpdateNotice, type ScriptUpdateNotice } from "@/lib/setup-script"
 
 // =============================================================================
 // Helpers
@@ -87,6 +88,7 @@ interface ChatWithMessagesResponse {
   lastActiveAt: number
   messages: MessageResponse[]
   messageCount: number
+  scriptUpdateNotice: ScriptUpdateNotice | null
 }
 
 // =============================================================================
@@ -203,6 +205,7 @@ export async function GET(
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount,
+      scriptUpdateNotice: readScriptUpdateNotice(chat.setupRun),
       messages: [
         ...inheritedMessages,
         ...messages.map((m) => ({

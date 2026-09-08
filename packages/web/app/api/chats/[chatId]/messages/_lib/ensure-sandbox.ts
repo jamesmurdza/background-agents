@@ -8,6 +8,7 @@ import {
   ensureSandboxStarted,
   installSkillsForRepo,
 } from "@/lib/sandbox"
+import type { SetupRunRecord } from "@/lib/setup-script"
 import type { ChatRecord, MessagePayload } from "./types"
 
 type DaytonaSandbox = Awaited<ReturnType<Daytona["get"]>>
@@ -23,6 +24,7 @@ export interface SandboxState {
   branch: string | null
   previewUrlPattern: string | null
   createdSandbox: boolean
+  setupRun?: SetupRunRecord | null
 }
 
 export interface EnsuredSandbox {
@@ -31,6 +33,7 @@ export interface EnsuredSandbox {
   branch: string | null
   previewUrlPattern: string | null
   createdSandbox: boolean
+  setupRun?: SetupRunRecord | null
 }
 
 /**
@@ -139,6 +142,7 @@ export async function ensureSandboxForChat(params: {
     state.branch = branch
     state.previewUrlPattern = previewUrlPattern
     state.createdSandbox = true
+    state.setupRun = created.setupRun ?? null
 
     // A freshly created sandbox is a clean clone with no agent conversation
     // history on disk. Drop any stale session pointer so the agent starts a new
@@ -146,6 +150,10 @@ export async function ensureSandboxForChat(params: {
     // conversation found with session ID"). Clear it both in the DB (future
     // requests) and in memory (this request's resume read below). Agent-
     // agnostic: sessionId is the generic resume pointer used by every agent.
+    // A running setup job holds the turn: the chat stays in setting_up until the
+    // /setup endpoint (or the agent-lifecycle cron) observes the job exit.
+    const setupIsRunning = created.setupRun?.state === "running"
+
     await prisma.chat.update({
       where: { id: chatId },
       data: {
@@ -153,7 +161,8 @@ export async function ensureSandboxForChat(params: {
         branch,
         previewUrlPattern,
         sessionId: null,
-        status: "ready",
+        setupRun: (created.setupRun ?? null) as never,
+        status: setupIsRunning ? "setting_up" : "ready",
       },
     })
     chat.sessionId = null
@@ -167,5 +176,12 @@ export async function ensureSandboxForChat(params: {
     await installSkillsForRepo(sandbox, userId, chat.repo)
   }
 
-  return { sandbox, sandboxId: sandboxId as string, branch, previewUrlPattern, createdSandbox }
+  return {
+    sandbox,
+    sandboxId: sandboxId as string,
+    branch,
+    previewUrlPattern,
+    createdSandbox,
+    setupRun: state.setupRun ?? null,
+  }
 }

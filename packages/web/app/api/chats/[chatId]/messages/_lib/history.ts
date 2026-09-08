@@ -40,9 +40,14 @@ export async function buildAgentHistory(
     const messages = await prisma.message.findMany({
       where: { chatId },
       orderBy: { timestamp: "asc" },
-      select: { role: true, content: true },
+      select: { id: true, role: true, content: true },
     })
     history = messages
+      // Never replay the message this turn is about to send. On the normal
+      // path it is not persisted yet, so this is a no-op; on a turn held by a
+      // setup script it already is, and without this the agent would receive
+      // it twice (once in the replay, once as the prompt).
+      .filter((m) => m.id !== payload.userMessageId)
       .filter(
         (
           m

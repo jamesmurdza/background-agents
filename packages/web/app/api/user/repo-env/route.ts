@@ -9,6 +9,7 @@ import {
 import {
   decryptEnvironmentVariables,
   encryptEnvironmentVariables,
+  findInvalidEnvVarKey,
   getOrCreateDefaultEnvironment,
 } from "@/lib/environments"
 
@@ -77,6 +78,14 @@ export async function PATCH(req: NextRequest): Promise<Response> {
 
     if (!body.environmentVariables || typeof body.environmentVariables !== "object") {
       return badRequest("Invalid environmentVariables")
+    }
+
+    const invalidKey = findInvalidEnvVarKey(body.environmentVariables)
+    if (invalidKey !== null) {
+      return badRequest(
+        `Invalid environment variable name: "${invalidKey}". Names must match ` +
+          `^[A-Za-z_][A-Za-z0-9_]*$ (letters, digits, and underscore only; cannot start with a digit).`
+      )
     }
 
     const defaultEnv = await getOrCreateDefaultEnvironment(userId, body.repo)

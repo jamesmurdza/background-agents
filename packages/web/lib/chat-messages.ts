@@ -23,13 +23,41 @@ export interface SendMessagePayload {
   planMode?: boolean
 }
 
-export interface SendMessageResponse {
+/** The turn started: an agent session exists and the client streams it. */
+export interface SendMessageStarted {
+  status: "started"
   sandboxId: string
   branch: string | null
   previewUrlPattern: string | null
   backgroundSessionId: string
   uploadedFiles: string[]
 }
+
+/**
+ * The environment's setup script is still running, so the turn is held.
+ *
+ * The user's message is already persisted server-side and the agent turn is
+ * dispatched later (by the /setup SSE endpoint, or by the agent-lifecycle cron
+ * if this client is gone), with an assistant message id the server mints
+ * itself. So there is no `backgroundSessionId` to stream and nothing for the
+ * client's optimistic assistant placeholder to become.
+ */
+export interface SendMessageSettingUp {
+  status: "setting_up"
+  sandboxId: string
+  branch: string | null
+  previewUrlPattern: string | null
+  uploadedFiles: string[]
+}
+
+/**
+ * Discriminated on purpose: the held-turn body carries no
+ * `backgroundSessionId` and no `uploadedFiles` guarantee shared with the
+ * started body, and treating the two alike is how the first send on a chat with
+ * a setup script used to die with a TypeError inside the cache updater. Every
+ * consumer has to say which one it is handling.
+ */
+export type SendMessageResponse = SendMessageStarted | SendMessageSettingUp
 
 export type SendMessageResult =
   | { ok: true; data: SendMessageResponse }
@@ -115,7 +143,13 @@ export async function sendMessageToApi(
     }
   }
 
-  const data = (await response.json()) as SendMessageResponse
+  const body = (await response.json()) as Partial<SendMessageResponse>
+  // A body with no `status` is a started turn: the field was added alongside
+  // the held-turn variant, and a client loaded just before that deploy can
+  // still be talking to a server from just after it (and vice versa).
+  const data = (
+    body.status === "setting_up" ? body : { ...body, status: "started" }
+  ) as SendMessageResponse
   return { ok: true, data }
 }
 
@@ -162,7 +196,7 @@ export function removeOptimisticMessages(chat: Chat, messageIds: string[]): Chat
 /** Apply the server's send response: sandbox/branch/session info + uploaded-file ids. */
 export function applySendSuccess(
   chat: Chat,
-  data: SendMessageResponse,
+  data: SendMessageStarted,
   agent: string,
   model: string,
   userMessageId: string
@@ -179,6 +213,46 @@ export function applySendSuccess(
     messages: chat.messages.map((m) =>
       m.id === userMessageId && data.uploadedFiles.length > 0 ? { ...m, uploadedFiles: data.uploadedFiles } : m
     ),
+  }
+}
+
+/**
+ * Apply a held-turn response: the sandbox is up but the setup script is still
+ * running, so no turn has started.
+ *
+ * Drops the optimistic assistant placeholder. The server deliberately persists
+ * no assistant row for a held turn (one would make `buildAgentHistory` read the
+ * chat as already answered) and the dispatcher mints its own id when the turn
+ * finally starts, so keeping the placeholder would leave an empty bubble
+ * sitting under the setup log until the reload after setup, and then a second
+ * one next to the real reply.
+ *
+ * `status: "setting_up"` is what mounts the SetupBlock and what keeps the
+ * composer from sending again into a 409.
+ */
+export function applySetupHeld(
+  chat: Chat,
+  data: SendMessageSettingUp,
+  agent: string,
+  model: string,
+  userMessageId: string,
+  assistantMessageId: string
+): Chat {
+  return {
+    ...chat,
+    sandboxId: data.sandboxId,
+    branch: data.branch,
+    previewUrlPattern: data.previewUrlPattern ?? undefined,
+    agent,
+    model,
+    status: "setting_up",
+    messages: chat.messages
+      .filter((m) => m.id !== assistantMessageId)
+      .map((m) =>
+        m.id === userMessageId && data.uploadedFiles.length > 0
+          ? { ...m, uploadedFiles: data.uploadedFiles }
+          : m
+      ),
   }
 }
 

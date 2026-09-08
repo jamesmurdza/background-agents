@@ -25,8 +25,16 @@ async function json<T>(res: Response): Promise<T> {
  * environment on a repo would sit in the SPA's memory on every render that
  * merely shows a picker. Only the environments editor, which actually reads
  * and writes variables, should pass true.
+ *
+ * `enabled` (default true) is ANDed with the auth check: pass `false` when a
+ * caller only wants this for one specific repo/chat and that repo isn't real
+ * yet (a draft or NEW_REPOSITORY chat), so it doesn't fall back to fetching
+ * every environment for every repo the user has just because `repo` was
+ * left undefined: that fallback is intentional for a caller that really
+ * does want everything (the environments list view), not an accidental side
+ * effect of "no repo to scope to yet".
  */
-export function useEnvironmentsQuery(repo?: string, includeVariables = false) {
+export function useEnvironmentsQuery(repo?: string, includeVariables = false, enabled = true) {
   const { status } = useSession()
   return useQuery({
     queryKey: queryKeys.environments.list(repo, includeVariables),
@@ -39,7 +47,7 @@ export function useEnvironmentsQuery(repo?: string, includeVariables = false) {
       const data = await json<{ environments: EnvironmentDTO[] }>(await fetch(url))
       return data.environments
     },
-    enabled: status === "authenticated",
+    enabled: enabled && status === "authenticated",
     staleTime: 30 * 1000,
   })
 }
@@ -108,4 +116,33 @@ export function useDeleteEnvironmentMutation() {
 export async function fetchEnvironmentUsage(id: string): Promise<number> {
   const data = await json<{ chatCount: number }>(await fetch(`/api/environments/${id}/usage`))
   return data.chatCount
+}
+
+/**
+ * The current and previous setup-script bodies, fetched fresh on demand
+ * (the diff view's "View diff" click) rather than kept in the query cache:
+ * the "agent updated the script" notice's visibility never depends on this
+ * data (see Chat.scriptUpdateNotice), so there is no reason to hold two
+ * script revisions in memory for every chat whose notice never gets opened.
+ */
+export async function fetchEnvironmentScript(
+  id: string
+): Promise<{ current: string; previous: string | null }> {
+  const data = await json<{ environment: EnvironmentDTO }>(await fetch(`/api/environments/${id}`))
+  return { current: data.environment.setupScript ?? "", previous: data.environment.setupScriptPrevious }
+}
+
+/** Swaps `setupScriptPrevious` back into `setupScript` (one level of undo for
+ *  an agent's edit). */
+export function useRevertSetupScriptMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const data = await json<{ environment: EnvironmentDTO }>(
+        await fetch(`/api/environments/${id}/revert-script`, { method: "POST" })
+      )
+      return data.environment
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.environments.all }),
+  })
 }

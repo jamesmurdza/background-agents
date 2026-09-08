@@ -148,7 +148,7 @@ export function useChatComposer({
   const isPaused = !!(chat?.queuePaused && hasQueued)
   const isRunning = chat?.status === "running" || (hasQueued && !chat?.queuePaused)
   // Include isSending for instant feedback before server responds
-  const isCreating = chat?.status === "creating" || isSending
+  const isCreating = chat?.status === "creating" || chat?.status === "setting_up" || isSending
   const hasContent = input.trim() || pendingFiles.length > 0
   // When the agent is running, text-only messages are queued for later dispatch.
   const canQueue = !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
