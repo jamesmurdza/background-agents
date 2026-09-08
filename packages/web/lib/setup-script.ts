@@ -13,9 +13,13 @@
 import { createHash } from "crypto"
 import type { Sandbox } from "@daytonaio/sdk"
 import { createSandboxJobs, type JobHandle } from "@background-agents/sandbox-jobs"
-
-export const SETUP_DIR = "/home/daytona/.backgrounder"
-export const SETUP_SCRIPT_PATH = `${SETUP_DIR}/setup.sh`
+// Pure constants and the assisted-setup prompt live in setup-paths.ts, which
+// has no Node or sandbox-jobs imports, so a client component can pull in
+// buildAssistedSetupPrompt without dragging this module's server-only
+// dependencies into the browser bundle. Re-exported here too so anything
+// that reaches for them via "@/lib/setup-script" still finds them.
+export { SETUP_DIR, SETUP_SCRIPT_PATH, buildAssistedSetupPrompt } from "./setup-paths"
+import { SETUP_DIR, SETUP_SCRIPT_PATH } from "./setup-paths"
 
 /** Hard wall-clock cap. sandbox-jobs implements this with coreutils `timeout`,
  *  so an expiry surfaces as exit code 124, a real, observable code. */

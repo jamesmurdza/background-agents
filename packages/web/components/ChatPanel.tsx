@@ -18,6 +18,7 @@ import { NEW_REPOSITORY, isRealRepo, agentSupportsPlanMode } from "@/lib/types"
 import type { SlashCommandType } from "./SlashCommandMenu"
 import { useChatComposer } from "@/lib/hooks/useChatComposer"
 import { useEnvironmentsQuery } from "@/lib/query/hooks/useEnvironmentsQuery"
+import { consumeAssistedSetupPrompt } from "@/lib/assisted-setup"
 import { useSetupScriptNoticeDismissal } from "@/lib/hooks/useSetupScriptNoticeDismissal"
 
 interface ChatPanelProps {
@@ -136,6 +137,23 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   const notice = chat?.scriptUpdateNotice ?? null
   const { dismissed, dismiss } = useSetupScriptNoticeDismissal(chat?.id ?? "", notice?.scriptHash ?? "")
   const showScriptNotice = !!chat && !!notice && !dismissed
+
+  // "Set up with agent" stages its seed prompt in sessionStorage against the
+  // chat it just created (see lib/assisted-setup.ts) rather than sending it
+  // itself, since the chat doesn't exist yet at the point the prompt is
+  // built. Consume it once this chat shows up here and send it as if the
+  // user had typed it, so the agent starts working immediately. Consuming
+  // clears the staged entry, so a re-render (or this same chat being visited
+  // again later) never re-sends it.
+  useEffect(() => {
+    if (!chat) return
+    const prompt = consumeAssistedSetupPrompt(chat.id)
+    if (!prompt || !chat.agent || !chat.model) return
+    onSendMessage(prompt, chat.agent, chat.model, undefined, false)
+    // Keyed only on chat.id: onSendMessage/chat.agent/chat.model are read at
+    // the moment the staged prompt is found, not meant to re-trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat?.id])
 
   // Only used to display the environment's current *name* in the notice
   // (harmless if briefly stale); the diff body itself is fetched on demand

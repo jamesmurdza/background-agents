@@ -30,7 +30,7 @@ async function json<T>(res: Response): Promise<T> {
  * caller only wants this for one specific repo/chat and that repo isn't real
  * yet (a draft or NEW_REPOSITORY chat), so it doesn't fall back to fetching
  * every environment for every repo the user has just because `repo` was
- * left undefined — that fallback is intentional for a caller that really
+ * left undefined: that fallback is intentional for a caller that really
  * does want everything (the environments list view), not an accidental side
  * effect of "no repo to scope to yet".
  */

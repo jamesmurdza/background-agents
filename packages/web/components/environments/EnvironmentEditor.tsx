@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { ArrowLeft, Save, Trash2, Copy, Star, Plus, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Trash2, Copy, Star, Plus, Loader2, Play, Bot } from "lucide-react"
 import { NetworkModeFields } from "./NetworkModeFields"
+import { RunSetupPanel } from "./RunSetupPanel"
 import { recordToEnvVars, envVarsToRecord } from "./helpers"
 import {
   useUpdateEnvironmentMutation,
@@ -15,6 +16,9 @@ import { Input } from "@/components/ui/input"
 import type { EnvVar } from "@/lib/types"
 // Type-only: EnvironmentDTO's module imports @/lib/db/prisma.
 import type { EnvironmentDTO } from "@/lib/environments"
+// Pure: no Node or sandbox-jobs imports, safe to use from this client component.
+import { buildAssistedSetupPrompt } from "@/lib/setup-paths"
+import { stageAssistedSetupPrompt } from "@/lib/assisted-setup"
 
 interface EnvironmentEditorProps {
   environment: EnvironmentDTO
@@ -110,6 +114,20 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
   const [usage, setUsage] = useState<UsageState>({ status: "idle" })
   const [confirmPromote, setConfirmPromote] = useState(false)
 
+  // What the server actually has, so "Run setup" can refuse to validate edits
+  // that were never saved. Tracked separately from `environment.setupScript`
+  // (the mount-time prop) because this component is never remounted after a
+  // save (see the comment on the component below), so the prop itself would
+  // stay stale for the rest of the session.
+  const [savedScript, setSavedScript] = useState(environment.setupScript ?? "")
+  const [runningSetup, setRunningSetup] = useState(false)
+  const [runToken, setRunToken] = useState(0)
+  // Only "running" actually means a throwaway sandbox exists right now; once
+  // the panel lands on succeeded/failed/disconnected, "Run setup" is safe to
+  // click again (it just starts another one, via a fresh runToken).
+  const [runInFlight, setRunInFlight] = useState(false)
+  const [startingAssistedSetup, setStartingAssistedSetup] = useState(false)
+
   // Separate mutation instances for save vs. promote so their `isPending`
   // flags don't cross-contaminate each other's button (promoting default
   // shouldn't make the Save button read "Saving", and vice versa).
@@ -127,8 +145,42 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
         variables: envVarsToRecord(variables),
         setupScript: setupScript || null,
       })
+      setSavedScript(setupScript)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save")
+    }
+  }
+
+  /**
+   * Opens a chat seeded to have the agent write and iterate on the setup
+   * script until the project builds. Nearly free precisely because the
+   * script is a real file the agent can edit and sync-back persists: this is
+   * a normal chat pointed at that file, not a new agent mode. Navigates away
+   * (a full page load) so the chat is never created somewhere the user can't
+   * find it again.
+   */
+  const startAssistedSetup = async () => {
+    setError(null)
+    setStartingAssistedSetup(true)
+    try {
+      const res = await fetch("/api/chats", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ repo: environment.repo, environmentId: environment.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Failed to start chat")
+      }
+      const chat = await res.json()
+      stageAssistedSetupPrompt(
+        chat.id,
+        buildAssistedSetupPrompt(environment.repo, environment.name)
+      )
+      window.location.href = `/chat/${chat.id}`
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start assisted setup")
+      setStartingAssistedSetup(false)
     }
   }
 
@@ -313,10 +365,48 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
         <div className="flex flex-col min-h-0">
           <h3 className="text-sm font-medium mb-2">Setup script</h3>
           <p className="text-xs text-muted-foreground mb-2">
-            Runs in the repo directory when a sandbox is created (not executed yet in this version
-            of the app). Put secrets in environment variables above, not in this script: the script
-            is stored unencrypted.
+            Runs in the repo directory when a sandbox is created, before the agent's first turn.
+            A failure is reported to the agent but does not block the turn. Put secrets in
+            environment variables above, not in this script: the script is stored unencrypted.
           </p>
+          <div className="flex items-center gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRunToken((t) => t + 1)
+                setRunningSetup(true)
+              }}
+              disabled={runInFlight || !savedScript.trim() || setupScript !== savedScript}
+              title={
+                !savedScript.trim()
+                  ? "Save a setup script first"
+                  : setupScript !== savedScript
+                    ? "Save your changes to run them"
+                    : undefined
+              }
+              className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-md border border-border hover:bg-accent transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Play className="w-3.5 h-3.5" /> Run setup
+            </button>
+            <button
+              type="button"
+              onClick={startAssistedSetup}
+              disabled={startingAssistedSetup}
+              className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-md border border-border hover:bg-accent transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              {startingAssistedSetup ? "Starting…" : "Set up with agent"}
+            </button>
+          </div>
+          {runningSetup && (
+            <div className="mb-2">
+              <RunSetupPanel
+                environmentId={environment.id}
+                runToken={runToken}
+                onStateChange={(state) => setRunInFlight(state === "running")}
+              />
+            </div>
+          )}
           <textarea
             value={setupScript}
             onChange={(e) => setSetupScript(e.target.value)}
