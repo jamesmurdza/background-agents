@@ -150,6 +150,16 @@ export interface CreateSandboxOptions {
    * to scope an environment to.
    */
   environment?: ResolvedEnvironment | null
+  /**
+   * Whether to write and run the environment's setup script. Defaults to true.
+   * Scheduled jobs pass false: gating a turn on setup completion needs the same
+   * setting_up-plus-poll-plus-dispatch machinery the interactive chat path uses,
+   * and duplicating that inside the cron would be a second, divergent
+   * implementation of the hardest part of the feature. So scheduled runs still
+   * get the environment's variables, just not its setup script, until that
+   * follow-up lands.
+   */
+  runSetupScript?: boolean
 }
 
 export interface CreatedSandbox {
@@ -214,6 +224,62 @@ export async function createSandboxForChat(
       environment: options.environment ?? null,
     })
   )
+
+  // Everything from here on operates on a sandbox that already exists and
+  // costs money/quota. A throw anywhere in this span (clone, branch setup,
+  // writing or starting the setup script) used to leave that sandbox behind
+  // with its id recorded nowhere: the caller's `createSandboxForChat` call
+  // never resolves, so `ensure-sandbox.ts` never gets an id to clean up. Wrap
+  // the whole span so any failure deletes the sandbox it just created before
+  // rethrowing the original error unchanged: the caller's error handling
+  // (marking the chat `error`) depends on seeing that original error.
+  try {
+    return await finishCreatingSandbox({
+      sandbox,
+      isNewRepo,
+      repoName,
+      owner,
+      repoApiName,
+      baseBranch,
+      newBranch,
+      githubToken,
+      restoreExistingBranch,
+      environment: options.environment ?? null,
+      runSetupScript: options.runSetupScript ?? true,
+    })
+  } catch (err) {
+    await deleteSandboxQuietly(daytona, sandbox.id)
+    throw err
+  }
+}
+
+async function finishCreatingSandbox(params: {
+  sandbox: Awaited<ReturnType<Daytona["create"]>>
+  isNewRepo: boolean
+  repoName: string
+  owner: string | undefined
+  repoApiName: string | undefined
+  baseBranch: string
+  newBranch: string
+  githubToken: string | undefined
+  restoreExistingBranch: boolean | undefined
+  environment: ResolvedEnvironment | null
+  runSetupScript: boolean
+}): Promise<CreatedSandbox> {
+  const {
+    sandbox,
+    isNewRepo,
+    repoName,
+    owner,
+    repoApiName,
+    baseBranch,
+    newBranch,
+    githubToken,
+    restoreExistingBranch,
+    environment,
+    runSetupScript,
+  } = params
+  let branchRestored: boolean | undefined
 
   await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)
 
@@ -314,9 +380,11 @@ export async function createSandboxForChat(
   // Materialize the setup script and start it detached. The file is written
   // even when the script is empty, so the assisted-setup flow has something for
   // the agent to edit from its very first turn instead of guessing the path.
+  // Skipped entirely when runSetupScript is false (scheduled jobs): those runs
+  // still get the environment's variables, just not its setup script, until the
+  // cron gets its own setting_up-equivalent gating.
   let setupRun: SetupRunRecord | null = null
-  const environment = options.environment ?? null
-  if (environment) {
+  if (environment && runSetupScript) {
     const script = environment.setupScript ?? ""
     const writtenHash = await writeSetupScript(sandbox, script)
 

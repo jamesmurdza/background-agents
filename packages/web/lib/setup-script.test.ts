@@ -146,7 +146,7 @@ describe("empty setup scripts", () => {
   })
 
   it("treats a null stored script and an empty written one as a conflict", () => {
-    // storedScript null means the DB column is null while we wrote "" — the two
+    // storedScript null means the DB column is null while we wrote "": the two
     // are not the same value, so the hashes differ and we must not guess.
     const emptyHash = hashScript("")
     expect(
