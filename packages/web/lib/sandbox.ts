@@ -17,6 +17,7 @@ import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import type { ResolvedEnvironment } from "@/lib/environments"
 import { buildSandboxCreateParams } from "@/lib/sandbox-create-params"
+import { writeSetupScript, startSetupJob, type SetupRunRecord } from "@/lib/setup-script"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -163,6 +164,12 @@ export interface CreatedSandbox {
    * successfully fetched from remote (true) or created fresh (false).
    */
   branchRestored?: boolean
+  /**
+   * The setup-script job started for this sandbox, or null when the environment
+   * has no script. Not awaited: a dependency install routinely outlives the
+   * request that started it, so the handle is persisted and polled instead.
+   */
+  setupRun?: SetupRunRecord | null
 }
 
 function generateSandboxName(userId?: string): string {
@@ -304,6 +311,39 @@ export async function createSandboxForChat(
     /* preview URLs not available */
   }
 
+  // Materialize the setup script and start it detached. The file is written
+  // even when the script is empty, so the assisted-setup flow has something for
+  // the agent to edit from its very first turn instead of guessing the path.
+  let setupRun: SetupRunRecord | null = null
+  const environment = options.environment ?? null
+  if (environment) {
+    const script = environment.setupScript ?? ""
+    const writtenHash = await writeSetupScript(sandbox, script)
+
+    if (script.trim()) {
+      const handle = await startSetupJob(sandbox, repoPath, environment.variables)
+      setupRun = {
+        handle,
+        environmentId: environment.id,
+        writtenHash,
+        startedAt: Date.now(),
+        state: "running",
+      }
+    } else {
+      // No script to run, so no job and no handle. Still record the hash so a
+      // later agent edit to the empty file is recognized as a change worth
+      // saving, rather than fabricating a placeholder handle nothing can poll.
+      setupRun = {
+        environmentId: environment.id,
+        writtenHash,
+        startedAt: Date.now(),
+        state: "exited",
+        exitCode: 0,
+        finishedAt: Date.now(),
+      }
+    }
+  }
+
   return {
     sandbox,
     sandboxId: sandbox.id,
@@ -311,6 +351,7 @@ export async function createSandboxForChat(
     previewUrlPattern,
     repoName,
     branchRestored,
+    setupRun,
   }
 }
 

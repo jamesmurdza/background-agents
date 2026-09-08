@@ -29,7 +29,12 @@ export const MAX_SETUP_SCRIPT_BYTES = 64 * 1024
 export const SETUP_LOG_TAIL_LINES = 100
 
 export interface SetupRunRecord {
-  handle: JobHandle
+  /**
+   * Absent when there was no script to run (the environment's setup script is
+   * empty). Never a fabricated placeholder: a record with no handle is only
+   * ever valid outside the "running" state, since there is no job to poll.
+   */
+  handle?: JobHandle
   environmentId: string
   /** SHA-256 of the script as written into the sandbox. */
   writtenHash: string
@@ -47,12 +52,17 @@ export function hashScript(script: string): string {
 export function isSetupRunRecord(value: unknown): value is SetupRunRecord {
   if (!value || typeof value !== "object") return false
   const v = value as Partial<SetupRunRecord>
-  return (
-    typeof v.writtenHash === "string" &&
-    typeof v.environmentId === "string" &&
-    !!v.handle &&
-    typeof (v.handle as JobHandle).jobId === "string"
-  )
+  if (typeof v.writtenHash !== "string") return false
+  if (typeof v.environmentId !== "string") return false
+
+  if (v.handle === undefined) {
+    // No job was started (empty script). Valid only when nothing is claiming
+    // to be running: there is no handle to poll, so "running" here would be a
+    // lie no later reader could catch.
+    return v.state !== "running"
+  }
+
+  return typeof (v.handle as JobHandle).jobId === "string"
 }
 
 export type SyncDecision =

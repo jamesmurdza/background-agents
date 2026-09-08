@@ -3,6 +3,7 @@ import {
   hashScript,
   decideSetupScriptSync,
   buildSetupFailureNote,
+  isSetupRunRecord,
   MAX_SETUP_SCRIPT_BYTES,
 } from "./setup-script"
 
@@ -128,5 +129,61 @@ describe("buildSetupFailureNote", () => {
   it("describes a timeout distinctly, since 124 is the coreutils timeout code", () => {
     const note = buildSetupFailureNote(124, "…")
     expect(note).toContain("timed out")
+  })
+})
+
+describe("empty setup scripts", () => {
+  it("an edit to a previously-empty script is still a save, not a skip", () => {
+    const emptyHash = hashScript("")
+    expect(
+      decideSetupScriptSync({
+        environmentId: "env_1",
+        writtenHash: emptyHash,
+        sandboxScript: "npm install\n",
+        storedScript: "",
+      })
+    ).toEqual({ action: "save", script: "npm install\n" })
+  })
+
+  it("treats a null stored script and an empty written one as a conflict", () => {
+    // storedScript null means the DB column is null while we wrote "" — the two
+    // are not the same value, so the hashes differ and we must not guess.
+    const emptyHash = hashScript("")
+    expect(
+      decideSetupScriptSync({
+        environmentId: "env_1",
+        writtenHash: emptyHash,
+        sandboxScript: "npm install\n",
+        storedScript: null,
+      })
+    ).toEqual({ action: "conflict" })
+  })
+})
+
+describe("isSetupRunRecord", () => {
+  it("accepts a handle-less record that is not running", () => {
+    expect(
+      isSetupRunRecord({
+        environmentId: "env_1",
+        writtenHash: hashScript(""),
+        startedAt: Date.now(),
+        state: "exited",
+        exitCode: 0,
+        finishedAt: Date.now(),
+      })
+    ).toBe(true)
+  })
+
+  it("rejects a handle-less record claiming to be running", () => {
+    // No handle means no job to poll or attach to; a "running" state here
+    // would be a lie no later reader could catch.
+    expect(
+      isSetupRunRecord({
+        environmentId: "env_1",
+        writtenHash: hashScript(""),
+        startedAt: Date.now(),
+        state: "running",
+      })
+    ).toBe(false)
   })
 })
