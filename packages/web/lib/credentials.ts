@@ -9,6 +9,7 @@
  * (getEffectiveCredentialFlags) lives in lib/server/credential-flags.ts.
  */
 
+import { parseCodexCredential } from "@/lib/codex-credentials"
 import {
   type CredentialId,
   type CredentialFlags,
@@ -26,6 +27,12 @@ export interface CredentialField {
   placeholder?: string
   multiline?: boolean
   description?: string
+  /**
+   * Server-written credentials. These are never rendered as a text input and
+   * never accepted from a client write — they're established by an OAuth flow
+   * and refreshed by the server.
+   */
+  serverManaged?: boolean
 }
 
 export const CREDENTIAL_KEYS: readonly CredentialField[] = [
@@ -58,6 +65,13 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     label: "OpenAI",
     helpUrl: "https://platform.openai.com/api-keys",
     placeholder: "sk-...",
+  },
+  {
+    id: "CODEX_CREDENTIALS",
+    provider: "openai",
+    label: "ChatGPT Subscription",
+    description: "Codex only. Connected by signing in, not by pasting a value.",
+    serverManaged: true,
   },
   {
     id: "OPENCODE_API_KEY",
@@ -101,9 +115,44 @@ export function isCredentialId(value: string): value is CredentialId {
   return CREDENTIAL_IDS.has(value)
 }
 
+const SERVER_MANAGED_IDS = new Set<string>(
+  CREDENTIAL_KEYS.filter((c) => c.serverManaged).map((c) => c.id)
+)
+
+/**
+ * Whether a credential may be set by a client PATCH. Server-managed
+ * credentials (the Codex ChatGPT subscription) are established by an OAuth
+ * flow and rotated by the server; accepting a pasted value would both corrupt
+ * the stored shape and reintroduce the shared-token-lineage problem the OAuth
+ * flow exists to avoid.
+ */
+export function isClientWritableCredential(id: CredentialId): boolean {
+  return !SERVER_MANAGED_IDS.has(id)
+}
+
+/**
+ * Presence flags per credential id.
+ *
+ * CODEX_CREDENTIALS is the one id where presence is NOT the right signal. Its
+ * stored value is a JSON credential with a lifecycle: a grant OpenAI has
+ * rejected is kept on the row marked `needs_reconnect` (deliberately — never
+ * retried, never silently dropped) rather than deleted. Flagging that as
+ * available makes hasCredentialsForModel unlock the Codex models for a user
+ * whose subscription cannot actually serve a run, so they pick a model and get
+ * an opaque agent-side failure instead of the "reconnect" prompt Settings is
+ * ready to show them. Derive from the PARSED status instead: a value that does
+ * not parse as a complete credential, or parses as `needs_reconnect`, is not a
+ * usable subscription.
+ *
+ * Every other id keeps plain presence semantics.
+ */
 export function flagsFromCredentials(credentials: Credentials): CredentialFlags {
   const out: CredentialFlags = {}
   for (const { id } of CREDENTIAL_KEYS) {
+    if (id === "CODEX_CREDENTIALS") {
+      out[id] = parseCodexCredential(credentials[id])?.status === "connected"
+      continue
+    }
     out[id] = !!credentials[id]
   }
   return out

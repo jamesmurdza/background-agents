@@ -16,6 +16,25 @@ import { CODEX_TOOL_MAPPINGS } from "./tools"
 import { buildCodexConfigToml } from "./config"
 import { extractTomlSections, combineCodexConfig } from "./toml-merge"
 
+/** Codex credentials directory inside the sandbox. */
+const CODEX_HOME_DIR = "/home/daytona/.codex"
+/** Codex credentials file. */
+const CODEX_AUTH_FILE = "/home/daytona/.codex/auth.json"
+/** Environment variable carrying a complete auth.json for a subscription run. */
+const CODEX_CREDENTIALS_ENV = "CODEX_CREDENTIALS"
+
+/**
+ * Shell command that installs a ChatGPT-subscription auth.json.
+ *
+ * The blob is rendered server-side (see the web app's lib/codex-credentials)
+ * and already carries a placeholder refresh token, so nothing here can rotate
+ * the user's real grant.
+ */
+export function buildCodexAuthSetupCommand(credentialsJson: string): string {
+  const safe = escapeShell(credentialsJson)
+  return `mkdir -p '${CODEX_HOME_DIR}' && printf '%s' '${safe}' > '${CODEX_AUTH_FILE}' && chmod 600 '${CODEX_AUTH_FILE}'`
+}
+
 /**
  * Write ~/.codex/config.toml with the given provider config, carrying over any
  * `[mcp_servers.*]` sections already present in the file. setupMcpForAgent
@@ -49,14 +68,17 @@ async function writeCodexConfig(
 }
 
 /**
- * Codex agent-specific setup. Two mutually exclusive paths, both of which
+ * Codex agent-specific setup. Three mutually exclusive paths, all of which
  * preserve any MCP servers already written to config.toml (see writeCodexConfig):
  *
  * 1. Custom endpoint — when CUSTOM_CODEX_BASE_URL is set (the user configured a
  *    custom OpenAI-compatible endpoint), write ~/.codex/config.toml routing all
  *    requests through that provider. Auth lives in the headers blob, so there is
  *    no `codex login` step.
- * 2. Standard OpenAI — drop any custom provider config left over from a previous
+ * 2. ChatGPT subscription — when CODEX_CREDENTIALS_ENV is set, write auth.json
+ *    instead of running `codex login`, which has no non-interactive mode that
+ *    accepts an OAuth access token.
+ * 3. Standard OpenAI — drop any custom provider config left over from a previous
  *    custom run in this sandbox (so a custom→standard switch stops routing to the
  *    old endpoint), then log in with the stored OPENAI_API_KEY.
  */
@@ -82,6 +104,19 @@ async function codexSetup(
   // MCP sections. Passing an empty provider config strips model_provider/
   // model_providers but carries [mcp_servers.*] over.
   await writeCodexConfig(sandbox, "")
+
+  // Subscription path: the web layer resolved a fresh access token and rendered
+  // a complete auth.json. Write it rather than running `codex login`, which has
+  // no non-interactive mode that accepts an OAuth access token.
+  const subscription = env[CODEX_CREDENTIALS_ENV]
+  if (subscription) {
+    await sandbox.executeCommand(buildCodexAuthSetupCommand(subscription), 30)
+    return
+  }
+
+  // Neither path applies: clear any auth.json left by an earlier subscription
+  // run in this sandbox so a stale token can't shadow the API key below.
+  await sandbox.executeCommand(`rm -f '${CODEX_AUTH_FILE}'`, 10)
 
   if (!env.OPENAI_API_KEY) return
 

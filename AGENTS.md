@@ -22,6 +22,7 @@ The agent can follow the setup and workflow instructions in this repo on its own
 
 - `SMITHERY_*` — remote MCP servers from the Smithery registry.
 - `GITHUB_APP_*` — authenticated GitHub MCP server.
+- `CODEX_SUBSCRIPTION_ENABLED` — enables ChatGPT-subscription auth for Codex via a device-code connect flow in Settings. Off unless set to `1` or `true`.
 
 Before running tests or a dev server, confirm the required env vars above are exported, then follow [DEVELOPMENT.md](./DEVELOPMENT.md).
 

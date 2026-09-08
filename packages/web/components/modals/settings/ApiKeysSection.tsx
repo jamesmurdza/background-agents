@@ -16,6 +16,7 @@ import {
   ToggleSwitch,
   MobileSectionHeader,
 } from "./shared"
+import { CodexConnectionRow } from "./CodexConnectionRow"
 
 /** Which provider's API key field to highlight with a red outline. */
 export type HighlightKey = ProviderId | null
@@ -155,6 +156,13 @@ export function ApiKeysSection({
         ) : field.helpUrl ? (
           renderHelpLink(field.helpUrl)
         ) : undefined
+
+        // Server-managed credentials render as a connection, not an input.
+        if (field.serverManaged) {
+          return (
+            <CodexConnectionRow key={field.id} label={field.label} description={description} />
+          )
+        }
 
         if (field.multiline) {
           // Special handling for CLAUDE_CODE_CREDENTIALS with auto-detect (desktop only)

@@ -2,6 +2,7 @@ import { getGitHubToken, getUserCredentials } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { ENDPOINT_MODEL_PREFIX } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
 import type { Credentials } from "@/lib/credentials"
@@ -97,6 +98,17 @@ export async function resolveSendCredentials(
       )
     }
   }
+
+  // Codex ChatGPT subscription. This ALWAYS strips the stored CODEX_CREDENTIALS
+  // blob (which carries the user's real refresh token) and only then re-adds a
+  // freshly rendered auth.json when the subscription applies to this run. See
+  // applyCodexSubscription for why the strip must be unconditional.
+  credentials = await applyCodexSubscription(
+    credentials,
+    userId,
+    payload.agent,
+    payload.model
+  )
 
   return { credentials, githubToken, useSharedClaude }
 }

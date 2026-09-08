@@ -11,6 +11,7 @@ import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
 import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterDyingTurn } from "./meter-dying-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
@@ -193,6 +194,17 @@ export async function startJobExecution(
       console.error(`[agent-lifecycle] Failed to get shared Claude creds:`, err)
     }
   }
+
+  // Codex ChatGPT subscription. This ALWAYS strips the stored CODEX_CREDENTIALS
+  // blob (which carries the user's real refresh token) and only then re-adds a
+  // freshly rendered auth.json when the subscription applies to this run. See
+  // applyCodexSubscription for why the strip must be unconditional.
+  credentials = await applyCodexSubscription(
+    credentials,
+    job.userId,
+    job.agent,
+    job.model
+  )
 
   // 7. Create background session
   const repoPath = `${PATHS.SANDBOX_HOME}/project`
