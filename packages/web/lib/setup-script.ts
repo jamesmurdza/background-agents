@@ -43,6 +43,17 @@ export interface SetupRunRecord {
   finishedAt?: number
   exitCode?: number | null
   state?: "running" | "exited" | "crashed"
+  /**
+   * When a dispatcher last claimed this run's exit, as a unix ms timestamp.
+   *
+   * The claim leaves the chat in `setting_up` on purpose: a chat moved to
+   * `ready` before its turn actually starts is invisible to every recovery
+   * path (the cron monitors `running`, phase 5 monitors `setting_up`, and the
+   * stop endpoint needs a backgroundSessionId), so an invocation killed during
+   * turn startup would strand it. Staying in `setting_up` keeps the chat
+   * 409-busy to a second tab and lets the cron re-claim a stale one.
+   */
+  claimedAt?: number
 }
 
 export function hashScript(script: string): string {

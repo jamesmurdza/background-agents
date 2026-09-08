@@ -6,18 +6,55 @@
  * the current status, and only the caller that actually changed a row goes on
  * to launch the turn. Without that guard, a watched setup would run the user's
  * message twice.
+ *
+ * The claim deliberately does NOT move the chat to `ready`. Turn startup is
+ * slow (history, MCP, skill discovery, session creation), and a chat parked at
+ * `ready` mid-startup is invisible to every recovery path there is: the cron's
+ * interactive monitor wants `running` plus a backgroundSessionId, its setup
+ * phase wants `setting_up`, and /api/agent/stop returns early with no
+ * backgroundSessionId. An invocation killed in that window would strand the
+ * chat with a persisted message, no reply, and no way out. So the claim only
+ * stamps `claimedAt`, the chat stays `setting_up` (and stays 409-busy to a
+ * second tab), and `persistTurn` moves it to `running` when the turn really
+ * starts. A claim older than {@link DISPATCH_CLAIM_TTL_MS} is assumed dead and
+ * re-claimable, which is what lets the cron recover a killed dispatch.
  */
+
+/** How long a dispatch claim is respected before another observer may retry.
+ *  Comfortably longer than turn startup, shorter than a user's patience. */
+export const DISPATCH_CLAIM_TTL_MS = 5 * 60 * 1000
 
 import { randomUUID } from "crypto"
 import { Daytona } from "@daytonaio/sdk"
+import { Prisma } from "@prisma/client"
 import { PATHS } from "@/lib/constants"
 import { prisma } from "@/lib/db/prisma"
 import { getChatWithAuth } from "@/lib/db/api-helpers"
+import { ensureSandboxStarted } from "@/lib/sandbox"
 import { getUserEndpoints } from "@/lib/server/custom-endpoints"
 import { buildSetupFailureNote, type SetupRunRecord } from "@/lib/setup-script"
 import { resolveSendCredentials } from "@/app/api/chats/[chatId]/messages/_lib/resolve-credentials"
 import type { MessagePayload } from "@/app/api/chats/[chatId]/messages/_lib/types"
 import { runQueuedTurnForChat } from "./run-queued-turn"
+
+/**
+ * The claim guard. Exported so it can be exercised against a real database:
+ * whether an absent `claimedAt` key matches `Prisma.DbNull` on a JSON path is
+ * database behavior, not something a mocked client can tell you.
+ */
+export function buildClaimWhere(chatId: string, now: number) {
+  return {
+    id: chatId,
+    status: "setting_up",
+    OR: [
+      // Never claimed. An absent `claimedAt` key reads as SQL NULL, which is
+      // what Prisma's DbNull matches on a JSON path.
+      { setupRun: { path: ["claimedAt"], equals: Prisma.DbNull } },
+      // Claimed, but by an invocation that never finished.
+      { setupRun: { path: ["claimedAt"], lt: now - DISPATCH_CLAIM_TTL_MS } },
+    ],
+  }
+}
 
 export async function dispatchQueuedTurn(args: {
   chatId: string
@@ -27,11 +64,11 @@ export async function dispatchQueuedTurn(args: {
 }): Promise<boolean> {
   const { chatId, userId, setupRun, logTail } = args
 
+  const now = Date.now()
   const claimed = await prisma.chat.updateMany({
-    where: { id: chatId, status: "setting_up" },
+    where: buildClaimWhere(chatId, now),
     data: {
-      status: "ready",
-      setupRun: setupRun as never,
+      setupRun: { ...setupRun, claimedAt: now } as never,
     },
   })
 
@@ -48,10 +85,9 @@ export async function dispatchQueuedTurn(args: {
   try {
     await startQueuedTurn(chatId, userId, note)
   } catch (err) {
-    // The claim already moved the chat out of `setting_up`, so nothing will
-    // retry this. Surface it rather than leaving an unanswered user message on
-    // a chat that looks idle. Never log `logTail`: it is unredacted script
-    // output.
+    // Move the chat off `setting_up` so it stops being 409-busy and stops
+    // being re-claimed every tick: this failure is not transient enough to
+    // retry blindly. Never log `logTail`: it is unredacted script output.
     console.error(`[dispatch-setup-turn] chat ${chatId} failed to start:`, err)
     await prisma.chat
       .update({ where: { id: chatId }, data: { status: "error" } })
@@ -120,6 +156,11 @@ async function startQueuedTurn(
   if (!daytonaApiKey) throw new Error("DAYTONA_API_KEY not configured")
   const daytona = new Daytona({ apiKey: daytonaApiKey })
   const sandbox = await daytona.get(chat.sandboxId)
+  // Every normal turn reaches the agent through ensureSandboxForChat, which
+  // ends in this call. A held turn skipped that path, and with
+  // autoStopInterval at 5 minutes a sandbox whose polling lapsed is stopped by
+  // the time we get here, so createBackgroundAgentSession would throw.
+  await ensureSandboxStarted(sandbox)
 
   const uploadedFilePaths = Array.isArray(userMessage.uploadedFiles)
     ? (userMessage.uploadedFiles as unknown[]).filter(

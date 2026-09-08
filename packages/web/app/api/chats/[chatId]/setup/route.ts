@@ -50,38 +50,50 @@ export async function GET(
 
     // No handle means no job was ever started (an empty script). Such a chat
     // should never be in `setting_up`, but if one is, nothing can poll it out,
-    // so unstick it here rather than 404ing and leaving the turn queued forever.
+    // so unstick it here rather than leaving the turn queued forever. It still
+    // goes out as a `done` event: the client opens this with EventSource, and a
+    // JSON body would look like a connection that yields nothing.
     const handle = setupRun.handle
-    if (!handle) {
-      const dispatched = await dispatchQueuedTurn({
-        chatId,
-        userId,
-        setupRun: { ...setupRun, state: "exited", exitCode: 0, finishedAt: Date.now() },
-        logTail: "",
-      })
-      return Response.json({ exitCode: 0, state: "exited", dispatched })
-    }
 
     const daytonaApiKey = process.env.DAYTONA_API_KEY
     if (!daytonaApiKey) return internalError(new Error("DAYTONA_API_KEY not configured"))
 
     const daytona = new Daytona({ apiKey: daytonaApiKey })
-    const sandbox = await daytona.get(chat.sandboxId)
-    const jobs = createSandboxJobs(sandbox)
+    const jobs = handle
+      ? createSandboxJobs(await daytona.get(chat.sandboxId))
+      : null
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
+        // Enqueueing to a stream whose client has gone away throws. That is a
+        // normal way for this endpoint to end, not an error worth propagating
+        // out of the catch below as an unhandled rejection.
         const send = (event: string, data: unknown) => {
-          controller.enqueue(
-            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-          )
+          try {
+            controller.enqueue(
+              encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+            )
+          } catch {
+            /* client gone */
+          }
         }
 
         let cursor = 0
         let collected = ""
 
         try {
+          if (!jobs || !handle) {
+            const dispatched = await dispatchQueuedTurn({
+              chatId,
+              userId,
+              setupRun: { ...setupRun, state: "exited", exitCode: 0, finishedAt: Date.now() },
+              logTail: "",
+            })
+            send("done", { exitCode: 0, state: "exited", dispatched })
+            return // the `finally` below closes the stream
+          }
+
           for (;;) {
             const read = await jobs.read(handle, cursor)
             if (read.raw) {

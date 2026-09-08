@@ -12,7 +12,12 @@ import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
 import { isSetupRunRecord, tailLines, type SetupRunRecord } from "@/lib/setup-script"
-import { dispatchQueuedTurn, finishSetupRecord } from "@/lib/server/dispatch-setup-turn"
+import {
+  dispatchQueuedTurn,
+  finishSetupRecord,
+  DISPATCH_CLAIM_TTL_MS,
+} from "@/lib/server/dispatch-setup-turn"
+import { ensureSandboxStarted } from "@/lib/sandbox"
 
 // Vercel Pro plan allows up to 5 minutes for cron jobs
 export const maxDuration = 300
@@ -264,6 +269,10 @@ export async function GET(req: Request) {
     // disconnected. Polling here is also what keeps a watched-then-abandoned
     // sandbox from hitting autoStopInterval mid-script, since every status
     // check is sandbox activity.
+    //
+    // It is also the recovery path for a dispatch that was claimed and then
+    // killed: the claim leaves the chat in `setting_up` and only stamps
+    // `claimedAt`, so a claim older than DISPATCH_CLAIM_TTL_MS is retried here.
     const settingUp = await prisma.chat.findMany({
       where: { status: "setting_up" },
       select: { id: true, userId: true, sandboxId: true, setupRun: true },
@@ -294,7 +303,32 @@ export async function GET(req: Request) {
           continue
         }
 
-        const sandbox = await daytona.get(chat.sandboxId)
+        // Another observer is mid-dispatch. Leave it alone until its claim
+        // goes stale; dispatchQueuedTurn would refuse it anyway, and this
+        // saves the Daytona round trips.
+        if (record.claimedAt && now.getTime() - record.claimedAt < DISPATCH_CLAIM_TTL_MS) {
+          continue
+        }
+
+        let sandbox
+        try {
+          sandbox = await daytona.get(chat.sandboxId)
+        } catch (err) {
+          // The sandbox is gone (cleanup cron, or the 4-day auto-delete). There
+          // is no job left to observe and no way for this chat to leave
+          // `setting_up` on its own, where it would 409 every send and re-fail
+          // here every minute. Fail it instead of looping.
+          await prisma.chat.update({ where: { id: chat.id }, data: { status: "error" } })
+          results.errors.push(
+            `setup dispatch ${chat.id}: sandbox unavailable, chat marked error (${err instanceof Error ? err.message : "unknown"})`
+          )
+          continue
+        }
+
+        // A stopped sandbox cannot be polled, and the turn we are about to
+        // dispatch needs it started anyway.
+        await ensureSandboxStarted(sandbox)
+
         const jobs = createSandboxJobs(sandbox)
         const status = await jobs.status(record.handle)
         if (status.alive) continue

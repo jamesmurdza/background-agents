@@ -8,6 +8,7 @@ const messageFindFirst = vi.fn()
 const resolveSendCredentials = vi.fn()
 const getUserEndpoints = vi.fn()
 const daytonaGet = vi.fn()
+const ensureSandboxStarted = vi.fn()
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -16,6 +17,8 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }))
 vi.mock("@/lib/db/api-helpers", () => ({ getChatWithAuth }))
+vi.mock("@/lib/sandbox", () => ({ ensureSandboxStarted }))
+vi.mock("@prisma/client", () => ({ Prisma: { DbNull: Symbol("DbNull") } }))
 vi.mock("@/lib/server/custom-endpoints", () => ({ getUserEndpoints }))
 vi.mock("@/app/api/chats/[chatId]/messages/_lib/resolve-credentials", () => ({
   resolveSendCredentials,
@@ -27,7 +30,10 @@ vi.mock("@daytonaio/sdk", () => ({
   },
 }))
 
-const { dispatchQueuedTurn, finishSetupRecord } = await import("./dispatch-setup-turn")
+const { Prisma } = await import("@prisma/client")
+const { dispatchQueuedTurn, finishSetupRecord, DISPATCH_CLAIM_TTL_MS } = await import(
+  "./dispatch-setup-turn"
+)
 
 const RECORD = {
   handle: { jobId: "job_1" } as never,
@@ -60,6 +66,7 @@ function happyPath() {
   getUserEndpoints.mockResolvedValue([])
   daytonaGet.mockResolvedValue({})
   runQueuedTurnForChat.mockResolvedValue({ backgroundSessionId: "bg_1" })
+  ensureSandboxStarted.mockResolvedValue(undefined)
 }
 
 describe("dispatchQueuedTurn", () => {
@@ -70,8 +77,9 @@ describe("dispatchQueuedTurn", () => {
     happyPath()
   })
 
-  it("guards the transition on the current status, so only setting_up chats are claimed", async () => {
+  it("guards the claim on the current status and on any live claim", async () => {
     updateMany.mockResolvedValue({ count: 1 })
+    const before = Date.now()
 
     await dispatchQueuedTurn({
       chatId: "chat_1",
@@ -81,13 +89,47 @@ describe("dispatchQueuedTurn", () => {
     })
 
     expect(updateMany).toHaveBeenCalledTimes(1)
-    // The `where` IS the guard: without the status clause, a second observer
-    // would also update a row and go on to run the turn.
-    expect(updateMany.mock.calls[0][0].where).toEqual({
-      id: "chat_1",
-      status: "setting_up",
+    const where = updateMany.mock.calls[0][0].where
+    // The `where` IS the guard. Without the status clause a second observer
+    // would also update a row and run the turn again; without the OR clause a
+    // second observer would steal a dispatch that is still in flight.
+    expect(where.id).toBe("chat_1")
+    expect(where.status).toBe("setting_up")
+    expect(where.OR[0]).toEqual({
+      setupRun: { path: ["claimedAt"], equals: Prisma.DbNull },
     })
-    expect(updateMany.mock.calls[0][0].data.status).toBe("ready")
+    expect(where.OR[1].setupRun.path).toEqual(["claimedAt"])
+    expect(where.OR[1].setupRun.lt).toBeLessThanOrEqual(before - DISPATCH_CLAIM_TTL_MS)
+  })
+
+  it("leaves the chat in setting_up while it dispatches, so a killed dispatch is recoverable", async () => {
+    updateMany.mockResolvedValue({ count: 1 })
+
+    await dispatchQueuedTurn({
+      chatId: "chat_1",
+      userId: "user_1",
+      setupRun: { ...RECORD, state: "exited", exitCode: 0 },
+      logTail: "",
+    })
+
+    const data = updateMany.mock.calls[0][0].data
+    // A chat parked at `ready` mid-startup is invisible to every recovery path.
+    expect(data.status).toBeUndefined()
+    expect(data.setupRun.claimedAt).toEqual(expect.any(Number))
+  })
+
+  it("starts the sandbox before the turn, because a held turn skipped ensureSandboxForChat", async () => {
+    updateMany.mockResolvedValue({ count: 1 })
+
+    await dispatchQueuedTurn({
+      chatId: "chat_1",
+      userId: "user_1",
+      setupRun: { ...RECORD, state: "exited", exitCode: 0 },
+      logTail: "",
+    })
+
+    expect(ensureSandboxStarted).toHaveBeenCalledTimes(1)
+    expect(runQueuedTurnForChat).toHaveBeenCalledTimes(1)
   })
 
   it("runs the turn exactly once for the caller that changed a row", async () => {
