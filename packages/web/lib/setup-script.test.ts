@@ -44,6 +44,21 @@ describe("decideSetupScriptSync", () => {
     ).toEqual({ action: "skip", reason: "too-large" })
   })
 
+  it("skips a multi-byte script that is under the character count but over the byte cap", () => {
+    // "é" is one UTF-16 code unit but two bytes in UTF-8. A `.length` check
+    // would pass this through; only a byte-length check catches it.
+    const multiByte = "é".repeat(MAX_SETUP_SCRIPT_BYTES / 2 + 1)
+    expect(multiByte.length).toBeLessThan(MAX_SETUP_SCRIPT_BYTES)
+    expect(
+      decideSetupScriptSync({
+        environmentId: "env_1",
+        writtenHash: HASH,
+        sandboxScript: multiByte,
+        storedScript: SCRIPT,
+      })
+    ).toEqual({ action: "skip", reason: "too-large" })
+  })
+
   it("skips when the agent did not touch the file", () => {
     expect(
       decideSetupScriptSync({

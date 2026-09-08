@@ -120,11 +120,11 @@ export function buildSetupFailureNote(exitCode: number | null, logTail: string):
 
 /** Write the script into the sandbox and return the hash that was written. */
 export async function writeSetupScript(sandbox: Sandbox, script: string): Promise<string> {
-  await sandbox.process.executeCommand(`mkdir -p ${SETUP_DIR}`)
+  await sandbox.process.executeCommand(`mkdir -p '${SETUP_DIR}'`)
   // Written via the filesystem API rather than a shell heredoc so no quoting or
   // escaping in the user's script can break out into the surrounding command.
   await sandbox.fs.uploadFile(Buffer.from(script, "utf8"), SETUP_SCRIPT_PATH)
-  await sandbox.process.executeCommand(`chmod +x ${SETUP_SCRIPT_PATH}`)
+  await sandbox.process.executeCommand(`chmod +x '${SETUP_SCRIPT_PATH}'`)
   return hashScript(script)
 }
 
