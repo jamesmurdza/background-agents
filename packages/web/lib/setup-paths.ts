@@ -12,6 +12,27 @@
 export const SETUP_DIR = "/home/daytona/.backgrounder"
 export const SETUP_SCRIPT_PATH = `${SETUP_DIR}/setup.sh`
 
+/** Hard wall-clock cap for a real chat's setup run. sandbox-jobs implements
+ *  this with coreutils `timeout`, so an expiry surfaces as exit code 124, a
+ *  real, observable code. Safe at up to 600s there because that flow never
+ *  depends on any one HTTP invocation staying alive for the whole run: the
+ *  job lives in the sandbox's filesystem and a reconnect (or the cron
+ *  backstop) can pick its exit up later. */
+export const SETUP_TIMEOUT_SECONDS = 600
+
+/**
+ * Cap for a "Run setup" validation run, which has no such luxury: that route
+ * owns a throwaway sandbox for exactly one HTTP invocation and deletes it in
+ * that same invocation's `finally`. If the script's own timeout could exceed
+ * the route's `maxDuration`, the platform kills the invocation first, the
+ * `finally` never runs, and the sandbox leaks until Daytona's own
+ * auto-delete backstop reaps it (see autoDeleteIntervalMinutes at the
+ * validation call site). Kept well under `maxDuration` (300s) to leave
+ * headroom for the clone/branch setup that happens before the script even
+ * starts.
+ */
+export const VALIDATION_SETUP_TIMEOUT_SECONDS = 180
+
 /**
  * The opening prompt for a "Set up with agent" chat.
  *

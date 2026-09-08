@@ -144,11 +144,15 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   // built. Consume it once this chat shows up here and send it as if the
   // user had typed it, so the agent starts working immediately. Consuming
   // clears the staged entry, so a re-render (or this same chat being visited
-  // again later) never re-sends it.
+  // again later) never re-sends it -- which is exactly why the agent/model
+  // check runs BEFORE consuming: a chat somehow missing either (never true
+  // for one created via POST /api/chats, which always resolves both) would
+  // otherwise destroy the staged prompt with no way to resend it.
   useEffect(() => {
     if (!chat) return
+    if (!chat.agent || !chat.model) return
     const prompt = consumeAssistedSetupPrompt(chat.id)
-    if (!prompt || !chat.agent || !chat.model) return
+    if (!prompt) return
     onSendMessage(prompt, chat.agent, chat.model, undefined, false)
     // Keyed only on chat.id: onSendMessage/chat.agent/chat.model are read at
     // the moment the staged prompt is found, not meant to re-trigger this.

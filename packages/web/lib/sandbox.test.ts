@@ -157,6 +157,57 @@ describe("createSandboxForChat: cleanup on failure", () => {
     expect(deleteFn).not.toHaveBeenCalled()
   })
 
+  it("passes setupScriptTimeoutSeconds through to startSetupJob, for a shorter validation-run cap", async () => {
+    const sandbox = makeSandbox()
+    const { daytona } = makeDaytona(sandbox)
+    writeSetupScript.mockResolvedValue("hash-1")
+    startSetupJob.mockResolvedValue({
+      jobId: "job-1",
+      dir: "/tmp/job",
+      outputFile: "/tmp/job/out",
+      exitFile: "/tmp/job/exit",
+      pgid: 1,
+      cgroup: "cg-1",
+    })
+
+    await createSandboxForChat({
+      daytona: daytona as never,
+      repo: NEW_REPOSITORY,
+      baseBranch: "main",
+      newBranch: "agent/abcd1234",
+      userId: "user-1",
+      environment: resolvedEnvironment,
+      setupScriptTimeoutSeconds: 180,
+    })
+
+    expect(startSetupJob).toHaveBeenCalledWith(sandbox, expect.any(String), {}, 180)
+  })
+
+  it("leaves startSetupJob's timeout to its own default when setupScriptTimeoutSeconds is omitted", async () => {
+    const sandbox = makeSandbox()
+    const { daytona } = makeDaytona(sandbox)
+    writeSetupScript.mockResolvedValue("hash-1")
+    startSetupJob.mockResolvedValue({
+      jobId: "job-1",
+      dir: "/tmp/job",
+      outputFile: "/tmp/job/out",
+      exitFile: "/tmp/job/exit",
+      pgid: 1,
+      cgroup: "cg-1",
+    })
+
+    await createSandboxForChat({
+      daytona: daytona as never,
+      repo: NEW_REPOSITORY,
+      baseBranch: "main",
+      newBranch: "agent/abcd1234",
+      userId: "user-1",
+      environment: resolvedEnvironment,
+    })
+
+    expect(startSetupJob).toHaveBeenCalledWith(sandbox, expect.any(String), {}, undefined)
+  })
+
   it("skips writing and starting the setup script when runSetupScript is false", async () => {
     const sandbox = makeSandbox()
     const { daytona } = makeDaytona(sandbox)

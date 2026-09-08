@@ -31,8 +31,17 @@ export function buildSandboxCreateParams(args: {
   repo: string
   branch: string
   environment: ResolvedEnvironment | null
+  /**
+   * Overrides the default 4-day auto-delete window. The run-setup validation
+   * route passes a short value here: that sandbox is throwaway by
+   * construction and normally deletes itself the moment its script finishes,
+   * but if the route's own invocation gets killed first (see
+   * VALIDATION_SETUP_TIMEOUT_SECONDS in lib/setup-paths.ts) this is what
+   * bounds the leak to minutes instead of days.
+   */
+  autoDeleteIntervalMinutes?: number
 }): CreateSandboxFromSnapshotParams {
-  const { name, snapshot, repo, branch, environment } = args
+  const { name, snapshot, repo, branch, environment, autoDeleteIntervalMinutes } = args
 
   if (environment?.networkMode === "restricted") {
     throw new Error(
@@ -52,7 +61,9 @@ export function buildSandboxCreateParams(args: {
     name,
     snapshot,
     autoStopInterval: 5,
-    autoDeleteInterval: 5760, // 4 days - auto-delete after being stopped for four days
+    // 4 days by default (auto-delete after being stopped for four days);
+    // overridden to a short window for throwaway validation sandboxes.
+    autoDeleteInterval: autoDeleteIntervalMinutes ?? 5760,
     public: true,
     labels: {
       [SANDBOX_CONFIG.LABEL_KEY]: "true",

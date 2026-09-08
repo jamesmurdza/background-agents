@@ -17,7 +17,11 @@ import type { EnvVar } from "@/lib/types"
 // Type-only: EnvironmentDTO's module imports @/lib/db/prisma.
 import type { EnvironmentDTO } from "@/lib/environments"
 // Pure: no Node or sandbox-jobs imports, safe to use from this client component.
-import { buildAssistedSetupPrompt } from "@/lib/setup-paths"
+import {
+  buildAssistedSetupPrompt,
+  SETUP_TIMEOUT_SECONDS,
+  VALIDATION_SETUP_TIMEOUT_SECONDS,
+} from "@/lib/setup-paths"
 import { stageAssistedSetupPrompt } from "@/lib/assisted-setup"
 
 interface EnvironmentEditorProps {
@@ -398,6 +402,11 @@ export function EnvironmentEditor({ environment, onBack, onDeleted, onDuplicated
               {startingAssistedSetup ? "Starting…" : "Set up with agent"}
             </button>
           </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            Run setup is a quick check: it is capped at {VALIDATION_SETUP_TIMEOUT_SECONDS / 60}{" "}
+            minutes, shorter than the {SETUP_TIMEOUT_SECONDS / 60} minutes a real chat's setup
+            script gets.
+          </p>
           {runningSetup && (
             <div className="mb-2">
               <RunSetupPanel

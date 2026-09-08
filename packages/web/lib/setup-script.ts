@@ -18,12 +18,14 @@ import { createSandboxJobs, type JobHandle } from "@background-agents/sandbox-jo
 // buildAssistedSetupPrompt without dragging this module's server-only
 // dependencies into the browser bundle. Re-exported here too so anything
 // that reaches for them via "@/lib/setup-script" still finds them.
-export { SETUP_DIR, SETUP_SCRIPT_PATH, buildAssistedSetupPrompt } from "./setup-paths"
-import { SETUP_DIR, SETUP_SCRIPT_PATH } from "./setup-paths"
-
-/** Hard wall-clock cap. sandbox-jobs implements this with coreutils `timeout`,
- *  so an expiry surfaces as exit code 124, a real, observable code. */
-export const SETUP_TIMEOUT_SECONDS = 600
+export {
+  SETUP_DIR,
+  SETUP_SCRIPT_PATH,
+  SETUP_TIMEOUT_SECONDS,
+  VALIDATION_SETUP_TIMEOUT_SECONDS,
+  buildAssistedSetupPrompt,
+} from "./setup-paths"
+import { SETUP_DIR, SETUP_SCRIPT_PATH, SETUP_TIMEOUT_SECONDS } from "./setup-paths"
 
 /** Past this, it isn't a setup script any more; we ignore it rather than
  *  pulling an arbitrarily large file into the turn's memory. */
@@ -206,14 +208,19 @@ export async function writeSetupScript(sandbox: Sandbox, script: string): Promis
 export async function startSetupJob(
   sandbox: Sandbox,
   repoPath: string,
-  env: Record<string, string>
+  env: Record<string, string>,
+  /** Overridable so a "Run setup" validation run (see
+   *  VALIDATION_SETUP_TIMEOUT_SECONDS) can cap the script's own timeout well
+   *  under the route's maxDuration, instead of inheriting a real chat's much
+   *  longer budget it has no way to outlive safely. */
+  timeoutSeconds: number = SETUP_TIMEOUT_SECONDS
 ): Promise<JobHandle> {
   const jobs = createSandboxJobs(sandbox)
   return jobs.start({
     command: `bash ${SETUP_SCRIPT_PATH}`,
     cwd: repoPath,
     env,
-    timeoutSeconds: SETUP_TIMEOUT_SECONDS,
+    timeoutSeconds,
     processName: "backgrounder-setup",
   })
 }

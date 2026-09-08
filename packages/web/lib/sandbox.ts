@@ -174,6 +174,22 @@ export interface CreateSandboxOptions {
    * follow-up lands.
    */
   runSetupScript?: boolean
+  /**
+   * Overrides the setup script's own job timeout (default
+   * SETUP_TIMEOUT_SECONDS). The run-setup validation route passes
+   * VALIDATION_SETUP_TIMEOUT_SECONDS here so the script cannot outlive that
+   * route's maxDuration and strand the sandbox it owns.
+   */
+  setupScriptTimeoutSeconds?: number
+  /**
+   * Overrides the sandbox's auto-delete interval, in minutes (default 5760 =
+   * 4 days, set in buildSandboxCreateParams). The run-setup validation route
+   * passes a short interval here as a backstop: if that route's own
+   * invocation gets killed before its cleanup can run (see
+   * setupScriptTimeoutSeconds above), Daytona still reaps the sandbox on its
+   * own within minutes instead of days.
+   */
+  autoDeleteIntervalMinutes?: number
 }
 
 export interface CreatedSandbox {
@@ -236,6 +252,7 @@ export async function createSandboxForChat(
       repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
       branch: newBranch,
       environment: options.environment ?? null,
+      autoDeleteIntervalMinutes: options.autoDeleteIntervalMinutes,
     })
   )
 
@@ -260,6 +277,7 @@ export async function createSandboxForChat(
       restoreExistingBranch,
       environment: options.environment ?? null,
       runSetupScript: options.runSetupScript ?? true,
+      setupScriptTimeoutSeconds: options.setupScriptTimeoutSeconds,
     })
   } catch (err) {
     await deleteSandboxQuietly(daytona, sandbox.id)
@@ -279,6 +297,7 @@ async function finishCreatingSandbox(params: {
   restoreExistingBranch: boolean | undefined
   environment: ResolvedEnvironment | null
   runSetupScript: boolean
+  setupScriptTimeoutSeconds: number | undefined
 }): Promise<CreatedSandbox> {
   const {
     sandbox,
@@ -292,6 +311,7 @@ async function finishCreatingSandbox(params: {
     restoreExistingBranch,
     environment,
     runSetupScript,
+    setupScriptTimeoutSeconds,
   } = params
   let branchRestored: boolean | undefined
 
@@ -403,7 +423,12 @@ async function finishCreatingSandbox(params: {
     const writtenHash = await writeSetupScript(sandbox, script)
 
     if (script.trim()) {
-      const handle = await startSetupJob(sandbox, repoPath, environment.variables)
+      const handle = await startSetupJob(
+        sandbox,
+        repoPath,
+        environment.variables,
+        setupScriptTimeoutSeconds
+      )
       setupRun = {
         handle,
         environmentId: environment.id,
