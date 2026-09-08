@@ -1,10 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
 import { NextRequest } from "next/server"
 import { PATHS } from "@/lib/constants"
-import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import {
-  decryptUserCredentials,
   getChatWithAuth,
   internalError,
   isAuthError,
@@ -12,25 +10,15 @@ import {
   requireAuth,
   serverConfigError,
 } from "@/lib/db/api-helpers"
-import { buildUsageMeta } from "@/lib/server/shared-pool"
-import { logActivityAsync } from "@/lib/db/activity-log"
-import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
-import { loadMcpConnections } from "@/lib/mcp/agent-servers"
-import { resolveCliModel } from "@background-agents/common"
 import { getUserEndpoints } from "@/lib/server/custom-endpoints"
-import {
-  deleteSandboxQuietly,
-  discoverSkillsForRepo,
-  uploadFilesToSandbox,
-} from "@/lib/sandbox"
+import { runQueuedTurnForChat } from "@/lib/server/run-queued-turn"
+import { deleteSandboxQuietly, uploadFilesToSandbox } from "@/lib/sandbox"
 import type { SuccessResponse } from "./_lib/types"
 import { parseMessageRequest } from "./_lib/parse-request"
 import { resolveSendCredentials } from "./_lib/resolve-credentials"
 import { ensureSandboxForChat, type SandboxState } from "./_lib/ensure-sandbox"
 import { runPreRunPull } from "./_lib/pre-run-pull"
-import { buildAgentHistory } from "./_lib/history"
-import { buildAgentEnv } from "./_lib/agent-env"
-import { persistTurn } from "./_lib/persist-turn"
+import { persistQueuedUserMessage } from "./_lib/persist-queued-user-message"
 
 
 export const maxDuration = 300
@@ -180,88 +168,46 @@ export async function POST(
         uploadedFilePaths.map((p) => `- ${p}`).join("\n")
     }
 
-    // Decide what prior conversation to replay (agent switch / chat fork).
-    const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
-
-    // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
-    const env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
-
-    // Fetch this chat's connected MCP servers so the agent sees them as tools.
-    // Best-effort — a fetch error shouldn't block the turn.
-    let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []
-    try {
-      mcpServers = await loadMcpConnections({ kind: "chat", id: chatId })
-    } catch (err) {
-      console.error("[messages] loadMcpConnections failed:", err)
+    // A running setup job holds the turn. The user's message is persisted first
+    // so the queued turn survives a disconnected client; the /setup SSE endpoint
+    // (or the agent-lifecycle cron, if the client is gone) dispatches the agent
+    // once the job exits.
+    if (ensured.setupRun?.state === "running") {
+      await persistQueuedUserMessage({
+        chatId,
+        payload,
+        agentPrompt,
+        uploadedFilePaths,
+      })
+      return Response.json({
+        status: "setting_up",
+        chatId,
+        setupRun: ensured.setupRun,
+      })
     }
 
-    // ── Stage 3b: discover installed skills ───────────────────────────────
-    // Scan .agents/skills/ to build the skill catalog for the system prompt.
-    // Runs on every message so the catalog stays current (e.g. skills added
-    // between turns or committed in the repo). Best-effort — never blocks.
-    let discoveredSkills: { name: string; description: string; location: string }[] = []
-    if (chat.repo !== NEW_REPOSITORY) {
-      discoveredSkills = await discoverSkillsForRepo(sandbox, repoPath)
-    }
-
-    const bgSession = await createBackgroundAgentSession(sandbox, {
-      repoPath,
-      previewUrlPattern: previewUrlPattern ?? undefined,
-      // On agent switch, don't pass the old agent's sessionId — it would crash the new CLI
-      sessionId: isAgentSwitch ? undefined : (chat.sessionId ?? undefined),
-      agent: payload.agent as Agent,
-      model: resolveCliModel(payload.model, customEndpoints),
-      env: Object.keys(env).length > 0 ? env : undefined,
-      planMode: payload.planMode,
-      mcpServers,
-      skills: discoveredSkills.length > 0 ? discoveredSkills : undefined,
-    })
-
-    // Resolve the credential pool for this run (shared vs the user's own key)
-    // from DB-stored creds only — process.env keys must read as shared. Stamped
-    // on the assistant message so the turn finalizer (cron) can attribute usage.
-    const storedUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { credentials: true },
-    })
-    // `credentials` carries the key actually handed to the agent — for a shared
-    // OpenCode run that's the one pickSharedOpencodeKey chose for this turn, so
-    // fingerprinting it here is what makes per-key spend attributable later.
-    const usageMeta = buildUsageMeta(
-      payload.agent as Agent,
-      decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
-      payload.model,
-      credentials.OPENCODE_API_KEY
-    )
-
-    // ── Stage 5: persist messages + chat status (transactional) ────────────
-    await persistTurn({
+    // ── Stages 4–6: start the agent turn ───────────────────────────────────
+    const { backgroundSessionId } = await runQueuedTurnForChat({
+      sandbox,
+      chat,
       chatId,
+      userId,
       payload,
+      credentials,
+      customEndpoints,
+      repoPath,
+      previewUrlPattern,
       agentPrompt,
       uploadedFilePaths,
-      usageMeta,
-      backgroundSessionId: bgSession.backgroundSessionId,
-      isAgentSwitch,
-    })
-
-    // ── Stage 6: kick off the agent ────────────────────────────────────────
-    await bgSession.start(agentPrompt, history ? { history } : undefined)
-
-    // Log message sent activity (fire and forget)
-    // Include useSharedClaude flag to track shared Claude subscription usage
-    logActivityAsync(userId, "message_sent", {
-      chatId,
-      agent: payload.agent,
-      model: payload.model,
       useSharedClaude,
+      setupFailureNote: null,
     })
 
     const response: SuccessResponse = {
       sandboxId,
       branch,
       previewUrlPattern,
-      backgroundSessionId: bgSession.backgroundSessionId,
+      backgroundSessionId,
       uploadedFiles: uploadedFilePaths,
     }
     return Response.json(response)

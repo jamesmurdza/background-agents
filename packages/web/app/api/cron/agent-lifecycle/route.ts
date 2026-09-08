@@ -1,6 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
 import { addMinutes, differenceInMinutes } from "date-fns"
 
+import { createSandboxJobs } from "@background-agents/sandbox-jobs"
+
 import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { UsageLimitError } from "@/lib/db/usage-limit"
@@ -9,6 +11,8 @@ import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constan
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
+import { isSetupRunRecord, tailLines, type SetupRunRecord } from "@/lib/setup-script"
+import { dispatchQueuedTurn, finishSetupRecord } from "@/lib/server/dispatch-setup-turn"
 
 // Vercel Pro plan allows up to 5 minutes for cron jobs
 export const maxDuration = 300
@@ -16,11 +20,12 @@ export const maxDuration = 300
 // =============================================================================
 // Main Handler
 // =============================================================================
-// Orchestrates the four phases of the agent lifecycle each cron tick:
+// Orchestrates the five phases of the agent lifecycle each cron tick:
 //   1. Dispatch due scheduled jobs (create pending run records)
 //   2. Start pending scheduled runs (spin up sandboxes + agents)
 //   3. Monitor running interactive chats (complete / error / timeout)
 //   4. Monitor running scheduled job runs (complete / error / timeout)
+//   5. Dispatch turns held by a finished setup script
 // The heavy lifting for each phase lives in ./_lib.
 
 export async function GET(req: Request) {
@@ -48,6 +53,7 @@ export async function GET(req: Request) {
     timedOutInteractive: 0,
     timedOutScheduled: 0,
     skippedOverLimit: 0,
+    dispatchedAfterSetup: 0,
     errors: [] as string[],
   }
 
@@ -248,6 +254,63 @@ export async function GET(req: Request) {
         }
       } catch (err) {
         results.errors.push(`Failed to monitor run ${run.id}: ${err}`)
+      }
+    }
+
+    // =========================================
+    // 5. Dispatch turns held by a finished setup script
+    // =========================================
+    // The /setup SSE endpoint normally does this; this covers a client that
+    // disconnected. Polling here is also what keeps a watched-then-abandoned
+    // sandbox from hitting autoStopInterval mid-script, since every status
+    // check is sandbox activity.
+    const settingUp = await prisma.chat.findMany({
+      where: { status: "setting_up" },
+      select: { id: true, userId: true, sandboxId: true, setupRun: true },
+    })
+
+    for (const chat of settingUp) {
+      try {
+        // A setting_up chat whose record is unusable can never leave that
+        // state on its own, and POST /messages answers 409 for it. Surface it
+        // rather than skipping it silently every tick.
+        if (!isSetupRunRecord(chat.setupRun) || !chat.sandboxId) {
+          results.errors.push(`setup dispatch ${chat.id}: stuck in setting_up with no usable setup run`)
+          continue
+        }
+        const record = chat.setupRun as SetupRunRecord
+
+        // No handle means no job was ever started, so there is nothing to poll
+        // and nothing failed. Unstick the chat instead of leaving it here every
+        // tick forever.
+        if (!record.handle) {
+          const dispatched = await dispatchQueuedTurn({
+            chatId: chat.id,
+            userId: chat.userId,
+            setupRun: { ...record, state: "exited", exitCode: 0, finishedAt: Date.now() },
+            logTail: "",
+          })
+          if (dispatched) results.dispatchedAfterSetup++
+          continue
+        }
+
+        const sandbox = await daytona.get(chat.sandboxId)
+        const jobs = createSandboxJobs(sandbox)
+        const status = await jobs.status(record.handle)
+        if (status.alive) continue
+
+        const read = await jobs.read(record.handle, 0)
+        const dispatched = await dispatchQueuedTurn({
+          chatId: chat.id,
+          userId: chat.userId,
+          setupRun: finishSetupRecord(record, status),
+          logTail: tailLines(read.raw),
+        })
+        if (dispatched) results.dispatchedAfterSetup++
+      } catch (err) {
+        results.errors.push(
+          `setup dispatch ${chat.id}: ${err instanceof Error ? err.message : "unknown"}`
+        )
       }
     }
   } catch (err) {
