@@ -15,6 +15,11 @@ import {
  * Snapshot a running background agent and dispatch to the appropriate handler
  * when it reaches a terminal state. Keeps the sandbox alive via refreshActivity.
  * Swallows errors (logged) so a single failing sandbox doesn't break the cron.
+ *
+ * Returns the snapshot it took, so a caller that wants to act on a run that is
+ * still going — the credit guard does — can reuse it instead of paying for a
+ * second read. Undefined when the session could not be read at all, and for a
+ * transient read failure, both of which mean "no usable state this tick".
  */
 export async function monitorAgent(
   sandboxId: string,
@@ -34,7 +39,7 @@ export async function monitorAgent(
       snapshot: AgentSnapshot
     ) => Promise<void>
   }
-) {
+): Promise<AgentSnapshot | undefined> {
   try {
     const sandbox = await daytona.get(sandboxId)
     await sandbox.refreshActivity() // Keep alive
@@ -48,7 +53,7 @@ export async function monitorAgent(
       // race) — this is not evidence the agent errored, just that we
       // couldn't read its state this tick. Don't cancel a possibly-healthy
       // agent or record a spurious failure; just check again next cycle.
-      return
+      return undefined
     }
 
     if (snapshot.status === "completed") {
@@ -68,8 +73,10 @@ export async function monitorAgent(
       )
     }
     // else still running, check again next cycle
+    return snapshot
   } catch (err) {
     console.error(`[agent-lifecycle] Monitor error:`, err)
+    return undefined
   }
 }
 

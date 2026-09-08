@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 
 // =============================================================================
-// Metering a turn that is about to be torn down
+// Metering a turn where it stands
 // =============================================================================
 // The happy paths (finalizeInteractiveChat, finalizeScheduledRun) meter before
 // they release the chat, and so does the SSE stream route — which meters an
@@ -19,7 +19,14 @@ import { meterAssistantTurn } from "@/lib/server/token-metering"
 // rate-limited or timed-out turn had already spent were never billed and could
 // never be recovered afterwards.
 //
-// This is the missing counterpart. Call it before the teardown, never after.
+// This is the missing counterpart: on a teardown path, call it BEFORE the
+// teardown, never after.
+//
+// It is also safe on a turn that is still running, which is what ./credit-guard
+// uses it for. Nothing here assumes the turn has ended — meterAssistantTurn
+// diffs tokscale's cumulative against the session's own cursor under an
+// advisory lock, so metering the same session twice charges the second caller
+// only what was spent in between.
 //
 // The id it needs is the AGENT CLI's session id — what tokscale files usage
 // under, and what every other metering call site passes as `snapshot.sessionId`.
@@ -34,11 +41,11 @@ import { meterAssistantTurn } from "@/lib/server/token-metering"
 // logged and swallowed.
 
 /**
- * Meter whatever a dying turn already spent, while the sandbox and session id
+ * Meter whatever this turn has spent so far, while the sandbox and session id
  * are still around to be asked. Returns the number of usage rows written (0
  * when there was nothing to meter, or when anything at all went wrong).
  */
-export async function meterDyingTurn(params: {
+export async function meterTurnNow(params: {
   userId: string
   chatId: string
   agent: string
@@ -86,7 +93,7 @@ export async function meterDyingTurn(params: {
     })
   } catch (err) {
     console.error(
-      `[agent-lifecycle] Failed to meter the dying turn for chat ${chatId}:`,
+      `[agent-lifecycle] Failed to meter the turn for chat ${chatId}:`,
       err
     )
     return 0
