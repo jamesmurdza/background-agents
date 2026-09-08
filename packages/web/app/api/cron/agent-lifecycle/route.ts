@@ -1,8 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
 import { addMinutes, differenceInMinutes } from "date-fns"
 
-import { createSandboxJobs } from "@background-agents/sandbox-jobs"
-
 import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { UsageLimitError } from "@/lib/db/usage-limit"
@@ -11,13 +9,7 @@ import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constan
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
-import { isSetupRunRecord, tailLines, type SetupRunRecord } from "@/lib/setup-script"
-import {
-  dispatchQueuedTurn,
-  finishSetupRecord,
-  DISPATCH_CLAIM_TTL_MS,
-} from "@/lib/server/dispatch-setup-turn"
-import { ensureSandboxStarted } from "@/lib/sandbox"
+import { dispatchFinishedSetups } from "./_lib/setup-dispatch"
 
 // Vercel Pro plan allows up to 5 minutes for cron jobs
 export const maxDuration = 300
@@ -265,88 +257,7 @@ export async function GET(req: Request) {
     // =========================================
     // 5. Dispatch turns held by a finished setup script
     // =========================================
-    // The /setup SSE endpoint normally does this; this covers a client that
-    // disconnected. Polling here is also what keeps a watched-then-abandoned
-    // sandbox from hitting autoStopInterval mid-script, since every status
-    // check is sandbox activity.
-    //
-    // It is also the recovery path for a dispatch that was claimed and then
-    // killed: the claim leaves the chat in `setting_up` and only stamps
-    // `claimedAt`, so a claim older than DISPATCH_CLAIM_TTL_MS is retried here.
-    const settingUp = await prisma.chat.findMany({
-      where: { status: "setting_up" },
-      select: { id: true, userId: true, sandboxId: true, setupRun: true },
-    })
-
-    for (const chat of settingUp) {
-      try {
-        // A setting_up chat whose record is unusable can never leave that
-        // state on its own, and POST /messages answers 409 for it. Surface it
-        // rather than skipping it silently every tick.
-        if (!isSetupRunRecord(chat.setupRun) || !chat.sandboxId) {
-          results.errors.push(`setup dispatch ${chat.id}: stuck in setting_up with no usable setup run`)
-          continue
-        }
-        const record = chat.setupRun as SetupRunRecord
-
-        // No handle means no job was ever started, so there is nothing to poll
-        // and nothing failed. Unstick the chat instead of leaving it here every
-        // tick forever.
-        if (!record.handle) {
-          const dispatched = await dispatchQueuedTurn({
-            chatId: chat.id,
-            userId: chat.userId,
-            setupRun: { ...record, state: "exited", exitCode: 0, finishedAt: Date.now() },
-            logTail: "",
-          })
-          if (dispatched) results.dispatchedAfterSetup++
-          continue
-        }
-
-        // Another observer is mid-dispatch. Leave it alone until its claim
-        // goes stale; dispatchQueuedTurn would refuse it anyway, and this
-        // saves the Daytona round trips.
-        if (record.claimedAt && now.getTime() - record.claimedAt < DISPATCH_CLAIM_TTL_MS) {
-          continue
-        }
-
-        let sandbox
-        try {
-          sandbox = await daytona.get(chat.sandboxId)
-        } catch (err) {
-          // The sandbox is gone (cleanup cron, or the 4-day auto-delete). There
-          // is no job left to observe and no way for this chat to leave
-          // `setting_up` on its own, where it would 409 every send and re-fail
-          // here every minute. Fail it instead of looping.
-          await prisma.chat.update({ where: { id: chat.id }, data: { status: "error" } })
-          results.errors.push(
-            `setup dispatch ${chat.id}: sandbox unavailable, chat marked error (${err instanceof Error ? err.message : "unknown"})`
-          )
-          continue
-        }
-
-        // A stopped sandbox cannot be polled, and the turn we are about to
-        // dispatch needs it started anyway.
-        await ensureSandboxStarted(sandbox)
-
-        const jobs = createSandboxJobs(sandbox)
-        const status = await jobs.status(record.handle)
-        if (status.alive) continue
-
-        const read = await jobs.read(record.handle, 0)
-        const dispatched = await dispatchQueuedTurn({
-          chatId: chat.id,
-          userId: chat.userId,
-          setupRun: finishSetupRecord(record, status),
-          logTail: tailLines(read.raw),
-        })
-        if (dispatched) results.dispatchedAfterSetup++
-      } catch (err) {
-        results.errors.push(
-          `setup dispatch ${chat.id}: ${err instanceof Error ? err.message : "unknown"}`
-        )
-      }
-    }
+    await dispatchFinishedSetups(daytona, now, results)
   } catch (err) {
     results.errors.push(`Top-level error: ${err}`)
   }

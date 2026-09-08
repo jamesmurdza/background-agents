@@ -20,9 +20,6 @@
  * re-claimable, which is what lets the cron recover a killed dispatch.
  */
 
-/** How long a dispatch claim is respected before another observer may retry.
- *  Comfortably longer than turn startup, shorter than a user's patience. */
-export const DISPATCH_CLAIM_TTL_MS = 5 * 60 * 1000
 
 import { randomUUID } from "crypto"
 import { Daytona } from "@daytonaio/sdk"
@@ -36,6 +33,9 @@ import { buildSetupFailureNote, type SetupRunRecord } from "@/lib/setup-script"
 import { resolveSendCredentials } from "@/app/api/chats/[chatId]/messages/_lib/resolve-credentials"
 import type { MessagePayload } from "@/app/api/chats/[chatId]/messages/_lib/types"
 import { runQueuedTurnForChat } from "./run-queued-turn"
+/** How long a dispatch claim is respected before another observer may retry.
+ *  Comfortably longer than turn startup, shorter than a user's patience. */
+export const DISPATCH_CLAIM_TTL_MS = 5 * 60 * 1000
 
 /**
  * The claim guard. Exported so it can be exercised against a real database:

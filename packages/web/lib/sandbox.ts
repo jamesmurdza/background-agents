@@ -87,6 +87,20 @@ async function ensureTokscaleInstalled(sandbox: Sandbox): Promise<void> {
  * If the sandbox is already starting (409 Conflict), retries with backoff
  * until the start succeeds or times out.
  */
+/**
+ * Whether an error from the Daytona API means the sandbox genuinely no longer
+ * exists, as opposed to the API being briefly unreachable.
+ *
+ * The distinction decides whether a caller may give up on a chat. A 5xx, a
+ * network timeout, or a rotated API key must NOT be read as "gone": treating
+ * them that way would discard live work on one bad minute of upstream weather.
+ * Matches the shape used by ensureSandboxStarted's 409 check below.
+ */
+export function isSandboxGoneError(err: unknown): boolean {
+  if ((err as { statusCode?: number } | null)?.statusCode === 404) return true
+  return err instanceof Error && /not found/i.test(err.message)
+}
+
 export async function ensureSandboxStarted(
   sandbox: Sandbox,
   timeoutSeconds = 120
