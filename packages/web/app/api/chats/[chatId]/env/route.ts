@@ -9,6 +9,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { encrypt, decrypt } from "@/lib/db/encryption"
+import { findInvalidEnvVarKey, isValidEnvVarKey } from "@/lib/environments"
 
 // =============================================================================
 // Types
@@ -80,17 +81,28 @@ export async function PATCH(
       return badRequest("Invalid environmentVariables")
     }
 
+    const invalidKey = findInvalidEnvVarKey(body.environmentVariables)
+    if (invalidKey !== null) {
+      return badRequest(
+        `Invalid environment variable name: "${invalidKey}". Names must match ` +
+          `^[A-Za-z_][A-Za-z0-9_]*$ (letters, digits, and underscore only; cannot start with a digit).`
+      )
+    }
+
     // Verify ownership
     const chat = await getChatWithAuth(chatId, userId)
     if (!chat) {
       return notFound("Chat not found")
     }
 
-    // Encrypt all values
+    // Encrypt all values. isValidEnvVarKey is checked again here (not just
+    // above) so nothing malformed can reach storage through this loop even if
+    // the pre-check above is ever bypassed or changed.
     const encrypted: Record<string, string> = {}
     for (const [key, value] of Object.entries(body.environmentVariables)) {
-      if (typeof key === "string" && typeof value === "string" && key.trim()) {
-        encrypted[key.trim()] = encrypt(value)
+      const trimmed = key.trim()
+      if (typeof key === "string" && typeof value === "string" && trimmed && isValidEnvVarKey(trimmed)) {
+        encrypted[trimmed] = encrypt(value)
       }
     }
 
