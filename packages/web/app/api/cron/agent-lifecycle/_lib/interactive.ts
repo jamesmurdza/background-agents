@@ -6,7 +6,7 @@ import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
-import { meterDyingTurn } from "./meter-dying-turn"
+import { meterTurnNow } from "./meter-turn"
 
 import { autoPushChat } from "@/lib/git/auto-push"
 import type { ChatWithMessages } from "./types"
@@ -124,8 +124,8 @@ export async function markChatError(
   // backgroundSessionId. A failed turn is not a free turn: the model produced
   // tokens right up to the moment it errored or was stopped, and once the
   // session id is gone there is no cursor left to diff them against. See
-  // meter-dying-turn.
-  await meterDyingTurn({
+  // meter-turn.
+  await meterTurnNow({
     userId: chat.userId,
     chatId: chat.id,
     agent: chat.agent,

@@ -6,6 +6,7 @@ import { logLlmProviderError } from "@/lib/db/activity-log"
 import { UsageLimitError } from "@/lib/db/usage-limit"
 
 import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constants"
+import { creditBudgetExhausted, CREDIT_GUARD_STOP_REASON } from "./_lib/credit-guard"
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
@@ -48,6 +49,7 @@ export async function GET(req: Request) {
     timedOutInteractive: 0,
     timedOutScheduled: 0,
     skippedOverLimit: 0,
+    stoppedOutOfCredits: 0,
     errors: [] as string[],
   }
 
@@ -136,6 +138,8 @@ export async function GET(req: Request) {
           orderBy: { timestamp: "desc" },
           take: 1,
         },
+        // For the mid-turn credit guard: `unlimited` plans never draw credits.
+        user: { select: { plan: true } },
       },
     })
 
@@ -168,24 +172,55 @@ export async function GET(req: Request) {
         }
 
         // Monitor and check completion
-        await monitorAgent(chat.sandboxId!, chat.backgroundSessionId!, daytona, {
-          onComplete: async (snapshot) => {
-            await finalizeInteractiveChat(chat, snapshot, daytona)
-            results.completedInteractive++
-          },
-          onError: async (error, errorKind, snapshot) => {
-            logLlmProviderError({
-              userId: chat.userId,
-              agent: chat.agent,
-              model: chat.model,
-              chatId: chat.id,
-              source: "cron-interactive",
-              error,
-              errorKind,
-            })
-            await markChatError(chat, error, daytona, snapshot.sessionId)
-          },
-        })
+        const snapshot = await monitorAgent(
+          chat.sandboxId!,
+          chat.backgroundSessionId!,
+          daytona,
+          {
+            onComplete: async (snapshot) => {
+              await finalizeInteractiveChat(chat, snapshot, daytona)
+              results.completedInteractive++
+            },
+            onError: async (error, errorKind, snapshot) => {
+              logLlmProviderError({
+                userId: chat.userId,
+                agent: chat.agent,
+                model: chat.model,
+                chatId: chat.id,
+                source: "cron-interactive",
+                error,
+                errorKind,
+              })
+              await markChatError(chat, error, daytona, snapshot.sessionId)
+            },
+          }
+        )
+
+        // Still running: bill what it has spent so far and stop it if the
+        // balance can no longer cover the next few minutes. Reuses the snapshot
+        // above for the agent session id — without that id there is nothing to
+        // meter against.
+        if (
+          snapshot?.status === "running" &&
+          (await creditBudgetExhausted({
+            userId: chat.userId,
+            chatId: chat.id,
+            agent: chat.agent,
+            sandboxId: chat.sandboxId,
+            agentSessionId: snapshot.sessionId,
+            fallbackSessionId: chat.sessionId,
+            daytona,
+            turnStartedAt: runStartedAt,
+            plan: chat.user.plan,
+            runningMinutes: totalMinutes,
+          }))
+        ) {
+          await stopAgent(chat.sandboxId!, chat.backgroundSessionId!, daytona)
+          // markChatError meters once more on the way out, which catches
+          // whatever the run spent between the guard's reading and the stop.
+          await markChatError(chat, CREDIT_GUARD_STOP_REASON, daytona, snapshot.sessionId)
+          results.stoppedOutOfCredits++
+        }
       } catch (err) {
         results.errors.push(`Failed to monitor chat ${chat.id}: ${err}`)
       }
@@ -196,7 +231,9 @@ export async function GET(req: Request) {
     // =========================================
     const runningJobs = await prisma.scheduledJobRun.findMany({
       where: { status: "running" },
-      include: { job: true },
+      include: {
+        job: { include: { user: { select: { plan: true } } } },
+      },
     })
 
     for (const run of runningJobs) {
@@ -227,24 +264,58 @@ export async function GET(req: Request) {
         }
 
         if (run.sandboxId && run.backgroundSessionId) {
-          await monitorAgent(run.sandboxId, run.backgroundSessionId, daytona, {
-            onComplete: async (snapshot) => {
-              await finalizeScheduledRun(run, snapshot, daytona)
-              results.completedScheduled++
-            },
-            onError: async (error, errorKind, snapshot) => {
-              logLlmProviderError({
-                userId: run.job.userId,
-                agent: run.job.agent,
-                model: run.job.model,
-                jobRunId: run.id,
-                source: "cron-scheduled",
-                error,
-                errorKind,
-              })
-              await failScheduledRun(run, error, daytona, {}, snapshot.sessionId)
-            },
-          })
+          const snapshot = await monitorAgent(
+            run.sandboxId,
+            run.backgroundSessionId,
+            daytona,
+            {
+              onComplete: async (snapshot) => {
+                await finalizeScheduledRun(run, snapshot, daytona)
+                results.completedScheduled++
+              },
+              onError: async (error, errorKind, snapshot) => {
+                logLlmProviderError({
+                  userId: run.job.userId,
+                  agent: run.job.agent,
+                  model: run.job.model,
+                  jobRunId: run.id,
+                  source: "cron-scheduled",
+                  error,
+                  errorKind,
+                })
+                await failScheduledRun(run, error, daytona, {}, snapshot.sessionId)
+              },
+            }
+          )
+
+          if (
+            snapshot?.status === "running" &&
+            run.chatId &&
+            (await creditBudgetExhausted({
+              userId: run.job.userId,
+              chatId: run.chatId,
+              agent: run.job.agent,
+              sandboxId: run.sandboxId,
+              agentSessionId: snapshot.sessionId,
+              daytona,
+              turnStartedAt: run.startedAt,
+              plan: run.job.user.plan,
+              runningMinutes,
+            }))
+          ) {
+            await stopAgent(run.sandboxId, run.backgroundSessionId, daytona)
+            // countFailure: false — a spent balance says nothing about the job
+            // itself, so it must not count toward the 3-strike auto-disable.
+            // Same treatment the pre-flight UsageLimitError gets above.
+            await failScheduledRun(
+              run,
+              CREDIT_GUARD_STOP_REASON,
+              daytona,
+              { countFailure: false },
+              snapshot.sessionId
+            )
+            results.stoppedOutOfCredits++
+          }
         }
       } catch (err) {
         results.errors.push(`Failed to monitor run ${run.id}: ${err}`)

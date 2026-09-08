@@ -49,7 +49,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }))
 
-import { meterDyingTurn } from "./meter-dying-turn"
+import { meterTurnNow } from "./meter-turn"
 import { markChatError } from "./interactive"
 
 /** A sandbox handle; the metering call is mocked, so it is never used. */
@@ -78,9 +78,9 @@ beforeEach(() => {
   meterAssistantTurn.mockClear()
 })
 
-describe("meterDyingTurn", () => {
+describe("meterTurnNow", () => {
   it("meters the turn when the sandbox and session are still around", async () => {
-    const rows = await meterDyingTurn({
+    const rows = await meterTurnNow({
       ...dyingChat,
       chatId: "chat_1",
       agentSessionId: AGENT_SESSION_ID,
@@ -95,7 +95,7 @@ describe("meterDyingTurn", () => {
     // match, so passing backgroundSessionId matches nothing and silently bills
     // zero — no error, no row, no clue. Production has never held a usage row
     // whose sessionId was a backgroundSessionId.
-    await meterDyingTurn({
+    await meterTurnNow({
       ...dyingChat,
       chatId: "chat_1",
       agentSessionId: AGENT_SESSION_ID,
@@ -107,7 +107,7 @@ describe("meterDyingTurn", () => {
 
   it("falls back to the chat's resume pointer when the snapshot had no id", async () => {
     // A resumed turn continues Chat.sessionId, so the CLI reports under it.
-    await meterDyingTurn({
+    await meterTurnNow({
       ...dyingChat,
       chatId: "chat_1",
       agentSessionId: undefined,
@@ -118,7 +118,7 @@ describe("meterDyingTurn", () => {
   })
 
   it("prefers the snapshot's id over a stale resume pointer", async () => {
-    await meterDyingTurn({
+    await meterTurnNow({
       ...dyingChat,
       chatId: "chat_1",
       agentSessionId: AGENT_SESSION_ID,
@@ -133,7 +133,7 @@ describe("meterDyingTurn", () => {
     ["no session id at all", { agentSessionId: null, fallbackSessionId: null }],
     ["no daytona client", { daytona: undefined }],
   ])("does nothing and does not throw when there is %s", async (_label, over) => {
-    const rows = await meterDyingTurn({
+    const rows = await meterTurnNow({
       ...dyingChat,
       chatId: "chat_1",
       agentSessionId: AGENT_SESSION_ID,
@@ -147,7 +147,7 @@ describe("meterDyingTurn", () => {
   it("swallows a metering failure — a bad turn must not get worse", async () => {
     meterAssistantTurn.mockRejectedValueOnce(new Error("tokscale exploded"))
     await expect(
-      meterDyingTurn({
+      meterTurnNow({
         ...dyingChat,
         chatId: "chat_1",
         agentSessionId: AGENT_SESSION_ID,
