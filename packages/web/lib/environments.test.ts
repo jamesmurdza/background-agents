@@ -260,6 +260,7 @@ describe("toEnvironmentDTO", () => {
       allowedDomains: [],
       environmentVariables: encrypted,
       setupScript: "echo hi",
+      setupScriptPrevious: "echo old",
       setupScriptUpdatedBy: "agent",
       updatedAt: now,
     })
@@ -275,6 +276,7 @@ describe("toEnvironmentDTO", () => {
       variableCount: 1,
       hasSetupScript: true,
       setupScript: "echo hi",
+      setupScriptPrevious: "echo old",
       setupScriptUpdatedBy: "agent",
       updatedAt: now.getTime(),
     })
@@ -294,6 +296,7 @@ describe("toEnvironmentDTO", () => {
         allowedDomains: [],
         environmentVariables: encrypted,
         setupScript: null,
+        setupScriptPrevious: null,
         setupScriptUpdatedBy: null,
         updatedAt: new Date(),
       },
@@ -315,6 +318,7 @@ describe("toEnvironmentDTO", () => {
       allowedDomains: [],
       environmentVariables: null,
       setupScript: null,
+      setupScriptPrevious: null,
       setupScriptUpdatedBy: null,
       updatedAt: new Date(),
     })
@@ -334,6 +338,7 @@ describe("toEnvironmentDTO", () => {
       allowedDomains: [],
       environmentVariables: null,
       setupScript: null,
+      setupScriptPrevious: null,
       setupScriptUpdatedBy: "garbage",
       updatedAt: new Date(),
     })

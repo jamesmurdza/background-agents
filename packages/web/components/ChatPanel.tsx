@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   ChatHeader,
   MobileConflictBar,
@@ -8,12 +9,15 @@ import {
   ChatPanelSkeleton,
   WelcomeView,
   ChatMessageList,
+  SetupBlock,
+  SetupScriptUpdatedNotice,
 } from "./chat"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, CredentialFlags } from "@/lib/types"
-import { NEW_REPOSITORY, agentSupportsPlanMode } from "@/lib/types"
+import { NEW_REPOSITORY, isRealRepo, agentSupportsPlanMode } from "@/lib/types"
 import type { SlashCommandType } from "./SlashCommandMenu"
 import { useChatComposer } from "@/lib/hooks/useChatComposer"
+import { useEnvironmentsQuery } from "@/lib/query/hooks/useEnvironmentsQuery"
 
 interface ChatPanelProps {
   chat: Chat | null
@@ -106,6 +110,37 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
     removeFile,
     setPreviewFile,
   } = composer
+
+  // Once a chat is seen entering `setting_up` the block stays mounted for the
+  // rest of the session (collapsed on success, expanded on failure) even
+  // after the chat moves on, rather than disappearing mid-review. ChatPanel
+  // itself is never remounted per chat, so this can't reset on its own.
+  const [setupSeenIds, setSetupSeenIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (chat && chat.status === "setting_up" && !setupSeenIds.has(chat.id)) {
+      setSetupSeenIds((prev) => new Set(prev).add(chat.id))
+    }
+  }, [chat?.id, chat?.status, setupSeenIds])
+  const showSetupBlock = !!chat && setupSeenIds.has(chat.id)
+
+  // The environment this chat's sandbox is built from, resolved the same way
+  // the composer's EnvironmentCombobox does (pinned id, else the repo's
+  // default) so the "agent updated the script" notice names the environment
+  // actually in use, not just whichever one happens to be first in the list.
+  const environmentsRepo = chat && isRealRepo(chat.repo) ? chat.repo : undefined
+  const { data: environments = [] } = useEnvironmentsQuery(environmentsRepo)
+  const chatEnvironment =
+    environments.find((e) => e.id === chat?.environmentId) ??
+    environments.find((e) => e.isDefault)
+  // Newer than the chat's own last update: true right after this chat's turn
+  // synced the script back (sync-back always runs after the chat's own
+  // updatedAt bump), and false again once anything else touches this chat,
+  // so an old edit from a different chat on the same repo doesn't linger.
+  const showScriptNotice =
+    !!chat &&
+    !!chatEnvironment &&
+    chatEnvironment.setupScriptUpdatedBy === "agent" &&
+    chatEnvironment.updatedAt > chat.updatedAt
 
   // No chat selected - show a skeleton while the first chat is being created.
   if (!chat) {
@@ -250,6 +285,32 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
           onAbort={() => git.handleAbortConflict?.()}
           actionLoading={git.actionLoading}
         />
+      )}
+
+      {/* Setup progress and agent script-update notice, above the message
+          list rather than inside its scroll area: both concern the chat's
+          environment, not the conversation itself. */}
+      {(showSetupBlock || showScriptNotice) && (
+        <div className={cn("shrink-0", isMobile ? "px-[27px] pt-3" : "px-[31px] pt-4")}>
+          <div className={cn("mx-auto space-y-2", isMobile ? "max-w-full" : "max-w-3xl")}>
+            {showSetupBlock && (
+              <SetupBlock
+                chatId={chat.id}
+                active={chat.status === "setting_up"}
+                onFinished={() => onReload?.(chat.id)}
+              />
+            )}
+            {showScriptNotice && chatEnvironment && (
+              <SetupScriptUpdatedNotice
+                environmentId={chatEnvironment.id}
+                environmentName={chatEnvironment.name}
+                current={chatEnvironment.setupScript ?? ""}
+                previous={chatEnvironment.setupScriptPrevious}
+                isMobile={isMobile}
+              />
+            )}
+          </div>
+        </div>
       )}
 
       {/* Messages */}

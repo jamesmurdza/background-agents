@@ -142,11 +142,16 @@ export interface EnvironmentDTO {
   variableCount: number
   hasSetupScript: boolean
   setupScript: string | null
+  /** The version setupScript replaced, for the "agent updated the script"
+   *  notice's diff view. Null when there's nothing to revert to (never
+   *  edited, or already reverted). */
+  setupScriptPrevious: string | null
   setupScriptUpdatedBy: "user" | "agent" | null
   updatedAt: number
 }
 
 type EnvironmentDTORow = EnvironmentRow & {
+  setupScriptPrevious: string | null
   setupScriptUpdatedBy: string | null
   updatedAt: Date
 }
@@ -180,6 +185,7 @@ export function toEnvironmentDTO(
     variableCount: countEnvironmentVariables(row.environmentVariables),
     hasSetupScript: !!row.setupScript,
     setupScript: row.setupScript,
+    setupScriptPrevious: row.setupScriptPrevious,
     setupScriptUpdatedBy:
       row.setupScriptUpdatedBy === "user" || row.setupScriptUpdatedBy === "agent"
         ? row.setupScriptUpdatedBy

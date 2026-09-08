@@ -109,3 +109,23 @@ export async function fetchEnvironmentUsage(id: string): Promise<number> {
   const data = await json<{ chatCount: number }>(await fetch(`/api/environments/${id}/usage`))
   return data.chatCount
 }
+
+/**
+ * Swaps `setupScriptPrevious` back into `setupScript` (one level of undo for
+ * an agent's edit). Invalidating on success is what makes the "agent updated
+ * the script" notice disappear on its own: `setupScriptUpdatedBy` comes back
+ * "user", so the notice's render condition stops matching without the caller
+ * having to track dismissal itself.
+ */
+export function useRevertSetupScriptMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const data = await json<{ environment: EnvironmentDTO }>(
+        await fetch(`/api/environments/${id}/revert-script`, { method: "POST" })
+      )
+      return data.environment
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.environments.all }),
+  })
+}
