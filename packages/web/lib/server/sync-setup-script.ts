@@ -18,13 +18,16 @@ import {
   hashScript,
   isSetupRunRecord,
   readSetupScriptFromSandbox,
+  withScriptUpdateNotice,
+  type ScriptUpdateNotice,
   type SetupRunRecord,
 } from "@/lib/setup-script"
 
-export async function syncSetupScript(
-  sandbox: Sandbox,
-  chatId: string
-): Promise<{ result: "saved" } | { result: "conflict" } | { result: "skipped"; reason: string }> {
+export async function syncSetupScript(sandbox: Sandbox, chatId: string): Promise<
+  | { result: "saved"; notice: ScriptUpdateNotice }
+  | { result: "conflict" }
+  | { result: "skipped"; reason: string }
+> {
   const chat = await prisma.chat.findFirst({
     where: { id: chatId },
     select: {
@@ -71,16 +74,27 @@ export async function syncSetupScript(
     },
   })
 
-  // Advance the written hash so the next turn sees an unchanged file rather
-  // than re-saving the same content and burning a revision each turn.
-  if (record) {
-    await prisma.chat.update({
-      where: { id: chatId },
-      data: {
-        setupRun: { ...record, writtenHash: hashScript(decision.script) } as never,
-      },
-    })
+  const scriptHash = hashScript(decision.script)
+  const notice: ScriptUpdateNotice = {
+    environmentId: chat.environmentId,
+    scriptHash,
+    updatedAt: Date.now(),
   }
 
-  return { result: "saved" }
+  // Always stamp the notice marker, even when this chat never had a job
+  // record of its own (e.g. its sandbox already existed before Part 2). When
+  // a record IS there, advance its written hash in the same write so the next
+  // turn sees an unchanged file rather than re-saving the same content and
+  // burning a revision every turn.
+  await prisma.chat.update({
+    where: { id: chatId },
+    data: {
+      setupRun: withScriptUpdateNotice(
+        record ? { ...record, writtenHash: scriptHash } : chat.setupRun,
+        notice
+      ) as never,
+    },
+  })
+
+  return { result: "saved", notice }
 }

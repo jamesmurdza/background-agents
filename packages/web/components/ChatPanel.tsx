@@ -18,6 +18,7 @@ import { NEW_REPOSITORY, isRealRepo, agentSupportsPlanMode } from "@/lib/types"
 import type { SlashCommandType } from "./SlashCommandMenu"
 import { useChatComposer } from "@/lib/hooks/useChatComposer"
 import { useEnvironmentsQuery } from "@/lib/query/hooks/useEnvironmentsQuery"
+import { useSetupScriptNoticeDismissal } from "@/lib/hooks/useSetupScriptNoticeDismissal"
 
 interface ChatPanelProps {
   chat: Chat | null
@@ -123,24 +124,34 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
   }, [chat?.id, chat?.status, setupSeenIds])
   const showSetupBlock = !!chat && setupSeenIds.has(chat.id)
 
-  // The environment this chat's sandbox is built from, resolved the same way
-  // the composer's EnvironmentCombobox does (pinned id, else the repo's
-  // default) so the "agent updated the script" notice names the environment
-  // actually in use, not just whichever one happens to be first in the list.
+  // Whether to show the "agent updated the script" notice comes straight off
+  // the chat's own scriptUpdateNotice marker (stamped by sync-setup-script.ts
+  // the moment it saves an agent's edit), never from comparing two
+  // separately-drifting `updatedAt` columns: sync-back runs BEFORE the
+  // chat's own row is bumped to `ready` in both completion paths, so that
+  // comparison has the ordering backwards, not just racy. The marker also
+  // reaches the client for free on the common path (attached to the SSE
+  // `complete` event; see useStreaming.ts) without needing any query to be
+  // invalidated or refetched.
+  const notice = chat?.scriptUpdateNotice ?? null
+  const { dismissed, dismiss } = useSetupScriptNoticeDismissal(chat?.id ?? "", notice?.scriptHash ?? "")
+  const showScriptNotice = !!chat && !!notice && !dismissed
+
+  // Only used to display the environment's current *name* in the notice
+  // (harmless if briefly stale); the diff body itself is fetched on demand
+  // by SetupScriptUpdatedNotice when "View diff" is opened, and whether the
+  // notice shows at all never depends on this query having refreshed.
+  // Scoped to this chat's own repo, and skipped entirely for a draft or
+  // NEW_REPOSITORY chat rather than falling back to every environment for
+  // every repo the user has just because there's no repo to scope to yet.
   const environmentsRepo = chat && isRealRepo(chat.repo) ? chat.repo : undefined
-  const { data: environments = [] } = useEnvironmentsQuery(environmentsRepo)
-  const chatEnvironment =
-    environments.find((e) => e.id === chat?.environmentId) ??
-    environments.find((e) => e.isDefault)
-  // Newer than the chat's own last update: true right after this chat's turn
-  // synced the script back (sync-back always runs after the chat's own
-  // updatedAt bump), and false again once anything else touches this chat,
-  // so an old edit from a different chat on the same repo doesn't linger.
-  const showScriptNotice =
-    !!chat &&
-    !!chatEnvironment &&
-    chatEnvironment.setupScriptUpdatedBy === "agent" &&
-    chatEnvironment.updatedAt > chat.updatedAt
+  const { data: environments = [] } = useEnvironmentsQuery(
+    environmentsRepo,
+    false,
+    !!environmentsRepo
+  )
+  const noticeEnvironmentName =
+    notice && (environments.find((e) => e.id === notice.environmentId)?.name ?? "this environment")
 
   // No chat selected - show a skeleton while the first chat is being created.
   if (!chat) {
@@ -300,12 +311,11 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
                 onFinished={() => onReload?.(chat.id)}
               />
             )}
-            {showScriptNotice && chatEnvironment && (
+            {showScriptNotice && notice && (
               <SetupScriptUpdatedNotice
-                environmentId={chatEnvironment.id}
-                environmentName={chatEnvironment.name}
-                current={chatEnvironment.setupScript ?? ""}
-                previous={chatEnvironment.setupScriptPrevious}
+                environmentId={notice.environmentId}
+                environmentName={noticeEnvironmentName || "this environment"}
+                onDismiss={dismiss}
                 isMobile={isMobile}
               />
             )}

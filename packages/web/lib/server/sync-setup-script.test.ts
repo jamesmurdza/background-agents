@@ -55,7 +55,10 @@ describe("syncSetupScript", () => {
 
     const out = await syncSetupScript(sandbox, "chat_1")
 
-    expect(out).toEqual({ result: "saved" })
+    expect(out).toEqual({
+      result: "saved",
+      notice: { environmentId: "env_1", scriptHash: hashScript("npm ci\n"), updatedAt: expect.any(Number) },
+    })
     expect(environmentUpdate).toHaveBeenCalledWith({
       where: { id: "env_1" },
       data: {
@@ -64,6 +67,22 @@ describe("syncSetupScript", () => {
         setupScriptUpdatedBy: "agent",
       },
     })
+  })
+
+  it("stamps the scriptUpdateNotice marker onto the chat's setupRun", async () => {
+    chatFindFirst.mockResolvedValue(chatRow())
+    readSetupScriptFromSandbox.mockResolvedValue("npm ci\n")
+
+    await syncSetupScript(sandbox, "chat_1")
+
+    const setupRun = chatUpdate.mock.calls[0][0].data.setupRun
+    expect(setupRun.scriptUpdateNotice).toEqual({
+      environmentId: "env_1",
+      scriptHash: hashScript("npm ci\n"),
+      updatedAt: expect.any(Number),
+    })
+    // The existing job-tracking fields survive the merge.
+    expect(setupRun.handle).toEqual({ jobId: "j" })
   })
 
   it("advances writtenHash so the next turn is a no-op", async () => {
@@ -111,7 +130,8 @@ describe("syncSetupScript", () => {
     )
     readSetupScriptFromSandbox.mockResolvedValue("npm install\n")
 
-    expect(await syncSetupScript(sandbox, "chat_1")).toEqual({ result: "saved" })
+    const out = await syncSetupScript(sandbox, "chat_1")
+    expect(out.result).toBe("saved")
   })
 
   it("never writes environment variables or network settings", async () => {

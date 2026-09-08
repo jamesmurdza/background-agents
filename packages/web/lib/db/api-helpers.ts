@@ -362,6 +362,7 @@ export async function getChatWithAuth(
   needsSync: boolean
   environmentVariables: unknown
   environmentId: string | null
+  setupRun: unknown
   createdAt: Date
   updatedAt: Date
   lastActiveAt: Date

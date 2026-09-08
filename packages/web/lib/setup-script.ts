@@ -60,6 +60,55 @@ export function hashScript(script: string): string {
   return createHash("sha256").update(script, "utf8").digest("hex")
 }
 
+/**
+ * "The agent just edited the setup script" marker, written by
+ * {@link syncSetupScript} onto the chat's own `setupRun` JSON as a sibling key
+ * (see {@link withScriptUpdateNotice}) rather than a new column: it survives
+ * everywhere `setupRun` already does, and it is the one thing both the
+ * completion event and the chat's own row can carry without a schema change.
+ *
+ * `Environment.updatedAt` was tried for this first and rejected: sync-back
+ * always runs before the chat's own row is bumped to `ready`, so comparing
+ * two independently-drifting `updatedAt` columns has the ordering backwards.
+ * A marker written by the exact code that made the edit has no ordering
+ * dependency to get wrong.
+ */
+export interface ScriptUpdateNotice {
+  /** Which environment's script changed. */
+  environmentId: string
+  /** Hash of the script that was saved. A dismissal is keyed to this, not just
+   *  to the chat, so a *later* edit's notice is never swallowed by a
+   *  dismissal of an earlier one. */
+  scriptHash: string
+  updatedAt: number
+}
+
+/** Reads the marker back off a chat's stored `setupRun` value, if present. */
+export function readScriptUpdateNotice(value: unknown): ScriptUpdateNotice | null {
+  if (!value || typeof value !== "object") return null
+  const raw = (value as Record<string, unknown>).scriptUpdateNotice
+  if (!raw || typeof raw !== "object") return null
+  const n = raw as Partial<ScriptUpdateNotice>
+  if (typeof n.environmentId !== "string") return null
+  if (typeof n.scriptHash !== "string") return null
+  if (typeof n.updatedAt !== "number") return null
+  return { environmentId: n.environmentId, scriptHash: n.scriptHash, updatedAt: n.updatedAt }
+}
+
+/**
+ * Merges a fresh marker into whatever is already stored in `setupRun`,
+ * preserving any job-tracking fields already there (a chat's very first
+ * script sync often runs moments after {@link SetupRunRecord} itself was
+ * written) instead of clobbering them.
+ */
+export function withScriptUpdateNotice(
+  existing: unknown,
+  notice: ScriptUpdateNotice
+): Record<string, unknown> {
+  const base = existing && typeof existing === "object" ? (existing as Record<string, unknown>) : {}
+  return { ...base, scriptUpdateNotice: notice }
+}
+
 export function isSetupRunRecord(value: unknown): value is SetupRunRecord {
   if (!value || typeof value !== "object") return false
   const v = value as Partial<SetupRunRecord>

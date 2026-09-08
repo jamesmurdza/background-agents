@@ -13,6 +13,7 @@ import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { syncSetupScript } from "@/lib/server/sync-setup-script"
+import type { ScriptUpdateNotice } from "@/lib/setup-script"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
 
@@ -277,9 +278,14 @@ export async function GET(req: Request) {
 
             // Persist any edit the agent made to the setup script. Best-effort:
             // a failure here must not fail a turn that otherwise succeeded.
+            // Captured so the "agent updated the script" notice can ride the
+            // `complete` event straight to a client watching this stream,
+            // rather than depending on the chats list ever being refetched.
+            let scriptUpdateNotice: ScriptUpdateNotice | undefined
             if (chatId) {
               try {
-                await syncSetupScript(sandbox, chatId)
+                const sync = await syncSetupScript(sandbox, chatId)
+                if (sync.result === "saved") scriptUpdateNotice = sync.notice
               } catch (err) {
                 console.error("[agent/stream] syncSetupScript failed:", err)
               }
@@ -349,6 +355,7 @@ export async function GET(req: Request) {
               cursor,
               conflictState,
               push: pushInfo,
+              scriptUpdateNotice,
             })
             closeStream()
             return

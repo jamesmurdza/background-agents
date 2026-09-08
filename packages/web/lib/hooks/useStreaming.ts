@@ -181,6 +181,13 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
               errorKind: data.status === "error" ? data.errorKind : undefined,
               sessionId: data.sessionId ?? c.sessionId,
+              // Only set when this turn's sync-back actually saved an agent
+              // edit; a turn that didn't touch the script must not clear a
+              // notice from an earlier turn (`data.scriptUpdateNotice` is
+              // absent, not null, in that case: see SSECompleteEvent).
+              ...(data.scriptUpdateNotice !== undefined && {
+                scriptUpdateNotice: data.scriptUpdateNotice,
+              }),
             } : c
           ))
 

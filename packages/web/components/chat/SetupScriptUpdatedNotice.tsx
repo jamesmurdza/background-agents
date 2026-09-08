@@ -1,35 +1,72 @@
 "use client"
 
 import { useState } from "react"
-import { FileCode, Undo2 } from "lucide-react"
-import { useRevertSetupScriptMutation } from "@/lib/query/hooks/useEnvironmentsQuery"
+import { FileCode, Undo2, X } from "lucide-react"
+import { useRevertSetupScriptMutation, fetchEnvironmentScript } from "@/lib/query/hooks/useEnvironmentsQuery"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 
 interface SetupScriptUpdatedNoticeProps {
   environmentId: string
   environmentName: string
-  /** The version now stored, and the one it replaced, for the diff view. */
-  current: string
-  previous: string | null
+  /** Records the dismissal (see useSetupScriptNoticeDismissal) and hides the
+   *  notice. Also called after a successful revert, which resolves it just
+   *  as much as an explicit dismiss would. */
+  onDismiss: () => void
   isMobile?: boolean
 }
 
+type DiffState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "loaded"; current: string; previous: string | null }
+  | { status: "error"; message: string }
+
+/**
+ * "The agent updated the setup script" notice.
+ *
+ * Deliberately holds no script text until the user asks for it: the before/
+ * after bodies are fetched fresh from GET /api/environments/[id] only when
+ * "View diff" is opened, not kept eagerly for every chat whose notice never
+ * gets a second look. Whether "Revert" is possible at all is likewise not
+ * pre-computed: a chat with nothing to revert to just gets the server's
+ * "There is no previous version to revert to" back as the error, which is a
+ * true statement said once, rather than a guess said in advance.
+ */
 export function SetupScriptUpdatedNotice({
   environmentId,
   environmentName,
-  current,
-  previous,
+  onDismiss,
   isMobile = false,
 }: SetupScriptUpdatedNoticeProps) {
   const [showDiff, setShowDiff] = useState(false)
+  const [diff, setDiff] = useState<DiffState>({ status: "idle" })
   const [confirmRevert, setConfirmRevert] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const revert = useRevertSetupScriptMutation()
+
+  const toggleDiff = async () => {
+    if (showDiff) {
+      setShowDiff(false)
+      return
+    }
+    setShowDiff(true)
+    setDiff({ status: "loading" })
+    try {
+      const { current, previous } = await fetchEnvironmentScript(environmentId)
+      setDiff({ status: "loaded", current, previous })
+    } catch (err) {
+      setDiff({
+        status: "error",
+        message: err instanceof Error ? err.message : "Failed to load the setup script",
+      })
+    }
+  }
 
   const revertNow = async () => {
     setError(null)
     try {
       await revert.mutateAsync(environmentId)
+      onDismiss()
     } catch (err) {
       // ConfirmDialog closes itself immediately regardless of the async
       // result (see EnvironmentEditor's confirmPromoteNow), so a failure has
@@ -48,7 +85,7 @@ export function SetupScriptUpdatedNotice({
         <div className="ml-auto flex items-center gap-3 shrink-0">
           <button
             type="button"
-            onClick={() => setShowDiff((v) => !v)}
+            onClick={toggleDiff}
             className="text-xs underline underline-offset-2 hover:no-underline cursor-pointer"
           >
             {showDiff ? "Hide diff" : "View diff"}
@@ -56,11 +93,18 @@ export function SetupScriptUpdatedNotice({
           <button
             type="button"
             onClick={() => setConfirmRevert(true)}
-            disabled={revert.isPending || previous === null}
-            title={previous === null ? "No previous version to revert to" : undefined}
+            disabled={revert.isPending}
             className="inline-flex items-center gap-1 text-xs underline underline-offset-2 hover:no-underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
           >
             <Undo2 className="w-3 h-3" /> {revert.isPending ? "Reverting…" : "Revert"}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss"
+            className="text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -72,19 +116,29 @@ export function SetupScriptUpdatedNotice({
       )}
 
       {showDiff && (
-        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
-          <div>
-            <p className="text-muted-foreground mb-1">Before</p>
-            <pre className="p-2 rounded bg-background overflow-auto max-h-48 whitespace-pre-wrap">
-              {previous ?? "(empty)"}
-            </pre>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">After</p>
-            <pre className="p-2 rounded bg-background overflow-auto max-h-48 whitespace-pre-wrap">
-              {current}
-            </pre>
-          </div>
+        <div className="mt-2 text-xs font-mono">
+          {diff.status === "loading" && <p className="text-muted-foreground">Loading…</p>}
+          {diff.status === "error" && (
+            <p role="alert" className="text-destructive">
+              {diff.message}
+            </p>
+          )}
+          {diff.status === "loaded" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <p className="text-muted-foreground mb-1">Before</p>
+                <pre className="p-2 rounded bg-background overflow-auto max-h-48 whitespace-pre-wrap">
+                  {diff.previous ?? "(empty)"}
+                </pre>
+              </div>
+              <div>
+                <p className="text-muted-foreground mb-1">After</p>
+                <pre className="p-2 rounded bg-background overflow-auto max-h-48 whitespace-pre-wrap">
+                  {diff.current}
+                </pre>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
