@@ -11,7 +11,13 @@ function makeQueryClient() {
         staleTime: 30 * 1000, // 30 seconds
         gcTime: 5 * 60 * 1000, // 5 minutes
         retry: 2,
-        refetchOnWindowFocus: false,
+        // Re-sync server data when the user returns to a backgrounded tab, so a
+        // long-idle window doesn't keep showing a stale chat list, statuses,
+        // branches, or settings. staleTime gates this: queries fetched within
+        // the last staleTime window are still "fresh" and are skipped, so quick
+        // tab switches don't cause a refetch storm. Queries that manage their
+        // own cadence (e.g. useServersQuery, which polls) opt out locally.
+        refetchOnWindowFocus: true,
       },
       mutations: {
         retry: 1,
