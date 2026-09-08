@@ -191,6 +191,12 @@ model Chat {
   // { "KEY1": "encrypted_value1", ... }
   environmentVariables Json?
 
+  // The in-flight (or last) setup-script run for this chat's sandbox: the
+  // serialized sandbox-jobs JobHandle plus status and the hash of the script as
+  // written into the sandbox. Serializable by design so a cold serverless
+  // invocation can reattach. See lib/setup-script.ts (SetupRunRecord).
+  setupRun Json?
+
   // Relations
   user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   environment Environment?          @relation(fields: [environmentId], references: [id], onDelete: SetNull)

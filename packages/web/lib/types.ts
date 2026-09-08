@@ -239,6 +239,10 @@ export interface Chat {
 export type ChatStatus =
   | "pending"
   | "creating"
+  /** The environment's setup script is running; the queued turn has not started
+   *  yet. Recovery: the /setup SSE endpoint or the agent-lifecycle cron
+   *  dispatches the turn when the job exits. */
+  | "setting_up"
   | "ready"
   | "running"
   /** The agent itself returned an error. Recovery: resend the last message (Retry). */

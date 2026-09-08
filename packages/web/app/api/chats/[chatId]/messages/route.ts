@@ -99,7 +99,7 @@ export async function POST(
   // Per-chat concurrency: refuse re-entry while a previous send is
   // still in flight. This is the server-side equivalent of the client
   // sendInFlight ref; it survives across browser tabs, refreshes, etc.
-  if (chat.status === "creating" || chat.status === "running") {
+  if (chat.status === "creating" || chat.status === "setting_up" || chat.status === "running") {
     return Response.json({ error: "Chat is busy" }, { status: 409 })
   }
 

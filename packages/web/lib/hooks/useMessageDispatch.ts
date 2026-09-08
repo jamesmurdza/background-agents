@@ -141,7 +141,7 @@ export function useMessageDispatch({
     if (sendInFlight.current.has(chatId)) return
     if (stopInFlight.current.has(chatId)) return
     if (useStreamStore.getState().isStreaming(chatId)) return
-    if (chat.status === "creating" || chat.status === "running") return
+    if (chat.status === "creating" || chat.status === "setting_up" || chat.status === "running") return
 
     sendInFlight.current.add(chatId)
 

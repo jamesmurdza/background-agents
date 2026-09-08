@@ -72,7 +72,10 @@ export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0
       <div className="flex-1 min-w-0">
         <div className="text-sm truncate">{displayName}</div>
       </div>
-      {chat.status === "running" || chat.status === "creating" || (chat.queuedMessages && chat.queuedMessages.length > 0) ? (
+      {chat.status === "running" ||
+      chat.status === "creating" ||
+      chat.status === "setting_up" ||
+      (chat.queuedMessages && chat.queuedMessages.length > 0) ? (
         <Loader2 className="h-2.5 w-2.5 flex-shrink-0 animate-spin text-foreground/90" />
       ) : isUnseen ? (
         <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-muted-foreground/80" />
