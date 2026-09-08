@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { syncSetupScript } from "@/lib/server/sync-setup-script"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
 
@@ -271,6 +272,16 @@ export async function GET(req: Request) {
                 }
               } catch (err) {
                 console.error("[agent/stream] meterAssistantTurn failed:", err)
+              }
+            }
+
+            // Persist any edit the agent made to the setup script. Best-effort:
+            // a failure here must not fail a turn that otherwise succeeded.
+            if (chatId) {
+              try {
+                await syncSetupScript(sandbox, chatId)
+              } catch (err) {
+                console.error("[agent/stream] syncSetupScript failed:", err)
               }
             }
 
