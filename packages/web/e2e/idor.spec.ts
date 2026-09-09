@@ -15,6 +15,11 @@
  * This test creates a chat with sandboxId=null, hits the route with a
  * blatantly fake sandboxId, and asserts the route does NOT echo that
  * fake id in its error path — proving it ignored the query param.
+ *
+ * This file also covers the /api/environments IDOR surface: every [id] route
+ * must scope its lookup to userId so another user's environment id returns
+ * 404 rather than leaking existence, is readable, is editable, or is
+ * deletable.
  */
 
 import { test, expect } from "@playwright/test"
@@ -72,4 +77,51 @@ test("IDOR fix: route ignores url-supplied sandboxId and uses chat row", async (
   expect(body).toContain("no active sandbox")
 
   await context.close()
+})
+
+test("another user's environment is not readable, editable, or deletable", async ({ request }) => {
+  // Pure HTTP test (no page render), same convention as chat-mass-assignment.spec.ts:
+  // authenticate by fetching a test session token and sending it as the
+  // next-auth cookie on each request. `?user=b` on the second call picks a
+  // distinct, stable test user so this is a real cross-user check rather than
+  // the same user asserting against itself.
+  const authA = await request.post("/api/test/auth")
+  expect(authA.ok()).toBeTruthy()
+  const { token: tokenA } = await authA.json()
+  const headersA = { Cookie: `next-auth.session-token=${tokenA}` }
+
+  const authB = await request.post("/api/test/auth?user=b")
+  expect(authB.ok()).toBeTruthy()
+  const { token: tokenB } = await authB.json()
+  const headersB = { Cookie: `next-auth.session-token=${tokenB}` }
+
+  // Create an environment as user A, then attempt every verb as user B.
+  const created = await request.post("/api/environments", {
+    headers: headersA,
+    data: { repo: "acme/app", name: "Victim" },
+  })
+  expect(created.status()).toBe(201)
+  const { environment } = await created.json()
+
+  const get = await request.get(`/api/environments/${environment.id}`, { headers: headersB })
+  expect(get.status()).toBe(404)
+
+  const patch = await request.patch(`/api/environments/${environment.id}`, {
+    headers: headersB,
+    data: { name: "Hijacked" },
+  })
+  expect(patch.status()).toBe(404)
+
+  const usage = await request.get(`/api/environments/${environment.id}/usage`, {
+    headers: headersB,
+  })
+  expect(usage.status()).toBe(404)
+
+  const del = await request.delete(`/api/environments/${environment.id}`, { headers: headersB })
+  expect(del.status()).toBe(404)
+
+  // And user A can still reach their own environment: the 404s above are
+  // ownership-scoping, not the row having vanished.
+  const getA = await request.get(`/api/environments/${environment.id}`, { headers: headersA })
+  expect(getA.status()).toBe(200)
 })

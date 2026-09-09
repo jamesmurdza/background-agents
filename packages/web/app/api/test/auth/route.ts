@@ -3,13 +3,19 @@
  *
  * Creates a test user and returns a valid session token.
  * ONLY enabled when ENABLE_TEST_AUTH=true (should only be set in test environments)
+ *
+ * An optional `?user=<tag>` query param picks a distinct, stable test user
+ * (`test-<tag>@playwright.local`) instead of the default `test@playwright.local`.
+ * IDOR-style specs use this to get a second real user id to test ownership
+ * scoping against, rather than asserting against the same user twice.
  */
 
+import { NextRequest } from "next/server"
 import { prisma } from "@/lib/db/prisma"
 import { encode } from "next-auth/jwt"
 import { internalError } from "@/lib/db/api-helpers"
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   // Safety check: only allow in test mode
   if (process.env.ENABLE_TEST_AUTH !== "true") {
     return Response.json(
@@ -19,14 +25,19 @@ export async function POST() {
   }
 
   try {
+    const rawTag = new URL(req.url).searchParams.get("user")
+    if (rawTag && !/^[a-z0-9-]{1,32}$/.test(rawTag)) {
+      return Response.json({ error: "Invalid user tag" }, { status: 400 })
+    }
+    const tag = rawTag
+    const email = tag ? `test-${tag}@playwright.local` : "test@playwright.local"
+    const name = tag ? `Playwright Test User ${tag.toUpperCase()}` : "Playwright Test User"
+
     // Create or find test user
     const user = await prisma.user.upsert({
-      where: { email: "test@playwright.local" },
+      where: { email },
       update: {},
-      create: {
-        email: "test@playwright.local",
-        name: "Playwright Test User",
-      },
+      create: { email, name },
     })
 
     // Generate session token
@@ -51,6 +62,6 @@ export async function POST() {
 }
 
 // Also support GET for easier testing
-export async function GET() {
-  return POST()
+export async function GET(req: NextRequest) {
+  return POST(req)
 }

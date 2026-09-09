@@ -14,6 +14,7 @@ interface CreateChatParams {
   model?: string | null
   status?: Chat["status"]
   planModeEnabled?: boolean
+  environmentId?: string | null
 }
 
 /**
@@ -33,6 +34,7 @@ export function useCreateChatMutation() {
         model: params.model ?? undefined,
         status: params.status,
         planModeEnabled: params.planModeEnabled,
+        environmentId: params.environmentId ?? undefined,
       })
       return toChatType(serverChat)
     },

@@ -1,13 +1,13 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command } from "lucide-react"
+import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, Boxes } from "lucide-react"
 import { useModals, useSidebar } from "@/lib/contexts"
 import type { Chat } from "@/lib/types"
 
 interface MobileHeaderProps {
   chat: Chat | null
-  viewMode: "chat" | "scheduled-jobs"
+  viewMode: "chat" | "scheduled-jobs" | "environments"
   githubBranchUrl: string | null
   onOpenMenu: () => void
   onOpenInGitHub: () => void
@@ -51,11 +51,16 @@ export function MobileHeader({
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Title - different for scheduled jobs vs chat */}
+      {/* Title - different for scheduled jobs / environments vs chat */}
       {viewMode === "scheduled-jobs" ? (
         <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 -ml-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <span className="text-base font-semibold">Scheduled Agents</span>
+        </div>
+      ) : viewMode === "environments" ? (
+        <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 -ml-2">
+          <Boxes className="h-4 w-4 text-muted-foreground" />
+          <span className="text-base font-semibold">Environments</span>
         </div>
       ) : (
         <div className="relative flex-1 min-w-0" ref={mobileTitleMenuRef}>

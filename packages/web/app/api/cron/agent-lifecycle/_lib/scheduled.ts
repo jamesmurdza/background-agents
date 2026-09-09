@@ -17,6 +17,7 @@ import { meterTurnNow } from "./meter-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { getOrCreateDefaultEnvironment } from "@/lib/environments"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
 import {
   createBackgroundAgentSession,
@@ -154,6 +155,15 @@ export async function startJobExecution(
 
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
   //    skips the clone path, so we don't need the GitHub token in that case.
+  // Scheduled jobs have no per-job environment picker, so resolve the repo's
+  // default environment directly rather than through resolveEnvironmentForChat
+  // (which exists for the pinned-vs-default Chat case). Repo-less jobs
+  // (isRepoLess, job.repo === NEW_REPOSITORY) have no repo to scope an
+  // environment to, so they resolve to none, matching the reasoning in
+  // resolveEnvironmentForChat.
+  const environment = isRepoLess
+    ? null
+    : await getOrCreateDefaultEnvironment(job.userId, job.repo)
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
   const { sandbox, sandboxId, previewUrlPattern } = await createSandboxForChat({
     daytona,
@@ -162,6 +172,7 @@ export async function startJobExecution(
     newBranch: branch,
     githubToken: account?.access_token ?? undefined,
     userId: job.userId,
+    environment,
   })
 
   // 6. Update chat with sandbox info

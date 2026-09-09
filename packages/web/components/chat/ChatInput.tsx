@@ -13,6 +13,7 @@ import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { CreditWarningBanner } from "./CreditWarningBanner"
 import { RepoCombobox } from "./RepoCombobox"
+import { EnvironmentCombobox } from "./EnvironmentCombobox"
 import { BranchCombobox } from "./BranchCombobox"
 import { McpServersCombobox } from "./McpServersCombobox"
 import { SlashCommandMenu, type SlashCommandType } from "../SlashCommandMenu"
@@ -599,6 +600,15 @@ export function ChatInput({
                 </span>
               </a>
             )}
+
+            {/* Environment picker: the environment the chat's sandbox is/will be built from */}
+            <EnvironmentCombobox
+              repo={isNewRepo ? null : chat.repo}
+              value={chat.environmentId ?? null}
+              onChange={(environmentId) => onUpdateChat?.({ environmentId })}
+              disabled={!canSelectExistingRepo}
+              isMobile={isMobile}
+            />
 
             {/* MCP servers picker */}
             {showMcpButton && (

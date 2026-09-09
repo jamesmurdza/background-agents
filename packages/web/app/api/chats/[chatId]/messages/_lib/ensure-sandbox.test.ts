@@ -29,6 +29,14 @@ vi.mock("@/lib/sandbox", () => ({
     installSkillsForRepo(s, u, r),
 }))
 
+// This suite only exercises sandbox-lifecycle branching, not environment
+// resolution (that's covered by lib/environments.test.ts and
+// lib/sandbox-create-params.test.ts), so stub it out to a fixed value.
+const resolveEnvironmentForChat = vi.fn()
+vi.mock("@/lib/environments", () => ({
+  resolveEnvironmentForChat: (args: unknown) => resolveEnvironmentForChat(args),
+}))
+
 import { ensureSandboxForChat, type SandboxState } from "./ensure-sandbox"
 
 const freshSandbox = { id: "sbx-new", state: "started" }
@@ -87,6 +95,7 @@ function createArg() {
     newBranch: string
     restoreExistingBranch: boolean
     repo: string
+    environment: unknown
   }
 }
 
@@ -102,6 +111,7 @@ beforeEach(() => {
   })
   ensureSandboxStarted.mockReset().mockResolvedValue(undefined)
   installSkillsForRepo.mockReset().mockResolvedValue({ installed: 0, total: 0 })
+  resolveEnvironmentForChat.mockReset().mockResolvedValue(null)
 })
 
 describe("ensureSandboxForChat — first-time creation", () => {
@@ -115,6 +125,30 @@ describe("ensureSandboxForChat — first-time creation", () => {
     expect(createArg().restoreExistingBranch).toBe(false)
     expect(chat.sessionId).toBeNull()
     expect(readyUpdate()!.data).toHaveProperty("sessionId", null)
+  })
+
+  it("resolves the chat's environment and forwards it to createSandboxForChat", async () => {
+    const resolvedEnvironment = {
+      id: "env_123",
+      name: "Staging",
+      repo: "octocat/hello",
+      isDefault: false,
+      networkMode: "full",
+      allowedDomains: [],
+      variables: { NPM_TOKEN: "tok" },
+      setupScript: null,
+    }
+    resolveEnvironmentForChat.mockResolvedValue(resolvedEnvironment)
+    const { params } = setup()
+
+    await ensureSandboxForChat(params)
+
+    expect(resolveEnvironmentForChat).toHaveBeenCalledWith({
+      userId: "user-1",
+      repo: "octocat/hello",
+      environmentId: null,
+    })
+    expect(createArg().environment).toBe(resolvedEnvironment)
   })
 })
 

@@ -9,6 +9,8 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
+import { getOrCreateDefaultEnvironment } from "@/lib/environments"
+import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================
 // Helpers
@@ -72,6 +74,7 @@ interface ChatWithMessagesResponse {
   agent: string
   model: string | null
   planModeEnabled: boolean
+  environmentId: string | null
   displayName: string | null
   shareId: string | null
   status: string
@@ -188,6 +191,7 @@ export async function GET(
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
+      environmentId: chat.environmentId,
       displayName: chat.displayName,
       shareId: chat.shareId,
       status: chat.status,
@@ -242,6 +246,7 @@ interface PatchChatBody {
   branch?: string
   needsSync?: boolean
   lastActiveAt?: number
+  environmentId?: string
   // NOTE: sandboxId, sessionId, previewUrlPattern and backgroundSessionId are
   // intentionally NOT accepted here. They are server-managed — written only by
   // the message/stream flow (ensure-sandbox, persist-turn, persist-snapshot) —
@@ -271,6 +276,34 @@ export async function PATCH(
       return notFound("Chat not found")
     }
 
+    // Once a chat has a sandbox, its environment is fixed: resolveEnvironmentForChat
+    // (agent-env.ts) re-resolves the environment fresh on every turn, but network
+    // mode is baked into the sandbox only at creation time. Letting an explicit
+    // environmentId, or a repo change that re-resolves one, through after the
+    // sandbox exists would inject a different environment's variables into a
+    // sandbox still running under the old one's network mode on the very next
+    // turn, a split-brain state reachable with one PATCH. The client already
+    // disables the picker at this point; this is the server-side half of that.
+    //
+    // Exempt the NEW_REPOSITORY -> real repo transition: a "__new__" chat's
+    // sandbox was created with environment: null (full network, no vars), and
+    // full is the only reachable network mode today, so re-resolving to the
+    // new repo's default on the next turn matches pre-branch behavior exactly.
+    // This exemption needs revisiting if restricted mode ever becomes
+    // enforceable, since a repo's default environment could then carry a
+    // network mode the already-running sandbox never agreed to.
+    if (
+      chat.sandboxId &&
+      chat.repo !== NEW_REPOSITORY &&
+      (body.environmentId !== undefined || (body.repo !== undefined && body.repo !== chat.repo))
+    ) {
+      return badRequest("Cannot change repo or environmentId once the chat has a sandbox")
+    }
+
+    if (body.environmentId !== undefined && typeof body.environmentId !== "string") {
+      return badRequest("environmentId must be a string")
+    }
+
     // Build update data
     const updateData: Record<string, unknown> = {}
 
@@ -288,6 +321,30 @@ export async function PATCH(
     // deliberately not copied from the body — see PatchChatBody note above.
     if (body.needsSync !== undefined) updateData.needsSync = body.needsSync
     if (body.lastActiveAt !== undefined) updateData.lastActiveAt = new Date(body.lastActiveAt)
+
+    if (body.environmentId !== undefined) {
+      // An explicit environment must belong to this user AND to the repo the
+      // chat will end up on (its new repo if one is also being set in this
+      // same PATCH, otherwise its current one), otherwise a chat could be
+      // pinned to another repo's variables.
+      const targetRepo = body.repo ?? chat.repo
+      const requested = await prisma.environment.findFirst({
+        where: { id: body.environmentId, userId, repo: targetRepo },
+        select: { id: true },
+      })
+      if (!requested) return badRequest("Invalid environmentId")
+      updateData.environmentId = requested.id
+    } else if (body.repo !== undefined && body.repo !== chat.repo) {
+      // Changing repo without an explicit environment invalidates whatever
+      // was pinned for the old repo (an environment id is only ever valid
+      // for the repo it belongs to). Re-resolve exactly like POST /api/chats
+      // does rather than leaving the chat pointed at another repo's
+      // environment and its variables.
+      updateData.environmentId =
+        body.repo === NEW_REPOSITORY
+          ? null
+          : (await getOrCreateDefaultEnvironment(userId, body.repo)).id
+    }
 
     if (Object.keys(updateData).length === 0) {
       return badRequest("No valid fields to update")
@@ -325,6 +382,7 @@ export async function PATCH(
       agent: updatedChat.agent,
       model: updatedChat.model,
       planModeEnabled: updatedChat.planModeEnabled,
+      environmentId: updatedChat.environmentId,
       displayName: updatedChat.displayName,
       shareId: updatedChat.shareId,
       status: updatedChat.status,

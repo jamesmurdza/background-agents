@@ -31,6 +31,10 @@ export interface DraftChatConfig {
   agent: string | null
   model: string | null
   planMode?: boolean
+  /** Explicit environment pick for the draft, or null once cleared (e.g. by a
+   *  repo change). Undefined means "not yet chosen" (falls back to the repo's
+   *  default at materialization). */
+  environmentId?: string | null
 }
 
 /** Preview state for a chat */

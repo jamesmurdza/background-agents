@@ -19,6 +19,7 @@ interface DraftChatConfig {
   agent: string | null
   model: string | null
   planMode?: boolean
+  environmentId?: string | null
 }
 
 type DraftChatConfigUpdates = Partial<{
@@ -27,6 +28,7 @@ type DraftChatConfigUpdates = Partial<{
   agent: string | null
   model: string | null
   planMode?: boolean
+  environmentId: string | null
 }>
 
 interface OptimisticDraft {
@@ -178,6 +180,7 @@ export function useDraftChat({
         agent: resolvedAgent,
         model: resolvedModel,
         planModeEnabled: draftChatConfig.planMode ?? false,
+        environmentId: draftChatConfig.environmentId ?? null,
         messages,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -217,6 +220,14 @@ export function useDraftChat({
           if (updates.repo !== undefined) draftUpdates.repo = updates.repo
           if (updates.baseBranch !== undefined) draftUpdates.baseBranch = updates.baseBranch
           if (updates.planModeEnabled !== undefined) draftUpdates.planMode = updates.planModeEnabled
+          if (updates.environmentId !== undefined) {
+            draftUpdates.environmentId = updates.environmentId
+          } else if (updates.repo !== undefined) {
+            // A repo change without an explicit environment invalidates any
+            // environment picked for the old repo: an environment id is only
+            // ever valid for the repo it belongs to.
+            draftUpdates.environmentId = null
+          }
           updateDraftChatConfig(draftUpdates)
         } else {
           // Unauthenticated draft - use local component state

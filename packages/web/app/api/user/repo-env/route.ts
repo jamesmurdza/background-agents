@@ -6,7 +6,11 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import { encrypt, decrypt } from "@/lib/db/encryption"
+import {
+  decryptEnvironmentVariables,
+  encryptEnvironmentVariables,
+  getOrCreateDefaultEnvironment,
+} from "@/lib/environments"
 
 // =============================================================================
 // Types
@@ -24,6 +28,12 @@ interface PatchRepoEnvVarsBody {
 // =============================================================================
 // GET - Fetch all repository environment variables for the user (decrypted)
 // =============================================================================
+//
+// This endpoint predates per-repo Environment rows; it now reads/writes the
+// repo's *default* Environment rather than the legacy
+// User.repoEnvironmentVariables JSON column, which nothing else reads
+// anymore. The wire contract is unchanged so existing clients
+// (useSandboxActions.ts + the env vars modal) keep working untouched.
 
 export async function GET(): Promise<Response> {
   const authResult = await requireAuth()
@@ -31,27 +41,17 @@ export async function GET(): Promise<Response> {
   const { userId } = authResult
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { repoEnvironmentVariables: true },
+    const defaultEnvironments = await prisma.environment.findMany({
+      where: { userId, isDefault: true },
+      select: { repo: true, environmentVariables: true },
     })
 
-    // Decrypt all repo environment variables
-    const encrypted = (user?.repoEnvironmentVariables as Record<string, Record<string, string>>) || {}
-    const decrypted: Record<string, Record<string, string>> = {}
-
-    for (const [repo, envVars] of Object.entries(encrypted)) {
-      decrypted[repo] = {}
-      for (const [key, value] of Object.entries(envVars)) {
-        if (value) {
-          decrypted[repo][key] = decrypt(value)
-        }
-      }
+    const repoEnvironmentVariables: Record<string, Record<string, string>> = {}
+    for (const env of defaultEnvironments) {
+      repoEnvironmentVariables[env.repo] = decryptEnvironmentVariables(env.environmentVariables)
     }
 
-    const response: RepoEnvVarsResponse = {
-      repoEnvironmentVariables: decrypted,
-    }
+    const response: RepoEnvVarsResponse = { repoEnvironmentVariables }
 
     return Response.json(response)
   } catch (error) {
@@ -79,34 +79,15 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       return badRequest("Invalid environmentVariables")
     }
 
-    // Get current repo env vars
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { repoEnvironmentVariables: true },
-    })
+    const defaultEnv = await getOrCreateDefaultEnvironment(userId, body.repo)
+    const encrypted = encryptEnvironmentVariables(body.environmentVariables)
 
-    const allRepoEnvVars = (user?.repoEnvironmentVariables as Record<string, Record<string, string>>) || {}
-
-    // Encrypt all values for this repo
-    const encrypted: Record<string, string> = {}
-    for (const [key, value] of Object.entries(body.environmentVariables)) {
-      if (typeof key === "string" && typeof value === "string" && key.trim()) {
-        encrypted[key.trim()] = encrypt(value)
-      }
-    }
-
-    // Update or remove the repo entry
-    if (Object.keys(encrypted).length > 0) {
-      allRepoEnvVars[body.repo] = encrypted
-    } else {
-      delete allRepoEnvVars[body.repo]
-    }
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        repoEnvironmentVariables: allRepoEnvVars,
-      },
+    // An empty environmentVariables clears the values but must not delete the
+    // Environment row: that would take its name, network mode, and setup
+    // script with it.
+    await prisma.environment.update({
+      where: { id: defaultEnv.id },
+      data: { environmentVariables: encrypted },
     })
 
     return Response.json({ success: true })

@@ -15,6 +15,8 @@ import { TOKSCALE_VERSION, getActiveSnapshotName } from "@background-agents/sand
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
+import type { ResolvedEnvironment } from "@/lib/environments"
+import { buildSandboxCreateParams } from "@/lib/sandbox-create-params"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -141,6 +143,12 @@ export interface CreateSandboxOptions {
    * creating a fresh one. Used when recreating a deleted sandbox.
    */
   restoreExistingBranch?: boolean
+  /**
+   * The resolved environment for this chat: network mode, variables, and (in
+   * Part 2) the setup script. Null for NEW_REPOSITORY chats, which have no repo
+   * to scope an environment to.
+   */
+  environment?: ResolvedEnvironment | null
 }
 
 export interface CreatedSandbox {
@@ -190,18 +198,15 @@ export async function createSandboxForChat(
     }
   }
 
-  const sandbox = await daytona.create({
-    name: generateSandboxName(userId),
-    snapshot: await getActiveSnapshotName(daytona),
-    autoStopInterval: 5,
-    autoDeleteInterval: 5760, // 4 days - auto-delete after being stopped for four days
-    public: true,
-    labels: {
-      [SANDBOX_CONFIG.LABEL_KEY]: "true",
+  const sandbox = await daytona.create(
+    buildSandboxCreateParams({
+      name: generateSandboxName(userId),
+      snapshot: await getActiveSnapshotName(daytona),
       repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
       branch: newBranch,
-    },
-  })
+      environment: options.environment ?? null,
+    })
+  )
 
   await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)
 
