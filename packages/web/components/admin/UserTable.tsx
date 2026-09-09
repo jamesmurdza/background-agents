@@ -48,7 +48,14 @@ interface Pagination {
   totalPages: number
 }
 
-export type SortField = "name" | "email" | "totalMessages" | "lastActivityAt" | "createdAt"
+export type SortField =
+  | "name"
+  | "email"
+  | "totalMessages"
+  | "lastActivityAt"
+  | "createdAt"
+  | "plan"
+  | "isAdmin"
 export type SortOrder = "asc" | "desc"
 
 interface UserTableProps {
@@ -301,8 +308,8 @@ export function UserTable({
                 <SortHeader label="Messages" field="totalMessages" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} align="center" />
                 <SortHeader label="Last Active" field="lastActivityAt" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} />
                 <SortHeader label="Joined" field="createdAt" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} />
-                <th className="px-4 py-3 text-center font-medium">Plan</th>
-                <th className="px-4 py-3 text-center font-medium">Admin</th>
+                <SortHeader label="Plan" field="plan" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} align="center" />
+                <SortHeader label="Admin" field="isAdmin" currentField={sortField} currentOrder={sortOrder} onSort={onSortChange} align="center" />
               </tr>
             </thead>
             <tbody>

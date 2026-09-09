@@ -12,7 +12,7 @@ import { parsePaginationParams, buildPagination } from "@/lib/db/pagination"
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 20, max: 100)
  * - search: Search by name, email, or GitHub ID (optional)
- * - sortField: Field to sort by (name, email, createdAt, totalMessages, lastActivityAt)
+ * - sortField: Field to sort by (name, email, createdAt, totalMessages, lastActivityAt, plan, isAdmin)
  * - sortOrder: Sort order (asc, desc) - default: desc
  *
  * Sorting note: `totalMessages` and `lastActivityAt` are computed from
@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
     "createdAt",
     "totalMessages",
     "lastActivityAt",
+    "plan",
+    "isAdmin",
   ] as const
   type SortField = (typeof ALLOWED_SORT_FIELDS)[number]
   const sortField: SortField = (ALLOWED_SORT_FIELDS as readonly string[]).includes(rawSortField)
@@ -107,11 +109,15 @@ export async function GET(request: NextRequest) {
 
     total = await prisma.user.count({ where })
   } else {
-    // Plain DB column — let Prisma sort + paginate directly.
+    // Plain DB column — let Prisma sort + paginate directly. `plan` sorts by
+    // its Postgres enum declaration order (free, pro, unlimited — see
+    // schema.prisma), which happens to also be cheapest-to-priciest.
     const orderBy = { [sortField]: sortOrder } as
       | { name: "asc" | "desc" }
       | { email: "asc" | "desc" }
       | { createdAt: "asc" | "desc" }
+      | { plan: "asc" | "desc" }
+      | { isAdmin: "asc" | "desc" }
     const [rows, count] = await Promise.all([
       prisma.user.findMany({
         where,

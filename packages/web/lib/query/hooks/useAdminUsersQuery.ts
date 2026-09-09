@@ -32,7 +32,14 @@ interface AdminUsersResponse {
   pagination: Pagination
 }
 
-export type SortField = "name" | "email" | "totalMessages" | "lastActivityAt" | "createdAt"
+export type SortField =
+  | "name"
+  | "email"
+  | "totalMessages"
+  | "lastActivityAt"
+  | "createdAt"
+  | "plan"
+  | "isAdmin"
 export type SortOrder = "asc" | "desc"
 
 interface UseAdminUsersQueryOptions {
