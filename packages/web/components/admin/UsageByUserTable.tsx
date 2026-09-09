@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMetricValue } from "./charts/chartFormatters"
 import type { TopupUser, UsageMetric, UserUsage } from "@/lib/query/hooks"
@@ -80,6 +80,92 @@ function sharedShare(user: UserUsage, metric: UsageMetric): number {
   return (shared / total) * 100
 }
 
+type SortField = "name" | "toppedUp" | "spent" | "usage" | "pool" | "models"
+type SortOrder = "asc" | "desc"
+
+/** The value each column actually sorts on — mirrors what's rendered in that cell. */
+function sortValue(user: MergedUser, field: SortField, metric: UsageMetric): string | number {
+  switch (field) {
+    case "name":
+      return user.name.toLowerCase()
+    case "toppedUp":
+      return user.toppedUpUsd
+    case "spent":
+      return user.spentUsd
+    case "usage":
+      return metric === "cost" ? user.cost : user.tokens
+    case "pool":
+      return sharedShare(user, metric)
+    case "models":
+      return user.models.length
+  }
+}
+
+function sortUsers(
+  users: MergedUser[],
+  field: SortField,
+  order: SortOrder,
+  metric: UsageMetric
+): MergedUser[] {
+  const sign = order === "asc" ? 1 : -1
+  return [...users].sort((a, b) => {
+    const av = sortValue(a, field, metric)
+    const bv = sortValue(b, field, metric)
+    if (typeof av === "string" || typeof bv === "string") {
+      return sign * String(av).localeCompare(String(bv))
+    }
+    return sign * (av - bv)
+  })
+}
+
+function SortHeader({
+  label,
+  field,
+  currentField,
+  currentOrder,
+  onSort,
+  align = "right",
+  className,
+}: {
+  label: string
+  field: SortField
+  currentField: SortField
+  currentOrder: SortOrder
+  onSort: (field: SortField) => void
+  align?: "left" | "right"
+  className?: string
+}) {
+  const isActive = currentField === field
+  return (
+    <th
+      className={cn(
+        "px-2 py-2 font-medium sm:px-3",
+        align === "right" ? "text-right" : "text-left",
+        className
+      )}
+    >
+      <button
+        onClick={() => onSort(field)}
+        className={cn(
+          "inline-flex items-center gap-1 hover:text-foreground",
+          align === "right" && "flex-row-reverse"
+        )}
+      >
+        {label}
+        {isActive ? (
+          currentOrder === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </th>
+  )
+}
+
 /**
  * Per-user usage, expandable to a per-model breakdown.
  *
@@ -96,6 +182,10 @@ export function UsageByUserTable({
   isLoading,
 }: UsageByUserTableProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Defaults to the same ranking mergeUsers already produces — heaviest usage
+  // first — so sorting is additive, not a change to the table's default view.
+  const [sortField, setSortField] = useState<SortField>("usage")
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   const toggle = (userId: string) =>
     setExpanded((prev) => {
@@ -104,6 +194,15 @@ export function UsageByUserTable({
       else next.add(userId)
       return next
     })
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortOrder("desc")
+    }
+  }
 
   const value = (u: UserUsage) => (metric === "cost" ? u.cost : u.tokens)
 
@@ -131,6 +230,7 @@ export function UsageByUserTable({
     )
   }
 
+  const sorted = sortUsers(merged, sortField, sortOrder, metric)
   const maxValue = Math.max(...merged.map(value), 1)
 
   return (
@@ -138,22 +238,55 @@ export function UsageByUserTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50 text-xs">
-            <th className="px-2 py-2 text-left font-medium sm:px-3">User</th>
-            <th className="px-2 py-2 text-right font-medium sm:px-3">Topped up</th>
-            <th className="px-2 py-2 text-right font-medium sm:px-3">Spent</th>
-            <th className="px-2 py-2 text-right font-medium sm:px-3">
-              {metric === "cost" ? "List value" : "Tokens"}
-            </th>
-            <th className="hidden px-2 py-2 text-right font-medium sm:table-cell sm:px-3">
-              On our pool
-            </th>
-            <th className="hidden px-2 py-2 text-right font-medium md:table-cell md:px-3">
-              Models
-            </th>
+            <SortHeader
+              label="User"
+              field="name"
+              align="left"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+            />
+            <SortHeader
+              label="Topped up"
+              field="toppedUp"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+            />
+            <SortHeader
+              label="Spent"
+              field="spent"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+            />
+            <SortHeader
+              label={metric === "cost" ? "List value" : "Tokens"}
+              field="usage"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+            />
+            <SortHeader
+              label="On our pool"
+              field="pool"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+              className="hidden sm:table-cell"
+            />
+            <SortHeader
+              label="Models"
+              field="models"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+              className="hidden md:table-cell"
+            />
           </tr>
         </thead>
         <tbody>
-          {merged.map((user) => {
+          {sorted.map((user) => {
             const isOpen = expanded.has(user.userId)
             const v = value(user)
             const share = sharedShare(user, metric)
