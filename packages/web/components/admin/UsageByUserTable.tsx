@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMetricValue } from "./charts/chartFormatters"
-import type { TopupUser, UsageMetric, UserUsage } from "@/lib/query/hooks"
+import type { TopupUser, UserBalance, UserUsage } from "@/lib/query/hooks"
 
 interface UsageByUserTableProps {
   users: UserUsage[]
@@ -12,24 +12,24 @@ interface UsageByUserTableProps {
    * into the usage rows so the table reads as one roster rather than three —
    * see the module doc below. */
   ledger: TopupUser[]
-  metric: UsageMetric
+  /** Current credit balance per user — not range-scoped, see the topups route. */
+  balances: UserBalance[]
   /**
-   * Whether a dollar figure says anything useful for this provider. True for
-   * OpenCode (billed per token) and Claude (shared pool budgeted in dollars, so
-   * per-model cost is what explains a user hitting their cap). False for Gemini,
-   * capped by message count — the List value column is dropped from the per-model
-   * detail rather than shown as a number nobody can act on. Whether those
-   * dollars are an actual invoice line is a separate question, labelled at the
-   * section header.
+   * Whether a dollar figure says anything useful here. True for every shared-
+   * pool provider today (Claude, OpenCode, Gemini all have a real pricing
+   * multiplier — see lib/server/credits) — kept as a prop rather than hardcoded
+   * so a future provider with no priced usage can still opt out of the List
+   * value column without a code change here.
    */
   showCost?: boolean
   isLoading?: boolean
 }
 
-/** A usage row, widened with the ledger's topped-up/spent totals. */
+/** A usage row, widened with the ledger's topped-up/spent/balance totals. */
 interface MergedUser extends UserUsage {
   toppedUpUsd: number
   spentUsd: number
+  balanceUsd: number
 }
 
 /**
@@ -37,18 +37,24 @@ interface MergedUser extends UserUsage {
  *
  * A left-heavy union: every usage row keeps its place (already ranked by the
  * selected metric), and any user who only shows up in the ledger — topped up
- * or was charged, but has no usage on the currently selected provider — is
+ * or was charged, but has no usage on the currently selected provider(s) — is
  * appended after, ranked by how much they've topped up. Nobody with money on
  * either side of the ledger silently drops off the table.
  */
-function mergeUsers(users: UserUsage[], ledger: TopupUser[]): MergedUser[] {
+function mergeUsers(users: UserUsage[], ledger: TopupUser[], balances: UserBalance[]): MergedUser[] {
   const ledgerById = new Map(ledger.map((l) => [l.userId, l]))
+  const balanceById = new Map(balances.map((b) => [b.userId, b.balanceUsd]))
   const seen = new Set<string>()
 
   const withLedger = users.map((u) => {
     seen.add(u.userId)
     const l = ledgerById.get(u.userId)
-    return { ...u, toppedUpUsd: l?.toppedUpUsd ?? 0, spentUsd: l?.spentUsd ?? 0 }
+    return {
+      ...u,
+      toppedUpUsd: l?.toppedUpUsd ?? 0,
+      spentUsd: l?.spentUsd ?? 0,
+      balanceUsd: balanceById.get(u.userId) ?? 0,
+    }
   })
 
   const ledgerOnly = ledger
@@ -66,51 +72,51 @@ function mergeUsers(users: UserUsage[], ledger: TopupUser[]): MergedUser[] {
       models: [],
       toppedUpUsd: l.toppedUpUsd,
       spentUsd: l.spentUsd,
+      balanceUsd: balanceById.get(l.userId) ?? 0,
     }))
     .sort((a, b) => b.toppedUpUsd - a.toppedUpUsd)
 
   return [...withLedger, ...ledgerOnly]
 }
 
-/** Share of a user's usage that ran on our credentials, 0–100. */
-function sharedShare(user: UserUsage, metric: UsageMetric): number {
-  const total = metric === "cost" ? user.cost : user.tokens
-  if (total <= 0) return 0
-  const shared = metric === "cost" ? user.sharedCost : user.sharedTokens
-  return (shared / total) * 100
+/** Share of a user's tokens that ran on our credentials, 0–100. Tokens rather
+ * than list value: it's the one measure every provider has, pricing changes
+ * aside. */
+function sharedShare(user: UserUsage): number {
+  if (user.tokens <= 0) return 0
+  return (user.sharedTokens / user.tokens) * 100
 }
 
-type SortField = "name" | "toppedUp" | "spent" | "usage" | "pool" | "models"
+type SortField = "name" | "toppedUp" | "balance" | "spent" | "tokens" | "cost" | "pool" | "models"
 type SortOrder = "asc" | "desc"
 
 /** The value each column actually sorts on — mirrors what's rendered in that cell. */
-function sortValue(user: MergedUser, field: SortField, metric: UsageMetric): string | number {
+function sortValue(user: MergedUser, field: SortField): string | number {
   switch (field) {
     case "name":
       return user.name.toLowerCase()
     case "toppedUp":
       return user.toppedUpUsd
+    case "balance":
+      return user.balanceUsd
     case "spent":
       return user.spentUsd
-    case "usage":
-      return metric === "cost" ? user.cost : user.tokens
+    case "tokens":
+      return user.tokens
+    case "cost":
+      return user.cost
     case "pool":
-      return sharedShare(user, metric)
+      return sharedShare(user)
     case "models":
       return user.models.length
   }
 }
 
-function sortUsers(
-  users: MergedUser[],
-  field: SortField,
-  order: SortOrder,
-  metric: UsageMetric
-): MergedUser[] {
+function sortUsers(users: MergedUser[], field: SortField, order: SortOrder): MergedUser[] {
   const sign = order === "asc" ? 1 : -1
   return [...users].sort((a, b) => {
-    const av = sortValue(a, field, metric)
-    const bv = sortValue(b, field, metric)
+    const av = sortValue(a, field)
+    const bv = sortValue(b, field)
     if (typeof av === "string" || typeof bv === "string") {
       return sign * String(av).localeCompare(String(bv))
     }
@@ -172,19 +178,20 @@ function SortHeader({
  * A table rather than a chart on purpose: "who used what, on which model, from
  * which pool" is four dimensions, and a table reads them at a glance where a
  * chart would need encoding tricks. Rows are collapsed by default so the
- * default view stays a simple ranked list.
+ * default view stays a simple ranked list. Every column header sorts.
  */
 export function UsageByUserTable({
   users,
   ledger,
-  metric,
+  balances,
   showCost = true,
   isLoading,
 }: UsageByUserTableProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  // Defaults to the same ranking mergeUsers already produces — heaviest usage
-  // first — so sorting is additive, not a change to the table's default view.
-  const [sortField, setSortField] = useState<SortField>("usage")
+  // Tokens rather than cost: it's the one column that's always present, even
+  // for a future provider with no priced usage — so the default sort never
+  // depends on showCost.
+  const [sortField, setSortField] = useState<SortField>("tokens")
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
   const toggle = (userId: string) =>
@@ -204,8 +211,6 @@ export function UsageByUserTable({
     }
   }
 
-  const value = (u: UserUsage) => (metric === "cost" ? u.cost : u.tokens)
-
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -220,7 +225,7 @@ export function UsageByUserTable({
     )
   }
 
-  const merged = mergeUsers(users, ledger)
+  const merged = mergeUsers(users, ledger, balances)
 
   if (merged.length === 0) {
     return (
@@ -230,8 +235,8 @@ export function UsageByUserTable({
     )
   }
 
-  const sorted = sortUsers(merged, sortField, sortOrder, metric)
-  const maxValue = Math.max(...merged.map(value), 1)
+  const sorted = sortUsers(merged, sortField, sortOrder)
+  const columnCount = showCost ? 8 : 7
 
   return (
     <div className="overflow-x-auto">
@@ -254,6 +259,13 @@ export function UsageByUserTable({
               onSort={handleSort}
             />
             <SortHeader
+              label="Balance"
+              field="balance"
+              currentField={sortField}
+              currentOrder={sortOrder}
+              onSort={handleSort}
+            />
+            <SortHeader
               label="Spent"
               field="spent"
               currentField={sortField}
@@ -261,12 +273,21 @@ export function UsageByUserTable({
               onSort={handleSort}
             />
             <SortHeader
-              label={metric === "cost" ? "List value" : "Tokens"}
-              field="usage"
+              label="Tokens"
+              field="tokens"
               currentField={sortField}
               currentOrder={sortOrder}
               onSort={handleSort}
             />
+            {showCost && (
+              <SortHeader
+                label="List value"
+                field="cost"
+                currentField={sortField}
+                currentOrder={sortOrder}
+                onSort={handleSort}
+              />
+            )}
             <SortHeader
               label="On our pool"
               field="pool"
@@ -288,8 +309,7 @@ export function UsageByUserTable({
         <tbody>
           {sorted.map((user) => {
             const isOpen = expanded.has(user.userId)
-            const v = value(user)
-            const share = sharedShare(user, metric)
+            const share = sharedShare(user)
             return [
               <tr
                 key={user.userId}
@@ -318,21 +338,25 @@ export function UsageByUserTable({
                 <td className="px-2 py-2 text-right tabular-nums sm:px-3">
                   {formatMetricValue("cost", user.toppedUpUsd)}
                 </td>
+                <td
+                  className={cn(
+                    "px-2 py-2 text-right tabular-nums sm:px-3",
+                    user.balanceUsd < 0 && "text-destructive"
+                  )}
+                >
+                  {formatMetricValue("cost", user.balanceUsd)}
+                </td>
                 <td className="px-2 py-2 text-right tabular-nums sm:px-3">
                   {formatMetricValue("cost", user.spentUsd)}
                 </td>
-                <td className="px-2 py-2 text-right sm:px-3">
-                  <div className="flex items-center justify-end gap-2">
-                    {/* Inline bar: relative size is easier to scan than numbers alone. */}
-                    <span className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted sm:block">
-                      <span
-                        className="block h-full rounded-full bg-primary"
-                        style={{ width: `${Math.max(2, (v / maxValue) * 100)}%` }}
-                      />
-                    </span>
-                    <span className="tabular-nums">{formatMetricValue(metric, v)}</span>
-                  </div>
+                <td className="px-2 py-2 text-right tabular-nums sm:px-3">
+                  {formatMetricValue("tokens", user.tokens)}
                 </td>
+                {showCost && (
+                  <td className="px-2 py-2 text-right tabular-nums sm:px-3">
+                    {formatMetricValue("cost", user.cost)}
+                  </td>
+                )}
                 <td className="hidden px-2 py-2 text-right tabular-nums sm:table-cell sm:px-3">
                   <span className={cn(share > 0 ? "text-foreground" : "text-muted-foreground")}>
                     {share.toFixed(0)}%
@@ -345,10 +369,10 @@ export function UsageByUserTable({
 
               isOpen && (
                 <tr key={`${user.userId}-detail`} className="border-b bg-muted/20">
-                  <td colSpan={6} className="px-2 py-2 sm:px-3">
+                  <td colSpan={columnCount} className="px-2 py-2 sm:px-3">
                     {user.models.length === 0 ? (
                       <p className="py-1 text-xs text-muted-foreground">
-                        No usage on this provider in this range.
+                        No usage on the selected provider(s) in this range.
                       </p>
                     ) : (
                       <table className="w-full text-xs">
@@ -399,11 +423,15 @@ export function UsageByUserTable({
         </tbody>
       </table>
       <p className="mt-3 text-xs text-muted-foreground">
-        Click a row for the per-model breakdown. &ldquo;Topped up&rdquo; and
-        &ldquo;Spent&rdquo; are real dollars from the credit ledger (purchases and
-        usage debits) across every provider; &ldquo;On our pool&rdquo; is the share of
-        that user&apos;s {metric === "cost" ? "list value" : "tokens"} on the selected
-        provider that ran on our credentials rather than their own key.
+        Click a row for the per-model breakdown. &ldquo;Topped up&rdquo;, &ldquo;Balance&rdquo;,
+        and &ldquo;Spent&rdquo; are real dollars from the credit ledger — purchases,
+        current balance, and usage debits — independent of which provider(s) are
+        filtered below; a negative balance means the account owes past what it
+        overshot. &ldquo;On our pool&rdquo; is the share of that user&apos;s tokens,
+        across the filtered providers, that ran on our credentials rather than
+        their own key. List value is API-equivalent cost, not necessarily a bill —
+        real for OpenCode&apos;s and Gemini&apos;s metered keys, notional for Claude&apos;s
+        flat subscription.
       </p>
     </div>
   )
