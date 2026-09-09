@@ -10,8 +10,13 @@ export interface TopupUser {
   userId: string
   name: string
   image: string | null
-  totalUsd: number
-  count: number
+  /** Sum of Stripe purchases credited to this user in range. */
+  toppedUpUsd: number
+  /** Sum of usage debits charged against this user's balance in range —
+   * what actually left the balance (chargeableUsd), not list value. */
+  spentUsd: number
+  /** Number of purchases in range. */
+  purchaseCount: number
 }
 
 /** A point on the cumulative top-ups line: running total as of `time`. */
@@ -39,8 +44,9 @@ async function fetchAdminTopups(
 }
 
 /**
- * Top-up payments (Stripe purchases): a running total over time (Overview)
- * and the top payers in the range (Leaderboard).
+ * Credit ledger rollups: a running total of top-up payments over time
+ * (Overview), and every user's topped-up/spent totals in range, merged into
+ * the Usage by user table (Leaderboard).
  */
 export function useAdminTopupsQuery(range: StatsTimeRange = "30d", excludeAdmins = true) {
   const { status } = useSession()
