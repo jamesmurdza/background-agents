@@ -41,6 +41,10 @@ async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
  *     and spent totals side by side, for the Leaderboard's Usage by user
  *     table. Refunds, chargebacks, grants, and adjustments are left out of
  *     both — they don't answer "what did this user pay us and get charged."
+ *   - `balances`: every user's *current* credit balance — deliberately not
+ *     range-scoped (a balance is a point-in-time fact, not something that
+ *     happened "in the last 7 days") — so the Usage by user table's Balance
+ *     column is accurate even for a user with no ledger activity in range.
  *
  * Query params:
  *   - range: "24h" | "7d" | "30d" | "all" (default "30d")
@@ -94,6 +98,18 @@ export async function GET(request: NextRequest) {
     ORDER BY "toppedUpMicroUsd" DESC, "spentMicroUsd" DESC
   `
 
+  // Current balance for every user (subject only to the admin filter, not the
+  // range) — a separate, cheap query rather than folding into ledgerPromise's
+  // range-scoped WHERE, since a user's balance shouldn't read as $0 just
+  // because they had no purchase/debit this week.
+  const balancesPromise = prisma.$queryRaw<
+    Array<{ userId: string; balanceMicroUsd: number }>
+  >`
+    SELECT id as "userId", "creditBalanceMicroUsd"::float as "balanceMicroUsd"
+    FROM "User" u
+    WHERE (${excludeAdmins} = false OR u."isAdmin" = false)
+  `
+
   const totalPromise = prisma.$queryRaw<Array<{ totalMicroUsd: number | null; count: bigint }>>`
     SELECT SUM(ct."amountMicroUsd")::float as "totalMicroUsd", COUNT(ct.id)::bigint as count
     FROM "CreditTransaction" ct
@@ -144,8 +160,9 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({ time: r.date.toISOString().split("T")[0], value: Number(r.value) }))
         )
 
-  const [ledger, totalRows, seriesRaw] = await Promise.all([
+  const [ledger, balancesRaw, totalRows, seriesRaw] = await Promise.all([
     ledgerPromise,
+    balancesPromise,
     totalPromise,
     seriesPromise,
   ])
@@ -157,6 +174,11 @@ export async function GET(request: NextRequest) {
     toppedUpUsd: r.toppedUpMicroUsd / MICRO_PER_USD,
     spentUsd: r.spentMicroUsd / MICRO_PER_USD,
     purchaseCount: Number(r.purchaseCount),
+  }))
+
+  const balances = balancesRaw.map((r) => ({
+    userId: r.userId,
+    balanceUsd: r.balanceMicroUsd / MICRO_PER_USD,
   }))
 
   const totalRow = totalRows[0]
@@ -174,6 +196,7 @@ export async function GET(request: NextRequest) {
     totalUsd: (totalRow?.totalMicroUsd ?? 0) / MICRO_PER_USD,
     totalCount: Number(totalRow?.count ?? 0),
     users,
+    balances,
     series,
   })
 }

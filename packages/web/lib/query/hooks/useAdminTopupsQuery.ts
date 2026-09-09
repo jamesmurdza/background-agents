@@ -19,6 +19,12 @@ export interface TopupUser {
   purchaseCount: number
 }
 
+/** A user's current credit balance — not range-scoped, unlike TopupUser. */
+export interface UserBalance {
+  userId: string
+  balanceUsd: number
+}
+
 /** A point on the cumulative top-ups line: running total as of `time`. */
 export interface TopupSeriesPoint {
   time: string
@@ -30,6 +36,7 @@ export interface AdminTopups {
   totalUsd: number
   totalCount: number
   users: TopupUser[]
+  balances: UserBalance[]
   series: TopupSeriesPoint[]
 }
 

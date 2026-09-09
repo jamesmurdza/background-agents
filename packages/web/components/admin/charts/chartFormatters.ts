@@ -49,12 +49,17 @@ function formatCompactNumber(value: number): string {
   return `${Math.round(value)}`
 }
 
-/** Format a USD amount with precision scaled to its magnitude. */
+/** Format a USD amount with precision scaled to its magnitude. Sign printed
+ * before the "$", not after — most figures here are non-negative (spend,
+ * tokens), but a credit balance can overshoot negative, and "$-1.23" reads as
+ * a typo where "-$1.23" doesn't. */
 function formatCost(value: number): string {
   if (value === 0) return "$0"
-  if (Math.abs(value) < 0.01) return `$${value.toFixed(4)}`
-  if (Math.abs(value) < 1) return `$${value.toFixed(3)}`
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const sign = value < 0 ? "-" : ""
+  const abs = Math.abs(value)
+  if (abs < 0.01) return `${sign}$${abs.toFixed(4)}`
+  if (abs < 1) return `${sign}$${abs.toFixed(3)}`
+  return `${sign}$${abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 /** Format a numeric value according to the selected metric. */
