@@ -74,9 +74,10 @@ export async function creditBudgetExhausted(params: {
     // Only debits prove this turn is actually drawing the balance:
     // chargeTurnToCredits writes them for shared-pool, non-free, budget-pool
     // rows and nothing else. So a run on the user's own key, on a free model,
+    // on a provider a multiplier of 0 has made free (see lib/db/provider-pricing),
     // or on a provider with no shared pool produces none — and is left alone
     // here without this having to re-derive any of that. It is also the spend
-    // figure in the unit the balance is kept in, so no discount divisor is
+    // figure in the unit the balance is kept in, so no pricing multiplier is
     // applied a second time.
     const debits = await prisma.creditTransaction.findMany({
       where: { userId, chatId, type: "debit", createdAt: { gte: turnStartedAt } },

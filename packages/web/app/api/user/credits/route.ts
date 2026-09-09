@@ -16,12 +16,12 @@ export interface UserCreditTransaction {
   description: string | null
   /**
    * What the turn behind a `debit` was worth at API list rates, before the
-   * provider's discount. Null for every other row type, and for debits written
-   * before the discount existed.
+   * provider's pricing multiplier. Null for every other row type, and for
+   * debits written before pricing existed.
    */
   listUsd: number | null
-  /** The divisor applied to `listUsd` to reach `amountUsd`. Null as above. */
-  divisor: number | null
+  /** The multiplier applied to `listUsd` to reach `amountUsd`. Null as above. */
+  multiplier: number | null
   createdAt: string
 }
 
@@ -62,7 +62,7 @@ export async function GET(): Promise<Response> {
           type: t.type,
           description: t.description,
           listUsd: provenance?.listUsd ?? null,
-          divisor: provenance?.divisor ?? null,
+          multiplier: provenance?.multiplier ?? null,
           createdAt: t.createdAt.toISOString(),
         }
       }),

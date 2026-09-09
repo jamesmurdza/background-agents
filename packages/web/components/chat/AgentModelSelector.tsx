@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
 import { getAgentModels, getFreeModelForAgent, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, agentSharedPoolExhausted, agentUsesSharedPool, resolveModelForAgent, sharedPoolProviderForModel, formatTokenRate, ALL_AGENTS } from "@/lib/types"
-import { creditTier, discountDivisorFor } from "@/lib/server/credits"
+import { chargeableUsd, creditTier } from "@/lib/server/credits"
 import { fmtCreditAmount } from "@/lib/format"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import { AgentIcon } from "../icons/agent-icons"
@@ -100,20 +100,23 @@ const DOT_CLASS: Record<AgentStatusTone, string> = {
 /**
  * The price to show beside a model, or null when it has no published rate.
  *
- * A shared-pool run is charged its list rate divided by the provider's divisor
- * (see DISCOUNT_DIVISOR in lib/server/credits), so the picker divides too and
- * shows what the user actually pays. A BYOK run never touches the balance, so
- * it keeps the list rate the provider quotes.
+ * A shared-pool run is charged its list rate times the provider's admin-set
+ * pricing multiplier (see lib/db/provider-pricing, and DEFAULT_MULTIPLIER in
+ * lib/server/credits for the fallback), so the picker applies it too and shows
+ * what the user actually pays — "FREE" when the multiplier is 0
+ * (formatTokenRate already renders any non-positive rate that way). A BYOK run
+ * never touches the balance, so it keeps the list rate the provider quotes.
  */
 function getModelPrice(
   agent: Agent,
   model: ModelOption,
-  flags: CredentialFlags
+  flags: CredentialFlags,
+  multipliers: Record<string, number>
 ): string | null {
   if (model.priceUsdPerM === undefined) return null
   const provider = sharedPoolProviderForModel(agent, model.value, flags)
-  const divisor = provider ? discountDivisorFor(provider) : 1
-  return formatTokenRate(model.priceUsdPerM / divisor)
+  const multiplier = provider ? (multipliers[provider] ?? 1) : 1
+  return formatTokenRate(chargeableUsd(model.priceUsdPerM, multiplier))
 }
 
 export function AgentModelSelector({
@@ -135,6 +138,10 @@ export function AgentModelSelector({
   // Null for anyone the balance doesn't gate (unlimited plan, own keys
   // everywhere, logged out) — those users never get a credit-coloured dot.
   const creditBalanceUsd = settingsData?.creditBalanceUsd ?? null
+  // Admin-set pricing multiplier per provider — empty when logged out or still
+  // loading, which getModelPrice reads the same as "no multiplier configured"
+  // (list price).
+  const providerMultipliers = settingsData?.providerMultipliers ?? {}
 
   // Eliza (a deterministic test agent) is hidden from the picker unless the user
   // enables it in the Developer settings, or the env override is set (tests/CI).
@@ -335,7 +342,7 @@ export function AgentModelSelector({
       value: model.value,
       label: model.label,
       description: needsKey ? "Requires API key" : undefined,
-      priceLabel: getModelPrice(currentAgent, model, credentialFlags) ?? undefined,
+      priceLabel: getModelPrice(currentAgent, model, credentialFlags, providerMultipliers) ?? undefined,
       icon: needsKey ? <Lock className="h-5 w-5 text-muted-foreground" /> : undefined,
     }
   })
@@ -483,7 +490,7 @@ export function AgentModelSelector({
                   {section.models.map((model) => {
                     const modelHasCredentials = hasCredentialsForModel(model, credentialFlags, currentAgent)
                     const needsKey = model.requiresKey !== "none" && !modelHasCredentials
-                    const priceLabel = getModelPrice(currentAgent, model, credentialFlags)
+                    const priceLabel = getModelPrice(currentAgent, model, credentialFlags, providerMultipliers)
                     return (
                       <CommandItem
                         key={model.value}

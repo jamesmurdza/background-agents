@@ -36,10 +36,11 @@ export function fmtBalance(n: number): string {
  * Format a credit balance or one movement of it: "$0.2500", "$0.1223", "$0.0044".
  *
  * Four decimals, always, and never "<$0.01" the way {@link fmtBalance} does.
- * Turn costs are divided by the provider's discount before they reach the
- * balance (see lib/server/credits), which puts a typical charge around a cent
- * and many below it — at two decimals a balance would visibly disagree with the
- * charges that produced it, and half the ledger would read "<$0.01".
+ * Turn costs are multiplied by the provider's pricing multiplier before they
+ * reach the balance (see lib/server/credits), which puts a typical charge
+ * around a cent and many below it — at two decimals a balance would visibly
+ * disagree with the charges that produced it, and half the ledger would read
+ * "<$0.01".
  *
  * Unsigned: the balance and the ledger each apply their own sign, since one
  * wants "-$1.20" and the other "+$0.25".

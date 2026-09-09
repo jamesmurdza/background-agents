@@ -45,3 +45,8 @@ export { useCcAuthRunsQuery } from "./useCcAuthRunsQuery"
 export type { CcAuthRun } from "./useCcAuthRunsQuery"
 export { useSetClaudeCredsMutation } from "./useSetClaudeCredsMutation"
 export type { SetClaudeCredsResult } from "./useSetClaudeCredsMutation"
+export {
+  useProviderPricingQuery,
+  useSetProviderMultiplierMutation,
+} from "./useProviderPricingQuery"
+export type { ProviderPricingRow } from "./useProviderPricingQuery"

@@ -80,6 +80,10 @@ vi.mock("@/lib/server/credential-flags", () => ({
   }),
 }))
 
+vi.mock("@/lib/db/provider-pricing", () => ({
+  getProviderMultipliers: vi.fn().mockResolvedValue({}),
+}))
+
 vi.mock("@/lib/db/api-helpers", () => ({
   requireAuth: vi.fn().mockResolvedValue({ userId: "u1" }),
   isAuthError: (r: unknown) => r instanceof Response,
