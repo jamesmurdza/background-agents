@@ -4,10 +4,14 @@ import { useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMetricValue } from "./charts/chartFormatters"
-import type { UsageMetric, UserUsage } from "@/lib/query/hooks"
+import type { TopupUser, UsageMetric, UserUsage } from "@/lib/query/hooks"
 
 interface UsageByUserTableProps {
   users: UserUsage[]
+  /** Topped-up/spent totals from the credit ledger, keyed by userId. Merged
+   * into the usage rows so the table reads as one roster rather than three —
+   * see the module doc below. */
+  ledger: TopupUser[]
   metric: UsageMetric
   /**
    * Whether a dollar figure says anything useful for this provider. True for
@@ -20,6 +24,52 @@ interface UsageByUserTableProps {
    */
   showCost?: boolean
   isLoading?: boolean
+}
+
+/** A usage row, widened with the ledger's topped-up/spent totals. */
+interface MergedUser extends UserUsage {
+  toppedUpUsd: number
+  spentUsd: number
+}
+
+/**
+ * Merge per-provider usage rows with the (provider-agnostic) credit ledger.
+ *
+ * A left-heavy union: every usage row keeps its place (already ranked by the
+ * selected metric), and any user who only shows up in the ledger — topped up
+ * or was charged, but has no usage on the currently selected provider — is
+ * appended after, ranked by how much they've topped up. Nobody with money on
+ * either side of the ledger silently drops off the table.
+ */
+function mergeUsers(users: UserUsage[], ledger: TopupUser[]): MergedUser[] {
+  const ledgerById = new Map(ledger.map((l) => [l.userId, l]))
+  const seen = new Set<string>()
+
+  const withLedger = users.map((u) => {
+    seen.add(u.userId)
+    const l = ledgerById.get(u.userId)
+    return { ...u, toppedUpUsd: l?.toppedUpUsd ?? 0, spentUsd: l?.spentUsd ?? 0 }
+  })
+
+  const ledgerOnly = ledger
+    .filter((l) => !seen.has(l.userId))
+    .map((l) => ({
+      userId: l.userId,
+      name: l.name,
+      image: l.image,
+      tokens: 0,
+      cost: 0,
+      sharedTokens: 0,
+      sharedCost: 0,
+      ownTokens: 0,
+      ownCost: 0,
+      models: [],
+      toppedUpUsd: l.toppedUpUsd,
+      spentUsd: l.spentUsd,
+    }))
+    .sort((a, b) => b.toppedUpUsd - a.toppedUpUsd)
+
+  return [...withLedger, ...ledgerOnly]
 }
 
 /** Share of a user's usage that ran on our credentials, 0–100. */
@@ -40,6 +90,7 @@ function sharedShare(user: UserUsage, metric: UsageMetric): number {
  */
 export function UsageByUserTable({
   users,
+  ledger,
   metric,
   showCost = true,
   isLoading,
@@ -70,15 +121,17 @@ export function UsageByUserTable({
     )
   }
 
-  if (users.length === 0) {
+  const merged = mergeUsers(users, ledger)
+
+  if (merged.length === 0) {
     return (
       <div className="flex h-[180px] items-center justify-center text-center text-muted-foreground text-sm">
-        No usage recorded for this provider in this range
+        No usage or top-ups recorded in this range
       </div>
     )
   }
 
-  const maxValue = Math.max(...users.map(value), 1)
+  const maxValue = Math.max(...merged.map(value), 1)
 
   return (
     <div className="overflow-x-auto">
@@ -86,6 +139,8 @@ export function UsageByUserTable({
         <thead>
           <tr className="border-b bg-muted/50 text-xs">
             <th className="px-2 py-2 text-left font-medium sm:px-3">User</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">Topped up</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">Spent</th>
             <th className="px-2 py-2 text-right font-medium sm:px-3">
               {metric === "cost" ? "List value" : "Tokens"}
             </th>
@@ -98,7 +153,7 @@ export function UsageByUserTable({
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => {
+          {merged.map((user) => {
             const isOpen = expanded.has(user.userId)
             const v = value(user)
             const share = sharedShare(user, metric)
@@ -127,6 +182,12 @@ export function UsageByUserTable({
                     <span className="truncate font-medium">{user.name}</span>
                   </div>
                 </td>
+                <td className="px-2 py-2 text-right tabular-nums sm:px-3">
+                  {formatMetricValue("cost", user.toppedUpUsd)}
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums sm:px-3">
+                  {formatMetricValue("cost", user.spentUsd)}
+                </td>
                 <td className="px-2 py-2 text-right sm:px-3">
                   <div className="flex items-center justify-end gap-2">
                     {/* Inline bar: relative size is easier to scan than numbers alone. */}
@@ -151,44 +212,52 @@ export function UsageByUserTable({
 
               isOpen && (
                 <tr key={`${user.userId}-detail`} className="border-b bg-muted/20">
-                  <td colSpan={4} className="px-2 py-2 sm:px-3">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-muted-foreground">
-                          <th className="py-1 text-left font-medium">Model</th>
-                          <th className="py-1 text-left font-medium">Pool</th>
-                          <th className="py-1 text-right font-medium">Tokens</th>
-                          {showCost && <th className="py-1 text-right font-medium">List value</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {user.models.map((m, i) => (
-                          <tr key={`${m.model}-${m.pool}-${i}`}>
-                            <td className="py-1 pr-2 font-mono">{m.model}</td>
-                            <td className="py-1 pr-2">
-                              <span
-                                className={cn(
-                                  "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                                  m.pool === "shared"
-                                    ? "bg-primary/10 text-primary"
-                                    : "bg-muted text-muted-foreground"
-                                )}
-                              >
-                                {m.pool === "shared" ? "our pool" : "own key"}
-                              </span>
-                            </td>
-                            <td className="py-1 text-right tabular-nums">
-                              {formatMetricValue("tokens", m.tokens)}
-                            </td>
+                  <td colSpan={6} className="px-2 py-2 sm:px-3">
+                    {user.models.length === 0 ? (
+                      <p className="py-1 text-xs text-muted-foreground">
+                        No usage on this provider in this range.
+                      </p>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-muted-foreground">
+                            <th className="py-1 text-left font-medium">Model</th>
+                            <th className="py-1 text-left font-medium">Pool</th>
+                            <th className="py-1 text-right font-medium">Tokens</th>
                             {showCost && (
-                              <td className="py-1 text-right tabular-nums">
-                                {formatMetricValue("cost", m.cost)}
-                              </td>
+                              <th className="py-1 text-right font-medium">List value</th>
                             )}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {user.models.map((m, i) => (
+                            <tr key={`${m.model}-${m.pool}-${i}`}>
+                              <td className="py-1 pr-2 font-mono">{m.model}</td>
+                              <td className="py-1 pr-2">
+                                <span
+                                  className={cn(
+                                    "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                                    m.pool === "shared"
+                                      ? "bg-primary/10 text-primary"
+                                      : "bg-muted text-muted-foreground"
+                                  )}
+                                >
+                                  {m.pool === "shared" ? "our pool" : "own key"}
+                                </span>
+                              </td>
+                              <td className="py-1 text-right tabular-nums">
+                                {formatMetricValue("tokens", m.tokens)}
+                              </td>
+                              {showCost && (
+                                <td className="py-1 text-right tabular-nums">
+                                  {formatMetricValue("cost", m.cost)}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </td>
                 </tr>
               ),
@@ -197,8 +266,11 @@ export function UsageByUserTable({
         </tbody>
       </table>
       <p className="mt-3 text-xs text-muted-foreground">
-        Click a row for the per-model breakdown. &ldquo;On our pool&rdquo; is the share
-        of that user&apos;s usage running on our credentials rather than their own key.
+        Click a row for the per-model breakdown. &ldquo;Topped up&rdquo; and
+        &ldquo;Spent&rdquo; are real dollars from the credit ledger (purchases and
+        usage debits) across every provider; &ldquo;On our pool&rdquo; is the share of
+        that user&apos;s {metric === "cost" ? "list value" : "tokens"} on the selected
+        provider that ran on our credentials rather than their own key.
       </p>
     </div>
   )

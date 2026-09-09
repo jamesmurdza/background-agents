@@ -25,13 +25,11 @@ import { ProviderPricing } from "@/components/admin/ProviderPricing"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart"
 import { MessagesByModelChart } from "@/components/admin/charts/MessagesByModelChart"
-import { TopUsersTable } from "@/components/admin/TopUsersTable"
 import { HourlyActivityChart } from "@/components/admin/charts/HourlyActivityChart"
 import { DailyMessagesChatsChart } from "@/components/admin/charts/DailyMessagesChatsChart"
 import { PoolSplitChart } from "@/components/admin/charts/PoolSplitChart"
 import { UsageByKeyChart } from "@/components/admin/charts/UsageByKeyChart"
 import { MessageValueHistogramChart } from "@/components/admin/charts/MessageValueHistogramChart"
-import { TopUpsByUserChart } from "@/components/admin/charts/TopUpsByUserChart"
 import { TopUpsOverTimeChart } from "@/components/admin/charts/TopUpsOverTimeChart"
 import { UsageByUserTable } from "@/components/admin/UsageByUserTable"
 import {
@@ -277,7 +275,6 @@ export default function AdminDashboard() {
   }
 
   const weeklyActiveUsers = statsQuery.data?.weeklyActiveUsers ?? []
-  const topUsers = statsQuery.data?.topUsers ?? []
   const hourly = statsQuery.data?.hourly ?? []
   const series = statsQuery.data?.series ?? []
   const byAgent = statsQuery.data?.byAgent ?? []
@@ -671,8 +668,11 @@ export default function AdminDashboard() {
           {/* Leaderboard Section */}
           {activeSection === "leaderboard" && (
             <>
-              {/* Global Time Range Selector — shared with Overview, since Top
-                  Users is driven by the same stats query. */}
+              {/* Global Time Range Selector — shared with Overview. The Metric
+                  and Pool selectors live here on Overview because they weight
+                  those charts; the Leaderboard's one table (Usage by user) has
+                  its own Tokens/List value and provider controls below, scoped
+                  to what it actually shows. */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold md:text-xl">Leaderboard</h2>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -704,51 +704,6 @@ export default function AdminDashboard() {
                     </span>
                     Include admins
                   </button>
-                  {/* Metric selector */}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {METRIC_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setMetric(option.key)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          metric === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Credential pool selector. Disabled under the Messages
-                      metric, which is sourced from ActivityLog and carries no
-                      pool dimension — see POOL_DISABLED_HINT. */}
-                  <div
-                    className={cn(
-                      "flex gap-1 rounded-lg bg-muted p-1",
-                      poolFilterDisabled && "opacity-50"
-                    )}
-                    title={poolFilterDisabled ? POOL_DISABLED_HINT : undefined}
-                  >
-                    {POOL_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setPool(option.key)}
-                        disabled={poolFilterDisabled}
-                        title={poolFilterDisabled ? POOL_DISABLED_HINT : option.hint}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          poolFilterDisabled && "cursor-not-allowed",
-                          !poolFilterDisabled && pool === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
                   {/* Time range buttons */}
                   <div className="flex gap-1 rounded-lg bg-muted p-1">
                     {(["24h", "7d", "30d", "all"] as const).map((range) => (
@@ -769,50 +724,10 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Top Active Users */}
-              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
-                      <Trophy className="h-4 w-4 text-amber-500" />
-                    </div>
-                    <h3 className="font-medium">Top Users by {metricName}</h3>
-                  </div>
-                  <TopUsersTable
-                    data={topUsers}
-                    metric={metric}
-                    isLoading={statsQuery.isFetching}
-                  />
-                </div>
-
-                {/* Top-up payments by user — real dollars users have paid us,
-                    independent of the usage metric selected above. */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-                      <CreditCard className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Top-ups by User</h3>
-                      {!!topupsQuery.data?.totalUsd && (
-                        <p className="text-xs text-muted-foreground">
-                          ${topupsQuery.data.totalUsd.toFixed(2)} total across{" "}
-                          {topupsQuery.data.totalCount} payment
-                          {topupsQuery.data.totalCount === 1 ? "" : "s"}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {topupsQuery.isLoading ? (
-                    <div className="h-[250px] animate-pulse rounded bg-muted/50" />
-                  ) : (
-                    <TopUpsByUserChart data={topupsQuery.data?.users ?? []} />
-                  )}
-                </div>
-              </section>
-
               {/* Usage by user — its own provider/metric controls, since it
-                  isn't scoped by the Overview metric selector above. */}
+                  isn't scoped by the Overview metric selector above. Topped-up
+                  and spent columns come from the credit ledger (topupsQuery),
+                  merged in below rather than shown as separate tables/charts. */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <div>
                   <h2 className="text-lg font-semibold md:text-xl">Usage by user</h2>
@@ -871,9 +786,10 @@ export default function AdminDashboard() {
                   </div>
                   <UsageByUserTable
                     users={usage?.users ?? []}
+                    ledger={topupsQuery.data?.users ?? []}
                     metric={effectiveUsageMetric}
                     showCost={costSupported}
-                    isLoading={usageQuery.isLoading}
+                    isLoading={usageQuery.isLoading || topupsQuery.isLoading}
                   />
                 </div>
               </section>
