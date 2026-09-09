@@ -27,8 +27,9 @@ import { prisma } from "./prisma"
 import { sumSharedSpend } from "./token-usage"
 import { providerForRun, resolvePool } from "@/lib/server/shared-pool"
 import { decryptUserCredentials } from "./api-helpers"
+import { getMultiplierFor } from "./provider-pricing"
 import { formatUsageLimitMessage } from "@/lib/usage-limit-copy"
-import { microToUsd } from "@/lib/server/credits"
+import { isFreeMultiplier, microToUsd } from "@/lib/server/credits"
 import {
   getDailyBalance,
   getNextUtcDayReset,
@@ -117,6 +118,16 @@ export async function checkSharedPoolUsage(
   // tokscale's bare ids at write time and misses "opencode/big-pickle", which
   // has no -free suffix.
   if (modelRequiresKey(agent, model) === "none") {
+    return { ...base, allowed: true, limit: null, remaining: null }
+  }
+
+  // A provider an admin has set to a 0 multiplier (see lib/db/provider-pricing
+  // and the /admin Pricing panel) is free the same way a no-key model is: it
+  // never draws the balance, so it must never block on one either. Without
+  // this, chargeTurnToCredits would already charge nothing for the run — but
+  // the gate above would still refuse to start it on a spent balance, since it
+  // has no other concept of "this provider is free" to check.
+  if (isFreeMultiplier(await getMultiplierFor(provider))) {
     return { ...base, allowed: true, limit: null, remaining: null }
   }
 

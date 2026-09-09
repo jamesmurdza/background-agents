@@ -24,6 +24,11 @@ export type ActivityAction =
   // correction. Stripe purchases are not logged here; they live in the
   // CreditTransaction ledger with their Stripe ids attached.
   | "credits_adjusted"
+  // An admin changed a provider's pricing multiplier from the /admin Pricing
+  // panel (see lib/db/provider-pricing). The row itself already carries
+  // `updatedBy`/`updatedAt`; this is what makes the change show up in the
+  // Activity feed alongside everything else an admin does.
+  | "provider_pricing_updated"
 
 /**
  * Metadata types for different actions

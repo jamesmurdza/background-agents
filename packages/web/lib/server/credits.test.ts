@@ -11,10 +11,11 @@ import {
   DAILY_CREDIT_TARGET_USD,
   dailyCreditTargetUsd,
   dailyTopUpMicro,
-  DISCOUNT_DIVISOR,
-  discountDivisorFor,
+  DEFAULT_MULTIPLIER,
+  isFreeMultiplier,
   MICRO_PER_USD,
   microToUsd,
+  normalizeMultiplier,
   splitTurnCost,
   stripeAmountToMicro,
   usdToMicro,
@@ -125,63 +126,74 @@ describe("splitTurnCost", () => {
   })
 })
 
-describe("discountDivisorFor", () => {
-  it("returns the configured divisor for each subsidised pool", () => {
-    expect(discountDivisorFor("claude")).toBe(20)
-    expect(discountDivisorFor("opencode")).toBe(2)
-    expect(discountDivisorFor("gemini")).toBe(2)
+describe("normalizeMultiplier", () => {
+  it("passes through a valid multiplier, including 0", () => {
+    expect(normalizeMultiplier(0.05)).toBe(0.05)
+    expect(normalizeMultiplier(1)).toBe(1)
+    expect(normalizeMultiplier(0)).toBe(0)
   })
 
-  it("charges list value for a provider we do not subsidise", () => {
-    // Pi, Droid, Kilo and Kimi are always own-key, so they never reach the
-    // charging path — but an unknown id must never be cheaper by accident.
-    expect(discountDivisorFor("pi")).toBe(1)
-    expect(discountDivisorFor("droid")).toBe(1)
-    expect(discountDivisorFor("")).toBe(1)
-  })
-
-  it("falls back to list value when the constant itself is nonsense", () => {
-    // A mistyped divisor must not make a turn free or pay the user to run one.
-    const bad = DISCOUNT_DIVISOR as Record<string, number>
-    for (const value of [0, -20, Number.NaN, Number.POSITIVE_INFINITY]) {
-      bad.__test__ = value
-      expect(discountDivisorFor("__test__")).toBe(1)
+  it("falls back to DEFAULT_MULTIPLIER for a missing or nonsense value", () => {
+    // A corrupt or missing row must never make a turn free or pay the user to
+    // run one by accident — free is only ever reached by an explicit 0.
+    for (const value of [undefined, null, "0.05", -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(normalizeMultiplier(value)).toBe(DEFAULT_MULTIPLIER)
     }
-    delete bad.__test__
+  })
+})
+
+describe("isFreeMultiplier", () => {
+  it("is true only for exactly 0", () => {
+    expect(isFreeMultiplier(0)).toBe(true)
+    expect(isFreeMultiplier(0.05)).toBe(false)
+    expect(isFreeMultiplier(1)).toBe(false)
   })
 })
 
 describe("chargeableUsd", () => {
-  it("divides list value by the provider's divisor", () => {
-    // The ledger's own per-turn averages, so these are the real figures.
-    expect(chargeableUsd("claude", 2.4458)).toBeCloseTo(0.12229, 6)
-    expect(chargeableUsd("opencode", 0.0887)).toBeCloseTo(0.04435, 6)
-    expect(chargeableUsd("gemini", 0.0563)).toBeCloseTo(0.02815, 6)
+  it("multiplies list value by the provider's multiplier", () => {
+    // The ledger's own per-turn averages, so these are the real figures, at
+    // the multipliers seeded into ProviderPricing (0.05, 0.5, 0.5).
+    expect(chargeableUsd(2.4458, 0.05)).toBeCloseTo(0.12229, 6)
+    expect(chargeableUsd(0.0887, 0.5)).toBeCloseTo(0.04435, 6)
+    expect(chargeableUsd(0.0563, 0.5)).toBeCloseTo(0.02815, 6)
   })
 
   it("leaves an unsubsidised provider at list value", () => {
-    expect(chargeableUsd("kimi", 0.1089)).toBe(0.1089)
+    expect(chargeableUsd(0.1089, DEFAULT_MULTIPLIER)).toBe(0.1089)
   })
 
-  it("round-trips back to list value through the divisor", () => {
+  it("charges nothing when the multiplier is exactly 0", () => {
+    // The "free provider" case: a real cost times a 0 multiplier is 0, not a
+    // no-op that still bills something.
+    expect(chargeableUsd(2.4458, 0)).toBe(0)
+  })
+
+  it("round-trips back to list value through the multiplier", () => {
     // The inverse is what makes an old ledger row reproducible after the
-    // constants move, so it has to actually hold.
+    // admin moves the constants, so it has to actually hold.
     const listUsd = 2.4458
-    const charged = chargeableUsd("claude", listUsd)
-    expect(charged * discountDivisorFor("claude")).toBeCloseTo(listUsd, 10)
+    const multiplier = 0.05
+    const charged = chargeableUsd(listUsd, multiplier)
+    expect(charged / multiplier).toBeCloseTo(listUsd, 10)
+  })
+
+  it("falls back to list value for an invalid multiplier rather than charging free", () => {
+    expect(chargeableUsd(2.4458, -1)).toBe(2.4458)
+    expect(chargeableUsd(2.4458, Number.NaN)).toBe(2.4458)
   })
 
   it("charges nothing for a zero, negative or unpriced turn", () => {
-    expect(chargeableUsd("claude", 0)).toBe(0)
-    expect(chargeableUsd("claude", -1)).toBe(0)
-    expect(chargeableUsd("claude", Number.NaN)).toBe(0)
+    expect(chargeableUsd(0, 0.05)).toBe(0)
+    expect(chargeableUsd(-1, 0.05)).toBe(0)
+    expect(chargeableUsd(Number.NaN, 0.05)).toBe(0)
   })
 
   it("stays above a micro-dollar for the cheapest genuine charge", () => {
     // $2.2e-4 is the cheapest real charge on the production ledger. Even at the
-    // steepest divisor it must survive usdToMicro rather than rounding to a
+    // steepest multiplier it must survive usdToMicro rather than rounding to a
     // free turn.
-    expect(usdToMicro(chargeableUsd("claude", 2.2e-4))).toBeGreaterThan(0n)
+    expect(usdToMicro(chargeableUsd(2.2e-4, 0.05))).toBeGreaterThan(0n)
   })
 })
 

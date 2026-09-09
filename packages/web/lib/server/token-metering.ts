@@ -30,6 +30,7 @@ import {
   type UsagePool,
 } from "@/lib/db/token-usage"
 import { chargeTurnToCredits } from "@/lib/db/credits"
+import { getProviderMultipliers } from "@/lib/db/provider-pricing"
 import { microToUsd } from "@/lib/server/credits"
 import { isFreeModel, type Plan } from "@/lib/server/usage-budgets"
 import {
@@ -373,8 +374,11 @@ async function meterTurnUsage(
         const inserted = await insertTokenUsageRows(rows, tx)
 
         if (chargeCredits) {
+          // Cached (see lib/db/provider-pricing) — this is not a Postgres round
+          // trip on every metered turn.
+          const multipliers = await getProviderMultipliers()
           const debited = await chargeTurnToCredits(
-            { userId, chatId, rows: inserted, dailyLeft: 0 },
+            { userId, chatId, rows: inserted, dailyLeft: 0, multipliers },
             tx
           )
           if (debited > 0n) {

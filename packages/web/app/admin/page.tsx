@@ -17,9 +17,11 @@ import {
   Wallet,
   BarChart3,
   CreditCard,
+  DollarSign,
 } from "lucide-react"
 import { ActivityFeed } from "@/components/admin/ActivityFeed"
 import { ClaudeCredentials } from "@/components/admin/ClaudeCredentials"
+import { ProviderPricing } from "@/components/admin/ProviderPricing"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart"
 import { MessagesByModelChart } from "@/components/admin/charts/MessagesByModelChart"
@@ -78,8 +80,9 @@ const USAGE_PROVIDERS: { key: UsageProvider; label: string }[] = [
 // Tokens vs list value for the usage section. List value first and selected by
 // default — it's the figure that answers "what is this worth," which is usually
 // the first question. Note it is NOT what users are charged: credits are that
-// figure divided by the provider's discount (see lib/server/credits), so this
-// runs up to 20× higher than the balance a user actually spent.
+// figure times the provider's pricing multiplier (see the Pricing tab, and
+// lib/server/credits), which can run this well above the balance a user
+// actually spent — at the seeded multipliers, up to 20× for Claude.
 const USAGE_METRICS: { key: UsageMetric; label: string }[] = [
   { key: "cost", label: "List value" },
   { key: "tokens", label: "Tokens" },
@@ -107,7 +110,7 @@ const COST_PROVIDERS: ReadonlySet<UsageProvider> = new Set<UsageProvider>([
  */
 const BILLED_PROVIDERS: ReadonlySet<UsageProvider> = new Set<UsageProvider>(["opencode"])
 
-type SectionKey = "overview" | "leaderboard" | "users" | "activity" | "credentials"
+type SectionKey = "overview" | "leaderboard" | "users" | "activity" | "credentials" | "pricing"
 
 const sections: { key: SectionKey; label: string; icon: typeof Users }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -115,6 +118,7 @@ const sections: { key: SectionKey; label: string; icon: typeof Users }[] = [
   { key: "users", label: "Users", icon: Users },
   { key: "activity", label: "Activity", icon: Activity },
   { key: "credentials", label: "Credentials", icon: KeyRound },
+  { key: "pricing", label: "Pricing", icon: DollarSign },
 ]
 
 export default function AdminDashboard() {
@@ -940,6 +944,9 @@ export default function AdminDashboard() {
 
           {/* Credentials Section */}
           {activeSection === "credentials" && <ClaudeCredentials />}
+
+          {/* Pricing Section */}
+          {activeSection === "pricing" && <ProviderPricing />}
         </div>
       </main>
     </div>
