@@ -9,6 +9,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type TooltipContentProps,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
 import {
@@ -22,6 +23,53 @@ interface UserLabel {
   userId: string
   name: string
   image: string | null
+}
+
+/**
+ * Custom tooltip content: the default renderer has no per-item color swatch
+ * (it only recolors the text), and lists every series even at $0 — with
+ * dozens of users stacked, most days most of them are zero. This drops the
+ * zeros and adds a swatch so the ones left are easy to match to the chart.
+ */
+function UserAreaTooltip({ active, payload, label }: TooltipContentProps) {
+  if (!active || !payload || payload.length === 0) return null
+  const visible = [...payload]
+    .filter((entry) => Number(entry.value) > 0)
+    .sort((a, b) => Number(b.value) - Number(a.value))
+  if (visible.length === 0) return null
+
+  return (
+    <div style={chartTooltipProps.contentStyle}>
+      <p style={chartTooltipProps.labelStyle}>{formatTooltipDate(label as string)}</p>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {visible.map((entry) => (
+          <li
+            key={String(entry.dataKey)}
+            style={{
+              ...chartTooltipProps.itemStyle,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                backgroundColor: entry.color,
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ flex: 1 }}>{entry.name}</span>
+            <span style={{ fontWeight: 600 }}>{formatMetricValue("cost", Number(entry.value))}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 interface UsageByUserAreaChartProps {
@@ -103,13 +151,7 @@ export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUs
               width={50}
               tickFormatter={(v) => fmt(Number(v))}
             />
-            <Tooltip
-              {...chartTooltipProps}
-              cursor={lineTooltipCursor}
-              labelFormatter={(label) => formatTooltipDate(label)}
-              formatter={(value) => fmt(Number(value))}
-              isAnimationActive={false}
-            />
+            <Tooltip content={UserAreaTooltip} cursor={lineTooltipCursor} isAnimationActive={false} />
             {/* Each Area's `name` below is already the resolved display name,
                 so Tooltip/Legend need no id→name lookup of their own. Legend
                 hidden past 12 series — it would just overflow. */}
