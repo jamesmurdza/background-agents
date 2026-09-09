@@ -32,6 +32,7 @@ import { PoolSplitChart } from "@/components/admin/charts/PoolSplitChart"
 import { UsageByKeyChart } from "@/components/admin/charts/UsageByKeyChart"
 import { MessageValueHistogramChart } from "@/components/admin/charts/MessageValueHistogramChart"
 import { TopUpsOverTimeChart } from "@/components/admin/charts/TopUpsOverTimeChart"
+import { UsageByUserAreaChart } from "@/components/admin/charts/UsageByUserAreaChart"
 import { UsageByUserTable } from "@/components/admin/UsageByUserTable"
 import {
   DropdownMenu,
@@ -52,6 +53,7 @@ import {
   type UsageRange,
   type UsageMetric,
   type UserUsage,
+  type UsageDistribution,
 } from "@/lib/query/hooks"
 import { metricLabel, type StatsMetric } from "@/components/admin/charts/chartFormatters"
 import { cn } from "@/lib/utils"
@@ -160,6 +162,32 @@ function combineUsageByProvider(
   return [...map.values()]
     .map((u) => ({ ...u, models: [...u.models].sort((a, b) => b.tokens - a.tokens) }))
     .sort((a, b) => b.cost - a.cost || b.tokens - a.tokens)
+}
+
+/**
+ * Merge each provider's day-by-user List value series into one, summing by
+ * (day, userId) across whichever providers are selected — the same
+ * combination `combineUsageByProvider` does for the table's totals, just
+ * time-bucketed for the chart above it.
+ */
+function combineByUserOverTime(
+  perProvider: Partial<Record<UsageProvider, UsageDistribution>>,
+  selected: UsageProvider[]
+): Array<Record<string, number | string>> {
+  const byTime = new Map<string, Record<string, number | string>>()
+  for (const provider of selected) {
+    const rows = perProvider[provider]?.byUser.cost ?? []
+    for (const row of rows) {
+      const time = String(row.time)
+      const entry = byTime.get(time) ?? { time }
+      for (const [key, value] of Object.entries(row)) {
+        if (key === "time") continue
+        entry[key] = (Number(entry[key]) || 0) + (Number(value) || 0)
+      }
+      byTime.set(time, entry)
+    }
+  }
+  return [...byTime.values()].sort((a, b) => String(a.time).localeCompare(String(b.time)))
 }
 
 /** Multi-select "Providers" filter for the Leaderboard's Usage by user table —
@@ -294,6 +322,9 @@ export default function AdminDashboard() {
     "opencode",
     "gemini",
   ])
+  // Which users are checked in the Leaderboard's table — read by the stacked-
+  // area-by-user chart above it. null = everyone (see UsageByUserTableProps).
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string> | null>(null)
 
   // Queries - pass globalTimeRange to stats query
   const statsQuery = useAdminStatsQuery(globalTimeRange, !includeAdmins, metric, effectivePool)
@@ -422,6 +453,15 @@ export default function AdminDashboard() {
   const leaderboardUsageLoading =
     claudeUsageQuery.isLoading || opencodeUsageQuery.isLoading || geminiUsageQuery.isLoading
   const leaderboardShowCost = usageProviderFilter.some((p) => COST_PROVIDERS.has(p))
+  // Stacked-area-by-user chart, same provider combination as the table below it.
+  const leaderboardByUserSeries = combineByUserOverTime(
+    {
+      claude: claudeUsageQuery.data,
+      opencode: opencodeUsageQuery.data,
+      gemini: geminiUsageQuery.data,
+    },
+    usageProviderFilter
+  )
 
   // Handle section change with mobile menu close
   const handleSectionChange = (section: SectionKey) => {
@@ -868,7 +908,8 @@ export default function AdminDashboard() {
                   List value both show as columns now (no toggle needed); the
                   Topped up/Balance/Spent columns come from the credit ledger
                   (topupsQuery), merged in below rather than shown as separate
-                  tables/charts. */}
+                  tables/charts. The chart and table below share this filter
+                  and the table's own checkbox selection. */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <div>
                   <h2 className="text-lg font-semibold md:text-xl">Usage by user</h2>
@@ -884,6 +925,27 @@ export default function AdminDashboard() {
               </div>
 
               <section className="grid gap-4 md:gap-6">
+                {/* Stacked area: List value over time, one band per checked
+                    user in the table below — the table IS this chart's series
+                    picker, not a separate control. */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+                      <BarChart3 className="h-4 w-4 text-violet-500" />
+                    </div>
+                    <h3 className="font-medium">List value over time by user</h3>
+                  </div>
+                  {leaderboardUsageLoading ? (
+                    <div className="h-[280px] animate-pulse rounded bg-muted/50" />
+                  ) : (
+                    <UsageByUserAreaChart
+                      data={leaderboardByUserSeries}
+                      users={leaderboardUsers}
+                      selectedUserIds={selectedUserIds}
+                    />
+                  )}
+                </div>
+
                 <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10">
@@ -896,6 +958,8 @@ export default function AdminDashboard() {
                     ledger={topupsQuery.data?.users ?? []}
                     balances={topupsQuery.data?.balances ?? []}
                     showCost={leaderboardShowCost}
+                    selectedUserIds={selectedUserIds}
+                    onSelectionChange={setSelectedUserIds}
                     isLoading={leaderboardUsageLoading || topupsQuery.isLoading}
                   />
                 </div>

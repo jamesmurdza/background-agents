@@ -11,17 +11,13 @@ import {
   YAxis,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
-import { formatAxisDate, formatMetricValue, formatTooltipDate } from "./chartFormatters"
+import {
+  CATEGORICAL_COLORS,
+  formatAxisDate,
+  formatMetricValue,
+  formatTooltipDate,
+} from "./chartFormatters"
 import type { UsageMetric } from "@/lib/query/hooks"
-
-const COLORS = [
-  "hsl(262, 83%, 58%)",
-  "hsl(152, 60%, 50%)",
-  "hsl(38, 92%, 50%)",
-  "hsl(199, 89%, 48%)",
-  "hsl(340, 82%, 52%)",
-  "hsl(25, 95%, 53%)",
-]
 
 /** Rows written before per-key attribution shipped carry no fingerprint. */
 const UNATTRIBUTED = "unattributed"
@@ -110,7 +106,9 @@ export function UsageByKeyChart({ data, keyIds, metric }: UsageByKeyChartProps) 
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} itemSorter={null} />
             {ordered.map((id, index) => {
               const color =
-                id === UNATTRIBUTED ? UNATTRIBUTED_COLOR : COLORS[index % COLORS.length]
+                id === UNATTRIBUTED
+                  ? UNATTRIBUTED_COLOR
+                  : CATEGORICAL_COLORS[index % CATEGORICAL_COLORS.length]
               return (
                 <Area
                   key={id}

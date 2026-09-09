@@ -25,6 +25,21 @@ export function formatHour(hour: number): string {
   return `${hour - 12}pm`
 }
 
+/**
+ * Categorical palette for charts with an open-ended number of series (per
+ * key, per user, …). Cycles via modulo once there are more series than
+ * colors — shared here so every such chart lands on the same cycle rather
+ * than each picking its own.
+ */
+export const CATEGORICAL_COLORS = [
+  "hsl(262, 83%, 58%)",
+  "hsl(152, 60%, 50%)",
+  "hsl(38, 92%, 50%)",
+  "hsl(199, 89%, 48%)",
+  "hsl(340, 82%, 52%)",
+  "hsl(25, 95%, 53%)",
+]
+
 /** Dashboard metric the charts are weighted by. */
 export type StatsMetric = "tokens" | "cost" | "messages"
 

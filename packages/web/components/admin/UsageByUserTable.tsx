@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMetricValue } from "./charts/chartFormatters"
+import { UserModelBreakdownModal } from "./UserModelBreakdownModal"
 import type { TopupUser, UserBalance, UserUsage } from "@/lib/query/hooks"
 
 interface UsageByUserTableProps {
@@ -23,6 +24,14 @@ interface UsageByUserTableProps {
    */
   showCost?: boolean
   isLoading?: boolean
+  /**
+   * Which users are checked, for the stacked-area-by-user chart above this
+   * table. `null` means "everyone" — the default, before anyone has touched a
+   * checkbox — so a newly-appeared user (a wider range, a changed provider
+   * filter) is included without the caller having to reconcile a stale set.
+   */
+  selectedUserIds: Set<string> | null
+  onSelectionChange: (next: Set<string> | null) => void
 }
 
 /** A usage row, widened with the ledger's topped-up/spent/balance totals. */
@@ -172,13 +181,46 @@ function SortHeader({
   )
 }
 
+/** A checkbox that can also render its native `indeterminate` visual state,
+ * which has no React prop and must be set on the DOM node directly. */
+function Checkbox({
+  checked,
+  indeterminate = false,
+  onChange,
+  onClick,
+  "aria-label": ariaLabel,
+}: {
+  checked: boolean
+  indeterminate?: boolean
+  onChange: () => void
+  onClick?: (e: React.MouseEvent) => void
+  "aria-label"?: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="h-4 w-4 rounded border-border accent-primary"
+    />
+  )
+}
+
 /**
- * Per-user usage, expandable to a per-model breakdown.
+ * Per-user usage, with a per-model breakdown available in a modal.
  *
  * A table rather than a chart on purpose: "who used what, on which model, from
  * which pool" is four dimensions, and a table reads them at a glance where a
- * chart would need encoding tricks. Rows are collapsed by default so the
- * default view stays a simple ranked list. Every column header sorts.
+ * chart would need encoding tricks. Every column header sorts. The leftmost
+ * checkbox column drives the stacked-area-by-user chart above this table —
+ * this table IS the chart's series picker, not a separate control.
  */
 export function UsageByUserTable({
   users,
@@ -186,21 +228,15 @@ export function UsageByUserTable({
   balances,
   showCost = true,
   isLoading,
+  selectedUserIds,
+  onSelectionChange,
 }: UsageByUserTableProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [modalUser, setModalUser] = useState<MergedUser | null>(null)
   // Tokens rather than cost: it's the one column that's always present, even
   // for a future provider with no priced usage — so the default sort never
   // depends on showCost.
   const [sortField, setSortField] = useState<SortField>("tokens")
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
-
-  const toggle = (userId: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(userId)) next.delete(userId)
-      else next.add(userId)
-      return next
-    })
 
   const handleSort = (field: SortField) => {
     if (field === sortField) {
@@ -236,13 +272,37 @@ export function UsageByUserTable({
   }
 
   const sorted = sortUsers(merged, sortField, sortOrder)
-  const columnCount = showCost ? 8 : 7
+
+  const isSelected = (userId: string) => selectedUserIds === null || selectedUserIds.has(userId)
+  const allSelected = selectedUserIds === null || sorted.every((u) => selectedUserIds.has(u.userId))
+  const noneSelected = selectedUserIds !== null && selectedUserIds.size === 0
+
+  const toggleUser = (userId: string) => {
+    // Resolve the "null = everyone" sentinel to a concrete set the moment a
+    // single row is touched, then flip just that one id.
+    const next = new Set(selectedUserIds ?? sorted.map((u) => u.userId))
+    if (next.has(userId)) next.delete(userId)
+    else next.add(userId)
+    onSelectionChange(next)
+  }
+
+  const toggleAll = () => {
+    onSelectionChange(allSelected ? new Set() : null)
+  }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50 text-xs">
+            <th className="w-8 px-2 py-2 sm:px-3">
+              <Checkbox
+                checked={allSelected}
+                indeterminate={!allSelected && !noneSelected}
+                onChange={toggleAll}
+                aria-label={allSelected ? "Deselect all users" : "Select all users"}
+              />
+            </th>
             <SortHeader
               label="User"
               field="name"
@@ -308,22 +368,22 @@ export function UsageByUserTable({
         </thead>
         <tbody>
           {sorted.map((user) => {
-            const isOpen = expanded.has(user.userId)
             const share = sharedShare(user)
-            return [
+            return (
               <tr
                 key={user.userId}
-                onClick={() => toggle(user.userId)}
+                onClick={() => setModalUser(user)}
                 className="cursor-pointer border-b hover:bg-muted/50"
               >
+                <td className="px-2 py-2 sm:px-3" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={isSelected(user.userId)}
+                    onChange={() => toggleUser(user.userId)}
+                    aria-label={`${isSelected(user.userId) ? "Deselect" : "Select"} ${user.name}`}
+                  />
+                </td>
                 <td className="px-2 py-2 sm:px-3">
                   <div className="flex items-center gap-2">
-                    <ChevronRight
-                      className={cn(
-                        "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
-                        isOpen && "rotate-90"
-                      )}
-                    />
                     {user.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={user.image} alt="" className="h-6 w-6 shrink-0 rounded-full" />
@@ -365,74 +425,28 @@ export function UsageByUserTable({
                 <td className="hidden px-2 py-2 text-right tabular-nums text-muted-foreground md:table-cell md:px-3">
                   {user.models.length}
                 </td>
-              </tr>,
-
-              isOpen && (
-                <tr key={`${user.userId}-detail`} className="border-b bg-muted/20">
-                  <td colSpan={columnCount} className="px-2 py-2 sm:px-3">
-                    {user.models.length === 0 ? (
-                      <p className="py-1 text-xs text-muted-foreground">
-                        No usage on the selected provider(s) in this range.
-                      </p>
-                    ) : (
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="text-muted-foreground">
-                            <th className="py-1 text-left font-medium">Model</th>
-                            <th className="py-1 text-left font-medium">Pool</th>
-                            <th className="py-1 text-right font-medium">Tokens</th>
-                            {showCost && (
-                              <th className="py-1 text-right font-medium">List value</th>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {user.models.map((m, i) => (
-                            <tr key={`${m.model}-${m.pool}-${i}`}>
-                              <td className="py-1 pr-2 font-mono">{m.model}</td>
-                              <td className="py-1 pr-2">
-                                <span
-                                  className={cn(
-                                    "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                                    m.pool === "shared"
-                                      ? "bg-primary/10 text-primary"
-                                      : "bg-muted text-muted-foreground"
-                                  )}
-                                >
-                                  {m.pool === "shared" ? "our pool" : "own key"}
-                                </span>
-                              </td>
-                              <td className="py-1 text-right tabular-nums">
-                                {formatMetricValue("tokens", m.tokens)}
-                              </td>
-                              {showCost && (
-                                <td className="py-1 text-right tabular-nums">
-                                  {formatMetricValue("cost", m.cost)}
-                                </td>
-                              )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </td>
-                </tr>
-              ),
-            ]
+              </tr>
+            )
           })}
         </tbody>
       </table>
       <p className="mt-3 text-xs text-muted-foreground">
-        Click a row for the per-model breakdown. &ldquo;Topped up&rdquo;, &ldquo;Balance&rdquo;,
-        and &ldquo;Spent&rdquo; are real dollars from the credit ledger — purchases,
+        Check a user to include them in the chart above; click a row for its
+        per-model breakdown. &ldquo;Topped up&rdquo;, &ldquo;Balance&rdquo;, and
+        &ldquo;Spent&rdquo; are real dollars from the credit ledger — purchases,
         current balance, and usage debits — independent of which provider(s) are
-        filtered below; a negative balance means the account owes past what it
-        overshot. &ldquo;On our pool&rdquo; is the share of that user&apos;s tokens,
-        across the filtered providers, that ran on our credentials rather than
-        their own key. List value is API-equivalent cost, not necessarily a bill —
-        real for OpenCode&apos;s and Gemini&apos;s metered keys, notional for Claude&apos;s
-        flat subscription.
+        filtered below; a negative balance means the account overshot. &ldquo;On
+        our pool&rdquo; is the share of that user&apos;s tokens, across the
+        filtered providers, that ran on our credentials rather than their own
+        key. List value is API-equivalent cost, not necessarily a bill — real
+        for OpenCode&apos;s and Gemini&apos;s metered keys, notional for
+        Claude&apos;s flat subscription.
       </p>
+      <UserModelBreakdownModal
+        user={modalUser}
+        onClose={() => setModalUser(null)}
+        showCost={showCost}
+      />
     </div>
   )
 }

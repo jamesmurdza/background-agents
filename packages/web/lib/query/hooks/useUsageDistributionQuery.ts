@@ -63,6 +63,9 @@ export interface UsageDistribution {
   poolSplit: Record<UsageMetric, PoolSplitPoint[]>
   /** Per-pool-key over time (OpenCode only), one series per metric. */
   byKey: Record<UsageMetric, Array<Record<string, number | string>>>
+  /** Per-user over time — one column per userId, gap-filled with 0s — for the
+   * Leaderboard's stacked-area-by-user chart. */
+  byUser: Record<UsageMetric, Array<Record<string, number | string>>>
   /** Per-user totals with a per-model breakdown, heaviest spender first. */
   users: UserUsage[]
   /** Distribution of per-message size, one histogram per metric. */
