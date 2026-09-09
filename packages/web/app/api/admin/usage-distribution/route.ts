@@ -14,7 +14,8 @@ type Provider = (typeof VALID_PROVIDERS)[number]
  *
  * Powers the "Shared pool & usage" block on the admin Overview: where our
  * credential spend goes, split by pool, by pool key, by user/model, and by
- * per-message size (messageHistogram).
+ * per-message size (messageHistogram) — plus `byUser`, a day-by-day-by-user
+ * breakdown for the Leaderboard's stacked-area-by-user chart.
  *
  * Every response carries BOTH tokens and cost for each series, so the dashboard
  * can toggle between them without a refetch. (Notably this decouples the view
@@ -86,6 +87,26 @@ export async function GET(request: NextRequest) {
         `
       : Promise.resolve([])
 
+  // --- Per user, per day — for the Leaderboard's stacked-area-by-user chart -
+  // Both pools combined (not just shared), matching what `users` below totals
+  // as a user's List value: their own-key usage still carries a list price,
+  // it's just not billed to us.
+  const byUserPromise = prisma.$queryRaw<
+    Array<{ day: Date; userId: string; tokens: number; cost: number }>
+  >`
+    SELECT
+      date_trunc('day', "createdAt")::date as day,
+      "userId" as "userId",
+      SUM("totalTokens")::float as tokens,
+      SUM("costUsd")::float as cost
+    FROM "TokenUsage"
+    WHERE "createdAt" >= NOW() - ${interval}::interval
+      AND provider = ${provider}
+      ${notAdmin}
+    GROUP BY 1, 2
+    ORDER BY 1 ASC
+  `
+
   // --- Per user × model × pool ----------------------------------------------
   // The finest grain the table needs; user- and pool-level totals are rolled up
   // from these rows in JS rather than in three separate round trips.
@@ -133,9 +154,10 @@ export async function GET(request: NextRequest) {
     GROUP BY tu."messageId"
   `
 
-  const [poolSplitRaw, byKeyRaw, perUserRaw, perMessageRaw] = await Promise.all([
+  const [poolSplitRaw, byKeyRaw, byUserRaw, perUserRaw, perMessageRaw] = await Promise.all([
     poolSplitPromise,
     byKeyPromise,
+    byUserPromise,
     perUserPromise,
     perMessagePromise,
   ])
@@ -183,6 +205,26 @@ export async function GET(request: NextRequest) {
     // Fill gaps so stacked areas render continuously.
     for (const entry of map.values()) {
       for (const id of keyIds) if (entry[id] === undefined) entry[id] = 0
+    }
+    return [...map.values()]
+  }
+
+  // --- byUser: one row per day, one column per user id -----------------------
+  const userIdsInRange = new Set<string>()
+  for (const row of byUserRaw) userIdsInRange.add(row.userId)
+
+  const makeByUser = (metric: "tokens" | "cost") => {
+    const map = new Map<string, Record<string, number | string>>(
+      days.map((d) => [d, { time: d }])
+    )
+    for (const row of byUserRaw) {
+      const entry = map.get(isoDay(row.day))
+      if (!entry) continue
+      entry[row.userId] = ((entry[row.userId] as number) || 0) + (Number(row[metric]) || 0)
+    }
+    // Fill gaps so stacked areas render continuously.
+    for (const entry of map.values()) {
+      for (const id of userIdsInRange) if (entry[id] === undefined) entry[id] = 0
     }
     return [...map.values()]
   }
@@ -277,6 +319,7 @@ export async function GET(request: NextRequest) {
     keyIds: [...keyIds].sort(),
     poolSplit: { tokens: makeSplit("tokens"), cost: makeSplit("cost") },
     byKey: { tokens: makeByKey("tokens"), cost: makeByKey("cost") },
+    byUser: { tokens: makeByUser("tokens"), cost: makeByUser("cost") },
     users,
     messageHistogram: {
       tokens: makeHistogram(perMessageRaw.map((r) => Number(r.tokens) || 0)),
