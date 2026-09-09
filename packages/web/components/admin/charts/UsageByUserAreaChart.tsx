@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import {
   Area,
   AreaChart,
@@ -9,67 +10,14 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  type TooltipContentProps,
 } from "recharts"
-import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
-import {
-  CATEGORICAL_COLORS,
-  formatAxisDate,
-  formatMetricValue,
-  formatTooltipDate,
-} from "./chartFormatters"
+import { lineTooltipCursor, SingleAreaTooltipContent, useSingleAreaHover } from "./chartTooltip"
+import { CATEGORICAL_COLORS, formatAxisDate, formatMetricValue, formatTooltipDate } from "./chartFormatters"
 
 interface UserLabel {
   userId: string
   name: string
   image: string | null
-}
-
-/**
- * Custom tooltip content: the default renderer has no per-item color swatch
- * (it only recolors the text), and lists every series even at $0 — with
- * dozens of users stacked, most days most of them are zero. This drops the
- * zeros and adds a swatch so the ones left are easy to match to the chart.
- */
-function UserAreaTooltip({ active, payload, label }: TooltipContentProps) {
-  if (!active || !payload || payload.length === 0) return null
-  const visible = [...payload]
-    .filter((entry) => Number(entry.value) > 0)
-    .sort((a, b) => Number(b.value) - Number(a.value))
-  if (visible.length === 0) return null
-
-  return (
-    <div style={chartTooltipProps.contentStyle}>
-      <p style={chartTooltipProps.labelStyle}>{formatTooltipDate(label as string)}</p>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {visible.map((entry) => (
-          <li
-            key={String(entry.dataKey)}
-            style={{
-              ...chartTooltipProps.itemStyle,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              aria-hidden
-              style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: 2,
-                backgroundColor: entry.color,
-                flexShrink: 0,
-              }}
-            />
-            <span style={{ flex: 1 }}>{entry.name}</span>
-            <span style={{ fontWeight: 600 }}>{formatMetricValue("cost", Number(entry.value))}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
 }
 
 interface UsageByUserAreaChartProps {
@@ -93,6 +41,7 @@ interface UsageByUserAreaChartProps {
 export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUserAreaChartProps) {
   const fmt = (v: number) => formatMetricValue("cost", v)
   const nameById = new Map(users.map((u) => [u.userId, u.name]))
+  const { hoveredKey, getHoverHandlers, reset: resetHover } = useSingleAreaHover()
 
   // The id set a chart can plot is whatever actually shows up in the data —
   // independent of `users`, which exists only to label them.
@@ -113,6 +62,13 @@ export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUs
 
   const ordered = [...allIds].sort((a, b) => (totals[b] || 0) - (totals[a] || 0))
   const plotted = selectedUserIds === null ? ordered : ordered.filter((id) => selectedUserIds.has(id))
+
+  // A hovered user who gets unchecked (or a refetch replacing `data`) would
+  // otherwise leave a stale, un-rendered Area "hovered" with no way to clear it.
+  useEffect(() => {
+    resetHover()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, selectedUserIds])
 
   if (grandTotal === 0) {
     return (
@@ -151,7 +107,22 @@ export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUs
               width={50}
               tickFormatter={(v) => fmt(Number(v))}
             />
-            <Tooltip content={UserAreaTooltip} cursor={lineTooltipCursor} isAnimationActive={false} />
+            {/* Only shows a tooltip for the specific user's band the mouse is
+                over (see useSingleAreaHover) — AreaChart has no built-in
+                per-item hover mode, so `active`/`content` fake one. */}
+            <Tooltip
+              active={hoveredKey !== null}
+              cursor={hoveredKey !== null ? lineTooltipCursor : false}
+              content={(props) => (
+                <SingleAreaTooltipContent
+                  {...props}
+                  hoveredKey={hoveredKey}
+                  formatValue={fmt}
+                  formatLabel={(label) => formatTooltipDate(label)}
+                />
+              )}
+              isAnimationActive={false}
+            />
             {/* Each Area's `name` below is already the resolved display name,
                 so Tooltip/Legend need no id→name lookup of their own. Legend
                 hidden past 12 series — it would just overflow. */}
@@ -171,6 +142,7 @@ export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUs
                   fill={color}
                   fillOpacity={0.6}
                   isAnimationActive={false}
+                  {...getHoverHandlers(id)}
                 />
               )
             })}
