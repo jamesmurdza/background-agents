@@ -165,14 +165,15 @@ function combineUsageByProvider(
 }
 
 /**
- * Merge each provider's day-by-user List value series into one, summing by
- * (day, userId) across whichever providers are selected — the same
- * combination `combineUsageByProvider` does for the table's totals, just
- * time-bucketed for the chart above it.
+ * Merge each provider's day-by-user (or hour-by-user, for the 24h range) List
+ * value series into one, summing by (time, userId) across whichever providers
+ * are selected — the same combination `combineUsageByProvider` does for the
+ * table's totals, just time-bucketed for the chart above it.
  */
 function combineByUserOverTime(
   perProvider: Partial<Record<UsageProvider, UsageDistribution>>,
-  selected: UsageProvider[]
+  selected: UsageProvider[],
+  isHourly = false
 ): Array<Record<string, number | string>> {
   const byTime = new Map<string, Record<string, number | string>>()
   for (const provider of selected) {
@@ -187,7 +188,14 @@ function combineByUserOverTime(
       byTime.set(time, entry)
     }
   }
-  return [...byTime.values()].sort((a, b) => String(a.time).localeCompare(String(b.time)))
+  // Hourly time keys are "0".."23" — a plain string sort would put "10" before
+  // "2", so sort numerically in that case; day keys ("YYYY-MM-DD") sort fine
+  // lexicographically.
+  return [...byTime.values()].sort((a, b) =>
+    isHourly
+      ? Number(a.time) - Number(b.time)
+      : String(a.time).localeCompare(String(b.time))
+  )
 }
 
 /** Multi-select "Providers" filter for the Leaderboard's Usage by user table —
@@ -460,7 +468,8 @@ export default function AdminDashboard() {
       opencode: opencodeUsageQuery.data,
       gemini: geminiUsageQuery.data,
     },
-    usageProviderFilter
+    usageProviderFilter,
+    isHourly
   )
 
   // Handle section change with mobile menu close
@@ -789,6 +798,7 @@ export default function AdminDashboard() {
                     <PoolSplitChart
                       data={usage?.poolSplit[effectiveUsageMetric] ?? []}
                       metric={effectiveUsageMetric}
+                      isHourly={isHourly}
                     />
                   )}
                 </div>
@@ -809,6 +819,7 @@ export default function AdminDashboard() {
                         data={usage?.byKey[effectiveUsageMetric] ?? []}
                         keyIds={usage?.keyIds ?? []}
                         metric={effectiveUsageMetric}
+                        isHourly={isHourly}
                       />
                     )}
                   </div>
@@ -942,6 +953,7 @@ export default function AdminDashboard() {
                       data={leaderboardByUserSeries}
                       users={leaderboardUsers}
                       selectedUserIds={selectedUserIds}
+                      isHourly={isHourly}
                     />
                   )}
                 </div>
