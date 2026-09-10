@@ -12,7 +12,13 @@ import {
   YAxis,
 } from "recharts"
 import { lineTooltipCursor, SingleAreaTooltipContent, useSingleAreaHover } from "./chartTooltip"
-import { CATEGORICAL_COLORS, formatAxisDate, formatMetricValue, formatTooltipDate } from "./chartFormatters"
+import {
+  CATEGORICAL_COLORS,
+  formatAxisDate,
+  formatHour,
+  formatMetricValue,
+  formatTooltipDate,
+} from "./chartFormatters"
 
 interface UserLabel {
   userId: string
@@ -21,15 +27,17 @@ interface UserLabel {
 }
 
 interface UsageByUserAreaChartProps {
-  /** One row per day, one column per userId — see the usage-distribution
-   * route's `byUser.cost`, already merged across whichever providers are
-   * selected on the Leaderboard. */
+  /** One row per day (or per hour for the 24h range), one column per userId —
+   * see the usage-distribution route's `byUser.cost`, already merged across
+   * whichever providers are selected on the Leaderboard. */
   data: Array<Record<string, number | string>>
   /** Name/image lookup for the ids appearing in `data`. */
   users: UserLabel[]
   /** Which users to plot. `null` means "everyone with usage in range" — the
    * default, before anyone has touched a checkbox in the table below. */
   selectedUserIds: Set<string> | null
+  /** True when `data` is bucketed by hour-of-day (the 24h range) rather than by day. */
+  isHourly?: boolean
 }
 
 /**
@@ -38,7 +46,12 @@ interface UsageByUserAreaChartProps {
  * Sits above the Usage by user table and reads the *same* checkboxes: this
  * is the table's own selection rendered as a chart, not an independent view.
  */
-export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUserAreaChartProps) {
+export function UsageByUserAreaChart({
+  data,
+  users,
+  selectedUserIds,
+  isHourly = false,
+}: UsageByUserAreaChartProps) {
   const fmt = (v: number) => formatMetricValue("cost", v)
   const nameById = new Map(users.map((u) => [u.userId, u.name]))
   const { hoveredKey, getHoverHandlers, reset: resetHover } = useSingleAreaHover()
@@ -95,10 +108,12 @@ export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUs
             <XAxis
               dataKey="time"
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={formatAxisDate}
+              tickFormatter={(value) =>
+                isHourly ? formatHour(Number(value)) : formatAxisDate(value)
+              }
               axisLine={{ stroke: "hsl(var(--border))" }}
               tickLine={{ stroke: "hsl(var(--border))" }}
-              interval="preserveStartEnd"
+              interval={isHourly ? 3 : "preserveStartEnd"}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -118,7 +133,9 @@ export function UsageByUserAreaChart({ data, users, selectedUserIds }: UsageByUs
                   {...props}
                   hoveredKey={hoveredKey}
                   formatValue={fmt}
-                  formatLabel={(label) => formatTooltipDate(label)}
+                  formatLabel={(label) =>
+                    isHourly ? formatHour(Number(label)) : formatTooltipDate(label)
+                  }
                 />
               )}
               isAnimationActive={false}

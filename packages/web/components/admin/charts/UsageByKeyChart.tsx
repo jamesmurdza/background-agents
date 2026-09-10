@@ -14,6 +14,7 @@ import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
 import {
   CATEGORICAL_COLORS,
   formatAxisDate,
+  formatHour,
   formatMetricValue,
   formatTooltipDate,
 } from "./chartFormatters"
@@ -27,6 +28,8 @@ interface UsageByKeyChartProps {
   data: Array<Record<string, number | string>>
   keyIds: string[]
   metric: UsageMetric
+  /** True when `data` is bucketed by hour-of-day (the 24h range) rather than by day. */
+  isHourly?: boolean
 }
 
 /**
@@ -36,7 +39,7 @@ interface UsageByKeyChartProps {
  * even split. A single dominant band means selection is not spreading — either
  * only one key is configured, or the rotation is not reaching production.
  */
-export function UsageByKeyChart({ data, keyIds, metric }: UsageByKeyChartProps) {
+export function UsageByKeyChart({ data, keyIds, metric, isHourly = false }: UsageByKeyChartProps) {
   const fmt = (v: number) => formatMetricValue(metric, v)
 
   // Totals per key, used both for legend ordering and the balance summary.
@@ -84,10 +87,12 @@ export function UsageByKeyChart({ data, keyIds, metric }: UsageByKeyChartProps) 
             <XAxis
               dataKey="time"
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={formatAxisDate}
+              tickFormatter={(value) =>
+                isHourly ? formatHour(Number(value)) : formatAxisDate(value)
+              }
               axisLine={{ stroke: "hsl(var(--border))" }}
               tickLine={{ stroke: "hsl(var(--border))" }}
-              interval="preserveStartEnd"
+              interval={isHourly ? 3 : "preserveStartEnd"}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -99,7 +104,7 @@ export function UsageByKeyChart({ data, keyIds, metric }: UsageByKeyChartProps) 
             <Tooltip
               {...chartTooltipProps}
               cursor={lineTooltipCursor}
-              labelFormatter={(label) => formatTooltipDate(label)}
+              labelFormatter={(label) => (isHourly ? formatHour(Number(label)) : formatTooltipDate(label))}
               formatter={(value) => fmt(Number(value))}
               isAnimationActive={false}
             />
