@@ -60,8 +60,17 @@ export async function GET(req: Request): Promise<Response> {
   // Only users who actually have the credential. Uses the `->` accessor
   // rather than the `?` containment operator: `?` is ambiguous with a driver
   // parameter placeholder inside a Prisma tagged template.
+  // `ORDER BY id` is not cosmetic. The sweep is sequential under a 300s
+  // budget, so if it ever has more users than it can finish, an unordered
+  // scan can hand back the same arbitrary order every hour and strand
+  // whichever users land past the cutoff. A stable order makes that failure
+  // deterministic and therefore visible (the same tail is always last), and
+  // it is the ordering a cursor would page over when this needs batching.
+  // Revisit when `scanned` reaches the hundreds.
   const users = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "User" WHERE credentials -> 'CODEX_CREDENTIALS' IS NOT NULL
+    SELECT id FROM "User"
+    WHERE credentials -> 'CODEX_CREDENTIALS' IS NOT NULL
+    ORDER BY id
   `
 
   const tally: Tally = {

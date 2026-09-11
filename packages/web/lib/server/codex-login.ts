@@ -344,14 +344,14 @@ export async function pollCodexDeviceLogin(
   userId: string,
   sessionId: string
 ): Promise<{ status: "pending" | "connected" | "failed"; reason?: string }> {
-  const stored = await readLoginSessionRaw(userId)
+  const loginSession = await readLoginSessionRaw(userId)
   // Compare the client's sessionId against the stored one so a stale client
   // (polling a login that a fresh one has since superseded) can't read
   // another session's result.
-  if (!stored || stored.session.sessionId !== sessionId) {
+  if (!loginSession || loginSession.session.sessionId !== sessionId) {
     return { status: "failed", reason: "unknown_session" }
   }
-  const session = stored.session
+  const session = loginSession.session
 
   const daytona = daytonaClient()
 
@@ -383,7 +383,7 @@ export async function pollCodexDeviceLogin(
   // Claim before spending. A caller that loses the claim has NOT rotated
   // anything and must not tear down the winner's sandbox, so it simply reports
   // pending; the winner's own result reaches the client on its next poll.
-  if (!(await claimLoginSession(userId, stored.raw))) {
+  if (!(await claimLoginSession(userId, loginSession.raw))) {
     return { status: "pending" }
   }
 
@@ -399,9 +399,9 @@ export async function pollCodexDeviceLogin(
     // than at the user's first run.
     const res = await refreshCodexTokens(tokens.refresh_token)
     const cred = credentialFromTokenResponse(res, tokens.account_id, Date.now())
-    const stored = await storeCredentialWithRetry(userId, cred)
+    const persisted = await storeCredentialWithRetry(userId, cred)
     await cleanup()
-    if (!stored) return { status: "failed", reason: "credential_lost" }
+    if (!persisted) return { status: "failed", reason: "credential_lost" }
     return { status: "connected" }
   } catch (err) {
     await cleanup()
