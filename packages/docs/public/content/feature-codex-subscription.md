@@ -79,9 +79,6 @@ The connection is stored encrypted, and it's per-user. It is never shared with a
 | Signing in worked, but we couldn't save the connection | The approval went through but storing it failed. Nothing is connected. Try connecting again |
 | The sign-in environment became unreachable | The temporary sandbox went away. Try again |
 
-> [!NOTE]
-> Self-hosting? This feature is off unless `CODEX_SUBSCRIPTION_ENABLED` is set to `1` or `true`. Without it the connect flow is disabled.
-
 ## Next
 
 - Run Codex on a schedule → [Jobs](#/jobs)

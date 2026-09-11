@@ -16,7 +16,6 @@ import { encrypt, decrypt } from "@/lib/db/encryption"
 import { normalizeStoredCredentials } from "@/lib/credentials"
 import type { Credentials } from "@/lib/credentials"
 import {
-  CODEX_SUBSCRIPTION_ENABLED,
   parseCodexCredential,
   credentialFromTokenResponse,
   needsRefresh,
@@ -146,11 +145,7 @@ export async function applyCodexSubscription(
 
   // A custom endpoint (`endpoint:<id>`) supplies its own auth, so it never
   // takes the subscription path.
-  if (
-    !CODEX_SUBSCRIPTION_ENABLED ||
-    agent !== "codex" ||
-    model?.startsWith(ENDPOINT_MODEL_PREFIX)
-  ) {
+  if (agent !== "codex" || model?.startsWith(ENDPOINT_MODEL_PREFIX)) {
     return next
   }
 
