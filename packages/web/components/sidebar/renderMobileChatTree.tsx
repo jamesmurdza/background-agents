@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import type { Chat } from "@/lib/types"
+import { isRealRepo, type Chat } from "@/lib/types"
 import { MobileChatItem } from "./MobileChatItem"
 
 interface RenderMobileChatTreeArgs {
@@ -16,7 +16,8 @@ interface RenderMobileChatTreeArgs {
   onDeleteChat: (id: string) => void
   /** When provided, rows render a "Pin"/"Unpin" action. */
   onPin?: (id: string, pinned: boolean) => void
-  /** When provided, rows render a "Branch chat" action. */
+  /** When provided, rows render a "Branch chat" action — on chats with a repo
+   *  only, since branching clones one. */
   onBranch?: (id: string) => void
   /** When provided, rows render an "Archive" action (used by the active section). */
   onArchive?: (id: string) => void
@@ -50,7 +51,7 @@ export function renderMobileChatTree(args: RenderMobileChatTreeArgs): React.Reac
         onSelect={() => args.onSelectChat(chat.id)}
         onDelete={() => args.onDeleteChat(chat.id)}
         onPin={args.onPin ? (pinned) => args.onPin!(chat.id, pinned) : undefined}
-        onBranch={args.onBranch ? () => args.onBranch!(chat.id) : undefined}
+        onBranch={args.onBranch && isRealRepo(chat.repo) ? () => args.onBranch!(chat.id) : undefined}
         onArchive={args.onArchive ? () => args.onArchive!(chat.id) : undefined}
         onUnarchive={args.onUnarchive ? () => args.onUnarchive!(chat.id) : undefined}
         onRequestRename={() => args.onRequestRename(chat.id, chat.displayName || "Untitled")}
