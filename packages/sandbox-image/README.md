@@ -23,6 +23,32 @@ The image also pre-installs [`tokscale`](https://www.npmjs.com/package/tokscale)
 
 The image is based on `node:22-bookworm` and runs as a non-root `daytona` user (Claude Code refuses to run as root).
 
+## How the agent CLIs stay current
+
+The agent CLIs are installed **unpinned**, so each one is frozen at whatever version was latest when the snapshot was last built. `tokscale` is the exception: it is pinned via `TOKSCALE_VERSION` because the app parses its output.
+
+That freeze matters because the model catalog (`packages/common/src/agents.ts`) ships with every deploy, while the CLI that has to run those models only moves when the snapshot is rebuilt. Let the two drift and users hit errors like:
+
+```
+The 'gpt-5.6-sol' model requires a newer version of Codex.
+Please upgrade to the latest app or CLI and try again.
+```
+
+The app offered a model the baked CLI was too old to run.
+
+So the snapshot is rebuilt **weekly** by `.github/workflows/rebuild-snapshot.yml` (Sundays 09:00 UTC, or on demand via "Run workflow"). It needs a `DAYTONA_API_KEY` repository secret. The rebuild is zero-downtime and safe to run against a live app — see `rebuildSnapshot`.
+
+Two consequences worth knowing:
+
+- **A new CLI release reaches production without anyone approving it.** That is the deliberate trade: upstream breakage is rarer and easier to spot than the silent version drift it replaces. If a release does break things, pin that one package in `AGENT_PACKAGES` the way `TOKSCALE_VERSION` is pinned, and unpin it once upstream is fixed.
+- **A failed run is not an outage.** New sandboxes keep launching from the previous snapshot. It only means the CLIs are ageing, so a red workflow is worth fixing but not paging anyone.
+
+To rebuild by hand:
+
+```bash
+npm run build:snapshot
+```
+
 ## Installation
 
 This is an internal workspace package. It's automatically available to other packages in the monorepo:
