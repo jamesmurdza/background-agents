@@ -49,6 +49,8 @@ import {
   hasOwnAnthropicCredentials,
   sharedClaudePoolEligible,
   agentUsesSharedPool,
+  sharedPoolProviderForModel,
+  formatTokenRate,
   agentHasFreeUsage,
   agentSharedPoolExhausted,
   agentIsReady,
@@ -67,6 +69,7 @@ import {
   parseCustomHeaders,
   resolveCliModel,
   resolveModelForAgent,
+  resolveChatModel,
   resolveAgent,
   resolveAgentAndModel,
 } from "@background-agents/common"
