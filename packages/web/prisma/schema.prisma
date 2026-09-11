@@ -282,13 +282,25 @@ model Message {
 }
 
 // =============================================================================
-// CcAuthInfo - kv blobs managed by ccauth + /api/cron/refresh-claude-creds
+// CcAuthInfo - generic server-owned key/value blobs, keyed by a string id
 // =============================================================================
-// Two well-known rows:
-//   id="claude-cookies":     { value: "<claude.ai cookies JSON>" }
-//   id="claude-credentials": { value: '{"claudeAiOauth":{...}}' }
-// Stored as text (not JSONB) — we hand the raw string to the agent's
-// CLAUDE_CODE_CREDENTIALS env var without re-serializing.
+// The name is historical: it started as ccauth's storage and still holds those
+// rows, but it is now the generic kv table for server-owned auth state and is
+// no longer Claude-specific. Read it as "auth info", not "Claude Code auth
+// info", before adding a row.
+//
+// Well-known ids:
+//   claude-cookies       { value: "<claude.ai cookies JSON>" }
+//   claude-credentials   { value: '{"claudeAiOauth":{...}}' }
+//     ^ managed by ccauth + /api/cron/refresh-claude-creds
+//   codex-login:<userId> { value: '{"sandboxId":...,"sessionId":...}' }
+//     ^ one in-flight Codex device login, deleted as soon as it resolves.
+//       Per-user and short-lived (~15 min), which is why it lives here rather
+//       than in its own table: a dedicated model would mean a migration for
+//       state that never outlives a single sign-in.
+//
+// Stored as text (not JSONB) — some values are handed to an agent's env var
+// verbatim (CLAUDE_CODE_CREDENTIALS) and must not be re-serialized.
 
 model CcAuthInfo {
   id        String   @id

@@ -175,6 +175,10 @@ describe("applyCodexSubscription", () => {
       "sonnet"
     )
     expect(leaks(out)).toBe(false)
+    // Not just "no secret leaked": a rendered auth.json carries only the
+    // placeholder, so the leak check alone passes even with the agent guard
+    // deleted. Assert the key is absent so this test can actually fail.
+    expect(out.CODEX_CREDENTIALS).toBeUndefined()
   })
 
   it("strips the stored blob for a custom codex endpoint", async () => {
@@ -186,6 +190,9 @@ describe("applyCodexSubscription", () => {
       "endpoint:c1"
     )
     expect(leaks(out)).toBe(false)
+    // Same reasoning as the non-codex case: without this the endpoint guard
+    // could be removed and every assertion here would still pass.
+    expect(out.CODEX_CREDENTIALS).toBeUndefined()
   })
 
   it("re-adds a rendered auth.json carrying the placeholder, never the real token", async () => {

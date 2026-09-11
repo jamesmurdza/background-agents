@@ -26,6 +26,20 @@ export class CodexReconnectRequiredError extends Error {
   }
 }
 
+/**
+ * Clamp a server-supplied OAuth `error` code before it reaches a thrown
+ * message or a log line.
+ *
+ * RFC 6749 keeps `error` to a short ASCII token, but nothing here forces the
+ * endpoint to honour that, and this module's whole job is to make sure no
+ * remote-controlled text can carry secrets out through an error string.
+ * Anything that isn't a plausible code is dropped rather than echoed.
+ */
+function sanitizeErrorCode(raw: unknown): string | null {
+  if (typeof raw !== "string") return null
+  return /^[A-Za-z0-9_.-]{1,64}$/.test(raw) ? raw : null
+}
+
 /** OAuth errors that mean the refresh token is permanently unusable. */
 const TERMINAL_ERRORS = new Set([
   "invalid_grant",
@@ -63,7 +77,7 @@ export async function refreshCodexTokens(refreshToken: string): Promise<CodexTok
   if (!res.ok) {
     let code = "unknown_error"
     try {
-      code = (JSON.parse(text) as { error?: string }).error ?? code
+      code = sanitizeErrorCode((JSON.parse(text) as { error?: string }).error) ?? code
     } catch {
       // Non-JSON error body; the status code is all we have.
     }
@@ -81,7 +95,23 @@ export async function refreshCodexTokens(refreshToken: string): Promise<CodexTok
     // the offending input in that message.
     throw new Error("Codex token refresh returned a malformed response body")
   }
-  if (!parsed.access_token || !parsed.refresh_token || !parsed.id_token || !parsed.expires_in) {
+  // Guard the SHAPE, not just truthiness. `parsed` is whatever the endpoint
+  // sent: JSON `null` would make the property reads below throw a raw
+  // TypeError instead of this message, and a stringified `expires_in`
+  // ("864000") would pass a truthiness check and then silently become string
+  // concatenation in `nowSec + expires_in` downstream, producing a nonsense
+  // expiry decades away.
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof parsed.access_token !== "string" ||
+    typeof parsed.refresh_token !== "string" ||
+    typeof parsed.id_token !== "string" ||
+    typeof parsed.expires_in !== "number" ||
+    !Number.isFinite(parsed.expires_in) ||
+    (parsed.earliest_refresh_at !== undefined &&
+      typeof parsed.earliest_refresh_at !== "number")
+  ) {
     throw new Error("Codex token refresh returned an incomplete response")
   }
   return {
