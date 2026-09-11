@@ -8,16 +8,7 @@ import {
 } from "@/lib/db/api-helpers"
 import { sumChatUsageByProvider } from "@/lib/db/token-usage"
 import { sumChatCreditsByProvider } from "@/lib/db/credits"
-import { ALL_AGENTS, agentLabels, agentToProvider } from "@background-agents/common"
-
-/** Reverse map: SDK provider id → human label (via its agent). */
-const PROVIDER_LABELS: Record<string, string> = Object.fromEntries(
-  ALL_AGENTS.map((agent) => [agentToProvider[agent], agentLabels[agent]])
-)
-
-function providerLabel(provider: string): string {
-  return PROVIDER_LABELS[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1)
-}
+import { providerLabel } from "@background-agents/common"
 
 /**
  * Per-provider usage for a single chat: tokens, their API list-price value, and

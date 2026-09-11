@@ -49,6 +49,20 @@ export const agentToProvider: Record<Agent, ProviderName> = {
   "pi": "pi",
 }
 
+/** Reverse of {@link agentToProvider}: SDK provider name → agent id. */
+export const providerToAgent: Record<ProviderName, Agent> = Object.fromEntries(
+  ALL_AGENTS.map((agent) => [agentToProvider[agent], agent])
+) as Record<ProviderName, Agent>
+
+/**
+ * Human label for an SDK provider name, resolved via its agent. Falls back to
+ * capitalizing the raw id for providers with no agent mapping.
+ */
+export function providerLabel(provider: string): string {
+  const agent = providerToAgent[provider as ProviderName]
+  return agent ? agentLabels[agent] : provider.charAt(0).toUpperCase() + provider.slice(1)
+}
+
 // =============================================================================
 // Credentials
 // =============================================================================

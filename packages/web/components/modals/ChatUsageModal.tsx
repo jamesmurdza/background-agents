@@ -6,14 +6,9 @@ import { cn } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useModals } from "@/lib/contexts"
 import { AgentIcon } from "@/components/icons/agent-icons"
-import { ALL_AGENTS, agentToProvider, type Agent } from "@background-agents/common"
+import { providerToAgent, type ProviderName } from "@background-agents/common"
 import type { ChatUsageResponse } from "@/app/api/chats/[chatId]/usage/route"
 import { fmtTokens, fmtBalance, fmtCreditAmount } from "@/lib/format"
-
-/** Reverse map: SDK provider id → agent (for the provider's icon). */
-const PROVIDER_TO_AGENT: Record<string, Agent> = Object.fromEntries(
-  ALL_AGENTS.map((agent) => [agentToProvider[agent], agent])
-)
 
 /** Render a token count with its unit label. */
 function fmtUsage(totalTokens: number) {
@@ -114,7 +109,7 @@ export function ChatUsageModal({ chatId, onClose, isMobile = false }: ChatUsageM
               <>
               <div className="divide-y divide-border/40">
                 {data.providers.map((p) => {
-                  const agent = PROVIDER_TO_AGENT[p.provider]
+                  const agent = providerToAgent[p.provider as ProviderName]
                   return (
                     <div key={p.provider} className="flex items-center justify-between gap-3 py-2">
                       <span className="flex items-center gap-2 text-sm">
