@@ -174,9 +174,20 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     return out
   }, [credValues, credentialFlags])
 
-  // Reset form when modal opens
+  // Reset form when modal opens.
+  //
+  // Guarded on the closed -> open TRANSITION, not just `open`. `settings` and
+  // `credentialFlags` are fresh objects on every settings refetch, and this
+  // query refetches on window focus and whenever something invalidates it
+  // (connecting or disconnecting a ChatGPT subscription does). Without the
+  // guard, any of those re-ran this while the modal was open: in-progress
+  // edits were discarded and the user was thrown back to the default section
+  // mid-task.
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (open) {
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (justOpened) {
       setCredValues(initialCredValues(credentialFlags))
       setEndpoints(initialEndpoints)
       setDefaultAgent(initialDefaultAgent)

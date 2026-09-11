@@ -70,7 +70,7 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     id: "CODEX_CREDENTIALS",
     provider: "openai",
     label: "ChatGPT Subscription",
-    description: "Codex only. Connected by signing in, not by pasting a value.",
+    description: "Codex only. Run Codex on your ChatGPT Plus or Pro plan.",
     serverManaged: true,
   },
   {
