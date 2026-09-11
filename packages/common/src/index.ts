@@ -31,6 +31,8 @@ export {
   ALL_AGENTS,
   agentLabels,
   agentToProvider,
+  providerToAgent,
+  providerLabel,
   agentSlugs,
   agentModels,
   defaultAgentModel,
