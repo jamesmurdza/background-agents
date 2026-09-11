@@ -238,23 +238,6 @@ export interface ChatProviderUsage {
 }
 
 /**
- * Count distinct assistant turns (messages) recorded for one provider in a
- * chat. All pools (usage view, not a budget check). Used for the message-based
- * unit in the per-chat usage modal.
- */
-export async function countChatMessagesByProvider(
-  chatId: string,
-  provider: string
-): Promise<number> {
-  const rows = await prisma.tokenUsage.findMany({
-    where: { chatId, provider, messageId: { not: null } },
-    distinct: ["messageId"],
-    select: { messageId: true },
-  })
-  return rows.length
-}
-
-/**
  * Total tokens/cost recorded for one chat, grouped by provider (all pools,
  * including cache and free models — this is a usage view, not a budget check).
  * Sorted by token count descending; providers with no usage are omitted.
