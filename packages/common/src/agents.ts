@@ -311,8 +311,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-5.6-terra", label: "GPT-5.6 Terra", requiresKey: "openai" },
     { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "openai" },
     { value: "gpt-5.5", label: "GPT-5.5", requiresKey: "openai" },
-    { value: "gpt-5.4", label: "GPT-5.4", requiresKey: "openai" },
-    { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", requiresKey: "openai" },
     { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark", requiresKey: "openai" },
   ],
   "copilot": [
