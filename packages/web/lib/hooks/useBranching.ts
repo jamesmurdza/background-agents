@@ -2,8 +2,42 @@
 
 import { useCallback } from "react"
 import { useSession } from "next-auth/react"
+import { useQueryClient } from "@tanstack/react-query"
 import { NEW_REPOSITORY, isRealRepo, type Chat, type ChatStatus } from "@/lib/types"
 import { savePendingMessage } from "@/lib/pending-message"
+import { fetchBranches } from "@/lib/github"
+import { queryKeys } from "@/lib/query/keys"
+import { useToastStore } from "@/lib/stores/toast-store"
+
+/**
+ * A chat with a live sandbox branches off its *working* branch, and the new
+ * chat's sandbox clones that branch from GitHub. Until a commit has been pushed
+ * the branch only exists inside the old sandbox, so there is nothing to clone
+ * and the branch chat would fail on creation.
+ *
+ * Checked on demand rather than tracked, since it's one call on a rare click.
+ * A check that can't complete (offline, GitHub hiccup) doesn't block branching:
+ * this is an early warning, not a gate.
+ */
+async function branchIsOnGitHub(
+  queryClient: ReturnType<typeof useQueryClient>,
+  repo: string,
+  branch: string
+): Promise<boolean> {
+  const [owner, name] = repo.split("/")
+  if (!owner || !name) return true
+  try {
+    const branches = await queryClient.fetchQuery({
+      queryKey: queryKeys.github.branches(owner, name),
+      queryFn: () => fetchBranches(owner, name),
+      // The agent may have pushed seconds ago; a cached list would be wrong.
+      staleTime: 0,
+    })
+    return branches.some((b) => b.name === branch)
+  } catch {
+    return true
+  }
+}
 
 interface UseBranchingOptions {
   currentChat: Chat | null
@@ -83,6 +117,7 @@ export function useBranching({
   openSignInModal,
 }: UseBranchingOptions): UseBranchingResult {
   const { data: session } = useSession()
+  const queryClient = useQueryClient()
 
   // Use the working branch if the sandbox is up; otherwise the base branch the
   // chat was configured with (before any messages were sent).
@@ -116,6 +151,16 @@ export function useBranching({
         openSignInModal(true)
         return false
       }
+      // Nothing has been pushed to the working branch yet — say so instead of
+      // creating a branch chat whose sandbox can't clone it.
+      if (source.branch && !(await branchIsOnGitHub(queryClient, source.repo, source.branch))) {
+        useToastStore.getState().addToast({
+          title: "Nothing committed yet",
+          body: `${source.branch} isn't on GitHub yet, so there's nothing to branch from. Branch again once the agent has committed and pushed.`,
+        })
+        return false
+      }
+
       // When no message is provided, navigate to the new chat
       const navigateToChat = !options?.message
       // Use provided agent/model or inherit from the source chat
@@ -138,7 +183,7 @@ export function useBranching({
       }
       return true
     },
-    [currentChat, startNewChat, sendMessage, session, openSignInModal]
+    [currentChat, startNewChat, sendMessage, session, openSignInModal, queryClient]
   )
 
   const handleBranchChat = useCallback(() => {
