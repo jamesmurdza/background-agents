@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Check, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { queryKeys } from "@/lib/query/keys"
 import { SettingsRow } from "./shared"
 
 type Phase =
@@ -98,6 +100,19 @@ export function CodexConnectionRow({
   // to look frozen, so the copy can acknowledge it is still working.
   const [connectRunningLong, setConnectRunningLong] = useState(false)
   const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const queryClient = useQueryClient()
+
+  /**
+   * Connecting and disconnecting change `credentialFlags.CODEX_CREDENTIALS`,
+   * which is what unlocks Codex models in the agent/model picker. That flag
+   * rides on the settings query, and this flow writes through
+   * /api/user/codex-auth rather than the settings mutation, so nothing else
+   * refreshes it. Without this the row reads "Connected" while the picker
+   * still sends the user to the API-key screen until a full page reload.
+   */
+  function refreshCredentialFlags() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.settings.all })
+  }
 
   function clearPoll() {
     if (pollRef.current) {
@@ -184,6 +199,7 @@ export function CodexConnectionRow({
           if (status.status === "connected") {
             clearPoll()
             setPhase({ kind: "connected", needsReconnect: false })
+            refreshCredentialFlags()
           } else if (status.status === "failed") {
             clearPoll()
             setPhase({ kind: "error", message: reasonMessage(status.reason, POLL_FALLBACK) })
@@ -211,6 +227,7 @@ export function CodexConnectionRow({
       if (!mountedRef.current) return
       if (res.ok) {
         setPhase({ kind: "disconnected" })
+        refreshCredentialFlags()
       } else {
         // Only a 200 counts as disconnected. On failure, go back to the
         // connected state (not the generic error phase, which renders a
@@ -247,12 +264,18 @@ export function CodexConnectionRow({
           {phase.kind === "connected" && (
             <span
               className={cn(
-                "flex items-center gap-1",
-                needsReconnect ? "text-amber-600" : "text-green-600 dark:text-green-400"
+                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium",
+                needsReconnect
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400"
               )}
             >
-              {!needsReconnect && <Check className="h-3 w-3" />}
-              {needsReconnect ? "Connection expired" : "Connected"}
+              {needsReconnect ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              {needsReconnect ? "Expired" : "Connected"}
             </span>
           )}
           {phase.kind === "disconnected" && (
