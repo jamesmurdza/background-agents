@@ -17,21 +17,29 @@ import {
   Wallet,
   BarChart3,
   CreditCard,
+  DollarSign,
+  ChevronDown,
 } from "lucide-react"
 import { ActivityFeed } from "@/components/admin/ActivityFeed"
 import { ClaudeCredentials } from "@/components/admin/ClaudeCredentials"
+import { ProviderPricing } from "@/components/admin/ProviderPricing"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart"
 import { MessagesByModelChart } from "@/components/admin/charts/MessagesByModelChart"
-import { TopUsersTable } from "@/components/admin/TopUsersTable"
 import { HourlyActivityChart } from "@/components/admin/charts/HourlyActivityChart"
 import { DailyMessagesChatsChart } from "@/components/admin/charts/DailyMessagesChatsChart"
 import { PoolSplitChart } from "@/components/admin/charts/PoolSplitChart"
 import { UsageByKeyChart } from "@/components/admin/charts/UsageByKeyChart"
 import { MessageValueHistogramChart } from "@/components/admin/charts/MessageValueHistogramChart"
-import { TopUpsByUserChart } from "@/components/admin/charts/TopUpsByUserChart"
 import { TopUpsOverTimeChart } from "@/components/admin/charts/TopUpsOverTimeChart"
+import { UsageByUserAreaChart } from "@/components/admin/charts/UsageByUserAreaChart"
 import { UsageByUserTable } from "@/components/admin/UsageByUserTable"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   useAdminStatsQuery,
   useAdminActivityQuery,
@@ -44,6 +52,8 @@ import {
   type UsageProvider,
   type UsageRange,
   type UsageMetric,
+  type UserUsage,
+  type UsageDistribution,
 } from "@/lib/query/hooks"
 import { metricLabel, type StatsMetric } from "@/components/admin/charts/chartFormatters"
 import { cn } from "@/lib/utils"
@@ -78,8 +88,9 @@ const USAGE_PROVIDERS: { key: UsageProvider; label: string }[] = [
 // Tokens vs list value for the usage section. List value first and selected by
 // default — it's the figure that answers "what is this worth," which is usually
 // the first question. Note it is NOT what users are charged: credits are that
-// figure divided by the provider's discount (see lib/server/credits), so this
-// runs up to 20× higher than the balance a user actually spent.
+// figure times the provider's pricing multiplier (see the Pricing tab, and
+// lib/server/credits), which can run this well above the balance a user
+// actually spent — at the seeded multipliers, up to 20× for Claude.
 const USAGE_METRICS: { key: UsageMetric; label: string }[] = [
   { key: "cost", label: "List value" },
   { key: "tokens", label: "Tokens" },
@@ -88,26 +99,161 @@ const USAGE_METRICS: { key: UsageMetric; label: string }[] = [
 /**
  * Providers whose usage is worth looking at in dollars.
  *
- * OpenCode because it's billed per token, so the figure is money we spend.
- * Claude because its shared pool is *budgeted* in dollars — the admin view has
- * to show the same measure the limiter enforces, or there's no way to see why
- * someone hit their cap. Gemini stays out: it's capped by message count, so a
- * dollar figure there answers no question anyone is asking.
+ * All three shared pools qualify today. OpenCode is billed per token, so the
+ * figure is money we spend. Claude's shared pool is *budgeted* in dollars —
+ * the admin view has to show the same measure the limiter enforces, or
+ * there's no way to see why someone hit their cap. Gemini used to be excluded
+ * here on the theory that it was capped by message count — that stopped being
+ * true once gating moved to a single shared credit balance (see
+ * lib/db/usage-limit) and Gemini got a real, admin-editable pricing
+ * multiplier (see lib/server/credits and the Pricing tab): its list value is
+ * computed the same way Claude's and OpenCode's are, so hiding it here was
+ * stale, not intentional.
  */
 const COST_PROVIDERS: ReadonlySet<UsageProvider> = new Set<UsageProvider>([
   "opencode",
   "claude",
+  "gemini",
 ])
 
 /**
  * Of those, the ones where a dollar is an actual bill. Claude runs on a flat
  * subscription, so its cost is API-equivalent value — real for comparing users
  * and models against each other, but not a number that shows up on an invoice.
- * Labelled as such rather than hidden, so nobody totals it as spend.
+ * OpenCode and Gemini are both metered keys bought near list (see
+ * lib/server/credits), so a dollar there is a dollar we were actually charged.
+ * Labelled as such rather than hidden, so nobody totals Claude's figure as
+ * real spend.
  */
-const BILLED_PROVIDERS: ReadonlySet<UsageProvider> = new Set<UsageProvider>(["opencode"])
+const BILLED_PROVIDERS: ReadonlySet<UsageProvider> = new Set<UsageProvider>([
+  "opencode",
+  "gemini",
+])
 
-type SectionKey = "overview" | "leaderboard" | "users" | "activity" | "credentials"
+/**
+ * Merge per-provider usage rows into one roster, summing across whichever
+ * providers are selected. Used only by the Leaderboard's Usage by user table:
+ * unlike the Overview's charts (which stay scoped to one provider so token
+ * counts and costs remain comparable within a single view — see USAGE_PROVIDERS),
+ * the table's job is "how much has this user cost us, full stop," so it
+ * defaults to combining all three.
+ */
+function combineUsageByProvider(
+  perProvider: Partial<Record<UsageProvider, UserUsage[]>>,
+  selected: UsageProvider[]
+): UserUsage[] {
+  const map = new Map<string, UserUsage>()
+  for (const provider of selected) {
+    for (const u of perProvider[provider] ?? []) {
+      const existing = map.get(u.userId)
+      if (!existing) {
+        map.set(u.userId, { ...u, models: [...u.models] })
+        continue
+      }
+      existing.tokens += u.tokens
+      existing.cost += u.cost
+      existing.sharedTokens += u.sharedTokens
+      existing.sharedCost += u.sharedCost
+      existing.ownTokens += u.ownTokens
+      existing.ownCost += u.ownCost
+      existing.models.push(...u.models)
+    }
+  }
+  return [...map.values()]
+    .map((u) => ({ ...u, models: [...u.models].sort((a, b) => b.tokens - a.tokens) }))
+    .sort((a, b) => b.cost - a.cost || b.tokens - a.tokens)
+}
+
+/**
+ * Merge each provider's day-by-user (or hour-by-user, for the 24h range) List
+ * value series into one, summing by (time, userId) across whichever providers
+ * are selected — the same combination `combineUsageByProvider` does for the
+ * table's totals, just time-bucketed for the chart above it.
+ */
+function combineByUserOverTime(
+  perProvider: Partial<Record<UsageProvider, UsageDistribution>>,
+  selected: UsageProvider[],
+  isHourly = false
+): Array<Record<string, number | string>> {
+  const byTime = new Map<string, Record<string, number | string>>()
+  for (const provider of selected) {
+    const rows = perProvider[provider]?.byUser.cost ?? []
+    for (const row of rows) {
+      const time = String(row.time)
+      const entry = byTime.get(time) ?? { time }
+      for (const [key, value] of Object.entries(row)) {
+        if (key === "time") continue
+        entry[key] = (Number(entry[key]) || 0) + (Number(value) || 0)
+      }
+      byTime.set(time, entry)
+    }
+  }
+  // Hourly time keys are "0".."23" — a plain string sort would put "10" before
+  // "2", so sort numerically in that case; day keys ("YYYY-MM-DD") sort fine
+  // lexicographically.
+  return [...byTime.values()].sort((a, b) =>
+    isHourly
+      ? Number(a.time) - Number(b.time)
+      : String(a.time).localeCompare(String(b.time))
+  )
+}
+
+/** Multi-select "Providers" filter for the Leaderboard's Usage by user table —
+ * replaces a three-way single-select toggle, since the table can now combine
+ * more than one provider at once (defaults to all). */
+function ProviderFilterDropdown({
+  selected,
+  onChange,
+}: {
+  selected: UsageProvider[]
+  onChange: (next: UsageProvider[]) => void
+}) {
+  const toggle = (key: UsageProvider) => {
+    if (selected.includes(key)) {
+      // Refuse to drop the last provider — an empty filter would just render
+      // an empty table with no visible way back in.
+      if (selected.length === 1) return
+      onChange(selected.filter((p) => p !== key))
+    } else {
+      onChange([...selected, key])
+    }
+  }
+
+  const label =
+    selected.length === USAGE_PROVIDERS.length
+      ? "All providers"
+      : selected.length === 1
+        ? (USAGE_PROVIDERS.find((p) => p.key === selected[0])?.label ?? "Providers")
+        : `${selected.length} providers`
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-lg border border-transparent bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:text-foreground sm:text-sm"
+        >
+          {label}
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {USAGE_PROVIDERS.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option.key}
+            checked={selected.includes(option.key)}
+            onSelect={(e) => e.preventDefault()}
+            onCheckedChange={() => toggle(option.key)}
+          >
+            {option.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+type SectionKey = "overview" | "leaderboard" | "users" | "activity" | "credentials" | "pricing"
 
 const sections: { key: SectionKey; label: string; icon: typeof Users }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -115,6 +261,7 @@ const sections: { key: SectionKey; label: string; icon: typeof Users }[] = [
   { key: "users", label: "Users", icon: Users },
   { key: "activity", label: "Activity", icon: Activity },
   { key: "credentials", label: "Credentials", icon: KeyRound },
+  { key: "pricing", label: "Pricing", icon: DollarSign },
 ]
 
 export default function AdminDashboard() {
@@ -175,9 +322,28 @@ export default function AdminDashboard() {
   // global range where it can and fall back to 30d for "all".
   const usageRange: UsageRange = globalTimeRange === "all" ? "30d" : globalTimeRange
 
+  // Which providers feed the Leaderboard's Usage by user table — independent
+  // of the Overview's single-provider `usageProvider` above, since the table
+  // combines however many are selected (default: all three).
+  const [usageProviderFilter, setUsageProviderFilter] = useState<UsageProvider[]>([
+    "claude",
+    "opencode",
+    "gemini",
+  ])
+  // Which users are checked in the Leaderboard's table — read by the stacked-
+  // area-by-user chart above it. null = everyone (see UsageByUserTableProps).
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string> | null>(null)
+
   // Queries - pass globalTimeRange to stats query
   const statsQuery = useAdminStatsQuery(globalTimeRange, !includeAdmins, metric, effectivePool)
   const usageQuery = useUsageDistributionQuery(usageRange, usageProvider, !includeAdmins)
+  // One query per shared-pool provider, for the Leaderboard table. Fetching
+  // all three unconditionally (rather than only the filtered ones) keeps this
+  // a fixed set of hook calls and lets react-query dedupe with `usageQuery`
+  // above whenever it happens to be on the same provider — no extra request.
+  const claudeUsageQuery = useUsageDistributionQuery(usageRange, "claude", !includeAdmins)
+  const opencodeUsageQuery = useUsageDistributionQuery(usageRange, "opencode", !includeAdmins)
+  const geminiUsageQuery = useUsageDistributionQuery(usageRange, "gemini", !includeAdmins)
   const activityQuery = useAdminActivityQuery({
     page: activityPage,
     limit: 20,
@@ -273,7 +439,6 @@ export default function AdminDashboard() {
   }
 
   const weeklyActiveUsers = statsQuery.data?.weeklyActiveUsers ?? []
-  const topUsers = statsQuery.data?.topUsers ?? []
   const hourly = statsQuery.data?.hourly ?? []
   const series = statsQuery.data?.series ?? []
   const byAgent = statsQuery.data?.byAgent ?? []
@@ -282,6 +447,30 @@ export default function AdminDashboard() {
   const metricName = metricLabel(metric)
 
   const usage = usageQuery.data
+
+  // Leaderboard's Usage by user table: combine whichever providers are
+  // checked in the filter, rather than the Overview's single `usageProvider`.
+  const leaderboardUsers = combineUsageByProvider(
+    {
+      claude: claudeUsageQuery.data?.users,
+      opencode: opencodeUsageQuery.data?.users,
+      gemini: geminiUsageQuery.data?.users,
+    },
+    usageProviderFilter
+  )
+  const leaderboardUsageLoading =
+    claudeUsageQuery.isLoading || opencodeUsageQuery.isLoading || geminiUsageQuery.isLoading
+  const leaderboardShowCost = usageProviderFilter.some((p) => COST_PROVIDERS.has(p))
+  // Stacked-area-by-user chart, same provider combination as the table below it.
+  const leaderboardByUserSeries = combineByUserOverTime(
+    {
+      claude: claudeUsageQuery.data,
+      opencode: opencodeUsageQuery.data,
+      gemini: geminiUsageQuery.data,
+    },
+    usageProviderFilter,
+    isHourly
+  )
 
   // Handle section change with mobile menu close
   const handleSectionChange = (section: SectionKey) => {
@@ -609,6 +798,7 @@ export default function AdminDashboard() {
                     <PoolSplitChart
                       data={usage?.poolSplit[effectiveUsageMetric] ?? []}
                       metric={effectiveUsageMetric}
+                      isHourly={isHourly}
                     />
                   )}
                 </div>
@@ -629,6 +819,7 @@ export default function AdminDashboard() {
                         data={usage?.byKey[effectiveUsageMetric] ?? []}
                         keyIds={usage?.keyIds ?? []}
                         metric={effectiveUsageMetric}
+                        isHourly={isHourly}
                       />
                     )}
                   </div>
@@ -667,8 +858,11 @@ export default function AdminDashboard() {
           {/* Leaderboard Section */}
           {activeSection === "leaderboard" && (
             <>
-              {/* Global Time Range Selector — shared with Overview, since Top
-                  Users is driven by the same stats query. */}
+              {/* Global Time Range Selector — shared with Overview. The Metric
+                  and Pool selectors live here on Overview because they weight
+                  those charts; the Leaderboard's one table (Usage by user)
+                  always shows both Tokens and List value, and has its own
+                  provider filter below, scoped to what it actually shows. */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold md:text-xl">Leaderboard</h2>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -700,51 +894,6 @@ export default function AdminDashboard() {
                     </span>
                     Include admins
                   </button>
-                  {/* Metric selector */}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {METRIC_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setMetric(option.key)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          metric === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Credential pool selector. Disabled under the Messages
-                      metric, which is sourced from ActivityLog and carries no
-                      pool dimension — see POOL_DISABLED_HINT. */}
-                  <div
-                    className={cn(
-                      "flex gap-1 rounded-lg bg-muted p-1",
-                      poolFilterDisabled && "opacity-50"
-                    )}
-                    title={poolFilterDisabled ? POOL_DISABLED_HINT : undefined}
-                  >
-                    {POOL_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setPool(option.key)}
-                        disabled={poolFilterDisabled}
-                        title={poolFilterDisabled ? POOL_DISABLED_HINT : option.hint}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          poolFilterDisabled && "cursor-not-allowed",
-                          !poolFilterDisabled && pool === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
                   {/* Time range buttons */}
                   <div className="flex gap-1 rounded-lg bg-muted p-1">
                     {(["24h", "7d", "30d", "all"] as const).map((range) => (
@@ -765,99 +914,50 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Top Active Users */}
-              <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
-                      <Trophy className="h-4 w-4 text-amber-500" />
-                    </div>
-                    <h3 className="font-medium">Top Users by {metricName}</h3>
-                  </div>
-                  <TopUsersTable
-                    data={topUsers}
-                    metric={metric}
-                    isLoading={statsQuery.isFetching}
-                  />
-                </div>
-
-                {/* Top-up payments by user — real dollars users have paid us,
-                    independent of the usage metric selected above. */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-                      <CreditCard className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Top-ups by User</h3>
-                      {!!topupsQuery.data?.totalUsd && (
-                        <p className="text-xs text-muted-foreground">
-                          ${topupsQuery.data.totalUsd.toFixed(2)} total across{" "}
-                          {topupsQuery.data.totalCount} payment
-                          {topupsQuery.data.totalCount === 1 ? "" : "s"}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {topupsQuery.isLoading ? (
-                    <div className="h-[250px] animate-pulse rounded bg-muted/50" />
-                  ) : (
-                    <TopUpsByUserChart data={topupsQuery.data?.users ?? []} />
-                  )}
-                </div>
-              </section>
-
-              {/* Usage by user — its own provider/metric controls, since it
-                  isn't scoped by the Overview metric selector above. */}
+              {/* Usage by user — its own provider filter, since it isn't
+                  scoped by the Overview metric selector above. Tokens and
+                  List value both show as columns now (no toggle needed); the
+                  Topped up/Balance/Spent columns come from the credit ledger
+                  (topupsQuery), merged in below rather than shown as separate
+                  tables/charts. The chart and table below share this filter
+                  and the table's own checkbox selection. */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <div>
                   <h2 className="text-lg font-semibold md:text-xl">Usage by user</h2>
                   <p className="text-xs text-muted-foreground">
                     Per-user breakdown of shared pool usage
                     {globalTimeRange === "all" && " · last 30 days"}
-                    {costIsNotional &&
-                      " · API-equivalent value on a flat subscription, not a bill"}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  {costSupported && (
-                    <div className="flex gap-1 rounded-lg bg-muted p-1">
-                      {USAGE_METRICS.map((option) => (
-                        <button
-                          key={option.key}
-                          onClick={() => setUsageMetric(option.key)}
-                          className={cn(
-                            "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                            effectiveUsageMetric === option.key
-                              ? "bg-background text-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {USAGE_PROVIDERS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setUsageProvider(option.key)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          usageProvider === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <ProviderFilterDropdown
+                  selected={usageProviderFilter}
+                  onChange={setUsageProviderFilter}
+                />
               </div>
 
               <section className="grid gap-4 md:gap-6">
+                {/* Stacked area: List value over time, one band per checked
+                    user in the table below — the table IS this chart's series
+                    picker, not a separate control. */}
+                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+                      <BarChart3 className="h-4 w-4 text-violet-500" />
+                    </div>
+                    <h3 className="font-medium">List value over time by user</h3>
+                  </div>
+                  {leaderboardUsageLoading ? (
+                    <div className="h-[280px] animate-pulse rounded bg-muted/50" />
+                  ) : (
+                    <UsageByUserAreaChart
+                      data={leaderboardByUserSeries}
+                      users={leaderboardUsers}
+                      selectedUserIds={selectedUserIds}
+                      isHourly={isHourly}
+                    />
+                  )}
+                </div>
+
                 <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10">
@@ -866,10 +966,13 @@ export default function AdminDashboard() {
                     <h3 className="font-medium">Usage by user</h3>
                   </div>
                   <UsageByUserTable
-                    users={usage?.users ?? []}
-                    metric={effectiveUsageMetric}
-                    showCost={costSupported}
-                    isLoading={usageQuery.isLoading}
+                    users={leaderboardUsers}
+                    ledger={topupsQuery.data?.users ?? []}
+                    balances={topupsQuery.data?.balances ?? []}
+                    showCost={leaderboardShowCost}
+                    selectedUserIds={selectedUserIds}
+                    onSelectionChange={setSelectedUserIds}
+                    isLoading={leaderboardUsageLoading || topupsQuery.isLoading}
                   />
                 </div>
               </section>
@@ -940,6 +1043,9 @@ export default function AdminDashboard() {
 
           {/* Credentials Section */}
           {activeSection === "credentials" && <ClaudeCredentials />}
+
+          {/* Pricing Section */}
+          {activeSection === "pricing" && <ProviderPricing />}
         </div>
       </main>
     </div>

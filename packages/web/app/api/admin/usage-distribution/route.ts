@@ -14,7 +14,12 @@ type Provider = (typeof VALID_PROVIDERS)[number]
  *
  * Powers the "Shared pool & usage" block on the admin Overview: where our
  * credential spend goes, split by pool, by pool key, by user/model, and by
- * per-message size (messageHistogram).
+ * per-message size (messageHistogram) — plus `byUser`, a day-by-day-by-user
+ * breakdown for the Leaderboard's stacked-area-by-user chart.
+ *
+ * The 24h range is bucketed by hour-of-day instead of by day — a single day
+ * bucket would otherwise collapse the whole stacked area chart to one point,
+ * same reasoning as the "stats" route's over-time series.
  *
  * Every response carries BOTH tokens and cost for each series, so the dashboard
  * can toggle between them without a refetch. (Notably this decouples the view
@@ -42,49 +47,137 @@ export async function GET(request: NextRequest) {
     : "opencode"
   const excludeAdmins = searchParams.get("excludeAdmins") !== "false"
   const interval = getRangeInterval(range)
+  // 24h is bucketed by hour-of-day (like the stats route's over-time series)
+  // instead of day — a single day bucket would otherwise collapse the whole
+  // range to one point.
+  const isHourly = range === "24h"
 
   const notAdmin = Prisma.sql`
     AND (${excludeAdmins} = false OR "userId" NOT IN (SELECT id FROM "User" WHERE "isAdmin" = true))
   `
 
-  // --- Shared vs own-key, per day -------------------------------------------
-  const poolSplitPromise = prisma.$queryRaw<
-    Array<{ day: Date; pool: string; tokens: number; cost: number }>
-  >`
-    SELECT
-      date_trunc('day', "createdAt")::date as day,
-      "pool" as pool,
-      SUM("totalTokens")::float as tokens,
-      SUM("costUsd")::float as cost
-    FROM "TokenUsage"
-    WHERE "createdAt" >= NOW() - ${interval}::interval
-      AND provider = ${provider}
-      ${notAdmin}
-    GROUP BY 1, 2
-    ORDER BY 1 ASC
-  `
-
-  // --- Per pool key, per day (OpenCode is the only multi-key pool) -----------
-  // Shared pool only: a key id exists only for runs on our credentials.
-  const byKeyPromise: Promise<
-    Array<{ day: Date; keyId: string | null; tokens: number; cost: number }>
-  > =
-    provider === "opencode"
-      ? prisma.$queryRaw`
+  // --- Shared vs own-key, per day (or per hour for 24h) ----------------------
+  const poolSplitPromise: Promise<Array<{ time: string; pool: string; tokens: number; cost: number }>> =
+    isHourly
+      ? prisma.$queryRaw<Array<{ hour: number; pool: string; tokens: number; cost: number }>>`
+          SELECT
+            EXTRACT(HOUR FROM "createdAt")::int as hour,
+            "pool" as pool,
+            SUM("totalTokens")::float as tokens,
+            SUM("costUsd")::float as cost
+          FROM "TokenUsage"
+          WHERE "createdAt" >= NOW() - '24 hours'::interval
+            AND provider = ${provider}
+            ${notAdmin}
+          GROUP BY 1, 2
+          ORDER BY 1 ASC
+        `.then((rows) => rows.map((r) => ({ time: String(r.hour), pool: r.pool, tokens: r.tokens, cost: r.cost })))
+      : prisma.$queryRaw<Array<{ day: Date; pool: string; tokens: number; cost: number }>>`
           SELECT
             date_trunc('day', "createdAt")::date as day,
-            "keyId" as "keyId",
+            "pool" as pool,
             SUM("totalTokens")::float as tokens,
             SUM("costUsd")::float as cost
           FROM "TokenUsage"
           WHERE "createdAt" >= NOW() - ${interval}::interval
             AND provider = ${provider}
-            AND "pool" = 'shared'
             ${notAdmin}
           GROUP BY 1, 2
           ORDER BY 1 ASC
-        `
-      : Promise.resolve([])
+        `.then((rows) =>
+          rows.map((r) => ({
+            time: r.day.toISOString().split("T")[0],
+            pool: r.pool,
+            tokens: r.tokens,
+            cost: r.cost,
+          }))
+        )
+
+  // --- Per pool key, per day or hour (OpenCode is the only multi-key pool) ---
+  // Shared pool only: a key id exists only for runs on our credentials.
+  const byKeyPromise: Promise<Array<{ time: string; keyId: string | null; tokens: number; cost: number }>> =
+    provider !== "opencode"
+      ? Promise.resolve([])
+      : isHourly
+        ? prisma.$queryRaw<Array<{ hour: number; keyId: string | null; tokens: number; cost: number }>>`
+            SELECT
+              EXTRACT(HOUR FROM "createdAt")::int as hour,
+              "keyId" as "keyId",
+              SUM("totalTokens")::float as tokens,
+              SUM("costUsd")::float as cost
+            FROM "TokenUsage"
+            WHERE "createdAt" >= NOW() - '24 hours'::interval
+              AND provider = ${provider}
+              AND "pool" = 'shared'
+              ${notAdmin}
+            GROUP BY 1, 2
+            ORDER BY 1 ASC
+          `.then((rows) =>
+            rows.map((r) => ({ time: String(r.hour), keyId: r.keyId, tokens: r.tokens, cost: r.cost }))
+          )
+        : prisma.$queryRaw<Array<{ day: Date; keyId: string | null; tokens: number; cost: number }>>`
+            SELECT
+              date_trunc('day', "createdAt")::date as day,
+              "keyId" as "keyId",
+              SUM("totalTokens")::float as tokens,
+              SUM("costUsd")::float as cost
+            FROM "TokenUsage"
+            WHERE "createdAt" >= NOW() - ${interval}::interval
+              AND provider = ${provider}
+              AND "pool" = 'shared'
+              ${notAdmin}
+            GROUP BY 1, 2
+            ORDER BY 1 ASC
+          `.then((rows) =>
+            rows.map((r) => ({
+              time: r.day.toISOString().split("T")[0],
+              keyId: r.keyId,
+              tokens: r.tokens,
+              cost: r.cost,
+            }))
+          )
+
+  // --- Per user, per day or hour — for the Leaderboard's stacked-area-by-user
+  // chart. Both pools combined (not just shared), matching what `users` below
+  // totals as a user's List value: their own-key usage still carries a list
+  // price, it's just not billed to us.
+  const byUserPromise: Promise<Array<{ time: string; userId: string; tokens: number; cost: number }>> =
+    isHourly
+      ? prisma.$queryRaw<Array<{ hour: number; userId: string; tokens: number; cost: number }>>`
+          SELECT
+            EXTRACT(HOUR FROM "createdAt")::int as hour,
+            "userId" as "userId",
+            SUM("totalTokens")::float as tokens,
+            SUM("costUsd")::float as cost
+          FROM "TokenUsage"
+          WHERE "createdAt" >= NOW() - '24 hours'::interval
+            AND provider = ${provider}
+            ${notAdmin}
+          GROUP BY 1, 2
+          ORDER BY 1 ASC
+        `.then((rows) =>
+          rows.map((r) => ({ time: String(r.hour), userId: r.userId, tokens: r.tokens, cost: r.cost }))
+        )
+      : prisma.$queryRaw<Array<{ day: Date; userId: string; tokens: number; cost: number }>>`
+          SELECT
+            date_trunc('day', "createdAt")::date as day,
+            "userId" as "userId",
+            SUM("totalTokens")::float as tokens,
+            SUM("costUsd")::float as cost
+          FROM "TokenUsage"
+          WHERE "createdAt" >= NOW() - ${interval}::interval
+            AND provider = ${provider}
+            ${notAdmin}
+          GROUP BY 1, 2
+          ORDER BY 1 ASC
+        `.then((rows) =>
+          rows.map((r) => ({
+            time: r.day.toISOString().split("T")[0],
+            userId: r.userId,
+            tokens: r.tokens,
+            cost: r.cost,
+          }))
+        )
 
   // --- Per user × model × pool ----------------------------------------------
   // The finest grain the table needs; user- and pool-level totals are rolled up
@@ -133,30 +226,37 @@ export async function GET(request: NextRequest) {
     GROUP BY tu."messageId"
   `
 
-  const [poolSplitRaw, byKeyRaw, perUserRaw, perMessageRaw] = await Promise.all([
+  const [poolSplitRaw, byKeyRaw, byUserRaw, perUserRaw, perMessageRaw] = await Promise.all([
     poolSplitPromise,
     byKeyPromise,
+    byUserPromise,
     perUserPromise,
     perMessagePromise,
   ])
 
-  // --- Day axis -------------------------------------------------------------
-  // Built in JS so both time series share one gap-free axis.
-  const days: string[] = []
-  const dayCount = range === "24h" ? 1 : range === "7d" ? 7 : 30
-  const today = new Date()
-  for (let i = dayCount - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setUTCDate(d.getUTCDate() - i)
-    days.push(d.toISOString().split("T")[0])
-  }
-  const isoDay = (d: Date) => d.toISOString().split("T")[0]
+  // --- Time axis --------------------------------------------------------------
+  // Built in JS so both time series share one gap-free axis. 24h uses one slot
+  // per hour-of-day (0-23, matching the EXTRACT(HOUR ...) grouping above);
+  // longer ranges use one slot per day, as before.
+  const timeKeys: string[] = isHourly
+    ? Array.from({ length: 24 }, (_, h) => String(h))
+    : (() => {
+        const dayCount = range === "7d" ? 7 : 30
+        const today = new Date()
+        const out: string[] = []
+        for (let i = dayCount - 1; i >= 0; i--) {
+          const d = new Date(today)
+          d.setUTCDate(d.getUTCDate() - i)
+          out.push(d.toISOString().split("T")[0])
+        }
+        return out
+      })()
 
-  // --- poolSplit: one row per day per metric --------------------------------
+  // --- poolSplit: one row per time slot per metric ---------------------------
   const makeSplit = (metric: "tokens" | "cost") => {
-    const map = new Map(days.map((d) => [d, { time: d, shared: 0, user: 0 }]))
+    const map = new Map(timeKeys.map((t) => [t, { time: t, shared: 0, user: 0 }]))
     for (const row of poolSplitRaw) {
-      const entry = map.get(isoDay(row.day))
+      const entry = map.get(row.time)
       if (!entry) continue
       const v = Number(row[metric]) || 0
       if (row.pool === "shared") entry.shared += v
@@ -165,17 +265,17 @@ export async function GET(request: NextRequest) {
     return [...map.values()]
   }
 
-  // --- byKey: one row per day, one column per key ---------------------------
+  // --- byKey: one row per time slot, one column per key -----------------------
   const UNATTRIBUTED = "unattributed"
   const keyIds = new Set<string>()
   for (const row of byKeyRaw) keyIds.add(row.keyId || UNATTRIBUTED)
 
   const makeByKey = (metric: "tokens" | "cost") => {
     const map = new Map<string, Record<string, number | string>>(
-      days.map((d) => [d, { time: d }])
+      timeKeys.map((t) => [t, { time: t }])
     )
     for (const row of byKeyRaw) {
-      const entry = map.get(isoDay(row.day))
+      const entry = map.get(row.time)
       if (!entry) continue
       const id = row.keyId || UNATTRIBUTED
       entry[id] = ((entry[id] as number) || 0) + (Number(row[metric]) || 0)
@@ -183,6 +283,26 @@ export async function GET(request: NextRequest) {
     // Fill gaps so stacked areas render continuously.
     for (const entry of map.values()) {
       for (const id of keyIds) if (entry[id] === undefined) entry[id] = 0
+    }
+    return [...map.values()]
+  }
+
+  // --- byUser: one row per time slot, one column per user id -----------------
+  const userIdsInRange = new Set<string>()
+  for (const row of byUserRaw) userIdsInRange.add(row.userId)
+
+  const makeByUser = (metric: "tokens" | "cost") => {
+    const map = new Map<string, Record<string, number | string>>(
+      timeKeys.map((t) => [t, { time: t }])
+    )
+    for (const row of byUserRaw) {
+      const entry = map.get(row.time)
+      if (!entry) continue
+      entry[row.userId] = ((entry[row.userId] as number) || 0) + (Number(row[metric]) || 0)
+    }
+    // Fill gaps so stacked areas render continuously.
+    for (const entry of map.values()) {
+      for (const id of userIdsInRange) if (entry[id] === undefined) entry[id] = 0
     }
     return [...map.values()]
   }
@@ -273,10 +393,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     range,
     provider,
-    days,
+    days: timeKeys,
     keyIds: [...keyIds].sort(),
     poolSplit: { tokens: makeSplit("tokens"), cost: makeSplit("cost") },
     byKey: { tokens: makeByKey("tokens"), cost: makeByKey("cost") },
+    byUser: { tokens: makeByUser("tokens"), cost: makeByUser("cost") },
     users,
     messageHistogram: {
       tokens: makeHistogram(perMessageRaw.map((r) => Number(r.tokens) || 0)),

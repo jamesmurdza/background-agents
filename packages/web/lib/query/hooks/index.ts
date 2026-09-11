@@ -35,7 +35,7 @@ export type {
 export { useAdminActivityQuery } from "./useAdminActivityQuery"
 export { useAdminUsersQuery, useUpdateUserMutation } from "./useAdminUsersQuery"
 export { useAdminTopupsQuery } from "./useAdminTopupsQuery"
-export type { AdminTopups, TopupUser, TopupSeriesPoint } from "./useAdminTopupsQuery"
+export type { AdminTopups, TopupUser, TopupSeriesPoint, UserBalance } from "./useAdminTopupsQuery"
 export { useRefreshClaudeCredsMutation } from "./useRefreshClaudeCredsMutation"
 export type {
   RefreshClaudeCredsParams,
@@ -45,3 +45,8 @@ export { useCcAuthRunsQuery } from "./useCcAuthRunsQuery"
 export type { CcAuthRun } from "./useCcAuthRunsQuery"
 export { useSetClaudeCredsMutation } from "./useSetClaudeCredsMutation"
 export type { SetClaudeCredsResult } from "./useSetClaudeCredsMutation"
+export {
+  useProviderPricingQuery,
+  useSetProviderMultiplierMutation,
+} from "./useProviderPricingQuery"
+export type { ProviderPricingRow } from "./useProviderPricingQuery"

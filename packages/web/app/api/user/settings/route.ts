@@ -23,6 +23,7 @@ import {
   validateEndpoints,
 } from "@/lib/server/custom-endpoints"
 import { withUserLock } from "@/lib/server/codex-credentials"
+import { getProviderMultipliers } from "@/lib/db/provider-pricing"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 
@@ -42,6 +43,16 @@ interface SettingsResponse {
    * The Credits tab still uses /api/user/credits, which also returns history.
    */
   creditBalanceUsd: number | null
+  /**
+   * Admin-editable pricing multiplier per provider (see lib/db/provider-pricing
+   * and the /admin Pricing panel). Carried here rather than fetched separately
+   * so the model picker (AgentModelSelector) can label each model's charged
+   * price without a client-side database import — lib/server/credits stays
+   * free of `server-only` specifically so its pure chargeableUsd/formatTokenRate
+   * math can run there against this map. A provider absent from this object
+   * charges at DEFAULT_MULTIPLIER (list value).
+   */
+  providerMultipliers: Record<string, number>
 }
 
 function readSettings(raw: unknown): Settings {
@@ -73,7 +84,10 @@ export async function GET(): Promise<Response> {
       select: { settings: true, customEndpoints: true },
     })
 
-    const effective = await (await import("@/lib/server/credential-flags")).getEffectiveCredentialFlags(userId)
+    const [effective, providerMultipliers] = await Promise.all([
+      (await import("@/lib/server/credential-flags")).getEffectiveCredentialFlags(userId),
+      getProviderMultipliers(),
+    ])
 
     const response: SettingsResponse = {
       settings: readSettings(user?.settings),
@@ -81,6 +95,7 @@ export async function GET(): Promise<Response> {
       customEndpoints: decryptUserEndpoints(user?.customEndpoints),
       planIsPro: effective.isPro,
       creditBalanceUsd: effective.creditBalanceUsd,
+      providerMultipliers,
     }
     return Response.json(response)
   } catch (error) {
@@ -186,7 +201,10 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     )
 
     // After updating credentials, recompute effective flags
-    const effective = await (await import("@/lib/server/credential-flags")).getEffectiveCredentialFlags(userId)
+    const [effective, providerMultipliers] = await Promise.all([
+      (await import("@/lib/server/credential-flags")).getEffectiveCredentialFlags(userId),
+      getProviderMultipliers(),
+    ])
 
     const response: SettingsResponse = {
       settings: newSettings,
@@ -196,6 +214,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       ),
       planIsPro: effective.isPro,
       creditBalanceUsd: effective.creditBalanceUsd,
+      providerMultipliers,
     }
     return Response.json(response)
   } catch (error) {

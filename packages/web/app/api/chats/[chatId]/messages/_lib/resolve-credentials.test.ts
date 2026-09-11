@@ -49,23 +49,6 @@ vi.mock("@/lib/db/encryption", () => ({
   decrypt: (v: string) => v,
 }))
 
-// The real CODEX_SUBSCRIPTION_ENABLED reads process.env at module-eval time
-// and is off by default (unset in this repo and in CI). Keep every other
-// export real and expose the flag as a live getter so both branches of the
-// guard are genuinely exercised.
-const codexFlagState = vi.hoisted(() => ({ enabled: true }))
-vi.mock("@/lib/codex-credentials", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/codex-credentials")>(
-    "@/lib/codex-credentials"
-  )
-  return {
-    ...actual,
-    get CODEX_SUBSCRIPTION_ENABLED() {
-      return codexFlagState.enabled
-    },
-  }
-})
-
 const refreshCodexTokens = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/server/codex-oauth", async () => {
   const actual = await vi.importActual<typeof import("@/lib/server/codex-oauth")>(
@@ -139,21 +122,9 @@ beforeEach(() => {
   testState.store.clear()
   refreshCodexTokens.mockReset()
   vi.mocked(getUserCredentials).mockResolvedValue({})
-  codexFlagState.enabled = true
 })
 
 describe("resolveSendCredentials never ships the real Codex refresh token", () => {
-  it("strips the stored blob when the subscription flag is off (the default deployment state)", async () => {
-    codexFlagState.enabled = false
-    seedSubscription()
-    const creds = credentialsOf(
-      await resolveSendCredentials("u1", { agent: "codex", model: "gpt-5.1-codex" } as never)
-    )
-    expect(leaks(creds)).toBe(false)
-    expect(creds.CODEX_CREDENTIALS).toBeUndefined()
-    expect(creds.OPENAI_API_KEY).toBe("sk-1")
-  })
-
   it("strips the stored blob when the credential needs reconnecting (auth.json resolves to null)", async () => {
     // needs_reconnect is reachable from client-side OAuth misconfiguration
     // (invalid_client / unauthorized_client), so the underlying grant may

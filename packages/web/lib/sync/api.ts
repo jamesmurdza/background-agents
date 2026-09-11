@@ -72,6 +72,13 @@ export interface SettingsResponse {
    * reads the same as null (no tier, no warning) through creditTier.
    */
   creditBalanceUsd?: number | null
+  /**
+   * Admin-editable pricing multiplier per provider (see lib/db/provider-pricing).
+   * Optional for the same reason as creditBalanceUsd — a missing value reads
+   * the same as "no multiplier configured for anyone" (list price for every
+   * provider) rather than breaking an older client.
+   */
+  providerMultipliers?: Record<string, number>
 }
 
 // =============================================================================

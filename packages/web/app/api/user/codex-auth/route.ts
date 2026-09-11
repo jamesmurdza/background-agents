@@ -10,17 +10,11 @@ import {
   pollCodexDeviceLogin,
 } from "@/lib/server/codex-login"
 import { disconnectCodex, readCodexCredential } from "@/lib/server/codex-credentials"
-import { CODEX_SUBSCRIPTION_ENABLED } from "@/lib/codex-credentials"
 
 // The login sandbox takes a few seconds to come up and print the code.
 export const maxDuration = 60
 
-function disabled(): Response {
-  return Response.json({ error: "CODEX_SUBSCRIPTION_DISABLED" }, { status: 404 })
-}
-
 export async function POST(): Promise<Response> {
-  if (!CODEX_SUBSCRIPTION_ENABLED) return disabled()
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
 
@@ -39,7 +33,6 @@ export async function POST(): Promise<Response> {
 }
 
 export async function GET(req: NextRequest): Promise<Response> {
-  if (!CODEX_SUBSCRIPTION_ENABLED) return disabled()
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
 
@@ -53,7 +46,6 @@ export async function GET(req: NextRequest): Promise<Response> {
 }
 
 export async function DELETE(): Promise<Response> {
-  if (!CODEX_SUBSCRIPTION_ENABLED) return disabled()
   const auth = await requireAuth()
   if (isAuthError(auth)) return auth
 

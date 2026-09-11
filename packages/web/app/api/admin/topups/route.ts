@@ -32,14 +32,19 @@ async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
 /**
  * GET /api/admin/topups
  *
- * Top-up payments (Stripe purchases credited via CreditTransaction), for two
- * views on the admin dashboard:
- *   - `series`: a running (cumulative) total over time, for the Overview chart.
- *   - `users`: the top payers in the range, for the Leaderboard chart.
- *
- * Scoped to `type = 'purchase'` only — refunds, chargebacks, grants, and usage
- * debits all live in the same ledger, but this answers "who is paying us, and
- * when," not "whose balance moved."
+ * Credit ledger (CreditTransaction) rollups, for two views on the admin
+ * dashboard:
+ *   - `series`: a running (cumulative) total of top-up payments over time,
+ *     for the Overview chart. Scoped to `type = 'purchase'` only — this
+ *     answers "how much have we raised, and when."
+ *   - `users`: every user with a purchase or a usage debit in range, topped-up
+ *     and spent totals side by side, for the Leaderboard's Usage by user
+ *     table. Refunds, chargebacks, grants, and adjustments are left out of
+ *     both — they don't answer "what did this user pay us and get charged."
+ *   - `balances`: every user's *current* credit balance — deliberately not
+ *     range-scoped (a balance is a point-in-time fact, not something that
+ *     happened "in the last 7 days") — so the Usage by user table's Balance
+ *     column is accurate even for a user with no ledger activity in range.
  *
  * Query params:
  *   - range: "24h" | "7d" | "30d" | "all" (default "30d")
@@ -62,23 +67,47 @@ export async function GET(request: NextRequest) {
   const rangeWhere = Prisma.sql`AND ct."createdAt" >= NOW() - ${interval}::interval`
   const adminWhere = Prisma.sql`AND (${excludeAdmins} = false OR u."isAdmin" = false)`
 
-  const topPromise = prisma.$queryRaw<
-    Array<{ userId: string; name: string | null; image: string | null; totalMicroUsd: number; count: bigint }>
+  // Every user with a purchase or a usage debit in range — no LIMIT, since the
+  // Leaderboard's Usage by user table wants the full roster, not just the top
+  // payers. "debit" rows are what actually left the balance (chargeableUsd),
+  // signed negative in the ledger — see lib/server/credits — so spentMicroUsd
+  // negates them back to a positive figure.
+  const ledgerPromise = prisma.$queryRaw<
+    Array<{
+      userId: string
+      name: string | null
+      image: string | null
+      toppedUpMicroUsd: number
+      spentMicroUsd: number
+      purchaseCount: bigint
+    }>
   >`
     SELECT
       u.id as "userId",
       u.name,
       u.image,
-      SUM(ct."amountMicroUsd")::float as "totalMicroUsd",
-      COUNT(ct.id)::bigint as count
+      COALESCE(SUM(CASE WHEN ct.type = 'purchase' THEN ct."amountMicroUsd" ELSE 0 END), 0)::float as "toppedUpMicroUsd",
+      COALESCE(SUM(CASE WHEN ct.type = 'debit' THEN -ct."amountMicroUsd" ELSE 0 END), 0)::float as "spentMicroUsd",
+      COUNT(CASE WHEN ct.type = 'purchase' THEN 1 END)::bigint as "purchaseCount"
     FROM "CreditTransaction" ct
     JOIN "User" u ON u.id = ct."userId"
-    WHERE ct.type = 'purchase'
+    WHERE ct.type IN ('purchase', 'debit')
       ${rangeWhere}
       ${adminWhere}
     GROUP BY u.id, u.name, u.image
-    ORDER BY "totalMicroUsd" DESC
-    LIMIT 10
+    ORDER BY "toppedUpMicroUsd" DESC, "spentMicroUsd" DESC
+  `
+
+  // Current balance for every user (subject only to the admin filter, not the
+  // range) — a separate, cheap query rather than folding into ledgerPromise's
+  // range-scoped WHERE, since a user's balance shouldn't read as $0 just
+  // because they had no purchase/debit this week.
+  const balancesPromise = prisma.$queryRaw<
+    Array<{ userId: string; balanceMicroUsd: number }>
+  >`
+    SELECT id as "userId", "creditBalanceMicroUsd"::float as "balanceMicroUsd"
+    FROM "User" u
+    WHERE (${excludeAdmins} = false OR u."isAdmin" = false)
   `
 
   const totalPromise = prisma.$queryRaw<Array<{ totalMicroUsd: number | null; count: bigint }>>`
@@ -131,14 +160,25 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({ time: r.date.toISOString().split("T")[0], value: Number(r.value) }))
         )
 
-  const [top, totalRows, seriesRaw] = await Promise.all([topPromise, totalPromise, seriesPromise])
+  const [ledger, balancesRaw, totalRows, seriesRaw] = await Promise.all([
+    ledgerPromise,
+    balancesPromise,
+    totalPromise,
+    seriesPromise,
+  ])
 
-  const users = top.map((r) => ({
+  const users = ledger.map((r) => ({
     userId: r.userId,
     name: r.name || "Unknown",
     image: r.image,
-    totalUsd: r.totalMicroUsd / MICRO_PER_USD,
-    count: Number(r.count),
+    toppedUpUsd: r.toppedUpMicroUsd / MICRO_PER_USD,
+    spentUsd: r.spentMicroUsd / MICRO_PER_USD,
+    purchaseCount: Number(r.purchaseCount),
+  }))
+
+  const balances = balancesRaw.map((r) => ({
+    userId: r.userId,
+    balanceUsd: r.balanceMicroUsd / MICRO_PER_USD,
   }))
 
   const totalRow = totalRows[0]
@@ -156,6 +196,7 @@ export async function GET(request: NextRequest) {
     totalUsd: (totalRow?.totalMicroUsd ?? 0) / MICRO_PER_USD,
     totalCount: Number(totalRow?.count ?? 0),
     users,
+    balances,
     series,
   })
 }

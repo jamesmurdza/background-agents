@@ -469,6 +469,29 @@ model StripeEvent {
 }
 
 // =============================================================================
+// ProviderPricing - admin-editable multiplier behind lib/db/provider-pricing
+// =============================================================================
+// Replaces the old hardcoded DISCOUNT_DIVISOR constant in lib/server/credits.
+// A turn's chargeable cost is `TokenUsage.costUsd * multiplier` (see
+// chargeableUsd) — one row per provider, keyed the same free-text way
+// TokenUsage.provider is (no Provider enum exists at the DB level; see that
+// model's comment). A provider absent from this table charges at
+// DEFAULT_MULTIPLIER (1, i.e. list value). A multiplier of exactly 0 makes the
+// provider free: chargeTurnToCredits charges nothing for it, and
+// checkSharedPoolUsage never blocks a send on balance for it either.
+//
+// `updatedBy` is the admin's userId, not a relation — this is an audit
+// breadcrumb, not something that should cascade-delete pricing history if the
+// admin account is ever removed.
+
+model ProviderPricing {
+  provider   String   @id
+  multiplier Float
+  updatedAt  DateTime @updatedAt
+  updatedBy  String?
+}
+
+// =============================================================================
 // ScheduledJob - Automated agent runs on a schedule
 // =============================================================================
 

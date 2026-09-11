@@ -19,6 +19,14 @@ export interface SettingsData {
    * since the anonymous shared-pool endpoint carries no user data.
    */
   creditBalanceUsd?: number | null
+  /**
+   * Admin-editable pricing multiplier per provider (see lib/db/provider-pricing
+   * and the /admin Pricing panel), keyed the same way TokenUsage.provider is.
+   * Empty when logged out — the anonymous shared-pool endpoint carries no
+   * pricing data — which AgentModelSelector reads the same way as a missing
+   * key: list price (DEFAULT_MULTIPLIER).
+   */
+  providerMultipliers?: Record<string, number>
 }
 
 /**
@@ -60,6 +68,7 @@ export function useSettingsQuery() {
         customEndpoints: response.customEndpoints,
         planIsPro: response.planIsPro,
         creditBalanceUsd: response.creditBalanceUsd ?? null,
+        providerMultipliers: response.providerMultipliers ?? {},
       }
     },
     // Wait until NextAuth resolves so we don't fetch the anon endpoint for a

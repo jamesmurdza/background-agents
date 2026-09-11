@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
-import { formatAxisDate, formatMetricValue, formatTooltipDate } from "./chartFormatters"
+import { formatAxisDate, formatHour, formatMetricValue, formatTooltipDate } from "./chartFormatters"
 import type { PoolSplitPoint, UsageMetric } from "@/lib/query/hooks"
 
 // Shared is our spend, so it takes the primary colour; own-key is muted since it
@@ -22,6 +22,8 @@ const USER_COLOR = "hsl(152, 60%, 50%)"
 interface PoolSplitChartProps {
   data: PoolSplitPoint[]
   metric: UsageMetric
+  /** True when `data` is bucketed by hour-of-day (the 24h range) rather than by day. */
+  isHourly?: boolean
 }
 
 /**
@@ -31,7 +33,7 @@ interface PoolSplitChartProps {
  * pool breakdown, and its job is showing how much of total demand lands on
  * credentials we pay for.
  */
-export function PoolSplitChart({ data, metric }: PoolSplitChartProps) {
+export function PoolSplitChart({ data, metric, isHourly = false }: PoolSplitChartProps) {
   const fmt = (v: number) => formatMetricValue(metric, v)
   const sharedTotal = data.reduce((acc, d) => acc + d.shared, 0)
   const userTotal = data.reduce((acc, d) => acc + d.user, 0)
@@ -54,10 +56,12 @@ export function PoolSplitChart({ data, metric }: PoolSplitChartProps) {
             <XAxis
               dataKey="time"
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(value) => formatAxisDate(value)}
+              tickFormatter={(value) =>
+                isHourly ? formatHour(Number(value)) : formatAxisDate(value)
+              }
               axisLine={{ stroke: "hsl(var(--border))" }}
               tickLine={{ stroke: "hsl(var(--border))" }}
-              interval="preserveStartEnd"
+              interval={isHourly ? 3 : "preserveStartEnd"}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -69,7 +73,7 @@ export function PoolSplitChart({ data, metric }: PoolSplitChartProps) {
             <Tooltip
               {...chartTooltipProps}
               cursor={lineTooltipCursor}
-              labelFormatter={(label) => formatTooltipDate(label)}
+              labelFormatter={(label) => (isHourly ? formatHour(Number(label)) : formatTooltipDate(label))}
               formatter={(value) => fmt(Number(value))}
               isAnimationActive={false}
             />

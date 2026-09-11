@@ -25,6 +25,21 @@ export function formatHour(hour: number): string {
   return `${hour - 12}pm`
 }
 
+/**
+ * Categorical palette for charts with an open-ended number of series (per
+ * key, per user, …). Cycles via modulo once there are more series than
+ * colors — shared here so every such chart lands on the same cycle rather
+ * than each picking its own.
+ */
+export const CATEGORICAL_COLORS = [
+  "hsl(262, 83%, 58%)",
+  "hsl(152, 60%, 50%)",
+  "hsl(38, 92%, 50%)",
+  "hsl(199, 89%, 48%)",
+  "hsl(340, 82%, 52%)",
+  "hsl(25, 95%, 53%)",
+]
+
 /** Dashboard metric the charts are weighted by. */
 export type StatsMetric = "tokens" | "cost" | "messages"
 
@@ -49,12 +64,17 @@ function formatCompactNumber(value: number): string {
   return `${Math.round(value)}`
 }
 
-/** Format a USD amount with precision scaled to its magnitude. */
+/** Format a USD amount with precision scaled to its magnitude. Sign printed
+ * before the "$", not after — most figures here are non-negative (spend,
+ * tokens), but a credit balance can overshoot negative, and "$-1.23" reads as
+ * a typo where "-$1.23" doesn't. */
 function formatCost(value: number): string {
   if (value === 0) return "$0"
-  if (Math.abs(value) < 0.01) return `$${value.toFixed(4)}`
-  if (Math.abs(value) < 1) return `$${value.toFixed(3)}`
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const sign = value < 0 ? "-" : ""
+  const abs = Math.abs(value)
+  if (abs < 0.01) return `${sign}$${abs.toFixed(4)}`
+  if (abs < 1) return `${sign}$${abs.toFixed(3)}`
+  return `${sign}$${abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 /** Format a numeric value according to the selected metric. */

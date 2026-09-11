@@ -13,8 +13,9 @@
 import { Prisma } from "@prisma/client"
 
 import {
-  discountDivisorFor,
+  chargeableUsd,
   microToUsd,
+  normalizeMultiplier,
   SIGNUP_CREDIT_USD,
   signupGrantKey,
   splitTurnCost,
@@ -162,7 +163,7 @@ export interface ChargeableUsageRow {
   provider: string
   pool: string
   freeModel: boolean
-  /** API list value, as stored. The discount is applied here, not upstream. */
+  /** API list value, as stored. The multiplier is applied here, not upstream. */
   costUsd: number
 }
 
@@ -170,9 +171,14 @@ export interface ChargeableUsageRow {
  * Charge a finished turn to the user's credit balance. Returns the total
  * debited, in micro-dollars.
  *
- * The amount debited is the row's list value divided by its provider's
- * {@link discountDivisorFor} — a credit is not a dollar of list value. Both
- * numbers, and the divisor between them, are recorded on the ledger row.
+ * The amount debited is the row's list value times its provider's pricing
+ * multiplier (see {@link chargeableUsd} in lib/server/credits) — a credit is
+ * not a dollar of list value. Both numbers, and the multiplier between them,
+ * are recorded on the ledger row. `multipliers` is pre-fetched by the caller
+ * (see `getProviderMultipliers` in lib/db/provider-pricing) rather than looked
+ * up here, so this stays a pure ledger-write path: one read of the pricing
+ * table per turn instead of one per row, and unit-testable with a plain object
+ * instead of a mocked database.
  *
  * Runs inside the metering transaction, under the advisory lock that already
  * serialises this session's usage writes — so the same turn cannot be charged
@@ -191,7 +197,10 @@ export interface ChargeableUsageRow {
  *
  * Only shared-pool, non-free, budget-pool rows can draw the balance — the same
  * three conditions sumSharedSpend filters on, so what is charged and what is
- * counted as spent cannot drift apart.
+ * counted as spent cannot drift apart. A provider whose multiplier is 0 clears
+ * this loop too (chargeable computes to 0, so `fromCredits <= 0` skips it
+ * below) — that is the entire mechanism behind a provider being free; there is
+ * no separate "free provider" branch to keep in sync.
  */
 export async function chargeTurnToCredits(
   params: {
@@ -200,10 +209,12 @@ export async function chargeTurnToCredits(
     rows: ChargeableUsageRow[]
     /** Allowance remaining before this turn, or Infinity when uncapped. */
     dailyLeft: number
+    /** Provider → pricing multiplier, from getProviderMultipliers. */
+    multipliers: Record<string, number>
   },
   tx: Prisma.TransactionClient
 ): Promise<bigint> {
-  const { userId, chatId, rows } = params
+  const { userId, chatId, rows, multipliers } = params
   let dailyLeft = params.dailyLeft
   let debited = 0n
 
@@ -217,12 +228,12 @@ export async function chargeTurnToCredits(
       continue
     }
 
-    // The ledger row holds list value; the balance is charged that divided by
-    // the provider's subsidy. Applied here rather than at write time in
+    // The ledger row holds list value; the balance is charged that times the
+    // provider's multiplier. Applied here rather than at write time in
     // token-metering so `TokenUsage.costUsd` keeps meaning one thing — see the
     // header of lib/server/credits.
-    const divisor = discountDivisorFor(row.provider)
-    const chargeable = row.costUsd / divisor
+    const multiplier = normalizeMultiplier(multipliers[row.provider])
+    const chargeable = chargeableUsd(row.costUsd, multiplier)
 
     const { fromDaily, fromCredits } = splitTurnCost({
       cost: chargeable,
@@ -234,9 +245,9 @@ export async function chargeTurnToCredits(
     const micro = usdToMicro(fromCredits)
     // A charge smaller than a micro-dollar rounds to nothing. Skipping it beats
     // writing a zero-amount ledger row that burns the row's one unique
-    // tokenUsageId slot for no movement. The divisor widens this a little — at
-    // 20× it takes $0.00001 of list value to register — which is still far below
-    // the cheapest genuine turn on the ledger.
+    // tokenUsageId slot for no movement. A steep multiplier (e.g. 0.05) widens
+    // this a little — it takes $0.00001 of list value to register — which is
+    // still far below the cheapest genuine turn on the ledger.
     if (micro === 0n) continue
 
     await applyCreditTransaction(
@@ -249,13 +260,13 @@ export async function chargeTurnToCredits(
         // Just the provider: the Credits tab already renders the type ("Usage")
         // beside it, so anything more here reads as "Usage · claude usage".
         description: row.provider,
-        // The provenance of the number above. `divisor` is stamped per row
+        // The provenance of the number above. `multiplier` is stamped per row
         // because it is the only thing that keeps this charge reproducible once
-        // the constants move — without it an old debit cannot be tied back to
+        // the admin moves it — without it an old debit cannot be tied back to
         // the list value it came from.
         metadata: {
           listUsd: row.costUsd,
-          divisor,
+          multiplier,
           provider: row.provider,
         },
       },
@@ -275,35 +286,50 @@ export interface CreditTransactionRecord {
   type: string
   description: string | null
   chatId: string | null
-  /** Provenance: `{ listUsd, divisor, provider }` on a debit, else null. */
+  /** Provenance: `{ listUsd, multiplier, provider }` on a debit, else null. */
   metadata: Prisma.JsonValue | null
   createdAt: Date
 }
 
 /** The provenance blob a `debit` row carries, once narrowed from JSON. */
 export interface DebitProvenance {
-  /** API list value of the turn, before the provider's discount. */
+  /** API list value of the turn, before the provider's multiplier. */
   listUsd: number
-  /** The divisor in force when this row was written. */
-  divisor: number
+  /** The multiplier in force when this row was written. */
+  multiplier: number
   provider: string
 }
 
 /**
  * Narrow a ledger row's `metadata` to {@link DebitProvenance}, or null.
  *
- * Rows written before the discount existed, and every non-debit row, have no
+ * Rows written before pricing existed, and every non-debit row, have no
  * provenance — so every caller has to handle its absence anyway, and returning
  * null beats making them each re-derive the shape.
+ *
+ * Accepts the legacy `divisor` field too: rows written before the discount
+ * became an admin-editable multiplier stamped `divisor` instead of
+ * `multiplier`, and history is never rewritten — see the header of
+ * lib/server/credits. Translating `1 / divisor` here means every caller sees
+ * one shape regardless of when the row was written.
  */
 export function readDebitProvenance(
   metadata: Prisma.JsonValue | null | undefined
 ): DebitProvenance | null {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null
-  const { listUsd, divisor, provider } = metadata as Record<string, unknown>
+  const { listUsd, multiplier, divisor, provider } = metadata as Record<string, unknown>
   if (typeof listUsd !== "number" || !Number.isFinite(listUsd)) return null
-  if (typeof divisor !== "number" || !Number.isFinite(divisor)) return null
-  return { listUsd, divisor, provider: typeof provider === "string" ? provider : "" }
+
+  let m: number
+  if (typeof multiplier === "number" && Number.isFinite(multiplier)) {
+    m = multiplier
+  } else if (typeof divisor === "number" && Number.isFinite(divisor) && divisor > 0) {
+    m = 1 / divisor
+  } else {
+    return null
+  }
+
+  return { listUsd, multiplier: m, provider: typeof provider === "string" ? provider : "" }
 }
 
 /** What one provider actually cost the user, in credits, within one chat. */

@@ -1,13 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-// CODEX_SUBSCRIPTION_ENABLED reads process.env at module-eval time and is off
-// by default. Expose a mutable flag (live binding via a getter) so tests can
-// exercise both the on and off branches of the route's guard, following the
-// same pattern as app/api/user/codex-auth/route.test.ts.
-const { queryRaw, refreshCodexCredentialForUser, codexFlagState } = vi.hoisted(() => ({
+const { queryRaw, refreshCodexCredentialForUser } = vi.hoisted(() => ({
   queryRaw: vi.fn(),
   refreshCodexCredentialForUser: vi.fn(),
-  codexFlagState: { enabled: true },
 }))
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -15,11 +10,6 @@ vi.mock("@/lib/db/prisma", () => ({
 }))
 vi.mock("@/lib/server/codex-credentials", () => ({
   refreshCodexCredentialForUser,
-}))
-vi.mock("@/lib/codex-credentials", () => ({
-  get CODEX_SUBSCRIPTION_ENABLED() {
-    return codexFlagState.enabled
-  },
 }))
 
 import { GET } from "./route"
@@ -30,7 +20,6 @@ function fakeRequest(headers?: Record<string, string>): Request {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  codexFlagState.enabled = true
   delete process.env.CRON_SECRET
 })
 
@@ -52,19 +41,6 @@ describe("refresh-codex-creds route: auth", () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ scanned: 0 })
-  })
-})
-
-describe("refresh-codex-creds route: disabled flag", () => {
-  it("returns the disabled response without querying users", async () => {
-    codexFlagState.enabled = false
-
-    const res = await GET(fakeRequest())
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ skipped: "disabled" })
-    expect(queryRaw).not.toHaveBeenCalled()
-    expect(refreshCodexCredentialForUser).not.toHaveBeenCalled()
   })
 })
 

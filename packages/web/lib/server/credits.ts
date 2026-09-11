@@ -1,5 +1,6 @@
 /**
- * Credits: units, the grants, the shared-pool discount, and the spend split.
+ * Credits: units, the grants, the shared-pool pricing multiplier, and the
+ * spend split.
  *
  * Credits are the only balance that gates a send (see lib/db/usage-limit).
  * They arrive as a grant on signup, are topped up a little each day, and are
@@ -7,27 +8,31 @@
  *
  * A credit is a US dollar, but it is NOT a dollar of API list value. The ledger
  * stores list value in `TokenUsage.costUsd` — what the tokens would have cost
- * at published rates — and a turn is charged that figure divided by
- * {@link DISCOUNT_DIVISOR} for its provider. The divisor exists because the
- * shared pools are not bought at list: Claude runs on a flat Max 20x
- * subscription that returned ~33× its cost over the first 83 days of the
+ * at published rates — and a turn is charged that figure times its provider's
+ * pricing multiplier (see {@link chargeableUsd}), an admin-editable value
+ * fetched from the table behind lib/db/provider-pricing. The multiplier exists
+ * because the shared pools are not bought at list: Claude runs on a flat Max
+ * 20x subscription that returned ~33× its cost over the first 83 days of the
  * ledger, so billing a user list value would overcharge them by roughly that
- * factor.
+ * factor. A multiplier of exactly 0 makes a provider free — see
+ * {@link isFreeMultiplier}.
  *
  * The two numbers are kept apart rather than reconciled. `costUsd` stays list
  * value, because every admin rollup and every threshold in
  * lib/server/turn-pricing is calibrated against it and rewriting its meaning
- * would silently reinterpret all existing history. The discounted figure is
- * what lands in `CreditTransaction.amountMicroUsd`, alongside the list value
- * and the divisor in force, so a row stays explainable after the divisors move.
+ * would silently reinterpret all existing history. The charged figure is what
+ * lands in `CreditTransaction.amountMicroUsd`, alongside the list value and the
+ * multiplier in force, so a row stays explainable after the admin moves it.
  *
  * Free of database imports so the arithmetic can be unit-tested on its own,
- * mirroring lib/server/usage-cursor. The database side lives in lib/db/credits.
+ * mirroring lib/server/usage-cursor. The multiplier table itself lives in
+ * lib/db/provider-pricing; the ledger writes live in lib/db/credits.
  *
  * Despite the `lib/server` path this module must stay importable from the
- * client: the model picker reads {@link discountDivisorFor} to label the
- * discount beside each model's list price. Keep it free of `server-only` and of
- * anything that pulls one in.
+ * client: the model picker calls {@link chargeableUsd} to label the charged
+ * price beside each model's list price, given the multiplier map the settings
+ * endpoint fetches server-side. Keep it free of `server-only` and of anything
+ * that pulls one in.
  */
 
 import type { Plan } from "@/lib/server/usage-budgets"
@@ -45,57 +50,71 @@ import type { Plan } from "@/lib/server/usage-budgets"
 export const MICRO_PER_USD = 1_000_000
 
 /**
- * What a metered turn's list value is divided by before it reaches the balance,
- * keyed by the internal provider id (`TokenUsage.provider`).
+ * What a metered turn's list value is multiplied by before it reaches the
+ * balance, keyed by the internal provider id (`TokenUsage.provider`). Rates
+ * live in the `ProviderPricing` table now — this is just the fallback and the
+ * validation around it. See lib/db/provider-pricing for the admin-editable,
+ * cached read/write path (`getMultiplierFor`, `setProviderMultiplier`), which
+ * is what the admin panel and the metering/gating paths actually call.
  *
- * These are the free tier's real dial, and they are expected to move. Anything
- * not listed divides by {@link NO_DISCOUNT} — a provider we have no subsidised
- * pool for is charged what it is worth.
+ * These are the free tier's real dial, and they are expected to move. A
+ * provider with no configured row charges at {@link DEFAULT_MULTIPLIER} — full
+ * list value, i.e. no subsidy.
  *
- * Sized against what the pools actually cost us rather than picked round:
- * Claude is a flat Max 20x subscription (~33× its price in list value over the
- * ledger's first 83 days), while OpenCode and Gemini are metered keys bought
- * near list, so their subsidy is deliberately much smaller.
+ * Sized (at the values seeded into the table) against what the pools actually
+ * cost us rather than picked round: Claude is a flat Max 20x subscription
+ * (~33× its price in list value over the ledger's first 83 days, i.e. a
+ * multiplier around 0.05), while OpenCode and Gemini are metered keys bought
+ * near list, so their subsidy is deliberately much smaller (around 0.5).
  *
  * Note the interaction with {@link SIGNUP_CREDIT_USD}: the grant is denominated
- * in credits, so raising a divisor makes the same grant go further on that
- * provider and only that provider.
+ * in credits, so lowering a multiplier makes the same grant go further on that
+ * provider and only that provider. And with the send gate in
+ * lib/db/usage-limit: a multiplier of exactly 0 is not just cheap, it is free
+ * — see {@link isFreeMultiplier}.
  */
-export const DISCOUNT_DIVISOR: Readonly<Record<string, number>> = {
-  claude: 20,
-  opencode: 2,
-  gemini: 2,
-}
-
-/** The divisor for a provider we do not subsidise: charge list value. */
-const NO_DISCOUNT = 1
+export const DEFAULT_MULTIPLIER = 1
 
 /**
- * The divisor to charge `provider` at.
+ * Coerce a stored or looked-up multiplier to something safe to charge with.
  *
- * Falls back to {@link NO_DISCOUNT} for an unknown provider *and* for a
- * nonsensical entry (zero, negative, non-finite). A mistyped constant must
- * never make a turn free or credit the user for running one — that is the same
- * hazard `floorCostUsd` guards in lib/server/turn-pricing, one layer down.
+ * Falls back to {@link DEFAULT_MULTIPLIER} for a missing entry *and* for a
+ * nonsensical one (negative, non-finite). A corrupt or missing value must
+ * never make a turn free by accident or credit the user for running one —
+ * that is the same hazard `floorCostUsd` guards in lib/server/turn-pricing,
+ * one layer down. Free is only ever reached by an explicit, validated 0 (see
+ * setProviderMultiplier in lib/db/provider-pricing).
  */
-export function discountDivisorFor(provider: string): number {
-  const divisor = DISCOUNT_DIVISOR[provider]
-  if (typeof divisor !== "number" || !Number.isFinite(divisor) || divisor <= 0) {
-    return NO_DISCOUNT
+export function normalizeMultiplier(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return DEFAULT_MULTIPLIER
   }
-  return divisor
+  return value
+}
+
+/**
+ * True when a multiplier makes a provider free: no charge reaches credits,
+ * and (per lib/db/usage-limit) a send is never blocked on balance for it.
+ */
+export function isFreeMultiplier(multiplier: number): boolean {
+  return multiplier === 0
 }
 
 /**
  * A turn's list value → what actually comes off the balance.
  *
- * The inverse is `chargedUsd * discountDivisorFor(provider)`, which is why the
- * divisor is stamped on every debit row: it is the only thing that makes an old
- * charge reproducible once these constants change.
+ * `multiplier` should be the provider's current rate (see
+ * `getMultiplierFor`/`getProviderMultipliers` in lib/db/provider-pricing), but
+ * is re-validated here regardless — this is the boundary that must never
+ * charge free or negative by accident, so it does not trust its caller.
+ *
+ * The inverse is `chargedUsd / multiplier` (for a nonzero multiplier), which is
+ * why the multiplier is stamped on every debit row: it is the only thing that
+ * makes an old charge reproducible once the admin moves it.
  */
-export function chargeableUsd(provider: string, listUsd: number): number {
+export function chargeableUsd(listUsd: number, multiplier: number): number {
   if (!Number.isFinite(listUsd) || listUsd <= 0) return 0
-  return listUsd / discountDivisorFor(provider)
+  return listUsd * normalizeMultiplier(multiplier)
 }
 
 /**
@@ -107,9 +126,10 @@ export function chargeableUsd(provider: string, listUsd: number): number {
  * in migration 20260905120000_backfill_signup_credits, frozen on purpose: a
  * migration records what was actually granted on the day it ran.
  *
- * Worth sizing against {@link DISCOUNT_DIVISOR} rather than in the abstract. At
- * the divisors above this buys roughly two Claude turns, six paid OpenCode turns
- * or nine Gemini turns, measured on the ledger's own per-turn averages. It is no
+ * Worth sizing against the multipliers seeded in `ProviderPricing` rather than
+ * in the abstract. At those rates this buys roughly two Claude turns, six paid
+ * OpenCode turns or nine Gemini turns, measured on the ledger's own per-turn
+ * averages. It is no
  * longer the whole free tier — {@link DAILY_CREDIT_USD} refills behind it — so it
  * only has to cover a first session, not a relationship.
  */
@@ -256,7 +276,7 @@ export interface TurnCostSplit {
  * point. A run is gated only *before* it starts, so the turn that empties the
  * balance can overshoot it by an unbounded amount — one production run cost
  * $476 of list value, which is still $23.80 of credits at today's Claude
- * divisor. That overshoot is recorded as a negative balance, which the gate
+ * multiplier. That overshoot is recorded as a negative balance, which the gate
  * refuses until a top-up (or enough daily credits) clears it. Clamping here
  * would quietly forgive it and make "top up a dollar, run an expensive turn,
  * repeat" a free ride.

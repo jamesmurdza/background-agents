@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { TrendingUp } from "lucide-react"
 import {
   AreaChart,
@@ -12,7 +12,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
-import { chartTooltipProps, lineTooltipCursor } from "./chartTooltip"
+import { lineTooltipCursor, SingleAreaTooltipContent, useSingleAreaHover } from "./chartTooltip"
 import {
   formatAxisDate,
   formatTooltipDate,
@@ -56,9 +56,18 @@ export function MessagesByModelChart({
   isHourly = false,
 }: MessagesByModelChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("agents")
+  const { hoveredKey, getHoverHandlers, reset: resetHover } = useSingleAreaHover()
 
   const data = viewMode === "agents" ? agentData : modelData
   const hasData = data && data.length > 0
+
+  // A stale hoveredKey from the other view (e.g. an agent id that isn't a
+  // model id) would just render no tooltip, but clear it anyway so switching
+  // views doesn't leave a phantom hover state.
+  useEffect(() => {
+    resetHover()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode])
 
   // Total usage per series, used to order the legend/stack by most-used first.
   const totals: Record<string, number> = {}
@@ -147,13 +156,22 @@ export function MessagesByModelChart({
                 width={50}
                 tickFormatter={(value) => formatMetricValue(metric, Number(value))}
               />
+              {/* Only shows a tooltip for the specific band the mouse is over
+                  (see useSingleAreaHover) — AreaChart has no built-in
+                  per-item hover mode, so `active`/`content` fake one. */}
               <Tooltip
-                {...chartTooltipProps}
-                cursor={lineTooltipCursor}
-                labelFormatter={(label) =>
-                  isHourly ? formatHour(Number(label)) : formatTooltipDate(label)
-                }
-                formatter={(value) => formatMetricValue(metric, Number(value))}
+                active={hoveredKey !== null}
+                cursor={hoveredKey !== null ? lineTooltipCursor : false}
+                content={(props) => (
+                  <SingleAreaTooltipContent
+                    {...props}
+                    hoveredKey={hoveredKey}
+                    formatValue={(v) => formatMetricValue(metric, v)}
+                    formatLabel={(label) =>
+                      isHourly ? formatHour(Number(label)) : formatTooltipDate(label)
+                    }
+                  />
+                )}
                 isAnimationActive={false}
               />
               {/* itemSorter={null} keeps the legend in our usage-sorted Area
@@ -173,6 +191,7 @@ export function MessagesByModelChart({
                     fillOpacity={0.6}
                     legendType={key === OTHER_KEY ? "diamond" : "rect"}
                     isAnimationActive={false}
+                    {...getHoverHandlers(key)}
                   />
                 )
               })}

@@ -8,7 +8,6 @@
  */
 import { prisma } from "@/lib/db/prisma"
 import { refreshCodexCredentialForUser } from "@/lib/server/codex-credentials"
-import { CODEX_SUBSCRIPTION_ENABLED } from "@/lib/codex-credentials"
 
 export const maxDuration = 300
 
@@ -58,10 +57,6 @@ export async function GET(req: Request): Promise<Response> {
   if (cronSecret && req.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 })
   }
-  if (!CODEX_SUBSCRIPTION_ENABLED) {
-    return Response.json({ skipped: "disabled" })
-  }
-
   // Only users who actually have the credential. Uses the `->` accessor
   // rather than the `?` containment operator: `?` is ambiguous with a driver
   // parameter placeholder inside a Prisma tagged template.
