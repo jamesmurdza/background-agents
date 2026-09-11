@@ -9,6 +9,7 @@ import {
   internalError,
 } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
+import { getInheritedMessages } from "@/lib/db/branch-history"
 
 // =============================================================================
 // Helpers
@@ -147,17 +148,17 @@ export async function GET(
 
     // When this chat was branched from a parent, the parent's conversation is
     // replayed to the agent for context but isn't stored on this chat. Surface
-    // it in the UI too by prepending the parent's user/assistant messages,
-    // flagged `inherited` so the client renders them read-only. Only on a full
-    // fetch (delta sync via afterMessageId is for this chat's own new messages).
+    // it in the UI too by prepending the parent's user/assistant messages *as
+    // they stood at the branch point* (see getInheritedMessages), flagged
+    // `inherited` so the client renders them read-only. Only on a full fetch
+    // (delta sync via afterMessageId is for this chat's own new messages).
     let inheritedMessages: MessageResponse[] = []
     if (chat.parentChatId && !afterMessageId) {
-      const parentMessages = await prisma.message.findMany({
-        where: { chatId: chat.parentChatId, role: { in: ["user", "assistant"] } },
-        orderBy: { timestamp: "asc" },
+      const parentMessages = await getInheritedMessages({
+        parentChatId: chat.parentChatId,
+        createdAt: chat.createdAt,
       })
       inheritedMessages = parentMessages
-        .filter((m) => m.content.trim().length > 0)
         .map((m) => ({
           id: `inherited-${m.id}`,
           role: m.role,

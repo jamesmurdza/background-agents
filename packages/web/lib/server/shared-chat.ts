@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
+import { getInheritedMessages } from "@/lib/db/branch-history"
 import { NEW_REPOSITORY } from "@/lib/types"
 
 // =============================================================================
@@ -93,7 +94,7 @@ function toSharedMessage(m: NonNullable<MessageRow>, inherited = false): SharedM
 export async function getSharedChat(shareId: string): Promise<SharedChat | null> {
   const chat = await prisma.chat.findUnique({
     where: { shareId },
-    select: { id: true, displayName: true, repo: true, parentChatId: true },
+    select: { id: true, displayName: true, repo: true, parentChatId: true, createdAt: true },
   })
   if (!chat) return null
 
@@ -103,13 +104,11 @@ export async function getSharedChat(shareId: string): Promise<SharedChat | null>
   // it muted with a divider. Same sanitization applies to both.
   let inheritedMessages: SharedMessage[] = []
   if (chat.parentChatId) {
-    const parentMessages = await prisma.message.findMany({
-      where: { chatId: chat.parentChatId, role: { in: ["user", "assistant"] } },
-      orderBy: { timestamp: "asc" },
+    const parentMessages = await getInheritedMessages({
+      parentChatId: chat.parentChatId,
+      createdAt: chat.createdAt,
     })
-    inheritedMessages = parentMessages
-      .filter((m) => m.content.trim().length > 0)
-      .map((m) => toSharedMessage(m, true))
+    inheritedMessages = parentMessages.map((m) => toSharedMessage(m, true))
   }
 
   const messages = await prisma.message.findMany({

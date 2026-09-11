@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
+import { getInheritedHistory } from "@/lib/db/branch-history"
 import type { ChatRecord, MessagePayload } from "./types"
 
 type AgentHistory = { role: "user" | "assistant"; content: string }[]
@@ -61,25 +62,15 @@ export async function buildAgentHistory(
 
   // When a chat is forked from a parent (via /branch, Option+Enter, etc.),
   // the first message should include the parent's conversation history so
-  // the agent has context about what was previously discussed.
+  // the agent has context about what was previously discussed — frozen at the
+  // branch point, so turns the parent took after the branch never leak in.
   if (!history && chat.parentChatId && !lastAssistant) {
-    const parentMessages = await prisma.message.findMany({
-      where: { chatId: chat.parentChatId },
-      orderBy: { timestamp: "asc" },
-      select: { role: true, content: true },
+    history = await getInheritedHistory({
+      parentChatId: chat.parentChatId,
+      createdAt: chat.createdAt,
     })
-    history = parentMessages
-      .filter(
-        (
-          m
-        ): m is typeof m & { role: "user" | "assistant" } =>
-          (m.role === "user" || m.role === "assistant") &&
-          !!m.content.trim()
-      )
-      .map((m) => ({ role: m.role, content: m.content }))
 
-    if (history.length === 0) history = undefined
-    else
+    if (history)
       console.log(
         `[chats/messages] Chat fork detected: injecting ${history.length} parent messages`
       )
