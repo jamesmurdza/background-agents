@@ -93,24 +93,6 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }))
 
-// CODEX_SUBSCRIPTION_ENABLED is read from process.env at module-eval time and
-// is off in CI, which would freeze applyCodexSubscription's guard on one
-// branch. Keep every other export real (parseCodexCredential /
-// buildCodexAuthJson are load-bearing here) and make just the flag a live
-// getter so both branches are genuinely exercised.
-const codexFlagState = vi.hoisted(() => ({ enabled: true }))
-vi.mock("@/lib/codex-credentials", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/codex-credentials")>(
-    "@/lib/codex-credentials"
-  )
-  return {
-    ...actual,
-    get CODEX_SUBSCRIPTION_ENABLED() {
-      return codexFlagState.enabled
-    },
-  }
-})
-
 import {
   resolveCodexAuthJson,
   applyCodexSubscription,
@@ -144,7 +126,6 @@ beforeEach(() => {
   testState.failNextUpdate = null
   refreshCodexTokens.mockReset()
   revokeCodexToken.mockReset().mockResolvedValue(true)
-  codexFlagState.enabled = true
 })
 
 /**
@@ -158,8 +139,8 @@ beforeEach(() => {
  * value, not the key name.
  *
  * Verified by mutation: commenting out the `delete next.CODEX_CREDENTIALS`
- * line in applyCodexSubscription makes the flag-off, no-subscription,
- * non-codex and custom-endpoint cases below all fail.
+ * line in applyCodexSubscription makes the no-subscription, non-codex and
+ * custom-endpoint cases below all fail.
  */
 describe("applyCodexSubscription", () => {
   const REAL = "rt.REAL-USER-GRANT-MUST-NOT-LEAK"
@@ -170,20 +151,6 @@ describe("applyCodexSubscription", () => {
   }
 
   const leaks = (creds: unknown) => JSON.stringify(creds).includes(REAL)
-
-  it("strips the stored blob when the feature flag is off", async () => {
-    codexFlagState.enabled = false
-    await storeCodexCredential("u1", cred({ refresh_token: REAL }))
-    const out = await applyCodexSubscription(
-      { OPENAI_API_KEY: "sk-1", CODEX_CREDENTIALS: storedBlob() },
-      "u1",
-      "codex",
-      "gpt-5.1-codex"
-    )
-    expect(leaks(out)).toBe(false)
-    expect(out.CODEX_CREDENTIALS).toBeUndefined()
-    expect(out.OPENAI_API_KEY).toBe("sk-1")
-  })
 
   it("strips the stored blob when the user has no usable subscription", async () => {
     // needs_reconnect: resolveCodexAuthJson returns null, but the row (and the

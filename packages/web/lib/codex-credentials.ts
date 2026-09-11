@@ -60,11 +60,6 @@ export interface CodexCliAuthFile {
  */
 export const CODEX_PLACEHOLDER_REFRESH_TOKEN = "rt.PLACEHOLDER.managed-server-side"
 
-/** Master switch. Off unless explicitly enabled. */
-export const CODEX_SUBSCRIPTION_ENABLED =
-  process.env.CODEX_SUBSCRIPTION_ENABLED === "1" ||
-  process.env.CODEX_SUBSCRIPTION_ENABLED === "true"
-
 /** Seconds before expiry that we assume as the refresh window when OpenAI omits one. */
 const DEFAULT_REFRESH_LEAD_SECONDS = 86400
 

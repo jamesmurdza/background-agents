@@ -1,24 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { NextRequest } from "next/server"
 
-// CODEX_SUBSCRIPTION_ENABLED reads process.env at module-eval time and is
-// off by default. Expose a mutable flag (live binding via a getter) so tests
-// can exercise both the on and off branches of the route's guard, following
-// the same pattern as
-// app/api/chats/[chatId]/messages/_lib/resolve-credentials.test.ts.
-const {
-  startCodexDeviceLogin,
-  pollCodexDeviceLogin,
-  disconnectCodex,
-  readCodexCredential,
-  codexFlagState,
-} = vi.hoisted(() => ({
-  startCodexDeviceLogin: vi.fn(),
-  pollCodexDeviceLogin: vi.fn(),
-  disconnectCodex: vi.fn(),
-  readCodexCredential: vi.fn(),
-  codexFlagState: { enabled: true },
-}))
+const { startCodexDeviceLogin, pollCodexDeviceLogin, disconnectCodex, readCodexCredential } =
+  vi.hoisted(() => ({
+    startCodexDeviceLogin: vi.fn(),
+    pollCodexDeviceLogin: vi.fn(),
+    disconnectCodex: vi.fn(),
+    readCodexCredential: vi.fn(),
+  }))
 
 vi.mock("@/lib/server/codex-login", () => ({
   startCodexDeviceLogin,
@@ -27,11 +16,6 @@ vi.mock("@/lib/server/codex-login", () => ({
 vi.mock("@/lib/server/codex-credentials", () => ({
   disconnectCodex,
   readCodexCredential,
-}))
-vi.mock("@/lib/codex-credentials", () => ({
-  get CODEX_SUBSCRIPTION_ENABLED() {
-    return codexFlagState.enabled
-  },
 }))
 vi.mock("@/lib/db/api-helpers", () => ({
   requireAuth: vi.fn().mockResolvedValue({ userId: "authenticated-user" }),
@@ -51,34 +35,6 @@ function fakeGetRequest(sessionId?: string): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  codexFlagState.enabled = true
-})
-
-describe("codex-auth route: disabled flag", () => {
-  it("POST returns the disabled response when the flag is off", async () => {
-    codexFlagState.enabled = false
-    const res = await POST()
-    expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body).toEqual({ error: "CODEX_SUBSCRIPTION_DISABLED" })
-    expect(startCodexDeviceLogin).not.toHaveBeenCalled()
-  })
-
-  it("GET returns the disabled response when the flag is off", async () => {
-    codexFlagState.enabled = false
-    const res = await GET(fakeGetRequest())
-    expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: "CODEX_SUBSCRIPTION_DISABLED" })
-    expect(readCodexCredential).not.toHaveBeenCalled()
-  })
-
-  it("DELETE returns the disabled response when the flag is off", async () => {
-    codexFlagState.enabled = false
-    const res = await DELETE()
-    expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: "CODEX_SUBSCRIPTION_DISABLED" })
-    expect(disconnectCodex).not.toHaveBeenCalled()
-  })
 })
 
 describe("codex-auth route: POST /connect", () => {

@@ -30,9 +30,6 @@ type Phase =
  * but we failed to persist the credential after retrying, so the copy must
  * say that plainly rather than reading like a generic failure.
  */
-const DISABLED_COPY =
-  "ChatGPT subscription login isn't enabled on this deployment. Use an OpenAI API key instead."
-
 const REASON_COPY: Record<string, string> = {
   device_auth_disabled:
     "Device code login is off for your account. Turn it on in ChatGPT under Settings, Security, then Allow device code login, and try again.",
@@ -158,11 +155,7 @@ export function CodexConnectionRow({
       // here rather than repeating it in each one.
       clearSlowTimer()
       if (!res.ok) {
-        if (data.error === "CODEX_SUBSCRIPTION_DISABLED") {
-          setPhase({ kind: "error", message: DISABLED_COPY })
-        } else {
-          setPhase({ kind: "error", message: reasonMessage(data.reason) })
-        }
+        setPhase({ kind: "error", message: reasonMessage(data.reason) })
         return
       }
       setPhase({ kind: "awaiting", url: data.url, code: data.code, sessionId: data.sessionId })
