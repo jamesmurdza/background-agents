@@ -1,0 +1,81 @@
+name: Rebuild sandbox snapshot
+
+# Rebuilds the Daytona sandbox snapshot every week so the agent CLIs baked into
+# it track upstream.
+#
+# Why this exists: packages/sandbox-image installs the agent CLIs UNPINNED
+# (`npm install -g @openai/codex`, etc.), so each CLI is frozen at whatever was
+# latest when the snapshot was last built. The model catalog in
+# packages/common/src/agents.ts, by contrast, ships with every deploy. Without a
+# scheduled rebuild the two drift apart and users get errors like
+# "The 'gpt-5.6-sol' model requires a newer version of Codex" — a model the app
+# offers that the baked CLI is too old to run.
+#
+# The rebuild is zero-downtime (see rebuildSnapshot): it builds a temp snapshot,
+# swaps, rebuilds the canonical one, then drops the temp. Sandboxes already
+# running are unaffected; only newly created ones pick up the new snapshot.
+#
+# Requires a `DAYTONA_API_KEY` repository secret.
+
+on:
+  schedule:
+    # Sundays 09:00 UTC — quiet window, and a week's worth of upstream releases
+    # land together rather than one at a time.
+    - cron: "0 9 * * 0"
+  workflow_dispatch:
+
+# Never let two rebuilds overlap: they create and delete the same two snapshot
+# names, so a second run could delete a snapshot the first is mid-build on.
+# Queue instead of cancelling — cancelling could leave a half-built temp behind
+# (the next run cleans that up, but queueing avoids the state entirely).
+concurrency:
+  group: rebuild-sandbox-snapshot
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    # Two serial image builds. Generous ceiling so a slow upstream pull fails
+    # loudly on its own terms rather than being killed mid-build.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Check for the Daytona API key
+        env:
+          DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+        run: |
+          if [ -z "$DAYTONA_API_KEY" ]; then
+            echo "::error::DAYTONA_API_KEY repository secret is not set — nothing to rebuild against."
+            exit 1
+          fi
+
+      - name: Rebuild the snapshot
+        # Call the workspace script directly rather than the root one, which
+        # wraps it in `dotenv -e packages/web/.env -e .env` for local runs.
+        # Those files do not exist in CI; the key comes from the secret instead.
+        run: npm run build:snapshot -w @background-agents/sandbox-image
+        env:
+          DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+
+      - name: Summarize
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Sandbox snapshot rebuilt. Agent CLIs are now at their latest published versions." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Snapshot rebuild FAILED. New sandboxes keep launching from the previous snapshot, so nothing is broken right now — but the baked CLIs are getting older. Check the logs above." >> "$GITHUB_STEP_SUMMARY"
+          fi
