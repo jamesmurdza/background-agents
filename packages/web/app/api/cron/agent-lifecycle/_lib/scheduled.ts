@@ -16,6 +16,12 @@ import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterTurnNow } from "./meter-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
+import { toSecretMarker } from "@/lib/server/opencode-pool"
+import {
+  mountSharedOpencodeSecret,
+  sharedOpencodeSecretForRun,
+  applySecretToAgentEnv,
+} from "@/lib/server/opencode-secrets"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
@@ -164,6 +170,10 @@ export async function startJobExecution(
     }
   }
 
+  // Resolved before the sandbox exists so a shared OpenCode secret can be
+  // mounted at creation (see lib/server/opencode-secrets).
+  const opencodeSecret = sharedOpencodeSecretForRun(credentials, job.agent as Agent, job.model ?? undefined)
+
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
   //    skips the clone path, so we don't need the GitHub token in that case.
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
@@ -174,6 +184,7 @@ export async function startJobExecution(
     newBranch: branch,
     githubToken: account?.access_token ?? undefined,
     userId: job.userId,
+    opencodeSecret,
   })
 
   // 6. Update chat with sandbox info
@@ -202,6 +213,14 @@ export async function startJobExecution(
   const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
   let env = getEnvForModel(job.model ?? undefined, job.agent as Agent, credentials, customEndpoints)
   if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId })
+  // Shared OpenCode in secrets mode: the secret was mounted at creation (this
+  // resolves it without API calls), and OpenCode is pointed at its
+  // placeholder instead of the marker. No detach needed: the sandbox is
+  // deleted when the run ends.
+  const mountedOpencodeSecret = opencodeSecret
+    ? await mountSharedOpencodeSecret(sandbox, opencodeSecret)
+    : undefined
+  applySecretToAgentEnv(env)
 
   // Load job-scoped MCP servers. The loader marks rows with status="error" and
   // a descriptive lastError if the GitHub App is gone or any other auth issue
@@ -324,7 +343,7 @@ export async function startJobExecution(
     job.agent as Agent,
     decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
     job.model ?? undefined,
-    credentials.OPENCODE_API_KEY
+    mountedOpencodeSecret ? toSecretMarker(mountedOpencodeSecret.name) : credentials.OPENCODE_API_KEY
   )
 
   await prisma.message.createMany({

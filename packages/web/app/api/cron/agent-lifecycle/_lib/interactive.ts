@@ -5,6 +5,7 @@ import { stripNullBytes } from "@/lib/db/pg-sanitize"
 import { PATHS } from "@/lib/constants"
 import { cancelBackgroundAgent, snapshotBackgroundAgent, finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { releaseSharedOpencodeSecret } from "@/lib/server/opencode-secrets"
 import { meterTurnNow } from "./meter-turn"
 
 import { autoPushChat } from "@/lib/git/auto-push"
@@ -71,6 +72,9 @@ export async function finalizeInteractiveChat(
       await finalizeTurn(sandbox, chat.backgroundSessionId, {
         repoPath: `${PATHS.SANDBOX_HOME}/project`,
       })
+      // The agent is done: stop the shared OpenCode placeholder from working
+      // until the next turn mounts it again.
+      await releaseSharedOpencodeSecret(sandbox)
 
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
       // Runs while the sandbox is still alive; attribution (pool/provider) is
@@ -160,6 +164,13 @@ export async function markChatError(
     fallbackSessionId: chat.sessionId,
     daytona,
   })
+
+  // Detach the shared OpenCode secret before the chat is released below.
+  try {
+    await releaseSharedOpencodeSecret(await daytona.get(chat.sandboxId))
+  } catch {
+    // Sandbox already gone — nothing mounted to detach.
+  }
 
   // Keep the old turn's error row in place before it becomes possible to
   // start a new turn. Otherwise a quick retry can put this message after the

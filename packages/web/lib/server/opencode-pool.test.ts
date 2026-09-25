@@ -5,14 +5,19 @@ import { describe, it, expect, afterEach, vi } from "vitest"
 import {
   fingerprintKey,
   getSharedOpencodeKeys,
+  getSharedOpencodeSecretNames,
   hasSharedOpencodeKey,
+  parseSecretMarker,
   pickSharedOpencodeKey,
+  toSecretMarker,
 } from "./opencode-pool"
 
 const KEY = "OPENCODE_API_KEY"
+const SECRETS = "OPENCODE_DAYTONA_SECRETS"
 
 afterEach(() => {
   delete process.env[KEY]
+  delete process.env[SECRETS]
   vi.restoreAllMocks()
 })
 
@@ -109,5 +114,33 @@ describe("fingerprintKey", () => {
     expect(fingerprintKey(null)).toBeUndefined()
     expect(fingerprintKey("")).toBeUndefined()
     expect(fingerprintKey("abcd")).toBeUndefined()
+  })
+})
+
+describe("secrets mode", () => {
+  it("parses the configured secret names", () => {
+    process.env[SECRETS] = " OPENCODE_API_KEY_1 , ,OPENCODE_API_KEY_2 "
+    expect(getSharedOpencodeSecretNames()).toEqual(["OPENCODE_API_KEY_1", "OPENCODE_API_KEY_2"])
+    expect(hasSharedOpencodeKey()).toBe(true)
+  })
+
+  it("picks a secret marker, never a raw key, even when raw keys are also set", () => {
+    process.env[KEY] = "raw-key-value"
+    process.env[SECRETS] = "s1,s2"
+    vi.spyOn(Math, "random").mockReturnValue(0.9)
+    const picked = pickSharedOpencodeKey()
+    expect(picked).toBe(toSecretMarker("s2"))
+    expect(picked).not.toContain("raw-key-value")
+  })
+
+  it("round-trips a marker and rejects plain keys", () => {
+    expect(parseSecretMarker(toSecretMarker("s1"))).toBe("s1")
+    expect(parseSecretMarker("sk-plain-key")).toBeUndefined()
+    expect(parseSecretMarker(toSecretMarker(""))).toBeUndefined()
+    expect(parseSecretMarker(undefined)).toBeUndefined()
+  })
+
+  it("fingerprints a marker as the secret name", () => {
+    expect(fingerprintKey(toSecretMarker("OPENCODE_API_KEY_1"))).toBe("OPENCODE_API_KEY_1")
   })
 })

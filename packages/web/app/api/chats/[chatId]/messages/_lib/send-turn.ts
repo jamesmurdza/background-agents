@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { Daytona, type Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { randomUUID } from "node:crypto"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -11,6 +11,15 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
+import { toSecretMarker } from "@/lib/server/opencode-pool"
+import {
+  mountSharedOpencodeSecret,
+  releaseSharedOpencodeSecret,
+  sharedOpencodeSecretForRun,
+  applySecretToAgentEnv,
+  waitForSecretPropagation,
+  type MountedSecret,
+} from "@/lib/server/opencode-secrets"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
@@ -93,12 +102,26 @@ export async function sendChatTurn({
   }
   let turnPersisted = false
 
+  // Shared OpenCode secret for this run, if any (secrets mode only).
+  const opencodeSecret = sharedOpencodeSecretForRun(credentials, payload.agent as Agent, payload.model)
+  // Set once the secret is mounted, so a turn that never starts detaches it again.
+  let secretSandbox: DaytonaSandbox | undefined
+
   try {
     const ensured = await ensureSandboxForChat({
-      daytona, chat, chatId, payload, githubToken, userId, state,
+      daytona, chat, chatId, payload, githubToken, userId, state, opencodeSecret,
     })
     if (ensured instanceof Response) return ensured
     const { sandbox, sandboxId, branch, previewUrlPattern, createdSandbox, branchRestored } = ensured
+
+    // Mount the shared OpenCode secret for this turn now, so Daytona's
+    // propagation delay overlaps the pull/upload work below. Detached again
+    // wherever the turn ends (see lib/server/opencode-secrets).
+    let mountedOpencodeSecret: MountedSecret | undefined
+    if (opencodeSecret) {
+      mountedOpencodeSecret = await mountSharedOpencodeSecret(sandbox, opencodeSecret)
+      secretSandbox = sandbox
+    }
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
     const pull = await runPreRunPull({
@@ -124,6 +147,8 @@ export async function sendChatTurn({
     const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
     let env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
     if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId })
+    // Point OpenCode at the mounted secret's placeholder instead of the marker.
+    applySecretToAgentEnv(env)
     let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []
     try {
       mcpServers = await loadMcpConnections({ kind: "chat", id: chatId })
@@ -152,14 +177,15 @@ export async function sendChatTurn({
     const storedUser = await prisma.user.findUnique({
       where: { id: userId }, select: { credentials: true },
     })
-    // `credentials` carries the key actually handed to the agent — for a shared
-    // OpenCode run that's the one pickSharedOpencodeKey chose for this turn, so
-    // fingerprinting it here is what makes per-key spend attributable later.
+    // The key actually handed to the agent — for a shared OpenCode run that's
+    // the one pickSharedOpencodeKey chose for this turn, or in secrets mode the
+    // secret the sandbox has mounted — so fingerprinting it here is what makes
+    // per-key spend attributable later.
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,
       decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
       payload.model,
-      credentials.OPENCODE_API_KEY
+      mountedOpencodeSecret ? toSecretMarker(mountedOpencodeSecret.name) : credentials.OPENCODE_API_KEY
     )
 
     await persistTurn({
@@ -169,6 +195,7 @@ export async function sendChatTurn({
       claimedPromptId,
     })
     turnPersisted = true
+    if (mountedOpencodeSecret) await waitForSecretPropagation(mountedOpencodeSecret)
     await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     logActivityAsync(userId, "message_sent", {
@@ -202,6 +229,9 @@ export async function sendChatTurn({
     } catch { /* best effort; cron can recover a persisted turn */ }
     return internalError(error)
   } finally {
+    // The turn never started, so nothing else will detach the secret. A
+    // persisted turn keeps it: Stop/cron finalize detach it with the turn.
+    if (!turnPersisted && secretSandbox) await releaseSharedOpencodeSecret(secretSandbox)
     // A pre-run rejection must not strand a direct send in "creating".
     // Queue claims are released by the caller, which also pauses the queue.
     if (!turnPersisted && !claimedPromptId) {
