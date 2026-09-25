@@ -259,7 +259,7 @@ type Event =
 |----------|---------|------|
 | **Claude** | `model: "sonnet"`, `model: "opus"`, `model: "haiku"` | [Claude Code](https://code.claude.com/docs/en/model-config#model-aliases) |
 | **Codex** | `model: "gpt-5.4"`, `model: "gpt-5.3-codex"` | [Codex CLI models](https://developers.openai.com/codex/models) |
-| **Copilot** | `model: "gpt-5-mini"`, `model: "claude-sonnet-4.5"`, `model: "o3"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
+| **Copilot** | `model: "gpt-5-mini"`, `model: "claude-sonnet-4.6"`, `model: "gpt-6-sol"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
 | **Droid** | `model: "claude-sonnet-4-5-20250929"` (BYOK), `model: "gpt-5.1"`, `model: "factory/<id>"` (Factory-hosted) | [Factory Droid](https://docs.factory.ai/cli/) |
 | **Gemini** | `model: "gemini-2.5-flash"`, `model: "gemini-2.5-pro"`, `model: "gemini-3-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
 | **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://block.github.io/goose/docs/getting-started/providers) |
