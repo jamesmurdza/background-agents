@@ -10,9 +10,19 @@ entire run as files, so a **cold caller** — a serverless function, a restarted
 server, a different process — can reattach by id and read output incrementally
 without ever holding a connection open.
 
+## Installation
+
+```bash
+npm install @background-agents/sandbox-jobs
+```
+
+`@daytonaio/sdk` (>= 0.8.0) is an optional peer dependency — install it too if you're
+passing a real Daytona `Sandbox`.
+
 ## Model
 
-One job = one process = one directory:
+One job = one process = one directory (`<root>` defaults to `/tmp/sandbox-jobs`, exported
+as `DEFAULT_ROOT`; override per job with `StartJobOptions.root`):
 
 ```
 <root>/<jobId>/
@@ -97,7 +107,20 @@ for (;;) {
 
 // Or reattach later from just the id:
 const reattached = await jobs.attach(handle.jobId)
+
+// Kill the job and every descendant:
+await jobs.cancel(handle)
 ```
+
+## Exports
+
+| Export | Description |
+|--------|-------------|
+| `createSandboxJobs(sandbox)` | Returns a `SandboxJobs` with `start`, `read`, `status`, `cancel`, `attach` |
+| `CANCELLED_EXIT_CODE` | `143` — what `cancel()` records, so a cancelled job reads back as `{ state: "exited", exitCode: 143 }` |
+| `DEFAULT_ROOT` | `"/tmp/sandbox-jobs"` — the default job directory root |
+
+Types: `JobHandle`, `JobRead`, `JobState`, `JobStatus`, `SandboxJobs`, `StartJobOptions`.
 
 ## Tests
 

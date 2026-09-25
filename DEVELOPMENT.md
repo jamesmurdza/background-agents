@@ -11,7 +11,7 @@ Dev and E2E use separate Postgres databases. Create both up front (or skip the t
 ```bash
 sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
 sudo service postgresql start
-sudo -u postgres psql -c "CREATE USER sandboxed WITH PASSWORD 'sandboxed123';"
+sudo -u postgres psql -c "CREATE USER sandboxed WITH PASSWORD 'sandboxed123' CREATEDB;"
 sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents OWNER sandboxed;"
 sudo -u postgres psql -c "CREATE DATABASE sandboxed_agents_test OWNER sandboxed;"
 ```
@@ -22,6 +22,9 @@ Apply the dev schema:
 npm run prisma:migrate
 ```
 
+`CREATEDB` is required: `prisma migrate dev` creates and drops a shadow database on
+every run, and no `shadowDatabaseUrl` is configured.
+
 (E2E runs `prisma migrate reset --force` against its DB automatically.)
 
 ## Run the dev server
@@ -31,6 +34,14 @@ Put the env block from [Development](packages/web/README.md#development) in `.en
 ```bash
 npm install
 npm run dev
+```
+
+## Run unit tests
+
+Vitest specs live next to the code they cover. From `packages/web/`:
+
+```bash
+npx vitest run
 ```
 
 ## Run E2E tests

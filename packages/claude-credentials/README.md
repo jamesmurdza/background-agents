@@ -77,6 +77,7 @@ import type { ClaudeOAuthCredentials } from "@background-agents/claude-credentia
 import {
   CLAUDE_CREDS_KEY,   // Database row key for cached credentials
   CLAUDE_COOKIES_KEY, // Database row key for raw cookies
+  CCAUTH_PINNED_SHA,  // Pinned ccauth commit the image is built from
 } from "@background-agents/claude-credentials"
 ```
 
@@ -84,13 +85,20 @@ import {
 
 ```typescript
 import {
-  generateClaudeCredentials,        // Main entry point ({ cookies } | { refreshToken })
-  CCAUTH_PINNED_SHA,                // Pinned ccauth commit the image is built from
-  resolveLatestCCAuthSha,           // Manual helper: latest ccauth SHA (for bumping the pin)
-  getCCAuthImage,                   // Build Daytona Image spec (sha, refreshMode?)
-  isClaudeOAuthCredentials,         // Type guard
-  RefreshTokenExpiredError,         // Thrown when the refresh token is expired/revoked
-  type GenerateCredentialsOptions,  // Options for generateClaudeCredentials
+  generateClaudeCredentials, // Main entry point ({ cookies } | { refreshToken })
+  resolveLatestCCAuthSha,    // Manual helper: latest ccauth SHA (for bumping the pin)
+  getCCAuthImage,            // Build Daytona Image spec (sha, refreshMode?)
+  isClaudeOAuthCredentials,  // Type guard
+  RefreshTokenExpiredError,  // Thrown when the refresh token is expired/revoked
+} from "@background-agents/claude-credentials"
+```
+
+### Types
+
+```typescript
+import type {
+  GenerateCredentialsOptions, // Options for generateClaudeCredentials
+  ClaudeOAuthCredentials,     // Shape shown above
 } from "@background-agents/claude-credentials"
 ```
 

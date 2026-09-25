@@ -32,7 +32,7 @@ npm run test -w @background-agents/sdk
 
 ## Agent SDK integration tests
 
-Integration tests run each provider (Claude, Codex, Gemini, Goose, OpenCode, Pi) in real Daytona sandboxes. Tests are skipped when required API keys are not set.
+Integration tests run each provider (Claude, Codex, Gemini, Goose, OpenCode, Pi, plus the keyless Eliza agent) in real Daytona sandboxes. A provider's suite is skipped when its API key is not set; Eliza needs no key, so it always runs as long as `DAYTONA_API_KEY` is set.
 
 Run the command below from the repo root.
 

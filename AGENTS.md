@@ -36,7 +36,7 @@ npm run prisma:generate
 
 Then run `npm run typecheck` to verify there are no type errors. This is much faster than a full build (~5 seconds vs 2-3 minutes).
 
-Editing `prisma/schema.prisma`? See [Database migration](./packages/web/README.md#database-migration).
+Editing `packages/web/prisma/schema.prisma`? See [Database migration](./packages/web/README.md#database-migration).
 
 ## Debugging
 
