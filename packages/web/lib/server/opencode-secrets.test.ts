@@ -142,6 +142,43 @@ describe("mountSharedOpencodeSecret", () => {
     expect(sandbox.updateSecrets).toHaveBeenCalledWith({ SESSION_RELAY_TOKEN: SECRET_1 })
     expect(sandbox.stop).not.toHaveBeenCalled()
   })
+
+  // The label is written last, and releaseSharedOpencodeSecret keys off it, so
+  // a mount that throws partway has to detach itself — otherwise it strands a
+  // live placeholder nothing will ever clean up.
+  it("detaches the secret again when the enabling restart fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox()
+    sandbox.start.mockRejectedValueOnce(new Error("start timed out"))
+
+    await expect(mountSharedOpencodeSecret(asSandbox(sandbox), SECRET_1)).rejects.toThrow(
+      "start timed out"
+    )
+    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({})
+    expect(sandbox.labels[OPENCODE_SECRET_LABEL]).toBeUndefined()
+  })
+
+  it("detaches the secret again when the label write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox({ [OPENCODE_SECRET_LABEL]: "none" })
+    sandbox.setLabels.mockRejectedValueOnce(new Error("labels rejected"))
+
+    await expect(mountSharedOpencodeSecret(asSandbox(sandbox), SECRET_1)).rejects.toThrow(
+      "labels rejected"
+    )
+    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({})
+  })
+
+  it("still surfaces the original failure when the rollback detach also fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox()
+    sandbox.start.mockRejectedValueOnce(new Error("start timed out"))
+    sandbox.updateSecrets.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("gone"))
+
+    await expect(mountSharedOpencodeSecret(asSandbox(sandbox), SECRET_1)).rejects.toThrow(
+      "start timed out"
+    )
+  })
 })
 
 describe("releaseSharedOpencodeSecret", () => {

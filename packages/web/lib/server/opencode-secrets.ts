@@ -174,6 +174,10 @@ export function opencodeSecretCreateParams(secretName: string): {
  * configured secret is already mounted (e.g. one attached at creation) rather
  * than swapping it. Call as early in the send as possible, then
  * {@link waitForSecretPropagation} just before starting the agent.
+ *
+ * Throws only after detaching again, so a half-finished mount never leaves a
+ * live placeholder that {@link releaseSharedOpencodeSecret} would decline to
+ * clean up.
  */
 export async function mountSharedOpencodeSecret(
   sandbox: DaytonaSandbox,
@@ -186,18 +190,35 @@ export async function mountSharedOpencodeSecret(
   }
 
   await sandbox.updateSecrets({ [SECRET_ENV]: secretName })
-  let readyAt = Date.now() + SECRET_PROPAGATION_MS
-  if (!current) {
-    // Created before secrets were in use: the mount only takes effect after a
-    // restart. Files survive it; running processes (dev servers, terminals)
-    // don't — acceptable once per sandbox.
-    console.log(`[opencode-secrets] restarting sandbox ${sandbox.id} to enable secrets`)
-    await sandbox.stop()
-    await sandbox.start()
-    readyAt = 0
+  try {
+    let readyAt = Date.now() + SECRET_PROPAGATION_MS
+    if (!current) {
+      // Created before secrets were in use: the mount only takes effect after a
+      // restart. Files survive it; running processes (dev servers, terminals)
+      // don't — acceptable once per sandbox.
+      console.log(`[opencode-secrets] restarting sandbox ${sandbox.id} to enable secrets`)
+      await sandbox.stop()
+      await sandbox.start()
+      readyAt = 0
+    }
+    await sandbox.setLabels({ ...sandbox.labels, [OPENCODE_SECRET_LABEL]: mountLabel(secretName) })
+    return { name: secretName, readyAt }
+  } catch (err) {
+    // The secret is already attached but the label recording it is not written
+    // yet, and {@link releaseSharedOpencodeSecret} keys off that label — so
+    // leaving it here would strand a live placeholder that nothing ever
+    // detaches, defeating the turn-scoped mount. Undo the attach before the
+    // caller sees the failure. Most likely to matter for the restart above: it
+    // is the longest call in this window, and it only runs for sandboxes
+    // created before secrets were in use.
+    await sandbox.updateSecrets({}).catch((rollbackErr) => {
+      console.error(
+        `[opencode-secrets] failed to roll back the mount on sandbox ${sandbox.id}:`,
+        rollbackErr
+      )
+    })
+    throw err
   }
-  await sandbox.setLabels({ ...sandbox.labels, [OPENCODE_SECRET_LABEL]: mountLabel(secretName) })
-  return { name: secretName, readyAt }
 }
 
 /** Sleep until a freshly remounted secret has reached the proxy. */
