@@ -1,8 +1,8 @@
 /**
  * Shared OpenCode key via Daytona secrets (server-only).
  *
- * In secrets mode (see lib/server/opencode-pool) the shared OpenCode key is
- * never handed to a sandbox. Instead a Daytona secret is mounted on it as
+ * The shared OpenCode key (see lib/server/opencode-pool) is never handed to a
+ * sandbox. Instead a Daytona secret is mounted on it as
  * {@link SECRET_ENV}: the sandbox sees only an opaque placeholder, and
  * Daytona's egress proxy substitutes the real key on HTTPS requests to the
  * secret's allowed hosts (opencode.ai). Printing the env, reading
@@ -23,6 +23,10 @@
  * at send time, {@link releaseSharedOpencodeSecret} wherever a turn ends. Between
  * turns the placeholder is dead weight; the proxy no longer swaps it.
  *
+ * The secrets themselves are created from `OPENCODE_API_KEY` on first use
+ * ({@link ensureSharedOpencodeSecret}), so there is nothing to set up in the
+ * Daytona dashboard.
+ *
  * The {@link OPENCODE_SECRET_LABEL} label tracks the state on the sandbox: the
  * mounted secret's name during a turn, {@link DETACHED} between turns, absent
  * on sandboxes that have never had a secret. Daytona behaviours this works
@@ -37,14 +41,21 @@
  *   each turn; {@link waitForSecretPropagation} covers the proxy delay.
  */
 
-import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
+import { DaytonaConflictError, type Daytona, type Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { modelRequiresKey, type Agent } from "@background-agents/common"
 
 import type { Credentials } from "@/lib/credentials"
-import { getSharedOpencodeSecretNames, parseSecretMarker } from "@/lib/server/opencode-pool"
+import {
+  getSharedOpencodeSecretNames,
+  parseSecretMarker,
+  sharedOpencodeKeyForSecret,
+} from "@/lib/server/opencode-pool"
 
 /** Env var the credential marker arrives in, from getUserCredentials. */
 const OPENCODE_KEY_ENV = "OPENCODE_API_KEY"
+
+/** Hosts a pool secret's real value may be sent to. */
+const SECRET_HOSTS = ["opencode.ai"]
 
 /** Env var the secret's placeholder is mounted as inside the sandbox. */
 const SECRET_ENV = "SESSION_RELAY_TOKEN"
@@ -85,8 +96,7 @@ export interface MountedSecret {
 
 /**
  * The secret this run would mount, or undefined when the run doesn't draw on
- * the shared OpenCode pool in secrets mode (own key, free model, other agent,
- * raw-key mode).
+ * the shared OpenCode pool (own key, free model, other agent).
  */
 export function sharedOpencodeSecretForRun(
   credentials: Credentials,
@@ -95,6 +105,54 @@ export function sharedOpencodeSecretForRun(
 ): string | undefined {
   if (modelRequiresKey(agent, model) !== "opencode") return undefined
   return parseSecretMarker(credentials.OPENCODE_API_KEY)
+}
+
+/**
+ * Secrets confirmed (or being confirmed) to exist this process lifetime, so
+ * only the first run per key pays for the lookup. A failed attempt is
+ * forgotten, so the next run retries it.
+ */
+const ensuredSecrets = new Map<string, Promise<void>>()
+
+/**
+ * Make sure the Daytona secret `secretName` exists, creating it from the pool
+ * key it was derived from if not. Its name is derived from the key's value
+ * (see secretNameForKey), so an existing secret already holds the right key
+ * and is never recreated. Call before creating a sandbox with the secret or
+ * mounting it. Throws if the secret can't be confirmed or created, e.g. when
+ * the Daytona API key lacks permission to manage secrets.
+ */
+export function ensureSharedOpencodeSecret(daytona: Daytona, secretName: string): Promise<void> {
+  let ensured = ensuredSecrets.get(secretName)
+  if (!ensured) {
+    ensured = createSecretIfMissing(daytona, secretName)
+    ensuredSecrets.set(secretName, ensured)
+    ensured.catch(() => ensuredSecrets.delete(secretName))
+  }
+  return ensured
+}
+
+async function createSecretIfMissing(daytona: Daytona, secretName: string): Promise<void> {
+  const key = sharedOpencodeKeyForSecret(secretName)
+  if (!key) throw new Error(`No configured OpenCode key matches secret ${secretName}`)
+
+  // `name` is a partial-match filter, hence the exact comparison.
+  const { items } = await daytona.secret.list({ name: secretName })
+  if (items.some((secret) => secret.name === secretName)) return
+
+  try {
+    await daytona.secret.create({
+      name: secretName,
+      value: key,
+      description: "Shared OpenCode key, created by background-agents",
+      hosts: SECRET_HOSTS,
+    })
+    console.log(`[opencode-secrets] created Daytona secret ${secretName}`)
+  } catch (err) {
+    // Another process created it between our list and create.
+    if (err instanceof DaytonaConflictError) return
+    throw err
+  }
 }
 
 /**

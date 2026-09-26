@@ -1,32 +1,36 @@
 /**
  * Shared OpenCode key pool (server-only).
  *
- * The pool can be backed two ways:
+ * The pool is configured as raw keys (`OPENCODE_API_KEY`, one or several
+ * comma-separated), but a raw key never enters a sandbox, where anything the
+ * agent runs could read it — `env`, `/proc/<pid>/environ`, even a stray
+ * `ps aux`. Each key is instead backed by a Daytona secret named after it
+ * ({@link secretNameForKey}), created on first use: the sandbox only sees a
+ * placeholder, and Daytona's egress proxy swaps in the real value on HTTPS
+ * requests to opencode.ai. See lib/server/opencode-secrets.
  *
- * - **Daytona secrets** (`OPENCODE_DAYTONA_SECRETS`, comma-separated secret
- *   names). The raw key never enters the sandbox: Daytona sets
- *   `OPENCODE_API_KEY` to a placeholder and its egress proxy swaps in the real
- *   value on HTTPS requests to the secret's allowed hosts. Takes precedence
- *   whenever it is set. See lib/server/opencode-secrets.
- * - **Raw keys** (`OPENCODE_API_KEY`, one or several comma-separated). The key
- *   is exported into the sandbox, where anything the agent runs can read it —
- *   `env`, `/proc/<pid>/environ`, even a stray `ps aux`. Kept only as the
- *   fallback for deployments without secrets configured.
- *
- * With several entries, each shared run picks one uniformly at random, so an
+ * With several keys, each shared run picks one uniformly at random, so an
  * operator can run several keys concurrently instead of manually swapping one.
  *
  * Never imported from client code — reads raw key values from process.env.
  */
 
+import { createHash } from "crypto"
+
 /**
  * Prefix marking a credential value as a reference to a Daytona secret rather
- * than a key. It is what {@link pickSharedOpencodeKey} returns in secrets mode,
- * so everything that only checks whether an OpenCode credential exists keeps
- * working, while the value itself is useless: if it ever reached a sandbox
- * unstripped, OpenCode would fail to authenticate rather than leak anything.
+ * than a key. It is what {@link pickSharedOpencodeKey} returns, so everything
+ * that only checks whether an OpenCode credential exists keeps working, while
+ * the value itself is useless: if it ever reached a sandbox unstripped,
+ * OpenCode would fail to authenticate rather than leak anything.
  */
 const SECRET_MARKER_PREFIX = "daytona-secret:"
+
+/** Prefix of every Daytona secret backing a pool key. */
+const SECRET_NAME_PREFIX = "opencode_"
+
+/** Hex characters of the key's SHA-256 kept in its secret name. */
+const SECRET_NAME_HASH_LENGTH = 12
 
 /**
  * The configured shared-pool keys, parsed from the comma-separated
@@ -37,30 +41,44 @@ export function getSharedOpencodeKeys(): string[] {
 }
 
 /**
- * The Daytona secret names backing the shared pool, parsed from the
- * comma-separated `OPENCODE_DAYTONA_SECRETS`. Empty when secrets mode is off.
+ * Daytona secret name for a pool key: a prefix plus a short hash of the key.
+ *
+ * Derived from the key itself because Daytona never returns a secret's value,
+ * so an existing secret can't be checked against the key it should hold. A
+ * content-derived name makes that moot: the same key always maps to the same
+ * secret (never recreated), and a changed key maps to a new one, so a stale
+ * secret can never keep serving a key that was rotated out.
  */
-export function getSharedOpencodeSecretNames(): string[] {
-  return parseList(process.env.OPENCODE_DAYTONA_SECRETS)
+export function secretNameForKey(key: string): string {
+  const hash = createHash("sha256").update(key).digest("hex").slice(0, SECRET_NAME_HASH_LENGTH)
+  return `${SECRET_NAME_PREFIX}${hash}`
 }
 
-/** Whether the server has at least one shared OpenCode key or secret configured. */
+/** The Daytona secret names backing the configured pool keys. */
+export function getSharedOpencodeSecretNames(): string[] {
+  return getSharedOpencodeKeys().map(secretNameForKey)
+}
+
+/** The configured pool key a secret name was derived from, if any. */
+export function sharedOpencodeKeyForSecret(secretName: string): string | undefined {
+  return getSharedOpencodeKeys().find((key) => secretNameForKey(key) === secretName)
+}
+
+/** Whether the server has at least one shared OpenCode key configured. */
 export function hasSharedOpencodeKey(): boolean {
-  return getSharedOpencodeSecretNames().length > 0 || getSharedOpencodeKeys().length > 0
+  return getSharedOpencodeKeys().length > 0
 }
 
 /**
- * Pick one shared OpenCode credential uniformly at random, or undefined when
- * none are configured. In secrets mode this is a secret marker (see
- * {@link toSecretMarker}), never a raw key. Called per shared run so usage
- * spreads evenly across the pool — every entry has an equal chance.
+ * Pick one shared OpenCode key uniformly at random and return it as a secret
+ * marker (see {@link toSecretMarker}) — never the raw key — or undefined when
+ * none are configured. Called per shared run so usage spreads evenly across
+ * the pool — every entry has an equal chance.
  */
 export function pickSharedOpencodeKey(): string | undefined {
-  const secrets = getSharedOpencodeSecretNames()
-  if (secrets.length > 0) return toSecretMarker(pickRandom(secrets))
   const keys = getSharedOpencodeKeys()
   if (keys.length === 0) return undefined
-  return pickRandom(keys)
+  return toSecretMarker(secretNameForKey(pickRandom(keys)))
 }
 
 /** Wrap a Daytona secret name as a credential value. */

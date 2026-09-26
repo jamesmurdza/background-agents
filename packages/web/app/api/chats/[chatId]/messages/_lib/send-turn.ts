@@ -13,6 +13,7 @@ import {
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { toSecretMarker } from "@/lib/server/opencode-pool"
 import {
+  ensureSharedOpencodeSecret,
   mountSharedOpencodeSecret,
   releaseSharedOpencodeSecret,
   sharedOpencodeSecretForRun,
@@ -102,12 +103,16 @@ export async function sendChatTurn({
   }
   let turnPersisted = false
 
-  // Shared OpenCode secret for this run, if any (secrets mode only).
+  // Shared OpenCode secret for this run, if any.
   const opencodeSecret = sharedOpencodeSecretForRun(credentials, payload.agent as Agent, payload.model)
   // Set once the secret is mounted, so a turn that never starts detaches it again.
   let secretSandbox: DaytonaSandbox | undefined
 
   try {
+    // Created from OPENCODE_API_KEY on first use; needed before the sandbox
+    // below is created with it or it is mounted.
+    if (opencodeSecret) await ensureSharedOpencodeSecret(daytona, opencodeSecret)
+
     const ensured = await ensureSandboxForChat({
       daytona, chat, chatId, payload, githubToken, userId, state, opencodeSecret,
     })
@@ -178,8 +183,8 @@ export async function sendChatTurn({
       where: { id: userId }, select: { credentials: true },
     })
     // The key actually handed to the agent — for a shared OpenCode run that's
-    // the one pickSharedOpencodeKey chose for this turn, or in secrets mode the
-    // secret the sandbox has mounted — so fingerprinting it here is what makes
+    // the secret the sandbox has mounted (which may differ from the one
+    // pickSharedOpencodeKey chose) — so fingerprinting it here is what makes
     // per-key spend attributable later.
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,

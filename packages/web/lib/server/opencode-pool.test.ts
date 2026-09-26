@@ -9,15 +9,16 @@ import {
   hasSharedOpencodeKey,
   parseSecretMarker,
   pickSharedOpencodeKey,
+  secretNameForKey,
+  sharedOpencodeKeyForSecret,
   toSecretMarker,
 } from "./opencode-pool"
 
 const KEY = "OPENCODE_API_KEY"
-const SECRETS = "OPENCODE_DAYTONA_SECRETS"
+const marker = (key: string) => toSecretMarker(secretNameForKey(key))
 
 afterEach(() => {
   delete process.env[KEY]
-  delete process.env[SECRETS]
   vi.restoreAllMocks()
 })
 
@@ -55,30 +56,33 @@ describe("pickSharedOpencodeKey", () => {
     expect(pickSharedOpencodeKey()).toBeUndefined()
   })
 
-  it("returns the single key when only one is configured", () => {
+  it("returns the single key's secret marker when only one is configured", () => {
     process.env[KEY] = "primary"
-    expect(pickSharedOpencodeKey()).toBe("primary")
+    expect(pickSharedOpencodeKey()).toBe(marker("primary"))
+  })
+
+  it("never returns the raw key", () => {
+    process.env[KEY] = "raw-key-value"
+    expect(pickSharedOpencodeKey()).not.toContain("raw-key-value")
   })
 
   it("selects by Math.random across all keys", () => {
     process.env[KEY] = "a,b,c"
     // Math.random in [0, 1/3) → index 0, [1/3, 2/3) → index 1, [2/3, 1) → index 2.
     vi.spyOn(Math, "random").mockReturnValue(0)
-    expect(pickSharedOpencodeKey()).toBe("a")
+    expect(pickSharedOpencodeKey()).toBe(marker("a"))
     vi.spyOn(Math, "random").mockReturnValue(0.5)
-    expect(pickSharedOpencodeKey()).toBe("b")
+    expect(pickSharedOpencodeKey()).toBe(marker("b"))
     vi.spyOn(Math, "random").mockReturnValue(0.9)
-    expect(pickSharedOpencodeKey()).toBe("c")
+    expect(pickSharedOpencodeKey()).toBe(marker("c"))
   })
 
   it("spreads roughly evenly across all keys over many draws", () => {
     process.env[KEY] = "a,b,c"
-    const counts: Record<string, number> = { a: 0, b: 0, c: 0 }
+    const counts: Record<string, number> = { [marker("a")]: 0, [marker("b")]: 0, [marker("c")]: 0 }
     for (let i = 0; i < 6000; i++) counts[pickSharedOpencodeKey()!]++
     // Each should land well within a generous band around 1/3 (2000).
-    expect(counts.a).toBeGreaterThan(1600)
-    expect(counts.b).toBeGreaterThan(1600)
-    expect(counts.c).toBeGreaterThan(1600)
+    for (const count of Object.values(counts)) expect(count).toBeGreaterThan(1600)
   })
 })
 
@@ -117,20 +121,20 @@ describe("fingerprintKey", () => {
   })
 })
 
-describe("secrets mode", () => {
-  it("parses the configured secret names", () => {
-    process.env[SECRETS] = " OPENCODE_API_KEY_1 , ,OPENCODE_API_KEY_2 "
-    expect(getSharedOpencodeSecretNames()).toEqual(["OPENCODE_API_KEY_1", "OPENCODE_API_KEY_2"])
-    expect(hasSharedOpencodeKey()).toBe(true)
+describe("secret names", () => {
+  it("derives a stable, valid Daytona secret name from the key", () => {
+    const name = secretNameForKey("sk-some-key")
+    expect(name).toMatch(/^opencode_[0-9a-f]{12}$/)
+    expect(secretNameForKey("sk-some-key")).toBe(name)
+    expect(secretNameForKey("sk-other-key")).not.toBe(name)
+    expect(name).not.toContain("some-key")
   })
 
-  it("picks a secret marker, never a raw key, even when raw keys are also set", () => {
-    process.env[KEY] = "raw-key-value"
-    process.env[SECRETS] = "s1,s2"
-    vi.spyOn(Math, "random").mockReturnValue(0.9)
-    const picked = pickSharedOpencodeKey()
-    expect(picked).toBe(toSecretMarker("s2"))
-    expect(picked).not.toContain("raw-key-value")
+  it("maps each configured key to its secret and back", () => {
+    process.env[KEY] = "k1, k2"
+    expect(getSharedOpencodeSecretNames()).toEqual([secretNameForKey("k1"), secretNameForKey("k2")])
+    expect(sharedOpencodeKeyForSecret(secretNameForKey("k2"))).toBe("k2")
+    expect(sharedOpencodeKeyForSecret(secretNameForKey("removed"))).toBeUndefined()
   })
 
   it("round-trips a marker and rejects plain keys", () => {
@@ -141,6 +145,6 @@ describe("secrets mode", () => {
   })
 
   it("fingerprints a marker as the secret name", () => {
-    expect(fingerprintKey(toSecretMarker("OPENCODE_API_KEY_1"))).toBe("OPENCODE_API_KEY_1")
+    expect(fingerprintKey(marker("k1"))).toBe(secretNameForKey("k1"))
   })
 })
