@@ -16,6 +16,7 @@ import {
   useCallback,
 } from "react"
 import { useModals, useGit } from "@/lib/contexts"
+import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery" // FIX: needed to load custom endpoints
 import type { Chat, Settings, CredentialFlags } from "@/lib/types"
 import {
   isRealRepo,
@@ -129,7 +130,13 @@ export function useChatComposer({
   // Use the chat's stored model, but downgrade to a usable default when that model
   // is locked (no credentials, e.g. an existing Fable chat on a keyless account) or
   // no longer offered — so the chat keeps sending instead of stranding on a lock.
-  const currentModel = resolveChatModel(currentAgent, chat?.model, credentialFlags, settings.defaultModel)
+  // FIX: custom endpoints must be passed in. A chat pointed at one stores its model
+  // as `endpoint:<id>`, which only appears in the model list when endpoints are
+  // supplied. Without them the endpoint looks "no longer offered" and the chat
+  // silently falls back to the agent's default (Claude Code's "Auto").
+  const { data: settingsData } = useSettingsQuery()
+  const customEndpoints = settingsData?.customEndpoints
+  const currentModel = resolveChatModel(currentAgent, chat?.model, credentialFlags, settings.defaultModel, customEndpoints)
 
   // Check if the selected model has required credentials
   const availableModels = agentModels[currentAgent] ?? []
