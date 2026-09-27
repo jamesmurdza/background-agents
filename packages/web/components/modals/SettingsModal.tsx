@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, CreditCard, Server, Wrench, BarChart3 } from "lucide-react"
@@ -86,6 +87,8 @@ function getSections(isDesktopApp: boolean): SectionDef[] {
 
 export function SettingsModal({ open, onClose, settings, credentialFlags, onSave, highlightKey, defaultSection = "general", onDismissWithoutKey, usageScope = "account", isMobile = false }: SettingsModalProps) {
   const { setTheme } = useTheme()
+  const { data: session } = useSession()
+  const isAdmin = !!session?.user?.isAdmin
   const { isDesktopApp, getClaudeLicenseAutoDetect, getLicenseDetectSettings, setLicenseDetectSettings } = useElectron()
 
   // The user's custom endpoints (headers decrypted for editing), from the shared
@@ -146,6 +149,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [notifyOnAgentCommitted, setNotifyOnAgentCommitted] = useState(settings.notifyOnAgentCommitted)
   const [notificationSound, setNotificationSound] = useState(settings.notificationSound)
   const [elizaEnabled, setElizaEnabled] = useState(settings.elizaEnabled)
+  const [maxAgentRunMinutes, setMaxAgentRunMinutes] = useState(settings.maxAgentRunMinutes)
   const [activeSection, setActiveSection] = useState<SectionKey>(defaultSection)
 
   // Drag to dismiss (mobile only). Routed through a ref so it persists pending
@@ -203,6 +207,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setNotifyOnAgentCommitted(settings.notifyOnAgentCommitted)
       setNotificationSound(settings.notificationSound)
       setElizaEnabled(settings.elizaEnabled)
+      setMaxAgentRunMinutes(settings.maxAgentRunMinutes)
       setActiveSection(defaultSection)
     }
   }, [open, settings, credentialFlags, initialEndpoints, initialDefaultAgent, initialDefaultModel, defaultSection])
@@ -300,6 +305,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (notifyOnAgentCommitted !== settings.notifyOnAgentCommitted) settingsPatch.notifyOnAgentCommitted = notifyOnAgentCommitted
     if (notificationSound !== settings.notificationSound) settingsPatch.notificationSound = notificationSound
     if (elizaEnabled !== settings.elizaEnabled) settingsPatch.elizaEnabled = elizaEnabled
+    if (maxAgentRunMinutes !== settings.maxAgentRunMinutes) settingsPatch.maxAgentRunMinutes = maxAgentRunMinutes
 
     // Only send credential fields the user actually changed. Sending the
     // mask back ("***") would otherwise overwrite the real key.
@@ -338,7 +344,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   }, [
     defaultAgent, initialDefaultAgent, defaultModel, initialDefaultModel,
     selectedTheme, enablePrepushHooks, notifyOnAgentFinished, notifyOnAgentCommitted,
-    notificationSound, elizaEnabled, settings, credValues, initialCreds,
+    notificationSound, elizaEnabled, maxAgentRunMinutes, settings, credValues, initialCreds,
     isDesktopApp, licenseAutoDetectEnabled, licenseDetectResult, endpoints, endpointsChanged,
   ])
 
@@ -452,6 +458,9 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             isMobile={isMobile}
             elizaEnabled={elizaEnabled}
             setElizaEnabled={setElizaEnabled}
+            isAdmin={isAdmin}
+            maxAgentRunMinutes={maxAgentRunMinutes}
+            setMaxAgentRunMinutes={setMaxAgentRunMinutes}
           />
         )
     }

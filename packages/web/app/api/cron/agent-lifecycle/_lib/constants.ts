@@ -1,5 +1,11 @@
-// Hard timeouts for agent runs, in minutes. Past these the cron forcibly stops
-// the agent and marks the chat/run as errored.
+// Default hard timeouts for agent runs, in minutes. Past these the cron
+// forcibly stops the agent and marks the chat/run as errored.
+//
+// These are only the fallback: an admin can override their own runs' limit
+// from Settings > Developer ("Max agent run duration"), stored on that
+// user's row as Settings.maxAgentRunMinutes and resolved per-run by
+// ./user-run-limit's resolveUserRunLimit. Regular users always get these
+// defaults.
 export const INTERACTIVE_HARD_TIMEOUT = 25 // minutes
 export const SCHEDULED_HARD_TIMEOUT = 20 // minutes
 
