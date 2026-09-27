@@ -65,6 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyOnAgentCommitted: true,
   elizaEnabled: false,
   notificationSound: true,
+  maxAgentRunMinutes: null,
 }
 
 const DEFAULT_LOCAL_STATE: LocalState = {

@@ -268,6 +268,13 @@ export interface Settings {
   elizaEnabled: boolean
   /** Play a sound when a notification is shown */
   notificationSound: boolean
+  /**
+   * Developer (admin-only): override the agent-lifecycle cron's hard timeout
+   * for this admin's own runs, in minutes. Null means "use the server
+   * default" (see app/api/cron/agent-lifecycle/_lib/constants). Ignored for
+   * non-admins even if present — enforced server-side on write and read.
+   */
+  maxAgentRunMinutes: number | null
 }
 
 export type { Credentials, CredentialFlags } from "./credentials"

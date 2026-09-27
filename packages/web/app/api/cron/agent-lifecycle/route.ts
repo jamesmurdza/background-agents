@@ -6,6 +6,7 @@ import { logLlmProviderError } from "@/lib/db/activity-log"
 import { UsageLimitError } from "@/lib/db/usage-limit"
 
 import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constants"
+import { resolveUserRunLimit } from "./_lib/user-run-limit"
 import { creditBudgetExhausted, CREDIT_GUARD_STOP_REASON } from "./_lib/credit-guard"
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
@@ -140,7 +141,9 @@ export async function GET(req: Request) {
           take: 1,
         },
         // For the mid-turn credit guard: `unlimited` plans never draw credits.
-        user: { select: { plan: true } },
+        // isAdmin/settings: to resolve this chat's own hard timeout, which an
+        // admin may have overridden from their Developer settings.
+        user: { select: { plan: true, isAdmin: true, settings: true } },
       },
     })
 
@@ -151,11 +154,13 @@ export async function GET(req: Request) {
         // Get run start time from last assistant message (when agent started)
         const runStartedAt = chat.messages[0]?.createdAt ?? chat.lastActiveAt
         const totalMinutes = differenceInMinutes(now, runStartedAt)
+        const hardTimeout = resolveUserRunLimit(chat.user, INTERACTIVE_HARD_TIMEOUT)
 
-        // Hard timeout: 25 minutes
-        if (totalMinutes > INTERACTIVE_HARD_TIMEOUT) {
+        // Hard timeout: default 25 minutes, admin-overridable (see
+        // ./_lib/user-run-limit)
+        if (totalMinutes > hardTimeout) {
           // stopAgent reads the agent session id before it cancels, which is
-          // the only chance to learn it: a 25-minute run is the most expensive
+          // the only chance to learn it: a long run is the most expensive
           // kind of failure to leave unbilled.
           const agentSessionId = await stopAgent(
             chat.sandboxId!,
@@ -164,7 +169,7 @@ export async function GET(req: Request) {
           )
           await markChatError(
             chat,
-            "Run exceeded 25 minute limit",
+            `Run exceeded ${hardTimeout} minute limit`,
             daytona,
             agentSessionId
           )
@@ -233,7 +238,9 @@ export async function GET(req: Request) {
     const runningJobs = await prisma.scheduledJobRun.findMany({
       where: { status: "running" },
       include: {
-        job: { include: { user: { select: { plan: true } } } },
+        // isAdmin/settings: to resolve this run's own hard timeout, which an
+        // admin may have overridden from their Developer settings.
+        job: { include: { user: { select: { plan: true, isAdmin: true, settings: true } } } },
       },
     })
 
@@ -242,9 +249,11 @@ export async function GET(req: Request) {
 
       try {
         const runningMinutes = differenceInMinutes(now, run.startedAt)
+        const hardTimeout = resolveUserRunLimit(run.job.user, SCHEDULED_HARD_TIMEOUT)
 
-        // Hard timeout: 20 minutes
-        if (runningMinutes > SCHEDULED_HARD_TIMEOUT) {
+        // Hard timeout: default 20 minutes, admin-overridable (see
+        // ./_lib/user-run-limit)
+        if (runningMinutes > hardTimeout) {
           let agentSessionId: string | undefined
           if (run.sandboxId && run.backgroundSessionId) {
             agentSessionId = await stopAgent(
@@ -255,7 +264,7 @@ export async function GET(req: Request) {
           }
           await failScheduledRun(
             run,
-            "Run timed out after 20 minutes",
+            `Run timed out after ${hardTimeout} minutes`,
             daytona,
             {},
             agentSessionId

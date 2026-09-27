@@ -6,6 +6,7 @@ import {
   requireAuth,
   isAuthError,
   badRequest,
+  forbidden,
   internalError,
 } from "@/lib/db/api-helpers"
 import {
@@ -69,8 +70,13 @@ function readSettings(raw: unknown): Settings {
     notifyOnAgentCommitted: s.notifyOnAgentCommitted ?? DEFAULT_SETTINGS.notifyOnAgentCommitted,
     elizaEnabled: s.elizaEnabled ?? DEFAULT_SETTINGS.elizaEnabled,
     notificationSound: s.notificationSound ?? DEFAULT_SETTINGS.notificationSound,
+    maxAgentRunMinutes: s.maxAgentRunMinutes ?? DEFAULT_SETTINGS.maxAgentRunMinutes,
   }
 }
+
+/** Bounds for Settings.maxAgentRunMinutes — guards against a fat-fingered edit. */
+const MIN_MAX_AGENT_RUN_MINUTES = 1
+const MAX_MAX_AGENT_RUN_MINUTES = 24 * 60 // one day
 
 // =============================================================================
 // GET - Fetch user settings and credential flags
@@ -138,6 +144,37 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       const invalid = validateEndpoints(incoming)
       if (invalid) return badRequest(invalid.message)
       newEndpoints = encryptEndpointsForStorage(incoming) as unknown as Prisma.InputJsonValue
+    }
+
+    // maxAgentRunMinutes: admin-only, and validate up front for the same
+    // reason as custom endpoints above. Checked against the DB rather than
+    // trusted from the session, since a stale/tampered client could otherwise
+    // grant a non-admin a longer run window than the lifecycle cron intends.
+    if (
+      body.settings &&
+      Object.prototype.hasOwnProperty.call(body.settings, "maxAgentRunMinutes")
+    ) {
+      const value = body.settings.maxAgentRunMinutes
+      if (value !== null) {
+        if (
+          typeof value !== "number" ||
+          !Number.isFinite(value) ||
+          !Number.isInteger(value) ||
+          value < MIN_MAX_AGENT_RUN_MINUTES ||
+          value > MAX_MAX_AGENT_RUN_MINUTES
+        ) {
+          return badRequest(
+            `maxAgentRunMinutes must be null or a whole number of minutes between ${MIN_MAX_AGENT_RUN_MINUTES} and ${MAX_MAX_AGENT_RUN_MINUTES}`
+          )
+        }
+      }
+      const requester = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { isAdmin: true },
+      })
+      if (!requester?.isAdmin) {
+        return forbidden("Only admins can set maxAgentRunMinutes")
+      }
     }
 
     // Read-modify-write User.credentials under the SAME transaction-scoped row
