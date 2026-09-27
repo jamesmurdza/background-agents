@@ -29,6 +29,10 @@ export type ActivityAction =
   // `updatedBy`/`updatedAt`; this is what makes the change show up in the
   // Activity feed alongside everything else an admin does.
   | "provider_pricing_updated"
+  // An admin changed the max agent run duration from the /admin Development
+  // panel (see lib/db/agent-run-limits). Surfaces the change in the Activity
+  // feed the same way provider_pricing_updated does.
+  | "agent_run_limits_updated"
   // autoPushChat gave up on a turn's push (including its one inline retry).
   // The chat already gets a "Push failed" message with a force-push action;
   // this is what makes the failure visible in aggregate (is one repo/branch

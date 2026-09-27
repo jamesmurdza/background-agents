@@ -67,5 +67,6 @@ export const queryKeys = {
       [...queryKeys.admin.all, "topups", range, excludeAdmins] as const,
     ccAuthRuns: () => [...queryKeys.admin.all, "ccAuthRuns"] as const,
     providerPricing: () => [...queryKeys.admin.all, "providerPricing"] as const,
+    agentRunLimits: () => [...queryKeys.admin.all, "agentRunLimits"] as const,
   },
 }
