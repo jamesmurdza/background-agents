@@ -6,8 +6,14 @@
 // user's row as Settings.maxAgentRunMinutes and resolved per-run by
 // ./user-run-limit's resolveUserRunLimit. Regular users always get these
 // defaults.
-export const INTERACTIVE_HARD_TIMEOUT = 25 // minutes
-export const SCHEDULED_HARD_TIMEOUT = 20 // minutes
+//
+// Re-exported from lib/agent-run-limits (not defined here) so the Settings >
+// Developer UI can display the same numbers as its "default" copy without
+// reaching into this route-private _lib folder.
+export {
+  INTERACTIVE_HARD_TIMEOUT_MINUTES as INTERACTIVE_HARD_TIMEOUT,
+  SCHEDULED_HARD_TIMEOUT_MINUTES as SCHEDULED_HARD_TIMEOUT,
+} from "@/lib/agent-run-limits"
 
 // ── Mid-turn credit guard (see ./credit-guard) ───────────────────────────────
 
