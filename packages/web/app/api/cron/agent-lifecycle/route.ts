@@ -4,8 +4,8 @@ import { addMinutes, differenceInMinutes } from "date-fns"
 import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { UsageLimitError } from "@/lib/db/usage-limit"
-import { getAgentRunLimits } from "@/lib/db/agent-run-limits"
 
+import { INTERACTIVE_HARD_TIMEOUT, SCHEDULED_HARD_TIMEOUT } from "./_lib/constants"
 import { creditBudgetExhausted, CREDIT_GUARD_STOP_REASON } from "./_lib/credit-guard"
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
@@ -39,8 +39,6 @@ export async function GET(req: Request) {
 
   const now = new Date()
   const daytona = new Daytona({ apiKey: daytonaApiKey })
-  const { interactiveMinutes: interactiveHardTimeout, scheduledMinutes: scheduledHardTimeout } =
-    await getAgentRunLimits()
 
   const results = {
     dispatchedJobs: 0,
@@ -154,10 +152,10 @@ export async function GET(req: Request) {
         const runStartedAt = chat.messages[0]?.createdAt ?? chat.lastActiveAt
         const totalMinutes = differenceInMinutes(now, runStartedAt)
 
-        // Hard timeout: admin-configurable, see lib/db/agent-run-limits
-        if (totalMinutes > interactiveHardTimeout) {
+        // Hard timeout: 25 minutes
+        if (totalMinutes > INTERACTIVE_HARD_TIMEOUT) {
           // stopAgent reads the agent session id before it cancels, which is
-          // the only chance to learn it: a long run is the most expensive
+          // the only chance to learn it: a 25-minute run is the most expensive
           // kind of failure to leave unbilled.
           const agentSessionId = await stopAgent(
             chat.sandboxId!,
@@ -166,7 +164,7 @@ export async function GET(req: Request) {
           )
           await markChatError(
             chat,
-            `Run exceeded ${interactiveHardTimeout} minute limit`,
+            "Run exceeded 25 minute limit",
             daytona,
             agentSessionId
           )
@@ -245,8 +243,8 @@ export async function GET(req: Request) {
       try {
         const runningMinutes = differenceInMinutes(now, run.startedAt)
 
-        // Hard timeout: admin-configurable, see lib/db/agent-run-limits
-        if (runningMinutes > scheduledHardTimeout) {
+        // Hard timeout: 20 minutes
+        if (runningMinutes > SCHEDULED_HARD_TIMEOUT) {
           let agentSessionId: string | undefined
           if (run.sandboxId && run.backgroundSessionId) {
             agentSessionId = await stopAgent(
@@ -257,7 +255,7 @@ export async function GET(req: Request) {
           }
           await failScheduledRun(
             run,
-            `Run timed out after ${scheduledHardTimeout} minutes`,
+            "Run timed out after 20 minutes",
             daytona,
             {},
             agentSessionId

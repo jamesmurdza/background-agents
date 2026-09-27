@@ -511,23 +511,6 @@ model ProviderPricing {
 }
 
 // =============================================================================
-// AgentRunLimits - admin-editable max agent run duration, singleton row
-// =============================================================================
-// Replaces the hardcoded INTERACTIVE_HARD_TIMEOUT/SCHEDULED_HARD_TIMEOUT
-// constants in app/api/cron/agent-lifecycle/_lib/constants. The agent-lifecycle
-// cron force-stops a run once it has been going this long, so this is
-// process-wide, not per-user/provider — a single row, id fixed at 1 (see
-// lib/db/agent-run-limits). A missing row falls back to those constants, so
-// this table only needs a row once an admin actually changes a value.
-model AgentRunLimits {
-  id                 Int      @id @default(1)
-  interactiveMinutes Int
-  scheduledMinutes   Int
-  updatedAt          DateTime @updatedAt
-  updatedBy          String?
-}
-
-// =============================================================================
 // ScheduledJob - Automated agent runs on a schedule
 // =============================================================================
 
