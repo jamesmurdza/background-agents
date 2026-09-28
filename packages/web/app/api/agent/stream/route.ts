@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { releaseSharedOpencodeSecret } from "@/lib/server/opencode-secrets"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
 
@@ -242,6 +243,9 @@ export async function GET(req: Request) {
             }
 
             await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
+            // The agent is done: stop the shared OpenCode placeholder from
+            // working until the next turn mounts it again.
+            await releaseSharedOpencodeSecret(sandbox)
 
             // Meter token/cost usage via tokscale while the sandbox is still
             // alive (best-effort). This is the live-stream completion path; the

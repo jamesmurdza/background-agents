@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma"
 import { PATHS } from "@/lib/constants"
 import { finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { releaseSharedOpencodeSecret } from "@/lib/server/opencode-secrets"
 import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
 import { meterTurnNow } from "./meter-turn"
 
@@ -67,6 +68,9 @@ export async function finalizeInteractiveChat(
       await finalizeTurn(sandbox, chat.backgroundSessionId, {
         repoPath: `${PATHS.SANDBOX_HOME}/project`,
       })
+      // The agent is done: stop the shared OpenCode placeholder from working
+      // until the next turn mounts it again.
+      await releaseSharedOpencodeSecret(sandbox)
 
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
       // Runs while the sandbox is still alive; attribution (pool/provider) is
@@ -134,6 +138,15 @@ export async function markChatError(
     fallbackSessionId: chat.sessionId,
     daytona,
   })
+
+  // Detach the shared OpenCode secret before the chat is released below.
+  if (daytona && chat.sandboxId) {
+    try {
+      await releaseSharedOpencodeSecret(await daytona.get(chat.sandboxId))
+    } catch {
+      // Sandbox already gone — nothing mounted to detach.
+    }
+  }
 
   // Update chat status
   await prisma.chat.update({

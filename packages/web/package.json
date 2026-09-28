@@ -28,7 +28,7 @@
     "@background-agents/sandbox-skills": "*",
     "@background-agents/sandbox-terminal": "*",
     "@background-agents/sdk": "*",
-    "@daytonaio/sdk": "^0.170.0",
+    "@daytonaio/sdk": "^0.217.0",
     "@prisma/adapter-neon": "^7.0.0",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",

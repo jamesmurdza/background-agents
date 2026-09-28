@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { Daytona, type Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { NextRequest } from "next/server"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -13,6 +13,16 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
+import { toSecretMarker } from "@/lib/server/opencode-pool"
+import {
+  ensureSharedOpencodeSecret,
+  mountSharedOpencodeSecret,
+  releaseSharedOpencodeSecret,
+  sharedOpencodeSecretForRun,
+  applySecretToAgentEnv,
+  waitForSecretPropagation,
+  type MountedSecret,
+} from "@/lib/server/opencode-secrets"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
@@ -131,7 +141,16 @@ export async function POST(
     createdSandbox: false,
   }
 
+  // Shared OpenCode secret for this run, if any.
+  const opencodeSecret = sharedOpencodeSecretForRun(credentials, payload.agent as Agent, payload.model)
+  // Set once the secret is mounted, so the catch below can detach it again.
+  let secretSandbox: DaytonaSandbox | undefined
+
   try {
+    // Created from OPENCODE_API_KEY on first use; needed before the sandbox
+    // below is created with it or it is mounted.
+    if (opencodeSecret) await ensureSharedOpencodeSecret(daytona, opencodeSecret)
+
     // ── Stages 1–2: ensure (or recreate) a started sandbox ─────────────────
     const ensured = await ensureSandboxForChat({
       daytona,
@@ -141,9 +160,19 @@ export async function POST(
       githubToken,
       userId,
       state,
+      opencodeSecret,
     })
     if (ensured instanceof Response) return ensured
     const { sandbox, sandboxId, branch, previewUrlPattern, createdSandbox, branchRestored } = ensured
+
+    // Mount the shared OpenCode secret for this turn now, so Daytona's
+    // propagation delay overlaps the pull/upload work below. Detached again
+    // wherever the turn ends (see lib/server/opencode-secrets).
+    let mountedOpencodeSecret: MountedSecret | undefined
+    if (opencodeSecret) {
+      mountedOpencodeSecret = await mountSharedOpencodeSecret(sandbox, opencodeSecret)
+      secretSandbox = sandbox
+    }
 
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
@@ -186,6 +215,8 @@ export async function POST(
 
     // ── Stage 4: spin up the background session (does NOT start the agent yet) ──
     const env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
+    // Point OpenCode at the mounted secret's placeholder instead of the marker.
+    applySecretToAgentEnv(env)
 
     // Fetch this chat's connected MCP servers so the agent sees them as tools.
     // Best-effort — a fetch error shouldn't block the turn.
@@ -225,14 +256,15 @@ export async function POST(
       where: { id: userId },
       select: { credentials: true },
     })
-    // `credentials` carries the key actually handed to the agent — for a shared
-    // OpenCode run that's the one pickSharedOpencodeKey chose for this turn, so
-    // fingerprinting it here is what makes per-key spend attributable later.
+    // The key actually handed to the agent — for a shared OpenCode run that's
+    // the secret the sandbox has mounted (which may differ from the one
+    // pickSharedOpencodeKey chose) — so fingerprinting it here is what makes
+    // per-key spend attributable later.
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,
       decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
       payload.model,
-      credentials.OPENCODE_API_KEY
+      mountedOpencodeSecret ? toSecretMarker(mountedOpencodeSecret.name) : credentials.OPENCODE_API_KEY
     )
 
     // ── Stage 5: persist messages + chat status (transactional) ────────────
@@ -247,6 +279,7 @@ export async function POST(
     })
 
     // ── Stage 6: kick off the agent ────────────────────────────────────────
+    if (mountedOpencodeSecret) await waitForSecretPropagation(mountedOpencodeSecret)
     await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     // Log message sent activity (fire and forget)
@@ -268,6 +301,9 @@ export async function POST(
     return Response.json(response)
   } catch (error) {
     console.error("[chats/messages] Error:", error)
+
+    // The turn never started, so nothing else will detach the secret.
+    if (secretSandbox) await releaseSharedOpencodeSecret(secretSandbox)
 
     // If we just created the sandbox in this request and something
     // downstream failed, delete it so it's not orphaned.

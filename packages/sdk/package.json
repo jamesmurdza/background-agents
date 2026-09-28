@@ -78,7 +78,7 @@
   ],
   "dependencies": {
     "@background-agents/sandbox-jobs": "^0.1.0",
-    "@daytonaio/sdk": "^0.170.0",
+    "@daytonaio/sdk": "^0.217.0",
     "dotenv": "^17.3.1"
   }
 }

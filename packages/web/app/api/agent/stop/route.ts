@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
 import { cancelBackgroundAgent } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
+import { releaseSharedOpencodeSecret } from "@/lib/server/opencode-secrets"
 import {
   isAuthError,
   requireAuth,
@@ -70,6 +71,8 @@ export async function POST(req: Request) {
 
     // Kill the agent process
     await cancelBackgroundAgent(sandbox, chat.backgroundSessionId, sessionOpts)
+    // Detach the shared OpenCode secret before the chat is released below.
+    await releaseSharedOpencodeSecret(sandbox)
 
     // Update database to mark chat as ready
     await prisma.chat.update({

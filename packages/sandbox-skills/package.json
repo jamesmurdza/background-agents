@@ -59,13 +59,13 @@
     "prepare": "npm run build"
   },
   "devDependencies": {
-    "@daytonaio/sdk": "^0.170.0",
+    "@daytonaio/sdk": "^0.217.0",
     "@types/node": "^20.10.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   },
   "peerDependencies": {
-    "@daytonaio/sdk": ">=0.170.0"
+    "@daytonaio/sdk": ">=0.217.0"
   },
   "peerDependenciesMeta": {
     "@daytonaio/sdk": {
