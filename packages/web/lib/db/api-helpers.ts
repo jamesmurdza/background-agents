@@ -8,6 +8,7 @@ import {
   type Credentials,
 } from "@/lib/credentials"
 import { pickSharedOpencodeKey } from "@/lib/server/opencode-pool"
+import { getGitHubToken as resolveGitHubToken } from "@/lib/github/oauth-token"
 
 // =============================================================================
 // Types
@@ -239,11 +240,7 @@ export interface GitHubAuthResult {
  * Returns null if no GitHub account is linked or no token is stored.
  */
 export async function getGitHubToken(userId: string): Promise<string | null> {
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: "github" },
-    select: { access_token: true },
-  })
-  return account?.access_token ?? null
+  return resolveGitHubToken(userId)
 }
 
 /**
@@ -258,17 +255,18 @@ export async function requireGitHubAuth(): Promise<GitHubAuthResult | Response> 
     return unauthorized()
   }
 
-  // Get the GitHub account access token
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: "github" },
-    select: { access_token: true },
-  })
+  let token: string | null
+  try {
+    token = await resolveGitHubToken(userId)
+  } catch {
+    return Response.json({ error: "GitHub authorization temporarily unavailable" }, { status: 503 })
+  }
 
-  if (!account?.access_token) {
+  if (!token) {
     return Response.json({ error: "GitHub account not linked" }, { status: 401 })
   }
 
-  return { userId, token: account.access_token }
+  return { userId, token }
 }
 
 /**
