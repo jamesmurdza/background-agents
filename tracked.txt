@@ -1,0 +1,1 @@
+This is a tracked file used to demonstrate committed vs. uncommitted changes.
