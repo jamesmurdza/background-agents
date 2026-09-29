@@ -360,6 +360,7 @@ export async function getChatWithAuth(
   pinned: boolean
   parentChatId: string | null
   needsSync: boolean
+  hasUncommittedFiles: boolean
   environmentVariables: unknown
   createdAt: Date
   updatedAt: Date
@@ -375,4 +376,3 @@ export async function getChatWithAuth(
 
   return chat
 }
-

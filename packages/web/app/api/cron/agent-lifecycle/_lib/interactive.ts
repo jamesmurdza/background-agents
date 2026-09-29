@@ -9,6 +9,7 @@ import { stripNullBytes, stripNullBytesDeep } from "@/lib/db/pg-sanitize"
 import { meterTurnNow } from "./meter-turn"
 
 import { autoPushChat } from "@/lib/git/auto-push"
+import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
 import type { ChatWithMessages } from "./types"
 
 // =============================================================================
@@ -90,6 +91,12 @@ export async function finalizeInteractiveChat(
           chatId: chat.id,
           userId: chat.userId,
           branch: chat.branch,
+        })
+        await refreshUncommittedFilesWarning({
+          sandbox,
+          repoPath: `${PATHS.SANDBOX_HOME}/project`,
+          chatId: chat.id,
+          backgroundSessionId: chat.backgroundSessionId,
         })
       }
     } catch (err) {
