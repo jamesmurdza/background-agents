@@ -1,5 +1,5 @@
 import { Fragment } from "react"
-import { MoreHorizontal, GitBranch, GitBranchPlus, Trash2, ArrowDown } from "lucide-react"
+import { MoreHorizontal, GitBranch, GitBranchPlus, Trash2, ArrowDown, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
@@ -107,6 +107,20 @@ export function ChatMessageList({
           {isCreating && (
             <div className="text-2xl text-muted-foreground animate-pulse">
               ...
+            </div>
+          )}
+          {chat.hasUncommittedFiles && !isNewRepo && (
+            <div
+              data-testid="uncommitted-files-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                Some new files were uncommitted at the end of the last agent turn,
+                so they were not included in a pushed commit. Ask the agent to
+                review and commit the files you want to save on GitHub.
+              </span>
             </div>
           )}
           {/* Surface the latest agent/streaming failure inline so users see why

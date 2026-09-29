@@ -1,0 +1,1 @@
+ALTER TABLE "Chat" ADD COLUMN "hasUncommittedFiles" BOOLEAN NOT NULL DEFAULT false;

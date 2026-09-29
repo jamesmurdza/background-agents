@@ -13,6 +13,7 @@ import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
+import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
 
 // maxDuration configures the timeout for this Vercel function. Allow longer
@@ -283,6 +284,7 @@ export async function GET(req: Request) {
             // to the cron, which finalizes identically. Populated when the push
             // advances the remote, so the client can raise a "new push" toast.
             let pushInfo: PushInfo | undefined
+            let hasUncommittedFiles: boolean | undefined
             if (lastSnap.status === "completed" && chatId) {
               const chat = await prisma.chat.findUnique({
                 where: { id: chatId },
@@ -298,6 +300,12 @@ export async function GET(req: Request) {
                     userId: chat.userId,
                     branch: chat.branch,
                   })) ?? undefined
+                hasUncommittedFiles = await refreshUncommittedFilesWarning({
+                  sandbox,
+                  repoPath: sessionOpts.repoPath,
+                  chatId,
+                  backgroundSessionId,
+                })
               }
             }
 
@@ -339,6 +347,7 @@ export async function GET(req: Request) {
               cursor,
               conflictState,
               push: pushInfo,
+              hasUncommittedFiles,
             })
             closeStream()
             return

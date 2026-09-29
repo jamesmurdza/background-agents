@@ -73,6 +73,7 @@ export function useChatMessageSync({
               ...c,
               messages: mergeMessages(c.messages, incomingMessages),
               messageCount: chatData.messageCount,
+              hasUncommittedFiles: chatData.hasUncommittedFiles,
             }
           })
         )
@@ -99,7 +100,7 @@ export function useChatMessageSync({
       updateChatsCache((old) =>
         old.map((c) =>
           c.id === chatId
-            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount }
+            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount, hasUncommittedFiles: chatData.hasUncommittedFiles }
             : c
         )
       )
@@ -126,14 +127,12 @@ export function useChatMessageSync({
       const chatData = await fetchChat(chatId, lastMessageId ? { afterMessageId: lastMessageId } : undefined)
       const incomingMessages = chatData.messages.map(toMessageType)
 
-      if (incomingMessages.length > 0) {
-        updateChatsCache((old) =>
-          old.map((c) => {
-            if (c.id !== chatId) return c
-            return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
-          })
-        )
-      }
+      updateChatsCache((old) =>
+        old.map((c) => {
+          if (c.id !== chatId) return c
+          return { ...c, messages: mergeMessages(c.messages, incomingMessages), hasUncommittedFiles: chatData.hasUncommittedFiles }
+        })
+      )
     } catch (err) {
       console.error("Failed to refetch messages:", err)
     }
@@ -157,6 +156,7 @@ export function useChatMessageSync({
               ? mergeMessages(c.messages, incomingMessages)
               : c.messages,
             status: "ready",
+            hasUncommittedFiles: chatData.hasUncommittedFiles,
             errorMessage: undefined,
           }
         })

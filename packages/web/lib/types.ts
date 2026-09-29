@@ -226,6 +226,10 @@ export interface Chat {
   /** Set when a merge targets this branch but sandbox was stopped. Triggers pull on next execute. */
   needsSync?: boolean
 
+  /** New, non-ignored files were still outside a commit at the last completed
+   * turn's successful Git status check. */
+  hasUncommittedFiles?: boolean
+
   /** Set if the last attempt to fetch this chat's messages from the server
    *  failed. Suppresses auto-retry on subsequent selects until the user
    *  explicitly retries. */
@@ -321,6 +325,8 @@ export interface SSECompleteEvent {
    *  terminal event and no output → the UI may offer Reload over Retry. */
   errorKind?: "crash" | "incomplete"
   cursor: number
+  /** Present only when the backend successfully checked and persisted Git status. */
+  hasUncommittedFiles?: boolean
   /** Conflict state after agent completion - allows frontend to update warning icon */
   conflictState?: {
     inRebase: boolean

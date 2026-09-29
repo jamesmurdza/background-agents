@@ -180,6 +180,10 @@ model Chat {
   // Sync flag for git pull on next execution
   needsSync Boolean @default(false)
 
+  // Latest confirmed check after a completed agent turn. A failed check keeps
+  // the last known value; this is surfaced independently of push notifications.
+  hasUncommittedFiles Boolean @default(false)
+
   // JSONB for encrypted chat-level environment variables
   // { "KEY1": "encrypted_value1", ... }
   environmentVariables Json?

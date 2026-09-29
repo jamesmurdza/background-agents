@@ -40,6 +40,7 @@ interface ChatResponse {
   pinned: boolean
   parentChatId: string | null
   needsSync: boolean
+  hasUncommittedFiles: boolean
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -101,6 +102,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       pinned: chat.pinned,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
+      hasUncommittedFiles: chat.hasUncommittedFiles,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
@@ -205,6 +207,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       pinned: chat.pinned,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
+      hasUncommittedFiles: chat.hasUncommittedFiles,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),

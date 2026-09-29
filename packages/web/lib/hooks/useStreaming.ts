@@ -181,6 +181,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
               errorKind: data.status === "error" ? data.errorKind : undefined,
               sessionId: data.sessionId ?? c.sessionId,
+              hasUncommittedFiles: data.hasUncommittedFiles ?? c.hasUncommittedFiles,
             } : c
           ))
 
@@ -236,14 +237,12 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           try {
             const chatData = await fetchChat(chatId, { afterMessageId: assistantMessageId })
             const incomingMessages = chatData.messages.map(toMessageType)
-            if (incomingMessages.length > 0) {
-              updateChatsCache((old) =>
-                old.map((c) => {
-                  if (c.id !== chatId) return c
-                  return { ...c, messages: mergeMessages(c.messages, incomingMessages) }
-                })
-              )
-            }
+            updateChatsCache((old) =>
+              old.map((c) => {
+                if (c.id !== chatId) return c
+                return { ...c, messages: mergeMessages(c.messages, incomingMessages), hasUncommittedFiles: chatData.hasUncommittedFiles }
+              })
+            )
           } catch (fetchErr) {
             console.error("Failed to fetch new messages after stream complete:", fetchErr)
           }
@@ -315,7 +314,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             updateChatsCache((old) =>
               old.map((c) =>
                 c.id === chatId
-                  ? { ...c, status: backendState.status, backgroundSessionId: undefined }
+                  ? { ...c, status: backendState.status, backgroundSessionId: undefined, hasUncommittedFiles: backendState.hasUncommittedFiles ?? c.hasUncommittedFiles }
                   : c
               )
             )
