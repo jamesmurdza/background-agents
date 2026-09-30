@@ -16,6 +16,7 @@ import {
   type Agent,
 } from "@background-agents/common"
 import { getEffectiveCredentialFlags } from "@/lib/server/credential-flags"
+import { toQueuedMessage } from "@/lib/server/prompt-queue"
 
 // =============================================================================
 // Types
@@ -46,6 +47,8 @@ interface ChatResponse {
   lastActiveAt: number
   messageCount: number
   lastMessageId: string | null
+  queuedMessages: ReturnType<typeof toQueuedMessage>[]
+  queuePaused: boolean
 }
 
 // =============================================================================
@@ -71,6 +74,10 @@ export async function GET(req: NextRequest): Promise<Response> {
         }),
       },
       include: {
+        queuedPrompts: {
+          where: { status: { in: ["queued", "dispatching"] } },
+          orderBy: { position: "asc" },
+        },
         messages: {
           select: { id: true },
           orderBy: { timestamp: "desc" },
@@ -108,6 +115,8 @@ export async function GET(req: NextRequest): Promise<Response> {
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount: chat._count.messages,
       lastMessageId: chat.messages[0]?.id ?? null,
+      queuedMessages: chat.queuedPrompts.map(toQueuedMessage),
+      queuePaused: chat.queuePaused,
     }))
 
     return Response.json({ chats: response })
@@ -213,6 +222,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount: 0,
       lastMessageId: null,
+      queuedMessages: [],
+      queuePaused: false,
     }
 
     // Log activity (fire and forget)

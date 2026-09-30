@@ -253,6 +253,9 @@ export interface QueuedMessage {
   content: string
   agent?: string
   model?: string
+  clientId?: string
+  lastError?: string
+  pendingSync?: boolean
 }
 
 export type Theme = "light" | "dark" | "system"

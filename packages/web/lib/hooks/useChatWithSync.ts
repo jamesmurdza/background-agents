@@ -4,7 +4,8 @@
  * useChat hook with TanStack Query
  *
  * Server data (chats, settings) managed by TanStack Query.
- * Local-only state (currentChatId, previewItems, queuedMessages) in React state + localStorage.
+ * Local-only state (currentChatId, previewItems, legacy queue during import) in
+ * React state + localStorage. Active queued prompts are server-owned.
  * SSE streaming updates TanStack Query cache directly.
  */
 
@@ -224,8 +225,6 @@ export function useChatWithSync() {
       reloadMessages,
       queryClient,
       onConflictStateChangeRef,
-      queuedMessages: localChatState.queuedMessages,
-      queuePaused: localChatState.queuePaused,
     })
 
   // Resume streaming for running chats. The key must include the last

@@ -156,7 +156,9 @@ export async function ensureSandboxForChat(params: {
         branch,
         previewUrlPattern,
         sessionId: null,
-        status: "ready",
+        // Keep the per-chat send claim until persistTurn marks the turn running.
+        // Releasing it here lets another tab or queue worker start a second turn.
+        status: "creating",
       },
     })
     chat.sessionId = null
