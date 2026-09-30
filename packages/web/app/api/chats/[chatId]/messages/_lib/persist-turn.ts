@@ -17,6 +17,7 @@ export async function persistTurn(params: {
   usageMeta: ReturnType<typeof buildUsageMeta>
   backgroundSessionId: string
   isAgentSwitch: boolean
+  claimedPromptId?: string
 }): Promise<void> {
   const {
     chatId,
@@ -26,6 +27,7 @@ export async function persistTurn(params: {
     usageMeta,
     backgroundSessionId,
     isAgentSwitch,
+    claimedPromptId,
   } = params
 
   const now = Date.now()
@@ -87,11 +89,12 @@ export async function persistTurn(params: {
       },
     })
 
-    await tx.chat.update({
-      where: { id: chatId },
+    const claimedChat = await tx.chat.updateMany({
+      where: { id: chatId, status: "creating", queueDispatchId: claimedPromptId ?? null },
       data: {
         status: "running",
         backgroundSessionId,
+        queueDispatchId: null,
         lastActiveAt: new Date(),
         // Persist agent/model so subsequent messages on this chat keep them
         agent: payload.agent,
@@ -100,5 +103,14 @@ export async function persistTurn(params: {
         ...(isAgentSwitch && { sessionId: null }),
       },
     })
+    if (claimedChat.count !== 1) throw new Error("Chat send claim was lost")
+
+    if (claimedPromptId) {
+      const started = await tx.queuedPrompt.updateMany({
+        where: { id: claimedPromptId, chatId, status: "dispatching" },
+        data: { status: "started", claimedAt: null },
+      })
+      if (started.count !== 1) throw new Error("Queued prompt claim was lost")
+    }
   })
 }

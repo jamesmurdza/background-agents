@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { getInheritedMessages } from "@/lib/db/branch-history"
+import { toQueuedMessage } from "@/lib/server/prompt-queue"
 
 // =============================================================================
 // Helpers
@@ -86,6 +87,8 @@ interface ChatWithMessagesResponse {
   lastActiveAt: number
   messages: MessageResponse[]
   messageCount: number
+  queuedMessages: ReturnType<typeof toQueuedMessage>[]
+  queuePaused: boolean
 }
 
 // =============================================================================
@@ -124,6 +127,10 @@ export async function GET(
 
     // Get total message count
     const messageCount = await prisma.message.count({ where: { chatId } })
+    const queuedPrompts = await prisma.queuedPrompt.findMany({
+      where: { chatId, status: { in: ["queued", "dispatching"] } },
+      orderBy: { position: "asc" },
+    })
 
     // Fetch messages, optionally after a specific message ID (for delta sync).
     // The message ID lookup must be scoped to this chat: a message ID
@@ -203,6 +210,8 @@ export async function GET(
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount,
+      queuedMessages: queuedPrompts.map(toQueuedMessage),
+      queuePaused: chat.queuePaused,
       messages: [
         ...inheritedMessages,
         ...messages.map((m) => ({

@@ -12,6 +12,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/prompt-queue",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/daily-credits",
       "schedule": "0 0 * * *"
     },
