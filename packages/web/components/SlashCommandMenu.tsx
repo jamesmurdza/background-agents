@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, FolderGit2, GitBranchPlus, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
+import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
 import { filterSlashCommandsWithConflict, filterSingleCommand, CREATE_REPO_COMMAND, type SlashCommand } from "@background-agents/common"
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -58,6 +59,10 @@ export function SlashCommandMenu({
   // Close menu when clicking outside
   useClickOutside(menuRef, onClose, open)
 
+  // Cap the menu to the space actually available above it, so it scrolls
+  // instead of being clipped (or leaving a gap) on short windows.
+  const maxHeight = useUpwardMenuMaxHeight(open, menuRef)
+
   // Reset selected index when filtered commands change
   useEffect(() => {
     if (selectedIndex >= filteredCommands.length) {
@@ -79,8 +84,9 @@ export function SlashCommandMenu({
   return (
     <div
       ref={menuRef}
+      style={{ maxHeight }}
       className={cn(
-        "absolute bottom-full left-0 mb-1 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg z-50",
+        "absolute bottom-full left-0 mb-1 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg z-50",
         isMobile ? "right-0" : "w-64"
       )}
     >
