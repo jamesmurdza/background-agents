@@ -147,6 +147,18 @@ Run from `packages/web/`:
 npm run test:e2e
 ```
 
+The optional live browser-versus-cron race test reuses an existing disposable
+`__new__` Daytona sandbox and stops it afterward. It does not create or delete
+a sandbox. Do not point it at a sandbox containing work you need to keep:
+
+```bash
+DAYTONA_RACE_SANDBOX_ID=<disposable-sandbox-id> npx playwright test e2e/prompt-queue-live-race.spec.ts
+```
+
+Without `DAYTONA_RACE_SANDBOX_ID`, that test is skipped. The regular
+`prompt-queue-immediate.spec.ts` tests cover the race against the real local
+Postgres database without starting a Daytona agent.
+
 To start a dev server using the same env profile as the end-to-end tests, run from the repo root:
 
 ```bash
