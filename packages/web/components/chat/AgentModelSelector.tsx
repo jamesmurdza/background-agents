@@ -488,7 +488,7 @@ export function AgentModelSelector({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-64 p-0"
+          className="w-64 p-0 max-h-[var(--radix-popover-content-available-height)] overflow-hidden"
           align="end"
           side="top"
           sideOffset={4}
@@ -499,7 +499,7 @@ export function AgentModelSelector({
               value={search}
               onValueChange={setSearch}
             />
-            <CommandList className="max-h-[min(300px,var(--radix-popover-content-available-height))]">
+            <CommandList className="max-h-[min(300px,calc(var(--radix-popover-content-available-height)_-_48px))]">
               <CommandEmpty>No models found</CommandEmpty>
               {modelSections.map((section) => (
                 <CommandGroup key={section.key} heading={section.label}>
