@@ -11,6 +11,7 @@ import { creditBudgetExhausted, CREDIT_GUARD_STOP_REASON } from "./_lib/credit-g
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
+import { resyncSharedClaudeCredentials } from "./_lib/claude-credential-sync"
 
 // maxDuration configures the timeout for this Vercel function. Vercel Pro
 // plan allows up to 5 minutes for cron jobs.
@@ -177,6 +178,17 @@ export async function GET(req: Request) {
           continue
         }
 
+        // Keep a long-running turn's on-disk credential fresh (best-effort,
+        // never throws) before polling it — see claude-credential-sync.ts for
+        // why this is needed now that a sandbox can no longer self-refresh.
+        await resyncSharedClaudeCredentials(
+          chat.sandboxId!,
+          chat.userId,
+          chat.agent,
+          chat.model,
+          daytona
+        )
+
         // Monitor and check completion
         const snapshot = await monitorAgent(
           chat.sandboxId!,
@@ -274,6 +286,16 @@ export async function GET(req: Request) {
         }
 
         if (run.sandboxId && run.backgroundSessionId) {
+          // See the interactive-chat call above: keeps a long-running
+          // scheduled job's on-disk credential fresh before polling it.
+          await resyncSharedClaudeCredentials(
+            run.sandboxId,
+            run.job.userId,
+            run.job.agent,
+            run.job.model,
+            daytona
+          )
+
           const snapshot = await monitorAgent(
             run.sandboxId,
             run.backgroundSessionId,
