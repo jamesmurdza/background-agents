@@ -427,7 +427,7 @@ export function AgentModelSelector({
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
         {showAgentDropdown && (
-          <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-48">
+          <div className="absolute bottom-full right-0 mb-1 max-h-[60vh] overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-48">
             {agents.map((agent) => {
               const status = getAgentStatus(agent, credentialFlags, creditBalanceUsd)
               return (
