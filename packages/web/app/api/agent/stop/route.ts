@@ -49,6 +49,10 @@ export async function POST(req: Request) {
     return badRequest("Chat not found")
   }
 
+  // Pause before releasing the running chat; otherwise the queue cron could
+  // claim the next prompt between the status reset and a separate browser call.
+  await prisma.chat.update({ where: { id: chatId }, data: { queuePaused: true } })
+
   if (!chat.backgroundSessionId || !chat.sandboxId) {
     // Agent is not running, nothing to stop
     return Response.json({ success: true, message: "Agent not running" })
@@ -77,6 +81,7 @@ export async function POST(req: Request) {
       data: {
         status: "ready",
         backgroundSessionId: null,
+        queuePaused: true,
       },
     })
 

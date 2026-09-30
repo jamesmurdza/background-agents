@@ -16,10 +16,10 @@ import { useCallback, useRef, type MutableRefObject } from "react"
 import { nanoid } from "nanoid"
 import type { Session } from "next-auth"
 import type { QueryClient } from "@tanstack/react-query"
-import type { Chat, Message, QueuedMessage, Settings } from "@/lib/types"
+import type { Chat, Message, Settings } from "@/lib/types"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import { useStreamStore } from "@/lib/stores/stream-store"
-import { useQueueDispatch } from "./useQueueDispatch"
+import { useServerQueue } from "./useServerQueue"
 import type { useStreaming } from "./useStreaming"
 import type { useSuggestNameMutation } from "@/lib/query"
 import { queryKeys, type SettingsData } from "@/lib/query"
@@ -61,8 +61,6 @@ interface UseMessageDispatchArgs {
   reloadMessages: (chatId: string) => Promise<void>
   queryClient: QueryClient
   onConflictStateChangeRef: MutableRefObject<ConflictStateChange | null>
-  queuedMessages: Record<string, QueuedMessage[] | undefined>
-  queuePaused: Record<string, boolean | undefined>
 }
 
 export interface MessageDispatch {
@@ -96,8 +94,6 @@ export function useMessageDispatch({
   reloadMessages,
   queryClient,
   onConflictStateChangeRef,
-  queuedMessages,
-  queuePaused,
 }: UseMessageDispatchArgs): MessageDispatch {
   const setLimitReachedState = useChatSyncStore((s) => s.setLimitReachedState)
 
@@ -254,22 +250,13 @@ export function useMessageDispatch({
     }
   }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, queryClient, reloadMessages, setLimitReachedState, onConflictStateChangeRef])
 
-  // Predicates so useQueueDispatch can check the in-flight refs without holding
-  // them directly.
-  const isSendInFlight = useCallback((chatId: string) => sendInFlight.current.has(chatId), [])
-  const isStopInFlight = useCallback((chatId: string) => stopInFlight.current.has(chatId), [])
-
-  // Queue management — owns enqueue/remove/resume/pause + the auto-drain
-  // effect that dispatches the next queued message whenever a chat is idle.
-  const { enqueueMessage, removeQueuedMessage, resumeQueue, pauseQueue } = useQueueDispatch({
+  // Queue management is server-owned; this hook syncs it across browsers and
+  // imports any prompts saved by the previous localStorage-only version.
+  const { enqueueMessage, removeQueuedMessage, resumeQueue, pauseQueue } = useServerQueue({
     isHydrated,
-    chats,
+    isAuthenticated: !!session,
     currentChat,
-    queuedMessages,
-    queuePaused,
-    sendMessage,
-    isSendInFlight,
-    isStopInFlight,
+    reloadMessages,
   })
 
   const stopAgent = useCallback(async () => {
