@@ -27,7 +27,7 @@ export function WelcomeView({
   return (
     <>
       <div className={cn(
-        "flex-1 flex flex-col items-center justify-center bg-background relative min-h-0 overflow-y-auto",
+        "flex-1 flex flex-col items-center justify-center bg-background relative",
         isMobile ? "p-4 pb-safe" : "p-4"
       )}>
         <div className="absolute top-3 right-3 flex items-center gap-1">
