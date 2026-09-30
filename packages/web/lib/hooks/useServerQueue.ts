@@ -8,6 +8,7 @@ import { queryKeys } from "@/lib/query"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import { setQueuedMessages, setQueuePaused } from "@/lib/storage"
 import {
+  dispatchQueuedPromptApi,
   enqueuePromptApi,
   fetchPromptQueue,
   importLegacyPromptQueue,
@@ -49,17 +50,32 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
     if (remote.backgroundSessionId && remote.backgroundSessionId !== previous?.backgroundSessionId) {
       await reloadMessages(chatId)
     }
+    return remote
   }, [queryClient, reloadMessages])
+
+  const wakeQueuedPrompt = useCallback((chatId: string) => {
+    void dispatchQueuedPromptApi(chatId)
+      .then(() => refreshQueue(chatId))
+      .catch((error) => console.error("Failed to wake queued prompt:", error))
+  }, [refreshQueue])
 
   useEffect(() => {
     const chatId = currentChat?.id
     if (!isHydrated || !isAuthenticated || !chatId || chatId.startsWith("draft-")) return
-    void refreshQueue(chatId).catch((error) => console.error("Failed to sync prompt queue:", error))
+    const syncAndWake = async () => {
+      const queue = await refreshQueue(chatId)
+      // Covers a tab opened after the completion event: it did not receive SSE,
+      // but can still wake persisted work instead of waiting for the cron.
+      if (queue.status === "ready" && !queue.queuePaused && !queue.backgroundSessionId && queue.queuedMessages.length > 0) {
+        wakeQueuedPrompt(chatId)
+      }
+    }
+    void syncAndWake().catch((error) => console.error("Failed to sync prompt queue:", error))
     const timer = window.setInterval(() => {
-      void refreshQueue(chatId).catch((error) => console.error("Failed to sync prompt queue:", error))
+      void syncAndWake().catch((error) => console.error("Failed to sync prompt queue:", error))
     }, 5000)
     return () => window.clearInterval(timer)
-  }, [currentChat?.id, isHydrated, isAuthenticated, refreshQueue])
+  }, [currentChat?.id, isHydrated, isAuthenticated, refreshQueue, wakeQueuedPrompt])
 
   const migrateLegacy = useCallback(async () => {
     const state = useChatSyncStore.getState().localChatState
@@ -95,6 +111,7 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
           }))
         }
         await refreshQueue(chatId)
+        wakeQueuedPrompt(chatId)
       } catch (error) {
         // The local copy remains visible as pendingSync and retries later.
         console.error(`Failed to import saved prompt queue for ${chatId}:`, error)
@@ -102,7 +119,7 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
         migrating.current.delete(chatId)
       }
     }
-  }, [refreshQueue])
+  }, [refreshQueue, wakeQueuedPrompt])
 
   useEffect(() => {
     if (!isHydrated || !isAuthenticated) return
@@ -130,10 +147,13 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
     }))
     void enqueuePromptApi(chatId, {
       clientId: item.id, content, agent: selectedAgent, model: selectedModel,
-    }).then(() => migrateLegacy()).catch((error) => {
+    }).then(() => {
+      wakeQueuedPrompt(chatId)
+      return migrateLegacy()
+    }).catch((error) => {
       console.error("Failed to save queued prompt; keeping it on this device for retry:", error)
     })
-  }, [currentChat, migrateLegacy])
+  }, [currentChat, migrateLegacy, wakeQueuedPrompt])
 
   const removeQueuedMessage = useCallback((id: string) => {
     if (!currentChat) return
@@ -170,9 +190,12 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
       ...prev, queuePaused: { ...prev.queuePaused, [chatId]: false },
     }))
     void setPromptQueuePaused(chatId, false)
-      .then(() => refreshQueue(chatId))
+      .then(() => {
+        wakeQueuedPrompt(chatId)
+        return refreshQueue(chatId)
+      })
       .catch((error) => console.error("Failed to resume prompt queue:", error))
-  }, [currentChat, refreshQueue])
+  }, [currentChat, refreshQueue, wakeQueuedPrompt])
 
   const pauseQueue = useCallback((chatId: string) => {
     void setPromptQueuePaused(chatId, true)

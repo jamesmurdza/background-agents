@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { Chat, Message, SSEUpdateEvent, SSECompleteEvent } from "@/lib/types"
 import { useStreamStore } from "@/lib/stores/stream-store"
 import { queryKeys } from "@/lib/query"
-import { fetchChat, toMessageType } from "@/lib/sync/api"
+import { dispatchQueuedPromptApi, fetchChat, toMessageType } from "@/lib/sync/api"
 import { notifyCompletion } from "@/lib/notify"
 import type { SettingsData } from "@/lib/query/hooks/useSettingsQuery"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
@@ -78,6 +78,15 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       }
       return updater(old)
     })
+  }, [queryClient])
+
+  const wakeQueuedPrompt = useCallback((chatId: string) => {
+    // The browser only asks; the server and cron share the same database claim.
+    void dispatchQueuedPromptApi(chatId).then(({ status }) => {
+      if (status !== "skipped") {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+      }
+    }).catch((error) => console.error("Failed to wake queued prompt:", error))
   }, [queryClient])
 
   // Start streaming for a chat
@@ -184,6 +193,8 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               hasUncommittedFiles: data.hasUncommittedFiles ?? c.hasUncommittedFiles,
             } : c
           ))
+
+          if (data.status === "completed") wakeQueuedPrompt(chatId)
 
           // The turn just spent credits. The stream route meters the turn
           // before emitting this event (see app/api/agent/stream/route.ts), so
@@ -318,6 +329,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
                   : c
               )
             )
+            if (backendState.status === "ready") wakeQueuedPrompt(chatId)
           }
         } catch (err) {
           // Fetch failed (network still down) - apply backoff then retry
@@ -336,7 +348,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
     }
 
     connect()
-  }, [updateChatsCache])
+  }, [updateChatsCache, wakeQueuedPrompt])
 
   return {
     startStreaming,

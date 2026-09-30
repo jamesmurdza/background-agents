@@ -24,6 +24,10 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
 
+### Prompt queue dispatch
+
+Queued prompts are stored in PostgreSQL. An open browser requests a dispatch after a turn completes, after saving or resuming a prompt, or when it finds a ready queue on refresh. The minute cron remains the fallback when no browser is connected. Both paths use the same server dispatcher and atomically claim the chat and its oldest prompt before starting an agent turn, so overlapping wake-ups cannot start that prompt twice. If a start fails before the turn is persisted, the prompt remains queued and the queue pauses for manual review.
+
 ## Usage
 
 ### Development
