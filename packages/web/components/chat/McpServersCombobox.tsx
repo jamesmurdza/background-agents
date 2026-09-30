@@ -539,17 +539,17 @@ export function McpServersCombobox({
               ) : null
             }
           />
-          <CommandList className="h-[252px] max-h-[252px]">
+          <CommandList className="h-[min(252px,var(--radix-popover-content-available-height))]">
             {!hasLoadedRegistry ? (
               <div
-                className="flex items-center justify-center h-[252px]"
+                className="flex items-center justify-center h-[min(252px,var(--radix-popover-content-available-height))]"
                 role="status"
                 aria-label="Loading MCP servers"
               >
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : allServers.length === 0 && !loadingRegistry ? (
-              <CommandEmpty className="flex items-center justify-center h-[252px] py-0">
+              <CommandEmpty className="flex items-center justify-center h-[min(252px,var(--radix-popover-content-available-height))] py-0">
                 No servers found
               </CommandEmpty>
             ) : (
