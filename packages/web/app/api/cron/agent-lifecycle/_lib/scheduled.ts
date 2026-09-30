@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db/prisma"
 import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
-import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { getSandboxClaudeCredentials } from "@/lib/claude-credentials"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterTurnNow } from "./meter-turn"
@@ -188,7 +188,7 @@ export async function startJobExecution(
     try {
       credentials = {
         ...credentials,
-        CLAUDE_CODE_CREDENTIALS: await getClaudeCredentials(),
+        CLAUDE_CODE_CREDENTIALS: await getSandboxClaudeCredentials(),
       }
     } catch (err) {
       console.error(`[agent-lifecycle] Failed to get shared Claude creds:`, err)

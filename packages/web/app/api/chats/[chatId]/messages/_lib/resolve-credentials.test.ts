@@ -65,7 +65,7 @@ vi.mock("@/lib/db/activity-log", () => ({ logActivityAsync: vi.fn() }))
 vi.mock("@/lib/db/usage-limit", () => ({
   checkSharedPoolUsage: vi.fn().mockResolvedValue({ allowed: true }),
 }))
-vi.mock("@/lib/claude-credentials", () => ({ getClaudeCredentials: vi.fn() }))
+vi.mock("@/lib/claude-credentials", () => ({ getSandboxClaudeCredentials: vi.fn() }))
 
 import { resolveSendCredentials } from "./resolve-credentials"
 import { getUserCredentials } from "@/lib/db/api-helpers"
