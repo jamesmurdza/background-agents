@@ -49,11 +49,6 @@ interface ChatMessageListProps {
 const AUTO_RETRY_ERROR_PATTERN =
   /Failed to authenticate: OAuth session expired and could not be refreshed/i
 
-/** One automatic retry per chat's current error streak — if it fails again
- *  (same cause or not), fall back to the normal manual Retry banner instead
- *  of silently looping. */
-const MAX_AUTO_RETRIES_PER_CHAT = 1
-
 /**
  * The scrollable conversation region: message bubbles, the creating indicator,
  * inline error/disconnected banners (with Retry vs Reload recovery), the queued-
@@ -117,30 +112,40 @@ export function ChatMessageList({
     (chat.errorKind === "incomplete" ||
       (chat.errorKind === "crash" && recoveredOutput))
 
-  // Tracks how many times we've auto-retried THIS chat's current error
-  // streak. Keyed by chat id and reset whenever the chat leaves the error
-  // status (a later, unrelated failure still gets its own automatic attempt).
-  const autoRetryCountRef = useRef<Map<string, number>>(new Map())
+  // Tracks which assistant-message ids we've already auto-retried once.
+  // Deliberately keyed by message id, NOT reset on any status transition:
+  // retryTurn (see useMessageDispatch) reuses the SAME assistant message id
+  // on every attempt (that's the whole point of retrying "in place" instead
+  // of duplicating the prompt), and status necessarily flips to "running" the
+  // instant retry() fires — optimistically, before the request even
+  // resolves. An earlier version reset the counter whenever status left
+  // "error", which included that very "running" flip, so the counter was
+  // wiped back to zero on every single attempt and never actually capped
+  // anything: error → retry (wipes counter) → fails again → counter reads 0
+  // again → retry forever. Keying by message id sidesteps the whole problem:
+  // a genuinely new turn gets a new assistant message id for free, so there's
+  // nothing to reset in the first place.
+  const autoRetriedMessageIdsRef = useRef<Set<string>>(new Set())
+
+  const willAutoRetry =
+    chat.status === "error" &&
+    !useReload &&
+    !!chat.errorMessage &&
+    AUTO_RETRY_ERROR_PATTERN.test(chat.errorMessage) &&
+    !!retry &&
+    !!lastAssistant &&
+    !autoRetriedMessageIdsRef.current.has(lastAssistant.id)
 
   useEffect(() => {
-    if (chat.status !== "error") {
-      autoRetryCountRef.current.delete(chat.id)
-      return
-    }
-    if (useReload) return // a different recovery action applies here, not retry
-    if (!retry || !chat.errorMessage) return
-    if (!AUTO_RETRY_ERROR_PATTERN.test(chat.errorMessage)) return
-
-    const attempts = autoRetryCountRef.current.get(chat.id) ?? 0
-    if (attempts >= MAX_AUTO_RETRIES_PER_CHAT) return
-
-    autoRetryCountRef.current.set(chat.id, attempts + 1)
+    if (!willAutoRetry || !lastAssistant || !retry) return
+    autoRetriedMessageIdsRef.current.add(lastAssistant.id)
     retry()
-    // Only the signal that defines a *new* failure to react to — not `retry`
-    // itself, which is a fresh closure every render and would otherwise
-    // re-fire this effect on every unrelated re-render.
+    // willAutoRetry/lastAssistant/retry already encode every input this needs
+    // to react to; re-deriving them in the array is redundant and `retry` is
+    // a fresh closure each render, which would otherwise re-fire this on
+    // every unrelated re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat.id, chat.status, chat.errorMessage, useReload])
+  }, [willAutoRetry])
 
   return (
     <div className="relative flex-1 flex flex-col min-h-0">
@@ -234,7 +239,7 @@ export function ChatMessageList({
               actionPendingLabel="Reloading…"
             />
           )}
-          {chat.status === "error" && chat.errorMessage && (
+          {chat.status === "error" && chat.errorMessage && !willAutoRetry && (
             <ErrorBanner
               key={chat.id}
               message={chat.errorMessage}
