@@ -44,9 +44,3 @@ Editing `prisma/schema.prisma`? See [Database migration](./packages/web/README.m
 - Prefer integration and end-to-end tests over narrow unit tests.
 - Write a test that reproduces the bug before fixing it.
 - After fixing, keep only the general-case tests — drop the one written to pin down this specific bug.
-
-## Interactive prompt ordering
-
-- Existing ready chats send ordinary text through the server queue, even when the agent looks idle. First sends, attachments, and plan-mode sends still use the direct route.
-- Preserve the order of enqueues from one browser tab and keep unsynced prompts locally until the server confirms them. A busy rejection on the direct route must return the unsent text to the composer.
-- When changing these paths, test delayed and failed enqueues, concurrent tabs, and persistence after refresh.
