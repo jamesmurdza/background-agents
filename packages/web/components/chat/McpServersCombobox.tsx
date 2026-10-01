@@ -520,7 +520,7 @@ export function McpServersCombobox({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 p-0"
+        className="w-80 p-0 max-h-[var(--radix-popover-content-available-height)] overflow-hidden"
         align="start"
         side="bottom"
         sideOffset={8}
@@ -539,17 +539,17 @@ export function McpServersCombobox({
               ) : null
             }
           />
-          <CommandList className="h-[252px] max-h-[252px]">
+          <CommandList className="h-[min(252px,calc(var(--radix-popover-content-available-height)_-_48px))]">
             {!hasLoadedRegistry ? (
               <div
-                className="flex items-center justify-center h-[252px]"
+                className="flex items-center justify-center h-[min(252px,calc(var(--radix-popover-content-available-height)_-_48px))]"
                 role="status"
                 aria-label="Loading MCP servers"
               >
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : allServers.length === 0 && !loadingRegistry ? (
-              <CommandEmpty className="flex items-center justify-center h-[252px] py-0">
+              <CommandEmpty className="flex items-center justify-center h-[min(252px,calc(var(--radix-popover-content-available-height)_-_48px))] py-0">
                 No servers found
               </CommandEmpty>
             ) : (

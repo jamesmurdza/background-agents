@@ -24,7 +24,8 @@ export function isDraftChatId(chatId: string | null | undefined): boolean {
 }
 
 /**
- * Client-only chat fields that are layered on top of the server's chat records.
+ * Client-only chat fields. Queue entries remain here only during migration from
+ * the old browser-owned queue; new prompts are server-owned.
  * Keyed by chat id.
  */
 export interface LocalChatState {
@@ -35,19 +36,24 @@ export interface LocalChatState {
 }
 
 /**
- * Layer the local-only fields (preview state, queued messages, queue-paused
- * flag) on top of the server chat records to produce the chats the UI renders.
+ * Layer device-only preview state and any not-yet-imported legacy queue entries
+ * on top of server chats. Never hide a server queue behind stale local state.
  */
 export function mergeLocalState(serverChats: Chat[], local: LocalChatState): Chat[] {
   return serverChats.map((chat) => {
     const previewState = local.previewStates[chat.id]
+    const serverQueue = chat.queuedMessages ?? []
+    const importedIds = new Set(serverQueue.map((item) => item.clientId))
+    const legacyQueue = (local.queuedMessages[chat.id] ?? [])
+      .filter((item) => !importedIds.has(item.id))
+      .map((item) => ({ ...item, pendingSync: true }))
     return {
       ...chat,
       previewItems: previewState?.items,
       activePreviewIndex: previewState?.activeIndex,
       previewPaneHidden: previewState?.hidden,
-      queuedMessages: local.queuedMessages[chat.id],
-      queuePaused: local.queuePaused[chat.id],
+      queuedMessages: [...serverQueue, ...legacyQueue],
+      queuePaused: chat.queuePaused || (legacyQueue.length > 0 && local.queuePaused[chat.id]),
     }
   })
 }

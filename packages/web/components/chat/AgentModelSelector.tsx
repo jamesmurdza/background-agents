@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { ChevronDown, Cpu, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
+import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
 import { getAgentModels, getFreeModelForAgent, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, agentSharedPoolExhausted, agentUsesSharedPool, resolveModelForAgent, sharedPoolProviderForModel, formatTokenRate, ALL_AGENTS } from "@/lib/types"
 import { chargeableUsd, creditTier } from "@/lib/server/credits"
@@ -156,6 +157,8 @@ export function AgentModelSelector({
   const [showAgentSheet, setShowAgentSheet] = useState(false)
   const [showModelSheet, setShowModelSheet] = useState(false)
   const [search, setSearch] = useState("")
+  const agentDropdownRef = useRef<HTMLDivElement>(null)
+  const agentDropdownMaxHeight = useUpwardMenuMaxHeight(showAgentDropdown, agentDropdownRef)
 
   const availableModels = getAgentModels(currentAgent, endpoints)
   const selectedModelConfig = availableModels.find(m => m.value === currentModel)
@@ -427,7 +430,11 @@ export function AgentModelSelector({
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
         {showAgentDropdown && (
-          <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-48">
+          <div
+            ref={agentDropdownRef}
+            style={{ maxHeight: agentDropdownMaxHeight }}
+            className="absolute bottom-full right-0 mb-1 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-48"
+          >
             {agents.map((agent) => {
               const status = getAgentStatus(agent, credentialFlags, creditBalanceUsd)
               return (
@@ -481,7 +488,7 @@ export function AgentModelSelector({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-64 p-0"
+          className="w-64 p-0 max-h-[var(--radix-popover-content-available-height)] overflow-hidden"
           align="end"
           side="top"
           sideOffset={4}
@@ -492,7 +499,7 @@ export function AgentModelSelector({
               value={search}
               onValueChange={setSearch}
             />
-            <CommandList>
+            <CommandList className="max-h-[min(300px,calc(var(--radix-popover-content-available-height)_-_48px))]">
               <CommandEmpty>No models found</CommandEmpty>
               {modelSections.map((section) => (
                 <CommandGroup key={section.key} heading={section.label}>
