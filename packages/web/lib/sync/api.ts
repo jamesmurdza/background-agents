@@ -150,6 +150,10 @@ export async function fetchPromptQueue(chatId: string): Promise<PromptQueueRespo
   return fetchApi<PromptQueueResponse>(`/api/chats/${chatId}/queue`)
 }
 
+export async function dispatchQueuedPromptApi(chatId: string): Promise<{ status: "started" | "skipped" | "paused" | "error" }> {
+  return fetchApi(`/api/chats/${chatId}/queue/dispatch`, { method: "POST" })
+}
+
 export async function enqueuePromptApi(
   chatId: string,
   prompt: { clientId: string; content: string; agent: string; model: string }

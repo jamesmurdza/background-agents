@@ -132,6 +132,7 @@ export async function claimNextPrompt(chatId: string): Promise<QueuedPrompt | nu
           backgroundSessionId: null,
           queuePaused: false,
           queueDispatchId: null,
+          scheduledJobRun: null,
         },
         data: { status: "creating", queueDispatchId: next.id },
       })

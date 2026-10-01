@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma"
-import { claimNextPrompt, recoverStaleClaims, releaseFailedPrompt } from "@/lib/server/prompt-queue"
-import { sendChatTurn } from "@/app/api/chats/[chatId]/messages/_lib/send-turn"
+import { recoverStaleClaims } from "@/lib/server/prompt-queue"
+import { dispatchQueuedPrompt } from "@/lib/server/dispatch-queued-prompt"
 
 export const maxDuration = 300
 
@@ -34,36 +34,13 @@ export async function GET(req: Request): Promise<Response> {
     })
 
     await Promise.all(chats.map(async (chat) => {
-      let claimed: Awaited<ReturnType<typeof claimNextPrompt>> = null
       try {
-        claimed = await claimNextPrompt(chat.id)
-        if (!claimed) return
-        const response = await sendChatTurn({
-          userId: chat.userId,
-          chatId: chat.id,
-          payload: {
-            message: claimed.content,
-            agent: claimed.agent,
-            model: claimed.model,
-            userMessageId: claimed.userMessageId,
-            assistantMessageId: claimed.assistantMessageId,
-          },
-          files: [],
-          claimedPromptId: claimed.id,
-        })
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({})) as { error?: string }
-          const safeReason = response.status >= 500
-            ? `Couldn't start queued prompt (HTTP ${response.status})`
-            : body.error || `Couldn't start queued prompt (HTTP ${response.status})`
-          await releaseFailedPrompt(claimed.id, safeReason)
-          results.paused++
-          return
-        }
-        results.started++
+        const status = await dispatchQueuedPrompt(chat.id, chat.userId)
+        if (status === "started") results.started++
+        if (status === "paused") results.paused++
+        if (status === "error") results.errors++
       } catch (error) {
         console.error(`[prompt-queue] Dispatch failed for chat ${chat.id}:`, error)
-        if (claimed) await releaseFailedPrompt(claimed.id, "Couldn't start queued prompt")
         results.errors++
       }
     }))
