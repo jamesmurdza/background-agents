@@ -284,7 +284,7 @@ export async function GET(req: Request) {
             // to the cron, which finalizes identically. Populated when the push
             // advances the remote, so the client can raise a "new push" toast.
             let pushInfo: PushInfo | undefined
-            let hasUncommittedFiles: boolean | undefined
+            let uncommittedFilesCount: number | undefined
             if (lastSnap.status === "completed" && chatId) {
               const chat = await prisma.chat.findUnique({
                 where: { id: chatId },
@@ -300,7 +300,7 @@ export async function GET(req: Request) {
                     userId: chat.userId,
                     branch: chat.branch,
                   })) ?? undefined
-                hasUncommittedFiles = await refreshUncommittedFilesWarning({
+                uncommittedFilesCount = await refreshUncommittedFilesWarning({
                   sandbox,
                   repoPath: sessionOpts.repoPath,
                   chatId,
@@ -347,7 +347,7 @@ export async function GET(req: Request) {
               cursor,
               conflictState,
               push: pushInfo,
-              hasUncommittedFiles,
+              uncommittedFilesCount,
             })
             closeStream()
             return

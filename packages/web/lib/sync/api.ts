@@ -32,7 +32,7 @@ export interface ChatResponse {
   pinned?: boolean
   parentChatId: string | null
   needsSync: boolean
-  hasUncommittedFiles: boolean
+  uncommittedFilesCount: number
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -320,7 +320,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     pinned: serverChat.pinned ?? false,
     parentChatId: serverChat.parentChatId || undefined,
     needsSync: serverChat.needsSync,
-    hasUncommittedFiles: serverChat.hasUncommittedFiles ?? false,
+    uncommittedFilesCount: serverChat.uncommittedFilesCount ?? 0,
     createdAt: serverChat.createdAt,
     updatedAt: serverChat.updatedAt,
     lastActiveAt: serverChat.lastActiveAt,

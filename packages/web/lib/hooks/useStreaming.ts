@@ -190,7 +190,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
               errorKind: data.status === "error" ? data.errorKind : undefined,
               sessionId: data.sessionId ?? c.sessionId,
-              hasUncommittedFiles: data.hasUncommittedFiles ?? c.hasUncommittedFiles,
+              uncommittedFilesCount: data.uncommittedFilesCount ?? c.uncommittedFilesCount,
             } : c
           ))
 
@@ -251,7 +251,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             updateChatsCache((old) =>
               old.map((c) => {
                 if (c.id !== chatId) return c
-                return { ...c, messages: mergeMessages(c.messages, incomingMessages), hasUncommittedFiles: chatData.hasUncommittedFiles }
+                return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount }
               })
             )
           } catch (fetchErr) {
@@ -325,7 +325,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             updateChatsCache((old) =>
               old.map((c) =>
                 c.id === chatId
-                  ? { ...c, status: backendState.status, backgroundSessionId: undefined, hasUncommittedFiles: backendState.hasUncommittedFiles ?? c.hasUncommittedFiles }
+                  ? { ...c, status: backendState.status, backgroundSessionId: undefined, uncommittedFilesCount: backendState.uncommittedFilesCount ?? c.uncommittedFilesCount }
                   : c
               )
             )

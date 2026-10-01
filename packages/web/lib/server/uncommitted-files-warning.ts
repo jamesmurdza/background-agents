@@ -10,17 +10,17 @@ export async function refreshUncommittedFilesWarning(params: {
   repoPath: string
   chatId: string
   backgroundSessionId: string
-}): Promise<boolean | undefined> {
+}): Promise<number | undefined> {
   const { sandbox, repoPath, chatId, backgroundSessionId } = params
-  const hasUncommittedFiles = await inspectUncommittedFiles(sandbox, repoPath)
-  if (hasUncommittedFiles === null) return undefined
+  const uncommittedFilesCount = await inspectUncommittedFiles(sandbox, repoPath)
+  if (uncommittedFilesCount === null) return undefined
 
   try {
     const update = await prisma.chat.updateMany({
       where: { id: chatId, backgroundSessionId },
-      data: { hasUncommittedFiles },
+      data: { uncommittedFilesCount },
     })
-    return update.count > 0 ? hasUncommittedFiles : undefined
+    return update.count > 0 ? uncommittedFilesCount : undefined
   } catch (error) {
     console.error(`[uncommitted-files] Could not save warning for chat ${chatId}:`, error)
     return undefined

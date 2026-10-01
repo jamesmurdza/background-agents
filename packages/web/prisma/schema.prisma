@@ -186,9 +186,10 @@ model Chat {
   // Sync flag for git pull on next execution
   needsSync Boolean @default(false)
 
-  // Latest confirmed check after a completed agent turn. A failed check keeps
-  // the last known value; this is surfaced independently of push notifications.
-  hasUncommittedFiles Boolean @default(false)
+  // Count of new, non-ignored files still outside a commit, from the latest
+  // confirmed check after a completed agent turn. A failed check keeps the
+  // last known value; this is surfaced independently of push notifications.
+  uncommittedFilesCount Int @default(0)
 
   // JSONB for encrypted chat-level environment variables
   // { "KEY1": "encrypted_value1", ... }

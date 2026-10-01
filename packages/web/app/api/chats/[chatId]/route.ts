@@ -81,7 +81,7 @@ interface ChatWithMessagesResponse {
   pinned: boolean
   parentChatId: string | null
   needsSync: boolean
-  hasUncommittedFiles: boolean
+  uncommittedFilesCount: number
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -121,7 +121,7 @@ export async function GET(
         status: chat.status,
         backgroundSessionId: chat.backgroundSessionId,
         sandboxId: chat.sandboxId,
-        hasUncommittedFiles: chat.hasUncommittedFiles,
+        uncommittedFilesCount: chat.uncommittedFilesCount,
       })
     }
 
@@ -205,7 +205,7 @@ export async function GET(
       pinned: chat.pinned,
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
-      hasUncommittedFiles: chat.hasUncommittedFiles,
+      uncommittedFilesCount: chat.uncommittedFilesCount,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
@@ -345,7 +345,7 @@ export async function PATCH(
       pinned: updatedChat.pinned,
       parentChatId: updatedChat.parentChatId,
       needsSync: updatedChat.needsSync,
-      hasUncommittedFiles: updatedChat.hasUncommittedFiles,
+      uncommittedFilesCount: updatedChat.uncommittedFilesCount,
       createdAt: updatedChat.createdAt.getTime(),
       updatedAt: updatedChat.updatedAt.getTime(),
       lastActiveAt: updatedChat.lastActiveAt.getTime(),
