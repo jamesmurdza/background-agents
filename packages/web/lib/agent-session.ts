@@ -389,6 +389,16 @@ export async function snapshotBackgroundAgent(
       sessionId: string | null
       cursor: string
       running?: boolean
+      runPhase?: "idle" | "starting" | "running" | "stopped"
+    }
+
+    // persistTurn makes the chat visible before bgSession.start has finished
+    // writing the first job handle. A second browser/cron can observe the
+    // initial session metadata in that gap. It is not a failed agent turn.
+    if (result.runPhase === "idle") {
+      return previous
+        ? { ...previous, transientReadFailure: true }
+        : { status: "running", content: "", toolCalls: [], contentBlocks: [], transientReadFailure: true }
     }
 
     const running =

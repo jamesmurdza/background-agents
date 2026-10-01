@@ -226,6 +226,20 @@ export function useMessageDispatch({
             return
           }
 
+          if (result.isChatBusy) {
+            // The server did not persist this turn. Remove the optimistic
+            // bubbles and put the text back where the user can retry it.
+            updateChatsCache((old) => old.map((c) =>
+              c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
+            ))
+            const store = useChatSyncStore.getState()
+            const currentDraft = store.localChatState.drafts[chatId]
+            store.setDraftText(chatId, currentDraft ? `${content}\n\n${currentDraft}` : content)
+            await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+            await reloadMessages(chatId)
+            return
+          }
+
           throw new Error(result.error)
         }
 
@@ -252,7 +266,7 @@ export function useMessageDispatch({
 
   // Queue management is server-owned; this hook syncs it across browsers and
   // imports any prompts saved by the previous localStorage-only version.
-  const { enqueueMessage, removeQueuedMessage, resumeQueue, pauseQueue } = useServerQueue({
+  const { enqueueMessage, removeQueuedMessage, resumeQueue } = useServerQueue({
     isHydrated,
     isAuthenticated: !!session,
     currentChat,
@@ -263,12 +277,22 @@ export function useMessageDispatch({
     if (!currentChat) return
 
     const chatId = currentChat.id
+    const backgroundSessionId = currentChat.backgroundSessionId
+    const assistantMessageId = currentChat.activeAssistantMessageId
+    if (!backgroundSessionId || !assistantMessageId) {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+      return
+    }
 
     // Prevent sending messages while stop is in progress
     stopInFlight.current.add(chatId)
 
     // Stop the SSE stream on the client side
-    useStreamStore.getState().stopStream(chatId)
+    const stream = useStreamStore.getState().getStream(chatId)
+    if (stream?.connectionParams?.backgroundSessionId === backgroundSessionId &&
+        stream.connectionParams.assistantMessageId === assistantMessageId) {
+      useStreamStore.getState().stopStream(chatId)
+    }
     const hasQueue = (currentChat.queuedMessages?.length ?? 0) > 0
 
     // Optimistically update the UI
@@ -278,28 +302,28 @@ export function useMessageDispatch({
             ...c,
             status: "ready",
             backgroundSessionId: undefined,
+            activeAssistantMessageId: undefined,
             queuePaused: hasQueue ? true : c.queuePaused,
           }
         : c
     ))
 
-    if (hasQueue) {
-      pauseQueue(chatId)
-    }
-
     // Call the stop endpoint and wait for it to complete before allowing new messages
     try {
-      await fetch("/api/agent/stop", {
+      const response = await fetch("/api/agent/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId }),
+        body: JSON.stringify({ chatId, backgroundSessionId, assistantMessageId }),
       })
+      if (!response.ok) throw new Error(`Stop failed (HTTP ${response.status})`)
     } catch (err) {
       console.error("[stopAgent] Failed to stop agent:", err)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+      await reloadMessages(chatId)
     } finally {
       stopInFlight.current.delete(chatId)
     }
-  }, [currentChat, updateChatsCache, pauseQueue])
+  }, [currentChat, updateChatsCache, queryClient, reloadMessages])
 
   return { sendMessage, stopAgent, enqueueMessage, removeQueuedMessage, resumeQueue }
 }

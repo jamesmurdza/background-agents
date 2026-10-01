@@ -25,6 +25,7 @@ export interface StreamState {
     sandboxId: string
     repoName: string
     backgroundSessionId: string
+    assistantMessageId: string
     previewUrlPattern?: string
     /** Whether this stream was started in plan mode */
     planMode?: boolean

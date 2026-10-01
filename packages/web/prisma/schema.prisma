@@ -144,6 +144,9 @@ model Chat {
   sessionId           String? // Agent session ID for conversation continuity
   previewUrlPattern   String? // URL pattern for dev server previews
   backgroundSessionId String? // Active execution ID (for recovery)
+  activeAssistantMessageId String? // Assistant placeholder owned by the active execution
+  finalizationClaimId String? // Exclusive owner of finalization side effects
+  finalizationClaimedAt DateTime? // Recovered only after the maximum worker lifetime
 
   // Agent config
   agent           String  @default("opencode")

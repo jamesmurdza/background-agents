@@ -159,8 +159,10 @@ class BackgroundSessionImpl implements BackgroundSession {
       root: this.sessionDir,
     })
 
-    // Reset the accumulator for the new turn.
-    this.handle = handle
+    // Keep the new handle private until its metadata is durable. Other
+    // connections can read the cached session while start() is in flight;
+    // exposing the handle now lets their session-id patch read the old meta
+    // and overwrite the jobId written below.
     this.cursor = 0
     this.cum = []
     this.parseContext = { state: {}, sessionId }
@@ -175,6 +177,7 @@ class BackgroundSessionImpl implements BackgroundSession {
       startedAt: new Date(this.startedAt).toISOString(),
       cancelled: false,
     })
+    this.handle = handle
 
     debugLog(`background turn started agent=${this.agent.name} pgid=${handle.pgid}`, sessionId)
 

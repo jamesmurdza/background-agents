@@ -24,6 +24,17 @@ function runningSnapshot(overrides: Partial<AgentSnapshot> = {}): AgentSnapshot 
 }
 
 describe("snapshotBackgroundAgent", () => {
+  it("keeps an unstarted session pending while its job metadata is being written", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce({
+      getSnapshot: async () => ({ events: [], sessionId: null, cursor: "0", running: false, runPhase: "idle" }),
+    } as unknown as Awaited<ReturnType<typeof getSession>>)
+
+    const snap = await snapshotBackgroundAgent(sandbox, "bg-starting", { repoPath: "/repo" })
+
+    expect(snap.status).toBe("running")
+    expect(snap.transientReadFailure).toBe(true)
+  })
+
   it("preserves the previous snapshot's content when a read fails mid-turn, instead of wiping it", async () => {
     // Reproduces the bug: a transient failure reading/parsing the session
     // (sandbox blip, brief file-read race — notably possible right as the

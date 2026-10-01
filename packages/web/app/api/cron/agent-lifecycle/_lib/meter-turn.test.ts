@@ -34,9 +34,9 @@ vi.mock("@/lib/server/token-metering", () => ({
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     chat: {
-      update: vi.fn(async () => {
-        calls.push("clear-session")
-        return {}
+      updateMany: vi.fn(async (args: { data: { status?: string } }) => {
+        if (args.data.status === "error") calls.push("clear-session")
+        return { count: 1 }
       }),
     },
     message: {
@@ -70,6 +70,8 @@ const dyingChat = {
   agent: "opencode",
   sandboxId: "sandbox_1",
   sessionId: null as string | null,
+  backgroundSessionId: BACKGROUND_SESSION_ID,
+  activeAssistantMessageId: "msg_1",
 }
 
 beforeEach(() => {
@@ -162,7 +164,7 @@ describe("markChatError", () => {
     await markChatError(dyingChat, "Run exceeded 25 minute limit", daytona, AGENT_SESSION_ID)
     // The whole bug in one assertion: reverse these two and the turn's usage is
     // gone, because the cursor it would be diffed against no longer exists.
-    expect(calls).toEqual(["meter", "clear-session", "error-message"])
+    expect(calls).toEqual(["meter", "error-message", "clear-session"])
   })
 
   it("still releases the chat when metering throws", async () => {
@@ -170,12 +172,12 @@ describe("markChatError", () => {
     await markChatError(dyingChat, "Agent stopped", daytona, AGENT_SESSION_ID)
     // Metering is best-effort. A chat stranded as "running" is a worse failure
     // than an unbilled turn, so the teardown must survive it.
-    expect(calls).toEqual(["clear-session", "error-message"])
+    expect(calls).toEqual(["error-message", "clear-session"])
   })
 
   it("still releases the chat when there is nothing to meter", async () => {
     await markChatError({ ...dyingChat, sandboxId: null }, "Agent stopped", daytona, AGENT_SESSION_ID)
-    expect(calls).toEqual(["clear-session", "error-message"])
+    expect(calls).toEqual(["error-message", "clear-session"])
     expect(meterAssistantTurn).not.toHaveBeenCalled()
   })
 })

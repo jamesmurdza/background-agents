@@ -31,6 +31,7 @@ interface UseServerQueueOptions {
 export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloadMessages }: UseServerQueueOptions) {
   const queryClient = useQueryClient()
   const migrating = useRef<Set<string>>(new Set())
+  const enqueueTail = useRef<Map<string, Promise<void>>>(new Map())
 
   const refreshQueue = useCallback(async (chatId: string) => {
     const remote = await fetchPromptQueue(chatId)
@@ -43,11 +44,15 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
         status: remote.status,
         sandboxId: remote.sandboxId,
         backgroundSessionId: remote.backgroundSessionId ?? undefined,
+        activeAssistantMessageId: remote.activeAssistantMessageId ?? undefined,
       } : chat)
     )
     // A worker may have started a turn without any browser. Load its persisted
     // user/assistant rows so the existing streaming resume effect can attach.
-    if (remote.backgroundSessionId && remote.backgroundSessionId !== previous?.backgroundSessionId) {
+    if (remote.backgroundSessionId && remote.activeAssistantMessageId && (
+      remote.backgroundSessionId !== previous?.backgroundSessionId ||
+      !previous?.messages.some((message) => message.id === remote.activeAssistantMessageId)
+    )) {
       await reloadMessages(chatId)
     }
     return remote
@@ -145,13 +150,33 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat, reloa
       ...prev,
       queuedMessages: { ...prev.queuedMessages, [chatId]: localQueue },
     }))
-    void enqueuePromptApi(chatId, {
-      clientId: item.id, content, agent: selectedAgent, model: selectedModel,
-    }).then(() => {
+    // Keep sends from this tab in the order the user submitted them, even if
+    // the first HTTP request is slow. The database serializes the requests it
+    // receives, but cannot know which of two concurrent requests was typed first.
+    const previous = enqueueTail.current.get(chatId) ?? Promise.resolve()
+    const task = previous.then(async () => {
+      const pending = useChatSyncStore.getState().localChatState.queuedMessages[chatId] ?? []
+      const index = pending.findIndex((entry) => entry.id === item.id)
+      if (index < 0) return // A migration already saved this item.
+      if (index > 0) {
+        // A previous request failed or is being imported. Import the local
+        // snapshot in FIFO order rather than letting this item overtake it.
+        await migrateLegacy()
+        const remaining = useChatSyncStore.getState().localChatState.queuedMessages[chatId] ?? []
+        const remainingIndex = remaining.findIndex((entry) => entry.id === item.id)
+        if (remainingIndex !== 0) return // Imported, or still waiting for retry.
+      }
+      await enqueuePromptApi(chatId, {
+        clientId: item.id, content, agent: selectedAgent, model: selectedModel,
+      })
       wakeQueuedPrompt(chatId)
-      return migrateLegacy()
+      await migrateLegacy()
     }).catch((error) => {
       console.error("Failed to save queued prompt; keeping it on this device for retry:", error)
+    })
+    enqueueTail.current.set(chatId, task)
+    void task.finally(() => {
+      if (enqueueTail.current.get(chatId) === task) enqueueTail.current.delete(chatId)
     })
   }, [currentChat, migrateLegacy, wakeQueuedPrompt])
 
