@@ -84,9 +84,9 @@ export async function POST(request: NextRequest) {
  * subscriptionType, …) reaches the sandbox exactly as Claude Code wrote it —
  * except when the pasted access token is already expired or within
  * STALE_BUFFER_MS of it, in which case it's refreshed (using the refresh
- * token just pasted in) before this responds. See the comment further down:
- * a sandbox can no longer silently self-heal a stale access token on first
- * use, so a paste has to land already-valid.
+ * token just pasted in) before this responds, so the admin panel's "saved"
+ * response reflects a token that's actually usable right now rather than one
+ * that still needs the CLI's own startup refresh to kick in first.
  */
 export async function PUT(request: NextRequest) {
   const auth = await requireAdmin()
@@ -127,18 +127,13 @@ export async function PUT(request: NextRequest) {
   // command when the sandbox writes .credentials.json, so it must be one line.
   await writeCredentials(JSON.stringify(parsed))
 
-  // A sandbox can no longer self-refresh a stale access token: its refresh
-  // token is stripped before it ever reaches a sandbox (see
-  // getSandboxClaudeCredentials in lib/claude-credentials.ts — that's what
-  // stops a sandbox from racing the hourly cron's own use of the same
-  // rotating refresh token). A hand-pasted credential is exactly the case
-  // most likely to arrive already expired or about to: it's commonly copied
-  // from a local machine's ~/.claude/.credentials.json sometime after login,
-  // with the access token stale but the refresh token still good. Previously
-  // the first sandbox to use it would silently self-heal that; now nothing
-  // will unless we make sure it's actually fresh before any sandbox can read
-  // it — so refresh it here, synchronously, using the refresh token just
-  // pasted in, before responding.
+  // A hand-pasted credential is commonly copied from a local machine's
+  // ~/.claude/.credentials.json sometime after login, so its access token can
+  // already be expired or close to it even though its refresh token is still
+  // good. The Claude CLI will self-heal that on first use regardless, but
+  // refreshing it here too means the admin tab's "saved" response — and the
+  // very first sandbox that reads this row — see an already-current token
+  // instead of waiting on the CLI's own startup refresh.
   const pastedExpiresAt = typeof oauth.expiresAt === "number" ? oauth.expiresAt : null
   if (pastedExpiresAt === null || pastedExpiresAt - Date.now() <= STALE_BUFFER_MS) {
     const result = await refreshCredentials({ force: true, trigger: "admin" })

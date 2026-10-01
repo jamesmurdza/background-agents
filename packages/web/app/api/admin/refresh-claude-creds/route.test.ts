@@ -1,16 +1,14 @@
 /**
  * PUT /api/admin/refresh-claude-creds used to store a hand-pasted credential
- * verbatim, with no check that its access token was actually still valid.
- * That was safe when a sandbox could silently self-refresh a stale token on
- * first use — but getSandboxClaudeCredentials() (lib/claude-credentials.ts)
- * now strips the refresh token before a sandbox ever sees it, specifically to
- * stop it from racing the hourly cron's own use of that same rotating token.
- * A side effect: a paste that arrives already expired (common — it's often
- * copied from a local machine sometime after login) now has to be refreshed
- * HERE, before it reaches any sandbox, or the first chat using it fails
- * immediately with "OAuth session expired and could not be refreshed".
- * These tests pin the fix: a stale paste must trigger an on-the-spot refresh;
- * a fresh paste must not (no reason to burn an extra refresh call).
+ * verbatim, with no check that its access token was actually still valid. A
+ * paste that arrives already expired is common — it's often copied from a
+ * local machine's ~/.claude/.credentials.json sometime after login, with the
+ * access token stale but the refresh token still good. The CLI self-heals
+ * that on its own on first use, but refreshing it here too means the admin
+ * tab's "saved" response (and the very first sandbox that reads this row)
+ * see an already-current token right away. These tests pin that behavior: a
+ * stale paste must trigger an on-the-spot refresh; a fresh paste must not
+ * (no reason to burn an extra refresh call).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 

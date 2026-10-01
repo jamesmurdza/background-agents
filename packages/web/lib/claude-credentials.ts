@@ -42,64 +42,32 @@ export async function writeCredentials(value: string): Promise<void> {
 }
 
 /**
- * Placeholder written in place of the real `refreshToken` whenever the shared
- * credential is handed to a sandbox. A sandbox's Claude CLI never needs the
- * real refresh token: only refreshCredentials() (the hourly cron / admin
- * action) is allowed to rotate it. Previously the raw stored value — refresh
- * token included — was injected as-is, which let a sandbox's CLI self-refresh
- * with `grant_type=refresh_token` using the SAME token the cron was also
- * using. Anthropic's refresh tokens are single-use/rotating, so whichever
- * side used it second got rejected — surfacing as "Failed to authenticate:
- * OAuth session expired and could not be refreshed" even though the shared
- * pool's access token was still perfectly valid at the time. See
- * getSandboxClaudeCredentials, which is what actually strips it.
- */
-export const CLAUDE_PLACEHOLDER_REFRESH_TOKEN = "placeholder-managed-server-side"
-
-/**
- * Returns the shared Claude credential JSON safe to inject into a sandbox:
- * same accessToken/expiresAt as the stored value, but with claudeAiOauth.
- * refreshToken replaced by {@link CLAUDE_PLACEHOLDER_REFRESH_TOKEN}.
+ * REVERTED (see commit history): an earlier version of this module stripped
+ * claudeAiOauth.refreshToken before a credential reached a sandbox — replacing
+ * it with a placeholder via a getSandboxClaudeCredentials() helper, and
+ * pairing that with a periodic resync (agent-lifecycle cron) to keep
+ * long-running sandboxes' on-disk access token current — to stop a sandbox's
+ * CLI from racing the hourly cron's use of the same rotating refresh token.
  *
- * Use this — never the raw getClaudeCredentials() — anywhere the value is
- * about to be written into a sandbox's CLAUDE_CODE_CREDENTIALS env var /
- * .credentials.json file. getClaudeCredentials() itself stays available for
- * server-only reads that need the real value (e.g. refreshCredentials()).
- */
-export async function getSandboxClaudeCredentials(): Promise<string> {
-  return stripRefreshToken(await getClaudeCredentials())
-}
-
-/**
- * Replaces claudeAiOauth.refreshToken with the placeholder. Malformed/
- * unparseable input is returned unchanged rather than thrown: this sits on a
- * hot request path that already has a value to inject, and a stray parse
- * failure here shouldn't turn into a 500 for something the CLI would surface
- * as its own clear startup error anyway.
+ * That assumption was wrong: confirmed in production testing that the Claude
+ * CLI validates/needs a real-looking refresh token at startup regardless of
+ * whether the access token is still fresh — a credential with ~5 hours of
+ * access-token life left still failed immediately with "Failed to
+ * authenticate: OAuth session expired and could not be refreshed" once its
+ * refresh token was replaced with a placeholder, on the very first turn of a
+ * brand-new chat. Both the stripping helper and the periodic resync were
+ * reverted; every sandbox goes back to getting the real, unmodified
+ * credential (including the real refresh token) via getClaudeCredentials(),
+ * same as before either change.
  *
- * Deliberately does its own inline shape check instead of importing
- * isClaudeOAuthCredentials from @background-agents/claude-credentials — this
- * module is kept Prisma-weight on purpose (see refresh-claude-credentials.ts).
+ * The underlying race is still real (see CcAuthRun investigation: most
+ * observed "OAuth session expired" failures land within seconds of an hourly
+ * cron rotation) — it just needs a fix that doesn't touch what's handed to
+ * the sandbox, since the CLI depends on having a genuinely usable refresh
+ * token at all times. Not yet re-attempted; whatever replaces this should be
+ * verified against a real Daytona sandbox + Claude CLI before shipping, not
+ * reasoned about from documentation alone — that's what went wrong here.
  */
-function stripRefreshToken(value: string): string {
-  try {
-    const parsed = JSON.parse(value) as {
-      claudeAiOauth?: Record<string, unknown>
-    }
-    if (parsed.claudeAiOauth && typeof parsed.claudeAiOauth === "object") {
-      return JSON.stringify({
-        ...parsed,
-        claudeAiOauth: {
-          ...parsed.claudeAiOauth,
-          refreshToken: CLAUDE_PLACEHOLDER_REFRESH_TOKEN,
-        },
-      })
-    }
-  } catch (err) {
-    console.error("[claude-credentials] Stored credential is not valid JSON:", err)
-  }
-  return value
-}
 
 /**
  * Reads the raw claude.ai session cookies row, or null when it hasn't been

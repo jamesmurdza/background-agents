@@ -1,7 +1,7 @@
 import { getGitHubToken, getUserCredentials } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
-import { getSandboxClaudeCredentials } from "@/lib/claude-credentials"
+import { getClaudeCredentials } from "@/lib/claude-credentials"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { ENDPOINT_MODEL_PREFIX } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
@@ -80,7 +80,7 @@ export async function resolveSendCredentials(
     try {
       credentials = {
         ...credentials,
-        CLAUDE_CODE_CREDENTIALS: await getSandboxClaudeCredentials(),
+        CLAUDE_CODE_CREDENTIALS: await getClaudeCredentials(),
       }
       useSharedClaude = true
     } catch (err) {
