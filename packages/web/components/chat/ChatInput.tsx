@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
 import { useCreditWarning } from "@/lib/hooks/useCreditWarning"
+import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
 import { isModKeyPressed } from "@/lib/keyboard"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -245,6 +246,8 @@ export function ChatInput({
   })
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModeSheet, setShowModeSheet] = useState(false)
+  const modeDropdownRef = useRef<HTMLDivElement>(null)
+  const modeDropdownMaxHeight = useUpwardMenuMaxHeight(showModeDropdown, modeDropdownRef)
 
   // Whether a "branch" modifier (Cmd/Alt/Ctrl) is currently held. When it is —
   // and branching is possible — the send button turns into a "send to new
@@ -669,7 +672,11 @@ export function ChatInput({
                     <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {showModeDropdown && (
-                    <div className="absolute bottom-full right-0 mb-1 bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-32">
+                    <div
+                      ref={modeDropdownRef}
+                      style={{ maxHeight: modeDropdownMaxHeight }}
+                      className="absolute bottom-full right-0 mb-1 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1 z-50 w-32"
+                    >
                       <button
                         onClick={() => {
                           onSetPlanMode(false)
