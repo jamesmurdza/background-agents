@@ -81,7 +81,12 @@ export async function POST(request: NextRequest) {
  * Body: { credentials: string } — the contents of ~/.claude/.credentials.json.
  *
  * The blob is stored as pasted, so every field it carries (expiresAt, scopes,
- * subscriptionType, …) reaches the sandbox exactly as Claude Code wrote it.
+ * subscriptionType, …) reaches the sandbox exactly as Claude Code wrote it —
+ * except when the pasted access token is already expired or within
+ * STALE_BUFFER_MS of it, in which case it's refreshed (using the refresh
+ * token just pasted in) before this responds. See the comment further down:
+ * a sandbox can no longer silently self-heal a stale access token on first
+ * use, so a paste has to land already-valid.
  */
 export async function PUT(request: NextRequest) {
   const auth = await requireAdmin()
@@ -122,8 +127,37 @@ export async function PUT(request: NextRequest) {
   // command when the sandbox writes .credentials.json, so it must be one line.
   await writeCredentials(JSON.stringify(parsed))
 
-  return NextResponse.json({
-    saved: true,
-    expiresAt: typeof oauth.expiresAt === "number" ? oauth.expiresAt : undefined,
-  })
+  // A sandbox can no longer self-refresh a stale access token: its refresh
+  // token is stripped before it ever reaches a sandbox (see
+  // getSandboxClaudeCredentials in lib/claude-credentials.ts — that's what
+  // stops a sandbox from racing the hourly cron's own use of the same
+  // rotating refresh token). A hand-pasted credential is exactly the case
+  // most likely to arrive already expired or about to: it's commonly copied
+  // from a local machine's ~/.claude/.credentials.json sometime after login,
+  // with the access token stale but the refresh token still good. Previously
+  // the first sandbox to use it would silently self-heal that; now nothing
+  // will unless we make sure it's actually fresh before any sandbox can read
+  // it — so refresh it here, synchronously, using the refresh token just
+  // pasted in, before responding.
+  const pastedExpiresAt = typeof oauth.expiresAt === "number" ? oauth.expiresAt : null
+  if (pastedExpiresAt === null || pastedExpiresAt - Date.now() <= STALE_BUFFER_MS) {
+    const result = await refreshCredentials({ force: true, trigger: "admin" })
+    if (result.status === "error") {
+      // Still saved — just flag that the access token may not work yet, so
+      // the admin isn't left thinking a stale paste is good to go.
+      return NextResponse.json({
+        saved: true,
+        expiresAt: pastedExpiresAt ?? undefined,
+        refreshError: { code: result.code, message: result.message },
+      })
+    }
+    return NextResponse.json({ saved: true, expiresAt: result.expiresAt })
+  }
+
+  return NextResponse.json({ saved: true, expiresAt: pastedExpiresAt })
 }
+
+/** Treat a pasted credential as stale if it's already past expiry or within
+ *  this much of it — matches the margin a sandbox turn needs to safely start
+ *  and run without hitting expiry mid-flight. */
+const STALE_BUFFER_MS = 5 * 60 * 1000
