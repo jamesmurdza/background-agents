@@ -24,10 +24,6 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
 
-### Prompt queue dispatch
-
-Queued prompts are stored in PostgreSQL. An open browser requests a dispatch after a turn completes, after saving or resuming a prompt, or when it finds a ready queue on refresh. The minute cron remains the fallback when no browser is connected. Both paths use the same server dispatcher and atomically claim the chat and its oldest prompt before starting an agent turn, so overlapping wake-ups cannot start that prompt twice. If a start fails before the turn is persisted, the prompt remains queued and the queue pauses for manual review.
-
 ## Usage
 
 ### Development
@@ -146,18 +142,6 @@ Run from `packages/web/`:
 ```bash
 npm run test:e2e
 ```
-
-The optional live browser-versus-cron race test reuses an existing disposable
-`__new__` Daytona sandbox and stops it afterward. It does not create or delete
-a sandbox. Do not point it at a sandbox containing work you need to keep:
-
-```bash
-DAYTONA_RACE_SANDBOX_ID=<disposable-sandbox-id> npx playwright test e2e/prompt-queue-live-race.spec.ts
-```
-
-Without `DAYTONA_RACE_SANDBOX_ID`, that test is skipped. The regular
-`prompt-queue-immediate.spec.ts` tests cover the race against the real local
-Postgres database without starting a Daytona agent.
 
 To start a dev server using the same env profile as the end-to-end tests, run from the repo root:
 
