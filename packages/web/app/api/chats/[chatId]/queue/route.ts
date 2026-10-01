@@ -39,7 +39,7 @@ export async function GET(_req: NextRequest, { params }: Params): Promise<Respon
   const chat = await prisma.chat.findUniqueOrThrow({
     where: { id: chatId },
     select: {
-      status: true, queuePaused: true, sandboxId: true, backgroundSessionId: true,
+      status: true, queuePaused: true, sandboxId: true, backgroundSessionId: true, activeAssistantMessageId: true,
       queuedPrompts: {
         where: { status: { in: ["queued", "dispatching"] } },
         orderBy: { position: "asc" },
@@ -51,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: Params): Promise<Respon
     queuePaused: chat.queuePaused,
     sandboxId: chat.sandboxId,
     backgroundSessionId: chat.backgroundSessionId,
+    activeAssistantMessageId: chat.activeAssistantMessageId,
     queuedMessages: chat.queuedPrompts.map(toQueuedMessage),
   })
 }

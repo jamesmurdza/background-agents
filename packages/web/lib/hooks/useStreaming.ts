@@ -104,16 +104,21 @@ export function useStreaming(options: UseStreamingOptions = {}) {
     const streamStore = useStreamStore.getState()
     if (streamStore.isStreaming(chatId)) streamStore.stopStream(chatId)
 
-    streamStore.startStream(chatId, { sandboxId, repoName, backgroundSessionId, previewUrlPattern, planMode })
+    streamStore.startStream(chatId, { sandboxId, repoName, backgroundSessionId, assistantMessageId, previewUrlPattern, planMode })
+
+    const isCurrentTurn = () => {
+      const params = useStreamStore.getState().getStream(chatId)?.connectionParams
+      return params?.backgroundSessionId === backgroundSessionId && params.assistantMessageId === assistantMessageId
+    }
 
     const connect = (cursor: number = 0) => {
       if (abortSignal?.aborted) {
-        streamStore.stopStream(chatId)
+        if (isCurrentTurn()) streamStore.stopStream(chatId)
         return
       }
 
       const currentStore = useStreamStore.getState()
-      if (!currentStore.getStream(chatId)) return
+      if (!isCurrentTurn()) return
 
       // IDOR fix: the server now derives sandboxId / backgroundSessionId /
       // previewUrlPattern / repoName from the chat row (which is auth-checked
@@ -124,17 +129,19 @@ export function useStreaming(options: UseStreamingOptions = {}) {
 
       const eventSource = new EventSource(`/api/agent/stream?${params}`)
       currentStore.updateStream(chatId, { eventSource })
+      const isCurrentConnection = () =>
+        isCurrentTurn() && useStreamStore.getState().getStream(chatId)?.eventSource === eventSource
 
       abortSignal?.addEventListener("abort", () => {
         eventSource.close()
-        useStreamStore.getState().stopStream(chatId)
+        if (isCurrentConnection()) useStreamStore.getState().stopStream(chatId)
       }, { once: true })
 
       // Track markdown files we've already opened to avoid duplicates
       const openedMarkdownFiles = new Set<string>()
 
       eventSource.addEventListener("update", (event) => {
-        if (abortSignal?.aborted) return
+        if (abortSignal?.aborted || !isCurrentConnection()) return
         try {
           const data: SSEUpdateEvent = JSON.parse(event.data)
           const store = useStreamStore.getState()
@@ -163,9 +170,9 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           updateChatsCache((old) => old.map((c) => {
             if (c.id !== chatId) return c
             const messages = [...c.messages]
-            const lastIndex = messages.length - 1
-            if (lastIndex >= 0) {
-              messages[lastIndex] = { ...messages[lastIndex], content: data.content, toolCalls: data.toolCalls, contentBlocks: data.contentBlocks }
+            const targetIndex = messages.findIndex((message) => message.id === assistantMessageId && message.role === "assistant")
+            if (targetIndex >= 0) {
+              messages[targetIndex] = { ...messages[targetIndex], content: data.content, toolCalls: data.toolCalls, contentBlocks: data.contentBlocks }
             }
             return { ...c, messages }
           }))
@@ -175,24 +182,19 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       })
 
       eventSource.addEventListener("complete", async (event) => {
-        if (abortSignal?.aborted) return
+        if (abortSignal?.aborted || !isCurrentConnection()) return
         try {
           const data: SSECompleteEvent = JSON.parse(event.data)
           useStreamStore.getState().stopStream(chatId)
 
-          // Clear backgroundSessionId and update status
-          updateChatsCache((old) => old.map((c) =>
-            c.id === chatId ? {
-              ...c,
-              backgroundSessionId: undefined,
-              status: data.status === "error" ? "error" : "ready",
-              lastActiveAt: Date.now(),
-              errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
-              errorKind: data.status === "error" ? data.errorKind : undefined,
-              sessionId: data.sessionId ?? c.sessionId,
-              uncommittedFilesCount: data.uncommittedFilesCount ?? c.uncommittedFilesCount,
-            } : c
-          ))
+          // A queued turn may already have started. Reconcile against the
+          // server rather than assuming this finished turn left the chat ready.
+          updateChatsCache((old) => old.map((c) => c.id === chatId ? {
+            ...c,
+            sessionId: data.sessionId ?? c.sessionId,
+            uncommittedFilesCount: data.uncommittedFilesCount ?? c.uncommittedFilesCount,
+          } : c))
+          void queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
 
           if (data.status === "completed") wakeQueuedPrompt(chatId)
 
@@ -263,7 +265,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       })
 
       eventSource.addEventListener("heartbeat", (event) => {
-        if (abortSignal?.aborted) return
+        if (abortSignal?.aborted || !isCurrentConnection()) return
         try {
           const data = JSON.parse(event.data)
           const store = useStreamStore.getState()
@@ -274,7 +276,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       })
 
       eventSource.addEventListener("error", (event) => {
-        if (abortSignal?.aborted) return
+        if (abortSignal?.aborted || !isCurrentConnection()) return
         try {
           const data = JSON.parse((event as MessageEvent).data)
           useStreamStore.getState().stopStream(chatId)
@@ -289,11 +291,11 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       })
 
       eventSource.onerror = async () => {
-        if (abortSignal?.aborted) return
+        if (abortSignal?.aborted || !isCurrentConnection()) return
         eventSource.close()
         const store = useStreamStore.getState()
         const stream = store.getStream(chatId)
-        if (!stream) return
+        if (!stream || !isCurrentConnection()) return
 
         const failures = (stream.reconnectAttempts || 0) + 1
         store.updateStream(chatId, { reconnectAttempts: failures, eventSource: null })
@@ -308,7 +310,8 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           if (!res.ok) throw new Error(`Status check failed: ${res.status}`)
           const backendState = await res.json()
 
-          if (backendState.status === "running" && backendState.backgroundSessionId) {
+          if (!isCurrentTurn()) return
+          if (backendState.status === "running" && backendState.backgroundSessionId === backgroundSessionId) {
             // Agent still running - apply backoff then reconnect
             const delay = Math.min(
               SSE_INITIAL_RETRY_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, failures - 1),
@@ -316,19 +319,26 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             )
             await new Promise((r) => setTimeout(r, delay))
 
-            if (useStreamStore.getState().isStreaming(chatId)) {
+            if (isCurrentTurn()) {
               connect(stream.cursor)
             }
           } else {
-            // Agent actually done - sync local state with backend
+            // Another tab or cron may have finalized this turn. Reconcile the
+            // message body too, not just the chat status: this connection may
+            // have closed before receiving its final update/complete event.
+            // A queued turn may already be running by the time we get here.
+            if (!isCurrentTurn()) return
             useStreamStore.getState().stopStream(chatId)
-            updateChatsCache((old) =>
-              old.map((c) =>
-                c.id === chatId
-                  ? { ...c, status: backendState.status, backgroundSessionId: undefined, uncommittedFilesCount: backendState.uncommittedFilesCount ?? c.uncommittedFilesCount }
-                  : c
-              )
-            )
+            const latestChat = await fetchChat(chatId)
+            const incomingMessages = latestChat.messages.map(toMessageType)
+            updateChatsCache((old) => old.map((c) => c.id === chatId ? {
+              ...c,
+              status: latestChat.status as Chat["status"],
+              backgroundSessionId: latestChat.backgroundSessionId ?? undefined,
+              activeAssistantMessageId: latestChat.activeAssistantMessageId ?? undefined,
+              uncommittedFilesCount: latestChat.uncommittedFilesCount ?? c.uncommittedFilesCount,
+              messages: mergeMessages(c.messages, incomingMessages),
+            } : c))
             if (backendState.status === "ready") wakeQueuedPrompt(chatId)
           }
         } catch (err) {
@@ -340,7 +350,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           )
           await new Promise((r) => setTimeout(r, delay))
 
-          if (useStreamStore.getState().isStreaming(chatId)) {
+          if (isCurrentTurn()) {
             connect(stream.cursor)
           }
         }

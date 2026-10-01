@@ -22,6 +22,7 @@ export interface ChatResponse {
   sessionId: string | null
   previewUrlPattern: string | null
   backgroundSessionId: string | null
+  activeAssistantMessageId?: string | null
   agent: string
   model: string | null
   planModeEnabled: boolean
@@ -143,6 +144,7 @@ export interface PromptQueueResponse {
   queuePaused: boolean
   sandboxId: string | null
   backgroundSessionId: string | null
+  activeAssistantMessageId: string | null
   queuedMessages: QueuedMessage[]
 }
 
@@ -310,6 +312,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     sessionId: serverChat.sessionId,
     previewUrlPattern: serverChat.previewUrlPattern || undefined,
     backgroundSessionId: serverChat.backgroundSessionId || undefined,
+    activeAssistantMessageId: serverChat.activeAssistantMessageId || undefined,
     agent: serverChat.agent,
     model: serverChat.model || undefined,
     planModeEnabled: serverChat.planModeEnabled,

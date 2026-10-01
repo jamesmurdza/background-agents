@@ -360,7 +360,7 @@ export async function startJobExecution(
   // 10. Update chat with background session info
   await prisma.chat.update({
     where: { id: chat.id },
-    data: { backgroundSessionId: bgSession.backgroundSessionId },
+    data: { backgroundSessionId: bgSession.backgroundSessionId, activeAssistantMessageId: assistantMessageId },
   })
 
   // 11. Start the agent
@@ -419,11 +419,12 @@ export async function finalizeScheduledRun(
     }
 
     // Update chat status
-    await prisma.chat.update({
-      where: { id: run.chatId },
+    await prisma.chat.updateMany({
+      where: { id: run.chatId, backgroundSessionId: run.backgroundSessionId },
       data: {
         status: "ready",
         backgroundSessionId: null,
+        activeAssistantMessageId: null,
         sessionId: snapshot.sessionId || undefined,
         lastActiveAt: new Date(),
       },
@@ -626,11 +627,12 @@ export async function failScheduledRun(
 
   // Update linked chat status if exists
   if (run.chatId) {
-    await prisma.chat.update({
-      where: { id: run.chatId },
+    await prisma.chat.updateMany({
+      where: { id: run.chatId, backgroundSessionId: run.backgroundSessionId },
       data: {
         status: "error",
         backgroundSessionId: null,
+        activeAssistantMessageId: null,
       },
     })
   }

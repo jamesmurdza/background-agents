@@ -71,6 +71,7 @@ interface ChatWithMessagesResponse {
   sessionId: string | null
   previewUrlPattern: string | null
   backgroundSessionId: string | null
+  activeAssistantMessageId: string | null
   agent: string
   model: string | null
   planModeEnabled: boolean
@@ -120,6 +121,7 @@ export async function GET(
         id: chat.id,
         status: chat.status,
         backgroundSessionId: chat.backgroundSessionId,
+        activeAssistantMessageId: chat.activeAssistantMessageId,
         sandboxId: chat.sandboxId,
         uncommittedFilesCount: chat.uncommittedFilesCount,
       })
@@ -195,6 +197,7 @@ export async function GET(
       sessionId: chat.sessionId,
       previewUrlPattern: chat.previewUrlPattern,
       backgroundSessionId: chat.backgroundSessionId,
+      activeAssistantMessageId: chat.activeAssistantMessageId,
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
@@ -335,6 +338,7 @@ export async function PATCH(
       sessionId: updatedChat.sessionId,
       previewUrlPattern: updatedChat.previewUrlPattern,
       backgroundSessionId: updatedChat.backgroundSessionId,
+      activeAssistantMessageId: updatedChat.activeAssistantMessageId,
       agent: updatedChat.agent,
       model: updatedChat.model,
       planModeEnabled: updatedChat.planModeEnabled,

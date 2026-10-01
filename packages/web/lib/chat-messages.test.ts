@@ -1,5 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { sendMessageToApi } from "./chat-messages"
+import { applyOptimisticSend, applySendError, removeOptimisticMessages, sendMessageToApi } from "./chat-messages"
+import type { Chat, Message } from "./types"
+
+describe("optimistic turn identity", () => {
+  it("tracks the new assistant through send and clears it when the send fails", () => {
+    const chat = { id: "chat-1", messages: [], status: "ready", sandboxId: "sandbox-1" } as unknown as Chat
+    const user = { id: "user-1", role: "user", content: "say 4" } as Message
+    const assistant = { id: "assistant-1", role: "assistant", content: "" } as Message
+    const sending = applyOptimisticSend(chat, user, assistant, Date.now())
+    expect(sending.activeAssistantMessageId).toBe(assistant.id)
+    expect(removeOptimisticMessages(sending, [user.id, assistant.id]).activeAssistantMessageId).toBeUndefined()
+    expect(applySendError(sending, assistant.id, "start failed").activeAssistantMessageId).toBeUndefined()
+  })
+})
 
 describe("sendMessageToApi", () => {
   afterEach(() => {

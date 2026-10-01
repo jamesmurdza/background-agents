@@ -278,6 +278,20 @@ export function useChatComposer({
       return
     }
 
+    // Existing text-only chats use the same serialized server queue whether
+    // they look ready or running in this browser. A direct send can otherwise
+    // race the next prompt's wake-up before its own server claim is visible.
+    // Keep first sends, attachments and plan mode on the direct path: queued
+    // prompts do not carry those options yet.
+    if (chat?.status === "ready" && !chat.id.startsWith("draft-") &&
+        chat.messages.some((message) => !message.inherited) &&
+        input.trim() && pendingFiles.length === 0 && !planModeEnabled && onEnqueueMessage) {
+      onEnqueueMessage(input.trim(), currentAgent, currentModel)
+      setInput("")
+      textareaRef.current?.focus()
+      return
+    }
+
     // Pass files to sendMessage - upload will happen after sandbox is ready
     const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
     onSendMessage(input.trim(), currentAgent, currentModel, files, planModeEnabled || undefined)

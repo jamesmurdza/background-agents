@@ -37,6 +37,8 @@ export type SendMessageResult =
       ok: false
       error: string
       isDailyLimit: boolean
+      /** The server did not accept or persist this turn because another turn won the claim. */
+      isChatBusy?: boolean
       /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
       provider?: string
       /**
@@ -110,6 +112,7 @@ export async function sendMessageToApi(
       // collapsing into a bare "Failed to send message".
       error: err.error || `Failed to send message (HTTP ${response.status})`,
       isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
+      isChatBusy: response.status === 409 && err.error === "Chat is busy",
       provider: err.provider,
       creditBalance: typeof err.creditBalance === "number" ? err.creditBalance : undefined,
     }
@@ -143,6 +146,7 @@ export function applyOptimisticSend(
     ...chat,
     messages: [...chat.messages, userMessage, assistantMessage],
     status: chat.sandboxId ? "running" : "creating",
+    activeAssistantMessageId: assistantMessage.id,
     lastActiveAt: now,
     errorMessage: undefined,
     errorKind: undefined,
@@ -155,6 +159,7 @@ export function removeOptimisticMessages(chat: Chat, messageIds: string[]): Chat
   return {
     ...chat,
     status: "ready",
+    activeAssistantMessageId: undefined,
     messages: chat.messages.filter((m) => !ids.has(m.id)),
   }
 }
@@ -187,6 +192,7 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
   return {
     ...chat,
     status: "error",
+    activeAssistantMessageId: undefined,
     errorMessage,
     messages: chat.messages.map((m) =>
       m.id === assistantMessageId
@@ -195,4 +201,3 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
     ),
   }
 }
-

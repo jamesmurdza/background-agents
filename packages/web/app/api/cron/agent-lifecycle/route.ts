@@ -184,8 +184,7 @@ export async function GET(req: Request) {
           daytona,
           {
             onComplete: async (snapshot) => {
-              await finalizeInteractiveChat(chat, snapshot, daytona)
-              results.completedInteractive++
+              if (await finalizeInteractiveChat(chat, snapshot, daytona)) results.completedInteractive++
             },
             onError: async (error, errorKind, snapshot) => {
               logLlmProviderError({

@@ -94,6 +94,9 @@ export async function persistTurn(params: {
       data: {
         status: "running",
         backgroundSessionId,
+        activeAssistantMessageId: payload.assistantMessageId,
+        finalizationClaimId: null,
+        finalizationClaimedAt: null,
         queueDispatchId: null,
         lastActiveAt: new Date(),
         // Persist agent/model so subsequent messages on this chat keep them

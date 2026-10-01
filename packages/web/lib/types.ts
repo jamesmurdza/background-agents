@@ -154,6 +154,7 @@ export interface Chat {
 
   // Active execution (for recovery after page refresh)
   backgroundSessionId?: string  // Set when agent starts, cleared on completion
+  activeAssistantMessageId?: string  // Message owned by the active execution
 
   // Agent config (per-chat, can be changed)
   agent?: string        // "claude-code" | "opencode" | "codex" | etc.

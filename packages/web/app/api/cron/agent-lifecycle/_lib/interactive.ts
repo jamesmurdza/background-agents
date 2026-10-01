@@ -11,6 +11,7 @@ import { meterTurnNow } from "./meter-turn"
 import { autoPushChat } from "@/lib/git/auto-push"
 import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
 import type { ChatWithMessages } from "./types"
+import { claimTurnFinalization, releaseTurn, type ActiveTurn } from "@/lib/server/turn-ownership"
 
 // =============================================================================
 // Interactive Chat Finalization
@@ -28,6 +29,14 @@ type DyingChat = {
   sandboxId: string | null
   /** The persisted agent-session resume pointer, used as a fallback id. */
   sessionId: string | null
+  backgroundSessionId: string | null
+  activeAssistantMessageId: string | null
+}
+
+function activeTurn(chat: DyingChat): ActiveTurn | null {
+  return chat.backgroundSessionId && chat.activeAssistantMessageId
+    ? { chatId: chat.id, backgroundSessionId: chat.backgroundSessionId, assistantMessageId: chat.activeAssistantMessageId }
+    : null
 }
 
 export async function finalizeInteractiveChat(
@@ -35,10 +44,15 @@ export async function finalizeInteractiveChat(
   snapshot: AgentSnapshot,
   daytona: Daytona
 ) {
+  const turn = activeTurn(chat)
+  if (!turn) return false
+  const claimId = await claimTurnFinalization(turn)
+  if (!claimId) return false
+  try {
   // 1. Update message content (same as SSE stream does). Best-effort and
   //    NUL-sanitized: a failing message write must NOT prevent the status reset
   //    in step 4 below, or the chat is stranded as permanently "running".
-  const assistantMessage = chat.messages[0]
+  const assistantMessage = chat.messages.find((message) => message.id === turn.assistantMessageId)
 
   if (assistantMessage) {
     try {
@@ -105,15 +119,10 @@ export async function finalizeInteractiveChat(
   }
 
   // 4. Update chat status
-  await prisma.chat.update({
-    where: { id: chat.id },
-    data: {
-      status: "ready",
-      backgroundSessionId: null,
-      sessionId: snapshot.sessionId || undefined,
-      lastActiveAt: new Date(),
-    },
-  })
+  return true
+  } finally {
+    await releaseTurn(turn, claimId, "ready", snapshot.sessionId)
+  }
 }
 
 export async function markChatError(
@@ -127,6 +136,11 @@ export async function markChatError(
    */
   agentSessionId?: string
 ) {
+  const turn = activeTurn(chat)
+  if (!turn) return
+  const claimId = await claimTurnFinalization(turn)
+  if (!claimId) return
+  try {
   // Bill what the turn already spent BEFORE the update below clears
   // backgroundSessionId. A failed turn is not a free turn: the model produced
   // tokens right up to the moment it errored or was stopped, and once the
@@ -142,16 +156,9 @@ export async function markChatError(
     daytona,
   })
 
-  // Update chat status
-  await prisma.chat.update({
-    where: { id: chat.id },
-    data: {
-      status: "error",
-      backgroundSessionId: null,
-    },
-  })
-
-  // Create error message
+  // Keep the old turn's error row in place before it becomes possible to
+  // start a new turn. Otherwise a quick retry can put this message after the
+  // next user's prompt and make the transcript look like a shifted answer.
   await prisma.message.create({
     data: {
       chatId: chat.id,
@@ -161,4 +168,9 @@ export async function markChatError(
       isError: true,
     },
   })
+
+  } finally {
+    // Metering or message persistence can fail. Never strand the chat.
+    await releaseTurn(turn, claimId, "error")
+  }
 }

@@ -31,6 +31,7 @@ interface ChatResponse {
   sessionId: string | null
   previewUrlPattern: string | null
   backgroundSessionId: string | null
+  activeAssistantMessageId: string | null
   agent: string
   model: string | null
   planModeEnabled: boolean
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       sessionId: chat.sessionId,
       previewUrlPattern: chat.previewUrlPattern,
       backgroundSessionId: chat.backgroundSessionId,
+      activeAssistantMessageId: chat.activeAssistantMessageId,
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
@@ -206,6 +208,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       sessionId: chat.sessionId,
       previewUrlPattern: chat.previewUrlPattern,
       backgroundSessionId: chat.backgroundSessionId,
+      activeAssistantMessageId: chat.activeAssistantMessageId,
       agent: chat.agent,
       model: chat.model,
       planModeEnabled: chat.planModeEnabled,
