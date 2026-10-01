@@ -23,6 +23,7 @@ interface ChatMessageListProps {
   onReload?: (chatId: string) => Promise<void> | void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
   onRemoveQueuedMessage?: (id: string) => void
+  onCreateRepo?: () => void
   currentAgent: Agent
   currentModel: string
   planModeEnabled: boolean
@@ -49,6 +50,7 @@ export function ChatMessageList({
   onReload,
   onSendMessage,
   onRemoveQueuedMessage,
+  onCreateRepo,
   currentAgent,
   currentModel,
   planModeEnabled,
@@ -124,6 +126,28 @@ export function ChatMessageList({
           {isCreating && (
             <div className="text-2xl text-muted-foreground animate-pulse">
               ...
+            </div>
+          )}
+          {isNewRepo && (chat.uncommittedFilesCount ?? 0) > 0 && (
+            <div
+              data-testid="no-repo-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                You are not working in a GitHub repository.{" "}
+                <button
+                  type="button"
+                  data-testid="no-repo-create"
+                  onClick={onCreateRepo}
+                  disabled={!onCreateRepo}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:cursor-default disabled:no-underline disabled:opacity-70"
+                >
+                  Create a repository
+                </button>{" "}
+                to save these files.
+              </span>
             </div>
           )}
           {(chat.uncommittedFilesCount ?? 0) > 0 && !isNewRepo && !commitRequested && (

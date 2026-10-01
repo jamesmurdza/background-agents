@@ -32,6 +32,8 @@ interface ChatPanelProps {
   onOpenFile?: (filePath: string) => void
   /** Callback to open the environment variables modal */
   onOpenEnvVars?: () => void
+  /** Callback to open the "create a GitHub repository" flow, for chats not yet connected to one. */
+  onCreateRepo?: () => void
   /** True when the current chat is a not-yet-persisted draft. */
   isDraftChat?: boolean
   /** Persists the draft chat to the DB and returns the real chatId. */
@@ -51,7 +53,7 @@ interface ChatPanelProps {
   isAuthenticated?: boolean
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, onCreateRepo, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
   const composer = useChatComposer({
     chat,
     settings,
@@ -264,6 +266,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
         onReload={onReload}
         onSendMessage={onSendMessage}
         onRemoveQueuedMessage={onRemoveQueuedMessage}
+        onCreateRepo={onCreateRepo}
         currentAgent={currentAgent}
         currentModel={currentModel}
         planModeEnabled={planModeEnabled}

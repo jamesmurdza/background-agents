@@ -10,6 +10,7 @@ import { meterTurnNow } from "./meter-turn"
 
 import { autoPushChat } from "@/lib/git/auto-push"
 import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
+import { isRealRepo } from "@/lib/types"
 import type { ChatWithMessages } from "./types"
 
 // =============================================================================
@@ -84,7 +85,7 @@ export async function finalizeInteractiveChat(
       // 3. Auto-push before the status reset below releases the chat. Same
       //    backend routine the SSE stream calls — conflict guard, deduped
       //    failure message, stale-failure cleanup all live in autoPushChat.
-      if (chat.branch && chat.repo && chat.repo !== "__new__") {
+      if (chat.branch && isRealRepo(chat.repo)) {
         await autoPushChat({
           sandbox,
           repoPath: `${PATHS.SANDBOX_HOME}/project`,
@@ -92,6 +93,11 @@ export async function finalizeInteractiveChat(
           userId: chat.userId,
           branch: chat.branch,
         })
+      }
+      // Checked regardless of repo type — a chat with no GitHub repo connected
+      // yet can still lose local commits if the sandbox is torn down, so the
+      // frontend needs this count to warn about it too.
+      if (chat.branch) {
         await refreshUncommittedFilesWarning({
           sandbox,
           repoPath: `${PATHS.SANDBOX_HOME}/project`,

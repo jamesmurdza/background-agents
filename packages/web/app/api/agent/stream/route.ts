@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
+import { isRealRepo } from "@/lib/types"
 import {
   cancelBackgroundAgent,
   finalizeTurn,
@@ -291,7 +292,7 @@ export async function GET(req: Request) {
                 select: { branch: true, repo: true, userId: true },
               })
 
-              if (chat?.branch && chat.repo && chat.repo !== "__new__") {
+              if (chat?.branch && isRealRepo(chat.repo)) {
                 pushInfo =
                   (await autoPushChat({
                     sandbox,
@@ -300,6 +301,11 @@ export async function GET(req: Request) {
                     userId: chat.userId,
                     branch: chat.branch,
                   })) ?? undefined
+              }
+              // Checked regardless of repo type — a chat with no GitHub repo
+              // connected yet can still lose local commits if the sandbox is
+              // torn down, so the frontend needs this count to warn about it too.
+              if (chat?.branch) {
                 uncommittedFilesCount = await refreshUncommittedFilesWarning({
                   sandbox,
                   repoPath: sessionOpts.repoPath,

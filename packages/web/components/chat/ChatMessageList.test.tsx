@@ -5,7 +5,7 @@ import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ChatMessageList } from "./ChatMessageList"
 
-function renderWarning(uncommittedFilesCount: number, isNewRepo = false) {
+function renderWarning(uncommittedFilesCount: number, isNewRepo = false, onCreateRepo?: () => void) {
   const chat = {
     id: "chat-1",
     repo: isNewRepo ? "__new__" : "owner/repo",
@@ -28,6 +28,7 @@ function renderWarning(uncommittedFilesCount: number, isNewRepo = false) {
     isNewRepo,
     git: {} as GitContextValue,
     onSendMessage: () => {},
+    onCreateRepo,
     currentAgent: "opencode" as Agent,
     currentModel: "test",
     planModeEnabled: false,
@@ -55,5 +56,23 @@ describe("uncommitted file warning", () => {
   it("disappears when the authoritative chat count clears", () => {
     expect(renderWarning(0)).not.toContain("uncommitted-files-warning")
     expect(renderWarning(2, true)).not.toContain("uncommitted-files-warning")
+  })
+})
+
+describe("no-repo warning", () => {
+  it("appears instead of the commit banner when the chat has no GitHub repo connected", () => {
+    const html = renderWarning(2, true)
+    expect(html).toContain('data-testid="no-repo-warning"')
+    expect(html).toContain("You are not working in a GitHub repository")
+    expect(html).toContain("Create a repository")
+    expect(html).not.toContain("uncommitted-files-warning")
+  })
+
+  it("does not appear for a connected repo, even with uncommitted files", () => {
+    expect(renderWarning(2, false)).not.toContain("no-repo-warning")
+  })
+
+  it("does not appear when there are no uncommitted files, even with no repo connected", () => {
+    expect(renderWarning(0, true)).not.toContain("no-repo-warning")
   })
 })

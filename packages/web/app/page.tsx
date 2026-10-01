@@ -688,6 +688,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                     preview.openPreview({ type: "file", filePath, filename })
                   }}
                   onOpenEnvVars={handleOpenEnvVars}
+                  onCreateRepo={handleCreateRepo}
                   isDraftChat={!!displayCurrentChatId && isDraftChatId(displayCurrentChatId)}
                   onMaterializeDraftForMcp={handleMaterializeDraftForMcp}
                   isMobile={isMobile}
