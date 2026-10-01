@@ -31,6 +31,7 @@ import {
   removeOptimisticMessages,
   applySendSuccess,
   applySendError,
+  applyRetryInPlace,
   type SendMessagePayload,
 } from "@/lib/chat-messages"
 
@@ -72,6 +73,9 @@ export interface MessageDispatch {
     targetChatId?: string,
     planMode?: boolean
   ) => Promise<void>
+  /** Re-run a failed turn in place: same user/assistant message ids, no new
+   *  bubbles. See useMessageDispatch's retryTurn for the full rationale. */
+  retryTurn: (chatId: string) => Promise<void>
   stopAgent: () => Promise<void>
   enqueueMessage: (content: string, agent?: string, model?: string) => void
   removeQueuedMessage: (id: string) => void
@@ -250,6 +254,88 @@ export function useMessageDispatch({
     }
   }, [currentChatId, chats, session, settings, credentialFlags, updateChatsCache, startStreaming, suggestNameMutation, isDraftChatId, materializeDraft, queryClient, reloadMessages, setLimitReachedState, onConflictStateChangeRef])
 
+  /**
+   * Re-run a failed turn in place — e.g. the shared Claude credential's
+   * transient OAuth hiccup (see ChatMessageList's auto-retry effect), or the
+   * user clicking "Retry" on any other `status === "error"` chat.
+   *
+   * Deliberately NOT sendMessage(lastUserMessage.content, ...): that always
+   * mints fresh message ids and appends a new optimistic user+assistant pair,
+   * so a retry visibly duplicated the prompt — the failed exchange stayed in
+   * history and a second, identical one appeared below it. Here the SAME
+   * userMessageId/assistantMessageId are resent; persistTurn's upsert (see
+   * _lib/persist-turn.ts) updates those existing rows instead of inserting
+   * new ones, and bgSession.start() resumes the chat's existing CLI session
+   * (same as any ordinary next message) rather than starting a fresh one. The
+   * client mirrors that: applyRetryInPlace resets the existing assistant
+   * bubble's content/error flags instead of adding a new one, so the user
+   * just watches that one bubble go from "errored" back to "thinking…".
+   */
+  const retryTurn = useCallback(async (chatId: string) => {
+    const chat = chats.find((c) => c.id === chatId)
+    if (!chat) return
+    if (sendInFlight.current.has(chatId)) return
+    if (stopInFlight.current.has(chatId)) return
+    if (useStreamStore.getState().isStreaming(chatId)) return
+    if (!session) return
+
+    const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
+    const lastAssistantMessage = [...chat.messages].reverse().find((m) => m.role === "assistant")
+    if (!lastUserMessage || !lastAssistantMessage) return
+
+    const agent = lastUserMessage.agent ?? chat.agent
+    const model = lastUserMessage.model ?? chat.model
+    if (!agent || !model) return
+
+    sendInFlight.current.add(chatId)
+
+    updateChatsCache((old) => old.map((c) =>
+      c.id === chatId ? applyRetryInPlace(c, lastAssistantMessage.id) : c
+    ))
+
+    try {
+      const payload: SendMessagePayload = {
+        message: lastUserMessage.content,
+        agent,
+        model,
+        userMessageId: lastUserMessage.id,
+        assistantMessageId: lastAssistantMessage.id,
+        newBranch: newBranchForSend(chat),
+      }
+
+      const result = await sendMessageToApi(chatId, payload)
+
+      if (!result.ok) {
+        updateChatsCache((old) => old.map((c) =>
+          c.id === chatId ? applySendError(c, lastAssistantMessage.id, result.error) : c
+        ))
+        return
+      }
+
+      const { data } = result
+      updateChatsCache((old) => old.map((c) =>
+        c.id === chatId ? applySendSuccess(c, data, agent, model, lastUserMessage.id) : c
+      ))
+
+      startStreaming(
+        chatId,
+        data.sandboxId,
+        "project",
+        data.backgroundSessionId,
+        lastAssistantMessage.id,
+        data.previewUrlPattern ?? undefined,
+        data.branch
+      )
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to retry message"
+      updateChatsCache((old) => old.map((c) =>
+        c.id === chatId ? applySendError(c, lastAssistantMessage.id, errorMessage) : c
+      ))
+    } finally {
+      sendInFlight.current.delete(chatId)
+    }
+  }, [chats, session, updateChatsCache, startStreaming])
+
   // Queue management is server-owned; this hook syncs it across browsers and
   // imports any prompts saved by the previous localStorage-only version.
   const { enqueueMessage, removeQueuedMessage, resumeQueue, pauseQueue } = useServerQueue({
@@ -301,5 +387,5 @@ export function useMessageDispatch({
     }
   }, [currentChat, updateChatsCache, pauseQueue])
 
-  return { sendMessage, stopAgent, enqueueMessage, removeQueuedMessage, resumeQueue }
+  return { sendMessage, retryTurn, stopAgent, enqueueMessage, removeQueuedMessage, resumeQueue }
 }

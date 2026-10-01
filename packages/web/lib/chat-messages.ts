@@ -196,3 +196,26 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
   }
 }
 
+/**
+ * Reset a failed turn back to "running" in place, for retryTurn (see
+ * useMessageDispatch): clears the failed assistant placeholder's error
+ * content/flags and the chat's error state, WITHOUT touching message ids or
+ * appending new rows. Pairs with retryTurn resending the same userMessageId/
+ * assistantMessageId — the server's persistTurn upserts on those ids, so the
+ * existing rows update in place instead of a new user+assistant pair
+ * appearing alongside the failed one.
+ */
+export function applyRetryInPlace(chat: Chat, assistantMessageId: string): Chat {
+  return {
+    ...chat,
+    status: chat.sandboxId ? "running" : "creating",
+    errorMessage: undefined,
+    errorKind: undefined,
+    messages: chat.messages.map((m) =>
+      m.id === assistantMessageId
+        ? { ...m, content: "", messageType: undefined, isError: false, toolCalls: [], contentBlocks: [] }
+        : m
+    ),
+  }
+}
+

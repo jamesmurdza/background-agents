@@ -22,6 +22,10 @@ interface ChatMessageListProps {
   onOpenFile?: (filePath: string) => void
   onReload?: (chatId: string) => Promise<void> | void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
+  /** Re-run a failed turn in place (same message ids, no duplicate bubbles).
+   *  Preferred over resending via onSendMessage whenever available — see the
+   *  retry/resend comment below. */
+  onRetryTurn?: (chatId: string) => Promise<void>
   onRemoveQueuedMessage?: (id: string) => void
   currentAgent: Agent
   currentModel: string
@@ -65,6 +69,7 @@ export function ChatMessageList({
   onOpenFile,
   onReload,
   onSendMessage,
+  onRetryTurn,
   onRemoveQueuedMessage,
   currentAgent,
   currentModel,
@@ -76,7 +81,13 @@ export function ChatMessageList({
   onScrollToBottom,
 }: ChatMessageListProps) {
   // Mirrors the Retry action's own logic (see the ErrorBanner render below) so
-  // the auto-retry effect and the manual button fire the exact same resend.
+  // the auto-retry effect and the manual button fire the exact same action.
+  //
+  // onRetryTurn (preferred): re-runs the SAME failed turn in place — same
+  // message ids, no new bubbles, see useMessageDispatch's retryTurn.
+  // resend (fallback, only when a caller hasn't wired onRetryTurn up): sends
+  // the last user message as a brand-new turn, which duplicates the prompt
+  // in the chat history — works, just not smooth.
   const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
   const resend = lastUserMessage
     ? () => onSendMessage(
@@ -87,6 +98,7 @@ export function ChatMessageList({
         planModeEnabled,
       )
     : undefined
+  const retry = onRetryTurn ? () => onRetryTurn(chat.id) : resend
 
   // A generic process crash is often transient. If the failed turn already
   // streamed some output, the fuller copy is likely persisted server-side, so
@@ -115,16 +127,16 @@ export function ChatMessageList({
       autoRetryCountRef.current.delete(chat.id)
       return
     }
-    if (useReload) return // a different recovery action applies here, not resend
-    if (!resend || !chat.errorMessage) return
+    if (useReload) return // a different recovery action applies here, not retry
+    if (!retry || !chat.errorMessage) return
     if (!AUTO_RETRY_ERROR_PATTERN.test(chat.errorMessage)) return
 
     const attempts = autoRetryCountRef.current.get(chat.id) ?? 0
     if (attempts >= MAX_AUTO_RETRIES_PER_CHAT) return
 
     autoRetryCountRef.current.set(chat.id, attempts + 1)
-    resend()
-    // Only the signal that defines a *new* failure to react to — not `resend`
+    retry()
+    // Only the signal that defines a *new* failure to react to — not `retry`
     // itself, which is a fresh closure every render and would otherwise
     // re-fire this effect on every unrelated re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,13 +211,15 @@ export function ChatMessageList({
               their last run stopped. Cleared on the next send.
 
               Two distinct failure modes, distinguished by chat.status:
-              - "error": the agent itself errored. The Retry action resends the
-                last user message — note this leaves the previously-failed
-                assistant turn in the history (the user can see what failed) and
+              - "error": the agent itself errored. The Retry action re-runs the
+                failed turn in place (onRetryTurn — same message ids, the
+                existing assistant bubble just goes back to "thinking…"); only
+                without onRetryTurn wired up does it fall back to resending as
+                a brand-new turn, which duplicates the prompt in history and
                 doesn't re-attach any originally-uploaded files (those File
                 objects are no longer in memory). A narrow subset of "error"
                 (the shared Claude credential's transient OAuth hiccup, see
-                AUTO_RETRY_ERROR_PATTERN above) auto-fires this same resend once
+                AUTO_RETRY_ERROR_PATTERN above) auto-fires this same retry once
                 before the banner ever renders, instead of waiting on the user.
               - "disconnected": the SSE stream died before the turn finished. The
                 agent may still be running in the background, so the action is
@@ -225,7 +239,7 @@ export function ChatMessageList({
               key={chat.id}
               message={chat.errorMessage}
               isMobile={isMobile}
-              onRetry={useReload ? () => onReload!(chat.id) : resend}
+              onRetry={useReload ? () => onReload!(chat.id) : retry}
               actionLabel={useReload ? "Reload" : "Retry"}
               actionPendingLabel={useReload ? "Reloading…" : "Retrying…"}
             />

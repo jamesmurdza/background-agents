@@ -126,6 +126,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     updateChatRepo,
     updateCurrentChat,
     sendMessage,
+    retryTurn,
     stopAgent,
     updateSettings,
     addMessage,
@@ -676,6 +677,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                     setLimitReachedState({ show: true, provider: "claude" })
                   }}
                   onSendMessage={handleSendMessage}
+                  onRetryTurn={retryTurn}
                   onReload={reloadChat}
                   onEnqueueMessage={enqueueMessage}
                   onRemoveQueuedMessage={removeQueuedMessage}

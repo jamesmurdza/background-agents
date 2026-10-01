@@ -208,7 +208,7 @@ export function useChatWithSync() {
 
   // Outbound dispatch — sendMessage, stopAgent and the per-chat send queue
   // (the most coupled slice) live in their own hook.
-  const { sendMessage, stopAgent, enqueueMessage, removeQueuedMessage, resumeQueue } =
+  const { sendMessage, retryTurn, stopAgent, enqueueMessage, removeQueuedMessage, resumeQueue } =
     useMessageDispatch({
       currentChatId,
       currentChat,
@@ -358,6 +358,7 @@ export function useChatWithSync() {
     updateCurrentChat,
     updateChatById,
     sendMessage,
+    retryTurn,
     stopAgent,
     updateSettings,
     addMessage: addMessageToChat,

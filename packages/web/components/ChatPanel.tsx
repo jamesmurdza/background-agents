@@ -21,6 +21,10 @@ interface ChatPanelProps {
   credentialFlags: CredentialFlags
   showClaudeLimitDialog: () => void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
+  /** Re-run a failed turn in place (same message ids, no duplicate bubbles).
+   *  See useMessageDispatch's retryTurn. Falls back to a full resend
+   *  (duplicating the prompt) when not provided. */
+  onRetryTurn?: (chatId: string) => Promise<void>
   /** Refresh the chat history after the SSE stream died (status === "disconnected"). */
   onReload?: (chatId: string) => Promise<void> | void
   onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
@@ -51,7 +55,7 @@ interface ChatPanelProps {
   isAuthenticated?: boolean
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDialog, onSendMessage, onRetryTurn, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false }: ChatPanelProps) {
   const composer = useChatComposer({
     chat,
     settings,
@@ -263,6 +267,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showClaudeLimitDial
         onOpenFile={onOpenFile}
         onReload={onReload}
         onSendMessage={onSendMessage}
+        onRetryTurn={onRetryTurn}
         onRemoveQueuedMessage={onRemoveQueuedMessage}
         currentAgent={currentAgent}
         currentModel={currentModel}
