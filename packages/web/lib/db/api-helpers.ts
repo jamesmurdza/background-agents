@@ -360,7 +360,9 @@ export async function getChatWithAuth(
   pinned: boolean
   parentChatId: string | null
   needsSync: boolean
-  hasUncommittedFiles: boolean
+  uncommittedFilesCount: number
+  queuePaused: boolean
+  queueDispatchId: string | null
   environmentVariables: unknown
   createdAt: Date
   updatedAt: Date

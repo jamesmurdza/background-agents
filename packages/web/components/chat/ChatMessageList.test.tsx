@@ -5,7 +5,7 @@ import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ChatMessageList } from "./ChatMessageList"
 
-function renderWarning(hasUncommittedFiles: boolean, isNewRepo = false) {
+function renderWarning(uncommittedFilesCount: number, isNewRepo = false) {
   const chat = {
     id: "chat-1",
     repo: isNewRepo ? "__new__" : "owner/repo",
@@ -18,7 +18,7 @@ function renderWarning(hasUncommittedFiles: boolean, isNewRepo = false) {
     createdAt: 0,
     updatedAt: 0,
     status: "ready",
-    hasUncommittedFiles,
+    uncommittedFilesCount,
   } as Chat
   return renderToStaticMarkup(createElement(ChatMessageList, {
     chat,
@@ -41,13 +41,19 @@ function renderWarning(hasUncommittedFiles: boolean, isNewRepo = false) {
 
 describe("uncommitted file warning", () => {
   it("appears in a GitHub chat with new uncommitted files", () => {
-    const html = renderWarning(true)
+    const html = renderWarning(2)
     expect(html).toContain('data-testid="uncommitted-files-warning"')
-    expect(html).toContain("Ask the agent to review and commit")
+    expect(html).toContain("You have 2 new uncommitted files")
+    expect(html).toContain("Commit your changes")
   })
 
-  it("disappears when the authoritative chat flag clears", () => {
-    expect(renderWarning(false)).not.toContain("uncommitted-files-warning")
-    expect(renderWarning(true, true)).not.toContain("uncommitted-files-warning")
+  it("singularizes the count when there is exactly one file", () => {
+    const html = renderWarning(1)
+    expect(html).toContain("You have 1 new uncommitted file.")
+  })
+
+  it("disappears when the authoritative chat count clears", () => {
+    expect(renderWarning(0)).not.toContain("uncommitted-files-warning")
+    expect(renderWarning(2, true)).not.toContain("uncommitted-files-warning")
   })
 })

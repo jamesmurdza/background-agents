@@ -109,7 +109,7 @@ export function ChatMessageList({
               ...
             </div>
           )}
-          {chat.hasUncommittedFiles && !isNewRepo && (
+          {(chat.uncommittedFilesCount ?? 0) > 0 && !isNewRepo && (
             <div
               data-testid="uncommitted-files-warning"
               role="status"
@@ -117,9 +117,19 @@ export function ChatMessageList({
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
-                Some new files were uncommitted at the end of the last agent turn,
-                so they were not included in a pushed commit. Ask the agent to
-                review and commit the files you want to save on GitHub.
+                You have {chat.uncommittedFilesCount} new uncommitted{" "}
+                {chat.uncommittedFilesCount === 1 ? "file" : "files"}.{" "}
+                <button
+                  type="button"
+                  data-testid="uncommitted-files-commit"
+                  onClick={() =>
+                    onSendMessage("Commit changes", currentAgent, currentModel, undefined, planModeEnabled)
+                  }
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Commit your changes
+                </button>{" "}
+                to save these files.
               </span>
             </div>
           )}
@@ -197,7 +207,11 @@ export function ChatMessageList({
                   key={m.id}
                   className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 last:border-b-0"
                 >
-                  <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">{m.content}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm text-foreground/80">{m.content}</div>
+                    {m.pendingSync && <div className="text-xs text-muted-foreground">Saving to queue…</div>}
+                    {m.lastError && <div className="text-xs text-destructive">Paused: {m.lastError}</div>}
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button

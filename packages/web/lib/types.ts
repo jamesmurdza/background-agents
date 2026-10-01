@@ -226,9 +226,9 @@ export interface Chat {
   /** Set when a merge targets this branch but sandbox was stopped. Triggers pull on next execute. */
   needsSync?: boolean
 
-  /** New, non-ignored files were still outside a commit at the last completed
-   * turn's successful Git status check. */
-  hasUncommittedFiles?: boolean
+  /** Count of new, non-ignored files still outside a commit at the last
+   * completed turn's successful Git status check. */
+  uncommittedFilesCount?: number
 
   /** Set if the last attempt to fetch this chat's messages from the server
    *  failed. Suppresses auto-retry on subsequent selects until the user
@@ -253,6 +253,9 @@ export interface QueuedMessage {
   content: string
   agent?: string
   model?: string
+  clientId?: string
+  lastError?: string
+  pendingSync?: boolean
 }
 
 export type Theme = "light" | "dark" | "system"
@@ -326,7 +329,7 @@ export interface SSECompleteEvent {
   errorKind?: "crash" | "incomplete"
   cursor: number
   /** Present only when the backend successfully checked and persisted Git status. */
-  hasUncommittedFiles?: boolean
+  uncommittedFilesCount?: number
   /** Conflict state after agent completion - allows frontend to update warning icon */
   conflictState?: {
     inRebase: boolean

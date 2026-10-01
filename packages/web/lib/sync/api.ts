@@ -6,7 +6,7 @@
  * handle communication with the server.
  */
 
-import type { Chat, Message, Settings, CustomEndpoint } from "@/lib/types"
+import type { Chat, Message, QueuedMessage, Settings, CustomEndpoint } from "@/lib/types"
 import type { Credentials, CredentialFlags } from "@/lib/credentials"
 
 // =============================================================================
@@ -32,12 +32,14 @@ export interface ChatResponse {
   pinned?: boolean
   parentChatId: string | null
   needsSync: boolean
-  hasUncommittedFiles: boolean
+  uncommittedFilesCount: number
   createdAt: number
   updatedAt: number
   lastActiveAt: number
   messageCount?: number
   lastMessageId?: string | null
+  queuedMessages?: QueuedMessage[]
+  queuePaused?: boolean
 }
 
 export interface MessageResponse {
@@ -134,6 +136,55 @@ async function fetchApi<T>(
 export async function fetchChats(): Promise<ChatResponse[]> {
   const result = await fetchApi<{ chats: ChatResponse[] }>("/api/chats")
   return result.chats
+}
+
+export interface PromptQueueResponse {
+  status: Chat["status"]
+  queuePaused: boolean
+  sandboxId: string | null
+  backgroundSessionId: string | null
+  queuedMessages: QueuedMessage[]
+}
+
+export async function fetchPromptQueue(chatId: string): Promise<PromptQueueResponse> {
+  return fetchApi<PromptQueueResponse>(`/api/chats/${chatId}/queue`)
+}
+
+export async function dispatchQueuedPromptApi(chatId: string): Promise<{ status: "started" | "skipped" | "paused" | "error" }> {
+  return fetchApi(`/api/chats/${chatId}/queue/dispatch`, { method: "POST" })
+}
+
+export async function enqueuePromptApi(
+  chatId: string,
+  prompt: { clientId: string; content: string; agent: string; model: string }
+): Promise<QueuedMessage> {
+  const result = await fetchApi<{ queuedMessage: QueuedMessage }>(`/api/chats/${chatId}/queue`, {
+    method: "POST",
+    body: JSON.stringify(prompt),
+  })
+  return result.queuedMessage
+}
+
+export async function importLegacyPromptQueue(
+  chatId: string,
+  legacyItems: Array<{ clientId: string; content: string; agent?: string; model?: string }>,
+  paused: boolean
+): Promise<void> {
+  await fetchApi(`/api/chats/${chatId}/queue`, {
+    method: "POST",
+    body: JSON.stringify({ legacyItems, paused }),
+  })
+}
+
+export async function removeQueuedPromptApi(chatId: string, promptId: string): Promise<void> {
+  await fetchApi(`/api/chats/${chatId}/queue/${encodeURIComponent(promptId)}`, { method: "DELETE" })
+}
+
+export async function setPromptQueuePaused(chatId: string, paused: boolean): Promise<void> {
+  await fetchApi(`/api/chats/${chatId}/queue`, {
+    method: "PATCH",
+    body: JSON.stringify({ paused }),
+  })
 }
 
 /**
@@ -269,12 +320,14 @@ export function toChatType(serverChat: ChatResponse): Chat {
     pinned: serverChat.pinned ?? false,
     parentChatId: serverChat.parentChatId || undefined,
     needsSync: serverChat.needsSync,
-    hasUncommittedFiles: serverChat.hasUncommittedFiles ?? false,
+    uncommittedFilesCount: serverChat.uncommittedFilesCount ?? 0,
     createdAt: serverChat.createdAt,
     updatedAt: serverChat.updatedAt,
     lastActiveAt: serverChat.lastActiveAt,
     messages: [], // Messages loaded separately
     messageCount: serverChat.messageCount ?? 0, // For filtering before messages are loaded
+    queuedMessages: serverChat.queuedMessages ?? [],
+    queuePaused: serverChat.queuePaused ?? false,
   }
 }
 

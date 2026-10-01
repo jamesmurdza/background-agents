@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { Chat, Message, SSEUpdateEvent, SSECompleteEvent } from "@/lib/types"
 import { useStreamStore } from "@/lib/stores/stream-store"
 import { queryKeys } from "@/lib/query"
-import { fetchChat, toMessageType } from "@/lib/sync/api"
+import { dispatchQueuedPromptApi, fetchChat, toMessageType } from "@/lib/sync/api"
 import { notifyCompletion } from "@/lib/notify"
 import type { SettingsData } from "@/lib/query/hooks/useSettingsQuery"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
@@ -78,6 +78,15 @@ export function useStreaming(options: UseStreamingOptions = {}) {
       }
       return updater(old)
     })
+  }, [queryClient])
+
+  const wakeQueuedPrompt = useCallback((chatId: string) => {
+    // The browser only asks; the server and cron share the same database claim.
+    void dispatchQueuedPromptApi(chatId).then(({ status }) => {
+      if (status !== "skipped") {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+      }
+    }).catch((error) => console.error("Failed to wake queued prompt:", error))
   }, [queryClient])
 
   // Start streaming for a chat
@@ -181,9 +190,11 @@ export function useStreaming(options: UseStreamingOptions = {}) {
               errorMessage: data.status === "error" ? (data.error || "Agent failed") : undefined,
               errorKind: data.status === "error" ? data.errorKind : undefined,
               sessionId: data.sessionId ?? c.sessionId,
-              hasUncommittedFiles: data.hasUncommittedFiles ?? c.hasUncommittedFiles,
+              uncommittedFilesCount: data.uncommittedFilesCount ?? c.uncommittedFilesCount,
             } : c
           ))
+
+          if (data.status === "completed") wakeQueuedPrompt(chatId)
 
           // The turn just spent credits. The stream route meters the turn
           // before emitting this event (see app/api/agent/stream/route.ts), so
@@ -240,7 +251,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             updateChatsCache((old) =>
               old.map((c) => {
                 if (c.id !== chatId) return c
-                return { ...c, messages: mergeMessages(c.messages, incomingMessages), hasUncommittedFiles: chatData.hasUncommittedFiles }
+                return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount }
               })
             )
           } catch (fetchErr) {
@@ -314,10 +325,11 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             updateChatsCache((old) =>
               old.map((c) =>
                 c.id === chatId
-                  ? { ...c, status: backendState.status, backgroundSessionId: undefined, hasUncommittedFiles: backendState.hasUncommittedFiles ?? c.hasUncommittedFiles }
+                  ? { ...c, status: backendState.status, backgroundSessionId: undefined, uncommittedFilesCount: backendState.uncommittedFilesCount ?? c.uncommittedFilesCount }
                   : c
               )
             )
+            if (backendState.status === "ready") wakeQueuedPrompt(chatId)
           }
         } catch (err) {
           // Fetch failed (network still down) - apply backoff then retry
@@ -336,7 +348,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
     }
 
     connect()
-  }, [updateChatsCache])
+  }, [updateChatsCache, wakeQueuedPrompt])
 
   return {
     startStreaming,

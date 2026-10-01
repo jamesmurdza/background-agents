@@ -75,11 +75,11 @@ function setup(overrides: ChatOverrides = {}) {
   return { chat, params, daytonaGet }
 }
 
-/** The DB update that records the new sandbox as ready. */
-function readyUpdate() {
+/** The DB update that records the new sandbox while retaining the send claim. */
+function claimedUpdate() {
   return chatUpdate.mock.calls
     .map((c) => c[0] as { data?: Record<string, unknown> })
-    .find((a) => a.data?.status === "ready")
+    .find((a) => a.data?.status === "creating" && a.data?.sandboxId)
 }
 
 function createArg() {
@@ -114,7 +114,7 @@ describe("ensureSandboxForChat — first-time creation", () => {
     expect(createSandboxForChat).toHaveBeenCalledOnce()
     expect(createArg().restoreExistingBranch).toBe(false)
     expect(chat.sessionId).toBeNull()
-    expect(readyUpdate()!.data).toHaveProperty("sessionId", null)
+    expect(claimedUpdate()!.data).toHaveProperty("sessionId", null)
   })
 })
 
@@ -146,7 +146,7 @@ describe("ensureSandboxForChat — deleted sandbox recreation", () => {
     expect(createSandboxForChat).toHaveBeenCalledOnce()
     expect(createArg()).toMatchObject({ newBranch: "agent/work", restoreExistingBranch: true })
     expect(chat.sessionId).toBeNull()
-    expect(readyUpdate()!.data).toHaveProperty("sessionId", null)
+    expect(claimedUpdate()!.data).toHaveProperty("sessionId", null)
   })
 
   it("surfaces branchRestored so callers can tell a stale-fallback restore from a real one", async () => {

@@ -154,6 +154,12 @@ model Chat {
   displayName String?
   status      String  @default("pending") // pending, creating, ready, running, error
 
+  // Server-owned outbound prompt queue. queueSequence assigns FIFO positions
+  // atomically even when multiple browsers enqueue at the same time.
+  queuePaused   Boolean @default(false)
+  queueSequence Int     @default(0)
+  queueDispatchId String?
+
   // Pinned chats are sorted to the top of the sidebar and command palettes.
   pinned Boolean @default(false)
 
@@ -180,9 +186,10 @@ model Chat {
   // Sync flag for git pull on next execution
   needsSync Boolean @default(false)
 
-  // Latest confirmed check after a completed agent turn. A failed check keeps
-  // the last known value; this is surfaced independently of push notifications.
-  hasUncommittedFiles Boolean @default(false)
+  // Count of new, non-ignored files still outside a commit, from the latest
+  // confirmed check after a completed agent turn. A failed check keeps the
+  // last known value; this is surfaced independently of push notifications.
+  uncommittedFilesCount Int @default(0)
 
   // JSONB for encrypted chat-level environment variables
   // { "KEY1": "encrypted_value1", ... }
@@ -198,6 +205,7 @@ model Chat {
   // Relations
   user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages   Message[]
+  queuedPrompts QueuedPrompt[]
   mcpServers McpServerConnection[]
 
   // Link back to scheduled run (if this chat belongs to one)
@@ -206,6 +214,31 @@ model Chat {
   @@index([userId, updatedAt])
   @@index([userId, lastActiveAt])
   @@index([userId, archived])
+}
+
+// A queued text prompt is not a Message until a turn is actually started.
+// Keep started rows for idempotent legacy imports and crash reconciliation.
+model QueuedPrompt {
+  id                 String    @id @default(cuid())
+  chatId             String
+  clientId           String?
+  position           Int
+  content            String    @db.Text
+  agent              String
+  model              String
+  status             String    @default("queued") // queued | dispatching | started | cancelled
+  claimedAt          DateTime?
+  lastError          String?   @db.Text
+  userMessageId      String    @unique
+  assistantMessageId String    @unique
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, clientId])
+  @@unique([chatId, position])
+  @@index([chatId, status, position])
 }
 
 // =============================================================================

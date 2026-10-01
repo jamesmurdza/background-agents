@@ -39,15 +39,15 @@ function repoFixture() {
 describe("inspectUncommittedFiles", () => {
   it("distinguishes clean, untracked, staged, and ignored files", async () => {
     const f = repoFixture()
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(false)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
     f.write("ignored/output.log")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(false)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
     f.write("src/new-page.tsx")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(true)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(1)
     f.git("add", "src/new-page.tsx")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(true)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(1)
     f.git("commit", "-m", "add new page")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(false)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
   })
 
   it("finds nested files even when Git is configured to hide untracked files", async () => {
@@ -55,13 +55,13 @@ describe("inspectUncommittedFiles", () => {
     f.git("config", "status.showUntrackedFiles", "no")
     f.write("nested/file with spaces.ts")
     f.write("nested/line\nbreak.ts")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(true)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(2)
   })
 
   it("does not confuse a tracked modification with a newly added file", async () => {
     const f = repoFixture()
     f.write(".gitignore", "ignored/\nother/\n")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(false)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
   })
 
   it("warns when a successful push leaves a new file outside the remote commit", async () => {
@@ -78,13 +78,13 @@ describe("inspectUncommittedFiles", () => {
 
     expect(f.git("--git-dir", remote, "show", "main:tracked.txt")).toBe("pushed\n")
     expect(() => f.git("--git-dir", remote, "show", "main:not-pushed.txt")).toThrow()
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(true)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(1)
 
     f.git("add", "not-pushed.txt")
     f.git("commit", "-m", "include missing file")
     f.git("push", "origin", "main")
     expect(f.git("--git-dir", remote, "show", "main:not-pushed.txt")).toBe("missing from GitHub\n")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(false)
+    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
   })
 
   it("returns unknown when Git status fails", async () => {
