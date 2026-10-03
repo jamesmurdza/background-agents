@@ -8,6 +8,15 @@ Git operations for Daytona sandboxes via `sandbox.process.executeCommand()`.
 - **Credentials never stored** - Passed via git `-c` flags per-operation
 - **Simple API** - Just pass the token, no username needed
 
+## Installation
+
+```bash
+npm install @background-agents/sandbox-git
+```
+
+`@daytonaio/sdk` (>= 0.8.0) is an optional peer dependency — install it too if you're
+passing a real Daytona `Sandbox`.
+
 ## Usage
 
 ```typescript
@@ -34,8 +43,11 @@ await git.fetch(path, token)                // fetch from origin
 await git.fetch(path, token, "main")        // fetch a specific refspec
 await git.fetchBranch(path, "main", token)  // fetch a branch + create remote tracking ref
 await git.pull(path, token)
-await git.push(path, token)                 // defaults to --no-verify
 await git.push(path, token, { noVerify: false })  // run pre-push hooks
+
+// push() returns a PushResult parsed from `git push --porcelain`
+const { updated, newBranch, range } = await git.push(path, token) // defaults to --no-verify
+if (!updated) console.log("Everything up-to-date")
 ```
 
 ## API
@@ -49,7 +61,19 @@ await git.push(path, token, { noVerify: false })  // run pre-push hooks
 | `fetch(path, token?, refspec?)` | Fetch from remote |
 | `fetchBranch(path, branch, token?)` | Fetch a specific branch |
 | `pull(path, token?)` | Pull from remote |
-| `push(path, token?, options?)` | Push to remote. `options.noVerify` skips pre-push hooks (default: `true`) |
+| `push(path, token?, options?)` | Push to remote. `options.noVerify` skips pre-push hooks (default: `true`). Returns a `PushResult` |
+
+### `PushResult`
+
+`push()` resolves to a `PushResult` parsed from `git push --porcelain`, so callers can
+tell a real push from a no-op:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `output` | `string` | Raw push output (porcelain status lines plus remote messages) |
+| `updated` | `boolean` | `true` when the remote ref actually advanced |
+| `newBranch` | `boolean` | `true` when the push created a new remote branch |
+| `range` | `string \| null` | `"<old>..<new>"` sha range when an existing ref moved, else `null` |
 
 ## How Credentials Work
 

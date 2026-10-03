@@ -24,7 +24,7 @@ On npm — use them in your own projects.
 
 ### Internal packages
 
-Not published — apps and shared internals used only in this repo.
+Not published to npm. Apps and shared internals — though `desktop`'s build output is bundled into the published `launcher` tarball.
 
 | Package | Description | Maintainer |
 |---------|-------------|------------|
@@ -39,7 +39,8 @@ Not published — apps and shared internals used only in this repo.
 
 ## Prerequisites
 
-- Node.js 20.9+ (required by Next.js 16)
+- Node.js 20.19+, 22.12+, or 24+ (Prisma 7's floor; Next.js 16 only needs 20.9+)
+- A local PostgreSQL server for the web and desktop apps (see [DEVELOPMENT.md](./DEVELOPMENT.md#database-setup))
 
 ## Quick start (Web)
 

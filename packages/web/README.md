@@ -13,7 +13,13 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Scheduled & Triggered Jobs**: run agents automatically on a recurring interval or in response to GitHub webhook events (e.g. failed workflows), with optional auto-PR creation. Managed from the `/jobs` page.
 - **MCP Servers**: attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
 - **Skills**: install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
+- **Bring your own auth**: per-user API keys, custom OpenAI-compatible endpoints, and Claude/ChatGPT subscription sign-in (no API key needed)
+- **Credits & Billing**: per-run token/cost metering with Stripe credit top-ups (optional — off unless `BILLING_ENABLED` is set)
+- **Share Links**: publish a read-only view of a conversation at `/share/<shareId>`
+- **Admin Dashboard**: usage, cost, and user analytics at `/admin`
 - **Dark/Light Theme**: system-aware theming with manual override options
+
+The same app is also packaged as an Electron desktop app — see [`desktop`](../desktop).
 
 ## Architecture
 
@@ -22,7 +28,9 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Database**: PostgreSQL with Prisma ORM (local, Supabase, or Neon serverless)
 - **Agent SDK**: Uses [`@background-agents/sdk`](../sdk) for agent session management
 - **Sandbox**: Daytona SDK for isolated development environments
-- **State Management**: Server-first with localStorage as read cache for cross-device sync
+- **Data Layer**: TanStack React Query (`lib/query/`) over server routes, with localStorage as a read cache for cross-device sync
+- **Billing**: Stripe Checkout + webhooks (`app/api/stripe`), feature-flagged behind `BILLING_ENABLED`
+- **Metering**: `tokscale` in the sandbox reports per-run tokens/cost into `TokenUsage` / `CreditTransaction`
 
 ## Usage
 
@@ -89,11 +97,53 @@ GITHUB_CLIENT_SECRET="<github-oauth-app-secret>"
 # REQUIRED in production — credential encryption refuses to run without it
 ENCRYPTION_KEY="<openssl rand -hex 32>"
 
-# Required for /api/cron/* endpoints (set in Vercel project env)
+# Strongly recommended in production. `/api/cron/*` and `/api/snapshot/rebuild`
+# compare the Authorization header against this value — but when it is UNSET they
+# skip the check entirely and are publicly callable.
 CRON_SECRET="<random-secret>"
 ```
 
 Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database. It connects using the first of `DIRECT_URL`, `POSTGRES_URL_NON_POOLING`, or `DATABASE_URL` that is set, and refuses to run through a transaction pooler (port 6543) because `prisma migrate deploy` takes a session-level advisory lock that hangs behind PgBouncer.
+
+Optional, all off/ignored unless set:
+
+```bash
+# Stripe credit top-ups. Leave BILLING_ENABLED unset and the billing routes 404
+# while the rest of the app runs normally.
+BILLING_ENABLED="true"
+STRIPE_SECRET_KEY="sk_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."   # differs per environment: CLI, preview, live
+# Pack id -> Stripe price id. Price ids don't cross test/live mode, so this map is
+# per-environment too. Only packs listed here can be purchased.
+STRIPE_PRICE_MAP='{"pack_5":"price_...","pack_10":"price_..."}'
+
+# Whole-site kill switch. MAINTENANCE_MODE="true" serves a maintenance page to
+# everyone; append ?bypass=<MAINTENANCE_BYPASS_SECRET> to any URL to set a
+# bypass cookie for yourself.
+MAINTENANCE_MODE="true"
+MAINTENANCE_BYPASS_SECRET="<random-secret>"
+
+# Point the sidebar's docs link somewhere other than https://docs.backgrounder.dev
+NEXT_PUBLIC_DOCS_URL="https://docs.example.com"
+
+# Show the built-in keyless Eliza agent in the model picker regardless of the
+# per-user setting.
+NEXT_PUBLIC_ENABLE_ELIZA="true"
+```
+
+`POSTGRES_URL` is accepted as a fallback for `DATABASE_URL` (the Vercel/Neon
+integration variable).
+
+#### Shared and operator-supplied credentials
+
+Users normally store their own API keys in the UI (encrypted at rest with
+`ENCRYPTION_KEY`). As a fallback, any credential that isn't in the database is read
+from the process environment, so an operator can supply a shared key without the UI:
+`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `KIMI_API_KEY`,
+`KILO_API_KEY`, `FACTORY_API_KEY`, `COPILOT_GITHUB_TOKEN`, `CLAUDE_CODE_CREDENTIALS`,
+`CODEX_CREDENTIALS`, and `OPENCODE_API_KEY` (comma-separated pool — one key is picked
+at random per resolution so runs spread across them). The authoritative list is
+`CREDENTIAL_KEYS` in `lib/credentials.ts`.
 
 To enable remote MCP servers from the [Smithery](https://smithery.ai) registry, set:
 
@@ -114,10 +164,22 @@ See [`mcp`](../mcp/README.md) for setup.
 
 ### Testing
 
+#### Unit tests
+
+Unit tests live next to the code they cover (`*.test.ts` / `*.test.tsx`) and run with
+Vitest. `vitest.config.ts` excludes `e2e/`, which is Playwright's. Run from
+`packages/web/`:
+
+```bash
+npx vitest run
+```
+
+#### End-to-end tests
+
 End-to-end tests run against a local test database.
 
 > [!WARNING]
-> Each E2E run wipes the test database via `prisma migrate reset --force`. `DATABASE_URL` must contain `localhost` or `127.0.0.1`.
+> Each E2E run wipes the test database via `prisma migrate reset --force`. As a guard, `DATABASE_URL` must contain `localhost` or `127.0.0.1` — or you must explicitly set `I_KNOW_THIS_IS_THE_TEST_DB=true`.
 
 Env — copy `packages/web/.env.test.example` to `packages/web/.env.test` (overrides the dev env from `.env.local`):
 

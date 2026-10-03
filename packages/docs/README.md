@@ -16,13 +16,15 @@ npm run dev:docs      # -> http://localhost:4001
 ## Structure
 
 ```
-docs/
-  public/index.html     The whole viewer: sidebar, router, Markdown renderer, :::media directive.
-  public/content/*.md   One Markdown file per page. Source of truth. Portable to any docs platform.
-  public/media/         Committed screenshots (PNG) + 3 placeholder SVGs. Videos/GIFs live on R2 (see below).
-  scripts/              media-config generator (build step) + the local static server.
-  vercel.json           Static deploy: build writes media-config.js, `public/` is the output.
-  README.md             This file.
+packages/docs/
+  public/index.html       The whole viewer: sidebar, router, Markdown renderer, :::media directive.
+  public/content/*.md     One Markdown file per page. Source of truth. Portable to any docs platform.
+  public/media/           Committed screenshots (PNG) + 3 placeholder SVGs. Videos/GIFs live on R2 (see below).
+  public/media-config.js  Generated at build time by scripts/gen-media-config.mjs — not committed.
+  scripts/                gen-media-config.mjs (build step) + serve.mjs (local static server).
+  vercel.json             Static deploy: build writes media-config.js, `public/` is the output.
+  package.json            `dev` / `build` scripts (exposed from the root as dev:docs / build:docs).
+  README.md               This file.
 ```
 
 To add or reorder pages, edit the `NAV` array near the top of the `<script>` in `public/index.html`.
