@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef, type DragEvent } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Plus, Trash2, FolderGit2, Loader2, Upload, ClipboardPaste, Check } from "lucide-react"
+import { X, Plus, Trash2, FolderGit2, Loader2, Upload, Check } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { VariableIcon } from "@/components/icons/variable-icon"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { parseDotEnv, mergeEnvEntries, type ParsedEnvEntry } from "@/lib/dotenv"
 import type { EnvVar, EnvironmentVariables } from "@/lib/types"
 import { nanoid } from "nanoid"
@@ -141,8 +140,6 @@ export function EnvironmentVariablesModal({
   const [activeTab, setActiveTab] = useState<TabKey>("chat")
   const [newVarId, setNewVarId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [showPasteArea, setShowPasteArea] = useState(false)
-  const [pasteText, setPasteText] = useState("")
   const [importStatus, setImportStatus] = useState<{ message: string; error?: boolean } | null>(null)
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -169,8 +166,6 @@ export function EnvironmentVariablesModal({
       setActiveTab("chat")
       setNewVarId(null)
       setIsSaving(false)
-      setShowPasteArea(false)
-      setPasteText("")
       setImportStatus(null)
       setIsDraggingFile(false)
       dragDepthRef.current = 0
@@ -252,13 +247,6 @@ export function EnvironmentVariablesModal({
     }
   }
 
-  const handlePasteAreaSubmit = () => {
-    if (importEntries(parseDotEnv(pasteText), "pasted text")) {
-      setPasteText("")
-      setShowPasteArea(false)
-    }
-  }
-
   const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
 
   const dropHandlers = {
@@ -287,8 +275,6 @@ export function EnvironmentVariablesModal({
     },
   }
 
-  const pasteEntryCount = pasteText.trim() ? parseDotEnv(pasteText).length : 0
-
   const activeVars = activeTab === "chat" ? chatEnvVars : repoEnvVars
   const activeTitle = activeTab === "chat" ? "Chat" : (repoName || "Repository")
   const hasRepository = !!repoName
@@ -310,15 +296,6 @@ export function EnvironmentVariablesModal({
         </button>
         <button
           type="button"
-          onClick={() => setShowPasteArea((v) => !v)}
-          className={cn(actionButtonClass, showPasteArea && "text-foreground")}
-          aria-expanded={showPasteArea}
-        >
-          <ClipboardPaste className="h-4 w-4" />
-          Paste .env
-        </button>
-        <button
-          type="button"
           onClick={() => fileInputRef.current?.click()}
           className={actionButtonClass}
         >
@@ -328,6 +305,7 @@ export function EnvironmentVariablesModal({
         <input
           ref={fileInputRef}
           type="file"
+          accept=".env,.env.local,.env.development,.env.development.local,.env.production,.env.production.local,.env.test,.env.test.local,.env.example"
           multiple
           className="hidden"
           onChange={(e) => {
@@ -336,52 +314,6 @@ export function EnvironmentVariablesModal({
           }}
         />
       </div>
-
-      {/* Bulk paste area */}
-      {showPasteArea && (
-        <div className="mb-3 rounded-lg border border-border p-3 space-y-2">
-          <Textarea
-            autoFocus
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                handlePasteAreaSubmit()
-              }
-            }}
-            placeholder={"# Paste the contents of your .env file\nDATABASE_URL=postgres://...\nAPI_KEY=sk-..."}
-            rows={6}
-            className="font-mono text-xs resize-y"
-            spellCheck={false}
-            autoComplete="off"
-          />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">
-              {pasteText.trim()
-                ? `${pasteEntryCount} variable${pasteEntryCount === 1 ? "" : "s"} detected`
-                : "Existing variables with the same name will be overwritten."}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowPasteArea(false); setPasteText("") }}
-                className="rounded-md hover:bg-accent transition-colors px-2.5 py-1 text-xs cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handlePasteAreaSubmit}
-                disabled={pasteEntryCount === 0}
-                className="rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors px-2.5 py-1 text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add {pasteEntryCount > 0 ? pasteEntryCount : ""} variable{pasteEntryCount === 1 ? "" : "s"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Import status */}
       {importStatus && (
@@ -400,9 +332,9 @@ export function EnvironmentVariablesModal({
       )}
 
       {/* Empty state */}
-      {activeVars.length === 0 && !showPasteArea && (
+      {activeVars.length === 0 && (
         <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-          No variables yet. Add one, paste a .env file, or drop a .env file here.
+          No variables yet. Add a variable to paste into its name field, or upload or drop a .env file here.
         </div>
       )}
 
