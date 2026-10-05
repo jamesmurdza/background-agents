@@ -41,9 +41,8 @@ export interface JobHandle {
    */
   readonly cgroup: string
   /**
-   * Optional process name used for a name-based sweep on cancel (`pkill -f`)
-   * as an additional backstop beyond the cgroup kill. Stored in meta for cold
-   * reattachment.
+   * Optional descriptive process name, retained in metadata for compatibility.
+   * Cancellation targets the owned process group/cgroup, never a global name.
    */
   readonly processName?: string
 }
@@ -101,10 +100,7 @@ export interface StartJobOptions {
   /** Environment variables exported before the command runs. */
   readonly env?: Record<string, string>
   /**
-   * Optional process name for a name-based sweep on cancel (`pkill -f`).
-   * When set, cancel() will also run `pkill -9 -f <processName>` as an
-   * additional backstop to catch daemonized children that may escape
-   * even the cgroup kill (e.g. processes in other cgroup namespaces).
+   * Optional descriptive process name retained in job metadata.
    */
   readonly processName?: string
   /**
@@ -145,9 +141,9 @@ export interface SandboxJobs {
    * Terminate the job and all its descendants. Sends SIGTERM first (graceful
    * shutdown — gives the process a chance to persist state), then after a
    * 500ms wait kills the job cgroup (reaping even children that escaped the
-   * process group via setsid), then runs a name-based `pkill -f` sweep if a
-   * processName was provided. The cgroup is removed so page-cache charges
-   * don't accumulate.
+   * process group via setsid), with SIGKILL to the same process group as a
+   * fallback. Resolves only after liveness checks confirm termination; rejects
+   * on command/verification failure. The cgroup is removed when empty.
    */
   cancel(handle: JobHandle): Promise<void>
   /**

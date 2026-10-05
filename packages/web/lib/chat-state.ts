@@ -42,10 +42,25 @@ export interface LocalChatState {
 export function mergeLocalState(serverChats: Chat[], local: LocalChatState): Chat[] {
   return serverChats.map((chat) => {
     const previewState = local.previewStates[chat.id]
-    const serverQueue = chat.queuedMessages ?? []
+    const messages = new Set(chat.messages.map((message) => message.id))
+    const saved = local.queuedMessages[chat.id] ?? []
+    const localQueue = saved.filter((item) => !item.directSend)
+    const serverQueue = (chat.queuedMessages ?? [])
+      .filter((item) => !item.userMessageId || !messages.has(item.userMessageId))
+      .map((item) => {
+        const pending = localQueue.find((entry) => entry.id === item.clientId || entry.id === item.id)
+        return {
+          ...item,
+          sendImmediately: item.sendImmediately || pending?.sendImmediately,
+          cancelRequested: pending?.cancelRequested,
+          cancelFailed: pending?.cancelFailed,
+          syncError: pending?.syncError,
+          syncFailed: pending?.syncFailed,
+        }
+      })
     const importedIds = new Set(serverQueue.map((item) => item.clientId))
-    const legacyQueue = (local.queuedMessages[chat.id] ?? [])
-      .filter((item) => !importedIds.has(item.id))
+    const legacyQueue = localQueue
+      .filter((item) => !importedIds.has(item.id) && !serverQueue.some((row) => row.id === item.id) && (!item.userMessageId || !messages.has(item.userMessageId)))
       .map((item) => ({ ...item, pendingSync: true }))
     return {
       ...chat,
@@ -53,9 +68,26 @@ export function mergeLocalState(serverChats: Chat[], local: LocalChatState): Cha
       activePreviewIndex: previewState?.activeIndex,
       previewPaneHidden: previewState?.hidden,
       queuedMessages: [...serverQueue, ...legacyQueue],
+      directSendRecovery: saved.filter((item) => !!item.directSend),
       queuePaused: chat.queuePaused || (legacyQueue.length > 0 && local.queuePaused[chat.id]),
     }
   })
+}
+
+/** Waiting work is not active while a failure, cancellation, or pause blocks it. */
+export function hasActiveQueue(chat: Pick<Chat, "status" | "queuePaused" | "queuedMessages"> | null | undefined): boolean {
+  return !!chat && ["ready", "creating", "running"].includes(chat.status) && !chat.queuePaused &&
+    !!chat.queuedMessages?.some((item) => !item.directSend && !item.cancelRequested && !item.syncError && !item.syncFailed && !item.lastError)
+}
+
+/** Presentation only: the server still claims every queued prompt. */
+export function getPendingSubmission(chat: Chat): QueuedMessage | undefined {
+  if (chat.queuePaused || chat.status === "error" || chat.status === "disconnected") return undefined
+  const first = chat.queuedMessages?.find((item) => !item.directSend)
+  if (!first || first.lastError || first.syncError || first.syncFailed || first.cancelRequested) return undefined
+  if (first.status === "dispatching" || first.sendImmediately ||
+      (chat.status === "ready" && !chat.backgroundSessionId)) return first
+  return undefined
 }
 
 /**

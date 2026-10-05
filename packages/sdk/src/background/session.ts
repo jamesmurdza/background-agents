@@ -264,8 +264,8 @@ class BackgroundSessionImpl implements BackgroundSession {
   async cancel(): Promise<void> {
     const handle = await this.reattach()
     if (!handle) return
-    this.cancelled = true
     await this.jobs.cancel(handle)
+    this.cancelled = true
     await this.patchMeta({ cancelled: true })
   }
 

@@ -93,6 +93,13 @@ export interface SettingsResponse {
 // API Helpers
 // =============================================================================
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = "ApiError"
+  }
+}
+
 // API base URL - configurable for Electron app pointing to hosted backend
 const API_BASE_URL = typeof window !== "undefined"
   ? (window as { BACKGROUND_AGENTS_API_URL?: string }).BACKGROUND_AGENTS_API_URL || ""
@@ -120,8 +127,8 @@ async function fetchApi<T>(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Unknown error" }))
-    throw new Error(error.error || `HTTP ${response.status}`)
+    const error = await response.json().catch(() => null)
+    throw new ApiError(typeof error?.error === "string" ? error.error : `HTTP ${response.status}`, response.status)
   }
 
   return response.json()
@@ -140,6 +147,10 @@ export async function fetchChats(): Promise<ChatResponse[]> {
 }
 
 export interface PromptQueueResponse {
+  updatedAt?: number
+  messageCount?: number
+  lastMessageId?: string | null
+  recoverableAssistantMessageId?: string | null
   status: Chat["status"]
   queuePaused: boolean
   sandboxId: string | null
@@ -171,21 +182,26 @@ export async function importLegacyPromptQueue(
   chatId: string,
   legacyItems: Array<{ clientId: string; content: string; agent?: string; model?: string }>,
   paused: boolean
-): Promise<void> {
-  await fetchApi(`/api/chats/${chatId}/queue`, {
+): Promise<QueuedMessage[]> {
+  const result = await fetchApi<{ queuedMessages: QueuedMessage[] }>(`/api/chats/${chatId}/queue`, {
     method: "POST",
     body: JSON.stringify({ legacyItems, paused }),
   })
+  return result.queuedMessages
 }
 
-export async function removeQueuedPromptApi(chatId: string, promptId: string): Promise<void> {
-  await fetchApi(`/api/chats/${chatId}/queue/${encodeURIComponent(promptId)}`, { method: "DELETE" })
+export async function removeQueuedPromptApi(chatId: string, promptId: string, clientId?: string): Promise<void> {
+  await fetchApi(`/api/chats/${chatId}/queue/${encodeURIComponent(promptId)}`, {
+    method: "DELETE",
+    // An explicit body distinguishes a client request ID from a database row ID.
+    ...(clientId ? { body: JSON.stringify({ clientId }) } : { headers: { "Content-Type": "text/plain" } }),
+  })
 }
 
-export async function setPromptQueuePaused(chatId: string, paused: boolean): Promise<void> {
+export async function setPromptQueuePaused(chatId: string, paused: boolean, recovery?: { updatedAt: number; assistantMessageId: string }): Promise<void> {
   await fetchApi(`/api/chats/${chatId}/queue`, {
     method: "PATCH",
-    body: JSON.stringify({ paused }),
+    body: JSON.stringify({ paused, ...(recovery ? { recoverTerminal: true, ...recovery } : {}) }),
   })
 }
 
@@ -329,6 +345,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     lastActiveAt: serverChat.lastActiveAt,
     messages: [], // Messages loaded separately
     messageCount: serverChat.messageCount ?? 0, // For filtering before messages are loaded
+    lastMessageId: serverChat.lastMessageId,
     queuedMessages: serverChat.queuedMessages ?? [],
     queuePaused: serverChat.queuePaused ?? false,
   }

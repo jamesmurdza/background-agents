@@ -141,6 +141,17 @@ describe("parseOpencodeLine", () => {
     expect(parseOpencodeLine('{"type": "unknown"}', mappings, ctx)).toBeNull()
   })
 
+  it("retains a terminal model lookup failure instead of the following generic JSON error", () => {
+    const ctx = createContext()
+    const log = 'timestamp=2026-10-05T08:25:21.833Z level=ERROR message=failed ref=err_test error="ProviderModelNotFoundError: Model not found: opencode/retired-free. Did you mean: another-free?" cause="private stack"'
+    expect(parseOpencodeLine(log, mappings, ctx)).toEqual({ type: "end", error: "Model not found: opencode/retired-free — select a different model for this agent" })
+    expect(parseOpencodeLine('{"type":"error","error":{"name":"UnknownError","data":{"message":"Unexpected server error. Check server logs for details."}}}', mappings, ctx)).toBeNull()
+  })
+
+  it("does not treat a subscriber's model lookup error as a terminal turn failure", () => {
+    expect(parseOpencodeLine('timestamp=now level=ERROR message="share subscriber failed" cause="ProviderModelNotFoundError: Model not found: opencode/retired-free"', mappings, createContext())).toBeNull()
+  })
+
   it("ignores plaintext logs that are not model-call errors", () => {
     const ctx = createContext()
     expect(parseOpencodeLine("INFO 2026-04-03 service=models.dev refreshing", mappings, ctx)).toBeNull()
@@ -238,4 +249,3 @@ describe("parseOpencodeLine", () => {
     ).toBeNull()
   })
 })
-

@@ -30,7 +30,7 @@ vi.mock("@/lib/agent-session", () => ({
   cancelBackgroundAgent: (...a: unknown[]) => cancelBackgroundAgent(...(a as [])),
 }))
 
-import { monitorAgent, stopAgent } from "./monitor"
+import { monitorAgent, stopAgent, stopInteractiveAgent } from "./monitor"
 
 const sandbox = { refreshActivity: vi.fn(async () => {}) }
 const daytona = { get: vi.fn(async () => sandbox) } as never
@@ -110,5 +110,38 @@ describe("stopAgent", () => {
     ).resolves.toBeUndefined()
     // Stopping a runaway agent matters more than billing it.
     expect(cancelBackgroundAgent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("interactive cancellation confirmation", () => {
+  it("does not cancel a turn that completed before the timeout stop arrived", async () => {
+    snapshot = { ...snapshot, status: "completed" }
+    expect(await stopInteractiveAgent("sandbox", BACKGROUND_SESSION_ID, daytona)).toEqual({ snapshot, cancelled: false })
+    expect(cancelBackgroundAgent).not.toHaveBeenCalled()
+  })
+  it("returns the last output after confirmed cancellation", async () => {
+    snapshotBackgroundAgent.mockResolvedValueOnce({ ...snapshot, status: "running", content: "partial" })
+    snapshotBackgroundAgent.mockResolvedValueOnce({ ...snapshot, content: "last output" })
+    expect(await stopInteractiveAgent("sandbox", BACKGROUND_SESSION_ID, daytona)).toMatchObject({ snapshot: { content: "last output" }, cancelled: true })
+    expect(cancelBackgroundAgent).toHaveBeenCalledWith(sandbox, BACKGROUND_SESSION_ID, expect.anything(), true)
+  })
+  it("propagates failed cancellation instead of reporting the turn stopped", async () => {
+    snapshot = { ...snapshot, status: "running" }
+    cancelBackgroundAgent.mockRejectedValueOnce(new Error("Cannot stop"))
+    await expect(stopInteractiveAgent("sandbox", BACKGROUND_SESSION_ID, daytona)).rejects.toThrow("Cannot stop")
+  })
+  it.each([
+    { status: "running" as const },
+    { status: "error" as const, transientReadFailure: true },
+  ])("rejects an unconfirmed post-stop snapshot: %j", async (after) => {
+    snapshotBackgroundAgent.mockResolvedValueOnce({ ...snapshot, status: "running" })
+    snapshotBackgroundAgent.mockResolvedValueOnce({ ...snapshot, ...after })
+    await expect(stopInteractiveAgent("sandbox", BACKGROUND_SESSION_ID, daytona)).rejects.toThrow("Cannot confirm")
+  })
+  it("does not invoke the interactive error finalizer after cancellation fails", async () => {
+    const onError = vi.fn()
+    cancelBackgroundAgent.mockRejectedValueOnce(new Error("Cannot stop"))
+    await monitorAgent("sandbox", BACKGROUND_SESSION_ID, daytona, { strictCancellation: true, onComplete: vi.fn(), onError })
+    expect(onError).not.toHaveBeenCalled()
   })
 })

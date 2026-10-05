@@ -1,6 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { PATHS } from "@/lib/constants"
-import { cancelBackgroundAgent } from "@/lib/agent-session"
+import { cancelBackgroundAgent, snapshotBackgroundAgent } from "@/lib/agent-session"
+import { persistAgentSnapshot } from "../stream/_lib/persist-snapshot"
 import { prisma } from "@/lib/db/prisma"
 import { abandonFinalization, claimTurnFinalization, releaseTurn } from "@/lib/server/turn-ownership"
 import {
@@ -29,8 +30,9 @@ export async function POST(req: Request) {
     return badRequest("Invalid JSON body")
   }
 
-  const { chatId, backgroundSessionId, assistantMessageId } = body
-  if (!chatId || !backgroundSessionId || !assistantMessageId) {
+  const { chatId, backgroundSessionId, assistantMessageId } = body ?? {}
+  if (typeof chatId !== "string" || !chatId || typeof backgroundSessionId !== "string" || !backgroundSessionId ||
+      typeof assistantMessageId !== "string" || !assistantMessageId) {
     return badRequest("Missing required turn identity")
   }
 
@@ -82,15 +84,28 @@ export async function POST(req: Request) {
     const sandbox = await daytona.get(chat.sandboxId)
 
     const sessionOpts = {
-      repoPath: `${PATHS.SANDBOX_HOME}/${chat.repo}`,
+      repoPath: `${PATHS.SANDBOX_HOME}/project`,
       previewUrlPattern: chat.previewUrlPattern || undefined,
     }
 
-    // Kill the agent process
-    await cancelBackgroundAgent(sandbox, backgroundSessionId, sessionOpts)
+    // Keep the finalization claim until cancellation AND persistence finish.
+    // Otherwise periodic/SSE writers lose ownership when Stop releases the
+    // turn, leaving the user with a visible reply that vanishes on refresh.
+    const before = await snapshotBackgroundAgent(sandbox, backgroundSessionId, sessionOpts)
+    if (before.transientReadFailure) throw new Error("Cannot read the agent output; retry Stop")
+    if (!(await persistAgentSnapshot({ prisma, turn, snapshot: before, finalizationClaimId: claimId })).persisted) {
+      throw new Error("Cannot save the agent output; retry Stop")
+    }
+    await cancelBackgroundAgent(sandbox, backgroundSessionId, sessionOpts, true)
+    const after = await snapshotBackgroundAgent(sandbox, backgroundSessionId, sessionOpts, before)
+    if (after.transientReadFailure) throw new Error("Agent stopped but final output could not be read; retry Stop")
+    if (after.status === "running") throw new Error("Cannot confirm the agent stopped; retry Stop")
+    if (!(await persistAgentSnapshot({ prisma, turn, snapshot: after, finalizationClaimId: claimId })).persisted) {
+      throw new Error("Agent stopped but final output could not be saved; retry Stop")
+    }
 
     // Update database to mark chat as ready
-    if (!await releaseTurn(turn, claimId, "ready")) {
+    if (!await releaseTurn(turn, claimId, "ready", after.sessionId, { pauseQueue: true })) {
       return Response.json({ error: "Agent turn changed; reload the chat" }, { status: 409 })
     }
 

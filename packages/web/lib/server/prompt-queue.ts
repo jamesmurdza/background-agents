@@ -4,13 +4,15 @@ import { prisma } from "@/lib/db/prisma"
 import type { QueuedMessage } from "@/lib/types"
 
 export type QueueItem = Pick<QueuedPrompt,
-  "id" | "clientId" | "content" | "agent" | "model" | "lastError" | "position"
+  "id" | "clientId" | "content" | "agent" | "model" | "lastError" | "position" | "userMessageId" | "status"
 >
 
 export function toQueuedMessage(item: QueueItem): QueuedMessage {
   return {
     id: item.id,
     clientId: item.clientId ?? undefined,
+    userMessageId: item.userMessageId,
+    status: item.status,
     content: item.content,
     agent: item.agent,
     model: item.model,
@@ -42,6 +44,7 @@ export async function enqueuePrompt(chatId: string, input: QueueInput): Promise<
       where: { chatId_clientId: { chatId, clientId: input.clientId } },
     })
     if (existing) {
+      if (existing.status === "cancelled") return existing
       if (existing.content !== input.content || existing.agent !== input.agent || existing.model !== input.model) {
         throw new QueueIdConflict()
       }
@@ -76,14 +79,15 @@ export async function importLegacyPrompts(
   chatId: string,
   items: QueueInput[],
   paused: boolean
-): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+): Promise<QueuedPrompt[]> {
+  return prisma.$transaction(async (tx) => {
     await tx.chat.update({ where: { id: chatId }, data: { queueSequence: { increment: 0 } } })
     for (const input of items) {
       const existing = await tx.queuedPrompt.findUnique({
         where: { chatId_clientId: { chatId, clientId: input.clientId } },
       })
       if (existing) {
+        if (existing.status === "cancelled") continue
         if (existing.content !== input.content || existing.agent !== input.agent || existing.model !== input.model) {
           throw new QueueIdConflict()
         }
@@ -110,6 +114,39 @@ export async function importLegacyPrompts(
     if (paused && items.length > 0) {
       await tx.chat.update({ where: { id: chatId }, data: { queuePaused: true } })
     }
+    return tx.queuedPrompt.findMany({
+      where: { chatId, clientId: { in: items.map((item) => item.clientId) } },
+      orderBy: { position: "asc" },
+    })
+  })
+}
+
+/** Remember removal even when a delayed POST has not reached the server yet. */
+export async function cancelQueuedPrompt(
+  chatId: string,
+  identity: { clientId: string } | { id: string },
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    // Match the insert/claim lock order; a racing send sees the tombstone.
+    await tx.chat.update({ where: { id: chatId }, data: { queueSequence: { increment: 0 } } })
+    const existing = await tx.queuedPrompt.findFirst({ where: { chatId, ...identity } })
+    if (existing) {
+      if (existing.status === "cancelled") return true
+      if (existing.status !== "queued") return false
+      const removed = await tx.queuedPrompt.updateMany({
+        where: { id: existing.id, chatId, status: "queued" }, data: { status: "cancelled" },
+      })
+      return removed.count === 1
+    }
+    if (!("clientId" in identity)) return false
+    const chat = await tx.chat.update({
+      where: { id: chatId }, data: { queueSequence: { increment: 1 } }, select: { queueSequence: true },
+    })
+    await tx.queuedPrompt.create({ data: {
+      chatId, clientId: identity.clientId, position: chat.queueSequence, status: "cancelled",
+      content: "", agent: "", model: "", userMessageId: randomUUID(), assistantMessageId: randomUUID(),
+    } })
+    return true
   })
 }
 

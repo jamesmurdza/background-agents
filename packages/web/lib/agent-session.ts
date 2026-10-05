@@ -338,7 +338,8 @@ export async function finalizeTurn(
 export async function cancelBackgroundAgent(
   sandbox: DaytonaSandbox,
   backgroundSessionId: string,
-  options: AgentSessionOptions
+  options: AgentSessionOptions,
+  strict = false,
 ): Promise<void> {
   try {
     const bgSession = await getBackgroundSession(
@@ -350,6 +351,7 @@ export async function cancelBackgroundAgent(
     await bgSession.cancel()
   } catch (err) {
     console.error("[cancelBackgroundAgent] Error:", err)
+    if (strict) throw err
     // Don't rethrow - cancellation is best-effort
   }
 }

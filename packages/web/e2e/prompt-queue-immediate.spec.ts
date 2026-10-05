@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
+import { encode } from "next-auth/jwt"
 import { claimNextPrompt } from "../lib/server/prompt-queue"
 import { setupTestAuth } from "./helpers"
 
@@ -215,7 +216,11 @@ test("an open chat wakes queued dispatch when its turn completes", async ({ page
     await page.goto(`/chat/${chatId}`, { waitUntil: "domcontentloaded" })
     await expect.poll(() => completionSent).toBe(true)
     await expect(page.getByTestId("chat-container")).toHaveAttribute("data-chat-status", "ready")
-    await expect.poll(() => wakeRequests, { timeout: 10_000 }).toBe(1)
+    // Completion and queue reconciliation may both request a wake-up. The
+    // server claim, tested below, prevents duplicate execution; a skipped mock
+    // deliberately leaves work pending, so counting requests as executions is
+    // incorrect here.
+    await expect.poll(() => wakeRequests, { timeout: 10_000 }).toBeGreaterThanOrEqual(1)
   } finally {
     if (chatId) await db.chat.deleteMany({ where: { id: chatId } })
     await db.$disconnect()
@@ -255,7 +260,10 @@ test("a stream update changes its assistant message, not a newer queued user mes
       })
     })
     await page.goto(`/chat/${chatId}`)
-    await expect(page.locator('[data-role="assistant"]')).toHaveText("4")
+    await expect(page.locator('[data-role="assistant"] p')).toHaveText("4")
+    // The old turn still owns this stream, so its one loading indicator stays
+    // on the assistant bubble rather than attaching to the newer user message.
+    await expect(page.locator('[data-role="assistant"] .animate-pulse')).toHaveCount(1)
     await expect(page.locator('[data-role="user"]')).toHaveText(["say 4", "say 5"])
   } finally {
     if (chatId) await db.chat.deleteMany({ where: { id: chatId } })
@@ -449,14 +457,20 @@ test("simultaneous browser and cron HTTP requests dispatch a prompt at most once
   await setupTestAuth(page, context)
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) })
   const chatIds: string[] = []
+  let isolatedUserId: string | undefined
 
   try {
     // A paid shared-pool model with zero credits is rejected before Daytona.
     // That lets the real HTTP routes race through claim + send preflight
     // without provisioning a sandbox or charging an external provider.
-    const user = await db.user.findUniqueOrThrow({ where: { email: "test@playwright.local" } })
-    expect(user.creditBalanceMicroUsd).toBe(0n)
-    expect(user.credentials).toBeNull()
+    // Do not require/reset the shared test user's credits or credentials: a
+    // developer may be running real local UI tests with that account too.
+    const user = await db.user.create({ data: {
+      email: `queue-race-${crypto.randomUUID()}@playwright.local`, name: "Queue race test", creditBalanceMicroUsd: 0n,
+    } })
+    isolatedUserId = user.id
+    const token = await encode({ token: { sub: user.id, email: user.email, name: user.name }, secret: process.env.NEXTAUTH_SECRET! })
+    await context.addCookies([{ name: "next-auth.session-token", value: token, domain: "localhost", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }])
 
     for (let round = 0; round < 3; round++) {
       const create = await page.request.post("/api/chats", {
@@ -498,6 +512,7 @@ test("simultaneous browser and cron HTTP requests dispatch a prompt at most once
     }
   } finally {
     await db.chat.deleteMany({ where: { id: { in: chatIds } } })
+    if (isolatedUserId) await db.user.delete({ where: { id: isolatedUserId } })
     await db.$disconnect()
   }
 })

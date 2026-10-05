@@ -130,6 +130,16 @@ type OpenCodeEvent =
 function parseOpencodeLogError(line: string, context: ParseContext): Event | null {
   if (context.state.llmErrorEmitted) return null
 
+  // The CLI emits a useful terminal lookup error followed by a generic
+  // UnknownError JSON event. Keep the model ID only, not the stack or prompts.
+  if (/\blevel=ERROR\b/.test(line) && /\bmessage=(?:failed|"failed")(?:\s|$)/.test(line)) {
+    const model = line.match(/\berror="ProviderModelNotFoundError: Model not found: ([a-zA-Z0-9_./:-]+?)(?:\. |["\s])/)?.[1]
+    if (model) {
+      context.state.llmErrorEmitted = true
+      return { type: "end", error: resolveAgentError(`Model not found: ${model}`, "opencode") }
+    }
+  }
+
   // ── Format A: structured logfmt (what `opencode run` writes in production) ──
   //   timestamp=… level=ERROR … message="stream error" … modelID=… small=false
   //   agent=build mode=primary error.error="AI_APICallError: Monthly usage limit
@@ -254,6 +264,8 @@ export function parseOpencodeLine(
 
   // Error event - emit as end with error
   if (json.type === "error") {
+    if (context.state.llmErrorEmitted) return null
+    context.state.llmErrorEmitted = true
     return { type: "end", error: resolveAgentError(json.error ?? json, "opencode") }
   }
 

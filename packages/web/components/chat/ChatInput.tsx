@@ -11,6 +11,7 @@ import { isModKeyPressed } from "@/lib/keyboard"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { basename } from "@/lib/format"
+import { queuedSendNotice } from "@/lib/composer-queue"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { CreditWarningBanner } from "./CreditWarningBanner"
@@ -92,6 +93,7 @@ interface ChatInputProps {
 }
 
 interface ChatActionSlotProps {
+  canStop?: boolean
   isRunning: boolean
   canQueue: boolean
   canSend: boolean
@@ -109,6 +111,7 @@ interface ChatActionSlotProps {
  * hit target and can receive a click that was intended to stop the agent.
  */
 export function ChatActionSlot({
+  canStop = true,
   isRunning,
   canQueue,
   canSend,
@@ -142,10 +145,11 @@ export function ChatActionSlot({
         <button
           type="button"
           onClick={onStop}
-          title="Stop agent"
+          disabled={!canStop}
+          title={canStop ? "Stop agent" : "Agent is starting"}
           aria-label="Stop agent"
           className={cn(
-            "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors cursor-pointer",
+            "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-wait",
             isMobile ? "h-9 w-9" : "h-7 w-7"
           )}
         >
@@ -237,6 +241,9 @@ export function ChatInput({
   isMobile,
 }: ChatInputProps) {
   const modals = useModals()
+  const queueNotice = queuedSendNotice({ isRunning,
+    isPaused: !!chat.queuePaused && !!chat.queuedMessages?.length,
+    hasFiles: pendingFiles.length > 0, planMode: planModeEnabled, hasText: !!input.trim() })
   // Keyed off the *current* agent+model, so switching to a free model or an
   // own-key one clears the warning along with the charge it was warning about.
   const creditWarning = useCreditWarning({
@@ -445,7 +452,7 @@ export function ChatInput({
               onPaste={onPaste}
               placeholder={
                 isCreating
-                  ? "Creating sandbox..."
+                  ? (chat.sandboxId ? "Starting agent..." : "Creating sandbox...")
                   : isRunning
                   ? "Agent is working..."
                   : isNewChat
@@ -501,6 +508,7 @@ export function ChatInput({
           {/* Send / stop / queue button — the slot remains mounted while idle
               so the adjacent microphone never replaces its hit target. */}
           <ChatActionSlot
+            canStop={chat.status === "running" && !!chat.backgroundSessionId && !!chat.activeAssistantMessageId}
             isRunning={isRunning}
             canQueue={canQueue}
             canSend={canSend}
@@ -510,6 +518,12 @@ export function ChatInput({
             onStop={onStop}
           />
         </div>
+
+        {queueNotice && (
+          <p role="status" data-testid="queue-options-notice" className={cn("text-muted-foreground", isMobile ? "mx-3 mb-2 text-sm" : "mx-4 mb-2 text-xs")}>
+            {queueNotice}
+          </p>
+        )}
 
         {/* File upload error message */}
         {fileError && (

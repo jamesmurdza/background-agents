@@ -10,7 +10,7 @@ import { resolveUserRunLimit } from "./_lib/user-run-limit"
 import { creditBudgetExhausted, CREDIT_GUARD_STOP_REASON } from "./_lib/credit-guard"
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
-import { finalizeInteractiveChat, markChatError } from "./_lib/interactive"
+import { finalizeInteractiveChat, markChatError, stopInteractiveChat } from "./_lib/interactive"
 
 // maxDuration configures the timeout for this Vercel function. Vercel Pro
 // plan allows up to 5 minutes for cron jobs.
@@ -156,33 +156,15 @@ export async function GET(req: Request) {
         const totalMinutes = differenceInMinutes(now, runStartedAt)
         const hardTimeout = resolveUserRunLimit(chat.user, INTERACTIVE_HARD_TIMEOUT)
 
-        // Hard timeout: default 25 minutes, admin-overridable (see
-        // ./_lib/user-run-limit)
-        if (totalMinutes > hardTimeout) {
-          // stopAgent reads the agent session id before it cancels, which is
-          // the only chance to learn it: a long run is the most expensive
-          // kind of failure to leave unbilled.
-          const agentSessionId = await stopAgent(
-            chat.sandboxId!,
-            chat.backgroundSessionId!,
-            daytona
-          )
-          await markChatError(
-            chat,
-            `Run exceeded ${hardTimeout} minute limit`,
-            daytona,
-            agentSessionId
-          )
-          results.timedOutInteractive++
-          continue
-        }
-
-        // Monitor and check completion
+        // Recover completed output before applying running-time limits. A
+        // previous final write may have failed after the agent already exited.
         const snapshot = await monitorAgent(
           chat.sandboxId!,
           chat.backgroundSessionId!,
           daytona,
           {
+            strictCancellation: true,
+            cancelOnError: false,
             onComplete: async (snapshot) => {
               if (await finalizeInteractiveChat(chat, snapshot, daytona)) results.completedInteractive++
             },
@@ -196,10 +178,21 @@ export async function GET(req: Request) {
                 error,
                 errorKind,
               })
-              await markChatError(chat, error, daytona, snapshot.sessionId)
+              await markChatError(chat, error, daytona, snapshot)
             },
           }
         )
+
+        // An unreadable or terminal session must not fall through into timeout
+        // teardown, including when its final snapshot could not yet be saved.
+        if (!snapshot || snapshot.status !== "running") continue
+
+        if (totalMinutes > hardTimeout) {
+          if (await stopInteractiveChat(chat, `Run exceeded ${hardTimeout} minute limit`, daytona)) {
+            results.timedOutInteractive++
+          }
+          continue
+        }
 
         // Still running: bill what it has spent so far and stop it if the
         // balance can no longer cover the next few minutes. Reuses the snapshot
@@ -220,11 +213,11 @@ export async function GET(req: Request) {
             runningMinutes: totalMinutes,
           }))
         ) {
-          await stopAgent(chat.sandboxId!, chat.backgroundSessionId!, daytona)
           // markChatError meters once more on the way out, which catches
           // whatever the run spent between the guard's reading and the stop.
-          await markChatError(chat, CREDIT_GUARD_STOP_REASON, daytona, snapshot.sessionId)
-          results.stoppedOutOfCredits++
+          if (await stopInteractiveChat(chat, CREDIT_GUARD_STOP_REASON, daytona)) {
+            results.stoppedOutOfCredits++
+          }
         }
       } catch (err) {
         results.errors.push(`Failed to monitor chat ${chat.id}: ${err}`)

@@ -144,7 +144,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
   }
 
   async function cancel(handle: JobHandle): Promise<void> {
-    // Three-layer termination:
+    // Scoped termination:
     //   1. SIGTERM to the process group — graceful shutdown, gives the agent
     //      (e.g. Claude Code) a chance to persist conversation state before
     //      being killed. This is what fixes the "No conversation found" error.
@@ -152,20 +152,36 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     //   3. cgroup.kill — SIGKILLs EVERY member of the job cgroup, including
     //      children that escaped the process group via setsid() (e.g. daemonized
     //      MCP servers), which a process-group kill would miss.
-    //   4. pkill -f by name — additional backstop for processes in other cgroup
-    //      namespaces that the cgroup kill can't reach.
-    // Then record a deterministic exit sentinel so the job reads back as
-    // terminal even if the wrapper was killed before it could write `$?`, and
-    // rmdir the now-empty cgroup so page-cache charges don't accumulate.
-    await exec(
+    //   4. SIGKILL to the same process group as a fallback. Never sweep by
+    //      provider name: it can kill another job or this cancellation shell.
+    // Check actual process-group/cgroup liveness before writing an exit file.
+    // The exit sentinel itself cannot prove cancellation: writing it while a
+    // process remains alive would make later status() calls falsely terminal.
+    // Zombie members are no longer executing and must not prevent Stop.
+    const confirmStopped =
+      `for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do ` +
+      `PS=$(ps -eo pgid=,stat=) || exit 1; ` +
+      `LIVE=$(printf '%s\\n' "$PS" | awk '$1 == ${handle.pgid} && $2 !~ /^Z/ { print $1 }') || exit 1; ` +
+      `if [ -d ${q(handle.cgroup)} ]; then ` +
+      `CG=$(cat ${q(`${handle.cgroup}/cgroup.events`)}) || exit 1; ` +
+      `case "$CG" in *'populated 1'*) LIVE=1 ;; *'populated 0'*) ;; *) exit 1 ;; esac; fi; ` +
+      `[ -z "$LIVE" ] && break; sleep 0.1; done; ` +
+      `[ -z "$LIVE" ] || exit 1; `
+    const result = await sandbox.process.executeCommand(
       `kill -TERM -- -${handle.pgid} 2>/dev/null || true; ` +
         `sleep 0.5; ` +
         `echo 1 | sudo -n tee ${q(`${handle.cgroup}/cgroup.kill`)} >/dev/null 2>&1; ` +
-        (handle.processName ? `pkill -9 -f ${q(handle.processName)} 2>/dev/null || true; ` : "") +
-        `test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; ` +
-        `sudo -n rmdir ${q(handle.cgroup)} 2>/dev/null; true`,
+        `kill -KILL -- -${handle.pgid} 2>/dev/null || true; ` +
+        confirmStopped +
+        `{ test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; } || exit 1; ` +
+        `sudo -n rmdir ${q(handle.cgroup)} 2>/dev/null; printf 'SBJ-CANCELLED\\n'`,
+      undefined,
+      undefined,
       10
     )
+    if (result.exitCode !== 0 || result.result?.trim() !== "SBJ-CANCELLED") {
+      throw new Error("Could not confirm the sandbox job stopped")
+    }
   }
 
   async function attach(jobId: string, root = DEFAULT_ROOT): Promise<JobHandle | null> {

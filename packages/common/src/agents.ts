@@ -266,7 +266,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Free models (opencode/) - no API key needed
     { value: "opencode/big-pickle", label: "Big Pickle", requiresKey: "none", priceUsdPerM: 0 },
     { value: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra", requiresKey: "none", priceUsdPerM: 0 },
-    { value: "opencode/mimo-v2.5-free", label: "MiMo v2.5", requiresKey: "none", priceUsdPerM: 0 },
+    { value: "opencode/mimo-v2.6-flash-free", label: "MiMo v2.6 Flash", requiresKey: "none", priceUsdPerM: 0 },
     // Curated OpenCode Go models (opencode-go/ prefix), runnable on the
     // server-shared Go subscription key. Shown first when OPENCODE_API_KEY is
     // available. These route through Go, not Zen — see SHARED_OPENCODE_ALLOWED.

@@ -333,7 +333,8 @@ export function useChatWithSync() {
       openCodeModel,
       pending.files,
       pending.chatId,
-      pending.planMode
+      pending.planMode,
+      pending.rejectedMessageId
     )
   }, [limitReachedState.pendingMessage, credentialFlags, sendMessage])
 

@@ -146,6 +146,8 @@ export function applyOptimisticSend(
     ...chat,
     messages: [...chat.messages, userMessage, assistantMessage],
     status: chat.sandboxId ? "running" : "creating",
+    pendingSend: true,
+    pendingSendAssistantMessageId: assistantMessage.id,
     activeAssistantMessageId: assistantMessage.id,
     lastActiveAt: now,
     errorMessage: undefined,
@@ -153,13 +155,15 @@ export function applyOptimisticSend(
   }
 }
 
-/** Roll back the optimistic messages and return the chat to ready (e.g. on daily-limit). */
+/** Roll back a rejected attempt without releasing a newer active turn. */
 export function removeOptimisticMessages(chat: Chat, messageIds: string[]): Chat {
   const ids = new Set(messageIds)
+  const ownsTurn = !!chat.activeAssistantMessageId && ids.has(chat.activeAssistantMessageId)
+  const ownsPendingSend = !chat.pendingSendAssistantMessageId || ids.has(chat.pendingSendAssistantMessageId)
   return {
     ...chat,
-    status: "ready",
-    activeAssistantMessageId: undefined,
+    ...(ownsTurn ? { status: "ready" as const, activeAssistantMessageId: undefined } : {}),
+    ...(ownsPendingSend ? { pendingSend: false, pendingSendAssistantMessageId: undefined } : {}),
     messages: chat.messages.filter((m) => !ids.has(m.id)),
   }
 }
@@ -181,6 +185,7 @@ export function applySendSuccess(
     agent,
     model,
     status: "running",
+    pendingSend: false,
     messages: chat.messages.map((m) =>
       m.id === userMessageId && data.uploadedFiles.length > 0 ? { ...m, uploadedFiles: data.uploadedFiles } : m
     ),
@@ -192,6 +197,7 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
   return {
     ...chat,
     status: "error",
+    pendingSend: false,
     activeAssistantMessageId: undefined,
     errorMessage,
     messages: chat.messages.map((m) =>

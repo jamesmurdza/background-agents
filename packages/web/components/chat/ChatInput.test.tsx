@@ -23,6 +23,11 @@ function getActionSlot(overrides: Partial<Parameters<typeof ChatActionSlot>[0]> 
 }
 
 describe("ChatActionSlot", () => {
+  it("does not offer an enabled Stop before a cancellable turn exists", () => {
+    const props = getActionSlot({ isRunning: true, canStop: false }).props as ActionSlotElementProps
+    expect(props.children?.props.disabled).toBe(true)
+    expect(props.children?.props.title).toBe("Agent is starting")
+  })
   it.each([
     { layout: "desktop", isMobile: false },
     { layout: "mobile", isMobile: true },

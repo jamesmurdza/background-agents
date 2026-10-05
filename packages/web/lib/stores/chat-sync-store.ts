@@ -44,6 +44,8 @@ export interface LimitReachedState {
     content: string
     files?: File[]
     planMode?: boolean
+    /** The server explicitly rejected this attempt before running it. */
+    rejectedMessageId?: string
   }
   /** Shared-pool provider the blocked run would have used. */
   provider?: string

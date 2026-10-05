@@ -47,7 +47,7 @@ describe("persistAgentSnapshot", () => {
     expect(chat.updateMany.mock.calls[0][0].where.finalizationClaimId).toBe("owner-1")
   })
 
-  it("returns failure on a message write error so the caller can still release the turn", async () => {
+  it("returns failure on a message write error so the caller keeps the turn recoverable", async () => {
     const { client, message } = makeClient()
     message.update.mockRejectedValueOnce(new Error("invalid byte sequence 0x00"))
     expect((await persistAgentSnapshot({ prisma: client, turn, snapshot: snapshot(), finalizationClaimId: "owner-1" })).persisted).toBe(false)

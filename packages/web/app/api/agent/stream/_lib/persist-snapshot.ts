@@ -51,8 +51,8 @@ export async function persistAgentSnapshot(params: {
       return { persisted: true }
     })
   } catch (error) {
-    // Message persistence must not keep a claimed finalizer from releasing the
-    // chat. Callers release in a separate, guarded operation even on failure.
+    // Finalizers must keep the turn recoverable when this fails. Periodic
+    // writers can retry; a failed final write must never release the chat.
     console.error("[agent/stream] message persist error:", error)
     return { persisted: false }
   }

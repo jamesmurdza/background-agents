@@ -19,18 +19,21 @@ import type { QueryClient } from "@tanstack/react-query"
 import type { Chat, Message, Settings } from "@/lib/types"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import { useStreamStore } from "@/lib/stores/stream-store"
+import { useToastStore } from "@/lib/stores/toast-store"
 import { useServerQueue } from "./useServerQueue"
 import type { useStreaming } from "./useStreaming"
 import type { useSuggestNameMutation } from "@/lib/query"
 import { queryKeys, type SettingsData } from "@/lib/query"
 import { resolveAgentAndModel } from "@/lib/types"
+import { retainDirectSend, markDirectSendUnconfirmed, dismissDirectSend, acknowledgeDirectSends } from "@/lib/direct-send-recovery"
+import { fetchChat } from "@/lib/sync/api"
+import { applyRecoveredChat } from "@/lib/chat-recovery"
 import {
   sendMessageToApi,
   newBranchForSend,
   applyOptimisticSend,
   removeOptimisticMessages,
   applySendSuccess,
-  applySendError,
   type SendMessagePayload,
 } from "@/lib/chat-messages"
 
@@ -70,7 +73,8 @@ export interface MessageDispatch {
     model?: string,
     files?: File[],
     targetChatId?: string,
-    planMode?: boolean
+    planMode?: boolean,
+    rejectedMessageId?: string
   ) => Promise<void>
   stopAgent: () => Promise<void>
   enqueueMessage: (content: string, agent?: string, model?: string) => void
@@ -102,7 +106,7 @@ export function useMessageDispatch({
   const sendInFlight = useRef<Set<string>>(new Set())
   const stopInFlight = useRef<Set<string>>(new Set())
 
-  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean) => {
+  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean, rejectedMessageId?: string) => {
     let chatId = targetChatId || currentChatId
     if (!chatId) return
 
@@ -118,6 +122,11 @@ export function useMessageDispatch({
       const materializedChat = await materializeDraft(chatId, { activate: false })
       if (!materializedChat) {
         console.error("Failed to materialize draft chat before sending message")
+        // No message POST has been attempted. Preserve the text even if chat
+        // creation failed, without discarding what was typed during that wait.
+        const store = useChatSyncStore.getState()
+        const newerDraft = store.localChatState.drafts[chatId]
+        store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
         return
       }
       chatId = materializedChat.id
@@ -161,6 +170,19 @@ export function useMessageDispatch({
       const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now }
       const assistantMessage: Message = { id: nanoid(), role: "assistant", content: "", timestamp: now + 1, toolCalls: [], contentBlocks: [] }
 
+      // The POST may fail before any server messages exist, or may complete
+      // after its response is lost. Retain a device copy, never an auto-retry.
+      const retained = retainDirectSend(chatId, {
+        id: userMessage.id, userMessageId: userMessage.id, content,
+        agent: selectedAgent, model: selectedModel, syncFailed: true,
+        directSend: { assistantMessageId: assistantMessage.id, timestamp: now,
+          attachmentNames: files?.map((file) => file.name) },
+      })
+      // Only the explicit usage-limit fallback supplies this known-rejected ID.
+      // Keep its copy until the replacement has passed every send guard and is
+      // durably retained; an unconfirmed transport failure is never retried here.
+      if (retained && rejectedMessageId) dismissDirectSend(chatId, rejectedMessageId)
+
       // Optimistic update
       updateChatsCache((old) => old.map((c) =>
         c.id === chatId ? applyOptimisticSend(c, userMessage, assistantMessage, now) : c
@@ -171,6 +193,13 @@ export function useMessageDispatch({
       if (draftIdToActivate) {
         useChatSyncStore.getState().completeMaterialize(draftIdToActivate, chatId)
       }
+
+      // Clear only this POST's flag, even after an authoritative acknowledgment.
+      // A remounted hook may have started a newer local POST in the meantime.
+      const settlePendingSend = () => updateChatsCache((old) => old.map((c) =>
+        c.id === chatId && c.pendingSendAssistantMessageId === assistantMessage.id
+          ? { ...c, pendingSend: false, pendingSendAssistantMessageId: undefined } : c
+      ))
 
       try {
         const payload: SendMessagePayload = {
@@ -184,6 +213,7 @@ export function useMessageDispatch({
         }
 
         const result = await sendMessageToApi(chatId, payload, files)
+        settlePendingSend()
 
         if (!result.ok) {
           // Pre-run auto-pull hit a merge conflict and left the merge in
@@ -192,11 +222,14 @@ export function useMessageDispatch({
           // indicator + Abort Merge) — same as a merge/rebase conflict. The user
           // then re-sends to have the agent resolve it, or aborts the merge.
           if ("isPullConflict" in result) {
+            dismissDirectSend(chatId, userMessage.id)
             updateChatsCache((old) => old.map((c) =>
               c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
             ))
             // Keep the user's message available to send again.
-            useChatSyncStore.getState().setDraftText(chatId, content)
+            const store = useChatSyncStore.getState()
+            const newerDraft = store.localChatState.drafts[chatId]
+            store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
             // Show the git-operation message the server appended.
             await reloadMessages(chatId)
             // Light up the conflict indicator immediately (the in-progress merge
@@ -211,6 +244,7 @@ export function useMessageDispatch({
 
           // Handle daily limit exceeded error
           if (result.isDailyLimit) {
+            markDirectSendUnconfirmed(chatId, userMessage.id, "The server rejected this send because its usage limit was reached.")
             // Remove the optimistic messages
             updateChatsCache((old) => old.map((c) =>
               c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
@@ -219,7 +253,7 @@ export function useMessageDispatch({
             // Show the limit reached dialog with pending message info
             setLimitReachedState({
               show: true,
-              pendingMessage: { chatId, content, files, planMode },
+              pendingMessage: { chatId, content, files, planMode, rejectedMessageId: userMessage.id },
               provider: result.provider,
               creditBalance: result.creditBalance,
             })
@@ -227,6 +261,7 @@ export function useMessageDispatch({
           }
 
           if (result.isChatBusy) {
+            dismissDirectSend(chatId, userMessage.id)
             // The server did not persist this turn. Remove the optimistic
             // bubbles and put the text back where the user can retry it.
             updateChatsCache((old) => old.map((c) =>
@@ -244,6 +279,11 @@ export function useMessageDispatch({
         }
 
         const { data } = result
+        dismissDirectSend(chatId, userMessage.id)
+        const owner = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())?.find((c) => c.id === chatId)
+        // A delayed response for A must not replace B or revive a turn which
+        // an authoritative read has already confirmed finished.
+        if (owner?.activeAssistantMessageId !== assistantMessage.id) return
         updateChatsCache((old) => old.map((c) =>
           c.id === chatId ? applySendSuccess(c, data, selectedAgent, selectedModel, userMessage.id) : c
         ))
@@ -254,10 +294,29 @@ export function useMessageDispatch({
           suggestNameMutation.mutate({ chatId, prompt: content })
         }
       } catch (error) {
+        settlePendingSend()
         const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        markDirectSendUnconfirmed(chatId, userMessage.id, errorMessage)
+        const isUnconfirmed = useChatSyncStore.getState().localChatState.queuedMessages[chatId]
+          ?.some((item) => item.id === userMessage.id && !!item.directSend)
         updateChatsCache((old) => old.map((c) =>
-          c.id === chatId ? applySendError(c, assistantMessage.id, errorMessage) : c
+          isUnconfirmed && c.id === chatId && (!c.activeAssistantMessageId || c.activeAssistantMessageId === assistantMessage.id)
+            ? { ...c, status: "disconnected", pendingSend: false, errorKind: "incomplete", errorMessage,
+                // Keep the unsaved original only in the explicitly labeled
+                // device copy. A fresh server acknowledgment removes that copy
+                // before merging rows, so late errors cannot remove saved text.
+                messages: c.messages.filter((message) => message.id !== userMessage.id &&
+                  (message.id !== assistantMessage.id || !!message.content || !!message.toolCalls?.length)) }
+            : c
         ))
+        // The only acknowledgment is a fresh server row with our exact ID.
+        // Missing rows do not prove rejection while the original POST may run.
+        const observed = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())?.find((c) => c.id === chatId)
+        try {
+          const saved = await fetchChat(chatId)
+          acknowledgeDirectSends(chatId, saved.messages)
+          if (observed) updateChatsCache((old) => old.map((c) => c.id === chatId ? applyRecoveredChat(c, saved, observed) : c))
+        } catch { /* Keep the unconfirmed device copy and offer an explicit read. */ }
       }
     } finally {
       sendInFlight.current.delete(chatId)
@@ -270,13 +329,13 @@ export function useMessageDispatch({
     isHydrated,
     isAuthenticated: !!session,
     currentChat,
-    reloadMessages,
   })
 
   const stopAgent = useCallback(async () => {
     if (!currentChat) return
 
     const chatId = currentChat.id
+    if (stopInFlight.current.has(chatId)) return
     const backgroundSessionId = currentChat.backgroundSessionId
     const assistantMessageId = currentChat.activeAssistantMessageId
     if (!backgroundSessionId || !assistantMessageId) {
@@ -286,27 +345,7 @@ export function useMessageDispatch({
 
     // Prevent sending messages while stop is in progress
     stopInFlight.current.add(chatId)
-
-    // Stop the SSE stream on the client side
-    const stream = useStreamStore.getState().getStream(chatId)
-    if (stream?.connectionParams?.backgroundSessionId === backgroundSessionId &&
-        stream.connectionParams.assistantMessageId === assistantMessageId) {
-      useStreamStore.getState().stopStream(chatId)
-    }
-    const hasQueue = (currentChat.queuedMessages?.length ?? 0) > 0
-
-    // Optimistically update the UI
-    updateChatsCache((old) => old.map((c) =>
-      c.id === chatId
-        ? {
-            ...c,
-            status: "ready",
-            backgroundSessionId: undefined,
-            activeAssistantMessageId: undefined,
-            queuePaused: hasQueue ? true : c.queuePaused,
-          }
-        : c
-    ))
+    updateChatsCache((old) => old.map((chat) => chat.id === chatId ? { ...chat, stopPending: true } : chat))
 
     // Call the stop endpoint and wait for it to complete before allowing new messages
     try {
@@ -315,13 +354,33 @@ export function useMessageDispatch({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chatId, backgroundSessionId, assistantMessageId }),
       })
+      if (response.status === 409) {
+        useToastStore.getState().addToast({ title: "This turn is already finishing", body: "Refreshing the chat. A newer turn will not be stopped.", chatId })
+        await reloadMessages(chatId)
+        await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+        return
+      }
       if (!response.ok) throw new Error(`Stop failed (HTTP ${response.status})`)
+      const stream = useStreamStore.getState().getStream(chatId)
+      if (stream?.connectionParams?.backgroundSessionId === backgroundSessionId &&
+          stream.connectionParams.assistantMessageId === assistantMessageId) {
+        useStreamStore.getState().stopStream(chatId)
+      }
+      updateChatsCache((old) => old.map((c) =>
+        c.id === chatId && c.backgroundSessionId === backgroundSessionId && c.activeAssistantMessageId === assistantMessageId
+          ? { ...c, status: "ready", backgroundSessionId: undefined, activeAssistantMessageId: undefined, queuePaused: true }
+          : c
+      ))
+      await reloadMessages(chatId)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
     } catch (err) {
       console.error("[stopAgent] Failed to stop agent:", err)
+      useToastStore.getState().addToast({ title: "Could not confirm Stop", body: "Refreshing the chat. If the agent is still running, try Stop again.", chatId })
       await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
       await reloadMessages(chatId)
     } finally {
       stopInFlight.current.delete(chatId)
+      updateChatsCache((old) => old.map((chat) => chat.id === chatId ? { ...chat, stopPending: false } : chat))
     }
   }, [currentChat, updateChatsCache, queryClient, reloadMessages])
 

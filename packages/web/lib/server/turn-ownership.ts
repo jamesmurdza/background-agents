@@ -34,6 +34,7 @@ export async function releaseTurn(
   claimId: string,
   status: "ready" | "error",
   sessionId?: string | null,
+  options: { pauseQueue?: boolean } = {},
 ): Promise<boolean> {
   const released = await prisma.chat.updateMany({
     where: {
@@ -50,6 +51,9 @@ export async function releaseTurn(
       finalizationClaimId: null,
       finalizationClaimedAt: null,
       sessionId: sessionId || undefined,
+      // Stop's pause must be part of the release itself: an enqueue while the
+      // sandbox is stopping may have resumed the queue since Stop claimed it.
+      ...(options.pauseQueue ? { queuePaused: true } : {}),
       lastActiveAt: new Date(),
     },
   })

@@ -16,6 +16,8 @@ import { dispatchQueuedPromptApi, fetchChat, toMessageType } from "@/lib/sync/ap
 import { notifyCompletion } from "@/lib/notify"
 import type { SettingsData } from "@/lib/query/hooks/useSettingsQuery"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
+import { applyRecoveredChat } from "@/lib/chat-recovery"
+import { acknowledgeDirectSends } from "@/lib/direct-send-recovery"
 
 const SSE_INITIAL_RETRY_DELAY = 1000
 const SSE_MAX_RETRY_DELAY = 30000
@@ -24,35 +26,8 @@ const SSE_BACKOFF_MULTIPLIER = 1.5
 /**
  * Merge messages, preferring the one with more content.
  */
-export function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
-  const messageMap = new Map<string, Message>()
-
-  for (const msg of existing) {
-    messageMap.set(msg.id, msg)
-  }
-
-  for (const incomingMsg of incoming) {
-    const existingMsg = messageMap.get(incomingMsg.id)
-    if (!existingMsg) {
-      messageMap.set(incomingMsg.id, incomingMsg)
-    } else {
-      const existingLen = (existingMsg.content?.length ?? 0) +
-        (existingMsg.toolCalls?.length ?? 0) +
-        (existingMsg.contentBlocks?.length ?? 0)
-      const incomingLen = (incomingMsg.content?.length ?? 0) +
-        (incomingMsg.toolCalls?.length ?? 0) +
-        (incomingMsg.contentBlocks?.length ?? 0)
-
-      if (incomingLen > existingLen) {
-        messageMap.set(incomingMsg.id, incomingMsg)
-      } else if (incomingLen === existingLen && incomingMsg.timestamp > existingMsg.timestamp) {
-        messageMap.set(incomingMsg.id, incomingMsg)
-      }
-    }
-  }
-
-  return Array.from(messageMap.values()).sort((a, b) => a.timestamp - b.timestamp)
-}
+export { mergeMessages } from "@/lib/merge-messages"
+import { mergeMessages } from "@/lib/merge-messages"
 
 interface UseStreamingOptions {
   onConflictStateChange?: ((state: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] }) => void) | null
@@ -64,6 +39,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
   const queryClient = useQueryClient()
   const onConflictStateChangeRef = useRef(options.onConflictStateChange)
   const onMarkdownFileWriteRef = useRef(options.onMarkdownFileWrite)
+  const streamGenerations = useRef(new Map<string, symbol>())
 
   // Keep refs updated
   onConflictStateChangeRef.current = options.onConflictStateChange
@@ -101,6 +77,8 @@ export function useStreaming(options: UseStreamingOptions = {}) {
     abortSignal?: AbortSignal,
     planMode?: boolean
   ) => {
+    const generation = Symbol()
+    streamGenerations.current.set(chatId, generation)
     const streamStore = useStreamStore.getState()
     if (streamStore.isStreaming(chatId)) streamStore.stopStream(chatId)
 
@@ -108,7 +86,8 @@ export function useStreaming(options: UseStreamingOptions = {}) {
 
     const isCurrentTurn = () => {
       const params = useStreamStore.getState().getStream(chatId)?.connectionParams
-      return params?.backgroundSessionId === backgroundSessionId && params.assistantMessageId === assistantMessageId
+      return streamGenerations.current.get(chatId) === generation &&
+        params?.backgroundSessionId === backgroundSessionId && params.assistantMessageId === assistantMessageId
     }
 
     const connect = (cursor: number = 0) => {
@@ -249,10 +228,12 @@ export function useStreaming(options: UseStreamingOptions = {}) {
           // Fetch any new messages created by the backend (delta sync)
           try {
             const chatData = await fetchChat(chatId, { afterMessageId: assistantMessageId })
+            acknowledgeDirectSends(chatId, chatData.messages)
+            if (streamGenerations.current.get(chatId) !== generation) return
             const incomingMessages = chatData.messages.map(toMessageType)
             updateChatsCache((old) =>
               old.map((c) => {
-                if (c.id !== chatId) return c
+                if (c.id !== chatId || chatData.updatedAt < c.updatedAt) return c
                 return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount }
               })
             )
@@ -329,17 +310,12 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             // A queued turn may already be running by the time we get here.
             if (!isCurrentTurn()) return
             useStreamStore.getState().stopStream(chatId)
+            const observed = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())?.find((chat) => chat.id === chatId)
             const latestChat = await fetchChat(chatId)
-            const incomingMessages = latestChat.messages.map(toMessageType)
-            updateChatsCache((old) => old.map((c) => c.id === chatId ? {
-              ...c,
-              status: latestChat.status as Chat["status"],
-              backgroundSessionId: latestChat.backgroundSessionId ?? undefined,
-              activeAssistantMessageId: latestChat.activeAssistantMessageId ?? undefined,
-              uncommittedFilesCount: latestChat.uncommittedFilesCount ?? c.uncommittedFilesCount,
-              messages: mergeMessages(c.messages, incomingMessages),
-            } : c))
-            if (backendState.status === "ready") wakeQueuedPrompt(chatId)
+            acknowledgeDirectSends(chatId, latestChat.messages)
+            if (!observed || streamGenerations.current.get(chatId) !== generation) return
+            updateChatsCache((old) => old.map((c) => c.id === chatId ? applyRecoveredChat(c, latestChat, observed) : c))
+            if (latestChat.status === "ready") wakeQueuedPrompt(chatId)
           }
         } catch (err) {
           // Fetch failed (network still down) - apply backoff then retry
