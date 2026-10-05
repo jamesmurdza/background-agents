@@ -41,6 +41,12 @@ GITHUB_CLIENT_ID="placeholder"
 GITHUB_CLIENT_SECRET="placeholder"
 ```
 
+New GitHub OAuth Apps enable expiring user tokens by default. Run database
+migrations before the first sign-in. The server stores the refresh token and
+renews the access token under a database row lock before GitHub API and git
+operations; non-expiring grants continue to work. If GitHub rejects a refresh
+token, the user must re-authorize the app.
+
 > [!IMPORTANT]
 > `ENCRYPTION_KEY` defaults to a non-secret dev key. Override with `openssl rand -hex 32` before deploying.
 

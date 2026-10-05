@@ -24,7 +24,8 @@ export async function GET() {
 
   const ghAuth = await requireGitHubAuth()
   if (isGitHubAuthError(ghAuth)) {
-    return NextResponse.json({ valid: false })
+    // A transient refresh/DB outage is not evidence that the grant was revoked.
+    return NextResponse.json({ valid: ghAuth.status !== 401 })
   }
 
   try {
