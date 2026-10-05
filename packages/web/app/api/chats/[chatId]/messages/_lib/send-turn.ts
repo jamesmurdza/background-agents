@@ -146,10 +146,14 @@ export async function sendChatTurn({
     const storedUser = await prisma.user.findUnique({
       where: { id: userId }, select: { credentials: true },
     })
+    // `credentials` carries the key actually handed to the agent — for a shared
+    // OpenCode run that's the one pickSharedOpencodeKey chose for this turn, so
+    // fingerprinting it here is what makes per-key spend attributable later.
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,
       decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
-      payload.model
+      payload.model,
+      credentials.OPENCODE_API_KEY
     )
 
     await persistTurn({
