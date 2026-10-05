@@ -17,7 +17,6 @@
     "prisma:migrate": "dotenv -e packages/web/.env -e .env -c -- npm exec -w @background-agents/web -- prisma migrate dev",
     "prisma:migrate:deploy": "dotenv -e packages/web/.env -e .env -c -- npm exec -w @background-agents/web -- prisma migrate deploy",
     "prisma:generate": "dotenv -e packages/web/.env -e .env -c -- npm exec -w @background-agents/web -- prisma generate",
-    "prisma:validate": "dotenv -e packages/web/.env -e .env -c -- npm exec -w @background-agents/web -- prisma validate",
     "prisma:status": "dotenv -e packages/web/.env -e .env -c -- npm exec -w @background-agents/web -- prisma migrate status",
     "build": "dotenv -e packages/web/.env -e .env -c -- sh -c 'npm run build -w @background-agents/sdk && npm run build -w @background-agents/web'",
     "build:sdk": "npm run build -w @background-agents/sdk",
@@ -30,8 +29,7 @@
     "seed:ccauth": "dotenv -e packages/web/.env -e .env -c -- npm run seed:ccauth -w @background-agents/web",
     "start:electron": "dotenv -e packages/desktop/.env -e packages/web/.env -e .env -c -- sh -c 'BACKGROUND_AGENTS_URL=\"${BACKGROUND_AGENTS_URL:-https://backgrounder.dev}\" npm run start -w @background-agents/desktop'",
     "clean": "npm run clean --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
