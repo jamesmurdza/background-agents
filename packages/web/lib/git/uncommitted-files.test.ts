@@ -1,11 +1,14 @@
 import { execFileSync, spawnSync } from "node:child_process"
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
 import { join, dirname } from "node:path"
+import { tmpdir } from "node:os"
 import { describe, expect, it, vi } from "vitest"
 import { inspectUncommittedFiles } from "./uncommitted-files"
 
 function repoFixture() {
-  const root = mkdtempSync("/private/tmp/backgrounder-uncommitted-test-")
+  // Use the OS temp dir rather than a hardcoded macOS path (`/private/tmp`),
+  // which doesn't exist on Linux and silently never ran this suite in CI.
+  const root = mkdtempSync(join(tmpdir(), "backgrounder-uncommitted-test-"))
   execFileSync("git", ["init", "--initial-branch=main", root], { stdio: "pipe" })
   const git = (...args: string[]) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: "pipe", env: {
