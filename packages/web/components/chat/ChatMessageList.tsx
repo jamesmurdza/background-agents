@@ -1,4 +1,4 @@
-import { Fragment } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { MoreHorizontal, GitBranch, GitBranchPlus, Trash2, ArrowDown, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Chat, Agent } from "@/lib/types"
@@ -72,6 +72,24 @@ export function ChatMessageList({
   const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
   const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
   const directRecovery = chat.pendingSend ? [] : (chat.directSendRecovery ?? [])
+
+  // Hide the uncommitted-files banner the moment the user asks the agent to
+  // commit, rather than leaving it up until the triggered turn finishes and
+  // the server recomputes the count. Resets — so the banner can reappear if
+  // the commit didn't actually clear it — the next time a turn completes, or
+  // immediately when switching to a different chat.
+  const [commitRequested, setCommitRequested] = useState(false)
+  const wasRunningRef = useRef(isRunning)
+  useEffect(() => {
+    setCommitRequested(false)
+  }, [chat.id])
+  useEffect(() => {
+    if (wasRunningRef.current && !isRunning) {
+      setCommitRequested(false)
+    }
+    wasRunningRef.current = isRunning
+  }, [isRunning])
+
   return (
     <div className="relative flex-1 flex flex-col min-h-0">
       <div
@@ -131,7 +149,7 @@ export function ChatMessageList({
               ...
             </div>
           )}
-          {(chat.uncommittedFilesCount ?? 0) > 0 && !isNewRepo && (
+          {(chat.uncommittedFilesCount ?? 0) > 0 && !isNewRepo && !commitRequested && (
             <div
               data-testid="uncommitted-files-warning"
               role="status"
@@ -144,9 +162,10 @@ export function ChatMessageList({
                 <button
                   type="button"
                   data-testid="uncommitted-files-commit"
-                  onClick={() =>
+                  onClick={() => {
+                    setCommitRequested(true)
                     onSendMessage("Commit changes", currentAgent, currentModel, undefined, planModeEnabled)
-                  }
+                  }}
                   className="underline underline-offset-2 hover:no-underline cursor-pointer"
                 >
                   Commit your changes
