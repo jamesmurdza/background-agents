@@ -262,16 +262,16 @@ type Event =
 | Provider | Example | Docs |
 |----------|---------|------|
 | **Claude** | `model: "sonnet"`, `model: "opus"`, `model: "haiku"` | [Claude Code](https://code.claude.com/docs/en/model-config#model-aliases) |
-| **Codex** | `model: "gpt-5.4"`, `model: "gpt-5.3-codex-spark"` | [Codex CLI models](https://developers.openai.com/codex/models) |
+| **Codex** | `model: "gpt-6.1-sol"`, `model: "gpt-5.5"` | [Codex CLI models](https://developers.openai.com/codex/models) |
 | **Command Code** | `model: "xiaomi/mimo-v2.6-pro"`, `model: "claude-sonnet-5"`, `model: "deepseek/deepseek-v4-flash"` | [Command Code models](https://commandcode.ai/docs/reference/cli/models) |
-| **Copilot** | `model: "gpt-5-mini"`, `model: "claude-sonnet-4.5"`, `model: "gpt-5.5"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
+| **Copilot** | `model: "gpt-5-mini"`, `model: "claude-sonnet-5"`, `model: "gpt-5.5"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
 | **Droid** | `model: "claude-sonnet-4-5-20250929"` (BYOK), `model: "gpt-5"`, `model: "factory/<id>"` (Factory-hosted) | [Factory Droid](https://docs.factory.ai/cli/) |
-| **Gemini** | `model: "gemini-2.5-flash"`, `model: "gemini-2.5-pro"`, `model: "gemini-3-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
-| **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://block.github.io/goose/docs/getting-started/providers) |
+| **Gemini** | `model: "gemini-3.5-flash-lite"`, `model: "gemini-3.8-flash"`, `model: "gemini-3.1-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
+| **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://goose-docs.ai/docs/getting-started/providers/) |
 | **Kilo** | `model: "kilo/kilo-auto/free"`, `model: "kilo/anthropic/claude-opus-4.7"` | [Kilo](https://kilo.codes/docs/) |
 | **Kimi** | `model: "kimi-k3"`, `model: "kimi-k2.7-code"`, `model: "kimi-k2.7-code-highspeed"`, `model: "kimi-k2.6"` | [Kimi Code](https://code.kimi.com/) |
 | **OpenCode** | `model: "opencode/big-pickle"` (free), `model: "anthropic/claude-sonnet-4-5"` | [OpenCode models](https://opencode.ai/docs/models/) |
-| **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"`, `model: "google/gemini-2.5-pro"` | [Pi CLI models](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#providers--models) |
+| **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"`, `model: "google/gemini-2.5-pro"` | [Pi CLI models](https://pi.dev/models) |
 
 ---
 

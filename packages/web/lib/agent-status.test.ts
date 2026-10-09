@@ -298,7 +298,7 @@ describe("shared-pool model pricing", () => {
 
   it("names the pool a shared run draws on", () => {
     expect(sharedPoolProviderForModel("claude-code", "sonnet", sharedAll)).toBe("claude")
-    expect(sharedPoolProviderForModel("opencode", "opencode-go/glm-5.1", sharedAll)).toBe("opencode")
+    expect(sharedPoolProviderForModel("opencode", "opencode-go/glm-5.3", sharedAll)).toBe("opencode")
     // Pi has no pool of its own, but its Flash model runs on the shared Gemini key.
     expect(sharedPoolProviderForModel("pi", "google/gemini-2.5-flash", sharedAll)).toBe("gemini")
   })
