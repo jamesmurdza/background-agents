@@ -21,6 +21,11 @@ import {
   ChevronDown,
 } from "lucide-react"
 import { ActivityFeed } from "@/components/admin/ActivityFeed"
+import {
+  IncludeAdminsToggle,
+  SegmentedControl,
+  TimeRangeSelector,
+} from "@/components/admin/DashboardControls"
 import { ClaudeCredentials } from "@/components/admin/ClaudeCredentials"
 import { ProviderPricing } from "@/components/admin/ProviderPricing"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
@@ -564,96 +569,19 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold md:text-xl">Overview</h2>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  {/* Include admins toggle */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={includeAdmins}
-                    onClick={() => setIncludeAdmins((v) => !v)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
-                      includeAdmins
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-4 w-7 items-center rounded-full p-0.5 transition-colors",
-                        includeAdmins ? "bg-primary" : "bg-muted-foreground/30"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-3 w-3 rounded-full bg-background transition-transform",
-                          includeAdmins ? "translate-x-3" : "translate-x-0"
-                        )}
-                      />
-                    </span>
-                    Include admins
-                  </button>
-                  {/* Metric selector */}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {METRIC_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setMetric(option.key)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          metric === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+                  <IncludeAdminsToggle checked={includeAdmins} onChange={setIncludeAdmins} />
+                  <SegmentedControl options={METRIC_OPTIONS} value={metric} onChange={setMetric} />
                   {/* Credential pool selector. Disabled under the Messages
                       metric, which is sourced from ActivityLog and carries no
                       pool dimension — see POOL_DISABLED_HINT. */}
-                  <div
-                    className={cn(
-                      "flex gap-1 rounded-lg bg-muted p-1",
-                      poolFilterDisabled && "opacity-50"
-                    )}
-                    title={poolFilterDisabled ? POOL_DISABLED_HINT : undefined}
-                  >
-                    {POOL_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setPool(option.key)}
-                        disabled={poolFilterDisabled}
-                        title={poolFilterDisabled ? POOL_DISABLED_HINT : option.hint}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          poolFilterDisabled && "cursor-not-allowed",
-                          !poolFilterDisabled && pool === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Time range buttons */}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {(["24h", "7d", "30d", "all"] as const).map((range) => (
-                      <button
-                        key={range}
-                        onClick={() => setGlobalTimeRange(range)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          globalTimeRange === range
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {range === "all" ? "All" : range}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    options={POOL_OPTIONS}
+                    value={pool}
+                    onChange={setPool}
+                    disabled={poolFilterDisabled}
+                    disabledHint={POOL_DISABLED_HINT}
+                  />
+                  <TimeRangeSelector value={globalTimeRange} onChange={setGlobalTimeRange} />
                 </div>
               </div>
 
@@ -747,39 +675,17 @@ export default function AdminDashboard() {
                       toggle, so the control disappears rather than showing a
                       single dead button. */}
                   {costSupported && (
-                    <div className="flex gap-1 rounded-lg bg-muted p-1">
-                      {USAGE_METRICS.map((option) => (
-                        <button
-                          key={option.key}
-                          onClick={() => setUsageMetric(option.key)}
-                          className={cn(
-                            "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                            effectiveUsageMetric === option.key
-                              ? "bg-background text-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      options={USAGE_METRICS}
+                      value={effectiveUsageMetric}
+                      onChange={setUsageMetric}
+                    />
                   )}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {USAGE_PROVIDERS.map((option) => (
-                      <button
-                        key={option.key}
-                        onClick={() => setUsageProvider(option.key)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          usageProvider === option.key
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    options={USAGE_PROVIDERS}
+                    value={usageProvider}
+                    onChange={setUsageProvider}
+                  />
                 </div>
               </div>
 
@@ -866,51 +772,8 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold md:text-xl">Leaderboard</h2>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  {/* Include admins toggle */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={includeAdmins}
-                    onClick={() => setIncludeAdmins((v) => !v)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
-                      includeAdmins
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-4 w-7 items-center rounded-full p-0.5 transition-colors",
-                        includeAdmins ? "bg-primary" : "bg-muted-foreground/30"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-3 w-3 rounded-full bg-background transition-transform",
-                          includeAdmins ? "translate-x-3" : "translate-x-0"
-                        )}
-                      />
-                    </span>
-                    Include admins
-                  </button>
-                  {/* Time range buttons */}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
-                    {(["24h", "7d", "30d", "all"] as const).map((range) => (
-                      <button
-                        key={range}
-                        onClick={() => setGlobalTimeRange(range)}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm",
-                          globalTimeRange === range
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {range === "all" ? "All" : range}
-                      </button>
-                    ))}
-                  </div>
+                  <IncludeAdminsToggle checked={includeAdmins} onChange={setIncludeAdmins} />
+                  <TimeRangeSelector value={globalTimeRange} onChange={setGlobalTimeRange} />
                 </div>
               </div>
 
