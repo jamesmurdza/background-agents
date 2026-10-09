@@ -26,6 +26,22 @@ describe("Claude agent setup", () => {
     expect(typeof claudeAgent.capabilities?.setup).toBe("function")
   })
 
+  it("sets up host OAuth recovery without writing shared subscription credentials", async () => {
+    const setup = claudeAgent.capabilities?.setup
+    if (!setup) throw new Error("Setup not defined")
+    const env = {
+      CLAUDE_CODE_TOKEN_URL: "https://app.test/api/claude-token",
+      CLAUDE_CODE_TOKEN_AUTH: "run-capability-test",
+    }
+    await setup(mockSandbox, env)
+    expect(executedCommands.some((command) => command.includes("oauth_token_refresh"))).toBe(true)
+    expect(executedCommands.some((command) => command.includes("rm -f '/home/daytona/.claude/.credentials.json'"))).toBe(true)
+    expect(executedCommands.join("\n")).not.toContain(env.CLAUDE_CODE_TOKEN_AUTH)
+    const spec = claudeAgent.buildCommand({ prompt: "continue the work", env })
+    expect(spec.cmd).toBe("node")
+    expect(spec.args.at(-1)).toBe("continue the work")
+  })
+
   it("should write credentials file when CLAUDE_CODE_CREDENTIALS is set", async () => {
     const setup = claudeAgent.capabilities?.setup
     if (!setup) throw new Error("Setup not defined")

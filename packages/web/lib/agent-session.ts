@@ -69,6 +69,8 @@ export function formatAgentError(err: unknown): string {
 // =============================================================================
 
 export interface AgentSessionOptions {
+  /** Preallocated handle used to scope host credential reads to this run. */
+  backgroundSessionId?: string
   repoPath: string
   previewUrlPattern?: string
   sessionId?: string
@@ -151,6 +153,7 @@ export async function createBackgroundAgentSession(
   }
 
   const bgSession = await createSession(provider, {
+    backgroundSessionId: options.backgroundSessionId,
     sandbox,
     systemPrompt,
     sessionId: options.sessionId,

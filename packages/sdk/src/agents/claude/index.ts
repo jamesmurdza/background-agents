@@ -8,6 +8,7 @@ import type { Event } from "../../types/events"
 import { parseClaudeLine } from "./parser"
 import { CLAUDE_TOOL_MAPPINGS } from "./tools"
 import { escapeShell } from "../../utils/shell"
+import { CLAUDE_OAUTH_RUNNER_PATH, CLAUDE_OAUTH_RUNNER_SOURCE } from "./oauth-runner"
 
 /** Claude credentials directory */
 const CLAUDE_CREDENTIALS_DIR = "/home/daytona/.claude"
@@ -49,6 +50,16 @@ async function claudeSetup(
   env: Record<string, string>
 ): Promise<void> {
   if (!sandbox.executeCommand) return
+
+  if (env.CLAUDE_CODE_TOKEN_URL && env.CLAUDE_CODE_TOKEN_AUTH) {
+    // The host owns shared refresh credentials. Clear an earlier subscription
+    // file, then install a static protocol bridge without embedding any token.
+    await sandbox.executeCommand(
+      `rm -f '${CLAUDE_CREDENTIALS_FILE}' && printf '%s' '${escapeShell(CLAUDE_OAUTH_RUNNER_SOURCE)}' > '${CLAUDE_OAUTH_RUNNER_PATH}' && chmod 600 '${CLAUDE_OAUTH_RUNNER_PATH}'`,
+      30
+    )
+    return
+  }
 
   const credentialsJson = env[CLAUDE_CODE_CREDENTIALS_ENV]
   if (credentialsJson) {
@@ -127,8 +138,9 @@ export const claudeAgent: AgentDefinition = {
     }
 
     return {
-      cmd: "claude",
-      args,
+      cmd: options.env?.CLAUDE_CODE_TOKEN_URL && options.env.CLAUDE_CODE_TOKEN_AUTH ? "node" : "claude",
+      args: options.env?.CLAUDE_CODE_TOKEN_URL && options.env.CLAUDE_CODE_TOKEN_AUTH
+        ? [CLAUDE_OAUTH_RUNNER_PATH, ...args] : args,
       // Hardcode the background-task-disabling default, but let any
       // caller-provided env override it.
       env: { ...CLAUDE_DEFAULT_ENV, ...options.env },

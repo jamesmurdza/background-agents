@@ -10,7 +10,8 @@ import { prisma } from "@/lib/db/prisma"
 import { decryptUserCredentials, getUserCredentials } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
-import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
+import { buildSharedClaudeEnv } from "@/lib/server/claude-token-auth"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterTurnNow } from "./meter-turn"
@@ -66,6 +67,17 @@ export async function startJobExecution(
       jobRunId: run.id,
     })
     throw new UsageLimitError(usage)
+  }
+
+  // Validate shared authentication before provisioning a chat or sandbox.
+  let credentials = await getUserCredentials(job.userId)
+  const customEndpoints = await getUserEndpoints(job.userId)
+  let useSharedClaude = false
+  if (
+    job.agent === "claude-code" && !job.model?.startsWith(ENDPOINT_MODEL_PREFIX) && !credentials.CLAUDE_CODE_CREDENTIALS
+  ) {
+    await getSharedClaudeAccessToken()
+    useSharedClaude = true
   }
 
   // 1. Get GitHub token for the user — required for cloned repos, optional
@@ -174,27 +186,6 @@ export async function startJobExecution(
     },
   })
 
-  // 6. Get user credentials + custom endpoints
-  let credentials = await getUserCredentials(job.userId)
-  const customEndpoints = await getUserEndpoints(job.userId)
-
-  // Shared-pool fallback for Claude Code (skipped for custom-endpoint runs,
-  // which use the user's own endpoint rather than the shared pool).
-  if (
-    job.agent === "claude-code" &&
-    !job.model?.startsWith(ENDPOINT_MODEL_PREFIX) &&
-    !credentials.CLAUDE_CODE_CREDENTIALS
-  ) {
-    try {
-      credentials = {
-        ...credentials,
-        CLAUDE_CODE_CREDENTIALS: await getClaudeCredentials(),
-      }
-    } catch (err) {
-      console.error(`[agent-lifecycle] Failed to get shared Claude creds:`, err)
-    }
-  }
-
   // Codex ChatGPT subscription. This ALWAYS strips the stored CODEX_CREDENTIALS
   // blob (which carries the user's real refresh token) and only then re-adds a
   // freshly rendered auth.json when the subscription applies to this run. See
@@ -208,7 +199,9 @@ export async function startJobExecution(
 
   // 7. Create background session
   const repoPath = `${PATHS.SANDBOX_HOME}/project`
-  const env = getEnvForModel(job.model ?? undefined, job.agent as Agent, credentials, customEndpoints)
+  const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
+  let env = getEnvForModel(job.model ?? undefined, job.agent as Agent, credentials, customEndpoints)
+  if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId })
 
   // Load job-scoped MCP servers. The loader marks rows with status="error" and
   // a descriptive lastError if the GitHub App is gone or any other auth issue
@@ -222,6 +215,7 @@ export async function startJobExecution(
   }
 
   const bgSession = await createBackgroundAgentSession(sandbox, {
+    backgroundSessionId,
     repoPath,
     previewUrlPattern: previewUrlPattern ?? undefined,
     agent: job.agent as Agent,

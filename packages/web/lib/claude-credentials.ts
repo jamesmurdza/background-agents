@@ -30,6 +30,41 @@ export async function getClaudeCredentials(): Promise<string> {
   return value
 }
 
+export class SharedClaudeCredentialsUnavailableError extends Error {
+  constructor() {
+    super("Shared Claude is temporarily unavailable. Please try again later.")
+    this.name = "SharedClaudeCredentialsUnavailableError"
+  }
+}
+
+/** Read only the current, unexpired shared access token. */
+export async function getSharedClaudeAccessToken(): Promise<string> {
+  let raw: string | null
+  try {
+    raw = await readCredentials()
+  } catch (error) {
+    // Database errors can contain connection credentials. Keep them out of
+    // responses, logs, and scheduled-job error records.
+    console.error("[claude-credentials] Shared credential read failed:", error instanceof Error ? error.name : "Unknown error")
+    throw new SharedClaudeCredentialsUnavailableError()
+  }
+  let value: unknown
+  try {
+    value = raw ? JSON.parse(raw) : null
+  } catch {
+    // JSON parser errors can quote secret input.
+    throw new SharedClaudeCredentialsUnavailableError()
+  }
+  const oauth = value && typeof value === "object" && "claudeAiOauth" in value ? value.claudeAiOauth : null
+  if (
+    !oauth || typeof oauth !== "object" ||
+    !("accessToken" in oauth) || typeof oauth.accessToken !== "string" || !oauth.accessToken.trim() ||
+    !("expiresAt" in oauth) || typeof oauth.expiresAt !== "number" ||
+    !Number.isFinite(oauth.expiresAt) || oauth.expiresAt <= Date.now() + 30_000
+  ) throw new SharedClaudeCredentialsUnavailableError()
+  return oauth.accessToken
+}
+
 /**
  * Upserts the shared Claude credentials row.
  */

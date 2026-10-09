@@ -24,6 +24,18 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Sandbox**: Daytona SDK for isolated development environments
 - **State Management**: Server-first with localStorage as read cache for cross-device sync
 
+### Shared Claude token recovery
+
+Shared Claude runs connect directly to Anthropic. A small SDK runner starts Claude with an access token fetched from `/api/claude-token` and handles Claude's native `oauth_token_refresh` host callback. On an HTTP `401`, Claude asks for the current database token and retries the failed model request inside the same process. The prompt and completed tools are not restarted. Model requests, responses, and streams do not pass through the web app.
+
+Only a signed capability bound to the user, chat, and active background session is sent when creating the run. The credential endpoint checks that scope for every read and returns only a valid access token, with caching disabled. Shared refresh tokens and cookies remain on the server; access tokens are present in the sandbox's runner/Claude memory. The SDK removes a stale subscription credentials file before starting this path. User-owned subscriptions and custom endpoints keep their existing direct behavior.
+
+The endpoint URL defaults to `NEXTAUTH_URL`. For local development, set `CLAUDE_CREDENTIALS_BASE_URL` to a public HTTPS tunnel to this same app, without `/api/claude-token`; Daytona cannot reach your computer's localhost. The endpoint must use the same database and `NEXTAUTH_SECRET` as the server that starts the run, and deployment protection must permit its bearer capability without requiring a browser login. `CLAUDE_GATEWAY_URL` is not used by this implementation.
+
+The runner relies on Claude's internal stream-json OAuth host callback, verified against Claude Code **2.1.283**. It requires the **2.1 series, version 2.1.283 or newer**, and fails clearly on older or different major/minor versions. The callback is not a public API-key helper setting; verify it with the SDK integration test before changing the sandbox's CLI version. Initial token reads and recovery reads have a 15-second timeout. Model streaming has no added web-function duration limit.
+
+The existing cron/admin workflow still owns credential renewal. If the database has no valid token or still holds the rejected token, recovery fails and Claude reports the authentication failure. Already-started response streams are not replayed by the runner.
+
 ## Usage
 
 ### Development
