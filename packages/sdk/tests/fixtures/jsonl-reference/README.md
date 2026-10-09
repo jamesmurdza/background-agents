@@ -41,7 +41,7 @@ From the repo root:
 npm run generate:jsonl-refs -w @background-agents/sdk
 ```
 
-Requires `DAYTONA_API_KEY` and provider-specific API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`).
+Requires `DAYTONA_API_KEY` and provider-specific API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `COMMAND_CODE_API_KEY`, `KIMI_API_KEY`).
 
 **Note:** The Eliza agent is deterministic and does not require an API key.
 

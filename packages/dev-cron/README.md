@@ -36,12 +36,15 @@ Cron Secret: (none)
 
 Loading config from: /path/to/vercel.json
 
-Found 4 cron job(s):
+Found 5 cron job(s):
 
   /api/cron/refresh-claude-creds
     Schedule: 0 * * * *
     Interval: 1h
   /api/cron/agent-lifecycle
+    Schedule: * * * * *
+    Interval: 1m
+  /api/cron/prompt-queue
     Schedule: * * * * *
     Interval: 1m
   /api/cron/daily-credits

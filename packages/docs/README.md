@@ -70,7 +70,8 @@ Caption describing what the clip shows.
 - **Add the real file with the exact `file` name and it appears — no Markdown edits.** Screenshots
   (PNG) go into `media/`; videos (`.mp4`) and GIFs (`.gif`) go into the R2 bucket (under `videos/`
   and `gifs/`) — see [Where media is served from](#where-media-is-served-from).
-  (Images/GIFs fall back to the placeholder via `onerror`; videos use the placeholder as their poster.)
+  (Images/GIFs fall back to the placeholder via `onerror`; videos with a `file` show their first
+  frame, and only use the placeholder as their poster when no `file` is given.)
 
 ## Media status
 
