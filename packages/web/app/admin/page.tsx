@@ -26,6 +26,7 @@ import {
   SegmentedControl,
   TimeRangeSelector,
 } from "@/components/admin/DashboardControls"
+import { ChartCard } from "@/components/admin/ChartCard"
 import { ClaudeCredentials } from "@/components/admin/ClaudeCredentials"
 import { ProviderPricing } from "@/components/admin/ProviderPricing"
 import { UserTable, type SortField, type SortOrder } from "@/components/admin/UserTable"
@@ -588,19 +589,17 @@ export default function AdminDashboard() {
               {/* Charts Grid */}
               <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
                 {/* Metric over time */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
-                      <MessageSquare className="h-4 w-4 text-purple-500" />
-                    </div>
-                    <h3 className="font-medium">
-                      {metric === "messages"
-                        ? `${isHourly ? "Hourly" : "Daily"} Messages & Conversations`
-                        : `${metricName} over time`}
-                    </h3>
-                  </div>
+                <ChartCard
+                  icon={MessageSquare}
+                  iconClassName="bg-purple-500/10 text-purple-500"
+                  title={
+                    metric === "messages"
+                      ? `${isHourly ? "Hourly" : "Daily"} Messages & Conversations`
+                      : `${metricName} over time`
+                  }
+                >
                   <DailyMessagesChatsChart data={series} metric={metric} isHourly={isHourly} />
-                </div>
+                </ChartCard>
 
                 {/* Metric by Agent/Model */}
                 <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
@@ -613,46 +612,33 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Weekly Active Users */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
-                      <Users className="h-4 w-4 text-green-500" />
-                    </div>
-                    <h3 className="font-medium">Weekly Active Users</h3>
-                  </div>
+                <ChartCard
+                  icon={Users}
+                  iconClassName="bg-green-500/10 text-green-500"
+                  title="Weekly Active Users"
+                >
                   <UserGrowthChart data={weeklyActiveUsers} />
-                </div>
+                </ChartCard>
 
-                {/* Peak Hours */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-500/10">
-                      <Clock className="h-4 w-4 text-pink-500" />
-                    </div>
-                    <h3 className="font-medium">
-                      {metric === "messages" ? "Peak Activity Hours" : `${metricName} by Hour`}
-                    </h3>
-                  </div>
+                <ChartCard
+                  icon={Clock}
+                  iconClassName="bg-pink-500/10 text-pink-500"
+                  title={metric === "messages" ? "Peak Activity Hours" : `${metricName} by Hour`}
+                >
                   <HourlyActivityChart data={hourly} metric={metric} />
-                </div>
+                </ChartCard>
 
                 {/* Top-ups over time — a running total of real dollars users
                     have paid us, independent of the metric selector above
                     (which only weighs usage, not purchases). */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-                      <CreditCard className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <h3 className="font-medium">Top-ups Over Time</h3>
-                  </div>
-                  {topupsQuery.isLoading ? (
-                    <div className="h-[250px] animate-pulse rounded bg-muted/50" />
-                  ) : (
-                    <TopUpsOverTimeChart data={topupsQuery.data?.series ?? []} isHourly={isHourly} />
-                  )}
-                </div>
+                <ChartCard
+                  icon={CreditCard}
+                  iconClassName="bg-emerald-500/10 text-emerald-500"
+                  title="Top-ups Over Time"
+                  isLoading={topupsQuery.isLoading}
+                >
+                  <TopUpsOverTimeChart data={topupsQuery.data?.series ?? []} isHourly={isHourly} />
+                </ChartCard>
               </section>
 
               {/* ── Shared pool & usage ─────────────────────────────────────
@@ -691,72 +677,51 @@ export default function AdminDashboard() {
 
               <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
                 {/* Shared vs own key */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10">
-                      <Wallet className="h-4 w-4 text-teal-500" />
-                    </div>
-                    <h3 className="font-medium">Our pool vs own key</h3>
-                  </div>
-                  {usageQuery.isLoading ? (
-                    <div className="h-[250px] animate-pulse rounded bg-muted/50" />
-                  ) : (
-                    <PoolSplitChart
-                      data={usage?.poolSplit[effectiveUsageMetric] ?? []}
-                      metric={effectiveUsageMetric}
-                      isHourly={isHourly}
-                    />
-                  )}
-                </div>
+                <ChartCard
+                  icon={Wallet}
+                  iconClassName="bg-teal-500/10 text-teal-500"
+                  title="Our pool vs own key"
+                  isLoading={usageQuery.isLoading}
+                >
+                  <PoolSplitChart
+                    data={usage?.poolSplit[effectiveUsageMetric] ?? []}
+                    metric={effectiveUsageMetric}
+                    isHourly={isHourly}
+                  />
+                </ChartCard>
 
                 {/* Per-key breakdown — OpenCode is the only multi-key pool */}
                 {usageProvider === "opencode" && (
-                  <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
-                        <KeyRound className="h-4 w-4 text-orange-500" />
-                      </div>
-                      <h3 className="font-medium">OpenCode usage by key</h3>
-                    </div>
-                    {usageQuery.isLoading ? (
-                      <div className="h-[250px] animate-pulse rounded bg-muted/50" />
-                    ) : (
-                      <UsageByKeyChart
-                        data={usage?.byKey[effectiveUsageMetric] ?? []}
-                        keyIds={usage?.keyIds ?? []}
-                        metric={effectiveUsageMetric}
-                        isHourly={isHourly}
-                      />
-                    )}
-                  </div>
+                  <ChartCard
+                    icon={KeyRound}
+                    iconClassName="bg-orange-500/10 text-orange-500"
+                    title="OpenCode usage by key"
+                    isLoading={usageQuery.isLoading}
+                  >
+                    <UsageByKeyChart
+                      data={usage?.byKey[effectiveUsageMetric] ?? []}
+                      keyIds={usage?.keyIds ?? []}
+                      metric={effectiveUsageMetric}
+                      isHourly={isHourly}
+                    />
+                  </ChartCard>
                 )}
 
                 {/* Per-message distribution — how heavy a typical turn is for
                     the selected provider. Alone in the row once OpenCode's
                     per-key card is showing, so it spans full width there. */}
-                <div
-                  className={cn(
-                    "rounded-xl border bg-card p-4 md:p-6 shadow-sm",
-                    usageProvider === "opencode" && "lg:col-span-2"
-                  )}
+                <ChartCard
+                  icon={BarChart3}
+                  iconClassName="bg-rose-500/10 text-rose-500"
+                  title={`${effectiveUsageMetric === "cost" ? "List value" : "Tokens"} per message`}
+                  isLoading={usageQuery.isLoading}
+                  className={usageProvider === "opencode" ? "lg:col-span-2" : undefined}
                 >
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10">
-                      <BarChart3 className="h-4 w-4 text-rose-500" />
-                    </div>
-                    <h3 className="font-medium">
-                      {effectiveUsageMetric === "cost" ? "List value" : "Tokens"} per message
-                    </h3>
-                  </div>
-                  {usageQuery.isLoading ? (
-                    <div className="h-[250px] animate-pulse rounded bg-muted/50" />
-                  ) : (
-                    <MessageValueHistogramChart
-                      data={usage?.messageHistogram[effectiveUsageMetric] ?? []}
-                      metric={effectiveUsageMetric}
-                    />
-                  )}
-                </div>
+                  <MessageValueHistogramChart
+                    data={usage?.messageHistogram[effectiveUsageMetric] ?? []}
+                    metric={effectiveUsageMetric}
+                  />
+                </ChartCard>
               </section>
             </>
           )}
@@ -802,32 +767,26 @@ export default function AdminDashboard() {
                 {/* Stacked area: List value over time, one band per checked
                     user in the table below — the table IS this chart's series
                     picker, not a separate control. */}
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
-                      <BarChart3 className="h-4 w-4 text-violet-500" />
-                    </div>
-                    <h3 className="font-medium">List value over time by user</h3>
-                  </div>
-                  {leaderboardUsageLoading ? (
-                    <div className="h-[280px] animate-pulse rounded bg-muted/50" />
-                  ) : (
-                    <UsageByUserAreaChart
-                      data={leaderboardByUserSeries}
-                      users={leaderboardUsers}
-                      selectedUserIds={selectedUserIds}
-                      isHourly={isHourly}
-                    />
-                  )}
-                </div>
+                <ChartCard
+                  icon={BarChart3}
+                  iconClassName="bg-violet-500/10 text-violet-500"
+                  title="List value over time by user"
+                  isLoading={leaderboardUsageLoading}
+                  skeletonHeight={280}
+                >
+                  <UsageByUserAreaChart
+                    data={leaderboardByUserSeries}
+                    users={leaderboardUsers}
+                    selectedUserIds={selectedUserIds}
+                    isHourly={isHourly}
+                  />
+                </ChartCard>
 
-                <div className="rounded-xl border bg-card p-4 md:p-6 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10">
-                      <Users className="h-4 w-4 text-indigo-500" />
-                    </div>
-                    <h3 className="font-medium">Usage by user</h3>
-                  </div>
+                <ChartCard
+                  icon={Users}
+                  iconClassName="bg-indigo-500/10 text-indigo-500"
+                  title="Usage by user"
+                >
                   <UsageByUserTable
                     users={leaderboardUsers}
                     ledger={topupsQuery.data?.users ?? []}
@@ -837,7 +796,7 @@ export default function AdminDashboard() {
                     onSelectionChange={setSelectedUserIds}
                     isLoading={leaderboardUsageLoading || topupsQuery.isLoading}
                   />
-                </div>
+                </ChartCard>
               </section>
             </>
           )}
