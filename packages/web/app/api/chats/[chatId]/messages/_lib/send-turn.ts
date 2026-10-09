@@ -1,4 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
+import { randomUUID } from "node:crypto"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
@@ -15,6 +16,7 @@ import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
 import { resolveCliModel } from "@background-agents/common"
 import { getUserEndpoints } from "@/lib/server/custom-endpoints"
+import { buildSharedClaudeEnv } from "@/lib/server/claude-token-auth"
 import {
   deleteSandboxQuietly,
   discoverSkillsForRepo,
@@ -119,7 +121,9 @@ export async function sendChatTurn({
     }
 
     const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
-    const env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
+    const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
+    let env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
+    if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId })
     let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []
     try {
       mcpServers = await loadMcpConnections({ kind: "chat", id: chatId })
@@ -132,6 +136,7 @@ export async function sendChatTurn({
       discoveredSkills = await discoverSkillsForRepo(sandbox, repoPath)
     }
     const bgSession = await createBackgroundAgentSession(sandbox, {
+      backgroundSessionId,
       repoPath,
       previewUrlPattern: previewUrlPattern ?? undefined,
       sessionId: isAgentSwitch ? undefined : (chat.sessionId ?? undefined),

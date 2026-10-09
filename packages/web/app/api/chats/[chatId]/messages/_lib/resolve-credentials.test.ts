@@ -65,10 +65,11 @@ vi.mock("@/lib/db/activity-log", () => ({ logActivityAsync: vi.fn() }))
 vi.mock("@/lib/db/usage-limit", () => ({
   checkSharedPoolUsage: vi.fn().mockResolvedValue({ allowed: true }),
 }))
-vi.mock("@/lib/claude-credentials", () => ({ getClaudeCredentials: vi.fn() }))
+vi.mock("@/lib/claude-credentials", () => ({ getSharedClaudeAccessToken: vi.fn() }))
 
 import { resolveSendCredentials } from "./resolve-credentials"
 import { getUserCredentials } from "@/lib/db/api-helpers"
+import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
 import {
   CODEX_PLACEHOLDER_REFRESH_TOKEN,
   type CodexStoredCredential,
@@ -122,6 +123,7 @@ beforeEach(() => {
   testState.store.clear()
   refreshCodexTokens.mockReset()
   vi.mocked(getUserCredentials).mockResolvedValue({})
+  vi.mocked(getSharedClaudeAccessToken).mockReset().mockResolvedValue("shared-access-test")
 })
 
 describe("resolveSendCredentials never ships the real Codex refresh token", () => {
@@ -181,5 +183,46 @@ describe("resolveSendCredentials never ships the real Codex refresh token", () =
     )
     expect(creds.CODEX_CREDENTIALS).toBeUndefined()
     expect(creds.OPENAI_API_KEY).toBe("sk-1")
+  })
+})
+
+describe("shared Claude credential resolution", () => {
+  it("selects host OAuth recovery without shipping the shared credential blob", async () => {
+    const resolved = await resolveSendCredentials("u1", { agent: "claude-code", model: "opus" } as never)
+    if (resolved instanceof Response) throw new Error("Expected resolved credentials")
+    expect(resolved.useSharedClaude).toBe(true)
+    expect(resolved.credentials.CLAUDE_CODE_CREDENTIALS).toBeUndefined()
+    expect(JSON.stringify(resolved.credentials)).not.toContain("shared-access-test")
+    expect(getSharedClaudeAccessToken).toHaveBeenCalledOnce()
+  })
+
+  it("preserves the user's own direct subscription", async () => {
+    vi.mocked(getUserCredentials).mockResolvedValue({ CLAUDE_CODE_CREDENTIALS: "own-subscription-test" })
+    const resolved = await resolveSendCredentials("u1", { agent: "claude-code" } as never)
+    if (resolved instanceof Response) throw new Error("Expected resolved credentials")
+    expect(resolved.useSharedClaude).toBe(false)
+    expect(resolved.credentials.CLAUDE_CODE_CREDENTIALS).toBe("own-subscription-test")
+    expect(getSharedClaudeAccessToken).not.toHaveBeenCalled()
+  })
+
+  it("does not use shared recovery with a custom endpoint", async () => {
+    const resolved = await resolveSendCredentials("u1", { agent: "claude-code", model: "endpoint:test" } as never)
+    if (resolved instanceof Response) throw new Error("Expected resolved credentials")
+    expect(resolved.useSharedClaude).toBe(false)
+    expect(getSharedClaudeAccessToken).not.toHaveBeenCalled()
+  })
+
+  it("fails safely before the turn when shared credentials are unavailable", async () => {
+    vi.mocked(getSharedClaudeAccessToken).mockRejectedValue(new Error("private-connection-test"))
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const resolved = await resolveSendCredentials("u1", { agent: "claude-code" } as never)
+      if (!(resolved instanceof Response)) throw new Error("Expected service error")
+      expect(resolved.status).toBe(503)
+      expect(await resolved.json()).toMatchObject({ error: "SHARED_CREDS_UNAVAILABLE" })
+      expect(JSON.stringify(log.mock.calls)).not.toContain("private-connection-test")
+    } finally {
+      log.mockRestore()
+    }
   })
 })

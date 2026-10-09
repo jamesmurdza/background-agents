@@ -1,7 +1,7 @@
 import { getGitHubToken, getUserCredentials } from "@/lib/db/api-helpers"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
-import { getClaudeCredentials } from "@/lib/claude-credentials"
+import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { ENDPOINT_MODEL_PREFIX } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
@@ -11,7 +11,7 @@ import type { MessagePayload } from "./types"
 export interface ResolvedCredentials {
   credentials: Credentials
   githubToken: string | null
-  /** True when the rotating shared Claude credential was injected (free-tier fallback). */
+  /** True when the shared pool should supply this run's OAuth access token. */
   useSharedClaude: boolean
 }
 
@@ -26,7 +26,7 @@ export interface ResolvedCredentials {
  *
  * Otherwise returns the resolved credentials. The Gemini/OpenCode shared keys
  * come from `process.env` via {@link getUserCredentials}, so only Claude Code
- * needs the explicit shared-credential injection here.
+ * needs an explicit shared-pool availability check here.
  */
 export async function resolveSendCredentials(
   userId: string,
@@ -66,9 +66,8 @@ export async function resolveSendCredentials(
     )
   }
 
-  // Shared-pool fallback for Claude Code: when the user hasn't stored their own
-  // subscription token, inject the rotating credential blob written by
-  // /api/cron/refresh-claude-creds.
+  // Validate shared credentials before claiming a turn. The SDK's OAuth host
+  // callback obtains only access tokens; shared refresh tokens stay here.
   let useSharedClaude = false
   if (
     payload.agent === "claude-code" &&
@@ -78,21 +77,18 @@ export async function resolveSendCredentials(
     !credentials.CLAUDE_CODE_CREDENTIALS
   ) {
     try {
-      credentials = {
-        ...credentials,
-        CLAUDE_CODE_CREDENTIALS: await getClaudeCredentials(),
-      }
+      await getSharedClaudeAccessToken()
       useSharedClaude = true
     } catch (err) {
       console.error(
         "[chats/messages] Failed to fetch shared Claude credential:",
-        err
+        // Database failures may contain credential-bearing connection URLs.
+        err instanceof Error ? err.name : "Unknown error"
       )
       return Response.json(
         {
           error: "SHARED_CREDS_UNAVAILABLE",
-          message:
-            "Shared Claude credentials are unavailable. Add your own Claude Subscription token in Settings.",
+          message: "Shared Claude is temporarily unavailable. Please try again later.",
         },
         { status: 503 }
       )

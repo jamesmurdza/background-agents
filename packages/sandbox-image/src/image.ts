@@ -68,7 +68,8 @@ export const SNAPSHOT_RESOURCES = {
  * Goose uses a binary download, not npm.
  */
 export const AGENT_PACKAGES = {
-  claude: "@anthropic-ai/claude-code",
+  // Keep in sync with the SDK's CLAUDE_CODE_VERSION; its OAuth callback is internal.
+  claude: "@anthropic-ai/claude-code@2.1.283",
   codex: "@openai/codex",
   commandcode: "command-code",
   copilot: "@github/copilot",
@@ -124,7 +125,7 @@ export function getAgentSandboxImage(): Image {
       )
       .runCommands(
         // Install Claude Code CLI
-        "npm install -g @anthropic-ai/claude-code"
+        `npm install -g ${AGENT_PACKAGES.claude}`
       )
       .runCommands(
         // Install Codex CLI

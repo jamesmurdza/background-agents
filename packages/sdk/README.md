@@ -58,6 +58,18 @@ await sandbox.delete()
 | [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ | Provider-specific (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) |
 | Eliza | ✅ | None (deterministic test agent) |
 
+### Shared Claude OAuth recovery
+
+Shared subscription hosts can opt into native OAuth recovery with `CLAUDE_CODE_TOKEN_URL` (an HTTPS endpoint returning `{ "accessToken": "..." }`) and `CLAUDE_CODE_TOKEN_AUTH` (the endpoint's bearer capability) in the session environment. The SDK installs a small Node runner that fetches an access token at startup and answers Claude's `oauth_token_refresh` control request after a rejected API call. Claude then retries that request in place; the runner does not restart Claude, replay the prompt, or relay model traffic. Supply no shared refresh token or `CLAUDE_CODE_CREDENTIALS` blob for this mode. Access tokens live in runner/Claude memory; the endpoint capability is kept out of the child CLI's environment.
+
+This optional mode requires Node 22 and pins Claude Code to **2.1.283**. It relies on the internal stream-json host callback and the `local-agent` entrypoint, verified with that exact version; it is not the public `apiKeyHelper` setting. Shared OAuth setup checks the installed CLI and installs the pinned package with passwordless `sudo -n npm install -g` when it differs, including in older sandboxes. Setup fails before starting the turn if the CLI update or runner installation fails, or if another version still shadows the pinned CLI on `PATH`. Custom sandbox adapters must provide command execution for this mode. Runs without these two environment variables retain the normal CLI path. The SDK's fallback Claude installation is also pinned. Verify callback compatibility before changing the SDK and sandbox image pins by running the synthetic integration test (no subscription token, model charge, or Daytona key needed):
+
+```bash
+CLAUDE_CODE_TEST_EXECUTABLE=/path/to/claude npm test -- tests/integration/claude-oauth-retry.integration.test.ts
+```
+
+The credential endpoint must authenticate and authorize every read, disable caching, return only a valid access token, and keep refresh tokens on the host. Reads time out after 15 seconds, and Claude rejects a callback that returns the same failed access token. API requests and streaming remain direct to Anthropic; a broken accepted response is not replayed by the runner.
+
 ### CLI reference commands
 
 | Provider | CLI Command |

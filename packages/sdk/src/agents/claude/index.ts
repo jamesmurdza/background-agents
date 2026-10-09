@@ -8,6 +8,8 @@ import type { Event } from "../../types/events"
 import { parseClaudeLine } from "./parser"
 import { CLAUDE_TOOL_MAPPINGS } from "./tools"
 import { escapeShell } from "../../utils/shell"
+import { CLAUDE_OAUTH_RUNNER_PATH, CLAUDE_OAUTH_RUNNER_SOURCE } from "./oauth-runner"
+import { CLAUDE_CODE_VERSION, getPackageName } from "../../utils/install"
 
 /** Claude credentials directory */
 const CLAUDE_CREDENTIALS_DIR = "/home/daytona/.claude"
@@ -48,6 +50,49 @@ async function claudeSetup(
   sandbox: CodeAgentSandbox,
   env: Record<string, string>
 ): Promise<void> {
+  if (env.CLAUDE_CODE_TOKEN_URL && env.CLAUDE_CODE_TOKEN_AUTH) {
+    if (!sandbox.executeCommand) {
+      throw new Error("Shared Claude OAuth recovery requires sandbox command execution")
+    }
+    const executeCommand = sandbox.executeCommand.bind(sandbox)
+    async function runSetupCommand(command: string, timeout: number, message: string) {
+      try {
+        const result = await executeCommand(command, timeout)
+        if (result.exitCode !== 0) throw new Error(message)
+        return result
+      } catch {
+        // Commands and transport errors may contain credentials. Fail setup
+        // with operation context only, never the raw output or original error.
+        throw new Error(message)
+      }
+    }
+
+    const versionError = `Shared OAuth recovery requires Claude Code ${CLAUDE_CODE_VERSION} on PATH`
+    let version = await executeCommand("claude --version", 15).catch(() => {
+      // A missing/broken CLI can be repaired by the pinned installation below.
+      console.warn("[claude-setup] Could not check the installed Claude version; installing the tested version")
+      return { exitCode: 1, output: "" }
+    })
+    if (version.exitCode !== 0 || version.output.trim().split(/\s/)[0] !== CLAUDE_CODE_VERSION) {
+      await runSetupCommand(
+        `sudo -n npm install -g ${getPackageName("claude")}`,
+        120,
+        `Failed to install Claude Code ${CLAUDE_CODE_VERSION} for shared OAuth recovery`
+      )
+      version = await runSetupCommand("claude --version", 15, versionError)
+      if (version.output.trim().split(/\s/)[0] !== CLAUDE_CODE_VERSION) throw new Error(versionError)
+    }
+
+    // The host owns shared refresh credentials. Clear an earlier subscription
+    // file, then install a static protocol bridge without embedding any token.
+    await runSetupCommand(
+      `rm -f '${CLAUDE_CREDENTIALS_FILE}' && printf '%s' '${escapeShell(CLAUDE_OAUTH_RUNNER_SOURCE)}' > '${CLAUDE_OAUTH_RUNNER_PATH}' && chmod 600 '${CLAUDE_OAUTH_RUNNER_PATH}'`,
+      30,
+      "Failed to install the shared Claude OAuth runner"
+    )
+    return
+  }
+
   if (!sandbox.executeCommand) return
 
   const credentialsJson = env[CLAUDE_CODE_CREDENTIALS_ENV]
@@ -127,8 +172,9 @@ export const claudeAgent: AgentDefinition = {
     }
 
     return {
-      cmd: "claude",
-      args,
+      cmd: options.env?.CLAUDE_CODE_TOKEN_URL && options.env.CLAUDE_CODE_TOKEN_AUTH ? "node" : "claude",
+      args: options.env?.CLAUDE_CODE_TOKEN_URL && options.env.CLAUDE_CODE_TOKEN_AUTH
+        ? [CLAUDE_OAUTH_RUNNER_PATH, ...args] : args,
       // Hardcode the background-task-disabling default, but let any
       // caller-provided env override it.
       env: { ...CLAUDE_DEFAULT_ENV, ...options.env },

@@ -8,7 +8,7 @@ This package builds a Daytona `Image` spec with the supported agent CLIs baked i
 
 Pre-installed agents:
 
-- **Claude Code** (`@anthropic-ai/claude-code`)
+- **Claude Code** (`@anthropic-ai/claude-code@2.1.283`)
 - **Codex** (`@openai/codex`)
 - **Command Code** (`command-code`)
 - **Copilot** (`@github/copilot`)
@@ -23,6 +23,8 @@ Pre-installed agents:
 The image also pre-installs [`tokscale`](https://www.npmjs.com/package/tokscale) (pinned via `TOKSCALE_VERSION`) for post-turn token/cost metering.
 
 The image is based on `node:22-bookworm` and runs as a non-root `daytona` user (Claude Code refuses to run as root).
+
+Claude Code is pinned to the version verified by the SDK's shared OAuth recovery test because that feature uses an internal CLI callback. Keep `AGENT_PACKAGES.claude` in sync with `CLAUDE_CODE_VERSION` in `packages/sdk/src/utils/install.ts`, and run `packages/sdk/tests/integration/claude-oauth-retry.integration.test.ts` against the proposed version before updating either pin. Rebuild the snapshot with `npm run build:snapshot` to bake in an updated version. Existing sandboxes are not changed by a snapshot rebuild; the SDK checks and updates their CLI to the pin when starting a shared OAuth run.
 
 ## Installation
 
