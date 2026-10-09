@@ -1,3 +1,5 @@
+import { CLAUDE_CODE_VERSION } from "../../utils/install"
+
 /**
  * This bridge speaks Claude's stream-json host protocol. Model requests and
  * responses stay inside Claude; only credential reads go to the host app.
@@ -77,9 +79,8 @@ async function main() {
   env.CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH = "1";
   const executable = process.env.CLAUDE_CODE_EXECUTABLE ?? "claude";
   const version = await promisify(execFile)(executable, ["--version"], { env, timeout: 15000 });
-  const parts = /^(\d+)\.(\d+)\.(\d+)/.exec(version.stdout.trim());
-  if (!parts || Number(parts[1]) !== 2 || Number(parts[2]) !== 1 || Number(parts[3]) < 283) {
-    process.stderr.write("[claude-oauth] Shared OAuth recovery requires Claude Code 2.1.283 or later in the 2.1 series\n");
+  if (version.stdout.trim().split(/\s/)[0] !== "${CLAUDE_CODE_VERSION}") {
+    process.stderr.write("[claude-oauth] Shared OAuth recovery requires Claude Code ${CLAUDE_CODE_VERSION}\n");
     process.exitCode = 1;
     return;
   }
