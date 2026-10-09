@@ -112,6 +112,15 @@ GITHUB_APP_PRIVATE_KEY="..."
 
 See [`mcp`](../mcp/README.md) for setup.
 
+To enable Stripe credit top-ups (optional — billing is only enabled when `BILLING_ENABLED="true"` and both Stripe secrets are set; otherwise checkout and the webhook return 404, the UI hides top-ups, and the rest of the app runs normally), set:
+
+```bash
+BILLING_ENABLED="true"
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."   # differs per environment; webhook route is /api/stripe/webhook
+STRIPE_PRICE_MAP='{"pack_5":"price_...","pack_10":"price_..."}'   # pack id -> Stripe price id
+```
+
 ### Testing
 
 End-to-end tests run against a local test database.
