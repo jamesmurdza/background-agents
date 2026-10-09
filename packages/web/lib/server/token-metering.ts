@@ -207,6 +207,17 @@ async function meterTurnUsage(
   // see the winner's committed rows on its own read, which a snapshot level
   // would hide, leaving it to write the very duplicate this prevents.
   try {
+    // Read the pricing multipliers BEFORE opening the transaction, never inside
+    // it. getProviderMultipliers reads through the global client, not `tx`, and
+    // the production pool holds one connection per instance (lib/db/prisma). On
+    // a cache miss, a read issued inside the transaction waits for the very
+    // connection the transaction is holding, so it hangs until
+    // METER_TX_TIMEOUT_MS kills the transaction and the whole turn goes
+    // unmetered (P2028 on the next `tx` statement). Reading here costs nothing:
+    // it is cached, and a value read a moment earlier is no staler than the
+    // cache already allows.
+    const multipliers = await getProviderMultipliers()
+
     return await prisma.$transaction(
       async (tx) => {
         await lockSessionForMetering(sessionId, tx)
@@ -374,9 +385,6 @@ async function meterTurnUsage(
         const inserted = await insertTokenUsageRows(rows, tx)
 
         if (chargeCredits) {
-          // Cached (see lib/db/provider-pricing) — this is not a Postgres round
-          // trip on every metered turn.
-          const multipliers = await getProviderMultipliers()
           const debited = await chargeTurnToCredits(
             { userId, chatId, rows: inserted, dailyLeft: 0, multipliers },
             tx
