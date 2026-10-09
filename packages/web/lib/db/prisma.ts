@@ -27,13 +27,17 @@ function createPrismaClient() {
   const isNeon = connectionString.includes("neon.tech")
 
   if (!isNeon) {
-    // Keep the per-instance pool small in production: on serverless each warm
-    // instance holds its own pool, and Supabase's transaction pooler (Supavisor)
-    // does the real connection fan-in.
-    const pool = new pg.Pool({
-      connectionString,
-      max: process.env.NODE_ENV === "production" ? 1 : 10,
-    })
+    // One connection per instance: on serverless each warm instance holds its
+    // own pool, and Supabase's transaction pooler (Supavisor) does the real
+    // connection fan-in.
+    //
+    // Deliberately the same in development as in production. With one
+    // connection, an interactive transaction holds the only connection for its
+    // whole life, so any query inside a `prisma.$transaction` callback that
+    // goes through this global client instead of `tx` waits for that same
+    // connection and hangs until the transaction times out (P2028). A larger
+    // dev pool hides that bug — it shipped once in token metering that way.
+    const pool = new pg.Pool({ connectionString, max: 1 })
     const adapter = new PrismaPg(pool)
     return new PrismaClient({
       adapter,
