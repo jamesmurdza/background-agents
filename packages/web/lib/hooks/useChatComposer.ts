@@ -30,6 +30,9 @@ import { filterSlashCommandsWithConflict, filterSingleCommand, CREATE_REPO_COMMA
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useFileUpload } from "@/lib/hooks/useFileUpload"
 import { isModKeyPressed } from "@/lib/keyboard"
+import { useToastStore } from "@/lib/stores/toast-store"
+import { hasActiveQueue } from "@/lib/chat-state"
+import { queuedSendNotice } from "@/lib/composer-queue"
 
 interface UseChatComposerArgs {
   chat: Chat | null
@@ -153,19 +156,24 @@ export function useChatComposer({
   // Treat the chat as running while it has (non-paused) queued messages too,
   // so the UI doesn't flicker between ready and running as the queue drains.
   const hasQueued = (chat?.queuedMessages?.length ?? 0) > 0
+  const needsRecovery = chat?.status === "error" || chat?.status === "disconnected"
   const isPaused = !!(chat?.queuePaused && hasQueued)
-  const isRunning = chat?.status === "running" || (hasQueued && !chat?.queuePaused)
+  const isRunning = chat?.status === "running" || hasActiveQueue(chat)
   // Include isSending for instant feedback before server responds
   const isCreating = chat?.status === "creating" || isSending
   const hasContent = input.trim() || pendingFiles.length > 0
+  const queueNotice = queuedSendNotice({ isRunning, isPaused, hasFiles: pendingFiles.length > 0,
+    planMode: planModeEnabled, hasText: !!input.trim() })
   // When the agent is running, text-only messages are queued for later dispatch.
-  const canQueue = !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
+  const canQueue = !chat?.stopPending && !chat?.directSendRecovery?.length && !needsRecovery && !queueNotice && !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
   // Paused queue: always show the send button (either to enqueue a new prompt
   // at the end or to resume draining with nothing typed).
-  const canSend =
+  // A new direct send must not skip prompts waiting behind a failed turn.
+  // Reload first to reconcile that turn; it never implicitly resumes the queue.
+  const canSend = !chat?.stopPending && !chat?.directSendRecovery?.length && !queueNotice && !(needsRecovery && hasQueued) && (
     (hasContent && !isRunning && !isCreating && !isPaused) ||
     (isRunning && canQueue) ||
-    isPaused
+    isPaused)
 
   // Track if user has scrolled up from bottom
   const handleScroll = () => {
@@ -251,6 +259,10 @@ export function useChatComposer({
 
   const handleSend = () => {
     if (!canSend) return
+    if (input.trim().length > 100_000) {
+      useToastStore.getState().addToast({ title: "Message is too long", body: "Shorten your message to 100,000 characters or fewer. Your draft has been kept." })
+      return
+    }
     // Don't send if credentials are missing - the UI shows a warning instead
     if (!hasRequiredCredentials) return
 
@@ -274,6 +286,20 @@ export function useChatComposer({
       } else {
         onResumeQueue?.()
       }
+      textareaRef.current?.focus()
+      return
+    }
+
+    // Existing text-only chats use the same serialized server queue whether
+    // they look ready or running in this browser. A direct send can otherwise
+    // race the next prompt's wake-up before its own server claim is visible.
+    // Keep first sends, attachments and plan mode on the direct path: queued
+    // prompts do not carry those options yet.
+    if (chat?.status === "ready" && !chat.id.startsWith("draft-") &&
+        chat.messages.some((message) => !message.inherited) &&
+        input.trim() && pendingFiles.length === 0 && !planModeEnabled && onEnqueueMessage) {
+      onEnqueueMessage(input.trim(), currentAgent, currentModel)
+      setInput("")
       textareaRef.current?.focus()
       return
     }

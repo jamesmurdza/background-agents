@@ -37,6 +37,8 @@ export type SendMessageResult =
       ok: false
       error: string
       isDailyLimit: boolean
+      /** The server did not accept or persist this turn because another turn won the claim. */
+      isChatBusy?: boolean
       /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
       provider?: string
       /**
@@ -110,6 +112,7 @@ export async function sendMessageToApi(
       // collapsing into a bare "Failed to send message".
       error: err.error || `Failed to send message (HTTP ${response.status})`,
       isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
+      isChatBusy: response.status === 409 && err.error === "Chat is busy",
       provider: err.provider,
       creditBalance: typeof err.creditBalance === "number" ? err.creditBalance : undefined,
     }
@@ -143,18 +146,24 @@ export function applyOptimisticSend(
     ...chat,
     messages: [...chat.messages, userMessage, assistantMessage],
     status: chat.sandboxId ? "running" : "creating",
+    pendingSend: true,
+    pendingSendAssistantMessageId: assistantMessage.id,
+    activeAssistantMessageId: assistantMessage.id,
     lastActiveAt: now,
     errorMessage: undefined,
     errorKind: undefined,
   }
 }
 
-/** Roll back the optimistic messages and return the chat to ready (e.g. on daily-limit). */
+/** Roll back a rejected attempt without releasing a newer active turn. */
 export function removeOptimisticMessages(chat: Chat, messageIds: string[]): Chat {
   const ids = new Set(messageIds)
+  const ownsTurn = !!chat.activeAssistantMessageId && ids.has(chat.activeAssistantMessageId)
+  const ownsPendingSend = !chat.pendingSendAssistantMessageId || ids.has(chat.pendingSendAssistantMessageId)
   return {
     ...chat,
-    status: "ready",
+    ...(ownsTurn ? { status: "ready" as const, activeAssistantMessageId: undefined } : {}),
+    ...(ownsPendingSend ? { pendingSend: false, pendingSendAssistantMessageId: undefined } : {}),
     messages: chat.messages.filter((m) => !ids.has(m.id)),
   }
 }
@@ -176,6 +185,7 @@ export function applySendSuccess(
     agent,
     model,
     status: "running",
+    pendingSend: false,
     messages: chat.messages.map((m) =>
       m.id === userMessageId && data.uploadedFiles.length > 0 ? { ...m, uploadedFiles: data.uploadedFiles } : m
     ),
@@ -187,6 +197,8 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
   return {
     ...chat,
     status: "error",
+    pendingSend: false,
+    activeAssistantMessageId: undefined,
     errorMessage,
     messages: chat.messages.map((m) =>
       m.id === assistantMessageId
@@ -195,4 +207,3 @@ export function applySendError(chat: Chat, assistantMessageId: string, errorMess
     ),
   }
 }
-

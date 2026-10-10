@@ -135,6 +135,7 @@ export interface ChatStreamAccessResult {
     id: string
     sandboxId: string | null
     backgroundSessionId: string | null
+    activeAssistantMessageId: string | null
     previewUrlPattern: string | null
   }
 }
@@ -161,10 +162,13 @@ export async function requireChatStreamAccess(
 
   if (assistantMessageId) {
     const msg = await prisma.message.findFirst({
-      where: { id: assistantMessageId, chatId },
+      where: { id: assistantMessageId, chatId, role: "assistant" },
       select: { id: true },
     })
     if (!msg) return notFound("Message not found")
+    if (chat.activeAssistantMessageId !== assistantMessageId) {
+      return Response.json({ error: "This agent turn is no longer active" }, { status: 409 })
+    }
   }
 
   return {
@@ -173,6 +177,7 @@ export async function requireChatStreamAccess(
       id: chat.id,
       sandboxId: chat.sandboxId,
       backgroundSessionId: chat.backgroundSessionId,
+      activeAssistantMessageId: chat.activeAssistantMessageId,
       previewUrlPattern: chat.previewUrlPattern,
     },
   }
@@ -350,6 +355,7 @@ export async function getChatWithAuth(
   sessionId: string | null
   previewUrlPattern: string | null
   backgroundSessionId: string | null
+  activeAssistantMessageId: string | null
   agent: string
   model: string | null
   planModeEnabled: boolean

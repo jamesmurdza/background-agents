@@ -15,6 +15,8 @@ import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
+import { abandonFinalization, claimTurnFinalization, releaseTurn, type ActiveTurn } from "@/lib/server/turn-ownership"
+import { readTurnFailure, recordTurnFailure } from "@/lib/server/turn-failure"
 
 // maxDuration configures the timeout for this Vercel function. Allow longer
 // streaming connections (5 minutes max).
@@ -64,6 +66,8 @@ export async function GET(req: Request) {
       error: "Chat has no active sandbox or background session",
     })
   }
+  if (!assistantMessageId) return jsonResponse(400, { error: "assistantMessageId is required" })
+  const turn: ActiveTurn = { chatId: chat.id, backgroundSessionId, assistantMessageId }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
@@ -95,23 +99,17 @@ export async function GET(req: Request) {
         }
       }
 
-      // Persist a snapshot to the DB. The snapshot is the source of truth —
-      // the route never holds a separate accumulator that could drift.
-      //
-      // The message body and the chat-status reset are persisted independently
-      // (see persistAgentSnapshot): on a final write the chat MUST be released
-      // from "running" even if the message body write fails, otherwise the chat
-      // is stranded as permanently busy.
-      const persistSnapshot = async (snap: AgentSnapshot, isFinal: boolean) => {
-        if (!chatId || !assistantMessageId) return
-        await persistAgentSnapshot({
+      // Only the current turn can update its assistant placeholder. A final
+      // write is guarded by the exclusive finalization claim.
+      const persistSnapshot = async (snap: AgentSnapshot, finalizationClaimId?: string) => {
+        const result = await persistAgentSnapshot({
           prisma,
-          chatId,
-          assistantMessageId,
+          turn,
           snapshot: snap,
-          isFinal,
+          finalizationClaimId,
         })
         lastDbPersist = Date.now()
+        return result.persisted
       }
 
       const closeStream = () => {
@@ -165,14 +163,9 @@ export async function GET(req: Request) {
               )
               continue
             }
-            // Retries exhausted — surface a real error, but keep whatever
-            // content/toolCalls/contentBlocks we last knew about instead of
-            // the empty fallback snapshot.
-            lastSnap = {
-              ...snap,
-              status: "error",
-              error: snap.error || "Lost connection to the agent session",
-            }
+            // A transport failure is not a terminal agent failure. Leave the
+            // durable turn attached so Reload or cron can read it again.
+            throw new Error("Lost connection to the agent session; reload to reconnect")
           } else {
             consecutiveSnapshotFailures = 0
             lastSnap = snap
@@ -209,6 +202,19 @@ export async function GET(req: Request) {
           }
 
           if (lastSnap.status === "completed" || lastSnap.status === "error") {
+            const finalizationClaimId = await claimTurnFinalization(turn)
+            if (!finalizationClaimId) {
+              // A concurrent stream/cron (or a newer turn) already owns it.
+              closeStream()
+              return
+            }
+            let pushInfo: PushInfo | undefined
+            let uncommittedFilesCount: number | undefined
+            let finalSnapshotSaved = false
+            let turnReleased = false
+            try {
+            const priorFailure = await readTurnFailure(turn)
+            if (priorFailure) lastSnap = { ...lastSnap, status: "error", error: priorFailure.reason }
             // A turn can end in "error" while its process is still alive — most
             // notably OpenCode, which on a retryable model error (rate/usage
             // limit, overload) retries with unbounded backoff. The snapshot
@@ -217,7 +223,12 @@ export async function GET(req: Request) {
             // Best-effort and idempotent: a no-op when the process already
             // exited (the common completed/crashed case).
             if (lastSnap.status === "error") {
-              await cancelBackgroundAgent(sandbox, backgroundSessionId, sessionOpts)
+              const failureReason = lastSnap.error ?? "Unknown error"
+              if (!await recordTurnFailure(turn, finalizationClaimId, failureReason, false)) throw new Error("Turn changed before cancellation")
+              await cancelBackgroundAgent(sandbox, backgroundSessionId, sessionOpts, true)
+              const after = await snapshotBackgroundAgent(sandbox, backgroundSessionId, sessionOpts)
+              if (after.transientReadFailure || after.status === "running") throw new Error("Cannot confirm failed agent output")
+              lastSnap = { ...after, status: "error", error: failureReason, errorKind: lastSnap.errorKind }
 
               // Record the provider failure so it's visible in aggregate — we
               // otherwise have no view over which models/providers are failing.
@@ -242,6 +253,12 @@ export async function GET(req: Request) {
               }
             }
 
+            // Save before SDK completion bookkeeping can advance the log pointer.
+            if (!await persistSnapshot(lastSnap, finalizationClaimId)) throw new Error("Could not save the final reply; reload to retry")
+            if (lastSnap.status === "error" && !await recordTurnFailure(turn, finalizationClaimId, lastSnap.error ?? "Unknown error", true)) {
+              throw new Error("Could not save the stopped turn; reload to retry")
+            }
+            finalSnapshotSaved = true
             await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
 
             // Meter token/cost usage via tokscale while the sandbox is still
@@ -283,8 +300,6 @@ export async function GET(req: Request) {
             // the commits; pushing first means a dead request simply falls back
             // to the cron, which finalizes identically. Populated when the push
             // advances the remote, so the client can raise a "new push" toast.
-            let pushInfo: PushInfo | undefined
-            let uncommittedFilesCount: number | undefined
             if (lastSnap.status === "completed" && chatId) {
               const chat = await prisma.chat.findUnique({
                 where: { id: chatId },
@@ -310,7 +325,22 @@ export async function GET(req: Request) {
             }
 
             // Now that the push is done, release the chat from "running".
-            await persistSnapshot(lastSnap, true)
+            } finally {
+              if (finalSnapshotSaved) {
+                try {
+                  turnReleased = await releaseTurn(
+                    turn, finalizationClaimId,
+                    lastSnap.status === "error" ? "error" : "ready",
+                    lastSnap.sessionId,
+                  )
+                } finally {
+                  if (!turnReleased) await abandonFinalization(turn, finalizationClaimId)
+                }
+              } else {
+                await abandonFinalization(turn, finalizationClaimId)
+              }
+            }
+            if (!turnReleased) { closeStream(); return }
 
             // Check conflict state to include in complete event
             // This allows the frontend to update the warning icon after agent resolves conflicts
@@ -354,7 +384,7 @@ export async function GET(req: Request) {
           }
 
           if (Date.now() - lastDbPersist >= DB_PERSIST_INTERVAL) {
-            await persistSnapshot(lastSnap, false)
+            await persistSnapshot(lastSnap)
           }
 
           if (isStreamClosed) break
@@ -370,23 +400,15 @@ export async function GET(req: Request) {
           heartbeatTimer = null
         }
         if (lastSnap) {
-          await persistSnapshot(lastSnap, false)
+          await persistSnapshot(lastSnap)
         }
       } catch (error) {
         console.error("[agent/stream] Error:", error)
         const message = formatAgentError(error)
 
-        if (chatId) {
-          try {
-            await prisma.chat.update({
-              where: { id: chatId },
-              data: { status: "error", backgroundSessionId: null },
-            })
-          } catch {
-            /* best effort */
-          }
-        }
-
+        // Keep the execution identity on transport or persistence failures.
+        // Clearing it here would prevent both Reload and cron from recovering
+        // output that still exists in the sandbox.
         sendEvent("error", { error: message, cursor })
         closeStream()
       }

@@ -92,6 +92,7 @@ export async function sendChatTurn({
     createdSandbox: false,
   }
   let turnPersisted = false
+  let startedBackgroundSessionId: string | null = null
 
   try {
     const ensured = await ensureSandboxForChat({
@@ -147,6 +148,7 @@ export async function sendChatTurn({
       mcpServers,
       skills: discoveredSkills.length > 0 ? discoveredSkills : undefined,
     })
+    startedBackgroundSessionId = bgSession.backgroundSessionId
 
     const storedUser = await prisma.user.findUnique({
       where: { id: userId }, select: { credentials: true },
@@ -182,25 +184,23 @@ export async function sendChatTurn({
     return Response.json(response)
   } catch (error) {
     console.error("[chats/messages] Error:", error)
-    if (state.createdSandbox && state.sandboxId) {
-      await deleteSandboxQuietly(daytona, state.sandboxId)
-      try {
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: {
-            sandboxId: null, branch: null, previewUrlPattern: null,
-            status: "error", queueDispatchId: !turnPersisted ? claimedPromptId ?? null : null,
-          },
-        })
-      } catch { /* best effort */ }
-    } else {
-      try {
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { status: "error", queueDispatchId: !turnPersisted ? claimedPromptId ?? null : null },
-        })
-      } catch { /* best effort */ }
-    }
+    try {
+      const changed = await prisma.chat.updateMany({
+        where: turnPersisted
+          ? { id: chatId, status: "running", backgroundSessionId: startedBackgroundSessionId, activeAssistantMessageId: payload.assistantMessageId, finalizationClaimId: null }
+          : { id: chatId, status: "creating", queueDispatchId: claimedPromptId ?? null },
+        data: {
+          status: "error",
+          backgroundSessionId: turnPersisted ? null : undefined,
+          activeAssistantMessageId: turnPersisted ? null : undefined,
+          queueDispatchId: !turnPersisted ? claimedPromptId ?? null : null,
+          ...(state.createdSandbox && { sandboxId: null, branch: null, previewUrlPattern: null }),
+        },
+      })
+      if (changed.count === 1 && state.createdSandbox && state.sandboxId) {
+        await deleteSandboxQuietly(daytona, state.sandboxId)
+      }
+    } catch { /* best effort; cron can recover a persisted turn */ }
     return internalError(error)
   } finally {
     // A pre-run rejection must not strand a direct send in "creating".

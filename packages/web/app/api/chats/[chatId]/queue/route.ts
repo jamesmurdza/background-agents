@@ -9,6 +9,7 @@ import {
   type QueueInput,
 } from "@/lib/server/prompt-queue"
 import { getDefaultModelForAgent, type Agent } from "@background-agents/common"
+import { readTerminalQueueRecovery, recoverTerminalQueue } from "@/lib/server/queue-recovery"
 
 type Params = { params: Promise<{ chatId: string }> }
 
@@ -39,19 +40,28 @@ export async function GET(_req: NextRequest, { params }: Params): Promise<Respon
   const chat = await prisma.chat.findUniqueOrThrow({
     where: { id: chatId },
     select: {
-      status: true, queuePaused: true, sandboxId: true, backgroundSessionId: true,
+      updatedAt: true,
+      status: true, queuePaused: true, sandboxId: true, backgroundSessionId: true, activeAssistantMessageId: true,
+      _count: { select: { messages: true } },
+      messages: { orderBy: { timestamp: "desc" }, take: 1, select: { id: true } },
       queuedPrompts: {
         where: { status: { in: ["queued", "dispatching"] } },
         orderBy: { position: "asc" },
       },
     },
   })
+  const recovery = chat.status === "error" ? await readTerminalQueueRecovery(chatId) : null
   return Response.json({
+    updatedAt: chat.updatedAt.getTime(),
+    messageCount: chat._count.messages,
+    lastMessageId: chat.messages[0]?.id ?? null,
     status: chat.status,
     queuePaused: chat.queuePaused,
     sandboxId: chat.sandboxId,
     backgroundSessionId: chat.backgroundSessionId,
+    activeAssistantMessageId: chat.activeAssistantMessageId,
     queuedMessages: chat.queuedPrompts.map(toQueuedMessage),
+    recoverableAssistantMessageId: recovery?.updatedAt === chat.updatedAt.getTime() ? recovery.assistantMessageId : null,
   })
 }
 
@@ -78,8 +88,8 @@ export async function POST(req: NextRequest, { params }: Params): Promise<Respon
       if (items.some((item) => !item)) {
         return Response.json({ error: "Invalid queued prompt" }, { status: 400 })
       }
-      await importLegacyPrompts(chatId, items as QueueInput[], body.paused === true)
-      return Response.json({ imported: items.length })
+      const imported = await importLegacyPrompts(chatId, items as QueueInput[], body.paused === true)
+      return Response.json({ imported: items.length, queuedMessages: imported.map(toQueuedMessage) })
     }
 
     const input = validInput(body)
@@ -100,7 +110,7 @@ export async function PATCH(req: NextRequest, { params }: Params): Promise<Respo
   const { chatId } = await params
   const auth = await authorizedChat(chatId)
   if (auth.error) return auth.error
-  let body: { paused?: unknown }
+  let body: { paused?: unknown; recoverTerminal?: unknown; updatedAt?: unknown; assistantMessageId?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -108,6 +118,15 @@ export async function PATCH(req: NextRequest, { params }: Params): Promise<Respo
   }
   if (typeof body.paused !== "boolean") {
     return Response.json({ error: "paused must be a boolean" }, { status: 400 })
+  }
+  if (body.recoverTerminal === true) {
+    if (body.paused || typeof body.updatedAt !== "number" || !Number.isSafeInteger(body.updatedAt) || body.updatedAt < 0 ||
+        typeof body.assistantMessageId !== "string" || !body.assistantMessageId || body.assistantMessageId.length > 200) {
+      return Response.json({ error: "Invalid terminal recovery request" }, { status: 400 })
+    }
+    const recovered = await recoverTerminalQueue(chatId, { updatedAt: body.updatedAt, assistantMessageId: body.assistantMessageId })
+    if (!recovered) return Response.json({ error: "The failed turn cannot be safely continued yet. Reload the chat." }, { status: 409 })
+    return Response.json({ queuePaused: false })
   }
   await prisma.chat.update({ where: { id: chatId }, data: { queuePaused: body.paused } })
   return Response.json({ queuePaused: body.paused })

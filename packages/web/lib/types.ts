@@ -65,6 +65,14 @@ export type MessageAction = "force-push" | "view-pr" | "view-branch"
 
 /** Metadata for git-operation messages */
 export interface MessageMetadata {
+  /** Confirmed execution outcome, persisted by the server finalizer. */
+  turnFinalization?: {
+    state: string
+    executionStopped: boolean
+    assistantMessageId: string
+    backgroundSessionId: string
+    reason: string
+  }
   /** Action hint for rendering clickable links */
   action?: MessageAction
   /** PR URL for view-pr action */
@@ -154,6 +162,8 @@ export interface Chat {
 
   // Active execution (for recovery after page refresh)
   backgroundSessionId?: string  // Set when agent starts, cleared on completion
+  activeAssistantMessageId?: string  // Message owned by the active execution
+  stopPending?: boolean // Local Stop confirmation is still in progress
 
   // Agent config (per-chat, can be changed)
   agent?: string        // "claude-code" | "opencode" | "codex" | etc.
@@ -164,6 +174,7 @@ export interface Chat {
   messages: Message[]
   /** Server-side message count (used when messages aren't loaded yet) */
   messageCount?: number
+  lastMessageId?: string | null
   createdAt: number
   updatedAt: number
   /** Timestamp of last activity: user message sent, agent content received, or agent completion. Used for sort order. */
@@ -171,6 +182,8 @@ export interface Chat {
 
   /** Messages queued while the agent was running. The next one is dispatched automatically on completion. */
   queuedMessages?: QueuedMessage[]
+  /** Device-only direct sends awaiting a server acknowledgment; never queued jobs. */
+  directSendRecovery?: QueuedMessage[]
   /** When true, auto-dispatch of queued messages is suspended (e.g. user clicked Stop). Cleared when the user sends or queues again. */
   queuePaused?: boolean
 
@@ -209,6 +222,13 @@ export interface Chat {
 
   // Status
   status: ChatStatus
+  /** Client-only: direct send is awaiting acknowledgement from the server. */
+  pendingSend?: boolean
+  /** Assistant identity owning this browser's outstanding direct-send POST. */
+  pendingSendAssistantMessageId?: string
+
+  /** Server-confirmed terminal failure eligible for explicit queue continuation. */
+  recoverableAssistantMessageId?: string
 
   /** Last agent/streaming error message, surfaced when status is "error"
    *  (real agent error → Retry) or "disconnected" (SSE stream died → Reload).
@@ -256,6 +276,19 @@ export interface QueuedMessage {
   clientId?: string
   lastError?: string
   pendingSync?: boolean
+  /** Local persistence failed; terminal failures need removal or a corrected send. */
+  syncError?: string
+  syncFailed?: boolean
+  /** Keep the intent until the server confirms cancellation, including offline. */
+  cancelRequested?: boolean
+  cancelFailed?: boolean
+  /** Stable identity for reconciling the queue with its persisted user bubble. */
+  userMessageId?: string
+  status?: string
+  /** Client presentation only; does not bypass server ordering. */
+  sendImmediately?: boolean
+  /** Retained separately from the queue after a direct POST has an unknown outcome. */
+  directSend?: { assistantMessageId: string; timestamp: number; error?: string; attachmentNames?: string[] }
 }
 
 export type Theme = "light" | "dark" | "system"

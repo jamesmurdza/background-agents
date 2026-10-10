@@ -14,9 +14,17 @@ import {
   resolveAgentSlug,
   getDefaultAgent,
   type CustomEndpoint,
+  getAgentModels,
+  resolveChatModel,
 } from "@background-agents/common"
 
 describe("resolveModelForAgent", () => {
+  it("offers supported free models and resolves a retired saved selection", () => {
+    const models = getAgentModels("opencode")
+    expect(models.find(m => m.value === "opencode/mimo-v2.6-flash-free")?.requiresKey).toBe("none")
+    expect(models.some(m => m.value === "opencode/mimo-v2.5-free")).toBe(false)
+    expect(resolveChatModel("opencode", "opencode/mimo-v2.5-free", {})).not.toBe("opencode/mimo-v2.5-free")
+  })
   it("honors a saved preference that belongs to the agent and is usable", () => {
     const model = resolveModelForAgent("gemini", { GEMINI_API_KEY: true }, "gemini-3.1-pro-preview")
     expect(model).toBe("gemini-3.1-pro-preview")

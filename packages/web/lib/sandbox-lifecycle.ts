@@ -53,8 +53,15 @@ export async function getSandboxOrExpired(
 ): Promise<Sandbox | Response> {
   try {
     return await daytona.get(sandboxId)
-  } catch {
-    return sandboxExpiredResponse()
+  } catch (error) {
+    // Timeouts and service failures do not prove deletion. Let the route
+    // return a retryable error instead of telling the UI the sandbox is gone.
+    // SDK errors expose statusCode; keep this shared client/server module
+    // free of a runtime SDK import.
+    if (error instanceof Error && "statusCode" in error && error.statusCode === 404) {
+      return sandboxExpiredResponse()
+    }
+    throw error
   }
 }
 

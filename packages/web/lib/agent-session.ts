@@ -341,7 +341,8 @@ export async function finalizeTurn(
 export async function cancelBackgroundAgent(
   sandbox: DaytonaSandbox,
   backgroundSessionId: string,
-  options: AgentSessionOptions
+  options: AgentSessionOptions,
+  strict = false,
 ): Promise<void> {
   try {
     const bgSession = await getBackgroundSession(
@@ -353,6 +354,7 @@ export async function cancelBackgroundAgent(
     await bgSession.cancel()
   } catch (err) {
     console.error("[cancelBackgroundAgent] Error:", err)
+    if (strict) throw err
     // Don't rethrow - cancellation is best-effort
   }
 }
@@ -392,6 +394,16 @@ export async function snapshotBackgroundAgent(
       sessionId: string | null
       cursor: string
       running?: boolean
+      runPhase?: "idle" | "starting" | "running" | "stopped"
+    }
+
+    // persistTurn makes the chat visible before bgSession.start has finished
+    // writing the first job handle. A second browser/cron can observe the
+    // initial session metadata in that gap. It is not a failed agent turn.
+    if (result.runPhase === "idle") {
+      return previous
+        ? { ...previous, transientReadFailure: true }
+        : { status: "running", content: "", toolCalls: [], contentBlocks: [], transientReadFailure: true }
     }
 
     const running =

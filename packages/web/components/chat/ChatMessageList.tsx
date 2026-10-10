@@ -5,6 +5,10 @@ import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ErrorBanner } from "./ErrorBanner"
 import { MessageBubble } from "../MessageBubble"
+import { getPendingSubmission } from "@/lib/chat-state"
+import { persistedProviderFailure } from "@/lib/turn-error-presentation"
+import { dismissDirectSend } from "@/lib/direct-send-recovery"
+import { useToastStore } from "@/lib/stores/toast-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +27,7 @@ interface ChatMessageListProps {
   onReload?: (chatId: string) => Promise<void> | void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
   onRemoveQueuedMessage?: (id: string) => void
+  onResumeQueue?: () => Promise<void> | void
   currentAgent: Agent
   currentModel: string
   planModeEnabled: boolean
@@ -49,6 +54,7 @@ export function ChatMessageList({
   onReload,
   onSendMessage,
   onRemoveQueuedMessage,
+  onResumeQueue,
   currentAgent,
   currentModel,
   planModeEnabled,
@@ -58,6 +64,15 @@ export function ChatMessageList({
   userHasScrolledUp,
   onScrollToBottom,
 }: ChatMessageListProps) {
+  const visibleQueue = (chat.queuedMessages ?? []).filter((item) =>
+    !item.userMessageId || !chat.messages.some((message) => message.id === item.userMessageId))
+  const pending = getPendingSubmission({ ...chat, queuedMessages: visibleQueue })
+  const waiting = visibleQueue.filter((item) => item !== pending)
+  const activeMessage = chat.messages.find((message) => message.id === chat.activeAssistantMessageId && message.role === "assistant")
+  const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
+  const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
+  const directRecovery = chat.pendingSend ? [] : (chat.directSendRecovery ?? [])
+
   // Hide the uncommitted-files banner the moment the user asks the agent to
   // commit, rather than leaving it up until the triggered turn finishes and
   // the server recomputes the count. Resets — so the banner can reappear if
@@ -90,10 +105,7 @@ export function ChatMessageList({
           isMobile ? "max-w-full" : "max-w-3xl space-y-6"
         )}>
           {chat.messages.map((message, index) => {
-            const isLastAssistant =
-              isRunning &&
-              message.role === "assistant" &&
-              index === chat.messages.length - 1
+            const isLastAssistant = message.id === streamingId
             // A divider marks the point where the inherited parent history ends
             // and this branch's own conversation begins.
             const isBranchStart =
@@ -120,9 +132,20 @@ export function ChatMessageList({
             chat.messages[chat.messages.length - 1]?.inherited && (
               <BranchDivider isMobile={isMobile} />
             )}
-          {/* Show loading indicator when sandbox is being created */}
-          {isCreating && (
-            <div className="text-2xl text-muted-foreground animate-pulse">
+          {pending && (
+            <div data-testid="pending-submission">
+              <MessageBubble
+                message={{ id: pending.userMessageId ?? pending.id, role: "user", content: pending.content, timestamp: 0 }}
+                isMobile={isMobile}
+              />
+              <div className="text-xs text-muted-foreground text-right mt-1">
+                {pending.pendingSync && !pending.userMessageId ? "Sending…" : "Starting…"}
+              </div>
+            </div>
+          )}
+          {/* A single placeholder until the active assistant row is available. */}
+          {showStarting && (
+            <div data-testid="starting-indicator" className="text-2xl text-muted-foreground animate-pulse">
               ...
             </div>
           )}
@@ -163,7 +186,32 @@ export function ChatMessageList({
               - "disconnected": the SSE stream died before the turn finished. The
                 agent may still be running in the background, so the action is
                 Reload (refresh the chat history) rather than resending. */}
-          {chat.status === "disconnected" && (
+          {directRecovery.map((item) => (
+            <div key={item.id} data-testid="direct-send-recovery" className="space-y-2">
+              {!chat.messages.some((message) => message.id === item.userMessageId) && (
+                <MessageBubble message={{ id: item.id, role: "user", content: item.content, timestamp: item.directSend?.timestamp ?? 0 }} isMobile={isMobile} />
+              )}
+              <div>
+                <ErrorBanner
+                  message="Send status is unconfirmed. This is a copy saved on this device. Reload to check whether the server received it. It will not be resent automatically."
+                  isMobile={isMobile}
+                  onRetry={onReload ? () => onReload(chat.id) : undefined}
+                  actionLabel="Reload"
+                  actionPendingLabel="Reloading…"
+                />
+              </div>
+              {item.directSend?.error && <p className="text-xs text-muted-foreground">{item.directSend.error}</p>}
+              {!!item.directSend?.attachmentNames?.length && <p className="text-xs text-muted-foreground">Attachments are not saved on this device. Reattach them if you send again: {item.directSend.attachmentNames.join(", ")}</p>}
+              <div className="flex gap-3 text-xs">
+                <button type="button" className="underline" onClick={() => {
+                  void navigator.clipboard.writeText(item.content).catch(() => useToastStore.getState().addToast({ title: "Could not copy prompt", body: "Select and copy the prompt text above.", chatId: chat.id }))
+                }}>Copy prompt</button>
+                <button type="button" className="underline" onClick={() => dismissDirectSend(chat.id, item.id)}>Dismiss local copy</button>
+              </div>
+              <p className="text-xs text-muted-foreground">Dismissing this copy does not stop or cancel a server run.</p>
+            </div>
+          ))}
+          {chat.status === "disconnected" && directRecovery.length === 0 && (
             <ErrorBanner
               key={chat.id}
               message={chat.errorMessage || "Connection to the agent was lost."}
@@ -173,13 +221,15 @@ export function ChatMessageList({
               actionPendingLabel="Reloading…"
             />
           )}
-          {chat.status === "error" && chat.errorMessage && (() => {
+          {chat.status === "error" && directRecovery.length === 0 && (() => {
+            const providerFailure = persistedProviderFailure(chat)
+            const failureMessage = providerFailure || chat.errorMessage
             const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
             const resend = lastUserMessage
               ? () => onSendMessage(
                   lastUserMessage.content,
-                  (lastUserMessage.agent ?? currentAgent) as string,
-                  lastUserMessage.model ?? currentModel,
+                  currentAgent,
+                  currentModel,
                   undefined,
                   planModeEnabled,
                 )
@@ -199,35 +249,44 @@ export function ChatMessageList({
               !!lastAssistant?.content?.trim() || (lastAssistant?.toolCalls?.length ?? 0) > 0
             const useReload =
               !!onReload &&
-              (chat.errorKind === "incomplete" ||
+              (!failureMessage || waiting.length > 0 || chat.errorKind === "incomplete" ||
+                (!!providerFailure && recoveredOutput) ||
                 (chat.errorKind === "crash" && recoveredOutput))
+            const canContinue = waiting.length > 0 && !!chat.recoverableAssistantMessageId && !!onResumeQueue
 
             return (
               <ErrorBanner
                 key={chat.id}
-                message={chat.errorMessage}
+                message={failureMessage || (canContinue
+                  ? "The last run stopped before it finished. Queued prompts have not been sent."
+                  : "The last run stopped before it finished. Reload to check its saved output.")}
                 isMobile={isMobile}
-                onRetry={useReload ? () => onReload!(chat.id) : resend}
-                actionLabel={useReload ? "Reload" : "Retry"}
-                actionPendingLabel={useReload ? "Reloading…" : "Retrying…"}
+                onRetry={canContinue ? onResumeQueue : useReload ? () => onReload!(chat.id) : failureMessage ? resend : undefined}
+                actionLabel={canContinue ? "Continue queued prompts" : useReload ? "Reload" : "Retry"}
+                actionPendingLabel={canContinue ? "Continuing…" : useReload ? "Reloading…" : "Retrying…"}
               />
             )
           })()}
           {/* Queue shelf — lives at the bottom of the scroll area so it
               scrolls out of view with the conversation. */}
-          {chat.queuedMessages && chat.queuedMessages.length > 0 && (
-            <div className={cn(
+          {waiting.length > 0 && (
+            <div data-testid="prompt-queue" className={cn(
               "border border-b-0 border-border bg-card rounded-t-md -mb-4",
               isMobile ? "mx-4" : "mx-6"
             )}>
-              {chat.queuedMessages.map((m) => (
+              {waiting.map((m) => (
                 <div
                   key={m.id}
                   className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 last:border-b-0"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm text-foreground/80">{m.content}</div>
-                    {m.pendingSync && <div className="text-xs text-muted-foreground">Saving to queue…</div>}
+                    {m.cancelRequested && <div className="text-xs text-muted-foreground">Removal pending confirmation…</div>}
+                    {m.pendingSync && !m.syncError && !m.cancelRequested && <div className="text-xs text-muted-foreground">Saving to queue…</div>}
+                    {m.syncError && <div className="text-xs text-destructive">
+                      {m.cancelRequested || m.cancelFailed ? "Could not confirm removal: " : m.syncFailed ? "Not sent: " : "Send status unconfirmed: "}{m.syncError}
+                      {!m.syncFailed && " — retrying when the connection recovers."}
+                    </div>}
                     {m.lastError && <div className="text-xs text-destructive">Paused: {m.lastError}</div>}
                   </div>
                   <DropdownMenu>
@@ -249,7 +308,7 @@ export function ChatMessageList({
                         </DropdownMenuItem>
                       )}
                       {onRemoveQueuedMessage && (
-                        <DropdownMenuItem onClick={() => onRemoveQueuedMessage(m.id)}>
+                        <DropdownMenuItem disabled={m.cancelRequested} onClick={() => onRemoveQueuedMessage(m.id)}>
                           <Trash2 className="h-3.5 w-3.5 mr-2" />
                           Remove from queue
                         </DropdownMenuItem>

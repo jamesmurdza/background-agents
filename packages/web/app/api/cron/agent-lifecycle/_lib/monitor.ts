@@ -26,6 +26,10 @@ export async function monitorAgent(
   backgroundSessionId: string,
   daytona: Daytona,
   handlers: {
+    /** Interactive callers must not release a process whose stop failed. */
+    strictCancellation?: boolean
+    /** A finalizer may need to save its failure decision before cancellation. */
+    cancelOnError?: boolean
     onComplete: (snapshot: AgentSnapshot) => Promise<void>
     /**
      * `snapshot` carries the agent CLI's own session id, which is the id
@@ -63,9 +67,9 @@ export async function monitorAgent(
       // retrying a rate/usage-limited model call with unbounded backoff. Reap
       // it so it doesn't keep running after we've recorded the failure.
       // Best-effort and idempotent: a no-op when the process already exited.
-      await cancelBackgroundAgent(sandbox, backgroundSessionId, {
+      if (handlers.cancelOnError !== false) await cancelBackgroundAgent(sandbox, backgroundSessionId, {
         repoPath: `${PATHS.SANDBOX_HOME}/project`,
-      })
+      }, handlers.strictCancellation)
       await handlers.onError(
         snapshot.error ?? "Unknown error",
         snapshot.errorKind,
@@ -111,4 +115,27 @@ export async function stopAgent(
     console.error(`[agent-lifecycle] Failed to stop agent:`, err)
     return undefined
   }
+}
+
+/** Interactive recovery must retain its execution until cancellation and the
+ * last readable output are confirmed. Scheduled callers keep their separate
+ * best-effort teardown contract above. */
+export async function stopInteractiveAgent(
+  sandboxId: string,
+  backgroundSessionId: string,
+  daytona: Daytona,
+  beforeCancel?: () => Promise<void>,
+): Promise<{ snapshot: AgentSnapshot; cancelled: boolean }> {
+  const sandbox = await daytona.get(sandboxId)
+  const options = { repoPath: `${PATHS.SANDBOX_HOME}/project` }
+  const before = await snapshotBackgroundAgent(sandbox, backgroundSessionId, options)
+  if (before.transientReadFailure) throw new Error("Cannot read agent output before cancellation")
+  if (before.status !== "running") return { snapshot: before, cancelled: false }
+  await beforeCancel?.()
+  await cancelBackgroundAgent(sandbox, backgroundSessionId, options, true)
+  const after = await snapshotBackgroundAgent(sandbox, backgroundSessionId, options)
+  if (after.transientReadFailure || after.status === "running") {
+    throw new Error("Cannot confirm stopped agent output")
+  }
+  return { snapshot: after, cancelled: true }
 }

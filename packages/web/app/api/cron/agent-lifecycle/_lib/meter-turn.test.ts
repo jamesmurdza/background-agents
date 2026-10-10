@@ -34,19 +34,28 @@ vi.mock("@/lib/server/token-metering", () => ({
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     chat: {
-      update: vi.fn(async () => {
-        calls.push("clear-session")
-        return {}
+      updateMany: vi.fn(async (args: { data: { status?: string } }) => {
+        if (args.data.status === "error") calls.push("clear-session")
+        return { count: 1 }
       }),
     },
     message: {
-      create: vi.fn(async () => {
+      upsert: vi.fn(async () => {
         calls.push("error-message")
         return {}
       }),
       findFirst: vi.fn(async () => ({ id: "msg_1", metadata: null })),
     },
   },
+}))
+vi.mock("@/app/api/agent/stream/_lib/persist-snapshot", () => ({
+  persistAgentSnapshot: vi.fn(async () => ({ persisted: true })),
+}))
+vi.mock("@/lib/server/turn-failure", () => ({ readTurnFailure: vi.fn(async () => null), recordTurnFailure: vi.fn(async () => true) }))
+vi.mock("@/lib/agent-session", () => ({
+  cancelBackgroundAgent: vi.fn(async () => {}),
+  snapshotBackgroundAgent: vi.fn(async () => ({ status: "error", content: "partial output", contentBlocks: [], toolCalls: [], sessionId: "ses_0f954b136ffe7xPfv2" })),
+  finalizeTurn: vi.fn(),
 }))
 
 import { meterTurnNow } from "./meter-turn"
@@ -63,6 +72,7 @@ const daytona = { get: vi.fn(async () => sandbox) } as never
 // exist — which is exactly the mistake this file now guards.
 const BACKGROUND_SESSION_ID = "64b0cd9f-807c-42f3-bcf1-000000000000"
 const AGENT_SESSION_ID = "ses_0f954b136ffe7xPfv2"
+const failedSnapshot = { status: "error" as const, content: "partial output", contentBlocks: [], toolCalls: [], sessionId: AGENT_SESSION_ID }
 
 const dyingChat = {
   id: "chat_1",
@@ -70,6 +80,8 @@ const dyingChat = {
   agent: "opencode",
   sandboxId: "sandbox_1",
   sessionId: null as string | null,
+  backgroundSessionId: BACKGROUND_SESSION_ID,
+  activeAssistantMessageId: "msg_1",
 }
 
 beforeEach(() => {
@@ -159,23 +171,23 @@ describe("meterTurnNow", () => {
 
 describe("markChatError", () => {
   it("meters BEFORE clearing the session id", async () => {
-    await markChatError(dyingChat, "Run exceeded 25 minute limit", daytona, AGENT_SESSION_ID)
+    await markChatError(dyingChat, "Run exceeded 25 minute limit", daytona, failedSnapshot)
     // The whole bug in one assertion: reverse these two and the turn's usage is
     // gone, because the cursor it would be diffed against no longer exists.
-    expect(calls).toEqual(["meter", "clear-session", "error-message"])
+    expect(calls).toEqual(["meter", "error-message", "clear-session"])
   })
 
   it("still releases the chat when metering throws", async () => {
     meterAssistantTurn.mockRejectedValueOnce(new Error("tokscale exploded"))
-    await markChatError(dyingChat, "Agent stopped", daytona, AGENT_SESSION_ID)
+    await markChatError(dyingChat, "Agent stopped", daytona, failedSnapshot)
     // Metering is best-effort. A chat stranded as "running" is a worse failure
     // than an unbilled turn, so the teardown must survive it.
-    expect(calls).toEqual(["clear-session", "error-message"])
+    expect(calls).toEqual(["error-message", "clear-session"])
   })
 
-  it("still releases the chat when there is nothing to meter", async () => {
-    await markChatError({ ...dyingChat, sandboxId: null }, "Agent stopped", daytona, AGENT_SESSION_ID)
-    expect(calls).toEqual(["clear-session", "error-message"])
+  it("does not claim confirmed termination when its sandbox cannot be inspected", async () => {
+    expect(await markChatError({ ...dyingChat, sandboxId: null }, "Agent stopped", daytona, failedSnapshot)).toBe(false)
+    expect(calls).toEqual([])
     expect(meterAssistantTurn).not.toHaveBeenCalled()
   })
 })
