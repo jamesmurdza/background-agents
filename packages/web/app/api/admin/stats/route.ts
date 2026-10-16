@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
-import { getBucket, getBucketStep, getRangeDays, getRangeInterval, parseTimeRange } from "@/lib/db/time-range"
+import {
+  getAllTimeWindow,
+  getBucket,
+  getBucketStep,
+  getRangeDays,
+  getRangeInterval,
+  parseTimeRange,
+} from "@/lib/db/time-range"
 
 // Primary metric the dashboard charts are weighted by. "messages" counts
 // ActivityLog rows; "tokens"/"cost" aggregate the TokenUsage ledger.
@@ -16,22 +23,11 @@ type Metric = (typeof VALID_METRICS)[number]
 const VALID_POOLS = ["shared", "user", "all"] as const
 type PoolFilter = (typeof VALID_POOLS)[number]
 
-/**
- * For the "all" range there is no fixed window, so derive the interval/days
- * dynamically from the earliest ActivityLog entry. Falls back to 1 day when
- * there is no activity yet.
- */
-async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
+async function earliestActivityLogDate(): Promise<Date | null> {
   const earliest = await prisma.$queryRaw<Array<{ min: Date | null }>>`
     SELECT MIN("createdAt") as min FROM "ActivityLog"
   `
-  const minDate = earliest[0]?.min
-  if (!minDate) {
-    return { interval: "1 day", days: 1 }
-  }
-  const diffMs = Date.now() - new Date(minDate).getTime()
-  const days = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
-  return { interval: `${days} days`, days }
+  return earliest[0]?.min ?? null
 }
 
 /**
@@ -89,7 +85,7 @@ export async function GET(request: NextRequest) {
   const excludeAdmins = searchParams.get("excludeAdmins") !== "false"
   const { interval, days } =
     range === "all"
-      ? await getAllTimeWindow()
+      ? await getAllTimeWindow(earliestActivityLogDate)
       : { interval: getRangeInterval(range), days: getRangeDays(range) }
 
   // Time-series granularity (only used for the non-hourly ranges). For 7d/30d

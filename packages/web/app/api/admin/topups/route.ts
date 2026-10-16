@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
 import {
+  getAllTimeWindow,
   getBucket,
   getBucketStep,
   getRangeDays,
@@ -11,22 +12,11 @@ import {
 } from "@/lib/db/time-range"
 import { MICRO_PER_USD } from "@/lib/server/credits"
 
-/**
- * For the "all" range there is no fixed window, so derive the interval/days
- * dynamically from the earliest purchase. Falls back to 1 day when there are
- * no top-ups yet.
- */
-async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
+async function earliestPurchaseDate(): Promise<Date | null> {
   const earliest = await prisma.$queryRaw<Array<{ min: Date | null }>>`
     SELECT MIN("createdAt") as min FROM "CreditTransaction" WHERE type = 'purchase'
   `
-  const minDate = earliest[0]?.min
-  if (!minDate) {
-    return { interval: "1 day", days: 1 }
-  }
-  const diffMs = Date.now() - new Date(minDate).getTime()
-  const days = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
-  return { interval: `${days} days`, days }
+  return earliest[0]?.min ?? null
 }
 
 /**
@@ -58,7 +48,9 @@ export async function GET(request: NextRequest) {
   const range = parseTimeRange(searchParams.get("range"), "30d")
   const excludeAdmins = searchParams.get("excludeAdmins") !== "false"
   const { interval, days } =
-    range === "all" ? await getAllTimeWindow() : { interval: getRangeInterval(range), days: getRangeDays(range) }
+    range === "all"
+      ? await getAllTimeWindow(earliestPurchaseDate)
+      : { interval: getRangeInterval(range), days: getRangeDays(range) }
   const bucket = getBucket(days)
   const bucketStep = getBucketStep(bucket)
 

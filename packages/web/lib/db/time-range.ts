@@ -73,3 +73,23 @@ export function getBucketStep(bucket: Bucket): string {
       return "1 day"
   }
 }
+
+/**
+ * For the "all" range there is no fixed window, so derive the interval/days
+ * dynamically from the earliest relevant row. Falls back to 1 day when there
+ * is no data yet.
+ *
+ * `fetchEarliest` is caller-supplied so this stays agnostic of which table
+ * (ActivityLog, CreditTransaction, ...) defines "earliest" for a given route.
+ */
+export async function getAllTimeWindow(
+  fetchEarliest: () => Promise<Date | null>
+): Promise<{ interval: string; days: number }> {
+  const minDate = await fetchEarliest()
+  if (!minDate) {
+    return { interval: "1 day", days: 1 }
+  }
+  const diffMs = Date.now() - new Date(minDate).getTime()
+  const days = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
+  return { interval: `${days} days`, days }
+}
