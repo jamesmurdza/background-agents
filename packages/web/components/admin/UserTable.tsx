@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, ArrowUp, ArrowDown, ArrowUpDown, Crown, Mail, Github } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, Crown, Mail, Github } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SortHeader } from "./SortHeader"
 import type { Plan } from "@/lib/server/usage-budgets"
 
 interface User {
@@ -72,43 +73,6 @@ interface UserTableProps {
   onPlanChange: (userId: string, plan: Plan) => void
   isUpdating?: string | null
   currentUserId?: string
-}
-
-function SortHeader({
-  label,
-  field,
-  currentField,
-  currentOrder,
-  onSort,
-  align = "left"
-}: {
-  label: string
-  field: SortField
-  currentField: SortField
-  currentOrder: SortOrder
-  onSort: (field: SortField) => void
-  align?: "left" | "center"
-}) {
-  const isActive = currentField === field
-  return (
-    <th className={`px-4 py-3 font-medium ${align === "center" ? "text-center" : "text-left"}`}>
-      <button
-        onClick={() => onSort(field)}
-        className="inline-flex items-center gap-1 hover:text-foreground"
-      >
-        {label}
-        {isActive ? (
-          currentOrder === "asc" ? (
-            <ArrowUp className="h-3 w-3" />
-          ) : (
-            <ArrowDown className="h-3 w-3" />
-          )
-        ) : (
-          <ArrowUpDown className="h-3 w-3 opacity-50" />
-        )}
-      </button>
-    </th>
-  )
 }
 
 // Mobile card view for users
