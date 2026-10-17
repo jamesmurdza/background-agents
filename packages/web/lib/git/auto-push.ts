@@ -6,7 +6,7 @@ import {
   GitError,
   isNonFastForwardError,
 } from "@background-agents/sandbox-git"
-import { prisma } from "@/lib/db/prisma"
+import { getGitHubToken } from "@/lib/github/oauth-token"
 import { getUserPushOptions } from "@/lib/git/push-options"
 import { isInConflictState } from "@/lib/git/sandbox-git-ops"
 import {
@@ -95,12 +95,8 @@ export async function autoPushChat(params: {
     // Skip while a merge/rebase is unresolved — HEAD isn't a pushable snapshot.
     if (await isInConflictState(sandbox, repoPath)) return null
 
-    const account = await prisma.account.findFirst({
-      where: { userId, provider: "github" },
-      select: { access_token: true },
-    })
-    if (!account?.access_token) return null
-    const token = account.access_token
+    const token = await getGitHubToken(userId)
+    if (!token) return null
 
     const git = createSandboxGit(sandbox)
     const pushOptions = await getUserPushOptions(userId)

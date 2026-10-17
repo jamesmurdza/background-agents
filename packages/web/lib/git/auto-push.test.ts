@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 // (hoisted above imports) see the mocks.
 const {
   push,
-  findFirst,
+  getGitHubToken,
   activityLogCreate,
   isInConflictState,
   getUserPushOptions,
@@ -13,7 +13,7 @@ const {
   clearPushFailureMessages,
 } = vi.hoisted(() => ({
   push: vi.fn(),
-  findFirst: vi.fn(),
+  getGitHubToken: vi.fn(),
   activityLogCreate: vi.fn(),
   isInConflictState: vi.fn(),
   getUserPushOptions: vi.fn(),
@@ -22,8 +22,9 @@ const {
 }))
 
 vi.mock("@/lib/db/prisma", () => ({
-  prisma: { account: { findFirst }, activityLog: { create: activityLogCreate } },
+  prisma: { activityLog: { create: activityLogCreate } },
 }))
+vi.mock("@/lib/github/oauth-token", () => ({ getGitHubToken }))
 vi.mock("@/lib/git/sandbox-git-ops", () => ({ isInConflictState }))
 vi.mock("@/lib/git/push-options", () => ({ getUserPushOptions }))
 vi.mock("@/lib/db/git-messages", () => ({ createPushFailedMessage, clearPushFailureMessages }))
@@ -53,7 +54,7 @@ const baseParams = {
 
 beforeEach(() => {
   push.mockReset()
-  findFirst.mockReset().mockResolvedValue({ access_token: "tok" })
+  getGitHubToken.mockReset().mockResolvedValue("tok")
   activityLogCreate.mockReset().mockResolvedValue({})
   isInConflictState.mockReset().mockResolvedValue(false)
   getUserPushOptions.mockReset().mockResolvedValue({ noVerify: true })

@@ -52,23 +52,29 @@ export const authOptions: NextAuthOptions = {
         token.sub = user.id
       }
       if (account) {
-        // Sync the fresh token to the Account table. The PrismaAdapter only
-        // writes Account rows on the very first link (create, not upsert), so
-        // on re-authorization the DB row keeps the old, revoked token. All
-        // routes that need the GitHub token read it from the Account table.
+        // The adapter only links once. On re-authorization replace the whole
+        // token pair (including expiry), not just the access token: GitHub
+        // rotates refresh tokens and the old pair may already be invalid.
         if (token.sub && account.access_token) {
-          prisma.account
-            .updateMany({
+          const githubAccount = account as typeof account & { refresh_token_expires_in?: number }
+          try {
+            await prisma.account.updateMany({
               where: {
                 userId: token.sub,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId,
               },
-              data: { access_token: account.access_token },
+              data: {
+                access_token: account.access_token,
+                refresh_token: account.refresh_token ?? null,
+                expires_at: account.expires_at ?? null,
+                refresh_token_expires_in: githubAccount.refresh_token_expires_in ?? null,
+              },
             })
-            .catch((err) => {
-              console.error("[auth] Failed to sync access_token to Account table:", err)
-            })
+          } catch {
+            // Prisma errors can contain the update input, including secrets.
+            throw new Error("Failed to store GitHub authorization")
+          }
         }
       }
       return token
