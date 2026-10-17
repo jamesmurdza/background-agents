@@ -157,3 +157,5 @@ export { escapeShell, quote } from "./utils/shell"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
 export { debugLog } from "./debug"
+export { getThinkingCapability, getVerifiedThinkingCapability, validateThinking, UnsupportedThinkingError } from "./thinking"
+export type { ThinkingLevel, ThinkingCapability, ThinkingCapabilityStatus } from "./thinking"

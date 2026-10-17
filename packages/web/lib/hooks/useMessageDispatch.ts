@@ -66,6 +66,28 @@ interface UseMessageDispatchArgs {
   onConflictStateChangeRef: MutableRefObject<ConflictStateChange | null>
 }
 
+/** Accepted means dispatch owns the send or its uncertain-send recovery, not
+ * that a provider has started. Only a known blocked send is safe to retry. */
+export type SendMessageResult = { status: "accepted" } | {
+  status: "blocked"
+  reason: "missing_chat" | "busy" | "unauthenticated" | "draft_failed" | "pull_conflict"
+  message: string
+}
+
+/** A retry dialog retains its own immutable prompt/files until accepted. */
+export interface SendMessageOptions { callerOwnsRecovery?: boolean }
+
+function blockedSend(reason: Extract<SendMessageResult, { status: "blocked" }>["reason"]): SendMessageResult {
+  const messages = {
+    missing_chat: "This chat is no longer available. Your retry and attachments are kept.",
+    busy: "This chat is still working or stopping. Your retry and attachments are kept; try again when it finishes.",
+    unauthenticated: "Sign in again before retrying. This retry is kept in this open page. A full-page sign-in redirect or refresh loses the unsent selection and attachment files; reselect and reattach them if needed.",
+    draft_failed: "The chat could not be created. Your retry and attachments are kept.",
+    pull_conflict: "Resolve the repository conflict before retrying. Your prompt and attachments are kept.",
+  }
+  return { status: "blocked", reason, message: messages[reason] }
+}
+
 export interface MessageDispatch {
   sendMessage: (
     content: string,
@@ -74,10 +96,12 @@ export interface MessageDispatch {
     files?: File[],
     targetChatId?: string,
     planMode?: boolean,
-    rejectedMessageId?: string
-  ) => Promise<void>
+    rejectedMessageId?: string,
+    thinking?: string,
+    options?: SendMessageOptions
+  ) => Promise<SendMessageResult>
   stopAgent: () => Promise<void>
-  enqueueMessage: (content: string, agent?: string, model?: string) => void
+  enqueueMessage: (content: string, agent?: string, model?: string, thinking?: string) => void
   removeQueuedMessage: (id: string) => void
   resumeQueue: () => void
 }
@@ -106,9 +130,9 @@ export function useMessageDispatch({
   const sendInFlight = useRef<Set<string>>(new Set())
   const stopInFlight = useRef<Set<string>>(new Set())
 
-  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean, rejectedMessageId?: string) => {
+  const sendMessage = useCallback(async (content: string, agent?: string, model?: string, files?: File[], targetChatId?: string, planMode?: boolean, rejectedMessageId?: string, thinking?: string, options?: SendMessageOptions): Promise<SendMessageResult> => {
     let chatId = targetChatId || currentChatId
-    if (!chatId) return
+    if (!chatId) return blockedSend("missing_chat")
 
     let chat: Chat | undefined
 
@@ -126,8 +150,8 @@ export function useMessageDispatch({
         // creation failed, without discarding what was typed during that wait.
         const store = useChatSyncStore.getState()
         const newerDraft = store.localChatState.drafts[chatId]
-        store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
-        return
+        if (!options?.callerOwnsRecovery) store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
+        return blockedSend("draft_failed")
       }
       chatId = materializedChat.id
       chat = materializedChat
@@ -141,17 +165,17 @@ export function useMessageDispatch({
       }
     }
 
-    if (!chat) return
+    if (!chat) return blockedSend("missing_chat")
 
-    if (sendInFlight.current.has(chatId)) return
-    if (stopInFlight.current.has(chatId)) return
-    if (useStreamStore.getState().isStreaming(chatId)) return
-    if (chat.status === "creating" || chat.status === "running") return
+    if (sendInFlight.current.has(chatId)) return blockedSend("busy")
+    if (stopInFlight.current.has(chatId)) return blockedSend("busy")
+    if (useStreamStore.getState().isStreaming(chatId)) return blockedSend("busy")
+    if (chat.status === "creating" || chat.status === "running") return blockedSend("busy")
 
     sendInFlight.current.add(chatId)
 
     try {
-      if (!session) return
+      if (!session) return blockedSend("unauthenticated")
 
       // A branched chat's `messages` includes the parent's history, prepended
       // and flagged `inherited` (see /api/chats/[chatId]) so it renders in the
@@ -167,14 +191,15 @@ export function useMessageDispatch({
       )
 
       const now = Date.now()
-      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now }
+      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now,
+        agent: selectedAgent, model: selectedModel, metadata: { thinking: thinking ?? "default" } }
       const assistantMessage: Message = { id: nanoid(), role: "assistant", content: "", timestamp: now + 1, toolCalls: [], contentBlocks: [] }
 
       // The POST may fail before any server messages exist, or may complete
       // after its response is lost. Retain a device copy, never an auto-retry.
       const retained = retainDirectSend(chatId, {
         id: userMessage.id, userMessageId: userMessage.id, content,
-        agent: selectedAgent, model: selectedModel, syncFailed: true,
+        agent: selectedAgent, model: selectedModel, thinking, syncFailed: true,
         directSend: { assistantMessageId: assistantMessage.id, timestamp: now,
           attachmentNames: files?.map((file) => file.name) },
       })
@@ -210,6 +235,7 @@ export function useMessageDispatch({
           assistantMessageId: assistantMessage.id,
           newBranch: newBranchForSend(chat),
           planMode: planMode || undefined,
+          thinking,
         }
 
         const result = await sendMessageToApi(chatId, payload, files)
@@ -229,9 +255,12 @@ export function useMessageDispatch({
             // Keep the user's message available to send again.
             const store = useChatSyncStore.getState()
             const newerDraft = store.localChatState.drafts[chatId]
-            store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
+            if (!options?.callerOwnsRecovery) store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
             // Show the git-operation message the server appended.
-            await reloadMessages(chatId)
+            try { await reloadMessages(chatId) } catch {
+              // A failed refresh does not undo the server's explicit rejection.
+              console.warn("[message-dispatch] Could not refresh the chat after a pull conflict")
+            }
             // Light up the conflict indicator immediately (the in-progress merge
             // is also detected by check-rebase-status on the next status poll).
             onConflictStateChangeRef.current?.({
@@ -239,7 +268,22 @@ export function useMessageDispatch({
               inMerge: true,
               conflictedFiles: result.conflictedFiles,
             })
-            return
+            return blockedSend("pull_conflict")
+          }
+
+          if (result.isUnauthenticated) {
+            // Only the route's exact pre-dispatch auth rejection proves that
+            // no turn was persisted. Other 401/403/gateway errors stay uncertain.
+            dismissDirectSend(chatId, userMessage.id)
+            updateChatsCache((old) => old.map((c) =>
+              c.id === chatId ? removeOptimisticMessages(c, [userMessage.id, assistantMessage.id]) : c
+            ))
+            if (!options?.callerOwnsRecovery) {
+              const store = useChatSyncStore.getState()
+              const newerDraft = store.localChatState.drafts[chatId]
+              store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
+            }
+            return blockedSend("unauthenticated")
           }
 
           // Handle daily limit exceeded error
@@ -253,11 +297,11 @@ export function useMessageDispatch({
             // Show the limit reached dialog with pending message info
             setLimitReachedState({
               show: true,
-              pendingMessage: { chatId, content, files, planMode, rejectedMessageId: userMessage.id },
+              pendingMessage: { chatId, content, agent: selectedAgent, model: selectedModel, files, planMode, thinking, rejectedMessageId: userMessage.id },
               provider: result.provider,
               creditBalance: result.creditBalance,
             })
-            return
+            return { status: "accepted" }
           }
 
           if (result.isChatBusy) {
@@ -269,10 +313,18 @@ export function useMessageDispatch({
             ))
             const store = useChatSyncStore.getState()
             const currentDraft = store.localChatState.drafts[chatId]
-            store.setDraftText(chatId, currentDraft ? `${content}\n\n${currentDraft}` : content)
-            await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
-            await reloadMessages(chatId)
-            return
+            // A limit-fallback caller still owns this rejected retry and its
+            // files. Do not also leave a second copy in the composer after the
+            // user retries successfully from that dialog.
+            if (!rejectedMessageId && !options?.callerOwnsRecovery) store.setDraftText(chatId, currentDraft ? `${content}\n\n${currentDraft}` : content)
+            try {
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
+              await reloadMessages(chatId)
+            } catch {
+              // Keep the known rejection retryable even if its status refresh fails.
+              console.warn("[message-dispatch] Could not refresh the chat after a busy rejection")
+            }
+            return blockedSend("busy")
           }
 
           throw new Error(result.error)
@@ -283,7 +335,7 @@ export function useMessageDispatch({
         const owner = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())?.find((c) => c.id === chatId)
         // A delayed response for A must not replace B or revive a turn which
         // an authoritative read has already confirmed finished.
-        if (owner?.activeAssistantMessageId !== assistantMessage.id) return
+        if (owner?.activeAssistantMessageId !== assistantMessage.id) return { status: "accepted" }
         updateChatsCache((old) => old.map((c) =>
           c.id === chatId ? applySendSuccess(c, data, selectedAgent, selectedModel, userMessage.id) : c
         ))
@@ -318,6 +370,7 @@ export function useMessageDispatch({
           if (observed) updateChatsCache((old) => old.map((c) => c.id === chatId ? applyRecoveredChat(c, saved, observed) : c))
         } catch { /* Keep the unconfirmed device copy and offer an explicit read. */ }
       }
+      return { status: "accepted" }
     } finally {
       sendInFlight.current.delete(chatId)
     }

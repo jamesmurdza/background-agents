@@ -19,6 +19,18 @@ describe("sendMessageToApi", () => {
     vi.unstubAllGlobals()
   })
 
+  it.each([
+    { status: 401, body: '{"error":"Unauthorized"}', authenticatedRejection: true },
+    { status: 403, body: '{"error":"Unauthorized"}', authenticatedRejection: false },
+    { status: 401, body: '<html>Gateway login</html>', authenticatedRejection: false },
+    { status: 401, body: '{"error":"Provider authentication failed"}', authenticatedRejection: false },
+  ])("recognizes only the explicit route auth rejection ($status $body)", async ({ status, body, authenticatedRejection }) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { status })))
+    expect(await sendMessageToApi("chat-1", { message: "Keep this", agent: "codex", model: "gpt-6-luna",
+      thinking: "high", userMessageId: "user", assistantMessageId: "reply" }))
+      .toMatchObject({ ok: false, isUnauthenticated: authenticatedRejection })
+  })
+
   it("preserves what the limit dialog needs from a 429", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       Response.json({

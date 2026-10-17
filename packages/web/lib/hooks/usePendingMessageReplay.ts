@@ -15,7 +15,10 @@ interface UsePendingMessageReplayOptions {
     agent: string,
     model: string,
     files?: File[],
-    chatId?: string
+    chatId?: string,
+    planMode?: boolean,
+    rejectedMessageId?: string,
+    thinking?: string
   ) => void
   updateChatById: (chatId: string, updates: Partial<Chat>) => Promise<void>
   /** Fired once we've decided to replay — used to close the sign-in modal. */
@@ -27,6 +30,7 @@ interface PendingSend {
   message: string
   agent: string
   model: string
+  thinking?: string
 }
 
 /**
@@ -92,6 +96,7 @@ export function usePendingMessageReplay({
       setPendingSend({
         chatId,
         message: pending.message,
+        thinking: pending.thinking,
         agent: pending.agent,
         model: pending.model,
       })
@@ -102,8 +107,8 @@ export function usePendingMessageReplay({
   useEffect(() => {
     if (!pendingSend) return
     if (!chats.some((c) => c.id === pendingSend.chatId)) return
-    const { message, agent, model, chatId } = pendingSend
+    const { message, agent, model, chatId, thinking } = pendingSend
     setPendingSend(null)
-    sendMessage(message, agent, model, undefined, chatId)
+    sendMessage(message, agent, model, undefined, chatId, undefined, undefined, thinking)
   }, [pendingSend, chats, sendMessage])
 }

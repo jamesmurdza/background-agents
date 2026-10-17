@@ -1,146 +1,88 @@
-/**
- * Unit tests for opencodeSetup (opencodeAgent.capabilities.setup).
- *
- * Focus: the global opencode.json is read-modify-written so it never lands in
- * the repo working tree, the `mcp` section written earlier by setupMcpForAgent
- * survives, and a legacy project-root opencode.json left by older builds is
- * relocated out of the tree.
- */
 import { describe, it, expect } from "vitest"
-import type { CodeAgentSandbox } from "../../src/types/provider"
 import { opencodeAgent } from "../../src/agents/opencode"
+import { buildOpencodeInvocationEnv } from "../../src/agents/opencode/config"
 
-const GLOBAL_PATH = "~/.config/opencode/opencode.json"
-const PROJECT_PATH = "/home/daytona/project/opencode.json"
-
-/** In-memory sandbox that interprets the handful of shell commands setup emits. */
-function fakeSandbox(initial: Record<string, string> = {}) {
-  const files: Record<string, string> = { ...initial }
-  const removed: string[] = []
-
-  const sandbox: CodeAgentSandbox = {
-    ensureProvider: async () => {},
-    setEnvVars: () => {},
-    async executeCommand(command: string) {
-      const cat = command.match(/^cat (\S+) /)
-      if (cat) {
-        const path = cat[1]
-        if (path in files) return { exitCode: 0, output: files[path] }
-        // Reproduce the shell fallbacks: `|| echo '{}'` vs `|| true`.
-        return { exitCode: 0, output: command.includes("echo '{}'") ? "{}" : "" }
-      }
-      const rm = command.match(/^rm -f (\S+)/)
-      if (rm) {
-        delete files[rm[1]]
-        removed.push(rm[1])
-        return { exitCode: 0, output: "" }
-      }
-      const write = command.match(/printf '%s' '([^']*)' > (\S+)/)
-      if (write) {
-        files[write[2]] = write[1]
-        return { exitCode: 0, output: "" }
-      }
-      return { exitCode: 0, output: "" }
-    },
-  }
-
-  return { sandbox, files, removed }
-}
-
-async function runSetup(
-  fs: ReturnType<typeof fakeSandbox>,
-  env: Record<string, string> = {}
-) {
-  await opencodeAgent.capabilities!.setup!(fs.sandbox, env)
-}
-
-const mcp = (name: string) => ({
-  [name]: { type: "remote", url: `https://${name}`, enabled: true },
-})
-
-describe("opencodeSetup — legacy project-root relocation", () => {
-  it("moves a stale project-root config into the global file and deletes it", async () => {
-    const fs = fakeSandbox({
-      [PROJECT_PATH]: JSON.stringify({
-        $schema: "https://opencode.ai/config.json",
-        mcp: mcp("github"),
-      }),
+describe("OpenCode invocation config ownership", () => {
+  it("uses a native per-command overlay for an explicitly selected custom endpoint", () => {
+    const command = opencodeAgent.buildCommand({
+      prompt: "fixture",
+      model: "custom/fixture-model",
+      env: {
+        CUSTOM_OPENCODE_BASE_URL: "https://gateway.invalid/v1",
+        CUSTOM_OPENCODE_NAME: "fixture-model",
+        CUSTOM_OPENCODE_API_KEY: "fixture-only-key",
+      },
     })
-
-    await runSetup(fs)
-
-    expect(fs.removed).toContain(PROJECT_PATH)
-    expect(PROJECT_PATH in fs.files).toBe(false)
-    const global = JSON.parse(fs.files[GLOBAL_PATH])
-    expect(global.mcp).toEqual(mcp("github"))
+    const config = JSON.parse(command.env!.OPENCODE_CONFIG_CONTENT)
+    const [providerId] = Object.keys(config.provider)
+    expect(providerId).toMatch(/^backgrounder-custom-[a-f0-9-]+$/)
+    expect(config.provider[providerId].options).toEqual({
+      baseURL: "https://gateway.invalid/v1",
+      apiKey: "{env:CUSTOM_OPENCODE_API_KEY}",
+    })
+    expect(config.provider[providerId].models["fixture-model"]).toEqual({ name: "fixture-model" })
+    expect(command.env!.OPENCODE_CONFIG_CONTENT).not.toContain("fixture-only-key")
+    expect(command.args!.join(" ")).toContain(`${providerId}/fixture-model`)
   })
 
-  it("does not resurrect stale mcp when the global file already has one", async () => {
-    const fs = fakeSandbox({
-      [GLOBAL_PATH]: JSON.stringify({ mcp: mcp("current") }),
-      [PROJECT_PATH]: JSON.stringify({ mcp: mcp("stale") }),
-    })
-
-    await runSetup(fs)
-
-    expect(fs.removed).toContain(PROJECT_PATH)
-    const global = JSON.parse(fs.files[GLOBAL_PATH])
-    expect(global.mcp).toEqual(mcp("current"))
+  it("preserves inline MCP, global options and unrelated provider variants", () => {
+    const existing = {
+      permission: "ask",
+      mcp: { fixture: { type: "local", command: ["fixture-mcp"] } },
+      provider: { openai: { models: { fixture: { variants: { review: { reasoningEffort: "high" } } } } } },
+    }
+    const env = {
+      OPENCODE_CONFIG_CONTENT: JSON.stringify(existing),
+      CUSTOM_OPENCODE_BASE_URL: "https://gateway.invalid/v1",
+      CUSTOM_OPENCODE_NAME: "fixture-model",
+    }
+    const result = buildOpencodeInvocationEnv(env)
+    const config = JSON.parse(result.OPENCODE_CONFIG_CONTENT)
+    expect(config.mcp).toEqual(existing.mcp)
+    expect(config.permission).toBe(existing.permission)
+    expect(config.provider.openai).toEqual(existing.provider.openai)
+    expect(env.OPENCODE_CONFIG_CONTENT).toBe(JSON.stringify(existing))
   })
 
-  it("deletes a junk project-root file without touching the global config", async () => {
-    const fs = fakeSandbox({ [PROJECT_PATH]: "not json {{{" })
-
-    await runSetup(fs)
-
-    expect(fs.removed).toContain(PROJECT_PATH)
-    expect(GLOBAL_PATH in fs.files).toBe(false)
+  it("does not carry the generated custom overlay into a later standard-provider command", () => {
+    const custom = opencodeAgent.buildCommand({ prompt: "custom", model: "custom/fixture", env: {
+      CUSTOM_OPENCODE_BASE_URL: "https://gateway.invalid/v1", CUSTOM_OPENCODE_NAME: "fixture",
+    } })
+    const standard = opencodeAgent.buildCommand({ prompt: "standard", model: "openai/fixture", env: {} })
+    expect(custom.env?.OPENCODE_CONFIG_CONTENT).toBeDefined()
+    expect(standard.env?.OPENCODE_CONFIG_CONTENT).toBeUndefined()
+    expect(opencodeAgent.capabilities?.setup).toBeUndefined()
   })
 
-  it("is a no-op when there is no project-root file and nothing to strip", async () => {
-    const fs = fakeSandbox()
-
-    await runSetup(fs)
-
-    expect(fs.removed).toHaveLength(0)
-    expect(GLOBAL_PATH in fs.files).toBe(false)
+  it("never removes a user custom provider by name when returning to the standard path", () => {
+    const env = { OPENCODE_CONFIG_CONTENT: JSON.stringify({ provider: { custom: { name: "User provider" } } }) }
+    const result = buildOpencodeInvocationEnv(env)
+    expect(result).toEqual(env)
+    expect(result).not.toBe(env)
   })
-})
 
-describe("opencodeSetup — custom endpoint", () => {
-  it("merges a custom provider while preserving the mcp section", async () => {
-    const fs = fakeSandbox({
-      [GLOBAL_PATH]: JSON.stringify({ mcp: mcp("github") }),
+  it("isolates a selected endpoint from the user provider named custom", () => {
+    const userProvider = { options: { apiKey: "fixture-user-secret", headers: { "X-User": "private" } }, models: { old: {} } }
+    const command = opencodeAgent.buildCommand({
+      prompt: "fixture", model: "custom/anonymous-model",
+      env: {
+        CUSTOM_OPENCODE_BASE_URL: "https://anonymous.invalid/v1",
+        CUSTOM_OPENCODE_NAME: "anonymous-model",
+        OPENCODE_CONFIG_CONTENT: JSON.stringify({ provider: { custom: userProvider } }),
+      },
     })
-
-    await runSetup(fs, {
-      CUSTOM_OPENCODE_BASE_URL: "https://gw.example.com/v1",
-      CUSTOM_OPENCODE_NAME: "gpt-4o-mini",
-      CUSTOM_OPENCODE_API_KEY: "tok",
-    })
-
-    const global = JSON.parse(fs.files[GLOBAL_PATH])
-    expect(global.mcp).toEqual(mcp("github"))
-    expect(global.provider.custom.options.baseURL).toBe("https://gw.example.com/v1")
-    expect(global.provider.custom.options.apiKey).toBe("{env:CUSTOM_OPENCODE_API_KEY}")
-    expect(global.$schema).toBe("https://opencode.ai/config.json")
+    const config = JSON.parse(command.env!.OPENCODE_CONFIG_CONTENT)
+    expect(config.provider.custom).toEqual(userProvider)
+    const owned = Object.keys(config.provider).find(key => key.startsWith("backgrounder-custom-"))
+    expect(owned).toBeDefined()
+    expect(config.provider[owned!].options).toEqual({ baseURL: "https://anonymous.invalid/v1" })
+    expect(command.args!.join(" ")).toContain(`${owned}/anonymous-model`)
   })
-})
 
-describe("opencodeSetup — standard path", () => {
-  it("strips a leftover custom provider but keeps mcp", async () => {
-    const fs = fakeSandbox({
-      [GLOBAL_PATH]: JSON.stringify({
-        $schema: "https://opencode.ai/config.json",
-        provider: { custom: { npm: "@ai-sdk/openai-compatible" } },
-        mcp: mcp("github"),
-      }),
-    })
-
-    await runSetup(fs)
-
-    const global = JSON.parse(fs.files[GLOBAL_PATH])
-    expect(global.provider).toBeUndefined()
-    expect(global.mcp).toEqual(mcp("github"))
+  it.each(["invalid {", "null", "[]", '{"provider":[]}'])("refuses to overwrite malformed inline config: %s", (content) => {
+    expect(() => buildOpencodeInvocationEnv({
+      OPENCODE_CONFIG_CONTENT: content,
+      CUSTOM_OPENCODE_BASE_URL: "https://gateway.invalid/v1",
+    })).toThrow(/Cannot configure the custom OpenCode endpoint/)
   })
 })

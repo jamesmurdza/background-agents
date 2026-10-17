@@ -11,6 +11,7 @@ export interface MessagePayload {
   newBranch?: string
   /** When true, agent should plan before acting */
   planMode?: boolean
+  thinking?: string
 }
 
 /** Success body returned by POST once the agent turn has been kicked off. */

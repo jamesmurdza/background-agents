@@ -169,7 +169,7 @@ export async function dispatchQueuedPromptApi(chatId: string): Promise<{ status:
 
 export async function enqueuePromptApi(
   chatId: string,
-  prompt: { clientId: string; content: string; agent: string; model: string }
+  prompt: { clientId: string; content: string; agent: string; model: string; thinking?: string }
 ): Promise<QueuedMessage> {
   const result = await fetchApi<{ queuedMessage: QueuedMessage }>(`/api/chats/${chatId}/queue`, {
     method: "POST",
@@ -180,7 +180,7 @@ export async function enqueuePromptApi(
 
 export async function importLegacyPromptQueue(
   chatId: string,
-  legacyItems: Array<{ clientId: string; content: string; agent?: string; model?: string }>,
+  legacyItems: Array<{ clientId: string; content: string; agent?: string; model?: string; thinking?: string }>,
   paused: boolean
 ): Promise<QueuedMessage[]> {
   const result = await fetchApi<{ queuedMessages: QueuedMessage[] }>(`/api/chats/${chatId}/queue`, {

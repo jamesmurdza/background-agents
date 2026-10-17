@@ -9,7 +9,8 @@
  * SSE streaming updates TanStack Query cache directly.
  */
 
-import { useEffect, useCallback, useMemo, useRef } from "react"
+import { useEffect, useCallback, useMemo, useRef, useState } from "react"
+import { nanoid } from "nanoid"
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import type { Chat, ChatStatus, CustomEndpoint } from "@/lib/types"
@@ -17,7 +18,7 @@ import { getDefaultModelForAgent, getFreeModelForAgent } from "@/lib/types"
 import type { Credentials } from "@/lib/credentials"
 import { basename } from "@/lib/format"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
-import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
+import { useChatSyncStore, type LimitReachedState } from "@/lib/stores/chat-sync-store"
 import {
   useChatsQuery,
   useSettingsQuery,
@@ -30,6 +31,8 @@ import { useStreaming } from "./useStreaming"
 import { useChatMessageSync } from "./useChatMessageSync"
 import { useChatOperations } from "./useChatOperations"
 import { useMessageDispatch } from "./useMessageDispatch"
+import { parseThinking } from "@/lib/thinking"
+import type { ThinkingRecoveryRequest } from "@/lib/thinking-recovery"
 import {
   mergeLocalState,
   computeUnseenTransitions,
@@ -61,6 +64,11 @@ export function useChatWithSync() {
   const localChatState = useChatSyncStore((s) => s.localChatState)
   const draftChatConfig = useChatSyncStore((s) => s.draftChatConfig)
   const limitReachedState = useChatSyncStore((s) => s.limitReachedState)
+  const [thinkingRecovery, setThinkingRecovery] = useState<ThinkingRecoveryRequest>()
+  const thinkingRecoveryRef = useRef(thinkingRecovery)
+  thinkingRecoveryRef.current = thinkingRecovery
+  const recoveryLimitStateRef = useRef<LimitReachedState | undefined>(undefined)
+  const recoverySendInFlightRef = useRef<string | undefined>(undefined)
 
   // Store actions (stable references)
   const selectChat = useChatSyncStore((s) => s.selectChat)
@@ -310,10 +318,13 @@ export function useChatWithSync() {
     onConflictStateChangeRef.current = callback
   }, [])
 
-  // Retry the pending message with OpenCode agent
+  // Stage a different target explicitly. Never carry an old agent/model's
+  // effort straight into the free fallback (for example a Gemini budget).
   const retryWithOpenCode = useCallback(() => {
+    if (recoverySendInFlightRef.current) return
     const pending = limitReachedState.pendingMessage
     if (!pending) return
+    recoveryLimitStateRef.current = limitReachedState
 
     // Close the dialog first
     setLimitReachedState({ show: false })
@@ -326,17 +337,51 @@ export function useChatWithSync() {
       getFreeModelForAgent("opencode") ??
       getDefaultModelForAgent("opencode", credentialFlags)
 
-    // Send the message with OpenCode agent
-    sendMessage(
-      pending.content,
-      "opencode",
-      openCodeModel,
-      pending.files,
-      pending.chatId,
-      pending.planMode,
-      pending.rejectedMessageId
-    )
-  }, [limitReachedState.pendingMessage, credentialFlags, sendMessage])
+    setThinkingRecovery({
+      id: nanoid(), chatId: pending.chatId, content: pending.content,
+      agent: "opencode", model: openCodeModel,
+      originalAgent: pending.agent, originalModel: pending.model,
+      originalThinking: pending.thinking ?? "default",
+      files: pending.files, planMode: pending.planMode,
+      rejectedMessageId: pending.rejectedMessageId,
+    })
+  }, [limitReachedState.pendingMessage, credentialFlags, setLimitReachedState])
+
+  const dismissThinkingRecovery = useCallback(() => {
+    // The request may already be on the server. Do not restore the old retry
+    // dialog until dispatch reports a known rejection or takes over recovery.
+    if (recoverySendInFlightRef.current) return
+    thinkingRecoveryRef.current = undefined
+    setThinkingRecovery(undefined)
+    // Back out without dropping the pending prompt's in-memory attachments.
+    // The user can choose another recovery action from the original dialog.
+    if (recoveryLimitStateRef.current) setLimitReachedState(recoveryLimitStateRef.current)
+    recoveryLimitStateRef.current = undefined
+  }, [setLimitReachedState])
+
+  const confirmThinkingRecovery = useCallback(async (requestId: string, thinking: string) => {
+    const pending = thinkingRecoveryRef.current
+    if (!pending || pending.id !== requestId || recoverySendInFlightRef.current) return
+    // The dialog checks its discovered capabilities; SDK execution checks the
+    // native runtime again. This also rejects malformed callback input.
+    const selectedThinking = parseThinking(pending.agent, pending.model, thinking)
+    recoverySendInFlightRef.current = requestId
+    try {
+      const result = await sendMessage(pending.content, pending.agent, pending.model, pending.files,
+        pending.chatId, pending.planMode, pending.rejectedMessageId, selectedThinking)
+      // A blocked dispatch has not taken ownership of File[]. Keep the same
+      // immutable request for explicit retry or Cancel back to the limit dialog.
+      // A later response must never clear a newer recovery request.
+      if (result.status === "accepted" && thinkingRecoveryRef.current?.id === requestId) {
+        thinkingRecoveryRef.current = undefined
+        recoveryLimitStateRef.current = undefined
+        setThinkingRecovery(undefined)
+      }
+      return result
+    } finally {
+      if (recoverySendInFlightRef.current === requestId) recoverySendInFlightRef.current = undefined
+    }
+  }, [sendMessage])
 
   return {
     chats,
@@ -383,5 +428,8 @@ export function useChatWithSync() {
     setLimitReachedState,
     dismissLimitReached,
     retryWithOpenCode,
+    thinkingRecovery,
+    dismissThinkingRecovery,
+    confirmThinkingRecovery,
   }
 }

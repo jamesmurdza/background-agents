@@ -392,27 +392,26 @@ export function AgentModelSelector({
         {/* Agent selector - Mobile */}
         <button
           onClick={() => setShowAgentSheet(true)}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          aria-label={`Select agent: ${agentLabels[currentAgent]}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title={agentLabels[currentAgent]}
         >
           <AgentIcon agent={currentAgent} className="h-4 w-4" />
-          <span className="hidden @[18rem]/row2:inline">{agentLabels[currentAgent]}</span>
-          <ChevronDown className="h-4 w-4 hidden @[18rem]/row2:block" />
         </button>
 
         {/* Model selector - Mobile */}
         <button
           onClick={() => setShowModelSheet(true)}
+          aria-label={`Select model: ${getModelLabel(currentAgent, currentModel, endpoints)}`}
           className={cn(
-            "flex items-center gap-1 text-sm transition-colors cursor-pointer",
+            "flex h-9 min-w-0 flex-1 items-center gap-1 text-left text-sm transition-colors cursor-pointer",
             !hasRequiredCredentials ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground"
           )}
           title={getModelLabel(currentAgent, currentModel, endpoints)}
         >
-          {!hasRequiredCredentials && <Lock className="h-4 w-4" />}
-          <Cpu className="h-4 w-4 @[18rem]/row2:hidden" />
-          <span className="hidden @[18rem]/row2:inline">{getModelLabel(currentAgent, currentModel, endpoints)}</span>
-          <ChevronDown className="h-4 w-4 hidden @[18rem]/row2:block" />
+          {!hasRequiredCredentials && <Lock className="h-4 w-4 shrink-0" />}
+          <span className="truncate">{getModelLabel(currentAgent, currentModel, endpoints)}</span>
+          <ChevronDown className="h-4 w-4 shrink-0" />
         </button>
 
         {/* Mobile Bottom Sheets */}

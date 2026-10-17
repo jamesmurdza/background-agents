@@ -52,6 +52,17 @@ function fixture() {
 }
 
 describe("background launch recovery", () => {
+  it("passes the saved native session to the adapter after reconnect", async () => {
+    const test = fixture()
+    await writeInitialSessionMeta(test.sandbox, directory, agent.name, "native-conversation")
+    let received: string | undefined
+    const resumingAgent: AgentDefinition = { ...agent, buildCommand(options) {
+      received = options.sessionId
+      return { cmd: "true", args: [] }
+    } }
+    await createBackgroundSession(resumingAgent, test.sandbox, directory).start("continue")
+    expect(received).toBe("native-conversation")
+  })
   it("prepares a known attempt before launch and exposes a recoverable idle snapshot", async () => {
     const test = fixture()
     await writeInitialSessionMeta(test.sandbox, directory, agent.name, null)

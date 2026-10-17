@@ -15,6 +15,7 @@ import type { Event } from "../../types/events"
 import { parseKiloLine } from "./parser"
 import { KILO_TOOL_MAPPINGS } from "./tools"
 import { quote } from "../../utils/shell"
+import { thinkingArgs } from "../../thinking"
 
 /**
  * Kilo CLI agent definition.
@@ -36,6 +37,7 @@ export const kiloAgent: AgentDefinition = {
   buildCommand(options: RunOptions): CommandSpec {
     // Kilo sometimes writes JSON events to stderr; run under bash and redirect 2>&1
     const parts: string[] = ["kilo", "run", "--format", "json", "--auto"]
+    parts.push(...thinkingArgs("kilo", options.model, options.thinking).map(quote))
 
     if (options.model) {
       parts.push("-m", quote(options.model))

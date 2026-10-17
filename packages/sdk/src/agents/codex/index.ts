@@ -2,6 +2,7 @@
  * OpenAI Codex CLI Agent Definition
  */
 
+import { thinkingArgs } from "../../thinking"
 import type {
   AgentDefinition,
   CommandSpec,
@@ -149,6 +150,7 @@ export const codexAgent: AgentDefinition = {
 
     // Use exec subcommand for non-interactive mode with JSON output
     args.push("exec")
+    args.push(...thinkingArgs("codex", options.model, options.thinking))
 
     // JSON output for streaming events
     args.push("--json")

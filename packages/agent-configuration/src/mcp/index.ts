@@ -130,8 +130,8 @@ function generateGeminiConfig(servers: AgentMcpServer[]): McpConfigFile {
  * `<project>/opencode.json`, but writing there dirties the repo working tree in
  * the sandbox (it shows up in `git status` and can get swept into the agent's
  * commit). OpenCode merges the global config, so servers still load. The
- * custom-endpoint provider config (opencodeSetup) shares this same file and
- * preserves the `mcp` section on write.
+ * custom-endpoint provider config uses an invocation-local SDK overlay; it does
+ * not relocate or rewrite project/global user configuration.
  */
 function generateOpenCodeConfig(servers: AgentMcpServer[]): McpConfigFile {
   const mcp: Record<string, unknown> = {}

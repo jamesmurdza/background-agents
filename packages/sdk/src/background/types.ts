@@ -3,6 +3,7 @@
  */
 
 import type { Event } from "../types/events"
+import type { ThinkingLevel } from "../thinking"
 
 /**
  * Run phase for background sessions
@@ -81,6 +82,7 @@ export interface StartOptions {
   cwd?: string
   /** Previous conversation history to inject as context for this turn. */
   history?: readonly HistoryMessage[]
-  /** When true, agent should use extended thinking / plan mode */
+  thinking?: ThinkingLevel
+  /** When true, use read-only plan mode. */
   planMode?: boolean
 }

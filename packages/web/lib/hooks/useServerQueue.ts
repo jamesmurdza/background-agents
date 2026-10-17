@@ -125,7 +125,7 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat }: Use
           try {
             if (!item.cancelRequested) {
               const [imported] = await importLegacyPromptQueue(chatId, [{
-                clientId: item.id, content: item.content, agent: item.agent, model: item.model,
+                clientId: item.id, content: item.content, agent: item.agent, model: item.model, thinking: item.thinking,
               }], !!state.queuePaused[chatId])
               acknowledged = true
               updateLocalQueue(chatId, (items) => items.map((entry) => entry.id === item!.id ? {
@@ -186,13 +186,13 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat }: Use
     return () => window.clearInterval(timer)
   }, [isHydrated, isAuthenticated, migrateLegacy])
 
-  const enqueueMessage = useCallback((content: string, agent?: string, model?: string) => {
+  const enqueueMessage = useCallback((content: string, agent?: string, model?: string, thinking?: string) => {
     if (!currentChat || currentChat.id.startsWith("draft-")) return
     const chatId = currentChat.id
     const selectedAgent = agent ?? currentChat.agent ?? "opencode"
     const selectedModel = model ?? currentChat.model ?? getDefaultModelForAgent(selectedAgent as Agent, null)
     const item: QueuedMessage = {
-      id: crypto.randomUUID(), content, agent: selectedAgent, model: selectedModel, pendingSync: true,
+      id: crypto.randomUUID(), content, agent: selectedAgent, model: selectedModel, thinking, pendingSync: true,
       sendImmediately: currentChat.status === "ready" && !currentChat.backgroundSessionId && !currentChat.queuedMessages?.length,
     }
     // Persist locally before awaiting the network: closing the tab mid-request
@@ -217,7 +217,7 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat }: Use
         if (remainingIndex !== 0) return // Imported, or still waiting for retry.
       }
       const saved = await enqueuePromptApi(chatId, {
-        clientId: item.id, content, agent: selectedAgent, model: selectedModel,
+        clientId: item.id, content, agent: selectedAgent, model: selectedModel, thinking,
       })
       updateLocalQueue(chatId, (items) => items.map((entry) => entry.id === item.id
         ? { ...entry, userMessageId: saved.userMessageId, syncError: undefined, syncFailed: false } : entry))

@@ -11,8 +11,8 @@ export interface GitContextValue extends UseGitDialogsResult {
   // Additional git-related state can be added here
   canBranch: boolean
   handleBranchChat: () => void
-  handleBranchWithMessage: (message: string, agent: string, model: string) => Promise<void>
-  handleBranchQueuedMessage: (id: string, message: string, agent?: string, model?: string) => Promise<void>
+  handleBranchWithMessage: (message: string, agent: string, model: string, thinking?: string) => Promise<void>
+  handleBranchQueuedMessage: (id: string, message: string, agent?: string, model?: string, thinking?: string) => Promise<void>
 }
 
 const GitContext = createContext<GitContextValue | null>(null)

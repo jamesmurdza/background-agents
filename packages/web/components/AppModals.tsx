@@ -8,6 +8,8 @@ import { ReAuthBanner } from "@/components/modals/ReAuthBanner"
 import { HelpModal } from "@/components/modals/HelpModal"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { LimitReachedDialog } from "@/components/modals/LimitReachedDialog"
+import { ThinkingRecoveryDialog } from "@/components/chat/ThinkingRecoveryDialog"
+import type { ThinkingRecoveryRequest } from "@/lib/thinking-recovery"
 import { ChatUsageModal } from "@/components/modals/ChatUsageModal"
 import {
   MergeDialog,
@@ -70,6 +72,9 @@ interface AppModalsProps {
   limitReachedState: LimitReachedState
   onDismissLimitReached: () => void
   onContinueWithOpenCode: () => void
+  thinkingRecovery?: ThinkingRecoveryRequest
+  onDismissThinkingRecovery: () => void
+  onConfirmThinkingRecovery: ComponentProps<typeof ThinkingRecoveryDialog>["onConfirm"]
 }
 
 export function AppModals({
@@ -89,6 +94,9 @@ export function AppModals({
   limitReachedState,
   onDismissLimitReached,
   onContinueWithOpenCode,
+  thinkingRecovery,
+  onDismissThinkingRecovery,
+  onConfirmThinkingRecovery,
 }: AppModalsProps) {
   const modals = useModals()
   const gitDialogs = useGit()
@@ -272,6 +280,15 @@ export function AppModals({
       />
 
       {/* Per-chat token usage (opened from the command palette) */}
+      {thinkingRecovery && <ThinkingRecoveryDialog
+        key={thinkingRecovery.id}
+        request={thinkingRecovery}
+        sandboxId={chats.find(chat => chat.id === thinkingRecovery.chatId)?.sandboxId}
+        readinessKey={chats.find(chat => chat.id === thinkingRecovery.chatId)?.status}
+        onCancel={onDismissThinkingRecovery}
+        onConfirm={onConfirmThinkingRecovery}
+      />}
+
       <ChatUsageModal
         chatId={modals.chatUsageChatId}
         onClose={modals.closeChatUsage}

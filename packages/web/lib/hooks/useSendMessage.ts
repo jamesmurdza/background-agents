@@ -10,6 +10,12 @@ import {
 } from "@/lib/types"
 import { ALL_REPOSITORIES, NO_REPOSITORY } from "@/lib/contexts"
 import { savePendingMessage } from "@/lib/pending-message"
+import type { MessageDispatch, SendMessageOptions, SendMessageResult } from "./useMessageDispatch"
+
+export type HandleSendMessage = (
+  message: string, agent: string, model: string, files?: File[], planMode?: boolean,
+  thinking?: string, options?: SendMessageOptions
+) => Promise<SendMessageResult>
 
 interface OptimisticDraft {
   chatId: string
@@ -27,27 +33,14 @@ interface UseSendMessageOptions {
   displayCurrentChat: Chat | null
   currentChatId: string | null
   isDraftMode: boolean
-  sendMessage: (
-    message: string,
-    agent: string,
-    model: string,
-    files?: File[],
-    chatId?: string,
-    planMode?: boolean
-  ) => unknown
+  sendMessage: MessageDispatch["sendMessage"]
   setOptimisticDraft: React.Dispatch<React.SetStateAction<OptimisticDraft | null>>
   openSignInModal: (open: boolean) => void
 }
 
 interface UseSendMessageResult {
   /** Submit a message — handles draft materialization and sign-in interception. */
-  handleSendMessage: (
-    message: string,
-    agent: string,
-    model: string,
-    files?: File[],
-    planMode?: boolean
-  ) => void
+  handleSendMessage: HandleSendMessage
   /** True while we've initiated a send but the server hasn't yet responded with an optimistic update. */
   isSendingMessage: boolean
 }
@@ -96,20 +89,24 @@ export function useSendMessage({
   }, [displayCurrentChat?.id])
 
   const handleSendMessage = useCallback(
-    (
+    async (
       message: string,
       agent: string,
       model: string,
       files?: File[],
-      planMode?: boolean
-    ) => {
+      planMode?: boolean,
+      thinking?: string,
+      options?: SendMessageOptions
+    ): Promise<SendMessageResult> => {
       // Always require sign-in to send messages
       if (!session) {
         // Store the pending message in sessionStorage (persists across OAuth redirect).
         // Note: files cannot be persisted, so we warn the user if they have attachments.
-        savePendingMessage({ message, agent, model })
+        // Recovery dialogs retain prompt/files and require explicit consent
+        // again after login; the ordinary composer keeps OAuth replay behavior.
+        if (!options?.callerOwnsRecovery) savePendingMessage({ message, agent, model, thinking })
         openSignInModal(true)
-        return
+        return { status: "blocked", reason: "unauthenticated", message: "Sign in again before retrying. This retry is kept in this open page. A full-page sign-in redirect or refresh loses the unsent selection and attachment files; reselect and reattach them if needed." }
       }
 
       // Update filter to match the chat's repo if this is the first message and
@@ -155,16 +152,15 @@ export function useSendMessage({
         })
       }
 
-      const sendResult = sendMessage(message, agent, model, files, undefined, planMode)
-
-      // Once the send settles, drop the optimistic draft messages. On success
-      // the real chat is already showing (currentChatId changed, so the
-      // useDraftChat cleanup effect has cleared them); on failure this reverts
-      // the view to the welcome screen.
-      if (draftId) {
-        void Promise.resolve(sendResult).finally(() => {
-          setOptimisticDraft((cur) => (cur && cur.chatId === draftId ? null : cur))
-        })
+      try {
+        const result = await sendMessage(message, agent, model, files, undefined, planMode, undefined, thinking, options)
+        if (result.status === "blocked" && result.reason === "unauthenticated") openSignInModal(true)
+        return result
+      } finally {
+        // Return the actual dispatch outcome to callers. A known rejection
+        // must leave recovery retryable; an exception must stay uncertain.
+        setIsSendingMessage(false)
+        if (draftId) setOptimisticDraft((cur) => (cur && cur.chatId === draftId ? null : cur))
       }
     },
     [

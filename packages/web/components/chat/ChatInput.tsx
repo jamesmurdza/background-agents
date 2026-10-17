@@ -14,6 +14,8 @@ import { basename } from "@/lib/format"
 import { queuedSendNotice } from "@/lib/composer-queue"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { AgentModelSelector } from "./AgentModelSelector"
+import { ThinkingSelector } from "./ThinkingSelector"
+import type { ThinkingCapability } from "@background-agents/sdk/thinking"
 import { CreditWarningBanner } from "./CreditWarningBanner"
 import { RepoCombobox } from "./RepoCombobox"
 import { BranchCombobox } from "./BranchCombobox"
@@ -85,6 +87,13 @@ interface ChatInputProps {
   planModeEnabled: boolean
   planModeSupported: boolean
   onSetPlanMode: (enabled: boolean) => void
+  thinking?: string
+  onThinkingChange?: (value: string) => void
+  thinkingNotice?: string
+  thinkingCapability?: ThinkingCapability
+  thinkingChecking?: boolean
+  onThinkingRetry?: () => void
+  onThinkingMenuOpen?: () => void
   // MCP servers (chat-scoped, draft-aware)
   showMcpButton: boolean
   isDraftChat: boolean
@@ -235,6 +244,13 @@ export function ChatInput({
   planModeEnabled,
   planModeSupported,
   onSetPlanMode,
+  thinking = "default",
+  onThinkingChange,
+  thinkingNotice,
+  thinkingCapability,
+  thinkingChecking,
+  onThinkingRetry,
+  onThinkingMenuOpen,
   // MCP servers
   showMcpButton,
   isDraftChat,
@@ -357,6 +373,21 @@ export function ChatInput({
     { value: "edit", label: "Edit", icon: <Pencil className="h-5 w-5" /> },
     { value: "plan", label: "Plan", icon: <ListChecks className="h-5 w-5" /> },
   ]
+
+  const agentModelSelector = (
+    <AgentModelSelector
+      chat={chat}
+      modelPickerRequest={modelPickerRequest}
+      credentialFlags={credentialFlags}
+      currentAgent={currentAgent}
+      currentModel={currentModel}
+      onUpdateChat={onUpdateChat}
+      showCreditDialog={showCreditDialog}
+      isMobile={isMobile}
+      onDropdownOpen={() => setShowModeDropdown(false)}
+      closeDropdowns={showModeDropdown}
+    />
+  )
 
   return (
     <div className={cn(
@@ -548,7 +579,7 @@ export function ChatInput({
         {/* Bottom row with selectors */}
         <div className={cn(
           "@container",
-          isMobile ? "flex flex-col gap-1 px-3 py-2" : "flex items-center gap-3 px-4 py-2"
+          isMobile ? "flex flex-col gap-1 px-3 pb-2 pt-1" : "flex items-center gap-3 px-4 py-2"
         )}>
           {/* Left side items */}
           <div className={cn("flex items-center gap-2", isMobile ? "w-full @container/row1" : "flex-1")}>
@@ -637,15 +668,17 @@ export function ChatInput({
             {!isMobile && <div className="flex-1" />}
           </div>
 
-          {/* Right side items */}
-          <div className={cn("flex items-center gap-2", isMobile && "w-full @container/row2")}>
+          {/* Agent/model first on mobile; keep keyboard order aligned with the layout. */}
+          <div className={cn("flex items-center gap-2 min-w-0", isMobile ? "w-full @container/row2 border-t border-border/50 pt-1" : "flex-wrap")}>
+            {isMobile && agentModelSelector}
             {/* Mode selector dropdown (Edit/Plan) - only show if agent supports plan mode */}
             {planModeSupported && (
               isMobile ? (
                 <>
                   <button
                     onClick={() => setShowModeSheet(true)}
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    aria-label={planModeEnabled ? "Plan mode" : "Edit mode"}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
                     title={planModeEnabled ? "Plan mode — agent will plan before acting" : "Edit mode — agent will edit code directly"}
                   >
                     {planModeEnabled ? (
@@ -653,10 +686,6 @@ export function ChatInput({
                     ) : (
                       <Pencil className="h-4 w-4" />
                     )}
-                    <span className="hidden @[18rem]/row2:inline">
-                      {planModeEnabled ? "Plan" : "Edit"}
-                    </span>
-                    <ChevronDown className="h-4 w-4 hidden @[18rem]/row2:block" />
                   </button>
                   <MobileSelect
                     open={showModeSheet}
@@ -725,19 +754,10 @@ export function ChatInput({
               )
             )}
 
+            {onThinkingChange && thinkingCapability && <ThinkingSelector isMobile={isMobile} capability={thinkingCapability} value={thinking} onChange={onThinkingChange} notice={thinkingNotice}
+              checking={thinkingChecking} onRetry={onThinkingRetry} onOpenChange={open => { if (open) onThinkingMenuOpen?.() }} />}
             {/* Agent and Model selectors */}
-            <AgentModelSelector
-              chat={chat}
-              modelPickerRequest={modelPickerRequest}
-              credentialFlags={credentialFlags}
-              currentAgent={currentAgent}
-              currentModel={currentModel}
-              onUpdateChat={onUpdateChat}
-              showCreditDialog={showCreditDialog}
-              isMobile={isMobile}
-              onDropdownOpen={() => setShowModeDropdown(false)}
-              closeDropdowns={showModeDropdown}
-            />
+            {!isMobile && agentModelSelector}
           </div>
         </div>
       </div>

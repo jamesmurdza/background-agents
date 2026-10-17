@@ -35,7 +35,7 @@ export function WelcomeView({
               but on mobile the header above already carries it, and two would
               be two. */}
           {!isMobile && <CreditBalancePill />}
-          {onOpenCommandPalette && (
+          {!isMobile && onOpenCommandPalette && (
             <button
               onClick={onOpenCommandPalette}
               className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -58,7 +58,7 @@ export function WelcomeView({
           href="https://github.com/jamesmurdza/background-agents"
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute top-5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-sm text-foreground/70 hover:text-foreground transition-colors"
+          className={cn("absolute top-5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-sm text-foreground/70 hover:text-foreground transition-colors", isMobile && "left-4 max-w-[calc(100%-4rem)] text-xs")}
         >
           <Github className="h-3.5 w-3.5" />
           Backgrounder is open source.
@@ -74,7 +74,7 @@ export function WelcomeView({
           isMobile ? "text-sm px-4" : "text-sm"
         )}>
           <p>
-            Changes will apply when you type /merge. Access tools with ⌘K.
+            Changes will apply when you type /merge.{!isMobile && " Access tools with ⌘K."}
           </p>
         </div>
       </div>

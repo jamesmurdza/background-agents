@@ -35,6 +35,7 @@ import { NAVIGATE_TO_CHAT_EVENT, type NavigateToChatEventDetail } from "@/lib/no
 import { hasActiveQueue } from "@/lib/chat-state"
 import { queuedSendNotice } from "@/lib/composer-queue"
 import { exhaustedCreditProvider } from "@/lib/credit-limit"
+import { useThinkingPreference } from "./useThinkingPreference"
 
 interface UseChatComposerArgs {
   chat: Chat | null
@@ -46,8 +47,8 @@ interface UseChatComposerArgs {
   isSending: boolean
   isAuthenticated: boolean
   showCreditDialog: (provider?: string, creditBalance?: number | null) => void
-  onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
-  onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
+  onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean, thinking?: string) => void
+  onEnqueueMessage?: (message: string, agent?: string, model?: string, thinking?: string) => void
   onResumeQueue?: () => void
   onUpdateChat?: (updates: Partial<Chat>) => void
   onSlashCommand?: (command: SlashCommandType) => void
@@ -144,6 +145,12 @@ export function useChatComposer({
   const { data: settingsData } = useSettingsQuery()
   const customEndpoints = settingsData?.customEndpoints
   const currentModel = resolveChatModel(currentAgent, chat?.model, credentialFlags, settings.defaultModel, customEndpoints)
+  const { thinking, setThinking, notice: thinkingNotice, capability: thinkingCapability, ready: thinkingReady,
+    checking: thinkingChecking, recheckThinking, onThinkingMenuOpen, canRecheck: canRecheckThinking } = useThinkingPreference(
+    currentAgent, currentModel, chat?.id, chat?.sandboxId,
+    // These are turn hints, not a claim about the sandbox's actual state.
+    { readinessKey: `${chat?.status ?? "draft"}:${chat?.backgroundSessionId ?? ""}`, isStarting: chat?.status === "creating" },
+  )
   const balanceUsd = settingsData?.creditBalanceUsd ?? null
   const creditGate = { agent: currentAgent, credentialFlags, balanceUsd, providerMultipliers: settingsData?.providerMultipliers }
   const blockedProvider = exhaustedCreditProvider({ ...creditGate, model: currentModel })
@@ -185,12 +192,12 @@ export function useChatComposer({
   const queueNotice = queuedSendNotice({ isRunning, isPaused, hasFiles: pendingFiles.length > 0,
     planMode: planModeEnabled, hasText: !!input.trim() })
   // When the agent is running, text-only messages are queued for later dispatch.
-  const canQueue = !chat?.stopPending && !chat?.directSendRecovery?.length && !needsRecovery && !queueNotice && !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
+  const canQueue = thinkingReady && !chat?.stopPending && !chat?.directSendRecovery?.length && !needsRecovery && !queueNotice && !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
   // Paused queue: always show the send button (either to enqueue a new prompt
   // at the end or to resume draining with nothing typed).
   // A new direct send must not skip prompts waiting behind a failed turn.
   // Reload first to reconcile that turn; it never implicitly resumes the queue.
-  const canSend = !chat?.stopPending && !chat?.directSendRecovery?.length && !queueNotice && !(needsRecovery && hasQueued) && (
+  const canSend = thinkingReady && !chat?.stopPending && !chat?.directSendRecovery?.length && !queueNotice && !(needsRecovery && hasQueued) && (
     (hasContent && !isRunning && !isCreating && !isPaused) ||
     (isRunning && canQueue) ||
     isPaused)
@@ -314,7 +321,7 @@ export function useChatComposer({
 
     // If the agent is running, queue the message instead of sending.
     if (isRunning && onEnqueueMessage) {
-      onEnqueueMessage(input.trim(), currentAgent, currentModel)
+      onEnqueueMessage(input.trim(), currentAgent, currentModel, thinking)
       setInput("")
       textareaRef.current?.focus()
       return
@@ -324,7 +331,7 @@ export function useChatComposer({
     // with nothing typed, just resume draining.
     if (isPaused) {
       if (input.trim() && onEnqueueMessage) {
-        onEnqueueMessage(input.trim(), currentAgent, currentModel)
+        onEnqueueMessage(input.trim(), currentAgent, currentModel, thinking)
         setInput("")
       } else {
         onResumeQueue?.()
@@ -341,7 +348,7 @@ export function useChatComposer({
     if (chat?.status === "ready" && !chat.id.startsWith("draft-") &&
         chat.messages.some((message) => !message.inherited) &&
         input.trim() && pendingFiles.length === 0 && !planModeEnabled && onEnqueueMessage) {
-      onEnqueueMessage(input.trim(), currentAgent, currentModel)
+      onEnqueueMessage(input.trim(), currentAgent, currentModel, thinking)
       setInput("")
       textareaRef.current?.focus()
       return
@@ -349,7 +356,7 @@ export function useChatComposer({
 
     // Pass files to sendMessage - upload will happen after sandbox is ready
     const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
-    onSendMessage(input.trim(), currentAgent, currentModel, files, planModeEnabled || undefined)
+    onSendMessage(input.trim(), currentAgent, currentModel, files, planModeEnabled || undefined, thinking)
     setInput("")
     clearFiles()
     textareaRef.current?.focus()
@@ -359,12 +366,13 @@ export function useChatComposer({
   // the message to it in the background. Triggered by Cmd/Alt/Ctrl+Enter or by
   // holding one of those modifiers while clicking the send button.
   const handleBranchSend = () => {
+    if (!thinkingReady) return
     if (git.canBranch && input.trim()) {
       if (blockedProvider) {
         showCreditDialog(blockedProvider, balanceUsd)
         return
       }
-      git.handleBranchWithMessage(input.trim(), currentAgent, currentModel)
+      git.handleBranchWithMessage(input.trim(), currentAgent, currentModel, thinking)
       setInput("")
       clearFiles()
       textareaRef.current?.focus()
@@ -456,6 +464,14 @@ export function useChatComposer({
     // plan mode
     planModeEnabled,
     setPlanModeEnabled,
+    thinking,
+    setThinking,
+    thinkingNotice,
+    thinkingCapability,
+    thinkingChecking,
+    recheckThinking,
+    onThinkingMenuOpen,
+    canRecheckThinking,
     // agent/model
     currentAgent,
     currentModel,

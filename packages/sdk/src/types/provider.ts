@@ -32,10 +32,36 @@ export interface CodeAgentSandbox {
   /** Clear run-level env vars */
   clearRunEnvVars?(): void
 
+  /**
+   * Read-only snapshot of the effective session + run + invocation environment.
+   * Context-aware adapters should implement this with the same merge used by
+   * command execution and jobs. Values may contain credentials; never log them.
+   */
+  getEffectiveEnv?(invocationEnv?: Record<string, string>): Record<string, string>
+
+  /**
+   * Inspect an already-installed managed provider runtime without installing it
+   * or changing shared environment. Return undefined for unmanaged providers to
+   * use contextual PATH discovery. Missing managed runtimes must not fall back
+   * to a different global executable.
+   */
+  readProviderVersion?(
+    name: ProviderName,
+    timeout: number,
+    context: { cwd?: string; env?: Record<string, string> }
+  ): Promise<{ exitCode: number; output: string } | undefined>
+
   /** Run a one-off command and return the result */
   executeCommand?(
     command: string,
     timeout?: number
+  ): Promise<{ exitCode: number; output: string }>
+
+  /** Optional read-only command with the same env/cwd merge as a launched job. */
+  executeCommandInContext?(
+    command: string,
+    timeout: number,
+    context: { cwd?: string; env?: Record<string, string> }
   ): Promise<{ exitCode: number; output: string }>
 
   /**

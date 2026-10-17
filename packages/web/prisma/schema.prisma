@@ -229,6 +229,7 @@ model QueuedPrompt {
   content            String    @db.Text
   agent              String
   model              String
+  thinking           String?   // null = model default; frozen per submitted prompt
   status             String    @default("queued") // queued | dispatching | started | cancelled
   claimedAt          DateTime?
   lastError          String?   @db.Text

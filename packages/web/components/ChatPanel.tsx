@@ -16,16 +16,17 @@ import type { Chat, Settings, CredentialFlags } from "@/lib/types"
 import { NEW_REPOSITORY, agentSupportsPlanMode } from "@/lib/types"
 import type { SlashCommandType } from "./SlashCommandMenu"
 import { useChatComposer } from "@/lib/hooks/useChatComposer"
+import type { HandleSendMessage } from "@/lib/hooks/useSendMessage"
 
 interface ChatPanelProps {
   chat: Chat | null
   settings: Settings
   credentialFlags: CredentialFlags
   showCreditDialog: (provider?: string, creditBalance?: number | null) => void
-  onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean) => void
+  onSendMessage: HandleSendMessage
   /** Refresh the chat history after the SSE stream died (status === "disconnected"). */
   onReload?: (chatId: string) => Promise<void> | void
-  onEnqueueMessage?: (message: string, agent?: string, model?: string) => void
+  onEnqueueMessage?: (message: string, agent?: string, model?: string, thinking?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
   onResumeQueue?: () => void
   onStopAgent: () => void
@@ -94,6 +95,14 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
     hasLinkedRepo,
     planModeEnabled,
     setPlanModeEnabled,
+    thinking,
+    setThinking,
+    thinkingNotice,
+    thinkingCapability,
+    thinkingChecking,
+    recheckThinking,
+    onThinkingMenuOpen,
+    canRecheckThinking,
     currentAgent,
     currentModel,
     rebaseConflict,
@@ -202,6 +211,13 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
       planModeEnabled={planModeEnabled}
       planModeSupported={agentSupportsPlanMode[currentAgent]}
       onSetPlanMode={setPlanModeEnabled}
+      thinking={thinking}
+      onThinkingChange={setThinking}
+      thinkingNotice={thinkingNotice}
+      thinkingCapability={thinkingCapability}
+      thinkingChecking={thinkingChecking}
+      onThinkingRetry={canRecheckThinking ? recheckThinking : undefined}
+      onThinkingMenuOpen={onThinkingMenuOpen}
       // MCP servers — only show when authenticated and we have a chat to attach to.
       showMcpButton={isAuthenticated && !!chat?.id && !!onMaterializeDraftForMcp}
       isDraftChat={isDraftChat}
@@ -273,6 +289,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
         onChooseModel={() => setModelPickerRequest(previous => ({ chatId: chat.id, sequence: (previous?.sequence ?? 0) + 1 }))}
         currentAgent={currentAgent}
         currentModel={currentModel}
+        currentThinking={thinking}
         planModeEnabled={planModeEnabled}
         messagesContainerRef={messagesContainerRef}
         messagesEndRef={messagesEndRef}

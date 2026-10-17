@@ -36,6 +36,21 @@ check leaves it disabled; reopening the dialog retries the check. The POST
 endpoint checks the ledger before granting and uses the same unique reward
 key as admin grants to prevent repeat or concurrent claims.
 
+### Thinking selection and recovery
+
+Thinking settings are captured with each prompt. Queued prompts and same-model
+retries keep their original selection; changing the retry's agent/model requires
+an explicit compatible choice. Known busy, Stop, sign-in, and pull-conflict
+rejections keep the recovery dialog and choice until dispatch accepts the send.
+They never trigger automatic resend. An uncertain transport result instead uses
+the existing saved-message check, because a second send could duplicate execution.
+“Commit your changes” is a new prompt and uses the current composer selection.
+
+Retry can retain browser `File` objects only while they remain in memory. Historical
+uploaded filenames cannot recreate those objects; the dialog warns to reattach.
+A full-page sign-in redirect or refresh loses in-memory recovery choices/files;
+it does not authorize automatically replaying the failed prompt after login.
+
 ## Architecture
 
 - **Frontend**: Next.js 16 with React 19, Tailwind CSS 4, and Radix UI primitives

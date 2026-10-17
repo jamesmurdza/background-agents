@@ -8,7 +8,7 @@
  * environment automatically — it only reads credentials from
  * ~/.kimi-code/config.toml. We therefore write a small static config in setup()
  * that declares a Moonshot ("kimi") provider whose api_key is sourced from the
- * KIMI_API_KEY environment variable (the [providers.kimi.env] sub-table). The
+ * KIMI_API_KEY environment variable (the provider's api_key_env field). The
  * key itself is still injected as an env var like every other provider, so the
  * secret never lands in a file.
  */
@@ -24,6 +24,7 @@ import type { Event } from "../../types/events"
 import { parseKimiLine } from "./parser"
 import { KIMI_TOOL_MAPPINGS } from "./tools"
 import { quote } from "../../utils/shell"
+import { validateThinking } from "../../thinking"
 
 /** Kimi config directory (daytona user home) */
 const KIMI_CONFIG_DIR = "/home/daytona/.kimi-code"
@@ -37,19 +38,19 @@ const KIMI_DEFAULT_BASE_URL = "https://api.moonshot.ai/v1"
  * with a max_context_size or the CLI refuses to use it. ids match the Moonshot
  * /v1/models catalog and the values in agentModels.kimi (@background-agents/common).
  */
-const KIMI_MODELS: { id: string; context: number }[] = [
+const KIMI_MODELS: { id: string; context: number; thinking?: "toggle" | "always" }[] = [
   { id: "kimi-k3", context: 1048576 },
-  { id: "kimi-k2.7-code", context: 262144 },
-  { id: "kimi-k2.7-code-highspeed", context: 262144 },
-  { id: "kimi-k2.6", context: 262144 },
-  { id: "kimi-k2.5", context: 262144 },
+  { id: "kimi-k2.7-code", context: 262144, thinking: "always" },
+  { id: "kimi-k2.7-code-highspeed", context: 262144, thinking: "always" },
+  { id: "kimi-k2.6", context: 262144, thinking: "toggle" },
+  { id: "kimi-k2.5", context: 262144, thinking: "toggle" },
 ]
 /** Default model — must be one of KIMI_MODELS. */
 const KIMI_DEFAULT_MODEL = "kimi-k2.7-code"
 
 /**
  * config.toml that wires a Moonshot ("kimi") provider reading its API key from
- * the KIMI_API_KEY environment variable (the [providers.kimi.env] sub-table),
+ * the KIMI_API_KEY environment variable (the api_key_env field),
  * plus a [models."<id>"] entry per exposed model. Static (no secret) — safe to
  * write verbatim into the sandbox.
  */
@@ -58,15 +59,13 @@ const KIMI_CONFIG_TOML = `default_model = "${KIMI_DEFAULT_MODEL}"
 [providers.kimi]
 type = "kimi"
 base_url = "${KIMI_DEFAULT_BASE_URL}"
-
-[providers.kimi.env]
-api_key = "KIMI_API_KEY"
+api_key_env = "KIMI_API_KEY"
 ${KIMI_MODELS.map(
   (m) => `
 [models."${m.id}"]
 provider = "kimi"
 model = "${m.id}"
-max_context_size = ${m.context}`
+max_context_size = ${m.context}${m.thinking === "always" ? '\ncapabilities = ["thinking", "always_thinking"]' : m.thinking ? '\ncapabilities = ["thinking"]' : ""}`
 ).join("\n")}
 `
 
@@ -107,6 +106,7 @@ export const kimiAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
+    const thinking = validateThinking("kimi", options.model, options.thinking)
     const args: string[] = []
 
     // Note: prompt mode (-p) runs non-interactively and auto-approves actions on
@@ -138,7 +138,9 @@ export const kimiAgent: AgentDefinition = {
     return {
       cmd: "bash",
       args: ["-c", `export PATH="$HOME/.kimi-code/bin:$PATH" && ${kimiCmd}`],
-      env: { ...options.env },
+      // Native process override, not a persisted session/config update. On
+      // resume the previous turn's override must not become the next default.
+      env: { ...options.env, ...(thinking === "default" ? {} : { KIMI_MODEL_THINKING_EFFORT: thinking }) },
     }
   },
 

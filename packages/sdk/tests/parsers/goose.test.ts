@@ -16,8 +16,9 @@ describe("parseGooseLine", () => {
     expect(parseGooseLine("{not valid json}", mappings, ctx)).toBeNull()
   })
 
-  it("parses message event with assistant text content and emits session", () => {
+  it("tracks the native session banner, not the provider's message ID", () => {
     const ctx = createContext()
+    expect(parseGooseLine("   \\____)    20261016_1 · /tmp/work", mappings, ctx)).toEqual({ type: "session", id: "20261016_1" })
     const events = parseGooseLine(
       JSON.stringify({
         type: "message",
@@ -32,12 +33,25 @@ describe("parseGooseLine", () => {
       mappings,
       ctx
     )
-    // First message emits both session and token events
-    expect(events).toEqual([
-      { type: "session", id: "chatcmpl-123" },
-      { type: "token", text: "Hello from Goose!" },
-    ])
-    expect(ctx.sessionId).toBe("chatcmpl-123")
+    expect(events).toEqual({ type: "token", text: "Hello from Goose!" })
+    expect(ctx.sessionId).toBe("20261016_1")
+  })
+
+  it("does not invent a resumable ID when the native banner is missing", () => {
+    const ctx = createContext()
+    expect(parseGooseLine('{"type":"message","message":{"id":"msg-not-a-session","role":"assistant","created":1,"content":[{"type":"text","text":"hello"}]}}', mappings, ctx)).toEqual({ type: "token", text: "hello" })
+    expect(ctx.sessionId).toBeNull()
+  })
+
+  it("handles colored banners once and keeps separate parsers isolated", () => {
+    const a = createContext()
+    const b = createContext()
+    const banner = "\u001b[36m   \\____)    20261016_1 · /tmp/work\u001b[0m"
+    expect(parseGooseLine(banner, mappings, a)).toEqual({ type: "session", id: "20261016_1" })
+    expect(parseGooseLine(banner, mappings, a)).toBeNull()
+    expect(parseGooseLine("   \\____)    20261016_2 · /tmp/other", mappings, b)).toEqual({ type: "session", id: "20261016_2" })
+    expect(a.sessionId).toBe("20261016_1")
+    expect(b.sessionId).toBe("20261016_2")
   })
 
   it("does not emit session event on subsequent messages", () => {

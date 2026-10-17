@@ -11,6 +11,8 @@ import type {
 import type { Event } from "../../types/events"
 import { parseGeminiLine } from "./parser"
 import { GEMINI_TOOL_MAPPINGS } from "./tools"
+import { validateThinking } from "../../thinking"
+import { withGeminiThinking } from "./thinking-config"
 
 /**
  * Google Gemini CLI agent definition.
@@ -29,6 +31,7 @@ export const geminiAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
+    const thinking = validateThinking("gemini", options.model, options.thinking)
     const args: string[] = []
 
     // Stream JSON for event parsing
@@ -61,11 +64,11 @@ export const geminiAgent: AgentDefinition = {
       args.push("-p", options.prompt)
     }
 
-    return {
+    return withGeminiThinking({
       cmd: "gemini",
       args,
       env: options.env,
-    }
+    }, options.model ?? "", thinking)
   },
 
   parse(line: string, context: ParseContext): Event | Event[] | null {

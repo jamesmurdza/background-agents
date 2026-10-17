@@ -28,15 +28,20 @@ export function adaptDaytonaSandbox(
   }
 
   /** Execute a command synchronously */
-  async function executeCommand(command: string, timeout: number = 60): Promise<{ exitCode: number; output: string }> {
-    const env = getEnv()
+  async function executeCommandInContext(command: string, timeout: number, context: { cwd?: string; env?: Record<string, string> } = {}): Promise<{ exitCode: number; output: string }> {
+    const env = getEnv(context.env)
     const envExports = Object.entries(env)
-      .map(([k, v]) => `export ${k}='${escapeShell(v)}'`)
+      .map(([k, v]) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) throw new Error("Invalid sandbox environment name")
+        return `export ${k}='${escapeShell(v)}'`
+      })
       .join("; ")
     const fullCommand = envExports ? `${envExports}; ${command}` : command
-    const result = await sandbox.process.executeCommand(fullCommand, undefined, undefined, timeout)
+    const result = await sandbox.process.executeCommand(fullCommand, context.cwd, undefined, timeout)
     return { exitCode: result.exitCode ?? -1, output: result.result ?? "" }
   }
+
+  const executeCommand = (command: string, timeout = 60) => executeCommandInContext(command, timeout)
 
   // Long-running-process runner, wired to @background-agents/sandbox-jobs.
   // We wrap start() so the adapter's two-level env (session + run) is injected
@@ -64,8 +69,21 @@ export function adaptDaytonaSandbox(
     clearRunEnvVars(): void {
       for (const key of Object.keys(runEnv)) delete runEnv[key]
     },
+    getEffectiveEnv: getEnv,
 
     executeCommand,
+    executeCommandInContext,
+    async readProviderVersion(name, timeout, context) {
+      if (name !== "codex") return undefined
+      // A fresh adapter has not run ensureProvider(), so its PATH can still
+      // point at an old global CLI. Inspect the exact launch runtime directly;
+      // never install it or mutate codexPath/session/run env during discovery.
+      const result = await executeCommandInContext(`${CODEX_RUNTIME_PREFIX}/bin/codex --version`, timeout, context)
+      if (result.exitCode === 0 && !isSupportedCodexVersion(result.output)) {
+        return { exitCode: 1, output: "" }
+      }
+      return result
+    },
     jobs,
 
     async ensureProvider(name: ProviderName): Promise<void> {

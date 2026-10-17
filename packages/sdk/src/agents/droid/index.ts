@@ -32,6 +32,7 @@ import type { Event } from "../../types/events"
 import { parseDroidLine } from "./parser"
 import { DROID_TOOL_MAPPINGS } from "./tools"
 import { quote } from "../../utils/shell"
+import { thinkingArgs } from "../../thinking"
 
 /** Factory config dir + settings file in the daytona user's home. */
 const FACTORY_CONFIG_DIR = "$HOME/.factory"
@@ -149,7 +150,7 @@ export const droidAgent: AgentDefinition = {
       ? model.slice(FACTORY_PREFIX.length)
       : null
 
-    const args: string[] = ["exec", "--output-format", "stream-json", "--auto", "high"]
+    const args: string[] = ["exec", "--output-format", "stream-json", "--auto", "high", ...thinkingArgs("droid", options.model, options.thinking)]
     args.push("-m", factoryModel ?? BYOK_MODEL_ID)
 
     // Continue a prior turn by FORKING its session. droid's `-s`/--session-id

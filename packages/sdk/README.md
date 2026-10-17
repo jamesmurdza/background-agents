@@ -198,6 +198,100 @@ Starts a background task. Returns immediately with a `TurnHandle` (`{ executionI
 const { executionId, pid, outputFile } = await session.start("Your task here")
 ```
 
+### Per-turn thinking
+
+`thinking` is independent of `planMode`: it controls reasoning effort, not
+permission to edit files. It can be set when creating a session or overridden
+for an individual `start` call:
+
+```typescript
+const session = await createSession("codex", {
+  sandbox, model: "gpt-6.1-sol", thinking: "low",
+})
+await session.start("Investigate this failure", { thinking: "high" })
+// After that turn finishes, remove the effort override for the next turn:
+await session.start("Summarize the result", { thinking: "default" })
+```
+
+The SDK translates supported selections into each agent's native control:
+Codex configuration, Claude/Command Code effort, Copilot/Factory Droid reasoning
+effort, OpenCode/Kilo variants, Pi thinking, or an isolated Gemini configuration.
+It does not rewrite shared thinking settings. `default` sends no SDK override;
+it is not an alias for medium, Off, or a universal reset of native session/user
+configuration. Omitted values retain the SDK session's configured default.
+
+Gemini models that expose a token budget accept `budget:1024` (within the model's
+advertised bounds), separately from level-based controls. Its per-invocation
+overlay preserves existing authentication and session storage. Conflicting custom
+generation settings or settings that cannot safely be parsed reject the override;
+Default remains available. Kimi K2.5/K2.6 support `on` and `off` on CLI 2.1.1+
+using a process-only environment override; `default` stops adding that override on
+the next turn, including resumed sessions. Caller-supplied environment settings
+still apply. These are not low/high effort levels.
+Kimi K2.7 Code/Highspeed always think; they have no Off or effort selector.
+K3 overrides remain unavailable: the tested CLI's Kimi provider uses a different
+effort field from the public K3 API. Goose remains default-only: the native CLI retains prior effort
+in a resumed session, and a safe reset has not been verified. Droid's
+reasoning flag applies to Factory-hosted models, not BYOK models.
+
+Goose resumes by its native conversation ID, not the provider's response ID or
+the sandbox's most recent conversation. Kimi setup references `KIMI_API_KEY`
+through `api_key_env`; the credential itself remains in the process environment,
+not in the generated configuration file.
+
+Use `getThinkingCapability` from `@background-agents/sdk/thinking` for the
+request contract. When `runtimeRequired` is true, its levels are only an input
+vocabulary: use `getRuntimeThinkingCapability` from
+`@background-agents/sdk/thinking-runtime` with an adapted sandbox to discover
+actual choices. Supply `{ cwd, env }` as the fourth argument using the same
+working directory and configuration as launch; discovery does not mutate shared
+sandbox environment. Daytona's optional `executeCommandInContext` adapter method
+uses the same effective PATH/environment merge as job launch. Custom adapters
+without it use a scoped shell subprocess; implement that method if execution
+needs platform-specific context rules. Adapters that retain session/run environment
+must also implement `getEffectiveEnv(invocationEnv)` as a read-only snapshot of
+their launch merge, so preflight can detect inherited custom provider routes.
+Do not log this snapshot: it may contain credentials. The Daytona adapter supplies
+both methods. OpenCode/Kilo choices come from the installed provider catalog;
+Pi uses its native model registry to avoid silently clamping unsupported levels.
+Legacy bare Pi `claude-*` model IDs are qualified as `anthropic/<id>` by one
+SDK resolver shared by capability checks, registry lookup, and native invocation.
+OpenAI/Google qualified IDs retain their provider. Qualification does not prove
+that the installed registry or the account supports a model or thinking level.
+For an already-installed managed CLI, adapters may provide `readProviderVersion`:
+Daytona reads Codex from the exact pinned runtime directory used by launch, even
+from a fresh adapter whose global PATH still contains an older CLI. This check
+does not install anything or change shared environment; a missing or invalid
+managed runtime is unavailable/failed, not evidence from a different global CLI.
+Explicit settings are checked again before launching. Unknown combinations
+and unverified custom endpoints accept `default` only; unsupported overrides
+throw `UnsupportedThinkingError` instead of silently selecting another level.
+
+Discovery returns `status`: `available`, `no_controls` (a successful native
+lookup with no adjustable controls), `unverified`, `runtime_unavailable`, or
+`check_failed`. A failed lookup is never proof that thinking is unsupported.
+`provenance` distinguishes native model-catalog evidence, an SDK policy, and a
+minimum-runtime-version check; a version check does not prove model/account
+access. `getVerifiedThinkingCapability(agent, model, { runtimeVersion,
+customEndpoint })` supplies a small browser-safe, version-scoped recorded
+catalog for first-prompt choices. It is not a cache of the current account or
+custom configuration and never replaces launch preflight. Unknown combinations
+remain unverified. The timeout constants in `sdk/thinking` keep CLI discovery
+(10 seconds), server response (15 seconds), and browser wait (20 seconds) aligned.
+
+OpenCode preserves repository and global configuration files, including tracked
+project `opencode.json` files and unmarked files left by older application versions.
+Their shape or a provider named `custom` is not proof that the SDK owns them;
+there is no automatic relocation, deletion, or cleanup. Native OpenCode resolves
+global/project precedence, so discovery and ordinary execution see the same files.
+Custom endpoints use a per-invocation `OPENCODE_CONFIG_CONTENT` overlay and a fresh
+native provider ID, preventing unrelated user-provider keys/headers from being
+inherited. The application model ID stays `custom/<model>`; only the SDK's native
+command uses the temporary ID. Returning to a regular provider adds no overlay.
+Existing caller-supplied inline configuration is preserved; malformed inline JSON
+rejects custom setup instead of overwriting it. This is not a promise that OpenCode
+itself never updates config metadata, nor a live provider-access verification.
+
 ### `session.getEvents()`
 
 Polls for new events since last call.

@@ -19,6 +19,7 @@ import type {
 import type { Event } from "../../types/events"
 import { parseCopilotLine } from "./parser"
 import { COPILOT_TOOL_MAPPINGS } from "./tools"
+import { thinkingArgs } from "../../thinking"
 
 /**
  * GitHub Copilot CLI agent definition.
@@ -35,7 +36,7 @@ export const copilotAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const args: string[] = []
+    const args = thinkingArgs("copilot", options.model, options.thinking)
 
     // Prompt — must come right after -p
     if (options.prompt) {
@@ -58,7 +59,7 @@ export const copilotAgent: AgentDefinition = {
 
     // Session resume — --continue resumes the last session
     if (options.sessionId) {
-      args.push("--continue")
+      args.push("--resume", options.sessionId)
     }
 
     return {

@@ -31,6 +31,7 @@ import {
 } from "@background-agents/agent-configuration/mcp"
 import { DEFAULT_GIT_POLICY } from "./git-policy"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
+import type { ThinkingLevel } from "@background-agents/sdk/thinking"
 
 // Re-export Agent type for convenience
 export type { Agent }
@@ -79,6 +80,7 @@ export interface AgentSessionOptions {
   env?: Record<string, string>
   /** When true, agent should plan before acting */
   planMode?: boolean
+  thinking?: ThinkingLevel
   /**
    * Discovered skills to inject as a structured catalog in the system prompt.
    * Populated by scanning .agents/skills/ after install.
@@ -161,6 +163,7 @@ export async function createBackgroundAgentSession(
     model: options.model,
     env: Object.keys(env).length > 0 ? env : undefined,
     planMode: options.planMode,
+    thinking: options.thinking,
   })
 
   return {

@@ -14,6 +14,8 @@ import type {
 import type { Event } from "../../types/events"
 import { parsePiLine } from "./parser"
 import { PI_TOOL_MAPPINGS } from "./tools"
+import { thinkingArgs } from "../../thinking"
+import { piModelIdentity } from "./model-identity"
 
 /**
  * Pi Coding Agent CLI agent definition.
@@ -31,7 +33,7 @@ export const piAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
-    const args: string[] = []
+    const args = thinkingArgs("pi", options.model, options.thinking)
 
     // Use JSON mode for structured output
     args.push("--mode", "json")
@@ -41,16 +43,16 @@ export const piAgent: AgentDefinition = {
       args.push("--system-prompt", options.systemPrompt)
     }
 
-    // Add model if specified (e.g., "sonnet", "gpt-4o", "claude-sonnet-4-5-20250929")
-    // Pi supports provider/model format like "openai/gpt-4o" or model patterns
+    // Pi natively accepts provider/model. Use the same exact identity as the
+    // capability lookup, including the picker's legacy bare Anthropic IDs.
+    // Unknown patterns remain native Default-only requests, not guessed models.
     if (options.model) {
-      args.push("--model", options.model)
+      args.push("--model", piModelIdentity(options.model) ?? options.model)
     }
 
-    // Continue the most recent session in the current directory
-    // Pi's --continue flag resumes the last session in cwd
+    // Resume this chat's native session, not another tab's latest session.
     if (options.sessionId) {
-      args.push("--continue")
+      args.push("--session", options.sessionId)
     }
 
     // Add the prompt if provided

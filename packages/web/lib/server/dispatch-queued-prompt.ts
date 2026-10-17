@@ -16,6 +16,7 @@ export async function dispatchQueuedPrompt(chatId: string, userId: string): Prom
         message: claimed.content,
         agent: claimed.agent,
         model: claimed.model,
+        thinking: claimed.thinking ?? undefined,
         userMessageId: claimed.userMessageId,
         assistantMessageId: claimed.assistantMessageId,
       },

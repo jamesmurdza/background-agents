@@ -100,6 +100,17 @@ export function parseGooseLine(
   toolMappings: Record<string, string>,
   context?: ParseContext
 ): Event | Event[] | null {
+  // Goose's machine-readable messages contain provider message IDs, not a
+  // resumable conversation ID. Its native startup banner carries the latter.
+  // Anchor to the banner prefix so assistant text cannot become a session ID.
+  const banner = line.replace(/\u001b\[[0-9;]*m/g, "")
+  const nativeId = banner.match(/^\s*\\____\)\s+(\d{8}_\d+)\s+·\s+/)?.[1]
+  if (nativeId && context) {
+    if (context.state.sessionEmitted) return null
+    context.state.sessionEmitted = true
+    context.sessionId = nativeId
+    return { type: "session", id: nativeId }
+  }
   // Goose outputs plain JSON, but handle SSE "data: " prefix if present
   const trimmedLine = line.startsWith("data: ") ? line.slice(6) : line
 
@@ -112,21 +123,6 @@ export function parseGooseLine(
   if (json.type === "message" && json.message) {
     const msg = json.message
     const events: Event[] = []
-
-    // Emit session event on first assistant message with an ID
-    // Goose doesn't have a dedicated session init event, so we use the message ID
-    if (
-      context &&
-      msg.role === "assistant" &&
-      msg.id &&
-      !context.state.sessionEmitted
-    ) {
-      context.state.sessionEmitted = true
-      // Use the message ID as the session ID (or generate one from timestamp)
-      const sessionId = msg.id || `goose-${msg.created}`
-      context.sessionId = sessionId
-      events.push({ type: "session", id: sessionId })
-    }
 
     for (const block of msg.content) {
       // Text content from assistant

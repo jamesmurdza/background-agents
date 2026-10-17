@@ -7,6 +7,7 @@ import type { Event } from "../../types/events"
 import { quote } from "../../utils/shell"
 import { parseGooseLine } from "./parser"
 import { GOOSE_TOOL_MAPPINGS } from "./tools"
+import { validateThinking } from "../../thinking"
 
 /**
  * Determine the goose provider based on the given model name.
@@ -39,6 +40,7 @@ export const gooseAgent: AgentDefinition = {
   },
 
   buildCommand(options: RunOptions): CommandSpec {
+    validateThinking("goose", options.model, options.thinking)
     const gooseArgs: string[] = []
 
     // Use run subcommand for non-interactive execution
@@ -65,11 +67,10 @@ export const gooseAgent: AgentDefinition = {
       gooseArgs.push("--system", options.systemPrompt)
     }
 
-    // Session handling: goose resumes the most recent session when --resume is used
-    // First message (no sessionId): creates new session
-    // Subsequent messages (has sessionId): resumes most recent session
+    // Bare --resume selects the most recent conversation in the sandbox,
+    // which may belong to another chat. Always name the native session.
     if (options.sessionId) {
-      gooseArgs.push("--resume")
+      gooseArgs.push("--resume", "--session-id", options.sessionId)
     }
 
     // Build the goose command string (will be passed to bash -c)

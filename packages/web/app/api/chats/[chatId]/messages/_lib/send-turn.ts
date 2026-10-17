@@ -29,6 +29,8 @@ import { runPreRunPull } from "./pre-run-pull"
 import { buildAgentHistory } from "./history"
 import { buildAgentEnv } from "./agent-env"
 import { persistTurn } from "./persist-turn"
+import { parseThinking } from "@/lib/thinking"
+import { UnsupportedThinkingError } from "@background-agents/sdk/thinking"
 
 interface SendTurnArgs {
   userId: string
@@ -49,6 +51,14 @@ export async function sendChatTurn({
 }: SendTurnArgs): Promise<Response> {
   const chat = await getChatWithAuth(chatId, userId)
   if (!chat) return notFound("Chat not found")
+  // Validate before claiming the chat, creating a sandbox, or persisting a turn.
+  let thinking
+  try {
+    thinking = parseThinking(payload.agent, payload.model, payload.thinking)
+  } catch (error) {
+    if (error instanceof UnsupportedThinkingError) return Response.json({ error: error.message }, { status: 400 })
+    throw error
+  }
 
   if (claimedPromptId) {
     if (chat.status !== "creating" || chat.queueDispatchId !== claimedPromptId) {
@@ -144,6 +154,7 @@ export async function sendChatTurn({
       model: resolveCliModel(payload.model, customEndpoints),
       env: Object.keys(env).length > 0 ? env : undefined,
       planMode: payload.planMode,
+      thinking,
       mcpServers,
       skills: discoveredSkills.length > 0 ? discoveredSkills : undefined,
     })
@@ -199,6 +210,7 @@ export async function sendChatTurn({
         await deleteSandboxQuietly(daytona, state.sandboxId)
       }
     } catch { /* best effort; cron can recover a persisted turn */ }
+    if (error instanceof UnsupportedThinkingError) return Response.json({ error: error.message }, { status: 400 })
     return internalError(error)
   } finally {
     // A pre-run rejection must not strand a direct send in "creating".

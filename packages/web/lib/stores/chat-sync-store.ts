@@ -42,8 +42,11 @@ export interface LimitReachedState {
   pendingMessage?: {
     chatId: string
     content: string
+    agent?: string
+    model?: string
     files?: File[]
     planMode?: boolean
+    thinking?: string
     /** The server explicitly rejected this attempt before running it. */
     rejectedMessageId?: string
   }
