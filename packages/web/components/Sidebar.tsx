@@ -23,9 +23,6 @@ import {
   getChatRepos,
 } from "./sidebar/index"
 
-// Re-export from context for backward compatibility
-export { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
-
 // The docs site is deployed separately (packages/docs) at its own domain.
 const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.backgrounder.dev"
 
