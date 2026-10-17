@@ -64,7 +64,7 @@ await sandbox.delete()
 |----------|-------------|
 | Claude | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions -- "prompt"` |
 | Codex | `codex exec --json --skip-git-repo-check --yolo -- "prompt"` |
-| Command Code | `commandcode --output-format json --skip-onboarding --trust --no-auto-update --yolo -m <model> -p "prompt"` |
+| Command Code | `commandcode --output-format json --skip-onboarding --trust --no-auto-update --yolo --model <model> -p "prompt"` |
 | Copilot | `copilot -p "prompt" --output-format=json --silent --autopilot` |
 | Droid | `droid exec --output-format stream-json --auto high -m <model> "prompt"` |
 | Gemini | `gemini --output-format stream-json --skip-trust --yolo -p "prompt"` |

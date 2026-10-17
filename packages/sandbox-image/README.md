@@ -33,9 +33,9 @@ Codex is pinned to `CODEX_CLI_VERSION` in `src/image.ts` and the SDK's
 preinstalls the versioned runtime used by the SDK and links the terminal's
 `codex` command to it. Rebuilding the image affects new sandboxes only; the SDK
 selects the exact reviewed version before a new execution in existing sandboxes,
-without replacing active jobs. See the SDK README's Codex runtime preparation
-section for rollback behavior. This package does not schedule automatic upgrades;
-other agents' existing installation policies are unchanged.
+without replacing active jobs (see `packages/sdk/src/utils/codex-runtime.ts`).
+This package does not schedule automatic upgrades; other agents' existing
+installation policies are unchanged.
 
 This is an internal workspace package. It's automatically available to other packages in the monorepo:
 
@@ -51,20 +51,17 @@ This is an internal workspace package. It's automatically available to other pac
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import {
-  getAgentSandboxImage,
-  SNAPSHOT_NAME,
-  SNAPSHOT_RESOURCES,
-} from "@background-agents/sandbox-image"
+import { getActiveSnapshotName } from "@background-agents/sandbox-image"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 
-// Create a sandbox from the pre-built image
+// Create a sandbox from the pre-built, pre-installed snapshot
 const sandbox = await daytona.create({
-  image: getAgentSandboxImage(),
-  resources: SNAPSHOT_RESOURCES,
+  snapshot: await getActiveSnapshotName(daytona),
 })
 ```
+
+`getAgentSandboxImage()` and `SNAPSHOT_RESOURCES` are used internally (by `rebuildSnapshot()`, i.e. `npm run build:snapshot`) to build that snapshot via `daytona.snapshot.create({ name, image: getAgentSandboxImage(), resources: SNAPSHOT_RESOURCES })` — sandboxes are then created from the resulting snapshot name, not from the `Image` spec directly.
 
 ## Exports
 
@@ -96,5 +93,5 @@ import type {
 
 ## Requirements
 
-- Node.js >= 18
-- `@daytonaio/sdk` >= 0.170.0
+- Node.js >= 20.9.0 (per the repo root's `engines.node`)
+- `@daytonaio/sdk` ^0.170.0

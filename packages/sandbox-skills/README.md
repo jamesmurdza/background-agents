@@ -11,7 +11,11 @@ This package provides:
 
 ## Installation
 
-This is an internal workspace package. It's automatically available to other packages in the monorepo:
+```bash
+npm install @background-agents/sandbox-skills @daytonaio/sdk
+```
+
+Inside this monorepo, other workspace packages depend on it directly:
 
 ```json
 {
