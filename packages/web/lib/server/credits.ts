@@ -35,8 +35,6 @@
  * that pulls one in.
  */
 
-import type { Plan } from "@/lib/server/usage-budgets"
-
 /**
  * Micro-dollars per US dollar — the stored unit for balances and ledger rows.
  *
@@ -136,12 +134,12 @@ export function chargeableUsd(listUsd: number, multiplier: number): number {
 export const SIGNUP_CREDIT_USD = 0.25
 
 /**
- * The balance the daily cron tops an account up *to*, per plan, in credits.
+ * The balance the daily cron tops every account up *to*, in credits.
  *
  * A refill to a fixed level, not a repeated addition: once a day, any balance
- * below the plan's target is raised to exactly it, and anything at or above is
- * left alone. So the grant is `target - balance`, never a flat amount, and a
- * user who buys credits is never also handed change on top.
+ * below the target is raised to exactly it, and anything at or above is left
+ * alone. So the grant is `target - balance`, never a flat amount, and a user
+ * who buys credits is never also handed change on top.
  *
  * Setting a level rather than adding to one also makes the write naturally
  * idempotent: applying it twice lands on the same number, so a double fire can
@@ -150,19 +148,11 @@ export const SIGNUP_CREDIT_USD = 0.25
  * Applied by the daily-credits cron, not by anything on the request path, so a
  * user who never returns costs nothing to keep topped up.
  *
- * This is what finally makes `pro` mean something — it and `free` have been
- * identical since gating moved to credits.
- *
- * `unlimited` has no target and is never refilled. It is ungated: the send check
- * short-circuits ahead of the balance and token-metering skips the charge
- * entirely, so an unlimited account neither spends credits nor needs any. A
- * target there would fund a balance nothing draws down and put a nightly row in
- * the ledger that means nothing. `null` says "not refilled" — distinct from a
- * plan this table has simply never heard of, which falls back to `free`.
+ * One figure for everyone: there are no subscription tiers.
  *
  * A negative balance is refilled like any other, and that is the sharp edge
  * here. The deficit left by a turn that overshot zero is cleared *in full*
- * overnight — a user at -$20 is back to their target tomorrow — which makes
+ * overnight — a user at -$20 is back to the target tomorrow — which makes
  * "run one expensive turn, wait a day, repeat" free and unbounded. It is the
  * same hazard that removed the old daily allowance (a reset re-opened the gate
  * on a deficit), reintroduced deliberately and in a stronger form: the old rule
@@ -172,45 +162,18 @@ export const SIGNUP_CREDIT_USD = 0.25
  * the starting balance at zero in {@link dailyTopUpMicro} and in the cron's SQL
  * is the change that removes it.
  */
-export const DAILY_CREDIT_TARGET_USD: Readonly<Record<Plan, number | null>> = {
-  free: 0.25,
-  pro: 0.5,
-  unlimited: null,
-}
+export const DAILY_CREDIT_TARGET_USD = 0.25
 
 /**
- * The daily target for a plan in credits, or null when the plan is not refilled
- * at all.
- *
- * A plan this table has never heard of falls back to `free`'s target rather than
- * to null: one added to the schema without a target here should under-grant a
- * single user, not silently stop refilling them. That is why membership is
- * tested with `in` — an explicit null and a missing key mean opposite things.
- */
-export function dailyCreditTargetUsd(plan: string | null | undefined): number | null {
-  if (plan != null && plan in DAILY_CREDIT_TARGET_USD) {
-    const target = DAILY_CREDIT_TARGET_USD[plan as Plan]
-    return typeof target === "number" && Number.isFinite(target) ? target : null
-  }
-  return DAILY_CREDIT_TARGET_USD.free
-}
-
-/**
- * What the daily cron would add to `balanceMicro` to reach the plan's target:
- * the shortfall, or zero when the balance is already at or above it — or when
- * the plan is not refilled.
+ * What the daily cron would add to `balanceMicro` to reach the target: the
+ * shortfall, or zero when the balance is already at or above it.
  *
  * The cron applies this in SQL over every user at once rather than calling this
  * per row — this is here so the rule itself is testable, and so the route and
  * the tests cannot drift on what "top up to the target" means.
  */
-export function dailyTopUpMicro(
-  balanceMicro: bigint,
-  plan: string | null | undefined
-): bigint {
-  const targetUsd = dailyCreditTargetUsd(plan)
-  if (targetUsd === null) return 0n
-  const target = usdToMicro(targetUsd)
+export function dailyTopUpMicro(balanceMicro: bigint): bigint {
+  const target = usdToMicro(DAILY_CREDIT_TARGET_USD)
   return balanceMicro < target ? target - balanceMicro : 0n
 }
 
@@ -258,7 +221,7 @@ export function stripeAmountToMicro(amountInCents: number): bigint {
 
 /** How a single turn's cost divides between the two balances. */
 export interface TurnCostSplit {
-  /** Paid out of the plan's daily allowance. */
+  /** Paid out of the daily allowance. */
   fromDaily: number
   /** Paid out of purchased credits. */
   fromCredits: number
@@ -269,8 +232,8 @@ export interface TurnCostSplit {
  *
  * The allowance always goes first, because it expires at UTC midnight and
  * credits never do — spending a bought dollar while a free one is still on the
- * table is strictly worse for the user. `dailyLeft` is `Infinity` for the
- * `unlimited` plan, which then absorbs the whole cost and never reaches credits.
+ * table is strictly worse for the user. A `dailyLeft` of `Infinity` absorbs the
+ * whole cost, so nothing reaches credits.
  *
  * Nothing is clamped to the balance the user actually holds, and that is the
  * point. A run is gated only *before* it starts, so the turn that empties the
@@ -308,11 +271,10 @@ export function splitTurnCost({
  * moment a warning is something the user can act on rather than noise.
  *
  * The hard constraint is the one above it: this MUST stay below every entry in
- * {@link DAILY_CREDIT_TARGET_USD} ($0.25 free, $0.50 pro). A threshold at or
- * over the refill target would leave a freshly topped-up free user permanently
- * in the warning state, and a warning that is always on is a warning nobody
- * reads. Raise the daily targets and this is fine; raise this past $0.25 and
- * the whole free tier lives in amber.
+ * {@link DAILY_CREDIT_TARGET_USD} ($0.25). A threshold at or over the refill
+ * target would leave a freshly topped-up user permanently in the warning state,
+ * and a warning that is always on is a warning nobody reads. Raise the daily
+ * target and this is fine; raise this past $0.25 and everyone lives in amber.
  */
 export const LOW_CREDIT_USD = 0.1
 
@@ -330,8 +292,8 @@ export type CreditTier = "ok" | "low" | "empty"
  * Classify a credit balance for display.
  *
  * `null` in, `null` out: a balance the caller could not determine, or one that
- * does not gate the user at all (the `unlimited` plan, or an account running
- * entirely on its own keys), must not be rendered as any tier — least of all
+ * does not gate the user at all (an account running entirely on its own keys),
+ * must not be rendered as any tier — least of all
  * as `empty`, which a naive `<= 0` on a missing balance would produce.
  *
  * A non-finite balance is treated the same way, for the same reason: a NaN that

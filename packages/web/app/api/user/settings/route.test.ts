@@ -74,8 +74,6 @@ vi.mock("@/lib/db/prisma", () => ({
 vi.mock("@/lib/server/credential-flags", () => ({
   getEffectiveCredentialFlags: vi.fn().mockResolvedValue({
     flags: {},
-    isPro: false,
-    plan: "free",
     creditBalanceUsd: null,
   }),
 }))

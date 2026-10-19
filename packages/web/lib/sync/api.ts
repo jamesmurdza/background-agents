@@ -69,7 +69,6 @@ export interface SettingsResponse {
   settings: Settings
   credentialFlags: CredentialFlags
   customEndpoints?: CustomEndpoint[]
-  planIsPro?: boolean
   /**
    * Purchased credits in USD, or null when the balance doesn't gate this user.
    * Optional so an older deployment's response still parses; a missing value
@@ -77,7 +76,7 @@ export interface SettingsResponse {
    */
   creditBalanceUsd?: number | null
   /** Why the balance reads the way it does — see CreditsMode on the server. */
-  creditsMode?: "balance" | "unlimited" | "none"
+  creditsMode?: "balance" | "none"
   /** Purchased credits, always — see availableCreditsUsd on the server. */
   availableCreditsUsd?: number
   /**

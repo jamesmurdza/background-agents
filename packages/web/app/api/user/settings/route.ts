@@ -34,11 +34,9 @@ interface SettingsResponse {
   credentialFlags: CredentialFlags
   /** The user's custom endpoints, headers decrypted for the owner to edit. */
   customEndpoints: CustomEndpoint[]
-  /** Whether user is a pro subscriber */
-  planIsPro: boolean
   /**
    * Purchased credits in USD, or null when the balance doesn't gate this user
-   * (unlimited plan, or own keys everywhere). Carried on this response rather
+   * (own keys everywhere). Carried on this response rather
    * than fetched separately because getEffectiveCredentialFlags already reads
    * the balance to set SHARED_BALANCE_EXHAUSTED — the composer's low-credit
    * warning costs no extra query and can never disagree with the picker's dot.
@@ -102,7 +100,6 @@ export async function GET(): Promise<Response> {
       settings: readSettings(user?.settings),
       credentialFlags: effective.flags,
       customEndpoints: decryptUserEndpoints(user?.customEndpoints),
-      planIsPro: effective.isPro,
       creditBalanceUsd: effective.creditBalanceUsd,
       creditsMode: effective.creditsMode,
       availableCreditsUsd: effective.availableCreditsUsd,
@@ -254,7 +251,6 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       customEndpoints: decryptUserEndpoints(
         newEndpoints ?? (priorCustomEndpoints as unknown)
       ),
-      planIsPro: effective.isPro,
       creditBalanceUsd: effective.creditBalanceUsd,
       creditsMode: effective.creditsMode,
       availableCreditsUsd: effective.availableCreditsUsd,

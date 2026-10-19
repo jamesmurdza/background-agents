@@ -54,7 +54,6 @@ export function useUpdateSettingsMutation() {
         settings: response.settings,
         credentialFlags: response.credentialFlags,
         customEndpoints: response.customEndpoints,
-        planIsPro: response.planIsPro,
         creditBalanceUsd: response.creditBalanceUsd ?? null,
         creditsMode: response.creditsMode,
         availableCreditsUsd: response.availableCreditsUsd,

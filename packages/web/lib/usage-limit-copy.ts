@@ -3,9 +3,9 @@ import { fmtBalance } from "@/lib/format"
 /**
  * The message shown when a user has nothing left to spend.
  *
- * Gating is purely credit-based now (see lib/db/usage-limit): Free and Pro are
- * treated identically, and there is no separate free daily tier to fall back
- * on, so this is always about credits.
+ * Gating is purely credit-based (see lib/db/usage-limit): there are no tiers
+ * and no separate free daily allowance to fall back on, so this is always
+ * about credits.
  *
  * Deliberately names no provider: the balance is pooled, so "your Claude limit"
  * was both wrong and confusing once the same allowance covered Gemini and

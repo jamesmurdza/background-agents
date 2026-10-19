@@ -49,7 +49,7 @@ export async function startJobExecution(
   // keeps spending — every tick — while the chat UI refuses to send. Checked
   // here rather than in the trigger routes so cron dispatch, "Run now" and
   // webhooks are all covered by the one gate. Own-key, custom-endpoint,
-  // free-model and Unlimited-plan runs are uncapped and pass straight through.
+  // and free-model runs are uncapped and pass straight through.
   const usage = await checkSharedPoolUsage(
     job.userId,
     job.agent as Agent,

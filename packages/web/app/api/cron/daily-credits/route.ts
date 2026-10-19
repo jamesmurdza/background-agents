@@ -1,24 +1,16 @@
 import { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/db/prisma"
-import type { Plan } from "@/lib/server/usage-budgets"
-import {
-  DAILY_CREDIT_TARGET_USD,
-  dailyCreditTargetUsd,
-  usdToMicro,
-} from "@/lib/server/credits"
+import { DAILY_CREDIT_TARGET_USD, usdToMicro } from "@/lib/server/credits"
 
 /**
  * Daily credit refill.
  *
- * Once per UTC day, raises every balance below its plan's target in
- * {@link DAILY_CREDIT_TARGET_USD} to exactly that, and leaves everything at or
- * above it alone. The grant is the shortfall, so a free user at $0.10 gets
- * $0.15 and one at $0 gets $0.25. Negative balances are refilled in full — see
- * the constant for what that costs us and why it was chosen anyway.
- *
- * `unlimited` is skipped entirely: it is ungated and never spends credits, so
- * it has no target and nothing to refill.
+ * Once per UTC day, raises every balance below {@link DAILY_CREDIT_TARGET_USD}
+ * to exactly that, and leaves everything at or above it alone. The grant is the
+ * shortfall, so a user at $0.10 gets $0.15 and one at $0 gets $0.25. Negative
+ * balances are refilled in full — see the constant for what that costs us and
+ * why it was chosen anyway.
  *
  * One statement, not a loop over users. Production caps the Prisma pool at one
  * connection per instance, so several hundred sequential transactions would
@@ -40,22 +32,8 @@ import {
 // maxDuration configures the timeout for this Vercel function.
 export const maxDuration = 60
 
-/**
- * Per-plan targets in micro-dollars, resolved once at module load.
- *
- * Null means "not refilled" and binds as SQL NULL, which drops the row at the
- * `before < target` comparison — that is how `unlimited` is excluded. Derived
- * from the constant rather than written as a literal `NULL` in the query, so
- * giving a plan a target later is still a one-line change there.
- */
-function targetMicro(plan: Plan): bigint | null {
-  const usd = dailyCreditTargetUsd(plan)
-  return usd === null ? null : usdToMicro(usd)
-}
-
-const FREE_MICRO = targetMicro("free")
-const PRO_MICRO = targetMicro("pro")
-const UNLIMITED_MICRO = targetMicro("unlimited")
+/** The refill target in micro-dollars, resolved once at module load. */
+const TARGET_MICRO = usdToMicro(DAILY_CREDIT_TARGET_USD)
 
 export async function GET(req: Request) {
   // Verify cron secret (skip auth if not configured, for local development)
@@ -77,14 +55,6 @@ export async function GET(req: Request) {
     // reads the same snapshot, so this sees pre-update values; Postgres has no
     // `RETURNING OLD` until 18.
     //
-    // The plan → target mapping is a CASE rather than a join so the figures stay
-    // bound to the constants above. `unlimited` binds NULL, and `before < NULL`
-    // is NULL rather than true, so those rows are dropped by the UPDATE's WHERE
-    // without needing a clause of their own. An unrecognised plan falls to the
-    // free target for the same reason `dailyCreditTargetUsd` does: a plan added
-    // to the schema without a target here must under-grant one user, not break
-    // the nightly refill for everyone.
-    //
     // Every interpolation is cast explicitly. Prisma sends these as untyped bind
     // parameters, and Postgres cannot infer a type for one that appears only
     // inside a `||` concatenation — it fails the whole statement with "could not
@@ -92,13 +62,8 @@ export async function GET(req: Request) {
     const refilled = await prisma.$executeRaw`
       WITH eligible AS (
         SELECT u."id",
-               u."plan"::text AS plan,
                u."creditBalanceMicroUsd" AS before,
-               CASE u."plan"::text
-                 WHEN 'pro' THEN ${PRO_MICRO}::bigint
-                 WHEN 'unlimited' THEN ${UNLIMITED_MICRO}::bigint
-                 ELSE ${FREE_MICRO}::bigint
-               END AS target
+               ${TARGET_MICRO}::bigint AS target
           FROM "User" u
          WHERE NOT EXISTS (
            SELECT 1 FROM "CreditTransaction" t
@@ -111,7 +76,7 @@ export async function GET(req: Request) {
           FROM eligible e
          WHERE u."id" = e."id"
            AND e."before" < e."target"
-        RETURNING u."id", e."plan", e."before", e."target",
+        RETURNING u."id", e."before", e."target",
                   u."creditBalanceMicroUsd" AS after
       )
       INSERT INTO "CreditTransaction" (
@@ -128,11 +93,8 @@ export async function GET(req: Request) {
         'daily',
         ${keyPrefix}::text || t."id" || ':' || ${day}::text,
         'Daily credit',
-        -- Built per row: the target that applied depends on the plan, and a
-        -- charge's provenance is worthless if it records the wrong one.
         jsonb_build_object(
           'day', ${day}::text,
-          'plan', t."plan",
           'targetMicro', t."target"
         ),
         CURRENT_TIMESTAMP

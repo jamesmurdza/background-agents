@@ -145,10 +145,9 @@ export async function GET(req: Request) {
           orderBy: { timestamp: "desc" },
           take: 1,
         },
-        // For the mid-turn credit guard: `unlimited` plans never draw credits.
         // isAdmin/settings: to resolve this chat's own hard timeout, which an
         // admin may have overridden from their Developer settings.
-        user: { select: { plan: true, isAdmin: true, settings: true } },
+        user: { select: { isAdmin: true, settings: true } },
       },
     })
 
@@ -225,7 +224,6 @@ export async function GET(req: Request) {
             fallbackSessionId: chat.sessionId,
             daytona,
             turnStartedAt: runStartedAt,
-            plan: chat.user.plan,
             runningMinutes: totalMinutes,
           }))
         ) {
@@ -248,7 +246,7 @@ export async function GET(req: Request) {
       include: {
         // isAdmin/settings: to resolve this run's own hard timeout, which an
         // admin may have overridden from their Developer settings.
-        job: { include: { user: { select: { plan: true, isAdmin: true, settings: true } } } },
+        job: { include: { user: { select: { isAdmin: true, settings: true } } } },
       },
     })
 
@@ -317,7 +315,6 @@ export async function GET(req: Request) {
               agentSessionId: snapshot.sessionId,
               daytona,
               turnStartedAt: run.startedAt,
-              plan: run.job.user.plan,
               runningMinutes,
             }))
           ) {

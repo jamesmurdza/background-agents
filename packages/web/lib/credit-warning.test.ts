@@ -37,7 +37,7 @@ describe("warningTierToShow", () => {
   })
 
   it("stays silent for a user the balance doesn't gate", () => {
-    // Unlimited plan / own keys everywhere / logged out all arrive as null.
+    // Own keys everywhere / logged out both arrive as null.
     expect(warningTierToShow({ ...base, balanceUsd: null })).toBeNull()
     expect(warningTierToShow({ ...base, balanceUsd: undefined })).toBeNull()
   })

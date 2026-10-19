@@ -7,29 +7,13 @@ import {
   getDailyBalance,
   isFreeModel,
   BALANCE_POOL_PROVIDERS,
-  PRO_BUDGET_MULTIPLIER,
 } from "./usage-budgets"
 
 describe("getDailyBalance", () => {
-  it("gives free users a finite daily balance", () => {
-    const free = getDailyBalance("free")
-    expect(free).toBeGreaterThan(0)
-    expect(Number.isFinite(free!)).toBe(true)
-  })
-
-  it("scales the free balance by the Pro multiplier", () => {
-    expect(getDailyBalance("pro")).toBeCloseTo(
-      getDailyBalance("free")! * PRO_BUDGET_MULTIPLIER,
-      10
-    )
-  })
-
-  it("leaves the unlimited plan uncapped", () => {
-    expect(getDailyBalance("unlimited")).toBeNull()
-  })
-
-  it("defaults to the free balance when no plan is given", () => {
-    expect(getDailyBalance()).toBe(getDailyBalance("free"))
+  it("gives every user a finite daily balance", () => {
+    const balance = getDailyBalance()
+    expect(balance).toBeGreaterThan(0)
+    expect(Number.isFinite(balance)).toBe(true)
   })
 })
 

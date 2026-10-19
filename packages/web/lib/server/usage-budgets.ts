@@ -31,9 +31,6 @@
 
 import type { ProviderName } from "@background-agents/common"
 
-/** Subscription tier (mirrors Prisma's `Plan` enum). */
-export type Plan = "free" | "pro" | "unlimited"
-
 /**
  * Shared pools that draw on the daily balance.
  *
@@ -47,11 +44,8 @@ export const BALANCE_POOL_PROVIDERS: readonly ProviderName[] = [
   "gemini",
 ]
 
-/** Multiplier applied to the free daily balance for `pro` users. */
-export const PRO_BUDGET_MULTIPLIER = 2
-
 /**
- * Free-tier daily balance, in USD of API list value.
+ * Daily balance, in USD of API list value.
  *
  * Sized from the ledger, not modelled. Over 77 active days (Jun–Aug 2026): 106
  * users, 6,463 shared turns, $14,846 of value — ~$193/day at ~11.9 users active
@@ -73,20 +67,16 @@ export const PRO_BUDGET_MULTIPLIER = 2
  *
  * $5/day sits below that $8.10 median, so it is a genuine tightening.
  *
- * Two things this does NOT bound:
- *   - The `unlimited` plan, uncapped by definition. It accounted for $44/day of
- *     the historical draw, and no value here touches it.
- *   - The pool as a whole. This caps a single user; 200 users active at once is
- *     still 200× the balance. A pool-wide daily ceiling is the only hard bound,
- *     and it does not exist yet.
+ * What this does NOT bound: the pool as a whole. This caps a single user; 200
+ * users active at once is still 200× the balance. A pool-wide daily ceiling is
+ * the only hard bound, and it does not exist yet.
  */
-const FREE_DAILY_BALANCE = 5
+const DAILY_BALANCE = 5
 
 /**
  * A temporary boost to the balance, with a hard expiry.
  *
- * While live, the multiplier scales the free balance — and through it the Pro
- * balance, which is still `PRO_BUDGET_MULTIPLIER`× free. At `until` the boost
+ * While live, the multiplier scales the daily balance. At `until` the boost
  * lapses on its own and the baseline returns; nothing has to be changed back by
  * hand.
  */
@@ -99,7 +89,7 @@ interface BalanceBoost {
 /**
  * The live boost, or null.
  *
- * No boost is currently live — the pool runs on its 5/10 baseline. Set an object
+ * No boost is currently live — the pool runs on its $5 baseline. Set an object
  * here (with a hard `until` expiry) to temporarily scale the balance; one whose
  * `until` is in the past is inert.
  */
@@ -111,19 +101,9 @@ function getBoostMultiplier(now: Date): number {
   return BALANCE_BOOST.multiplier
 }
 
-/**
- * Daily balance for a plan, or null when uncapped (`unlimited`).
- * `pro` gets `PRO_BUDGET_MULTIPLIER`× the free balance; both are scaled again
- * by any live {@link BALANCE_BOOST}.
- */
-export function getDailyBalance(
-  plan: Plan = "free",
-  now: Date = new Date()
-): number | null {
-  if (plan === "unlimited") return null
-  const multiplier =
-    (plan === "pro" ? PRO_BUDGET_MULTIPLIER : 1) * getBoostMultiplier(now)
-  return FREE_DAILY_BALANCE * multiplier
+/** Daily balance, scaled by any live {@link BALANCE_BOOST}. */
+export function getDailyBalance(now: Date = new Date()): number {
+  return DAILY_BALANCE * getBoostMultiplier(now)
 }
 
 /**

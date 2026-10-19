@@ -38,7 +38,6 @@ vi.mock("@/lib/db/provider-pricing", () => ({
 }))
 
 const tx = {
-  user: { findUnique: vi.fn(async () => ({ plan: "free" })) },
   chat: { findUnique: vi.fn(async () => ({ createdAt: new Date() })) },
   message: { count: vi.fn(async () => 1) },
 }

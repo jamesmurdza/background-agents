@@ -9,7 +9,6 @@ import {
   creditTier,
   LOW_CREDIT_USD,
   DAILY_CREDIT_TARGET_USD,
-  dailyCreditTargetUsd,
   dailyTopUpMicro,
   DEFAULT_MULTIPLIER,
   isFreeMultiplier,
@@ -91,7 +90,7 @@ describe("splitTurnCost", () => {
     })
   })
 
-  it("never touches credits on an uncapped plan", () => {
+  it("never touches credits when the allowance is uncapped", () => {
     expect(splitTurnCost({ cost: 400, dailyLeft: Infinity })).toEqual({
       fromDaily: 400,
       fromCredits: 0,
@@ -197,72 +196,31 @@ describe("chargeableUsd", () => {
   })
 })
 
-describe("dailyCreditTargetUsd", () => {
-  it("gives free and pro their own targets", () => {
-    expect(dailyCreditTargetUsd("free")).toBe(0.25)
-    expect(dailyCreditTargetUsd("pro")).toBe(0.5)
-  })
-
-  it("returns null for unlimited, which is never refilled", () => {
-    // Ungated: the send check short-circuits ahead of the balance and metering
-    // skips the charge, so there is nothing to refill.
-    expect(dailyCreditTargetUsd("unlimited")).toBeNull()
-  })
-
-  it("falls back to the free target for a plan it does not know", () => {
-    // A missing key and an explicit null mean opposite things: a plan added to
-    // the schema without a target must under-grant one user, not silently stop
-    // being refilled.
-    expect(dailyCreditTargetUsd("enterprise")).toBe(DAILY_CREDIT_TARGET_USD.free)
-    expect(dailyCreditTargetUsd(null)).toBe(DAILY_CREDIT_TARGET_USD.free)
-    expect(dailyCreditTargetUsd(undefined)).toBe(DAILY_CREDIT_TARGET_USD.free)
-  })
-})
-
 describe("dailyTopUpMicro", () => {
-  it("grants the shortfall, so the balance lands exactly on the plan target", () => {
-    for (const plan of ["free", "pro"] as const) {
-      const target = usdToMicro(DAILY_CREDIT_TARGET_USD[plan]!)
-      for (const before of [0n, 100000n, target - 1n, -2000000n]) {
-        expect(before + dailyTopUpMicro(before, plan)).toBe(target)
-      }
+  it("grants the shortfall, so the balance lands exactly on the target", () => {
+    const target = usdToMicro(DAILY_CREDIT_TARGET_USD)
+    for (const before of [0n, 100000n, target - 1n, -2000000n]) {
+      expect(before + dailyTopUpMicro(before)).toBe(target)
     }
   })
 
   it("grants nothing at or above the target", () => {
     // A user who bought credits is not also handed change every night.
-    expect(dailyTopUpMicro(usdToMicro(0.25), "free")).toBe(0n)
-    expect(dailyTopUpMicro(usdToMicro(0.5), "pro")).toBe(0n)
-    expect(dailyTopUpMicro(usdToMicro(40), "free")).toBe(0n)
-  })
-
-  it("grants nothing to unlimited, at any balance", () => {
-    for (const before of [-2000000n, 0n, usdToMicro(100)]) {
-      expect(dailyTopUpMicro(before, "unlimited")).toBe(0n)
-    }
-  })
-
-  it("does not give a free user the pro target, or vice versa", () => {
-    // $0.40 is above free's target and below pro's — the one balance that tells
-    // the two rules apart.
-    const balance = usdToMicro(0.4)
-    expect(dailyTopUpMicro(balance, "free")).toBe(0n)
-    expect(dailyTopUpMicro(balance, "pro")).toBe(usdToMicro(0.1))
+    expect(dailyTopUpMicro(usdToMicro(0.25))).toBe(0n)
+    expect(dailyTopUpMicro(usdToMicro(40))).toBe(0n)
   })
 
   it("clears a deficit in full rather than chipping at it", () => {
     // Deliberate, and the expensive half of the rule: an overshoot to -$20 is
     // back at the target tomorrow. See DAILY_CREDIT_TARGET_USD.
-    expect(dailyTopUpMicro(usdToMicro(-20), "free")).toBe(usdToMicro(20.25))
+    expect(dailyTopUpMicro(usdToMicro(-20))).toBe(usdToMicro(20.25))
   })
 
   it("is idempotent — a second application grants nothing", () => {
     // The cron sets a level rather than adding to one, so a double fire is a
     // no-op even if it got past the exactly-once guard.
-    for (const plan of ["free", "pro"] as const) {
-      const after = 0n + dailyTopUpMicro(0n, plan)
-      expect(dailyTopUpMicro(after, plan)).toBe(0n)
-    }
+    const after = 0n + dailyTopUpMicro(0n)
+    expect(dailyTopUpMicro(after)).toBe(0n)
   })
 })
 
@@ -285,7 +243,7 @@ describe("creditTier", () => {
   })
 
   it("reports no tier at all for a balance that doesn't gate the user", () => {
-    // Unlimited plans and own-key accounts get null from the API, and a
+    // Own-key accounts get null from the API, and a
     // logged-out visitor gets nothing. None may render as "empty".
     expect(creditTier(null)).toBeNull()
     expect(creditTier(undefined)).toBeNull()
@@ -293,14 +251,11 @@ describe("creditTier", () => {
     expect(creditTier(Infinity)).toBeNull()
   })
 
-  it("stays below every daily refill target", () => {
-    // The invariant the threshold exists under: a user topped up to their
-    // plan's target must open the app in the clear, or the warning is
-    // permanent and therefore worthless.
-    for (const target of Object.values(DAILY_CREDIT_TARGET_USD)) {
-      if (target === null) continue
-      expect(LOW_CREDIT_USD).toBeLessThan(target)
-      expect(creditTier(target)).toBe("ok")
-    }
+  it("stays below the daily refill target", () => {
+    // The invariant the threshold exists under: a user topped up to the target
+    // must open the app in the clear, or the warning is permanent and
+    // therefore worthless.
+    expect(LOW_CREDIT_USD).toBeLessThan(DAILY_CREDIT_TARGET_USD)
+    expect(creditTier(DAILY_CREDIT_TARGET_USD)).toBe("ok")
   })
 })

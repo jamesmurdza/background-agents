@@ -139,8 +139,8 @@ export function AgentModelSelector({
   // User's custom endpoints — merged into each agent's model list by name.
   const { data: settingsData } = useSettingsQuery()
   const endpoints = settingsData?.customEndpoints
-  // Null for anyone the balance doesn't gate (unlimited plan, own keys
-  // everywhere, logged out) — those users never get a credit-coloured dot.
+  // Null for anyone the balance doesn't gate (own keys everywhere, logged
+  // out) — those users never get a credit-coloured dot.
   const creditBalanceUsd = settingsData?.creditBalanceUsd ?? null
   // Admin-set pricing multiplier per provider — empty when logged out or still
   // loading, which getModelPrice reads the same as "no multiplier configured"

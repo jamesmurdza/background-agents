@@ -1,11 +1,10 @@
 /**
  * Gating for the shared credential pools.
  *
- * Free and Pro are gated purely on purchased credits now: a run is allowed
- * while `creditBalanceMicroUsd > 0`, full stop, whatever the plan. There is no
- * separate free daily tier to fall back on any more, and Free/Pro are
- * therefore identical here. Only `unlimited`-plan users, and anyone running on
- * their own key, are uncapped.
+ * Every account is gated purely on its credit balance: a run is allowed while
+ * `creditBalanceMicroUsd > 0`, full stop. There are no subscription tiers and
+ * no separate free daily allowance to fall back on. Only runs on the user's
+ * own key (or on a free model/provider) are uncapped.
  *
  * Because a turn's cost is only known after it runs, enforcement is post-hoc:
  * we block the NEXT turn once the balance has hit zero. That means one turn
@@ -34,19 +33,17 @@ import {
   getDailyBalance,
   getNextUtcDayReset,
   getStartOfUtcDay,
-  type Plan,
 } from "@/lib/server/usage-budgets"
 
 export interface UsageLimitResult {
   allowed: boolean
-  plan: Plan
   /** Provider this run would have been billed to — for logging and telemetry. */
   provider: ProviderName
   /** "shared" pools draw the balance; "user" pools are always allowed. */
   pool: "shared" | "user"
   /** Spent today, across every shared pool. */
   used: number
-  /** Daily balance (Free/Pro), or null for Unlimited/own-key runs. */
+  /** Daily balance, or null for uncapped (own-key / free) runs. */
   limit: number | null
   remaining: number | null
   /**
@@ -61,10 +58,9 @@ export interface UsageLimitResult {
 
 /**
  * Check whether a user may start a turn on `agent` given their purchased
- * credit balance. Uncapped (allowed, no limit) when: the agent has no shared
- * pool, the user supplied their own key for it, or the user is on the
- * `unlimited` plan. Free and Pro both require `creditBalance > 0` — they are
- * treated identically here.
+ * credit balance. Uncapped (allowed, no limit) when the agent has no shared
+ * pool, the user supplied their own key for it, or the model/provider is free.
+ * Everything else requires `creditBalance > 0`.
  *
  * Note the asymmetry, and that it is deliberate: whether *this* run is metered
  * depends on the agent and model being used right now, but how much has been
@@ -82,10 +78,9 @@ export async function checkSharedPoolUsage(
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { plan: true, credentials: true, creditBalanceMicroUsd: true },
+    select: { credentials: true, creditBalanceMicroUsd: true },
   })
 
-  const plan: Plan = user?.plan ?? "free"
   const storedCreds = decryptUserCredentials(
     user?.credentials as Record<string, unknown> | null
   )
@@ -97,7 +92,7 @@ export async function checkSharedPoolUsage(
   const credits = user?.creditBalanceMicroUsd ?? 0n
   const creditBalance = microToUsd(credits)
 
-  const base = { plan, provider, pool, used: 0, creditBalance, resetAt }
+  const base = { provider, pool, used: 0, creditBalance, resetAt }
 
   // Not a shared-pool run → uncapped. resolvePool returns "shared" only for a
   // genuine shared-pool run (incl. a Gemini model under Pi/Droid), so gating on
@@ -131,11 +126,7 @@ export async function checkSharedPoolUsage(
     return { ...base, allowed: true, limit: null, remaining: null }
   }
 
-  const allowance = getDailyBalance(plan)
-  if (allowance == null) {
-    // Unlimited plan ⇒ uncapped, and never touches credits either.
-    return { ...base, allowed: true, limit: null, remaining: null }
-  }
+  const allowance = getDailyBalance()
 
   // Still computed for display (the Settings usage bar) and for anything else
   // that wants to know today's spend, but no longer part of the allow/deny

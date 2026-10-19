@@ -6,13 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// Subscription tier. See User.plan.
-enum Plan {
-  free
-  pro
-  unlimited
-}
-
 // =============================================================================
 // User - linked to GitHub OAuth
 // =============================================================================
@@ -29,12 +22,6 @@ model User {
 
   // Admin flag for analytics dashboard access
   isAdmin Boolean @default(false)
-
-  // Subscription tier governing shared-pool budgets:
-  //   free      → per-provider daily budget
-  //   pro        → 3× the free daily budget
-  //   unlimited  → no shared-pool cap
-  plan Plan @default(free)
 
   // JSONB for flexible settings storage (no migrations needed for new fields)
   // { defaultAgent, defaultModel, theme }
@@ -57,8 +44,8 @@ model User {
   // reused for every later one so the payment history stays on one customer.
   stripeCustomerId String? @unique
 
-  // Purchased credits, in micro-dollars (1e-6 USD). Spent only once the day's
-  // plan allowance is gone — see lib/server/credits.
+  // Credits, in micro-dollars (1e-6 USD). The only balance that gates a
+  // shared-pool send — see lib/server/credits and lib/db/usage-limit.
   //
   // Integer on purpose: turn costs run well under a cent, so cents would either
   // overcharge or round to zero (the free-route-around-the-cap bug that

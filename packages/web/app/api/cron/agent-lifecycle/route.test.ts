@@ -19,7 +19,7 @@ vi.mock("./_lib/scheduled", () => ({ startJobExecution: vi.fn(), finalizeSchedul
 import { GET } from "./route"
 
 const snapshot = { status: "completed", content: "full answer", toolCalls: [], contentBlocks: [] }
-const chat = { id: "chat", userId: "user", agent: "opencode", sandboxId: "sandbox", backgroundSessionId: "background", activeAssistantMessageId: "assistant", messages: [{ id: "assistant", createdAt: new Date(Date.now() - 60 * 60 * 1000) }], user: { plan: "free", isAdmin: false, settings: {} } }
+const chat = { id: "chat", userId: "user", agent: "opencode", sandboxId: "sandbox", backgroundSessionId: "background", activeAssistantMessageId: "assistant", messages: [{ id: "assistant", createdAt: new Date(Date.now() - 60 * 60 * 1000) }], user: { isAdmin: false, settings: {} } }
 beforeEach(() => {
   vi.resetAllMocks()
   vi.stubEnv("DAYTONA_API_KEY", "test-key-not-used")

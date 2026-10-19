@@ -12,19 +12,17 @@ export interface SettingsData {
   settings: Settings
   credentialFlags: CredentialFlags
   customEndpoints?: CustomEndpoint[]
-  planIsPro?: boolean
   /**
    * Purchased credits in USD, or null when the balance doesn't gate this user
-   * (unlimited plan, own keys everywhere) — and always null when logged out,
+   * (own keys everywhere) — and always null when logged out,
    * since the anonymous shared-pool endpoint carries no user data.
    */
   creditBalanceUsd?: number | null
   /**
-   * Why the balance reads the way it does: a real number, an uncapped plan, or
-   * an account on its own keys throughout. Lets the UI distinguish three very
-   * different situations that all arrive as a null balance.
+   * Why the balance reads the way it does: a real number, or an account on its
+   * own keys throughout, which arrives as a null balance.
    */
-  creditsMode?: "balance" | "unlimited" | "none"
+  creditsMode?: "balance" | "none"
   /**
    * The purchased credit balance, always — including for users credits don't
    * gate. `creditBalanceUsd` answers "should we warn them"; this answers "how
@@ -78,7 +76,6 @@ export function useSettingsQuery() {
         settings: response.settings,
         credentialFlags: response.credentialFlags,
         customEndpoints: response.customEndpoints,
-        planIsPro: response.planIsPro,
         creditBalanceUsd: response.creditBalanceUsd ?? null,
         creditsMode: response.creditsMode,
         availableCreditsUsd: response.availableCreditsUsd,

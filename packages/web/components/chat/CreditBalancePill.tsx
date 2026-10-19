@@ -23,7 +23,7 @@ const LOW_BALANCE_USD = 0.5
  * matters most.
  *
  * `creditsMode` only decides whether a low balance is *worth warning about*:
- * an uncapped plan or an account on its own keys can sit at $0.00 all day
+ * an account on its own keys can sit at $0.00 all day
  * without being blocked, so colouring that red would be a false alarm. The
  * figure still shows; only the alarm is conditional.
  */
@@ -51,13 +51,11 @@ export function CreditBalancePill({ compact = false }: { compact?: boolean }) {
       icon={isNegative || isLow ? TriangleAlert : undefined}
       label={`${value < 0 ? "-" : ""}${fmtBalance(Math.abs(value))}`}
       title={
-        mode === "unlimited"
-          ? "Credits remaining. Your plan is uncapped, so these aren't spent — open Usage"
-          : mode === "none"
-            ? "Credits remaining. You're on your own API keys, so these aren't spent — open Usage"
-            : isNegative
-              ? "Your last turn ran past your balance — open Usage"
-              : "Credits remaining — open Usage"
+        mode === "none"
+          ? "Credits remaining. You're on your own API keys, so these aren't spent — open Usage"
+          : isNegative
+            ? "Your last turn ran past your balance — open Usage"
+            : "Credits remaining — open Usage"
       }
       onClick={() => modals.openSettingsSection("usage")}
     />

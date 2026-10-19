@@ -128,7 +128,7 @@ export function UsageSection({ isMobile, initialScope = ACCOUNT_SCOPE }: UsageSe
                 !isAccountScope
                   ? "Whole account"
                   : !gatedOnCredits
-                    ? "Not spent on this plan"
+                    ? "Not spent on your own keys"
                     : runwayDays === null
                       ? "No spend to project from"
                       : `≈ ${formatRunway(runwayDays)} at this rate`

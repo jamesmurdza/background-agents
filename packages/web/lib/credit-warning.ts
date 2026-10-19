@@ -92,7 +92,7 @@ export function dismissalIsStale({
  * The tier to show in the composer banner, or null to show nothing.
  *
  * Null covers all of: a healthy balance, a user the balance doesn't gate
- * (`balanceUsd` null — unlimited plan, own keys everywhere, logged out), a
+ * (`balanceUsd` null — own keys everywhere, logged out), a
  * send that wouldn't draw the shared pool anyway, and a live dismissal.
  *
  * `drawsSharedPool` is what keeps the banner honest about the *current*

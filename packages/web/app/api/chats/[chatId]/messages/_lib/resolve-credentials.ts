@@ -36,9 +36,9 @@ export async function resolveSendCredentials(
 
   let credentials = await getUserCredentials(userId)
 
-  // Enforce the per-provider daily budget on shared pools. Free and Pro are
-  // capped; Unlimited, own-key runs, and agents without a shared pool are
-  // allowed — so this is safe to call unconditionally.
+  // Enforce the credit balance on shared pools. Own-key runs, free models, and
+  // agents without a shared pool are allowed — so this is safe to call
+  // unconditionally.
   const usageCheck = await checkSharedPoolUsage(userId, payload.agent as Agent, payload.model)
   if (!usageCheck.allowed) {
     logActivityAsync(userId, "daily_limit_reached", {

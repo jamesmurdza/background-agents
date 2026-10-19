@@ -53,7 +53,6 @@ function run(overrides: Partial<Parameters<typeof creditBudgetExhausted>[0]> = {
     agentSessionId: "ses_abc",
     daytona,
     turnStartedAt: new Date(Date.now() - 10 * 60_000),
-    plan: "pro",
     runningMinutes: 10,
     ...overrides,
   })
@@ -101,12 +100,6 @@ describe("creditBudgetExhausted", () => {
     // Below CREDIT_GUARD_MIN_RUN_MINUTES tokscale has nothing to report, so the
     // sandbox round-trip is pure cost — the meter must not even be called.
     expect(await run({ runningMinutes: 1 })).toBe(false)
-    expect(meterAssistantTurn).not.toHaveBeenCalled()
-  })
-
-  it("does not sample an unlimited-plan run", async () => {
-    balance = usd(-100)
-    expect(await run({ plan: "unlimited" })).toBe(false)
     expect(meterAssistantTurn).not.toHaveBeenCalled()
   })
 

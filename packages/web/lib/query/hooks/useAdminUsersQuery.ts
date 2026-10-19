@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
 import { adminRetry, fetchAdminJson } from "./adminQuery"
-import type { Plan } from "@/lib/server/usage-budgets"
 
 interface User {
   id: string
@@ -13,7 +12,6 @@ interface User {
   image: string | null
   githubId: string | null
   isAdmin: boolean
-  plan: Plan
   totalMessages: number
   lastActivityAt: string | null
   lastActivityAction: string | null
@@ -38,7 +36,6 @@ export type SortField =
   | "totalMessages"
   | "lastActivityAt"
   | "createdAt"
-  | "plan"
   | "isAdmin"
 export type SortOrder = "asc" | "desc"
 
@@ -77,17 +74,15 @@ export function useAdminUsersQuery(options: UseAdminUsersQueryOptions = {}) {
   })
 }
 
-// Mutation for updating user properties (admin status, subscription plan)
+// Mutation for updating user properties (admin status)
 interface UpdateUserParams {
   userId: string
   isAdmin?: boolean
-  plan?: Plan
 }
 
-async function updateUser({ userId, isAdmin, plan }: UpdateUserParams): Promise<User> {
-  const body: { isAdmin?: boolean; plan?: Plan } = {}
+async function updateUser({ userId, isAdmin }: UpdateUserParams): Promise<User> {
+  const body: { isAdmin?: boolean } = {}
   if (typeof isAdmin === "boolean") body.isAdmin = isAdmin
-  if (plan !== undefined) body.plan = plan
 
   const response = await fetch(`/api/admin/users/${userId}`, {
     method: "PATCH",

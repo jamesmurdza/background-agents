@@ -53,8 +53,6 @@ export async function creditBudgetExhausted(params: {
   daytona: Daytona
   /** When the current turn began — the window spend is measured over. */
   turnStartedAt: Date
-  /** The owner's plan; `unlimited` never touches credits. */
-  plan: string
   /** How long the turn has been running, for the blind-window gate. */
   runningMinutes: number
 }): Promise<boolean> {
@@ -62,7 +60,6 @@ export async function creditBudgetExhausted(params: {
 
   // Cheap gates first — each one avoids a sandbox round-trip. Kept here rather
   // than at the two call sites so the rule lives in one place.
-  if (params.plan === "unlimited") return false
   if (params.runningMinutes < CREDIT_GUARD_MIN_RUN_MINUTES) return false
 
   try {
