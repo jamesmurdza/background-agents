@@ -234,6 +234,7 @@ const SHARED_OPENCODE_ALLOWED = new Set<string>([
 const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
   "gemini-3.1-pro-preview",
   "google/gemini-3.1-pro-preview",
+  "google/gemini-4-argon",
 ])
 
 /**
@@ -394,6 +395,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-6-luna", label: "GPT-6 Luna", requiresKey: "commandcode" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "commandcode" },
     // ── Google (Pro plan and above) ──
+    { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "commandcode" },
     { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "commandcode" },
     { value: "google/gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite", requiresKey: "commandcode" },
   ],
@@ -495,6 +497,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Moonshot (Kimi) models, routed through the user's KIMI_API_KEY against
     // https://api.moonshot.ai/v1. Each value must match a [models."<id>"] entry
     // declared in the generated ~/.kimi-code/config.toml (see the kimi agent).
+    { value: "kimi-k3.1-pro", label: "Kimi K3.1 Pro", requiresKey: "kimi" },
     { value: "kimi-k3", label: "Kimi K3", requiresKey: "kimi" },
     { value: "kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "kimi" },
     { value: "kimi-k2.7-code-highspeed", label: "Kimi K2.7 Code Highspeed", requiresKey: "kimi" },
@@ -570,7 +573,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
     { value: "openai/gpt-5", label: "GPT-5", requiresKey: "openai" },
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
-    // Google models — Flash also runs on the shared Gemini pool; Pro is BYOK-only.
+    // Google models — Flash also runs on the shared Gemini pool; Pro and Argon
+    // are BYOK-only.
+    { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
     { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
     { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
     { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "gemini", priceUsdPerM: 0.75 },

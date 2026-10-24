@@ -38,6 +38,7 @@ const KIMI_DEFAULT_BASE_URL = "https://api.moonshot.ai/v1"
  * /v1/models catalog and the values in agentModels.kimi (@background-agents/common).
  */
 const KIMI_MODELS: { id: string; context: number; reasoningEffort?: "toggle" | "always" }[] = [
+  { id: "kimi-k3.1-pro", context: 1048576 },
   { id: "kimi-k3", context: 1048576 },
   { id: "kimi-k2.7-code", context: 262144, reasoningEffort: "always" },
   { id: "kimi-k2.7-code-highspeed", context: 262144, reasoningEffort: "always" },
