@@ -36,6 +36,26 @@ const tabs: { key: TabKey; label: string; icon: TabIcon }[] = [
   { key: "repository", label: "Repository", icon: FolderGit2 },
 ]
 
+/**
+ * File names accepted for import. This is checked in code rather than with the
+ * file input's `accept` attribute: macOS treats ".env" as a name with no
+ * extension, so `accept` greys out real .env files in the picker. Checking here
+ * also covers drag and drop, which `accept` never applied to.
+ */
+const ENV_FILE_NAMES = new Set([
+  ".env",
+  ".env.local",
+  ".env.development",
+  ".env.development.local",
+  ".env.production",
+  ".env.production.local",
+  ".env.test",
+  ".env.test.local",
+  ".env.example",
+])
+
+const isEnvFileName = (name: string) => ENV_FILE_NAMES.has(name.toLowerCase())
+
 /** Convert a Record<string, string> to EnvVar[] for UI display */
 function recordToEnvVars(record: Record<string, string>): EnvVar[] {
   return Object.entries(record).map(([key, value]) => ({
@@ -234,13 +254,24 @@ export function EnvironmentVariablesModal({
   }
 
   const importFiles = async (files: FileList | File[]) => {
-    const list = Array.from(files)
-    if (list.length === 0) return
+    const all = Array.from(files)
+    if (all.length === 0) return
+    const list = all.filter((f) => isEnvFileName(f.name))
+    const skipped = all.filter((f) => !isEnvFileName(f.name)).map((f) => f.name)
+    if (list.length === 0) {
+      setImportStatus({ message: `Skipped ${skipped.join(", ")}: not an .env file.`, error: true })
+      return
+    }
     try {
       const texts = await Promise.all(list.map((f) => f.text()))
       const entries = texts.flatMap((t) => parseDotEnv(t))
       const source = list.length === 1 ? list[0].name : `${list.length} files`
       importEntries(entries, source)
+      if (skipped.length > 0) {
+        setImportStatus((prev) =>
+          prev && { ...prev, message: `${prev.message} Skipped ${skipped.join(", ")}: not an .env file.` }
+        )
+      }
     } catch (error) {
       console.error("Failed to read env file:", error)
       setImportStatus({ message: "Couldn't read that file.", error: true })
@@ -305,7 +336,6 @@ export function EnvironmentVariablesModal({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".env,.env.local,.env.development,.env.development.local,.env.production,.env.production.local,.env.test,.env.test.local,.env.example"
           multiple
           className="hidden"
           onChange={(e) => {
