@@ -22,18 +22,9 @@ function ServerPreviewComponent({
   onRecoverableChange,
   explicitStart,
   onRefresh,
-  refreshNonce,
 }: PanelProps) {
   const url = item.type === "server" ? item.url : ""
   const port = item.type === "server" ? item.port : null
-  // Cache-bust on explicit refresh: remounting the iframe alone only repeats a
-  // normal navigation, which the browser's HTTP cache can still serve from.
-  // Appending the refresh nonce makes the URL novel so the browser re-fetches
-  // everything, approximating a hard refresh (there's no API to force a
-  // cross-origin iframe to bypass cache directly).
-  const frameUrl = url
-    ? `${url}${url.includes("?") ? "&" : "?"}_r=${refreshNonce}`
-    : url
 
   // Declared before any early return so the hook order stays fixed.
   const [frameLoaded, setFrameLoaded] = useState(false)
@@ -250,7 +241,7 @@ function ServerPreviewComponent({
   return (
     <div className="relative h-full w-full overflow-hidden">
       <iframe
-        src={frameUrl}
+        src={url}
         className="border-0 bg-white"
         style={{
           width: "100%",
