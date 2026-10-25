@@ -1,10 +1,10 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, HardDrive, Rocket } from "lucide-react"
+import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, HardDrive } from "lucide-react"
 import { useModals, useSidebar } from "@/lib/contexts"
 import { CreditBalancePill } from "@/components/chat/CreditBalancePill"
-import { isRealRepo, type Chat } from "@/lib/types"
+import type { Chat } from "@/lib/types"
 
 interface MobileHeaderProps {
   chat: Chat | null
@@ -97,19 +97,6 @@ export function MobileHeader({
                 >
                   <Github className="h-4 w-4" />
                   Open in GitHub
-                </button>
-              )}
-
-              {isRealRepo(chat.repo) && (
-                <button
-                  onClick={() => {
-                    modals.setMobileTitleMenuOpen(false)
-                    modals.setNetlifyDeployOpen(true)
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left cursor-pointer"
-                >
-                  <Rocket className="h-4 w-4" />
-                  Deploy to Netlify
                 </button>
               )}
 

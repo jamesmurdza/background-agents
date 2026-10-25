@@ -114,13 +114,6 @@ export const CREDENTIAL_KEYS: readonly CredentialField[] = [
     label: "Google AI (Gemini)",
     helpUrl: "https://aistudio.google.com/apikey",
   },
-  {
-    id: "NETLIFY_OAUTH_TOKEN",
-    provider: "netlify",
-    label: "Netlify",
-    description: "Deploy a repo to your Netlify account.",
-    serverManaged: true,
-  },
 ] as const
 
 const CREDENTIAL_IDS = new Set<string>(CREDENTIAL_KEYS.map((c) => c.id))

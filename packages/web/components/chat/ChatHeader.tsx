@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, Rocket } from "lucide-react"
+import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useElectron } from "@/lib/hooks/useElectron"
@@ -10,7 +10,7 @@ import { useModals, useGit } from "@/lib/contexts"
 import { Input } from "../ui/input"
 import { ShareButton } from "./ShareButton"
 import { CreditBalancePill } from "./CreditBalancePill"
-import { isRealRepo, type Chat } from "@/lib/types"
+import type { Chat } from "@/lib/types"
 import type { RebaseConflictState } from "@background-agents/common"
 
 // =============================================================================
@@ -167,18 +167,6 @@ export function ChatHeader({
                   >
                     <Github className="h-3.5 w-3.5" />
                     Open in GitHub
-                  </button>
-                )}
-                {isRealRepo(chat.repo) && (
-                  <button
-                    onClick={() => {
-                      setTitleMenuOpen(false)
-                      modals.setNetlifyDeployOpen(true)
-                    }}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
-                  >
-                    <Rocket className="h-3.5 w-3.5" />
-                    Deploy to Netlify
                   </button>
                 )}
                 <button

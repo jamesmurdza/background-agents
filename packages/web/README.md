@@ -133,13 +133,6 @@ GITHUB_APP_PRIVATE_KEY="..."
 
 See [`mcp`](../mcp/README.md) for setup.
 
-To let users connect Netlify (Settings → API keys), create an OAuth application at [app.netlify.com/applications](https://app.netlify.com/applications) with the redirect URI `<NEXTAUTH_URL>/api/netlify/callback`, then set:
-
-```bash
-NETLIFY_OAUTH_CLIENT_ID="..."
-NETLIFY_OAUTH_CLIENT_SECRET="..."
-```
-
 To enable Stripe credit top-ups (optional — billing is only enabled when `BILLING_ENABLED="true"` and both Stripe secrets are set; otherwise checkout and the webhook return 404, the UI hides top-ups, and the rest of the app runs normally), set:
 
 ```bash

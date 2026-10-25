@@ -17,7 +17,6 @@ import {
 } from "@/components/modals/git-dialogs"
 import { EnvironmentVariablesModal } from "@/components/modals/EnvironmentVariablesModal"
 import { SandboxResizeModal } from "@/components/modals/SandboxResizeModal"
-import { NetlifyDeployDialog } from "@/components/modals/NetlifyDeployDialog"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -136,13 +135,6 @@ export function AppModals({
         open={modals.sandboxResizeModalOpen}
         onClose={() => modals.setSandboxResizeModalOpen(false)}
         sandboxId={currentChat?.sandboxId ?? null}
-        isMobile={isMobile}
-      />
-
-      <NetlifyDeployDialog
-        open={modals.netlifyDeployOpen}
-        onClose={() => modals.setNetlifyDeployOpen(false)}
-        chatId={currentChat?.id ?? null}
         isMobile={isMobile}
       />
 
