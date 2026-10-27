@@ -1,9 +1,10 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef } from "react"
 import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command } from "lucide-react"
 import { useModals, useSidebar } from "@/lib/contexts"
 import { CreditBalancePill } from "@/components/chat/CreditBalancePill"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import type { Chat } from "@/lib/types"
 
 interface MobileHeaderProps {
@@ -29,18 +30,11 @@ export function MobileHeader({
   const mobileTitleMenuRef = useRef<HTMLDivElement>(null)
 
   // Close menu when clicking outside
-  useEffect(() => {
-    if (!modals.mobileTitleMenuOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (mobileTitleMenuRef.current && !mobileTitleMenuRef.current.contains(e.target as Node)) {
-        modals.setMobileTitleMenuOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [modals.mobileTitleMenuOpen, modals])
+  useClickOutside(
+    mobileTitleMenuRef,
+    () => modals.setMobileTitleMenuOpen(false),
+    modals.mobileTitleMenuOpen
+  )
 
   return (
     <div className="flex items-center gap-3 px-4 pb-2 bg-background pt-safe">
