@@ -5,6 +5,7 @@ import { ChevronDown, Cpu, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
+import { useDropdownOutsideClick } from "@/lib/hooks/useDropdownOutsideClick"
 import type { Agent, ModelOption, CredentialFlags, Chat } from "@/lib/types"
 import { getAgentModels, getFreeModelForAgent, agentLabels, getModelLabel, hasCredentialsForModel, agentHasFreeUsage, agentIsReady, agentSharedPoolExhausted, agentUsesSharedPool, resolveModelForAgent, sharedPoolProviderForModel, formatTokenRate, ALL_AGENTS } from "@/lib/types"
 import { chargeableUsd, creditTier } from "@/lib/server/credits"
@@ -190,17 +191,7 @@ export function AgentModelSelector({
   }, [closeDropdowns])
 
   // Close dropdowns when clicking outside (desktop only)
-  useEffect(() => {
-    if (isMobile) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('[data-dropdown]')) {
-        setShowAgentDropdown(false)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [isMobile])
+  useDropdownOutsideClick(isMobile, () => setShowAgentDropdown(false))
 
   const handleAgentChange = useCallback((agent: Agent) => {
     setShowAgentDropdown(false)

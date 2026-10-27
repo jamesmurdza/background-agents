@@ -7,6 +7,7 @@ import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
 import { useCreditWarning } from "@/lib/hooks/useCreditWarning"
 import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
+import { useDropdownOutsideClick } from "@/lib/hooks/useDropdownOutsideClick"
 import { isModKeyPressed } from "@/lib/keyboard"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY, sharedPoolProviderForModel } from "@/lib/types"
@@ -340,17 +341,7 @@ export function ChatInput({
   }, [speech, onSend, onBranchSend, canBranch])
 
   // Close mode dropdown when clicking outside (desktop only)
-  useEffect(() => {
-    if (isMobile) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('[data-dropdown]')) {
-        setShowModeDropdown(false)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [isMobile])
+  useDropdownOutsideClick(isMobile, () => setShowModeDropdown(false))
 
   // Mode options for mobile bottom sheet
   const modeOptions = [
