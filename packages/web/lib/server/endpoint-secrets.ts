@@ -14,7 +14,7 @@
  * port keeps its credentials as they are: the proxy only intercepts HTTPS,
  * and a secret's hosts can't name a port.
  *
- * Off unless DAYTONA_USER_KEY_SECRETS includes CUSTOM_ENDPOINTS (or is "all").
+ * On unless DAYTONA_USER_KEY_SECRETS leaves out CUSTOM_ENDPOINTS (see userSecretsFlag).
  */
 
 import { Daytona } from "@daytonaio/sdk"
@@ -26,17 +26,13 @@ import {
 } from "@background-agents/sandbox-secrets"
 import type { CustomEndpoint } from "@background-agents/common"
 
-import { userKeySecretPrefix } from "@/lib/server/user-key-secrets"
+import { userKeySecretPrefix, userSecretsFlag } from "@/lib/server/user-key-secrets"
 
 /** Header names whose values are credentials. */
 const CREDENTIAL_HEADER = /authorization|api[-_]?key|token|secret/i
 
-/** DAYTONA_USER_KEY_SECRETS entry that turns endpoint secrets on. */
-const FLAG = "CUSTOM_ENDPOINTS"
-
 export function endpointSecretsEnabled(): boolean {
-  const enabled = (process.env.DAYTONA_USER_KEY_SECRETS ?? "").split(",").map((s) => s.trim())
-  return enabled.includes("all") || enabled.includes(FLAG)
+  return userSecretsFlag("CUSTOM_ENDPOINTS")
 }
 
 /**

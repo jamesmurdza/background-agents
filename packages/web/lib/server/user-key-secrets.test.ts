@@ -42,8 +42,11 @@ afterEach(() => {
 })
 
 describe("userKeySecretsEnabled", () => {
-  it("is off unless DAYTONA_USER_KEY_SECRETS names the credential or says all", () => {
+  it("is on when DAYTONA_USER_KEY_SECRETS is unset, says all or names the credential", () => {
     delete process.env.DAYTONA_USER_KEY_SECRETS
+    expect(userKeySecretsEnabled("ANTHROPIC_API_KEY")).toBe(true)
+    expect(userKeySecretsEnabled("COPILOT_GITHUB_TOKEN")).toBe(false) // no provider entry
+    process.env.DAYTONA_USER_KEY_SECRETS = "none"
     expect(userKeySecretsEnabled("ANTHROPIC_API_KEY")).toBe(false)
     process.env.DAYTONA_USER_KEY_SECRETS = "KIMI_API_KEY, OPENAI_API_KEY"
     expect(userKeySecretsEnabled("OPENAI_API_KEY")).toBe(true)

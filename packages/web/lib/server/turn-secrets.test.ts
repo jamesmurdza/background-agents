@@ -325,12 +325,13 @@ describe("planTurnSecrets with subscriptions", () => {
     ])
   })
 
-  it("plans neither unless listed by name", () => {
+  it("plans neither when left out", () => {
+    process.env.DAYTONA_USER_KEY_SECRETS = "OPENAI_API_KEY"
     const run = () => [
       ...planTurnSecrets({ userId: USER, agent: "codex", model: "gpt-6.1-sol", credentials: { CODEX_CREDENTIALS: authJson } }),
       ...planTurnSecrets({ userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, sharedClaudeToken: "t" }),
     ]
-    expect(run()).toEqual([]) // "all" in beforeEach
+    expect(run()).toEqual([])
   })
 })
 

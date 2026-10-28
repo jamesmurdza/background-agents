@@ -12,8 +12,8 @@
  * has to be stored to know whether one is current. Saving or removing a key
  * deletes the user's other secrets for it ({@link syncUserKeySecret}).
  *
- * Off unless DAYTONA_USER_KEY_SECRETS names the credential (or is "all"), and
- * only for the providers in {@link USER_KEY_PROVIDERS}. Copilot isn't one: its
+ * On unless DAYTONA_USER_KEY_SECRETS says otherwise ({@link userSecretsFlag}),
+ * and only for the providers in {@link USER_KEY_PROVIDERS}. Copilot isn't one: its
  * CLI rejects anything that doesn't look like a GitHub token before sending
  * it. Subscriptions (Claude, Codex) aren't plain keys and keep their own
  * handling.
@@ -57,14 +57,21 @@ export const USER_KEY_PROVIDERS: Partial<Record<CredentialId, UserKeyProvider>> 
 }
 
 /**
- * Whether `credential` is put behind a secret: it must have a provider entry
- * and be enabled by DAYTONA_USER_KEY_SECRETS ("all", or a comma-separated
- * list of credential ids).
+ * Whether DAYTONA_USER_KEY_SECRETS turns on `entry` (a credential id,
+ * CUSTOM_ENDPOINTS, ENV_VARS, CODEX_CREDENTIALS or CLAUDE_SHARED). Unset or
+ * "all" turns on everything; otherwise only the comma-separated entries
+ * listed ("none" lists none).
  */
+export function userSecretsFlag(entry: string): boolean {
+  const value = process.env.DAYTONA_USER_KEY_SECRETS
+  if (value === undefined) return true
+  const enabled = value.split(",").map((s) => s.trim())
+  return enabled.includes("all") || enabled.includes(entry)
+}
+
+/** Whether `credential` is put behind a secret: it must have a provider entry and be on. */
 export function userKeySecretsEnabled(credential: string): credential is CredentialId {
-  if (!(credential in USER_KEY_PROVIDERS)) return false
-  const enabled = (process.env.DAYTONA_USER_KEY_SECRETS ?? "").split(",").map((s) => s.trim())
-  return enabled.includes("all") || enabled.includes(credential)
+  return credential in USER_KEY_PROVIDERS && userSecretsFlag(credential)
 }
 
 /** The tag naming `userId` in their secrets' names: a short SHA-256 of their id. */

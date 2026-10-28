@@ -61,13 +61,15 @@ afterEach(() => {
 })
 
 describe("endpointSecretsEnabled", () => {
-  it("is on for CUSTOM_ENDPOINTS or all, off otherwise", () => {
+  it("is on for CUSTOM_ENDPOINTS, all or unset, off otherwise", () => {
     expect(endpointSecretsEnabled()).toBe(true)
     process.env.DAYTONA_USER_KEY_SECRETS = "all"
     expect(endpointSecretsEnabled()).toBe(true)
+    delete process.env.DAYTONA_USER_KEY_SECRETS
+    expect(endpointSecretsEnabled()).toBe(true)
     process.env.DAYTONA_USER_KEY_SECRETS = "ANTHROPIC_API_KEY"
     expect(endpointSecretsEnabled()).toBe(false)
-    delete process.env.DAYTONA_USER_KEY_SECRETS
+    process.env.DAYTONA_USER_KEY_SECRETS = "none"
     expect(endpointSecretsEnabled()).toBe(false)
   })
 })

@@ -98,7 +98,7 @@ describe("planSecretCleanup", () => {
   it("keeps the newest two shared Claude secrets, or none when that's off", () => {
     const secrets = [0, 1, 2].map((i) => old(`${CLAUDE_SHARED_SECRET_PREFIX}${i}`, i * 1000))
     expect(doomedNames(secrets)).toEqual([`${CLAUDE_SHARED_SECRET_PREFIX}2`])
-    process.env.DAYTONA_USER_KEY_SECRETS = "all"
+    process.env.DAYTONA_USER_KEY_SECRETS = "ANTHROPIC_API_KEY"
     expect(doomedNames(secrets)).toHaveLength(3)
   })
 

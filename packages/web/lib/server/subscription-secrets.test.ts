@@ -60,11 +60,16 @@ afterEach(() => {
 })
 
 describe("subscriptionSecretsEnabled", () => {
-  it("needs each listed by name: all doesn't cover them yet", () => {
+  it("is on when listed, all or unset, off when left out", () => {
     expect(subscriptionSecretsEnabled("CODEX_CREDENTIALS")).toBe(true)
     expect(subscriptionSecretsEnabled("CLAUDE_SHARED")).toBe(true)
-    process.env.DAYTONA_USER_KEY_SECRETS = "all"
-    expect(subscriptionSecretsEnabled("CODEX_CREDENTIALS")).toBe(false)
+    for (const value of ["all", undefined]) {
+      if (value === undefined) delete process.env.DAYTONA_USER_KEY_SECRETS
+      else process.env.DAYTONA_USER_KEY_SECRETS = value
+      expect(subscriptionSecretsEnabled("CODEX_CREDENTIALS")).toBe(true)
+      expect(subscriptionSecretsEnabled("CLAUDE_SHARED")).toBe(true)
+    }
+    process.env.DAYTONA_USER_KEY_SECRETS = "CODEX_CREDENTIALS"
     expect(subscriptionSecretsEnabled("CLAUDE_SHARED")).toBe(false)
   })
 })

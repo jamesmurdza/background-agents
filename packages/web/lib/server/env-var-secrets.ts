@@ -19,8 +19,9 @@
  * deletes the scope's others ({@link syncEnvVarSecrets}). A run's vars are
  * loaded by loadUserEnvVars (lib/server/user-env-vars).
  *
- * Off unless DAYTONA_USER_KEY_SECRETS contains ENV_VARS (or is "all"); the
- * hosts are stored either way, so turning it on later needs no re-entry.
+ * On unless DAYTONA_USER_KEY_SECRETS leaves out ENV_VARS (see
+ * userSecretsFlag); the hosts are stored either way, so turning it on later
+ * needs no re-entry.
  */
 
 import { createHash } from "node:crypto"
@@ -35,7 +36,7 @@ import {
 
 import { decrypt, encrypt } from "@/lib/db/encryption"
 import type { SecretEnvHosts } from "@/lib/types"
-import { userKeySecretPrefix } from "@/lib/server/user-key-secrets"
+import { userKeySecretPrefix, userSecretsFlag } from "@/lib/server/user-key-secrets"
 
 /** A stored env var: its encrypted value, or for a secret, that and its hosts. */
 export type StoredEnvVar = string | { v: string; hosts: string[] }
@@ -74,8 +75,7 @@ const HOST_PATTERN = /^(\*\.)?([a-z0-9-]+\.)+[a-z0-9-]+$/
 const RESERVED_NAME = /^(SESSION_RELAY_TOKEN|USER_KEY_|ENDPOINT_SECRET_)|^(https?|no|all)_proxy$/i
 
 export function envVarSecretsEnabled(): boolean {
-  const enabled = (process.env.DAYTONA_USER_KEY_SECRETS ?? "").split(",").map((s) => s.trim())
-  return enabled.includes("all") || enabled.includes("ENV_VARS")
+  return userSecretsFlag("ENV_VARS")
 }
 
 export const chatEnvScope = (chatId: string) => `chat:${chatId}`

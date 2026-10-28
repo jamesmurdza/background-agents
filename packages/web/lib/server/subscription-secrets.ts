@@ -15,14 +15,14 @@
  * refreshes, keeping the newest {@link KEEP_NEWEST} so a turn that started on
  * the previous token keeps working until it ends.
  *
- * Off unless DAYTONA_USER_KEY_SECRETS names them (CODEX_CREDENTIALS,
- * CLAUDE_SHARED). "all" doesn't cover them until they've been run live.
+ * On unless DAYTONA_USER_KEY_SECRETS leaves them out (CODEX_CREDENTIALS,
+ * CLAUDE_SHARED; see userSecretsFlag).
  */
 
 import { Daytona } from "@daytonaio/sdk"
 import { contentSecretName, deleteSecrets, type EnsureSecretSpec } from "@background-agents/sandbox-secrets"
 
-import { userKeySecretPrefix } from "@/lib/server/user-key-secrets"
+import { userKeySecretPrefix, userSecretsFlag } from "@/lib/server/user-key-secrets"
 
 export type SubscriptionSecret = "CODEX_CREDENTIALS" | "CLAUDE_SHARED"
 
@@ -38,9 +38,9 @@ export const CLAUDE_SHARED_MOUNT_ENV = "SESSION_RELAY_TOKEN_CLAUDE"
 /** Secrets kept per token when pruning: the current one and the one before. */
 export const KEEP_NEWEST = 2
 
-/** Whether `kind` is put behind a secret: only when listed by name. */
+/** Whether `kind` is put behind a secret. */
 export function subscriptionSecretsEnabled(kind: SubscriptionSecret): boolean {
-  return (process.env.DAYTONA_USER_KEY_SECRETS ?? "").split(",").map((s) => s.trim()).includes(kind)
+  return userSecretsFlag(kind)
 }
 
 /** The access token in a rendered Codex auth.json (see lib/codex-credentials). */
