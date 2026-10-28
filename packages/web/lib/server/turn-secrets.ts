@@ -1,7 +1,8 @@
 /**
  * The Daytona secrets a turn mounts (server-only): the shared pool key it
- * draws on, if any (lib/server/shared-pool-secrets), and the user's own
- * provider keys (lib/server/user-key-secrets).
+ * draws on, if any (lib/server/shared-pool-secrets), the user's own provider
+ * keys (lib/server/user-key-secrets) and the selected custom endpoint's
+ * credentials (lib/server/endpoint-secrets).
  *
  * The agent is handed each secret's placeholder in place of the credential
  * it stands for, so neither a pool key nor the user's own key ever enters
@@ -18,26 +19,33 @@
  */
 
 import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
-import { getEnvForModel, type Agent, type CredentialId, type CustomEndpoint } from "@background-agents/common"
+import { findEndpoint, getEnvForModel, type Agent, type CustomEndpoint } from "@background-agents/common"
 import {
+  ensureSecret,
   forgetSecrets,
   mountSecrets,
   parseSecretMarker,
   releaseSecrets,
   secretsCreateParams,
   waitForPropagation,
+  type EnsureSecretSpec,
   type MountOptions,
   type SecretMounts,
 } from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
+import {
+  endpointCredentials,
+  endpointSecretHost,
+  endpointSecretSpec,
+  endpointSecretsEnabled,
+} from "@/lib/server/endpoint-secrets"
 import { sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import { ensureSharedPoolSecret, sharedPoolSecretForRun } from "@/lib/server/shared-pool-secrets"
 import {
   USER_KEY_PROVIDERS,
-  ensureUserKeySecret,
   userKeyMountEnv,
-  userKeySecretName,
+  userKeySecretSpec,
   userKeySecretsEnabled,
 } from "@/lib/server/user-key-secrets"
 
@@ -51,24 +59,31 @@ export const TURN_SECRETS_LABEL = "opencode-secret"
 
 const MOUNT_OPTIONS: MountOptions = { label: TURN_SECRETS_LABEL }
 
-/** Other env vars getEnvForModel copies a credential into. */
-const CREDENTIAL_ENV_ALIASES: Partial<Record<CredentialId, string[]>> = {
-  GEMINI_API_KEY: ["GOOGLE_API_KEY"],
-}
-
 /** A secret a turn mounts, and the agent env value it stands in for. */
 export interface TurnSecret {
-  kind: "pool" | "user"
-  credential: CredentialId
+  kind: "pool" | "user" | "endpoint"
   /** Daytona secret name. */
   name: string
   /** Env var it is mounted as inside the sandbox. */
   mountEnv: string
   /**
    * What the agent env carries until it is swapped: a pool's credential
-   * marker, or the user's own key.
+   * marker, the user's own key, or a custom endpoint's credential.
    */
   envValue: string
+  /**
+   * The agent env vars carrying {@link envValue}, whole (a key and its
+   * aliases) or inside a larger value (an endpoint's header blob).
+   */
+  envKeys: string[]
+  /** How to create a user or endpoint secret; a pool's comes from its pool. */
+  spec?: EnsureSecretSpec
+  /**
+   * Env vars that, when the agent env sets one, send the value to a server
+   * other than the secret's hosts, where a placeholder would never be
+   * swapped. The value then stays as is.
+   */
+  bypassEnv?: string[]
 }
 
 export interface ReadyTurnSecret extends TurnSecret {
@@ -77,9 +92,10 @@ export interface ReadyTurnSecret extends TurnSecret {
 }
 
 /**
- * The secrets a run would mount: the shared pool key it draws on, and every
- * enabled user key the agent's env would carry. Pure — call before the
- * sandbox exists so it can be created with them.
+ * The secrets a run would mount: the shared pool key it draws on, every
+ * enabled user key the agent's env would carry, or the selected custom
+ * endpoint's credentials. Pure — call before the sandbox exists so it can be
+ * created with them.
  */
 export function planTurnSecrets(params: {
   userId: string
@@ -89,31 +105,42 @@ export function planTurnSecrets(params: {
   endpoints?: CustomEndpoint[]
 }): TurnSecret[] {
   const { userId, agent, model, credentials, endpoints } = params
+  const systemEnv = getEnvForModel(model, agent, credentials, endpoints)
+  const carrying = (value: string) => Object.keys(systemEnv).filter((key) => systemEnv[key].includes(value))
   const secrets: TurnSecret[] = []
 
   const poolSecret = sharedPoolSecretForRun(credentials, agent, model)
   const pool = poolSecret && sharedPoolForSecret(poolSecret)
   if (poolSecret && pool) {
-    secrets.push({
-      kind: "pool",
-      credential: pool.envKey,
-      name: poolSecret,
-      mountEnv: pool.mountEnv,
-      envValue: credentials[pool.envKey]!,
-    })
+    const marker = credentials[pool.envKey]!
+    secrets.push({ kind: "pool", name: poolSecret, mountEnv: pool.mountEnv, envValue: marker, envKeys: carrying(marker) })
   }
 
-  const systemEnv = getEnvForModel(model, agent, credentials, endpoints)
+  // A custom endpoint's env holds its own credentials and no provider keys.
+  const endpoint = findEndpoint(model, endpoints)
+  if (endpoint) {
+    const host = endpointSecretHost(endpoint.baseUrl)
+    if (!host || !endpointSecretsEnabled()) return secrets
+    endpointCredentials(endpoint).forEach((value, i) => {
+      const envKeys = carrying(value)
+      if (envKeys.length === 0) return
+      const spec = endpointSecretSpec(userId, host, value)
+      secrets.push({ kind: "endpoint", name: spec.name, mountEnv: `ENDPOINT_SECRET_${i + 1}`, envValue: value, envKeys, spec })
+    })
+    return secrets
+  }
+
   for (const [credential, value] of Object.entries(systemEnv)) {
     if (!userKeySecretsEnabled(credential) || parseSecretMarker(value)) continue
-    // A custom endpoint's key goes to the endpoint, not the provider.
-    if (pointsElsewhere(systemEnv, credential)) continue
+    const spec = userKeySecretSpec(userId, credential, value)
     secrets.push({
       kind: "user",
-      credential,
-      name: userKeySecretName(userId, credential, value),
+      name: spec.name,
       mountEnv: userKeyMountEnv(credential),
       envValue: value,
+      envKeys: carrying(value),
+      spec,
+      bypassEnv: USER_KEY_PROVIDERS[credential]?.baseUrlEnv,
     })
   }
   return secrets
@@ -123,34 +150,25 @@ export function planTurnSecrets(params: {
  * Make sure every planned secret exists, creating it if not, and resolve its
  * placeholder. Call before creating a sandbox with them or mounting them.
  * A pool secret that can't be ensured fails the turn: the shared key must
- * never fall back to the sandbox. A user key that can't is left out, so the
- * agent gets the key itself, as it did before secrets.
+ * never fall back to the sandbox. A user's own secret that can't is left
+ * out, so the agent gets the value itself, as it did before secrets.
  */
-export async function ensureTurnSecrets(
-  daytona: Daytona,
-  userId: string,
-  secrets: TurnSecret[]
-): Promise<ReadyTurnSecret[]> {
+export async function ensureTurnSecrets(daytona: Daytona, secrets: TurnSecret[]): Promise<ReadyTurnSecret[]> {
   const ready: ReadyTurnSecret[] = []
   for (const secret of secrets) {
-    if (secret.kind === "pool") {
+    if (!secret.spec) {
       const { placeholder } = await ensureSharedPoolSecret(daytona, secret.name)
       ready.push({ ...secret, placeholder })
       continue
     }
     try {
-      const { placeholder } = await ensureUserKeySecret(daytona, userId, secret.credential, secret.envValue)
+      const { placeholder } = await ensureSecret(daytona, secret.spec)
       ready.push({ ...secret, placeholder })
     } catch (err) {
-      console.error(`[turn-secrets] passing ${secret.credential} unprotected; its secret failed:`, err)
+      console.error(`[turn-secrets] passing ${secret.envKeys.join(", ")} unprotected; its secret failed:`, err)
     }
   }
   return ready
-}
-
-/** Whether `env` sends `credential` to a server other than its provider's. */
-function pointsElsewhere(env: Record<string, string>, credential: CredentialId): boolean {
-  return !!USER_KEY_PROVIDERS[credential]?.baseUrlEnv?.some((key) => env[key])
 }
 
 function mountsOf(secrets: TurnSecret[]): SecretMounts {
@@ -201,21 +219,21 @@ export function waitForTurnSecrets(mounted: { readyAt: number }): Promise<void> 
 
 /**
  * Hand the agent each mounted secret's placeholder wherever its `env`
- * carries the credential the secret stands for (aliases like GOOGLE_API_KEY
- * included), and drop every pool marker left: no secret backs it, and an
- * agent given every key it might use (Droid) must not be handed a dead one.
- * Mutates `env`; call for every run, `secrets` or not.
+ * carries the value the secret stands for (aliases like GOOGLE_API_KEY and
+ * endpoint header blobs included), and drop every pool marker left: no
+ * secret backs it, and an agent given every key it might use (Droid) must
+ * not be handed a dead one. Mutates `env`; call for every run, `secrets` or
+ * not.
  *
  * A value the user set themselves (via chat/repo env vars) isn't one of
  * these, so it is kept and wins as before. A user's own key also stays as is
- * when the env points its provider at another server (see
- * USER_KEY_PROVIDERS' `baseUrlEnv`), where the placeholder wouldn't be swapped.
+ * when the env points its provider at another server (see `bypassEnv`).
  */
 export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: ReadyTurnSecret[]): void {
   for (const secret of secrets) {
-    if (secret.kind === "user" && pointsElsewhere(env, secret.credential)) continue
-    for (const key of [secret.credential, ...(CREDENTIAL_ENV_ALIASES[secret.credential] ?? [])]) {
-      if (env[key] === secret.envValue) env[key] = secret.placeholder
+    if (secret.bypassEnv?.some((key) => env[key])) continue
+    for (const key of secret.envKeys) {
+      if (env[key]?.includes(secret.envValue)) env[key] = env[key].split(secret.envValue).join(secret.placeholder)
     }
   }
   for (const [key, value] of Object.entries(env)) {

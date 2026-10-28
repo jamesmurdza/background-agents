@@ -186,7 +186,7 @@ export async function startJobExecution(
 
   // Resolved before the sandbox exists so the run's secrets can be mounted
   // at creation (see lib/server/turn-secrets).
-  const turnSecrets = await ensureTurnSecrets(daytona, job.userId, planTurnSecrets({
+  const turnSecrets = await ensureTurnSecrets(daytona, planTurnSecrets({
     userId: job.userId,
     agent: job.agent as Agent,
     model: job.model ?? undefined,

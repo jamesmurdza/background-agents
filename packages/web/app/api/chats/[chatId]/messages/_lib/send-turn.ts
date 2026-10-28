@@ -113,7 +113,7 @@ export async function sendChatTurn({
   try {
     // Created on first use; needed before the sandbox below is created with
     // them or they are mounted.
-    const turnSecrets = await ensureTurnSecrets(daytona, userId, plannedSecrets)
+    const turnSecrets = await ensureTurnSecrets(daytona, plannedSecrets)
 
     const ensured = await ensureSandboxForChat({
       daytona, chat, chatId, payload, githubToken, userId, state, turnSecrets,

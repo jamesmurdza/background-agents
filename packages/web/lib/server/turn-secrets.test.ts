@@ -5,9 +5,9 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 import { toSecretMarker } from "@background-agents/sandbox-secrets"
-import { agentModels, getEnvForModel, type Agent, type CustomEndpoint } from "@background-agents/common"
+import { agentModels, getEnvForModel, type Agent, type CredentialId, type CustomEndpoint } from "@background-agents/common"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
-import { USER_KEY_PROVIDERS, userKeySecretName } from "./user-key-secrets"
+import { USER_KEY_PROVIDERS, userKeySecretName, userKeySecretSpec } from "./user-key-secrets"
 import {
   TURN_SECRETS_LABEL as LABEL,
   applyTurnSecretsToEnv,
@@ -72,14 +72,39 @@ afterEach(() => {
 function ready(secret: Partial<TurnSecret> & Pick<TurnSecret, "name" | "mountEnv">): ReadyTurnSecret {
   return {
     kind: "pool",
-    credential: "OPENCODE_API_KEY",
     envValue: toSecretMarker(secret.name),
+    envKeys: ["OPENCODE_API_KEY"],
     placeholder: placeholderFor(secret.name),
     ...secret,
   }
 }
 
 const POOL_1 = ready({ name: SECRET_1, mountEnv: "SESSION_RELAY_TOKEN" })
+
+function ownKey(credential: CredentialId, value: string, extra: Partial<TurnSecret> = {}): ReadyTurnSecret {
+  const spec = userKeySecretSpec(USER, credential, value)
+  return {
+    kind: "user",
+    name: spec.name,
+    mountEnv: `USER_KEY_${credential}`,
+    envValue: value,
+    envKeys: [credential],
+    spec,
+    bypassEnv: USER_KEY_PROVIDERS[credential]?.baseUrlEnv,
+    placeholder: placeholderFor(spec.name),
+    ...extra,
+  }
+}
+
+const endpoint = (fields: Partial<CustomEndpoint>): CustomEndpoint => ({
+  id: "e1",
+  name: "proxy",
+  type: "anthropic",
+  baseUrl: "https://proxy.example.com/v1",
+  model: "m",
+  headers: "",
+  ...fields,
+})
 
 describe("planTurnSecrets", () => {
   it("plans the pool secret a shared run draws on", () => {
@@ -92,20 +117,33 @@ describe("planTurnSecrets", () => {
         credentials: { OPENCODE_API_KEY: marker },
       })
     ).toEqual([
-      { kind: "pool", credential: "OPENCODE_API_KEY", name: SECRET_1, mountEnv: "SESSION_RELAY_TOKEN", envValue: marker },
+      { kind: "pool", name: SECRET_1, mountEnv: "SESSION_RELAY_TOKEN", envValue: marker, envKeys: ["OPENCODE_API_KEY"] },
     ])
+  })
+
+  it("finds every env var a key is copied into", () => {
+    const marker = toSecretMarker(GEMINI_SECRET)
+    const [pool] = planTurnSecrets({
+      userId: USER,
+      agent: "gemini",
+      model: "gemini-2.5-flash",
+      credentials: { GEMINI_API_KEY: marker },
+    })
+    expect(pool.envKeys).toEqual(["GEMINI_API_KEY", "GOOGLE_API_KEY"])
   })
 
   it("plans the user's own key the agent would be given", () => {
     expect(
       planTurnSecrets({ userId: USER, agent: "codex", model: "gpt-6.1-sol", credentials: { OPENAI_API_KEY: "sk-own" } })
-    ).toEqual([
+    ).toMatchObject([
       {
         kind: "user",
-        credential: "OPENAI_API_KEY",
         name: userKeySecretName(USER, "OPENAI_API_KEY", "sk-own"),
         mountEnv: "USER_KEY_OPENAI_API_KEY",
         envValue: "sk-own",
+        envKeys: ["OPENAI_API_KEY"],
+        spec: { hosts: ["api.openai.com"] },
+        bypassEnv: USER_KEY_PROVIDERS.OPENAI_API_KEY!.baseUrlEnv,
       },
     ])
   })
@@ -121,7 +159,7 @@ describe("planTurnSecrets", () => {
         FACTORY_API_KEY: "fk-own",
       },
     })
-    expect(secrets.map((s) => [s.kind, s.credential])).toEqual([
+    expect(secrets.map((s) => [s.kind, s.envKeys[0]])).toEqual([
       ["pool", "GEMINI_API_KEY"],
       ["user", "FACTORY_API_KEY"],
       ["user", "ANTHROPIC_API_KEY"],
@@ -151,49 +189,59 @@ describe("planTurnSecrets", () => {
     ).toHaveLength(1)
   })
 
-  it("plans nothing for a custom endpoint's key, which goes to the endpoint", () => {
-    const endpoint = {
-      id: "e1",
-      name: "proxy",
-      type: "anthropic",
-      baseUrl: "https://proxy.example.com",
-      headers: "x-api-key: sk-proxy",
-    } as CustomEndpoint
-    expect(
-      planTurnSecrets({ userId: USER, agent: "claude-code", model: "endpoint:e1", credentials: {}, endpoints: [endpoint] })
-    ).toEqual([])
+  it("plans one secret per endpoint credential, on its host, covering every var it appears in", () => {
+    const ep = endpoint({
+      type: "codex",
+      headers: "Authorization: Bearer tok-1\nx-api-key: key-2\nOpenAI-Organization: org-x",
+    })
+    const secrets = planTurnSecrets({
+      userId: USER,
+      agent: "codex",
+      model: "endpoint:e1",
+      credentials: { OPENAI_API_KEY: "sk-own" },
+      endpoints: [ep],
+    })
+    expect(secrets).toMatchObject([
+      {
+        kind: "endpoint",
+        mountEnv: "ENDPOINT_SECRET_1",
+        envValue: "tok-1",
+        envKeys: ["CUSTOM_CODEX_HEADERS", "CUSTOM_CODEX_AUTHORIZATION"],
+        spec: { hosts: ["proxy.example.com"] },
+      },
+      { kind: "endpoint", mountEnv: "ENDPOINT_SECRET_2", envValue: "key-2", envKeys: ["CUSTOM_CODEX_HEADERS"] },
+    ])
+  })
+
+  it("plans no endpoint secrets when they're off, or the endpoint isn't plain HTTPS", () => {
+    const run = (ep: CustomEndpoint) =>
+      planTurnSecrets({ userId: USER, agent: "claude-code", model: "endpoint:e1", credentials: {}, endpoints: [ep] })
+    const headers = "x-api-key: sk-proxy"
+    expect(run(endpoint({ headers, baseUrl: "http://proxy.example.com" }))).toEqual([])
+    expect(run(endpoint({ headers, baseUrl: "https://proxy.example.com:8443" }))).toEqual([])
+    expect(run(endpoint({ headers }))).toHaveLength(1)
+    // The endpoint's x-api-key lands in ANTHROPIC_API_KEY, but it isn't the user's Anthropic key.
+    process.env.DAYTONA_USER_KEY_SECRETS = "ANTHROPIC_API_KEY"
+    expect(run(endpoint({ headers }))).toEqual([])
   })
 })
 
 describe("ensureTurnSecrets", () => {
-  it("resolves every secret's placeholder, creating user keys' secrets with their provider hosts", async () => {
+  it("resolves every secret's placeholder, creating user secrets from their spec", async () => {
     const { secret, daytona } = fakeDaytona()
     const key = `sk-ant-${counter++}`
-    const name = userKeySecretName(USER, "ANTHROPIC_API_KEY", key)
-    const planned: TurnSecret[] = [
-      { kind: "user", credential: "ANTHROPIC_API_KEY", name, mountEnv: "USER_KEY_ANTHROPIC_API_KEY", envValue: key },
-    ]
-    expect(await ensureTurnSecrets(daytona, USER, planned)).toEqual([{ ...planned[0], placeholder: placeholderFor(name) }])
+    const { placeholder: _placeholder, ...planned } = ownKey("ANTHROPIC_API_KEY", key)
+    expect(await ensureTurnSecrets(daytona, [planned])).toEqual([{ ...planned, placeholder: placeholderFor(planned.name) }])
     expect(secret.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name, value: key, hosts: ["api.anthropic.com"] })
+      expect.objectContaining({ name: planned.name, value: key, hosts: ["api.anthropic.com"] })
     )
   })
 
-  it("leaves out a user key whose secret fails, so the agent gets the key as before", async () => {
+  it("leaves out a user secret that fails, so the agent gets the value as before", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     const { secret, daytona } = fakeDaytona()
     secret.list.mockRejectedValue(new Error("403"))
-    const key = `sk-${counter++}`
-    const planned: TurnSecret[] = [
-      {
-        kind: "user",
-        credential: "OPENAI_API_KEY",
-        name: userKeySecretName(USER, "OPENAI_API_KEY", key),
-        mountEnv: "USER_KEY_OPENAI_API_KEY",
-        envValue: key,
-      },
-    ]
-    await expect(ensureTurnSecrets(daytona, USER, planned)).resolves.toEqual([])
+    await expect(ensureTurnSecrets(daytona, [ownKey("OPENAI_API_KEY", `sk-${counter++}`)])).resolves.toEqual([])
   })
 
   it("fails the turn when a pool secret fails: the shared key never falls back", async () => {
@@ -202,9 +250,9 @@ describe("ensureTurnSecrets", () => {
     const { secret, daytona } = fakeDaytona()
     secret.list.mockRejectedValue(new Error("403"))
     const planned: TurnSecret[] = [
-      { kind: "pool", credential: "OPENCODE_API_KEY", name, mountEnv: "SESSION_RELAY_TOKEN", envValue: toSecretMarker(name) },
+      { kind: "pool", name, mountEnv: "SESSION_RELAY_TOKEN", envValue: toSecretMarker(name), envKeys: ["OPENCODE_API_KEY"] },
     ]
-    await expect(ensureTurnSecrets(daytona, USER, planned)).rejects.toThrow("403")
+    await expect(ensureTurnSecrets(daytona, planned)).rejects.toThrow("403")
   })
 })
 
@@ -247,12 +295,12 @@ describe("mountTurnSecrets", () => {
 
   it("mounts the whole set, replacing whatever else is mounted", async () => {
     const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_2}` })
-    const own = ready({ kind: "user", credential: "ANTHROPIC_API_KEY", name: "u_x_anthropic", mountEnv: "USER_KEY_ANTHROPIC_API_KEY" })
-    const gemini = ready({ name: GEMINI_SECRET, mountEnv: "SESSION_RELAY_TOKEN_GEMINI", credential: "GEMINI_API_KEY" })
+    const own = ownKey("ANTHROPIC_API_KEY", "sk-ant-own")
+    const gemini = ready({ name: GEMINI_SECRET, mountEnv: "SESSION_RELAY_TOKEN_GEMINI", envKeys: ["GEMINI_API_KEY"] })
     await mountTurnSecrets(asSandbox(sandbox), [gemini, own])
     expect(sandbox.updateSecrets).toHaveBeenCalledWith({
       SESSION_RELAY_TOKEN_GEMINI: GEMINI_SECRET,
-      USER_KEY_ANTHROPIC_API_KEY: "u_x_anthropic",
+      USER_KEY_ANTHROPIC_API_KEY: own.name,
     })
   })
 
@@ -355,14 +403,12 @@ describe("releaseTurnSecrets", () => {
 })
 
 describe("applyTurnSecretsToEnv", () => {
-  const gemini = ready({ name: GEMINI_SECRET, mountEnv: "SESSION_RELAY_TOKEN_GEMINI", credential: "GEMINI_API_KEY" })
-  const own = ready({
-    kind: "user",
-    credential: "ANTHROPIC_API_KEY",
-    name: "u_x_anthropic",
-    mountEnv: "USER_KEY_ANTHROPIC_API_KEY",
-    envValue: "sk-ant-own",
+  const gemini = ready({
+    name: GEMINI_SECRET,
+    mountEnv: "SESSION_RELAY_TOKEN_GEMINI",
+    envKeys: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
   })
+  const own = ownKey("ANTHROPIC_API_KEY", "sk-ant-own")
 
   it("hands the agent placeholders in place of pool markers and the user's own keys", () => {
     const env: Record<string, string> = {
@@ -403,6 +449,27 @@ describe("applyTurnSecretsToEnv", () => {
     applyTurnSecretsToEnv(env, [own])
     expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-own")
   })
+
+  it("swaps an endpoint credential inside header blobs, leaving the other headers", () => {
+    const secret = ready({
+      kind: "endpoint",
+      name: "u_x_ep_1",
+      mountEnv: "ENDPOINT_SECRET_1",
+      envValue: "tok-1",
+      envKeys: ["CUSTOM_CODEX_HEADERS", "CUSTOM_CODEX_AUTHORIZATION"],
+    })
+    const env: Record<string, string> = {
+      CUSTOM_CODEX_BASE_URL: "https://proxy.example.com/v1",
+      CUSTOM_CODEX_HEADERS: "Authorization: Bearer tok-1\nOpenAI-Organization: org-x",
+      CUSTOM_CODEX_AUTHORIZATION: "Bearer tok-1",
+    }
+    applyTurnSecretsToEnv(env, [secret])
+    expect(env).toEqual({
+      CUSTOM_CODEX_BASE_URL: "https://proxy.example.com/v1",
+      CUSTOM_CODEX_HEADERS: `Authorization: Bearer ${secret.placeholder}\nOpenAI-Organization: org-x`,
+      CUSTOM_CODEX_AUTHORIZATION: `Bearer ${secret.placeholder}`,
+    })
+  })
 })
 
 describe("turnSecretsCreateParams", () => {
@@ -420,7 +487,7 @@ describe("turnSecretsCreateParams", () => {
 
 describe("poolSecretOf", () => {
   it("names the pool secret, if any", () => {
-    const own = ready({ kind: "user", credential: "OPENAI_API_KEY", name: "u_x", mountEnv: "USER_KEY_OPENAI_API_KEY" })
+    const own = ownKey("OPENAI_API_KEY", "sk-own")
     expect(poolSecretOf([own, POOL_1])).toBe(SECRET_1)
     expect(poolSecretOf([own])).toBeUndefined()
   })

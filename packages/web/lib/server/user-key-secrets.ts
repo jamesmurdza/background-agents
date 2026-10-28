@@ -25,7 +25,7 @@ import {
   contentSecretName,
   deleteSecrets,
   ensureSecret,
-  type EnsuredSecret,
+  type EnsureSecretSpec,
 } from "@background-agents/sandbox-secrets"
 import type { CredentialId } from "@background-agents/common"
 
@@ -83,19 +83,14 @@ export function userKeyMountEnv(credential: CredentialId): string {
   return `USER_KEY_${credential}`
 }
 
-/** Make sure `value`'s secret exists, and return its placeholder. */
-export function ensureUserKeySecret(
-  daytona: Daytona,
-  userId: string,
-  credential: CredentialId,
-  value: string
-): Promise<EnsuredSecret> {
-  return ensureSecret(daytona, {
+/** How to create the secret holding `value` as `userId`'s `credential`. */
+export function userKeySecretSpec(userId: string, credential: CredentialId, value: string): EnsureSecretSpec {
+  return {
     name: userKeySecretName(userId, credential, value),
     value: () => value,
     hosts: USER_KEY_PROVIDERS[credential]?.hosts,
     description: `${credential} of a background-agents user`,
-  })
+  }
 }
 
 /**
@@ -116,7 +111,7 @@ export async function syncUserKeySecret(
   if (!apiKey) return
   const daytona = new Daytona({ apiKey })
   try {
-    const keep = value ? [(await ensureUserKeySecret(daytona, userId, credential, value)).name] : []
+    const keep = value ? [(await ensureSecret(daytona, userKeySecretSpec(userId, credential, value))).name] : []
     await deleteSecrets(daytona, { prefix: userKeySecretPrefix(userId, credential), keep })
   } catch (err) {
     console.error(`[user-key-secrets] failed to sync ${credential} secrets:`, err)
