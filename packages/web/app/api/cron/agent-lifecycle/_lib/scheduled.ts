@@ -18,11 +18,11 @@ import { meterTurnNow } from "./meter-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
-  ensureSharedOpencodeSecret,
-  mountSharedOpencodeSecret,
-  sharedOpencodeSecretForRun,
-  applySecretToAgentEnv,
-} from "@/lib/server/opencode-secrets"
+  applyPoolSecretToEnv,
+  ensureSharedPoolSecret,
+  mountSharedPoolSecret,
+  sharedPoolSecretForRun,
+} from "@/lib/server/shared-pool-secrets"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
@@ -171,10 +171,10 @@ export async function startJobExecution(
     }
   }
 
-  // Resolved before the sandbox exists so a shared OpenCode secret can be
-  // mounted at creation (see lib/server/opencode-secrets).
-  const opencodeSecret = sharedOpencodeSecretForRun(credentials, job.agent as Agent, job.model ?? undefined)
-  if (opencodeSecret) await ensureSharedOpencodeSecret(daytona, opencodeSecret)
+  // Resolved before the sandbox exists so a shared pool secret can be
+  // mounted at creation (see lib/server/shared-pool-secrets).
+  const poolSecret = sharedPoolSecretForRun(credentials, job.agent as Agent, job.model ?? undefined)
+  if (poolSecret) await ensureSharedPoolSecret(daytona, poolSecret)
 
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
   //    skips the clone path, so we don't need the GitHub token in that case.
@@ -186,7 +186,7 @@ export async function startJobExecution(
     newBranch: branch,
     githubToken: account?.access_token ?? undefined,
     userId: job.userId,
-    opencodeSecret,
+    poolSecret,
   })
 
   // 6. Update chat with sandbox info
@@ -215,14 +215,13 @@ export async function startJobExecution(
   const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
   let env = getEnvForModel(job.model ?? undefined, job.agent as Agent, credentials, customEndpoints)
   if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId })
-  // Shared OpenCode: the secret was mounted at creation (this
-  // resolves it without API calls), and OpenCode is pointed at its
-  // placeholder instead of the marker. No detach needed: the sandbox is
-  // deleted when the run ends.
-  const mountedOpencodeSecret = opencodeSecret
-    ? await mountSharedOpencodeSecret(sandbox, opencodeSecret)
+  // Shared pool: the secret was mounted at creation (this resolves it
+  // without a remount), and the agent is handed its placeholder instead of
+  // the marker. No detach needed: the sandbox is deleted when the run ends.
+  const mountedPoolSecret = poolSecret
+    ? await mountSharedPoolSecret(sandbox, daytona, poolSecret)
     : undefined
-  applySecretToAgentEnv(env)
+  applyPoolSecretToEnv(env, mountedPoolSecret)
 
   // Load job-scoped MCP servers. The loader marks rows with status="error" and
   // a descriptive lastError if the GitHub App is gone or any other auth issue
@@ -345,7 +344,7 @@ export async function startJobExecution(
     job.agent as Agent,
     decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
     job.model ?? undefined,
-    mountedOpencodeSecret ? toSecretMarker(mountedOpencodeSecret.name) : credentials.OPENCODE_API_KEY
+    mountedPoolSecret ? toSecretMarker(mountedPoolSecret.name) : credentials.OPENCODE_API_KEY
   )
 
   await prisma.message.createMany({

@@ -9,7 +9,7 @@
  */
 export { contentSecretName, ENV_NAME_PATTERN, SECRET_NAME_PATTERN } from "./names"
 export { parseSecretMarker, toSecretMarker } from "./marker"
-export { ensureSecret, type EnsureSecretSpec } from "./store"
+export { ensureSecret, type EnsureSecretSpec, type EnsuredSecret } from "./store"
 export {
   DEFAULT_PROPAGATION_MS,
   decodeMounts,

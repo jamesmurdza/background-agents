@@ -13,14 +13,14 @@ import {
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
-  ensureSharedOpencodeSecret,
-  mountSharedOpencodeSecret,
-  releaseSharedOpencodeSecret,
-  sharedOpencodeSecretForRun,
-  applySecretToAgentEnv,
-  waitForSecretPropagation,
-  type MountedSecret,
-} from "@/lib/server/opencode-secrets"
+  applyPoolSecretToEnv,
+  ensureSharedPoolSecret,
+  mountSharedPoolSecret,
+  releaseSharedPoolSecrets,
+  sharedPoolSecretForRun,
+  waitForPoolSecret,
+  type MountedPoolSecret,
+} from "@/lib/server/shared-pool-secrets"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
@@ -103,28 +103,28 @@ export async function sendChatTurn({
   }
   let turnPersisted = false
 
-  // Shared OpenCode secret for this run, if any.
-  const opencodeSecret = sharedOpencodeSecretForRun(credentials, payload.agent as Agent, payload.model)
+  // Shared pool secret for this run, if any.
+  const poolSecret = sharedPoolSecretForRun(credentials, payload.agent as Agent, payload.model)
   // Set once the secret is mounted, so a turn that never starts detaches it again.
   let secretSandbox: DaytonaSandbox | undefined
 
   try {
-    // Created from OPENCODE_API_KEY on first use; needed before the sandbox
-    // below is created with it or it is mounted.
-    if (opencodeSecret) await ensureSharedOpencodeSecret(daytona, opencodeSecret)
+    // Created from the pool's env var on first use; needed before the
+    // sandbox below is created with it or it is mounted.
+    if (poolSecret) await ensureSharedPoolSecret(daytona, poolSecret)
 
     const ensured = await ensureSandboxForChat({
-      daytona, chat, chatId, payload, githubToken, userId, state, opencodeSecret,
+      daytona, chat, chatId, payload, githubToken, userId, state, poolSecret,
     })
     if (ensured instanceof Response) return ensured
     const { sandbox, sandboxId, branch, previewUrlPattern, createdSandbox, branchRestored } = ensured
 
-    // Mount the shared OpenCode secret for this turn now, so Daytona's
+    // Mount the shared pool secret for this turn now, so Daytona's
     // propagation delay overlaps the pull/upload work below. Detached again
-    // wherever the turn ends (see lib/server/opencode-secrets).
-    let mountedOpencodeSecret: MountedSecret | undefined
-    if (opencodeSecret) {
-      mountedOpencodeSecret = await mountSharedOpencodeSecret(sandbox, opencodeSecret)
+    // wherever the turn ends (see lib/server/shared-pool-secrets).
+    let mountedPoolSecret: MountedPoolSecret | undefined
+    if (poolSecret) {
+      mountedPoolSecret = await mountSharedPoolSecret(sandbox, daytona, poolSecret)
       secretSandbox = sandbox
     }
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
@@ -152,8 +152,8 @@ export async function sendChatTurn({
     const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
     let env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
     if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId })
-    // Point OpenCode at the mounted secret's placeholder instead of the marker.
-    applySecretToAgentEnv(env)
+    // Hand the agent the mounted secret's placeholder instead of the marker.
+    applyPoolSecretToEnv(env, mountedPoolSecret)
     let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []
     try {
       mcpServers = await loadMcpConnections({ kind: "chat", id: chatId })
@@ -182,15 +182,15 @@ export async function sendChatTurn({
     const storedUser = await prisma.user.findUnique({
       where: { id: userId }, select: { credentials: true },
     })
-    // The key actually handed to the agent — for a shared OpenCode run that's
+    // The key actually handed to the agent — for a shared pool run that's
     // the secret the sandbox has mounted (which may differ from the one
-    // pickSharedOpencodeKey chose) — so fingerprinting it here is what makes
+    // pickSharedKey chose) — so fingerprinting it here is what makes
     // per-key spend attributable later.
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,
       decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
       payload.model,
-      mountedOpencodeSecret ? toSecretMarker(mountedOpencodeSecret.name) : credentials.OPENCODE_API_KEY
+      mountedPoolSecret ? toSecretMarker(mountedPoolSecret.name) : credentials.OPENCODE_API_KEY
     )
 
     await persistTurn({
@@ -200,7 +200,7 @@ export async function sendChatTurn({
       claimedPromptId,
     })
     turnPersisted = true
-    if (mountedOpencodeSecret) await waitForSecretPropagation(mountedOpencodeSecret)
+    if (mountedPoolSecret) await waitForPoolSecret(mountedPoolSecret)
     await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     logActivityAsync(userId, "message_sent", {
@@ -236,7 +236,7 @@ export async function sendChatTurn({
   } finally {
     // The turn never started, so nothing else will detach the secret. A
     // persisted turn keeps it: Stop/cron finalize detach it with the turn.
-    if (!turnPersisted && secretSandbox) await releaseSharedOpencodeSecret(secretSandbox)
+    if (!turnPersisted && secretSandbox) await releaseSharedPoolSecrets(secretSandbox)
     // A pre-run rejection must not strand a direct send in "creating".
     // Queue claims are released by the caller, which also pauses the queue.
     if (!turnPersisted && !claimedPromptId) {

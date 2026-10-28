@@ -33,7 +33,11 @@ const OPTIONS = { label: "my-secrets" } // sandbox label that records what is mo
 
 // One secret per value, named after the value so it never needs updating.
 const name = contentSecretName("openai_", process.env.OPENAI_API_KEY!)
-await ensureSecret(daytona, { name, value: () => process.env.OPENAI_API_KEY!, hosts: ["api.openai.com"] })
+const { placeholder } = await ensureSecret(daytona, {
+  name,
+  value: () => process.env.OPENAI_API_KEY!,
+  hosts: ["api.openai.com"],
+})
 
 // Mount at creation (avoids the restart a later first mount would need)...
 const sandbox = await daytona.create({ ...secretsCreateParams({ OPENAI_KEY: name }, OPTIONS) })
@@ -41,6 +45,9 @@ const sandbox = await daytona.create({ ...secretsCreateParams({ OPENAI_KEY: name
 // ...or on an existing sandbox, then wait for the proxy before relying on it.
 const mounted = await mountSecrets(sandbox, { OPENAI_KEY: name }, OPTIONS)
 await waitForPropagation(mounted)
+
+// Hand the placeholder straight to the process that needs it (e.g. as
+// OPENAI_API_KEY in its env), so the mounted var can have a name no CLI reads.
 
 // Detach (or shrink the set) when it should stop working.
 await releaseSecrets(sandbox, OPTIONS)

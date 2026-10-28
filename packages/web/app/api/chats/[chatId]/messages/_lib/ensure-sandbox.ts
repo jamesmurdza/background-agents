@@ -73,10 +73,10 @@ export async function ensureSandboxForChat(params: {
   githubToken: string | null
   userId: string
   state: SandboxState
-  /** Shared OpenCode secret to mount if a sandbox has to be created. */
-  opencodeSecret?: string
+  /** Shared pool secret to mount if a sandbox has to be created. */
+  poolSecret?: string
 }): Promise<EnsuredSandbox | Response> {
-  const { daytona, chat, chatId, payload, githubToken, userId, state, opencodeSecret } = params
+  const { daytona, chat, chatId, payload, githubToken, userId, state, poolSecret } = params
 
   let sandboxId = state.sandboxId
   let branch = state.branch
@@ -132,7 +132,7 @@ export async function ensureSandboxForChat(params: {
       githubToken: githubToken ?? undefined,
       userId,
       restoreExistingBranch,
-      opencodeSecret,
+      poolSecret,
     })
 
     sandbox = created.sandbox

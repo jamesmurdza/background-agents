@@ -23,7 +23,7 @@ import {
   type ProviderName,
 } from "@background-agents/common"
 import type { UsagePool } from "@/lib/db/token-usage"
-import { fingerprintKey } from "@/lib/server/opencode-pool"
+import { fingerprintKey } from "@/lib/server/shared-key-pools"
 
 /** Agents backed by a shared (server-provided) credential pool. */
 export const SHARED_POOL_AGENTS = ["claude-code", "gemini", "opencode"] as const

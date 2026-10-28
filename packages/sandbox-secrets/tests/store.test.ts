@@ -3,12 +3,14 @@ import { DaytonaConflictError, type Daytona } from "@daytonaio/sdk"
 
 import { ensureSecret } from "../src/index"
 
+const placeholderFor = (name: string) => `dtn_secret_${name}`
+
 function fakeDaytona(existing: string[] = []) {
   const secret = {
     list: vi.fn().mockImplementation(async ({ name }: { name: string }) => ({
-      items: existing.filter((n) => n.includes(name)).map((n) => ({ name: n })),
+      items: existing.filter((n) => n.includes(name)).map((n) => ({ name: n, placeholder: placeholderFor(n) })),
     })),
-    create: vi.fn().mockResolvedValue({}),
+    create: vi.fn().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: placeholderFor(name) })),
   }
   return { secret, daytona: { secret } as unknown as Daytona }
 }
@@ -26,17 +28,18 @@ afterEach(() => {
 })
 
 describe("ensureSecret", () => {
-  it("creates a missing secret with its value, hosts and description", async () => {
+  it("creates a missing secret with its value, hosts and description, and returns its placeholder", async () => {
     const { secret, daytona } = fakeDaytona()
     const name = uniqueName()
-    await ensureSecret(daytona, { name, value: () => "v1", hosts: ["example.com"], description: "d" })
+    const ensured = await ensureSecret(daytona, { name, value: () => "v1", hosts: ["example.com"], description: "d" })
     expect(secret.create).toHaveBeenCalledWith({ name, value: "v1", hosts: ["example.com"], description: "d" })
+    expect(ensured).toEqual({ name, placeholder: placeholderFor(name) })
   })
 
   it("never recreates an existing secret, and checks once per process", async () => {
     const name = uniqueName()
     const { secret, daytona } = fakeDaytona([name])
-    await ensureSecret(daytona, { name, value: () => "v" })
+    expect(await ensureSecret(daytona, { name, value: () => "v" })).toEqual({ name, placeholder: placeholderFor(name) })
     await ensureSecret(daytona, { name, value: () => "v" })
     expect(secret.list).toHaveBeenCalledTimes(1)
     expect(secret.create).not.toHaveBeenCalled()
@@ -49,10 +52,14 @@ describe("ensureSecret", () => {
     expect(secret.create).toHaveBeenCalled()
   })
 
-  it("accepts losing a create race to another process", async () => {
+  it("accepts losing a create race to another process, and returns the winner's placeholder", async () => {
     const { secret, daytona } = fakeDaytona()
+    const name = uniqueName()
     secret.create.mockRejectedValueOnce(new DaytonaConflictError("exists"))
-    await expect(ensureSecret(daytona, { name: uniqueName(), value: () => "v" })).resolves.toBeUndefined()
+    secret.list
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ name, placeholder: "dtn_secret_winner" }] })
+    expect(await ensureSecret(daytona, { name, value: () => "v" })).toEqual({ name, placeholder: "dtn_secret_winner" })
   })
 
   it("forgets a failure so the next call retries", async () => {

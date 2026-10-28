@@ -5,7 +5,7 @@ import { stripNullBytes } from "@/lib/db/pg-sanitize"
 import { PATHS } from "@/lib/constants"
 import { cancelBackgroundAgent, snapshotBackgroundAgent, finalizeTurn, type AgentSnapshot } from "@/lib/agent-session"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
-import { releaseSharedOpencodeSecret } from "@/lib/server/opencode-secrets"
+import { releaseSharedPoolSecrets } from "@/lib/server/shared-pool-secrets"
 import { meterTurnNow } from "./meter-turn"
 
 import { autoPushChat } from "@/lib/git/auto-push"
@@ -74,10 +74,10 @@ export async function finalizeInteractiveChat(
           repoPath: `${PATHS.SANDBOX_HOME}/project`,
         })
       } finally {
-        // The agent is done: stop the shared OpenCode placeholder from working
+        // The agent is done: stop the shared pool placeholder from working
         // until the next turn mounts it again. In a finally, as the chat is
         // still released below when finalizeTurn throws.
-        await releaseSharedOpencodeSecret(sandbox)
+        await releaseSharedPoolSecrets(sandbox)
       }
 
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
@@ -169,9 +169,9 @@ export async function markChatError(
     daytona,
   })
 
-  // Detach the shared OpenCode secret before the chat is released below.
+  // Detach the shared pool secret before the chat is released below.
   try {
-    await releaseSharedOpencodeSecret(await daytona.get(chat.sandboxId))
+    await releaseSharedPoolSecrets(await daytona.get(chat.sandboxId))
   } catch {
     // Sandbox already gone — nothing mounted to detach.
   }

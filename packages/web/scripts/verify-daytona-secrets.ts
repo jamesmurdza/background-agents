@@ -1,7 +1,7 @@
 /**
  * Phase 0 spike: how Daytona secrets actually behave, before every agent and
- * credential is built on them (see lib/server/opencode-secrets for the one
- * agent that already is).
+ * credential is built on them (see lib/server/shared-pool-secrets for the
+ * shared pools that already are).
  *
  * Creates throwaway sandboxes (label `ba-verify`) and secrets (`ba_verify_*`)
  * in the configured Daytona org, and deletes both on exit. Real provider keys

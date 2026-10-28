@@ -8,7 +8,7 @@ import { isSharedPoolAvailable } from "@/lib/claude-credentials"
 import { decryptUserCredentials } from "@/lib/db/api-helpers"
 import { microToUsd } from "@/lib/server/credits"
 import { flagsFromCredentials, CREDENTIAL_KEYS, type CredentialFlags } from "@/lib/credentials"
-import { hasSharedOpencodeKey } from "@/lib/server/opencode-pool"
+import { hasSharedKey, SHARED_KEY_POOLS } from "@/lib/server/shared-key-pools"
 import { SHARED_POOL_AGENTS } from "@/lib/server/shared-pool"
 import { agentUsesSharedPool } from "@background-agents/common"
 
@@ -72,11 +72,11 @@ export async function getSharedPoolFlags(): Promise<CredentialFlags> {
   // Server env keys back the shared OpenCode / Gemini pools. Mark both the
   // presence flag (so hasCredentialsForModel treats the provider as available)
   // and the `_SHARED` origin flag (so the UI knows it isn't a user-owned key).
-  if (hasSharedOpencodeKey()) {
+  if (hasSharedKey(SHARED_KEY_POOLS.opencode)) {
     flags.OPENCODE_API_KEY = true
     flags.OPENCODE_API_KEY_SHARED = true
   }
-  if (process.env.GEMINI_API_KEY) {
+  if (hasSharedKey(SHARED_KEY_POOLS.gemini)) {
     flags.GEMINI_API_KEY = true
     flags.GEMINI_API_KEY_SHARED = true
   }
@@ -114,7 +114,7 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // Special-case: mark whether OPENCODE_API_KEY comes from the user's stored
   // credentials (user-owned) or only from the server environment (shared).
   const opencodeFromDb = !!storedCreds.OPENCODE_API_KEY
-  const opencodeFromEnv = !opencodeFromDb && hasSharedOpencodeKey()
+  const opencodeFromEnv = !opencodeFromDb && hasSharedKey(SHARED_KEY_POOLS.opencode)
   flags.OPENCODE_API_KEY_USER = opencodeFromDb
   flags.OPENCODE_API_KEY_SHARED = opencodeFromEnv
   // Preserve the conventional boolean presence flag for callers that expect it
@@ -125,7 +125,7 @@ export async function getEffectiveCredentialFlags(userId: string): Promise<Effec
   // user) is still resolved separately from stored creds, so flagging the env
   // key here doesn't make it count as user-owned.
   const geminiFromDb = !!storedCreds.GEMINI_API_KEY
-  const geminiFromEnv = !geminiFromDb && !!process.env.GEMINI_API_KEY
+  const geminiFromEnv = !geminiFromDb && hasSharedKey(SHARED_KEY_POOLS.gemini)
   flags.GEMINI_API_KEY_USER = geminiFromDb
   flags.GEMINI_API_KEY_SHARED = geminiFromEnv
   flags.GEMINI_API_KEY = geminiFromDb || geminiFromEnv
