@@ -258,14 +258,29 @@ function parseMountLabel(label: string): string | undefined {
  * A no-op (no API call) for sandboxes with nothing mounted. Never throws — a
  * failed detach leaves the placeholder live a while longer, which must not
  * fail the turn it follows.
+ *
+ * The label is flipped BEFORE the detach, and restored if the detach fails.
+ * {@link mountSharedOpencodeSecret} trusts a "mounted" label and skips the
+ * attach, so the opposite order could leave a label claiming a mount that no
+ * longer exists, and the next turn would run with no key at all. This way the
+ * only possible mismatch is a "detached" label over a live mount, which the
+ * next mount simply re-attaches.
  */
 export async function releaseSharedOpencodeSecret(sandbox: DaytonaSandbox): Promise<void> {
   const current = sandbox.labels?.[OPENCODE_SECRET_LABEL]
   if (!current || current === DETACHED) return
+  const labels = { ...sandbox.labels }
   try {
-    await sandbox.updateSecrets({})
-    await sandbox.setLabels({ ...sandbox.labels, [OPENCODE_SECRET_LABEL]: DETACHED })
+    await sandbox.setLabels({ ...labels, [OPENCODE_SECRET_LABEL]: DETACHED })
   } catch (err) {
     console.error(`[opencode-secrets] failed to detach secret from sandbox ${sandbox.id}:`, err)
+    return
+  }
+  try {
+    await sandbox.updateSecrets({})
+  } catch (err) {
+    console.error(`[opencode-secrets] failed to detach secret from sandbox ${sandbox.id}:`, err)
+    // Still mounted: say so again, so the next mount keeps it without waiting.
+    await sandbox.setLabels(labels).catch(() => {})
   }
 }

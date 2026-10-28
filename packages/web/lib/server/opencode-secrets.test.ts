@@ -203,6 +203,40 @@ describe("releaseSharedOpencodeSecret", () => {
     sandbox.updateSecrets.mockRejectedValueOnce(new Error("boom"))
     await expect(releaseSharedOpencodeSecret(asSandbox(sandbox))).resolves.toBeUndefined()
   })
+
+  // A "mounted" label with nothing mounted would make the next turn skip the
+  // attach and run keyless, so the label must never get ahead of the detach.
+  it("keeps the mounted label when the detach fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const mounted = { [OPENCODE_SECRET_LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` }
+    const sandbox = fakeSandbox(mounted)
+    sandbox.updateSecrets.mockRejectedValueOnce(new Error("boom"))
+    await releaseSharedOpencodeSecret(asSandbox(sandbox))
+    expect(sandbox.labels).toEqual(mounted)
+  })
+
+  it("leaves the secret mounted when the label write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox({ [OPENCODE_SECRET_LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
+    sandbox.setLabels.mockRejectedValueOnce(new Error("boom"))
+    await releaseSharedOpencodeSecret(asSandbox(sandbox))
+    expect(sandbox.updateSecrets).not.toHaveBeenCalled()
+  })
+
+  it("re-attaches on the next mount when the label was flipped but the detach failed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox({ [OPENCODE_SECRET_LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
+    sandbox.updateSecrets.mockRejectedValueOnce(new Error("boom"))
+    sandbox.setLabels
+      .mockImplementationOnce(async (next: Record<string, string>) => (sandbox.labels = next))
+      .mockRejectedValueOnce(new Error("restore failed"))
+    await releaseSharedOpencodeSecret(asSandbox(sandbox))
+    expect(sandbox.labels[OPENCODE_SECRET_LABEL]).toBe("none")
+
+    await mountSharedOpencodeSecret(asSandbox(sandbox), SECRET_2)
+    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({ SESSION_RELAY_TOKEN: SECRET_2 })
+    expect(sandbox.stop).not.toHaveBeenCalled()
+  })
 })
 
 describe("applySecretToAgentEnv", () => {

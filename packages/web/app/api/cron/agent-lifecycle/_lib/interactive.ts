@@ -69,12 +69,16 @@ export async function finalizeInteractiveChat(
   if (chat.sandboxId && chat.backgroundSessionId) {
     try {
       const sandbox = await daytona.get(chat.sandboxId)
-      await finalizeTurn(sandbox, chat.backgroundSessionId, {
-        repoPath: `${PATHS.SANDBOX_HOME}/project`,
-      })
-      // The agent is done: stop the shared OpenCode placeholder from working
-      // until the next turn mounts it again.
-      await releaseSharedOpencodeSecret(sandbox)
+      try {
+        await finalizeTurn(sandbox, chat.backgroundSessionId, {
+          repoPath: `${PATHS.SANDBOX_HOME}/project`,
+        })
+      } finally {
+        // The agent is done: stop the shared OpenCode placeholder from working
+        // until the next turn mounts it again. In a finally, as the chat is
+        // still released below when finalizeTurn throws.
+        await releaseSharedOpencodeSecret(sandbox)
+      }
 
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
       // Runs while the sandbox is still alive; attribution (pool/provider) is

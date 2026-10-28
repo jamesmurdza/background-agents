@@ -260,10 +260,14 @@ export async function GET(req: Request) {
               throw new Error("Could not save the stopped turn; reload to retry")
             }
             finalSnapshotSaved = true
-            await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
-            // The agent is done: stop the shared OpenCode placeholder from
-            // working until the next turn mounts it again.
-            await releaseSharedOpencodeSecret(sandbox)
+            try {
+              await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
+            } finally {
+              // The agent is done: stop the shared OpenCode placeholder from
+              // working until the next turn mounts it again. In a finally, as
+              // the chat is still released below when finalizeTurn throws.
+              await releaseSharedOpencodeSecret(sandbox)
+            }
 
             // Meter token/cost usage via tokscale while the sandbox is still
             // alive (best-effort). This is the live-stream completion path; the
