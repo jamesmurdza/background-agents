@@ -164,9 +164,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     envVarsChatEnvVars,
     envVarsRepoEnvVars,
     envVarsDeployEnvVars,
-    envVarsChatSecretHosts,
-    envVarsRepoSecretHosts,
-    envSecretsAvailable,
     handleOpenEnvVars,
     handleSaveEnvVars,
     handleDownloadProject,
@@ -827,9 +824,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         envVarsChatEnvVars={envVarsChatEnvVars}
         envVarsRepoEnvVars={envVarsRepoEnvVars}
         envVarsDeployEnvVars={envVarsDeployEnvVars}
-        envVarsChatSecretHosts={envVarsChatSecretHosts}
-        envVarsRepoSecretHosts={envVarsRepoSecretHosts}
-        envSecretsAvailable={envSecretsAvailable}
         skillsModalOpen={skillsModalOpen}
         onSkillsModalOpenChange={setSkillsModalOpen}
         onScheduledJobSuccess={() => setScheduledJobsRefreshKey((k) => k + 1)}

@@ -6,15 +6,8 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import {
-  decodeEnvVars,
-  encodeEnvVars,
-  envVarSecretsEnabled,
-  parseEnvVarSet,
-  repoEnvScope,
-  syncEnvVarSecrets,
-} from "@/lib/server/env-var-secrets"
-import type { SecretEnvHosts } from "@/lib/types"
+import { encrypt } from "@/lib/db/encryption"
+import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
 
 // =============================================================================
 // Types
@@ -22,16 +15,11 @@ import type { SecretEnvHosts } from "@/lib/types"
 
 interface RepoEnvVarsResponse {
   repoEnvironmentVariables: Record<string, Record<string, string>>
-  /** Per repo: the vars protected as Daytona secrets, and the hosts each may be sent to. */
-  repoSecretEnvironmentVariables: Record<string, SecretEnvHosts>
-  /** Whether marking a var as a secret takes effect (see lib/server/env-var-secrets). */
-  envSecretsAvailable: boolean
 }
 
 interface PatchRepoEnvVarsBody {
   repo: string
   environmentVariables: Record<string, string>
-  secretEnvironmentVariables?: SecretEnvHosts
 }
 
 // =============================================================================
@@ -49,16 +37,21 @@ export async function GET(): Promise<Response> {
       select: { repoEnvironmentVariables: true },
     })
 
-    const stored = (user?.repoEnvironmentVariables as Record<string, unknown>) || {}
-    const response: RepoEnvVarsResponse = {
-      repoEnvironmentVariables: {},
-      repoSecretEnvironmentVariables: {},
-      envSecretsAvailable: envVarSecretsEnabled(),
+    // Decrypt all repo environment variables
+    const encrypted = (user?.repoEnvironmentVariables as Record<string, Record<string, string>>) || {}
+    const decrypted: Record<string, Record<string, string>> = {}
+
+    for (const [repo, envVars] of Object.entries(encrypted)) {
+      decrypted[repo] = {}
+      for (const [key, value] of Object.entries(envVars)) {
+        if (value) {
+          decrypted[repo][key] = decryptStoredEnvVar(value)
+        }
+      }
     }
-    for (const [repo, envVars] of Object.entries(stored)) {
-      const { values, secretHosts } = decodeEnvVars(envVars)
-      response.repoEnvironmentVariables[repo] = values
-      if (Object.keys(secretHosts).length > 0) response.repoSecretEnvironmentVariables[repo] = secretHosts
+
+    const response: RepoEnvVarsResponse = {
+      repoEnvironmentVariables: decrypted,
     }
 
     return Response.json(response)
@@ -83,8 +76,9 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       return badRequest("Invalid repo")
     }
 
-    const set = parseEnvVarSet(body.environmentVariables, body.secretEnvironmentVariables)
-    if (typeof set === "string") return badRequest(set)
+    if (!body.environmentVariables || typeof body.environmentVariables !== "object") {
+      return badRequest("Invalid environmentVariables")
+    }
 
     // Get current repo env vars
     const user = await prisma.user.findUnique({
@@ -92,11 +86,19 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       select: { repoEnvironmentVariables: true },
     })
 
-    const allRepoEnvVars = (user?.repoEnvironmentVariables as Record<string, unknown>) || {}
+    const allRepoEnvVars = (user?.repoEnvironmentVariables as Record<string, Record<string, string>>) || {}
+
+    // Encrypt all values for this repo
+    const encrypted: Record<string, string> = {}
+    for (const [key, value] of Object.entries(body.environmentVariables)) {
+      if (typeof key === "string" && typeof value === "string" && key.trim()) {
+        encrypted[key.trim()] = encrypt(value)
+      }
+    }
 
     // Update or remove the repo entry
-    if (Object.keys(set.values).length > 0) {
-      allRepoEnvVars[body.repo] = encodeEnvVars(set)
+    if (Object.keys(encrypted).length > 0) {
+      allRepoEnvVars[body.repo] = encrypted
     } else {
       delete allRepoEnvVars[body.repo]
     }
@@ -104,10 +106,9 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     await prisma.user.update({
       where: { id: userId },
       data: {
-        repoEnvironmentVariables: allRepoEnvVars as Record<string, object>,
+        repoEnvironmentVariables: allRepoEnvVars,
       },
     })
-    await syncEnvVarSecrets(userId, repoEnvScope(body.repo), set)
 
     return Response.json({ success: true })
   } catch (error) {

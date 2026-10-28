@@ -24,7 +24,7 @@ import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { SkillSearchView } from "@/components/skills/SkillSearchView"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useModals, useGit, useChat } from "@/lib/contexts"
-import { isRealRepo, type SecretEnvHosts } from "@/lib/types"
+import { isRealRepo } from "@/lib/types"
 import type { LimitReachedState } from "@/lib/stores/chat-sync-store"
 
 // =============================================================================
@@ -58,9 +58,6 @@ interface AppModalsProps {
   envVarsChatEnvVars: Record<string, string>
   envVarsRepoEnvVars: Record<string, string>
   envVarsDeployEnvVars: Record<string, string> | null
-  envVarsChatSecretHosts: SecretEnvHosts
-  envVarsRepoSecretHosts: SecretEnvHosts
-  envSecretsAvailable: boolean
 
   // Skills search
   skillsModalOpen: boolean
@@ -92,9 +89,6 @@ export function AppModals({
   envVarsChatEnvVars,
   envVarsRepoEnvVars,
   envVarsDeployEnvVars,
-  envVarsChatSecretHosts,
-  envVarsRepoSecretHosts,
-  envSecretsAvailable,
   skillsModalOpen,
   onSkillsModalOpenChange,
   onScheduledJobSuccess,
@@ -142,9 +136,6 @@ export function AppModals({
         initialChatEnvVars={envVarsChatEnvVars}
         initialRepoEnvVars={envVarsRepoEnvVars}
         initialDeployEnvVars={envVarsDeployEnvVars}
-        initialChatSecretHosts={envVarsChatSecretHosts}
-        initialRepoSecretHosts={envVarsRepoSecretHosts}
-        envSecretsAvailable={envSecretsAvailable}
         isMobile={isMobile}
       />
 

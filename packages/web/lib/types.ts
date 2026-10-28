@@ -45,15 +45,7 @@ export interface EnvVar {
   id: string
   key: string
   value: string
-  /**
-   * Hosts the value may be sent to, as typed (comma-separated), when the var
-   * is protected as a secret; undefined when it's a plain var.
-   */
-  secretHosts?: string
 }
-
-/** Env vars protected as Daytona secrets → the hosts each may be sent to. */
-export type SecretEnvHosts = Record<string, string[]>
 
 /** Environment variables for chat and repository levels (for UI state) */
 export interface EnvironmentVariables {

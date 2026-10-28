@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type DragEvent } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Plus, Trash2, FolderGit2, Loader2, Upload, Check, Eye, EyeOff, Rocket, Lock, LockOpen } from "lucide-react"
+import { X, Plus, Trash2, FolderGit2, Loader2, Upload, Check, Eye, EyeOff, Rocket } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { VariableIcon } from "@/components/icons/variable-icon"
@@ -10,7 +10,7 @@ import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
 import { parseDotEnv, mergeEnvEntries, type ParsedEnvEntry } from "@/lib/dotenv"
-import type { EnvVar, SecretEnvHosts } from "@/lib/types"
+import type { EnvVar, EnvironmentVariables } from "@/lib/types"
 import { nanoid } from "nanoid"
 
 interface EnvironmentVariablesModalProps {
@@ -23,17 +23,11 @@ interface EnvironmentVariablesModalProps {
   onSave: (
     chatEnvVars: Record<string, string>,
     repoEnvVars: Record<string, string>,
-    deployEnvVars: Record<string, string> | undefined,
-    secretHosts: { chat: SecretEnvHosts; repository: SecretEnvHosts }
+    deployEnvVars?: Record<string, string>
   ) => Promise<void>
   /** Initial environment variables */
   initialChatEnvVars: Record<string, string>
   initialRepoEnvVars: Record<string, string>
-  /** Initial secret vars (chat and repository) and the hosts each may be sent to */
-  initialChatSecretHosts: SecretEnvHosts
-  initialRepoSecretHosts: SecretEnvHosts
-  /** Whether chat/repository vars can be protected as secrets; hides the toggle otherwise */
-  envSecretsAvailable: boolean
   /** Initial deployment environment variables - null hides deployment tab (Netlify not connected) */
   initialDeployEnvVars: Record<string, string> | null
   isMobile?: boolean
@@ -70,24 +64,12 @@ const ENV_FILE_NAMES = new Set([
 const isEnvFileName = (name: string) => ENV_FILE_NAMES.has(name.toLowerCase())
 
 /** Convert a Record<string, string> to EnvVar[] for UI display */
-function recordToEnvVars(record: Record<string, string>, secretHosts: SecretEnvHosts = {}): EnvVar[] {
+function recordToEnvVars(record: Record<string, string>): EnvVar[] {
   return Object.entries(record).map(([key, value]) => ({
     id: nanoid(),
     key,
     value,
-    secretHosts: secretHosts[key]?.join(", "),
   }))
-}
-
-/** The secret vars among `envVars` and their hosts, for the API (which validates them) */
-function envVarsToSecretHosts(envVars: EnvVar[]): SecretEnvHosts {
-  const hosts: SecretEnvHosts = {}
-  for (const { key, secretHosts } of envVars) {
-    if (key.trim() && secretHosts !== undefined) {
-      hosts[key.trim()] = secretHosts.split(/[\s,]+/).filter(Boolean)
-    }
-  }
-  return hosts
 }
 
 /** Convert EnvVar[] to Record<string, string> for API */
@@ -109,7 +91,6 @@ function EnvVarRow({
   autoFocus,
   revealed,
   onToggleReveal,
-  canProtect,
 }: {
   envVar: EnvVar
   onChange: (updated: EnvVar) => void
@@ -120,11 +101,8 @@ function EnvVarRow({
   /** Whether the value is shown in plain text instead of masked. */
   revealed: boolean
   onToggleReveal: () => void
-  /** Whether the var can be protected as a secret (not on the deployment tab). */
-  canProtect: boolean
 }) {
   const keyRef = useRef<HTMLInputElement>(null)
-  const isSecret = envVar.secretHosts !== undefined
 
   useEffect(() => {
     if (autoFocus) {
@@ -133,89 +111,57 @@ function EnvVarRow({
   }, [autoFocus])
 
   return (
-    <div className="py-2">
-      <div className="flex items-center gap-2">
-        <Input
-          ref={keyRef}
-          type="text"
-          value={envVar.key}
-          onChange={(e) => onChange({ ...envVar, key: e.target.value })}
-          onPaste={(e) => {
-            // Variable names never contain "=" or newlines, so text with either
-            // is a `KEY=value` line or a whole .env file: split it into rows.
-            const text = e.clipboardData.getData("text")
-            if (!/[=\n]/.test(text)) return
-            const entries = parseDotEnv(text)
-            if (entries.length === 0) return
-            e.preventDefault()
-            onBulkPaste(entries)
-          }}
-          placeholder="KEY"
-          className="flex-1 font-mono text-sm"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <span className="text-muted-foreground">=</span>
-        <Input
-          type={revealed ? "text" : "password"}
-          value={envVar.value}
-          onChange={(e) => onChange({ ...envVar, value: e.target.value })}
-          placeholder="value"
-          className="flex-1 font-mono text-sm"
-          // "new-password" plus the ignore flags keep password managers from offering to save or fill it.
-          autoComplete="new-password"
-          data-1p-ignore
-          data-lpignore="true"
-          spellCheck={false}
-        />
-        <button
-          type="button"
-          onClick={onToggleReveal}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
-          aria-label={revealed ? "Hide value" : "Show value"}
-          aria-pressed={revealed}
-        >
-          {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-        {(canProtect || isSecret) && (
-          <button
-            type="button"
-            onClick={() => onChange({ ...envVar, secretHosts: isSecret ? undefined : "" })}
-            className={cn(
-              "p-1.5 rounded-md hover:bg-accent transition-colors cursor-pointer",
-              isSecret ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-            aria-label={isSecret ? "Stop protecting as a secret" : "Protect as a secret"}
-            aria-pressed={isSecret}
-            title={isSecret ? "Protected: the sandbox only sees a placeholder" : "Protect as a secret"}
-          >
-            {isSecret ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onDelete}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-          aria-label="Delete variable"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-      {isSecret && (
-        <div className="mt-1.5 flex items-center gap-2 pl-1">
-          <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <Input
-            type="text"
-            value={envVar.secretHosts}
-            onChange={(e) => onChange({ ...envVar, secretHosts: e.target.value })}
-            placeholder="Allowed hosts, e.g. api.stripe.com, *.example.com"
-            className="flex-1 font-mono text-xs h-8"
-            autoComplete="off"
-            spellCheck={false}
-            aria-label={`Hosts ${envVar.key || "this variable"} may be sent to`}
-          />
-        </div>
-      )}
+    <div className="flex items-center gap-2 py-2">
+      <Input
+        ref={keyRef}
+        type="text"
+        value={envVar.key}
+        onChange={(e) => onChange({ ...envVar, key: e.target.value })}
+        onPaste={(e) => {
+          // Variable names never contain "=" or newlines, so text with either
+          // is a `KEY=value` line or a whole .env file: split it into rows.
+          const text = e.clipboardData.getData("text")
+          if (!/[=\n]/.test(text)) return
+          const entries = parseDotEnv(text)
+          if (entries.length === 0) return
+          e.preventDefault()
+          onBulkPaste(entries)
+        }}
+        placeholder="KEY"
+        className="flex-1 font-mono text-sm"
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <span className="text-muted-foreground">=</span>
+      <Input
+        type={revealed ? "text" : "password"}
+        value={envVar.value}
+        onChange={(e) => onChange({ ...envVar, value: e.target.value })}
+        placeholder="value"
+        className="flex-1 font-mono text-sm"
+        // "new-password" plus the ignore flags keep password managers from offering to save or fill it.
+        autoComplete="new-password"
+        data-1p-ignore
+        data-lpignore="true"
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        onClick={onToggleReveal}
+        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+        aria-label={revealed ? "Hide value" : "Show value"}
+        aria-pressed={revealed}
+      >
+        {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+        aria-label="Delete variable"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   )
 }
@@ -229,9 +175,6 @@ export function EnvironmentVariablesModal({
   initialChatEnvVars,
   initialRepoEnvVars,
   initialDeployEnvVars,
-  initialChatSecretHosts,
-  initialRepoSecretHosts,
-  envSecretsAvailable,
   isMobile = false,
 }: EnvironmentVariablesModalProps) {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -266,8 +209,8 @@ export function EnvironmentVariablesModal({
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
-      setChatEnvVars(recordToEnvVars(initialChatEnvVars, initialChatSecretHosts))
-      setRepoEnvVars(recordToEnvVars(initialRepoEnvVars, initialRepoSecretHosts))
+      setChatEnvVars(recordToEnvVars(initialChatEnvVars))
+      setRepoEnvVars(recordToEnvVars(initialRepoEnvVars))
       setDeployEnvVars(recordToEnvVars(initialDeployEnvVars ?? {}))
       setActiveTab("chat")
       setNewVarId(null)
@@ -277,7 +220,7 @@ export function EnvironmentVariablesModal({
       setIsDraggingFile(false)
       dragDepthRef.current = 0
     }
-  }, [open, initialChatEnvVars, initialRepoEnvVars, initialDeployEnvVars, initialChatSecretHosts, initialRepoSecretHosts])
+  }, [open, initialChatEnvVars, initialRepoEnvVars, initialDeployEnvVars])
 
   const handleSave = async () => {
     if (isSaving) return
@@ -286,8 +229,7 @@ export function EnvironmentVariablesModal({
       await onSave(
         envVarsToRecord(chatEnvVars),
         envVarsToRecord(repoEnvVars),
-        initialDeployEnvVars ? envVarsToRecord(deployEnvVars) : undefined,
-        { chat: envVarsToSecretHosts(chatEnvVars), repository: envVarsToSecretHosts(repoEnvVars) }
+        initialDeployEnvVars ? envVarsToRecord(deployEnvVars) : undefined
       )
       onClose()
     } catch (error) {
@@ -498,7 +440,6 @@ export function EnvironmentVariablesModal({
               autoFocus={envVar.id === newVarId}
               revealed={revealedIds.has(envVar.id)}
               onToggleReveal={() => toggleReveal(envVar.id)}
-              canProtect={envSecretsAvailable && activeTab !== "deployment"}
             />
           ))}
         </div>
@@ -662,16 +603,6 @@ export function EnvironmentVariablesModal({
                       : "Environment variables set here are used when this repository deploys to Netlify. Saving redeploys a site that's already live."}
                   {" "}Tip: paste <code className="font-mono text-xs">KEY=value</code> lines into a name field to add them all at once.
                 </p>
-                {envSecretsAvailable && activeTab !== "deployment" && (
-                  <p className="text-xs text-muted-foreground mb-4 flex gap-1.5">
-                    <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span>
-                      Lock a variable to keep its value out of the sandbox: everything there sees a placeholder, swapped
-                      for the value only in HTTPS request headers to the hosts you list (not in URLs or request bodies).
-                      Node&apos;s built-in fetch also needs <code className="font-mono">NODE_USE_ENV_PROXY=1</code>.
-                    </span>
-                  </p>
-                )}
                 {renderContent()}
               </div>
 

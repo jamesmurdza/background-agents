@@ -8,7 +8,6 @@ import { forgetSecrets, toSecretMarker } from "@background-agents/sandbox-secret
 import { agentModels, getEnvForModel, type Agent, type CredentialId, type CustomEndpoint } from "@background-agents/common"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
 import { USER_KEY_PROVIDERS, userKeySecretName, userKeySecretSpec } from "./user-key-secrets"
-import { envVarSecretSpec, type EnvVarSecret } from "./env-var-secrets"
 import { claudeOwnSecretPrefix, claudeSharedSecretSpec, codexSecretSpec } from "./subscription-secrets"
 import { buildCodexAuthJson } from "@/lib/codex-credentials"
 import {
@@ -105,36 +104,6 @@ function ownKey(credential: CredentialId, value: string, extra: Partial<TurnSecr
   }
 }
 
-const envVar = (key: string, value: string, hosts = ["api.example.com"]): EnvVarSecret => ({
-  key,
-  value,
-  hosts,
-  scope: "chat:c1",
-})
-
-function envSecret(secret: EnvVarSecret): ReadyTurnSecret {
-  const spec = envVarSecretSpec(USER, secret)
-  return {
-    kind: "env",
-    name: spec.name,
-    mountEnv: secret.key,
-    envValue: secret.value,
-    envKeys: [secret.key],
-    spec,
-    placeholder: placeholderFor(spec.name),
-  }
-}
-
-const endpoint = (fields: Partial<CustomEndpoint>): CustomEndpoint => ({
-  id: "e1",
-  name: "proxy",
-  type: "anthropic",
-  baseUrl: "https://proxy.example.com/v1",
-  model: "m",
-  headers: "",
-  ...fields,
-})
-
 describe("planTurnSecrets", () => {
   it("plans the pool secret a shared run draws on", () => {
     const marker = toSecretMarker(SECRET_1)
@@ -218,69 +187,16 @@ describe("planTurnSecrets", () => {
     ).toHaveLength(1)
   })
 
-  it("plans one secret per endpoint credential, on its host, covering every var it appears in", () => {
-    const ep = endpoint({
-      type: "codex",
-      headers: "Authorization: Bearer tok-1\nx-api-key: key-2\nOpenAI-Organization: org-x",
-    })
-    const secrets = planTurnSecrets({
-      userId: USER,
-      agent: "codex",
-      model: "endpoint:e1",
-      credentials: { OPENAI_API_KEY: "sk-own" },
-      endpoints: [ep],
-    })
-    expect(secrets).toMatchObject([
-      {
-        kind: "endpoint",
-        mountEnv: "ENDPOINT_SECRET_1",
-        envValue: "tok-1",
-        envKeys: ["CUSTOM_CODEX_HEADERS", "CUSTOM_CODEX_AUTHORIZATION"],
-        spec: { hosts: ["proxy.example.com"] },
-      },
-      { kind: "endpoint", mountEnv: "ENDPOINT_SECRET_2", envValue: "key-2", envKeys: ["CUSTOM_CODEX_HEADERS"] },
-    ])
-  })
-
-  it("plans no endpoint secrets when they're off, or the endpoint isn't plain HTTPS", () => {
-    const run = (ep: CustomEndpoint) =>
-      planTurnSecrets({ userId: USER, agent: "claude-code", model: "endpoint:e1", credentials: {}, endpoints: [ep] })
-    const headers = "x-api-key: sk-proxy"
-    expect(run(endpoint({ headers, baseUrl: "http://proxy.example.com" }))).toEqual([])
-    expect(run(endpoint({ headers, baseUrl: "https://proxy.example.com:8443" }))).toEqual([])
-    expect(run(endpoint({ headers }))).toHaveLength(1)
-    // The endpoint's x-api-key lands in ANTHROPIC_API_KEY, but it isn't the user's Anthropic key.
-    process.env.DAYTONA_USER_KEY_SECRETS = "ANTHROPIC_API_KEY"
-    expect(run(endpoint({ headers }))).toEqual([])
-  })
 })
 
-describe("planTurnSecrets with secret env vars", () => {
-  const envVars = { values: { STRIPE_KEY: "sk_live_x", PORT: "3000" }, secrets: [envVar("STRIPE_KEY", "sk_live_x")] }
-
-  it("plans each secret env var under its own name, after the keys", () => {
-    const secrets = planTurnSecrets({
-      userId: USER,
-      agent: "codex",
-      model: "gpt-6.1-sol",
-      credentials: { OPENAI_API_KEY: "sk-own" },
-      envVars,
-    })
-    expect(secrets.map((s) => s.kind)).toEqual(["user", "env"])
-    expect(secrets[1]).toMatchObject({
-      kind: "env",
-      mountEnv: "STRIPE_KEY",
-      envValue: "sk_live_x",
-      envKeys: ["STRIPE_KEY"],
-      spec: { hosts: ["api.example.com"] },
-    })
-  })
-
-  it("plans none unless ENV_VARS is enabled", () => {
-    process.env.DAYTONA_USER_KEY_SECRETS = "OPENAI_API_KEY"
-    expect(planTurnSecrets({ userId: USER, agent: "codex", model: "gpt-6.1-sol", credentials: {}, envVars })).toEqual([])
-    process.env.DAYTONA_USER_KEY_SECRETS = "ENV_VARS"
-    expect(planTurnSecrets({ userId: USER, agent: "codex", model: "gpt-6.1-sol", credentials: {}, envVars })).toHaveLength(1)
+describe("planTurnSecrets with a custom endpoint", () => {
+  it("plans no secrets: the endpoint's key, under a provider's name, isn't that provider's", () => {
+    const ep: CustomEndpoint = {
+      id: "e1", name: "proxy", type: "anthropic", baseUrl: "https://proxy.example.com/v1", model: "m", headers: "x-api-key: ep-key",
+    }
+    expect(planTurnSecrets({
+      userId: USER, agent: "claude-code", model: "endpoint:e1", credentials: { ANTHROPIC_API_KEY: "sk-ant-own" }, endpoints: [ep],
+    })).toEqual([])
   })
 })
 
@@ -378,8 +294,7 @@ describe("mountClaudeSecret", () => {
 
   it("swaps in a refreshed token's secret mid-turn, keeping the rest", async () => {
     vi.spyOn(Date, "now").mockReturnValue(0) // no propagation wait
-    const stripe = envSecret(envVar("STRIPE_KEY", "sk_live_x"))
-    const pinned = `STRIPE_KEY:${stripe.name}`
+    const pinned = `${KEEPALIVE_MOUNT_ENV}:${KEEPALIVE_SECRET.name}`
     const old = claudeSharedSecretSpec("old-token").name
     const sandbox = fakeSandbox({
       [LABEL]: `SESSION_RELAY_TOKEN_CLAUDE:${old}:SESSION_RELAY_TOKEN:${SECRET_1}:${pinned}`,
@@ -390,7 +305,7 @@ describe("mountClaudeSecret", () => {
     const name = claudeSharedSecretSpec(token).name
     expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(token))).toBe(placeholderFor(name))
     expect(sandbox.updateSecrets).toHaveBeenCalledWith({
-      STRIPE_KEY: stripe.name,
+      [KEEPALIVE_MOUNT_ENV]: KEEPALIVE_SECRET.name,
       SESSION_RELAY_TOKEN_CLAUDE: name,
       SESSION_RELAY_TOKEN: SECRET_1,
     })
@@ -542,23 +457,6 @@ describe("mountTurnSecrets", () => {
     })
   })
 
-  it("mounts secret env vars as pinned, alongside the turn's keys", async () => {
-    const sandbox = fakeSandbox({ [LABEL]: "none" })
-    const stripe = envSecret(envVar("STRIPE_KEY", "sk_live_x"))
-    await mountTurnSecrets(asSandbox(sandbox), [POOL_1, stripe])
-    expect(sandbox.updateSecrets).toHaveBeenCalledWith({ STRIPE_KEY: stripe.name, SESSION_RELAY_TOKEN: SECRET_1 })
-    expect(sandbox.labels[PINNED]).toBe(`STRIPE_KEY:${stripe.name}`)
-  })
-
-  it("with nothing to mount, detaches pinned env vars the user has since removed", async () => {
-    const stripe = envSecret(envVar("STRIPE_KEY", "sk_live_x"))
-    const pinned = `STRIPE_KEY:${stripe.name}`
-    const sandbox = fakeSandbox({ [LABEL]: pinned, [PINNED]: pinned })
-    await mountTurnSecrets(asSandbox(sandbox), [])
-    expect(sandbox.updateSecrets).toHaveBeenCalledWith({})
-    expect(sandbox.labels).toMatchObject({ [LABEL]: "none", [PINNED]: "none" })
-  })
-
   it("with nothing to mount, detaches leftovers but never restarts a secret-less sandbox", async () => {
     const leftover = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
     await mountTurnSecrets(asSandbox(leftover), [])
@@ -605,15 +503,6 @@ describe("releaseTurnSecrets", () => {
     await releaseTurnSecrets(asSandbox(sandbox))
     expect(sandbox.updateSecrets).toHaveBeenCalledWith({})
     expect(sandbox.labels).toEqual({ repo: "o/r", [LABEL]: "none", [PINNED]: "none" })
-  })
-
-  it("keeps pinned env vars mounted for dev servers between turns", async () => {
-    const stripe = envSecret(envVar("STRIPE_KEY", "sk_live_x"))
-    const pinned = `STRIPE_KEY:${stripe.name}`
-    const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}:${pinned}`, [PINNED]: pinned })
-    await releaseTurnSecrets(asSandbox(sandbox))
-    expect(sandbox.updateSecrets).toHaveBeenCalledWith({ STRIPE_KEY: stripe.name })
-    expect(sandbox.labels).toMatchObject({ [LABEL]: pinned, [PINNED]: pinned })
   })
 
   it("makes no API call when nothing is mounted", async () => {
@@ -714,33 +603,6 @@ describe("applyTurnSecretsToEnv", () => {
     expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-own")
   })
 
-  it("swaps a secret env var's value for its placeholder, leaving plain ones", () => {
-    const stripe = envSecret(envVar("STRIPE_KEY", "sk_live_x"))
-    const env: Record<string, string> = { STRIPE_KEY: "sk_live_x", PORT: "3000" }
-    applyTurnSecretsToEnv(env, [stripe])
-    expect(env).toEqual({ STRIPE_KEY: stripe.placeholder, PORT: "3000" })
-  })
-
-  it("swaps an endpoint credential inside header blobs, leaving the other headers", () => {
-    const secret = ready({
-      kind: "endpoint",
-      name: "u_x_ep_1",
-      mountEnv: "ENDPOINT_SECRET_1",
-      envValue: "tok-1",
-      envKeys: ["CUSTOM_CODEX_HEADERS", "CUSTOM_CODEX_AUTHORIZATION"],
-    })
-    const env: Record<string, string> = {
-      CUSTOM_CODEX_BASE_URL: "https://proxy.example.com/v1",
-      CUSTOM_CODEX_HEADERS: "Authorization: Bearer tok-1\nOpenAI-Organization: org-x",
-      CUSTOM_CODEX_AUTHORIZATION: "Bearer tok-1",
-    }
-    applyTurnSecretsToEnv(env, [secret])
-    expect(env).toEqual({
-      CUSTOM_CODEX_BASE_URL: "https://proxy.example.com/v1",
-      CUSTOM_CODEX_HEADERS: `Authorization: Bearer ${secret.placeholder}\nOpenAI-Organization: org-x`,
-      CUSTOM_CODEX_AUTHORIZATION: `Bearer ${secret.placeholder}`,
-    })
-  })
 })
 
 describe("turnSecretsCreateParams", () => {
@@ -748,17 +610,6 @@ describe("turnSecretsCreateParams", () => {
     expect(turnSecretsCreateParams([POOL_1])).toEqual({
       secrets: { SESSION_RELAY_TOKEN: SECRET_1 },
       labels: { [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}`, [PINNED]: "none" },
-    })
-  })
-
-  it("records secret env vars as pinned from the start", () => {
-    const stripe = envSecret(envVar("STRIPE_KEY", "sk_live_x"))
-    expect(turnSecretsCreateParams([POOL_1, stripe])).toEqual({
-      secrets: { STRIPE_KEY: stripe.name, SESSION_RELAY_TOKEN: SECRET_1 },
-      labels: {
-        [LABEL]: `STRIPE_KEY:${stripe.name}:SESSION_RELAY_TOKEN:${SECRET_1}`,
-        [PINNED]: `STRIPE_KEY:${stripe.name}`,
-      },
     })
   })
 

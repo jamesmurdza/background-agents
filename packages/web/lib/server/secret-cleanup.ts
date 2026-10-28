@@ -8,23 +8,22 @@
  * this holds across every deployment sharing the Daytona org.
  *
  * Sooner than that, saves and refreshes already delete what they replace
- * (syncUserKeySecret, syncEndpointSecrets, syncEnvVarSecrets, the prune*
- * helpers), but only best effort, and some things never get that chance: a
- * deleted user, a key removed from a shared pool, a feature switched off.
- * This sweep also finds those by name:
+ * (syncUserKeySecret, the prune* helpers), but only best effort, and some
+ * things never get that chance: a deleted user, a key removed from a shared
+ * pool, a feature switched off. This sweep also finds those by name:
  *
  * - shared pool secrets (`opencode_`, `gemini_`) for keys no longer
  *   configured; a pool with no keys configured here is left alone, as that
  *   more likely means a different deployment than removed keys;
  * - shared Claude token secrets but the newest two;
  * - a user's secrets (`u_<tag>_`) when the user is gone, or when nothing in
- *   their current keys, endpoints or env vars would create that name (their
- *   Codex and own Claude token secrets: all but the newest two);
+ *   their current keys would create that name (their Codex and own Claude
+ *   token secrets: all but the newest two);
  * - the shared OpenCode secrets once made by hand in the Daytona dashboard.
  *
- * Nothing mounted on a sandbox is ever deleted (a running turn, a dev server
- * using a locked env var, a stopped sandbox keeping its pinned ones), nor a
- * secret by name within {@link GRACE_MS} of its creation: a secret is created
+ * Nothing mounted on a sandbox is ever deleted (a running turn, a stopped
+ * sandbox keeping its pinned ones), nor a secret by name within
+ * {@link GRACE_MS} of its creation: a secret is created
  * before the setting that needs it is saved, and must not be swept in
  * between. Secrets this app didn't create are ignored.
  */
@@ -39,16 +38,6 @@ import {
 
 import { getUserCredentials } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
-import { getUserEndpoints } from "@/lib/server/custom-endpoints"
-import { endpointSecretSpecs, endpointSecretsEnabled } from "@/lib/server/endpoint-secrets"
-import {
-  chatEnvScope,
-  decodeEnvVars,
-  envVarSecretSpec,
-  envVarSecretsEnabled,
-  envVarSecretsOf,
-  repoEnvScope,
-} from "@/lib/server/env-var-secrets"
 import { getSharedKeys, getSharedSecretNames, sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SHARED_SECRET_PREFIX,
@@ -90,7 +79,7 @@ export interface ListedSecret {
 
 /** What a user's secrets should be. */
 export interface UserSecretState {
-  /** Names their current keys, endpoints and env vars would create. */
+  /** Names their current keys would create. */
   expected: Set<string>
   /**
    * Prefixes of their subscription token secrets in use (Codex, their own
@@ -188,34 +177,13 @@ export function planSecretCleanup(
 
 /** The secret names `userId`'s current settings would create. */
 export async function loadUserSecretState(userId: string): Promise<UserSecretState> {
-  const [credentials, endpoints, user, chats] = await Promise.all([
-    getUserCredentials(userId),
-    getUserEndpoints(userId),
-    prisma.user.findUnique({ where: { id: userId }, select: { repoEnvironmentVariables: true } }),
-    prisma.chat.findMany({ where: { userId }, select: { id: true, environmentVariables: true } }),
-  ])
+  const credentials = await getUserCredentials(userId)
   const expected = new Set<string>()
 
   for (const credential of Object.keys(USER_KEY_PROVIDERS)) {
     const value = credentials[credential as keyof typeof credentials]
     if (value && userKeySecretsEnabled(credential) && !parseSecretMarker(value)) {
       expected.add(userKeySecretName(userId, credential, value))
-    }
-  }
-  if (endpointSecretsEnabled()) {
-    for (const spec of endpointSecretSpecs(userId, endpoints)) expected.add(spec.name)
-  }
-  if (envVarSecretsEnabled()) {
-    const scopes = [
-      ...chats.map((chat) => [chatEnvScope(chat.id), chat.environmentVariables] as const),
-      ...Object.entries((user?.repoEnvironmentVariables as Record<string, unknown> | null) ?? {}).map(
-        ([repo, stored]) => [repoEnvScope(repo), stored] as const
-      ),
-    ]
-    for (const [scope, stored] of scopes) {
-      for (const secret of envVarSecretsOf(decodeEnvVars(stored), scope)) {
-        expected.add(envVarSecretSpec(userId, secret).name)
-      }
     }
   }
   const tokenPrefixes: string[] = []

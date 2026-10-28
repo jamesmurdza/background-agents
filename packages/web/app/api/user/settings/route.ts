@@ -26,7 +26,6 @@ import {
 import { withUserLock } from "@/lib/server/codex-credentials"
 import { pruneClaudeOwnSecrets } from "@/lib/server/subscription-secrets"
 import { syncUserKeySecret } from "@/lib/server/user-key-secrets"
-import { syncEndpointSecrets } from "@/lib/server/endpoint-secrets"
 import { getProviderMultipliers } from "@/lib/db/provider-pricing"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
@@ -140,9 +139,8 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     // Custom endpoints: validate up front. This doesn't need the user row, so
     // it can fail fast before we ever take the row lock below.
     let newEndpoints: Prisma.InputJsonValue | undefined
-    let incoming: CustomEndpoint[] | undefined
     if (body.customEndpoints !== undefined) {
-      incoming = readIncomingEndpoints(body.customEndpoints)
+      const incoming = readIncomingEndpoints(body.customEndpoints)
       const invalid = validateEndpoints(incoming)
       if (invalid) return badRequest(invalid.message)
       newEndpoints = encryptEndpointsForStorage(incoming) as unknown as Prisma.InputJsonValue
@@ -244,14 +242,12 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       { timeout: 20000 }
     )
 
-    // Saved or removed keys and endpoints: replace their Daytona secrets (see
-    // lib/server/user-key-secrets, lib/server/endpoint-secrets). Best effort;
-    // never fails the save.
+    // Saved or removed keys: replace their Daytona secrets (see
+    // lib/server/user-key-secrets). Best effort; never fails the save.
     await Promise.all([
       ...Object.entries(body.credentials ?? {})
         .filter(([key, value]) => isCredentialId(key) && isClientWritableCredential(key) && value !== "***")
         .map(([key, value]) => syncUserKeySecret(userId, key, typeof value === "string" && value ? value : undefined)),
-      ...(incoming ? [syncEndpointSecrets(userId, incoming)] : []),
       // A replaced or removed Claude login: its access tokens' secrets go too.
       ...(body.credentials?.CLAUDE_CODE_CREDENTIALS !== undefined && body.credentials.CLAUDE_CODE_CREDENTIALS !== "***"
         ? [pruneClaudeOwnSecrets(userId, { all: true })]

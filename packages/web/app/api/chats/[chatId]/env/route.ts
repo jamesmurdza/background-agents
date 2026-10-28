@@ -8,15 +8,8 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import {
-  chatEnvScope,
-  decodeEnvVars,
-  encodeEnvVars,
-  envVarSecretsEnabled,
-  parseEnvVarSet,
-  syncEnvVarSecrets,
-} from "@/lib/server/env-var-secrets"
-import type { SecretEnvHosts } from "@/lib/types"
+import { encrypt } from "@/lib/db/encryption"
+import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
 
 // =============================================================================
 // Types
@@ -24,15 +17,10 @@ import type { SecretEnvHosts } from "@/lib/types"
 
 interface EnvVarsResponse {
   environmentVariables: Record<string, string>
-  /** The vars protected as Daytona secrets, and the hosts each may be sent to. */
-  secretEnvironmentVariables: SecretEnvHosts
-  /** Whether marking a var as a secret takes effect (see lib/server/env-var-secrets). */
-  envSecretsAvailable: boolean
 }
 
 interface PatchEnvVarsBody {
   environmentVariables: Record<string, string>
-  secretEnvironmentVariables?: SecretEnvHosts
 }
 
 // =============================================================================
@@ -54,11 +42,17 @@ export async function GET(
       return notFound("Chat not found")
     }
 
-    const { values, secretHosts } = decodeEnvVars(chat.environmentVariables)
+    // Decrypt environment variables
+    const encrypted = (chat.environmentVariables as Record<string, string>) || {}
+    const decrypted: Record<string, string> = {}
+    for (const [key, value] of Object.entries(encrypted)) {
+      if (value) {
+        decrypted[key] = decryptStoredEnvVar(value)
+      }
+    }
+
     const response: EnvVarsResponse = {
-      environmentVariables: values,
-      secretEnvironmentVariables: secretHosts,
-      envSecretsAvailable: envVarSecretsEnabled(),
+      environmentVariables: decrypted,
     }
 
     return Response.json(response)
@@ -82,8 +76,10 @@ export async function PATCH(
 
   try {
     const body: PatchEnvVarsBody = await req.json()
-    const set = parseEnvVarSet(body.environmentVariables, body.secretEnvironmentVariables)
-    if (typeof set === "string") return badRequest(set)
+
+    if (!body.environmentVariables || typeof body.environmentVariables !== "object") {
+      return badRequest("Invalid environmentVariables")
+    }
 
     // Verify ownership
     const chat = await getChatWithAuth(chatId, userId)
@@ -91,13 +87,20 @@ export async function PATCH(
       return notFound("Chat not found")
     }
 
+    // Encrypt all values
+    const encrypted: Record<string, string> = {}
+    for (const [key, value] of Object.entries(body.environmentVariables)) {
+      if (typeof key === "string" && typeof value === "string" && key.trim()) {
+        encrypted[key.trim()] = encrypt(value)
+      }
+    }
+
     await prisma.chat.update({
       where: { id: chatId },
       data: {
-        environmentVariables: encodeEnvVars(set),
+        environmentVariables: encrypted,
       },
     })
-    await syncEnvVarSecrets(userId, chatEnvScope(chatId), set)
 
     return Response.json({ success: true })
   } catch (error) {

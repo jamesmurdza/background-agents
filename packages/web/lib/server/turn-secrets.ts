@@ -1,10 +1,8 @@
 /**
  * The Daytona secrets a turn mounts (server-only): the shared pool key it
  * draws on, if any (lib/server/shared-pool-secrets), the user's own provider
- * keys (lib/server/user-key-secrets), the selected custom endpoint's
- * credentials (lib/server/endpoint-secrets), subscription access tokens
- * (lib/server/subscription-secrets) and the env vars the user marked as
- * secrets (lib/server/env-var-secrets).
+ * keys (lib/server/user-key-secrets) and subscription access tokens
+ * (lib/server/subscription-secrets).
  *
  * The agent is handed each secret's placeholder in place of the credential
  * it stands for, so neither a pool key nor the user's own key ever enters
@@ -12,14 +10,13 @@
  * anything in the sandbox can use it then — the terminal, a plain curl —
  * bypassing metering. So keys are mounted only for the duration of a turn:
  * {@link mountTurnSecrets} at send time, {@link releaseTurnSecrets} wherever a
- * turn ends. Secret env vars are the exception: they are pinned, staying
- * mounted between turns so dev servers keep working. The mechanics (the label that records the set,
- * restarts, rollback) live in @background-agents/sandbox-secrets.
+ * turn ends. Only {@link KEEPALIVE_SECRET} stays mounted between turns
+ * (pinned). The mechanics (the label that records the set, restarts,
+ * rollback) live in @background-agents/sandbox-secrets.
  *
  * Keys are mounted under names no CLI reads on its own, so a plain
  * `opencode` or `claude` in the sandbox terminal doesn't pick a key up; only
  * the agent's env carries the placeholders ({@link applyTurnSecretsToEnv}).
- * A secret env var is mounted under its own name, as the user asked for it.
  */
 
 import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
@@ -40,13 +37,6 @@ import {
 } from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
-import { envVarSecretSpec, envVarSecretsEnabled, type UserEnvVars } from "@/lib/server/env-var-secrets"
-import {
-  endpointCredentials,
-  endpointSecretHost,
-  endpointSecretSpec,
-  endpointSecretsEnabled,
-} from "@/lib/server/endpoint-secrets"
 import { sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SHARED_MOUNT_ENV,
@@ -96,26 +86,24 @@ export const KEEPALIVE_MOUNT_ENV = "SESSION_RELAY_TOKEN_KEEPALIVE"
 /** A secret a turn mounts, and the agent env value it stands in for. */
 export interface TurnSecret {
   /**
-   * "env" secrets are pinned: they stay mounted between turns, and so does
-   * {@link KEEPALIVE_SECRET}. "claude" is the Claude subscription token, the
+   * Only "keepalive" ({@link KEEPALIVE_SECRET}) is pinned: it stays mounted
+   * between turns. "claude" is the Claude subscription token, the
    * shared pool's or the user's own, which the agent fetches itself (see {@link mountClaudeSecret}) rather than
    * finding in its env.
    */
-  kind: "pool" | "user" | "endpoint" | "env" | "claude" | "keepalive"
+  kind: "pool" | "user" | "claude" | "keepalive"
   /** Daytona secret name. */
   name: string
   /** Env var it is mounted as inside the sandbox. */
   mountEnv: string
   /**
    * What the agent env carries until it is swapped: a pool's credential
-   * marker, the user's own key or subscription token, a custom endpoint's
-   * credential, or a secret env var's value.
+   * marker, or the user's own key or subscription token.
    */
   envValue: string
   /**
    * The agent env vars carrying {@link envValue}, whole (a key and its
-   * aliases) or inside a larger value (an endpoint's header blob, Codex's
-   * auth.json). Empty for the shared Claude token.
+   * aliases) or inside a larger value (Codex's auth.json). Empty for the shared Claude token.
    */
   envKeys: string[]
   /** How to create the secret; a pool's comes from its pool. */
@@ -135,10 +123,9 @@ export interface ReadyTurnSecret extends TurnSecret {
 
 /**
  * The secrets a run would mount: the shared pool key it draws on, every
- * enabled user key the agent's env would carry, or the selected custom
- * endpoint's credentials, plus the shared Claude token and the user's secret
- * env vars. Pure — call before the sandbox exists so it can be created with
- * them.
+ * enabled user key the agent's env would carry, plus the Claude token. None
+ * for a custom endpoint, whose credentials go into the sandbox as before.
+ * Pure — call before the sandbox exists so it can be created with them.
  */
 export function planTurnSecrets(params: {
   userId: string
@@ -146,21 +133,14 @@ export function planTurnSecrets(params: {
   model: string | undefined
   credentials: Credentials
   endpoints?: CustomEndpoint[]
-  envVars?: UserEnvVars
   /** The Claude access token the run fetches (shared or its own subscription's), if any. */
   claudeToken?: ClaudeRunToken
 }): TurnSecret[] {
-  const { userId, envVars, claudeToken } = params
+  const { userId, claudeToken } = params
   const secrets = planKeySecrets(params)
   const claudeSpec = claudeToken && claudeRunSecretSpec(userId, claudeToken)
   if (claudeToken && claudeSpec) {
     secrets.push({ kind: "claude", name: claudeSpec.name, mountEnv: CLAUDE_SHARED_MOUNT_ENV, envValue: claudeToken.token, envKeys: [], spec: claudeSpec })
-  }
-  if (envVars && envVarSecretsEnabled()) {
-    for (const envVar of envVars.secrets) {
-      const spec = envVarSecretSpec(userId, envVar)
-      secrets.push({ kind: "env", name: spec.name, mountEnv: envVar.key, envValue: envVar.value, envKeys: [envVar.key], spec })
-    }
   }
   return secrets
 }
@@ -184,19 +164,9 @@ function planKeySecrets(params: {
     secrets.push({ kind: "pool", name: poolSecret, mountEnv: pool.mountEnv, envValue: marker, envKeys: carrying(marker) })
   }
 
-  // A custom endpoint's env holds its own credentials and no provider keys.
-  const endpoint = findEndpoint(model, endpoints)
-  if (endpoint) {
-    const host = endpointSecretHost(endpoint.baseUrl)
-    if (!host || !endpointSecretsEnabled()) return secrets
-    endpointCredentials(endpoint).forEach((value, i) => {
-      const envKeys = carrying(value)
-      if (envKeys.length === 0) return
-      const spec = endpointSecretSpec(userId, host, value)
-      secrets.push({ kind: "endpoint", name: spec.name, mountEnv: `ENDPOINT_SECRET_${i + 1}`, envValue: value, envKeys, spec })
-    })
-    return secrets
-  }
+  // A custom endpoint's env holds its own credentials, under provider key
+  // names but for another server, and no provider keys.
+  if (findEndpoint(model, endpoints)) return secrets
 
   for (const [credential, value] of Object.entries(systemEnv)) {
     if (credential === "CODEX_CREDENTIALS" && subscriptionSecretsEnabled("CODEX_CREDENTIALS")) {
@@ -262,9 +232,9 @@ function mountsOf(secrets: TurnSecret[]): SecretMounts {
   return Object.fromEntries(secrets.map((s) => [s.mountEnv, s.name]))
 }
 
-const isPinned = (secret: TurnSecret) => secret.kind === "env" || secret.kind === "keepalive"
+const isPinned = (secret: TurnSecret) => secret.kind === "keepalive"
 
-/** `secrets` split into the turn's own and the pinned (env, keepalive) ones. */
+/** `secrets` split into the turn's own and the pinned (keepalive) ones. */
 function splitPinned(secrets: TurnSecret[]): { turn: SecretMounts; pinned: SecretMounts } {
   return {
     turn: mountsOf(secrets.filter((s) => !isPinned(s))),
@@ -287,8 +257,8 @@ export function turnSecretsCreateParams(
 
 /**
  * Mount exactly `secrets` on `sandbox` for the turn about to start (a no-op
- * when they already are), detaching whatever else is, pinned env secrets the
- * user has since removed included. Call as early in the send as possible,
+ * when they already are), detaching whatever else is, pinned secrets other
+ * than the keepalive included. Call as early in the send as possible,
  * then {@link waitForTurnSecrets} just before starting the agent. With
  * nothing to mount it only detaches leftovers (the keepalive stays), so a
  * sandbox that never needed secrets is never restarted for them.
@@ -322,13 +292,13 @@ export function waitForTurnSecrets(mounted: { readyAt: number }): Promise<void> 
 /**
  * Hand the agent each mounted secret's placeholder wherever its `env`
  * carries the value the secret stands for (aliases like GOOGLE_API_KEY and
- * endpoint header blobs included), and drop every pool marker left: no
+ * Codex's auth.json included), and drop every pool marker left: no
  * secret backs it, and an agent given every key it might use (Droid) must
  * not be handed a dead one. Mutates `env`; call for every run, `secrets` or
  * not.
  *
  * A value the user set themselves (via chat/repo env vars) isn't one of
- * these unless they marked it as a secret, so it is kept and wins as before. A user's own key also stays as is
+ * these, so it is kept and wins as before. A user's own key also stays as is
  * when the env points its provider at another server (see `bypassEnv`).
  */
 export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: ReadyTurnSecret[]): void {

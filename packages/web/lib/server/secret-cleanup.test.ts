@@ -6,25 +6,13 @@ import type { Daytona } from "@daytonaio/sdk"
 
 const db = vi.hoisted(() => ({
   credentials: vi.fn(),
-  endpoints: vi.fn(),
-  userFindUnique: vi.fn(),
   userFindMany: vi.fn(),
-  chatFindMany: vi.fn(),
 }))
 
 vi.mock("@/lib/db/api-helpers", () => ({ getUserCredentials: db.credentials }))
-vi.mock("@/lib/server/custom-endpoints", () => ({ getUserEndpoints: db.endpoints }))
-vi.mock("@/lib/db/prisma", () => ({
-  prisma: {
-    user: { findUnique: db.userFindUnique, findMany: db.userFindMany },
-    chat: { findMany: db.chatFindMany },
-  },
-}))
+vi.mock("@/lib/db/prisma", () => ({ prisma: { user: { findMany: db.userFindMany } } }))
 
-import type { CustomEndpoint } from "@background-agents/common"
 import { REVERIFY_MS, encodeMounts, stampLastUsed, toSecretMarker } from "@background-agents/sandbox-secrets"
-import { chatEnvScope, encodeEnvVars, envVarSecretSpec, repoEnvScope } from "./env-var-secrets"
-import { endpointSecretSpec } from "./endpoint-secrets"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
 import { CLAUDE_SHARED_SECRET_PREFIX, claudeOwnSecretPrefix, codexSecretPrefix } from "./subscription-secrets"
 import { PINNED_SECRETS_LABEL, TURN_SECRETS_LABEL } from "./turn-secrets"
@@ -57,10 +45,7 @@ beforeEach(() => {
   process.env.OPENCODE_API_KEY = "oc-key-1"
   process.env.DAYTONA_USER_KEY_SECRETS = "all,CODEX_CREDENTIALS,CLAUDE_SHARED"
   db.credentials.mockReset().mockResolvedValue({})
-  db.endpoints.mockReset().mockResolvedValue([])
-  db.userFindUnique.mockReset().mockResolvedValue({ repoEnvironmentVariables: null })
   db.userFindMany.mockReset().mockResolvedValue([])
-  db.chatFindMany.mockReset().mockResolvedValue([])
   vi.spyOn(console, "error").mockImplementation(() => {})
 })
 
@@ -155,35 +140,15 @@ describe("planSecretCleanup", () => {
 })
 
 describe("loadUserSecretState", () => {
-  it("expects the names the user's keys, endpoints and env vars create", async () => {
-    const endpoint: CustomEndpoint = {
-      id: "e1", name: "proxy", type: "anthropic", baseUrl: "https://proxy.example.com/v1", model: "m",
-      headers: "x-api-key: ep-key",
-    }
+  it("expects the names the user's keys create", async () => {
     db.credentials.mockResolvedValue({
       OPENAI_API_KEY: "sk-own",
       OPENCODE_API_KEY: toSecretMarker("opencode_abc"), // a pool's: not the user's
       CODEX_CREDENTIALS: "{}",
     })
-    db.endpoints.mockResolvedValue([endpoint])
-    const hosts = ["api.example.com"]
-    db.chatFindMany.mockResolvedValue([
-      { id: "c1", environmentVariables: encodeEnvVars({ values: { K: "v" }, secretHosts: { K: hosts } }) },
-      { id: "c2", environmentVariables: null },
-    ])
-    db.userFindUnique.mockResolvedValue({
-      repoEnvironmentVariables: { "o/r": encodeEnvVars({ values: { R: "r" }, secretHosts: { R: hosts } }) },
-    })
 
     const state = await loadUserSecretState(USER)
-    expect([...state.expected].sort()).toEqual(
-      [
-        userKeySecretName(USER, "OPENAI_API_KEY", "sk-own"),
-        endpointSecretSpec(USER, "proxy.example.com", "ep-key").name,
-        envVarSecretSpec(USER, { key: "K", value: "v", hosts, scope: chatEnvScope("c1") }).name,
-        envVarSecretSpec(USER, { key: "R", value: "r", hosts, scope: repoEnvScope("o/r") }).name,
-      ].sort()
-    )
+    expect([...state.expected]).toEqual([userKeySecretName(USER, "OPENAI_API_KEY", "sk-own")])
     expect(state.tokenPrefixes).toEqual([codexSecretPrefix(USER)])
   })
 

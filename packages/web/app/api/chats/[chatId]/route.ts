@@ -11,7 +11,6 @@ import {
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { getInheritedMessages } from "@/lib/db/branch-history"
 import { toQueuedMessage } from "@/lib/server/prompt-queue"
-import { chatEnvScope, hasSecretEnvVars, syncEnvVarSecrets } from "@/lib/server/env-var-secrets"
 
 // =============================================================================
 // Helpers
@@ -386,7 +385,7 @@ export async function DELETE(
     // Get sandbox IDs before deletion (for cleanup)
     const chatsWithSandboxes = await prisma.chat.findMany({
       where: { id: { in: chatIdsToDelete } },
-      select: { id: true, sandboxId: true, environmentVariables: true },
+      select: { sandboxId: true },
     })
     const sandboxIds = chatsWithSandboxes
       .map((c) => c.sandboxId)
@@ -396,13 +395,6 @@ export async function DELETE(
     await prisma.chat.deleteMany({
       where: { id: { in: chatIdsToDelete } },
     })
-
-    // Delete the Daytona secrets behind the chats' secret env vars
-    await Promise.all(
-      chatsWithSandboxes
-        .filter((c) => hasSecretEnvVars(c.environmentVariables))
-        .map((c) => syncEnvVarSecrets(userId, chatEnvScope(c.id), { values: {}, secretHosts: {} }))
-    )
 
     // Log activity (fire and forget)
     logActivityAsync(userId, "chat_deleted", {
