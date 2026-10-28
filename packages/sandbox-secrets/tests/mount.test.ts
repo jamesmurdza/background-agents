@@ -6,6 +6,7 @@ import {
   encodeMounts,
   mountSecrets,
   readMounts,
+  readPinned,
   releaseSecrets,
   secretsCreateParams,
   waitForPropagation,
@@ -13,6 +14,8 @@ import {
 
 const LABEL = "test-secrets"
 const OPTIONS = { label: LABEL }
+const PINNED = "test-pinned"
+const PINNING = { label: LABEL, pinnedLabel: PINNED }
 
 function fakeSandbox(labels: Record<string, string> = {}) {
   const sandbox = {
@@ -66,6 +69,14 @@ describe("secretsCreateParams", () => {
       labels: { [LABEL]: "A:s1:B:s2" },
     })
   })
+
+  it("mounts the pinned set too, and records it", () => {
+    expect(secretsCreateParams({ A: "s1" }, PINNING, { P: "p1" })).toEqual({
+      secrets: { P: "p1", A: "s1" },
+      labels: { [LABEL]: "P:p1:A:s1", [PINNED]: "P:p1" },
+    })
+    expect(secretsCreateParams({}, PINNING)).toEqual({ secrets: {}, labels: { [LABEL]: "none", [PINNED]: "none" } })
+  })
 })
 
 describe("readMounts", () => {
@@ -76,7 +87,31 @@ describe("readMounts", () => {
   })
 })
 
+describe("readPinned", () => {
+  it("reads the pinned set, empty when there is none or no pinned label", () => {
+    expect(readPinned(asSandbox(fakeSandbox({ [PINNED]: "P:p1" })), PINNING)).toEqual({ P: "p1" })
+    expect(readPinned(asSandbox(fakeSandbox({ [PINNED]: "garbled" })), PINNING)).toEqual({})
+    expect(readPinned(asSandbox(fakeSandbox({ [PINNED]: "P:p1" })), OPTIONS)).toEqual({})
+  })
+})
+
 describe("mountSecrets", () => {
+  it("mounts the pinned set alongside the turn's and records both", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "none", [PINNED]: "none" })
+    const result = await mountSecrets(asSandbox(sandbox), { A: "s1" }, PINNING, { P: "p1" })
+    expect(sandbox.updateSecrets).toHaveBeenCalledWith({ P: "p1", A: "s1" })
+    expect(result.mounts).toEqual({ P: "p1", A: "s1" })
+    expect(sandbox.labels).toEqual({ [LABEL]: "P:p1:A:s1", [PINNED]: "P:p1" })
+  })
+
+  it("only rewrites the pinned label when the mounted set is unchanged", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "P:p1:A:s1", [PINNED]: "none" })
+    const result = await mountSecrets(asSandbox(sandbox), { A: "s1" }, PINNING, { P: "p1" })
+    expect(sandbox.updateSecrets).not.toHaveBeenCalled()
+    expect(result.readyAt).toBe(0)
+    expect(sandbox.labels[PINNED]).toBe("P:p1")
+  })
+
   it("makes no API call when the label already records the set", async () => {
     const sandbox = fakeSandbox({ [LABEL]: "A:s1:B:s2" })
     const result = await mountSecrets(asSandbox(sandbox), { B: "s2", A: "s1" }, OPTIONS)
@@ -149,6 +184,30 @@ describe("waitForPropagation", () => {
 })
 
 describe("releaseSecrets", () => {
+  it("keeps the pinned set by default", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "P:p1:A:s1", [PINNED]: "P:p1" })
+    await releaseSecrets(asSandbox(sandbox), PINNING)
+    expect(sandbox.updateSecrets).toHaveBeenCalledWith({ P: "p1" })
+    expect(sandbox.labels).toEqual({ [LABEL]: "P:p1", [PINNED]: "P:p1" })
+  })
+
+  it("records an explicit keep as the pinned set", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "P:p1", [PINNED]: "P:p1" })
+    await releaseSecrets(asSandbox(sandbox), PINNING, {})
+    expect(sandbox.updateSecrets).toHaveBeenCalledWith({})
+    expect(sandbox.labels).toEqual({ [LABEL]: "none", [PINNED]: "none" })
+  })
+
+  it("makes no API call between turns with only pinned secrets mounted, or none", async () => {
+    // A sandbox from before pinning has no pinned label: nothing is pinned.
+    for (const labels of [{ [LABEL]: "P:p1", [PINNED]: "P:p1" }, { [LABEL]: "none" }]) {
+      const sandbox = fakeSandbox(labels)
+      await releaseSecrets(asSandbox(sandbox), PINNING)
+      expect(sandbox.updateSecrets).not.toHaveBeenCalled()
+      expect(sandbox.setLabels).not.toHaveBeenCalled()
+    }
+  })
+
   it("detaches everything and marks the sandbox detached", async () => {
     const sandbox = fakeSandbox({ repo: "o/r", [LABEL]: "A:s1:B:s2" })
     await releaseSecrets(asSandbox(sandbox), OPTIONS)

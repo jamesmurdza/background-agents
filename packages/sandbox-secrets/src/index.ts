@@ -16,6 +16,7 @@ export {
   encodeMounts,
   mountSecrets,
   readMounts,
+  readPinned,
   releaseSecrets,
   secretsCreateParams,
   waitForPropagation,

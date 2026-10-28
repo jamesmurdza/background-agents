@@ -16,7 +16,7 @@ vi.mock("./resolve-credentials", () => ({ resolveSendCredentials: async () => ({
 vi.mock("./ensure-sandbox", () => ({ ensureSandboxForChat: async () => ({ sandbox: {}, sandboxId: "isolated-test", createdSandbox: false, branchRestored: false }) }))
 vi.mock("./pre-run-pull", () => ({ runPreRunPull: async () => ({ pullConflictNote: "" }) }))
 vi.mock("./history", () => ({ buildAgentHistory: async () => ({ isAgentSwitch: false }) }))
-vi.mock("./agent-env", () => ({ buildAgentEnv: async () => ({}) }))
+vi.mock("./agent-env", () => ({ buildAgentEnv: () => ({}) }))
 vi.mock("@/lib/agent-session", () => ({ createBackgroundAgentSession: async () => ({ backgroundSessionId: launch.nextId, start: launch.start }) }))
 
 import { prisma } from "@/lib/db/prisma"

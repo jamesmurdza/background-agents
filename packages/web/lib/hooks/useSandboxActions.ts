@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react"
 import { PATHS } from "@background-agents/common"
-import type { Chat } from "@/lib/types"
+import type { Chat, SecretEnvHosts } from "@/lib/types"
 import { isRealRepo } from "@/lib/types"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 
@@ -32,6 +32,9 @@ export function useSandboxActions({
 }: UseSandboxActionsOptions) {
   const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
+  const [envVarsChatSecretHosts, setEnvVarsChatSecretHosts] = useState<SecretEnvHosts>({})
+  const [envVarsRepoSecretHosts, setEnvVarsRepoSecretHosts] = useState<SecretEnvHosts>({})
+  const [envSecretsAvailable, setEnvSecretsAvailable] = useState(false)
   // null when Netlify isn't connected, which hides the Deployment tab
   const [envVarsDeployEnvVars, setEnvVarsDeployEnvVars] = useState<Record<string, string> | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
@@ -60,6 +63,9 @@ export function useSandboxActions({
 
       setEnvVarsChatEnvVars(chatData.environmentVariables || {})
       setEnvVarsRepoEnvVars(repoName && repoData.repoEnvironmentVariables?.[repoName] || {})
+      setEnvVarsChatSecretHosts(chatData.secretEnvironmentVariables || {})
+      setEnvVarsRepoSecretHosts(repoName && repoData.repoSecretEnvironmentVariables?.[repoName] || {})
+      setEnvSecretsAvailable(!!chatData.envSecretsAvailable)
       setEnvVarsDeployEnvVars(deployData.connected ? deployData.environmentVariables : null)
       onOpenEnvVarsModal()
     } catch (error) {
@@ -71,27 +77,34 @@ export function useSandboxActions({
   const handleSaveEnvVars = useCallback(async (
     chatEnvVars: Record<string, string>,
     repoEnvVars: Record<string, string>,
-    deployEnvVars?: Record<string, string>
+    deployEnvVars: Record<string, string> | undefined,
+    secretHosts: { chat: SecretEnvHosts; repository: SecretEnvHosts }
   ) => {
     if (!currentChatId || isDraftChatId(currentChatId)) return
 
     const chat = chats.find((c) => c.id === currentChatId)
     const repoName = isRealRepo(chat?.repo) ? chat?.repo : undefined
 
-    // Save chat env vars
-    await fetch(`/api/chats/${currentChatId}/env`, {
+    // Save chat env vars (a bad secret host list comes back as a 400 to show)
+    const chatRes = await fetch(`/api/chats/${currentChatId}/env`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmentVariables: chatEnvVars }),
+      body: JSON.stringify({ environmentVariables: chatEnvVars, secretEnvironmentVariables: secretHosts.chat }),
     })
+    if (!chatRes.ok) throw new Error((await chatRes.json().catch(() => ({}))).error ?? "Couldn't save the chat variables")
 
     // Save repo env vars if applicable
     if (repoName) {
-      await fetch("/api/user/repo-env", {
+      const repoRes = await fetch("/api/user/repo-env", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo: repoName, environmentVariables: repoEnvVars }),
+        body: JSON.stringify({
+          repo: repoName,
+          environmentVariables: repoEnvVars,
+          secretEnvironmentVariables: secretHosts.repository,
+        }),
       })
+      if (!repoRes.ok) throw new Error((await repoRes.json().catch(() => ({}))).error ?? "Couldn't save the repository variables")
     }
 
     // Save the Netlify site's env vars (the server redeploys when they changed)
@@ -192,6 +205,9 @@ export function useSandboxActions({
     envVarsChatEnvVars,
     envVarsRepoEnvVars,
     envVarsDeployEnvVars,
+    envVarsChatSecretHosts,
+    envVarsRepoSecretHosts,
+    envSecretsAvailable,
     handleOpenEnvVars,
     handleSaveEnvVars,
     handleDownloadProject,

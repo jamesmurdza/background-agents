@@ -1,21 +1,24 @@
 /**
  * The Daytona secrets a turn mounts (server-only): the shared pool key it
  * draws on, if any (lib/server/shared-pool-secrets), the user's own provider
- * keys (lib/server/user-key-secrets) and the selected custom endpoint's
- * credentials (lib/server/endpoint-secrets).
+ * keys (lib/server/user-key-secrets), the selected custom endpoint's
+ * credentials (lib/server/endpoint-secrets) and the env vars the user marked
+ * as secrets (lib/server/env-var-secrets).
  *
  * The agent is handed each secret's placeholder in place of the credential
  * it stands for, so neither a pool key nor the user's own key ever enters
  * the sandbox. A placeholder works only while its secret is mounted, and
  * anything in the sandbox can use it then — the terminal, a plain curl —
- * bypassing metering. So the whole set is mounted only for the duration of a
- * turn: {@link mountTurnSecrets} at send time, {@link releaseTurnSecrets}
- * wherever a turn ends. The mechanics (the label that records the set,
+ * bypassing metering. So keys are mounted only for the duration of a turn:
+ * {@link mountTurnSecrets} at send time, {@link releaseTurnSecrets} wherever a
+ * turn ends. Secret env vars are the exception: they are pinned, staying
+ * mounted between turns so dev servers keep working. The mechanics (the label that records the set,
  * restarts, rollback) live in @background-agents/sandbox-secrets.
  *
- * Secrets are mounted under names no CLI reads on its own, so a plain
+ * Keys are mounted under names no CLI reads on its own, so a plain
  * `opencode` or `claude` in the sandbox terminal doesn't pick a key up; only
  * the agent's env carries the placeholders ({@link applyTurnSecretsToEnv}).
+ * A secret env var is mounted under its own name, as the user asked for it.
  */
 
 import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
@@ -34,6 +37,7 @@ import {
 } from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
+import { envVarSecretSpec, envVarSecretsEnabled, type UserEnvVars } from "@/lib/server/env-var-secrets"
 import {
   endpointCredentials,
   endpointSecretHost,
@@ -57,18 +61,23 @@ import {
  */
 export const TURN_SECRETS_LABEL = "opencode-secret"
 
-const MOUNT_OPTIONS: MountOptions = { label: TURN_SECRETS_LABEL }
+/** Sandbox label recording the pinned part of the mounted set (secret env vars). */
+export const PINNED_SECRETS_LABEL = "pinned-secrets"
+
+const MOUNT_OPTIONS: MountOptions = { label: TURN_SECRETS_LABEL, pinnedLabel: PINNED_SECRETS_LABEL }
 
 /** A secret a turn mounts, and the agent env value it stands in for. */
 export interface TurnSecret {
-  kind: "pool" | "user" | "endpoint"
+  /** "env" secrets are pinned: they stay mounted between turns. */
+  kind: "pool" | "user" | "endpoint" | "env"
   /** Daytona secret name. */
   name: string
   /** Env var it is mounted as inside the sandbox. */
   mountEnv: string
   /**
    * What the agent env carries until it is swapped: a pool's credential
-   * marker, the user's own key, or a custom endpoint's credential.
+   * marker, the user's own key, a custom endpoint's credential, or a secret
+   * env var's value.
    */
   envValue: string
   /**
@@ -76,7 +85,7 @@ export interface TurnSecret {
    * aliases) or inside a larger value (an endpoint's header blob).
    */
   envKeys: string[]
-  /** How to create a user or endpoint secret; a pool's comes from its pool. */
+  /** How to create a user, endpoint or env secret; a pool's comes from its pool. */
   spec?: EnsureSecretSpec
   /**
    * Env vars that, when the agent env sets one, send the value to a server
@@ -94,10 +103,29 @@ export interface ReadyTurnSecret extends TurnSecret {
 /**
  * The secrets a run would mount: the shared pool key it draws on, every
  * enabled user key the agent's env would carry, or the selected custom
- * endpoint's credentials. Pure — call before the sandbox exists so it can be
- * created with them.
+ * endpoint's credentials, plus the user's secret env vars. Pure — call before
+ * the sandbox exists so it can be created with them.
  */
 export function planTurnSecrets(params: {
+  userId: string
+  agent: Agent
+  model: string | undefined
+  credentials: Credentials
+  endpoints?: CustomEndpoint[]
+  envVars?: UserEnvVars
+}): TurnSecret[] {
+  const { userId, envVars } = params
+  const secrets = planKeySecrets(params)
+  if (envVars && envVarSecretsEnabled()) {
+    for (const envVar of envVars.secrets) {
+      const spec = envVarSecretSpec(userId, envVar)
+      secrets.push({ kind: "env", name: spec.name, mountEnv: envVar.key, envValue: envVar.value, envKeys: [envVar.key], spec })
+    }
+  }
+  return secrets
+}
+
+function planKeySecrets(params: {
   userId: string
   agent: Agent
   model: string | undefined
@@ -175,6 +203,14 @@ function mountsOf(secrets: TurnSecret[]): SecretMounts {
   return Object.fromEntries(secrets.map((s) => [s.mountEnv, s.name]))
 }
 
+/** `secrets` split into the turn's own and the pinned (env) ones. */
+function splitPinned(secrets: TurnSecret[]): { turn: SecretMounts; pinned: SecretMounts } {
+  return {
+    turn: mountsOf(secrets.filter((s) => s.kind !== "env")),
+    pinned: mountsOf(secrets.filter((s) => s.kind === "env")),
+  }
+}
+
 /**
  * `daytona.create` params that mount `secrets` from the start, so the new
  * sandbox never needs the restart a later first mount would force. Undefined
@@ -184,26 +220,29 @@ export function turnSecretsCreateParams(
   secrets: TurnSecret[]
 ): { secrets: Record<string, string>; labels: Record<string, string> } | undefined {
   if (secrets.length === 0) return undefined
-  return secretsCreateParams(mountsOf(secrets), MOUNT_OPTIONS)
+  const { turn, pinned } = splitPinned(secrets)
+  return secretsCreateParams(turn, MOUNT_OPTIONS, pinned)
 }
 
 /**
  * Mount exactly `secrets` on `sandbox` for the turn about to start (a no-op
- * when they already are), detaching whatever else is. Call as early in the
- * send as possible, then {@link waitForTurnSecrets} just before starting the
- * agent. With nothing to mount it only detaches leftovers, so a sandbox that
- * never needed secrets is never restarted for them.
+ * when they already are), detaching whatever else is, pinned env secrets the
+ * user has since removed included. Call as early in the send as possible,
+ * then {@link waitForTurnSecrets} just before starting the agent. With
+ * nothing to mount it only detaches leftovers, so a sandbox that never
+ * needed secrets is never restarted for them.
  */
 export async function mountTurnSecrets(
   sandbox: DaytonaSandbox,
   secrets: ReadyTurnSecret[]
 ): Promise<{ readyAt: number }> {
   if (secrets.length === 0) {
-    await releaseTurnSecrets(sandbox)
+    await releaseSecrets(sandbox, MOUNT_OPTIONS, {})
     return { readyAt: 0 }
   }
+  const { turn, pinned } = splitPinned(secrets)
   try {
-    return await mountSecrets(sandbox, mountsOf(secrets), MOUNT_OPTIONS)
+    return await mountSecrets(sandbox, turn, MOUNT_OPTIONS, pinned)
   } catch (err) {
     // A user may have deleted one (by changing a key) since this process
     // last saw it; look again next turn.
@@ -226,7 +265,7 @@ export function waitForTurnSecrets(mounted: { readyAt: number }): Promise<void> 
  * not.
  *
  * A value the user set themselves (via chat/repo env vars) isn't one of
- * these, so it is kept and wins as before. A user's own key also stays as is
+ * these unless they marked it as a secret, so it is kept and wins as before. A user's own key also stays as is
  * when the env points its provider at another server (see `bypassEnv`).
  */
 export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: ReadyTurnSecret[]): void {
@@ -248,7 +287,8 @@ export function poolSecretOf(secrets: TurnSecret[]): string | undefined {
 
 /**
  * Detach every turn secret when a turn ends, so the placeholders left in the
- * sandbox stop working until the next turn mounts them again. Call it BEFORE
+ * sandbox stop working until the next turn mounts them again. Pinned env
+ * secrets stay. Call it BEFORE
  * the chat is released back to "ready": sends are refused while the chat is
  * running, so the next turn's mount can never race this detach. A no-op for
  * sandboxes with nothing mounted; never throws.

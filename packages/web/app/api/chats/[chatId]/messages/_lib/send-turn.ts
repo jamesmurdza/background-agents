@@ -38,6 +38,7 @@ import { ensureSandboxForChat, type SandboxState } from "./ensure-sandbox"
 import { runPreRunPull } from "./pre-run-pull"
 import { buildAgentHistory } from "./history"
 import { buildAgentEnv } from "./agent-env"
+import { loadUserEnvVars } from "@/lib/server/user-env-vars"
 import { persistTurn } from "./persist-turn"
 
 interface SendTurnArgs {
@@ -77,6 +78,7 @@ export async function sendChatTurn({
   if (resolved instanceof Response) return resolved
   const { credentials, githubToken, useSharedClaude } = resolved
   const customEndpoints = await getUserEndpoints(userId)
+  const userEnv = await loadUserEnvVars(userId, chat)
 
   if (!claimedPromptId) {
     const claimed = await prisma.chat.updateMany({
@@ -103,9 +105,9 @@ export async function sendChatTurn({
   }
   let turnPersisted = false
 
-  // Secrets for this run's keys (shared pool and the user's own), if any.
+  // Secrets for this run's keys (shared pool and the user's own) and the user's secret env vars, if any.
   const plannedSecrets = planTurnSecrets({
-    userId, agent: payload.agent as Agent, model: payload.model, credentials, endpoints: customEndpoints,
+    userId, agent: payload.agent as Agent, model: payload.model, credentials, endpoints: customEndpoints, envVars: userEnv,
   })
   // Set once the sandbox is known, so a turn that never starts detaches its secrets again.
   let secretSandbox: DaytonaSandbox | undefined
@@ -149,7 +151,7 @@ export async function sendChatTurn({
 
     const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
     const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
-    let env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
+    let env = buildAgentEnv({ payload, credentials, customEndpoints, userEnv: userEnv.values })
     if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId })
     // Hand the agent the mounted secrets' placeholders instead of the keys.
     applyTurnSecretsToEnv(env, turnSecrets)

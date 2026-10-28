@@ -10,6 +10,12 @@ export interface MountOptions {
    */
   label: string
   /**
+   * Sandbox label recording which of the mounted set is pinned: kept
+   * attached between turns instead of detached by {@link releaseSecrets}.
+   * Without it nothing is pinned.
+   */
+  pinnedLabel?: string
+  /**
    * How long after a (re)mount to wait before relying on it, as the proxy
    * picks a change up "within seconds". Defaults to {@link DEFAULT_PROPAGATION_MS}.
    */
@@ -65,25 +71,47 @@ export function readMounts(sandbox: Sandbox, options: MountOptions): { enabled: 
   return { enabled: !!label, mounts: decodeMounts(label) }
 }
 
-/**
- * `daytona.create` params that mount `mounts` from the start, so the new
- * sandbox never needs the restart a later first mount would force.
- */
-export function secretsCreateParams(mounts: SecretMounts, options: MountOptions): {
-  secrets: SecretMounts
-  labels: Record<string, string>
-} {
-  return { secrets: { ...mounts }, labels: { [options.label]: encodeMounts(mounts) } }
-}
-
 function sameMounts(a: SecretMounts, b: SecretMounts): boolean {
   const keys = Object.keys(a)
   return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key])
 }
 
+/** The pinned set `sandbox`'s label records (empty when none or unknown). */
+export function readPinned(sandbox: Sandbox, options: MountOptions): SecretMounts {
+  if (!options.pinnedLabel) return {}
+  return decodeMounts(sandbox.labels?.[options.pinnedLabel]) ?? {}
+}
+
+/** The pinned label recording `pinned`, when the options have one. */
+function pinnedLabels(options: MountOptions, pinned: SecretMounts): Record<string, string> {
+  return options.pinnedLabel ? { [options.pinnedLabel]: encodeMounts(pinned) } : {}
+}
+
+/** Whether the pinned label already records `pinned` (a missing one records nothing). */
+function pinnedRecorded(sandbox: Sandbox, options: MountOptions, pinned: SecretMounts): boolean {
+  return !options.pinnedLabel || sameMounts(readPinned(sandbox, options), pinned)
+}
+
 /**
- * Mount exactly `desired` on `sandbox`. A no-op when the label already
- * records that set. Call as early as possible, then {@link waitForPropagation}
+ * `daytona.create` params that mount `mounts` and `pinned` from the start, so
+ * the new sandbox never needs the restart a later first mount would force.
+ */
+export function secretsCreateParams(
+  mounts: SecretMounts,
+  options: MountOptions,
+  pinned: SecretMounts = {}
+): {
+  secrets: SecretMounts
+  labels: Record<string, string>
+} {
+  const all = { ...pinned, ...mounts }
+  return { secrets: all, labels: { [options.label]: encodeMounts(all), ...pinnedLabels(options, pinned) } }
+}
+
+/**
+ * Mount exactly `desired` plus `pinned` on `sandbox`, recording `pinned` as
+ * the part {@link releaseSecrets} keeps. A no-op when the labels already
+ * record that. Call as early as possible, then {@link waitForPropagation}
  * just before relying on it.
  *
  * Daytona behaviours this handles:
@@ -99,15 +127,19 @@ function sameMounts(a: SecretMounts, b: SecretMounts): boolean {
 export async function mountSecrets(
   sandbox: Sandbox,
   desired: SecretMounts,
-  options: MountOptions
+  options: MountOptions,
+  pinned: SecretMounts = {}
 ): Promise<MountResult> {
+  const all = { ...pinned, ...desired }
   const current = sandbox.labels?.[options.label]
   const previous = decodeMounts(current)
-  if (previous && sameMounts(previous, desired)) return { mounts: desired, readyAt: 0 }
+  const changed = !previous || !sameMounts(previous, all)
+  const pinnedLabel = pinnedLabels(options, pinned)
+  if (!changed && pinnedRecorded(sandbox, options, pinned)) return { mounts: all, readyAt: 0 }
 
-  await sandbox.updateSecrets(desired)
+  if (changed) await sandbox.updateSecrets(all)
   try {
-    let readyAt = Date.now() + (options.propagationMs ?? DEFAULT_PROPAGATION_MS)
+    let readyAt = changed ? Date.now() + (options.propagationMs ?? DEFAULT_PROPAGATION_MS) : 0
     if (!current) {
       // Files survive the restart; running processes (dev servers, terminals)
       // don't — acceptable once per sandbox.
@@ -116,9 +148,10 @@ export async function mountSecrets(
       await sandbox.start()
       readyAt = 0
     }
-    await sandbox.setLabels({ ...sandbox.labels, [options.label]: encodeMounts(desired) })
-    return { mounts: desired, readyAt }
+    await sandbox.setLabels({ ...sandbox.labels, [options.label]: encodeMounts(all), ...pinnedLabel })
+    return { mounts: all, readyAt }
   } catch (err) {
+    if (!changed) throw err
     // The set is attached but the label recording it is not written, so
     // leaving it would strand mounts nothing ever detaches. Put back what the
     // label still describes before the caller sees the failure.
@@ -136,9 +169,10 @@ export async function waitForPropagation(mounted: { readyAt: number }): Promise<
 }
 
 /**
- * Shrink the mounted set to `keep` (by default: detach everything). A no-op
- * (no API call) when the sandbox has never had secrets or already has exactly
- * `keep`. Never throws — a failed detach leaves secrets live a while longer,
+ * Shrink the mounted set to `keep`, which is then the pinned set. By default
+ * `keep` is the pinned set the label records (with no pinned label: nothing),
+ * so a turn's secrets detach and pinned ones stay. A no-op (no API call) when
+ * the sandbox has never had secrets or already has exactly `keep`. Never throws — a failed detach leaves secrets live a while longer,
  * which must not fail whatever it follows.
  *
  * The label is written BEFORE the detach, and restored if the detach fails.
@@ -150,20 +184,23 @@ export async function waitForPropagation(mounted: { readyAt: number }): Promise<
 export async function releaseSecrets(
   sandbox: Sandbox,
   options: MountOptions,
-  keep: SecretMounts = {}
+  keep: SecretMounts = readPinned(sandbox, options)
 ): Promise<void> {
   const current = sandbox.labels?.[options.label]
   if (!current) return
   const previous = decodeMounts(current)
-  if (previous && sameMounts(previous, keep)) return
+  const changed = !previous || !sameMounts(previous, keep)
+  const pinnedLabel = pinnedLabels(options, keep)
+  if (!changed && pinnedRecorded(sandbox, options, keep)) return
 
   const labels = { ...sandbox.labels }
   try {
-    await sandbox.setLabels({ ...labels, [options.label]: encodeMounts(keep) })
+    await sandbox.setLabels({ ...labels, [options.label]: encodeMounts(keep), ...pinnedLabel })
   } catch (err) {
     console.error(`[sandbox-secrets] failed to detach secrets from sandbox ${sandbox.id}:`, err)
     return
   }
+  if (!changed) return
   try {
     await sandbox.updateSecrets(keep)
   } catch (err) {
