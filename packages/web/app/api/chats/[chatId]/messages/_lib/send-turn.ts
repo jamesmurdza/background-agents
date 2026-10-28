@@ -11,7 +11,7 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
-import { toSecretMarker } from "@/lib/server/opencode-pool"
+import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
   ensureSharedOpencodeSecret,
   mountSharedOpencodeSecret,

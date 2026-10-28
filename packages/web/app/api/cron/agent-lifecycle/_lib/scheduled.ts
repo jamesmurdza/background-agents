@@ -16,7 +16,7 @@ import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterTurnNow } from "./meter-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
-import { toSecretMarker } from "@/lib/server/opencode-pool"
+import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
   ensureSharedOpencodeSecret,
   mountSharedOpencodeSecret,

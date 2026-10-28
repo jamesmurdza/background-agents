@@ -15,16 +15,7 @@
  * Never imported from client code — reads raw key values from process.env.
  */
 
-import { createHash } from "crypto"
-
-/**
- * Prefix marking a credential value as a reference to a Daytona secret rather
- * than a key. It is what {@link pickSharedOpencodeKey} returns, so everything
- * that only checks whether an OpenCode credential exists keeps working, while
- * the value itself is useless: if it ever reached a sandbox unstripped,
- * OpenCode would fail to authenticate rather than leak anything.
- */
-const SECRET_MARKER_PREFIX = "daytona-secret:"
+import { contentSecretName, parseSecretMarker, toSecretMarker } from "@background-agents/sandbox-secrets"
 
 /** Prefix of every Daytona secret backing a pool key. */
 const SECRET_NAME_PREFIX = "opencode_"
@@ -41,17 +32,11 @@ export function getSharedOpencodeKeys(): string[] {
 }
 
 /**
- * Daytona secret name for a pool key: a prefix plus a short hash of the key.
- *
- * Derived from the key itself because Daytona never returns a secret's value,
- * so an existing secret can't be checked against the key it should hold. A
- * content-derived name makes that moot: the same key always maps to the same
- * secret (never recreated), and a changed key maps to a new one, so a stale
- * secret can never keep serving a key that was rotated out.
+ * Daytona secret name for a pool key: a prefix plus a short hash of the key,
+ * so a rotated key gets a new secret (see contentSecretName).
  */
 export function secretNameForKey(key: string): string {
-  const hash = createHash("sha256").update(key).digest("hex").slice(0, SECRET_NAME_HASH_LENGTH)
-  return `${SECRET_NAME_PREFIX}${hash}`
+  return contentSecretName(SECRET_NAME_PREFIX, key, SECRET_NAME_HASH_LENGTH)
 }
 
 /** The Daytona secret names backing the configured pool keys. */
@@ -71,25 +56,16 @@ export function hasSharedOpencodeKey(): boolean {
 
 /**
  * Pick one shared OpenCode key uniformly at random and return it as a secret
- * marker (see {@link toSecretMarker}) — never the raw key — or undefined when
- * none are configured. Called per shared run so usage spreads evenly across
- * the pool — every entry has an equal chance.
+ * marker (see toSecretMarker) — never the raw key — or undefined when none
+ * are configured. The marker keeps every "is there an OpenCode credential?"
+ * check working, while being useless if it ever reached a sandbox unstripped.
+ * Called per shared run so usage spreads evenly across the pool — every entry
+ * has an equal chance.
  */
 export function pickSharedOpencodeKey(): string | undefined {
   const keys = getSharedOpencodeKeys()
   if (keys.length === 0) return undefined
   return toSecretMarker(secretNameForKey(pickRandom(keys)))
-}
-
-/** Wrap a Daytona secret name as a credential value. */
-export function toSecretMarker(secretName: string): string {
-  return `${SECRET_MARKER_PREFIX}${secretName}`
-}
-
-/** The secret name inside a credential marker, or undefined for anything else. */
-export function parseSecretMarker(value: string | undefined | null): string | undefined {
-  if (!value?.startsWith(SECRET_MARKER_PREFIX)) return undefined
-  return value.slice(SECRET_MARKER_PREFIX.length) || undefined
 }
 
 function parseList(raw: string | undefined): string[] {

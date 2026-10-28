@@ -4,7 +4,8 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import { DaytonaConflictError, type Daytona, type Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
-import { secretNameForKey, toSecretMarker } from "./opencode-pool"
+import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import { secretNameForKey } from "./opencode-pool"
 import {
   OPENCODE_SECRET_LABEL,
   ensureSharedOpencodeSecret,

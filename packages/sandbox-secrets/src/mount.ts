@@ -1,0 +1,174 @@
+import type { Sandbox } from "@daytonaio/sdk"
+
+/** Secrets mounted on a sandbox: env var name → Daytona secret name. */
+export type SecretMounts = Record<string, string>
+
+export interface MountOptions {
+  /**
+   * Sandbox label recording the mounted set. Its presence also means the
+   * sandbox has secrets enabled, so a later (re)mount needs no restart.
+   */
+  label: string
+  /**
+   * How long after a (re)mount to wait before relying on it, as the proxy
+   * picks a change up "within seconds". Defaults to {@link DEFAULT_PROPAGATION_MS}.
+   */
+  propagationMs?: number
+}
+
+export interface MountResult {
+  /** The set now mounted. */
+  mounts: SecretMounts
+  /** Epoch ms after which the proxy can be relied on to swap it (0 = now). */
+  readyAt: number
+}
+
+/** Label value for a secrets-enabled sandbox with nothing mounted. */
+const DETACHED = "none"
+
+/**
+ * Measured at well under a second to re-attach, ~20s for an in-place value
+ * update; 3s covers a mount with margin, and most of it usually overlaps
+ * other setup work.
+ */
+export const DEFAULT_PROPAGATION_MS = 3000
+
+/**
+ * Encode a set as a label value: `ENV:secret` pairs joined by `:` (neither
+ * env var nor secret names can contain one), or {@link DETACHED} when empty.
+ * A single mount reads `ENV:secret`, the format used before sets existed.
+ */
+export function encodeMounts(mounts: SecretMounts): string {
+  const entries = Object.entries(mounts)
+  if (entries.length === 0) return DETACHED
+  return entries.map(([env, name]) => `${env}:${name}`).join(":")
+}
+
+/**
+ * Decode a label written by {@link encodeMounts}. Undefined for a missing or
+ * unrecognised label (e.g. a legacy bare secret name), which callers treat as
+ * "mounted set unknown".
+ */
+export function decodeMounts(label: string | undefined): SecretMounts | undefined {
+  if (!label) return undefined
+  if (label === DETACHED) return {}
+  const parts = label.split(":")
+  if (parts.length % 2 !== 0 || parts.some((part) => !part)) return undefined
+  const mounts: SecretMounts = {}
+  for (let i = 0; i < parts.length; i += 2) mounts[parts[i]] = parts[i + 1]
+  return mounts
+}
+
+/** Whether `sandbox` has secrets enabled, and what its label says is mounted. */
+export function readMounts(sandbox: Sandbox, options: MountOptions): { enabled: boolean; mounts?: SecretMounts } {
+  const label = sandbox.labels?.[options.label]
+  return { enabled: !!label, mounts: decodeMounts(label) }
+}
+
+/**
+ * `daytona.create` params that mount `mounts` from the start, so the new
+ * sandbox never needs the restart a later first mount would force.
+ */
+export function secretsCreateParams(mounts: SecretMounts, options: MountOptions): {
+  secrets: SecretMounts
+  labels: Record<string, string>
+} {
+  return { secrets: { ...mounts }, labels: { [options.label]: encodeMounts(mounts) } }
+}
+
+function sameMounts(a: SecretMounts, b: SecretMounts): boolean {
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key])
+}
+
+/**
+ * Mount exactly `desired` on `sandbox`. A no-op when the label already
+ * records that set. Call as early as possible, then {@link waitForPropagation}
+ * just before relying on it.
+ *
+ * Daytona behaviours this handles:
+ * - A sandbox created WITHOUT any secrets must be restarted before attached
+ *   ones work (the proxy is only wired up at boot). One with the label has
+ *   them enabled, and re-attaching after a full detach needs no restart.
+ * - A mounted env var is visible only to processes spawned after the change.
+ *
+ * Throws only after restoring the previous set, so a half-finished mount
+ * never leaves secrets attached that the label doesn't record — and
+ * {@link releaseSecrets} keys off the label.
+ */
+export async function mountSecrets(
+  sandbox: Sandbox,
+  desired: SecretMounts,
+  options: MountOptions
+): Promise<MountResult> {
+  const current = sandbox.labels?.[options.label]
+  const previous = decodeMounts(current)
+  if (previous && sameMounts(previous, desired)) return { mounts: desired, readyAt: 0 }
+
+  await sandbox.updateSecrets(desired)
+  try {
+    let readyAt = Date.now() + (options.propagationMs ?? DEFAULT_PROPAGATION_MS)
+    if (!current) {
+      // Files survive the restart; running processes (dev servers, terminals)
+      // don't — acceptable once per sandbox.
+      console.log(`[sandbox-secrets] restarting sandbox ${sandbox.id} to enable secrets`)
+      await sandbox.stop()
+      await sandbox.start()
+      readyAt = 0
+    }
+    await sandbox.setLabels({ ...sandbox.labels, [options.label]: encodeMounts(desired) })
+    return { mounts: desired, readyAt }
+  } catch (err) {
+    // The set is attached but the label recording it is not written, so
+    // leaving it would strand mounts nothing ever detaches. Put back what the
+    // label still describes before the caller sees the failure.
+    await sandbox.updateSecrets(previous ?? {}).catch((rollbackErr) => {
+      console.error(`[sandbox-secrets] failed to roll back the mount on sandbox ${sandbox.id}:`, rollbackErr)
+    })
+    throw err
+  }
+}
+
+/** Sleep until a freshly mounted set has reached the proxy. */
+export async function waitForPropagation(mounted: { readyAt: number }): Promise<void> {
+  const remaining = mounted.readyAt - Date.now()
+  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
+}
+
+/**
+ * Shrink the mounted set to `keep` (by default: detach everything). A no-op
+ * (no API call) when the sandbox has never had secrets or already has exactly
+ * `keep`. Never throws — a failed detach leaves secrets live a while longer,
+ * which must not fail whatever it follows.
+ *
+ * The label is written BEFORE the detach, and restored if the detach fails.
+ * Callers may trust a label to skip a mount, so the opposite order could
+ * leave a label claiming mounts that no longer exist. This way the only
+ * possible mismatch is a label listing fewer mounts than are live, which the
+ * next {@link mountSecrets} simply re-attaches.
+ */
+export async function releaseSecrets(
+  sandbox: Sandbox,
+  options: MountOptions,
+  keep: SecretMounts = {}
+): Promise<void> {
+  const current = sandbox.labels?.[options.label]
+  if (!current) return
+  const previous = decodeMounts(current)
+  if (previous && sameMounts(previous, keep)) return
+
+  const labels = { ...sandbox.labels }
+  try {
+    await sandbox.setLabels({ ...labels, [options.label]: encodeMounts(keep) })
+  } catch (err) {
+    console.error(`[sandbox-secrets] failed to detach secrets from sandbox ${sandbox.id}:`, err)
+    return
+  }
+  try {
+    await sandbox.updateSecrets(keep)
+  } catch (err) {
+    console.error(`[sandbox-secrets] failed to detach secrets from sandbox ${sandbox.id}:`, err)
+    // Still mounted: say so again, so the next mount keeps them without waiting.
+    await sandbox.setLabels(labels).catch(() => {})
+  }
+}

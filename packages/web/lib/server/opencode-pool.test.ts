@@ -2,16 +2,15 @@
  * Unit tests for the shared OpenCode key pool.
  */
 import { describe, it, expect, afterEach, vi } from "vitest"
+import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
   fingerprintKey,
   getSharedOpencodeKeys,
   getSharedOpencodeSecretNames,
   hasSharedOpencodeKey,
-  parseSecretMarker,
   pickSharedOpencodeKey,
   secretNameForKey,
   sharedOpencodeKeyForSecret,
-  toSecretMarker,
 } from "./opencode-pool"
 
 const KEY = "OPENCODE_API_KEY"
@@ -135,13 +134,6 @@ describe("secret names", () => {
     expect(getSharedOpencodeSecretNames()).toEqual([secretNameForKey("k1"), secretNameForKey("k2")])
     expect(sharedOpencodeKeyForSecret(secretNameForKey("k2"))).toBe("k2")
     expect(sharedOpencodeKeyForSecret(secretNameForKey("removed"))).toBeUndefined()
-  })
-
-  it("round-trips a marker and rejects plain keys", () => {
-    expect(parseSecretMarker(toSecretMarker("s1"))).toBe("s1")
-    expect(parseSecretMarker("sk-plain-key")).toBeUndefined()
-    expect(parseSecretMarker(toSecretMarker(""))).toBeUndefined()
-    expect(parseSecretMarker(undefined)).toBeUndefined()
   })
 
   it("fingerprints a marker as the secret name", () => {

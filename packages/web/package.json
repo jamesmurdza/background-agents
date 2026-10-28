@@ -25,6 +25,7 @@
     "@background-agents/common": "*",
     "@background-agents/mcp": "*",
     "@background-agents/sandbox-git": "*",
+    "@background-agents/sandbox-secrets": "*",
     "@background-agents/sandbox-skills": "*",
     "@background-agents/sandbox-terminal": "*",
     "@background-agents/sdk": "*",

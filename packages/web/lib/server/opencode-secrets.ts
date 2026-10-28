@@ -7,7 +7,9 @@
  * Daytona's egress proxy substitutes the real key on HTTPS requests to the
  * secret's allowed hosts (opencode.ai). Printing the env, reading
  * `/proc/<pid>/environ` or running `ps aux` inside the sandbox reveals nothing
- * usable outside it.
+ * usable outside it. The mechanics (mounting, the label that records it,
+ * restarts, rollback) live in @background-agents/sandbox-secrets; this module
+ * decides what to mount for OpenCode.
  *
  * The placeholder is deliberately NOT mounted as `OPENCODE_API_KEY`, which a
  * plain `opencode` TUI in the sandbox terminal would pick up on its own. Only
@@ -26,30 +28,23 @@
  * The secrets themselves are created from `OPENCODE_API_KEY` on first use
  * ({@link ensureSharedOpencodeSecret}), so there is nothing to set up in the
  * Daytona dashboard.
- *
- * The {@link OPENCODE_SECRET_LABEL} label tracks the state on the sandbox: the
- * mounted secret's name during a turn, {@link DETACHED} between turns, absent
- * on sandboxes that have never had a secret. Daytona behaviours this works
- * around:
- * - A sandbox created WITHOUT any secrets must be restarted before newly
- *   attached ones work. New sandboxes therefore get the secret at creation
- *   (see {@link opencodeSecretCreateParams}); older ones are restarted once, on
- *   their first shared OpenCode turn. A detached sandbox (label present) is
- *   remounted without one.
- * - A (re)mount reaches the proxy "within seconds", and a mounted env var is
- *   visible only to processes spawned after it. The agent is spawned fresh
- *   each turn; {@link waitForSecretPropagation} covers the proxy delay.
  */
 
-import { DaytonaConflictError, type Daytona, type Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
+import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { modelRequiresKey, type Agent } from "@background-agents/common"
+import {
+  ensureSecret,
+  mountSecrets,
+  parseSecretMarker,
+  readMounts,
+  releaseSecrets,
+  secretsCreateParams,
+  waitForPropagation,
+  type MountOptions,
+} from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
-import {
-  getSharedOpencodeSecretNames,
-  parseSecretMarker,
-  sharedOpencodeKeyForSecret,
-} from "@/lib/server/opencode-pool"
+import { getSharedOpencodeSecretNames, sharedOpencodeKeyForSecret } from "@/lib/server/opencode-pool"
 
 /** Env var the credential marker arrives in, from getUserCredentials. */
 const OPENCODE_KEY_ENV = "OPENCODE_API_KEY"
@@ -70,22 +65,14 @@ const AGENT_OPENCODE_CONFIG = JSON.stringify({
 })
 
 /**
- * Sandbox label recording the secret state: `<env var>:<secret name>` while
- * mounted, {@link DETACHED} between turns. Its presence also means the sandbox
- * has secrets enabled, so a (re)mount needs no restart. Carrying the env var
- * means a sandbox mounted under an older name is remounted rather than reused.
+ * Sandbox label recording the mounted secret: `<env var>:<secret name>` during
+ * a turn, `none` between turns, absent on sandboxes that have never had a
+ * secret. Carrying the env var means a sandbox mounted under an older name is
+ * remounted rather than reused.
  */
 export const OPENCODE_SECRET_LABEL = "opencode-secret"
 
-/** Label value for a secrets-enabled sandbox with nothing mounted. */
-const DETACHED = "none"
-
-/**
- * How long after a remount the agent should wait before its first request, so
- * it doesn't reach the proxy before the new mount does. Daytona documents only
- * "within seconds". Most of it overlaps work the send does anyway.
- */
-const SECRET_PROPAGATION_MS = 3000
+const MOUNT_OPTIONS: MountOptions = { label: OPENCODE_SECRET_LABEL }
 
 export interface MountedSecret {
   /** The secret now mounted — the key id to attribute this turn's usage to. */
@@ -108,51 +95,22 @@ export function sharedOpencodeSecretForRun(
 }
 
 /**
- * Secrets confirmed (or being confirmed) to exist this process lifetime, so
- * only the first run per key pays for the lookup. A failed attempt is
- * forgotten, so the next run retries it.
- */
-const ensuredSecrets = new Map<string, Promise<void>>()
-
-/**
  * Make sure the Daytona secret `secretName` exists, creating it from the pool
- * key it was derived from if not. Its name is derived from the key's value
- * (see secretNameForKey), so an existing secret already holds the right key
- * and is never recreated. Call before creating a sandbox with the secret or
- * mounting it. Throws if the secret can't be confirmed or created, e.g. when
- * the Daytona API key lacks permission to manage secrets.
+ * key it was derived from if not. Call before creating a sandbox with the
+ * secret or mounting it. Throws if the secret can't be confirmed or created,
+ * e.g. when the Daytona API key lacks permission to manage secrets.
  */
 export function ensureSharedOpencodeSecret(daytona: Daytona, secretName: string): Promise<void> {
-  let ensured = ensuredSecrets.get(secretName)
-  if (!ensured) {
-    ensured = createSecretIfMissing(daytona, secretName)
-    ensuredSecrets.set(secretName, ensured)
-    ensured.catch(() => ensuredSecrets.delete(secretName))
-  }
-  return ensured
-}
-
-async function createSecretIfMissing(daytona: Daytona, secretName: string): Promise<void> {
-  const key = sharedOpencodeKeyForSecret(secretName)
-  if (!key) throw new Error(`No configured OpenCode key matches secret ${secretName}`)
-
-  // `name` is a partial-match filter, hence the exact comparison.
-  const { items } = await daytona.secret.list({ name: secretName })
-  if (items.some((secret) => secret.name === secretName)) return
-
-  try {
-    await daytona.secret.create({
-      name: secretName,
-      value: key,
-      description: "Shared OpenCode key, created by background-agents",
-      hosts: SECRET_HOSTS,
-    })
-    console.log(`[opencode-secrets] created Daytona secret ${secretName}`)
-  } catch (err) {
-    // Another process created it between our list and create.
-    if (err instanceof DaytonaConflictError) return
-    throw err
-  }
+  return ensureSecret(daytona, {
+    name: secretName,
+    value: () => {
+      const key = sharedOpencodeKeyForSecret(secretName)
+      if (!key) throw new Error(`No configured OpenCode key matches secret ${secretName}`)
+      return key
+    },
+    hosts: SECRET_HOSTS,
+    description: "Shared OpenCode key, created by background-agents",
+  })
 }
 
 /**
@@ -163,10 +121,7 @@ export function opencodeSecretCreateParams(secretName: string): {
   secrets: Record<string, string>
   labels: Record<string, string>
 } {
-  return {
-    secrets: { [SECRET_ENV]: secretName },
-    labels: { [OPENCODE_SECRET_LABEL]: mountLabel(secretName) },
-  }
+  return secretsCreateParams({ [SECRET_ENV]: secretName }, MOUNT_OPTIONS)
 }
 
 /**
@@ -174,57 +129,22 @@ export function opencodeSecretCreateParams(secretName: string): {
  * configured secret is already mounted (e.g. one attached at creation) rather
  * than swapping it. Call as early in the send as possible, then
  * {@link waitForSecretPropagation} just before starting the agent.
- *
- * Throws only after detaching again, so a half-finished mount never leaves a
- * live placeholder that {@link releaseSharedOpencodeSecret} would decline to
- * clean up.
  */
 export async function mountSharedOpencodeSecret(
   sandbox: DaytonaSandbox,
   secretName: string
 ): Promise<MountedSecret> {
-  const current = sandbox.labels?.[OPENCODE_SECRET_LABEL]
-  const mountedName = current ? parseMountLabel(current) : undefined
+  const mountedName = readMounts(sandbox, MOUNT_OPTIONS).mounts?.[SECRET_ENV]
   if (mountedName && getSharedOpencodeSecretNames().includes(mountedName)) {
     return { name: mountedName, readyAt: 0 }
   }
-
-  await sandbox.updateSecrets({ [SECRET_ENV]: secretName })
-  try {
-    let readyAt = Date.now() + SECRET_PROPAGATION_MS
-    if (!current) {
-      // Created before secrets were in use: the mount only takes effect after a
-      // restart. Files survive it; running processes (dev servers, terminals)
-      // don't — acceptable once per sandbox.
-      console.log(`[opencode-secrets] restarting sandbox ${sandbox.id} to enable secrets`)
-      await sandbox.stop()
-      await sandbox.start()
-      readyAt = 0
-    }
-    await sandbox.setLabels({ ...sandbox.labels, [OPENCODE_SECRET_LABEL]: mountLabel(secretName) })
-    return { name: secretName, readyAt }
-  } catch (err) {
-    // The secret is already attached but the label recording it is not written
-    // yet, and {@link releaseSharedOpencodeSecret} keys off that label — so
-    // leaving it here would strand a live placeholder that nothing ever
-    // detaches, defeating the turn-scoped mount. Undo the attach before the
-    // caller sees the failure. Most likely to matter for the restart above: it
-    // is the longest call in this window, and it only runs for sandboxes
-    // created before secrets were in use.
-    await sandbox.updateSecrets({}).catch((rollbackErr) => {
-      console.error(
-        `[opencode-secrets] failed to roll back the mount on sandbox ${sandbox.id}:`,
-        rollbackErr
-      )
-    })
-    throw err
-  }
+  const { readyAt } = await mountSecrets(sandbox, { [SECRET_ENV]: secretName }, MOUNT_OPTIONS)
+  return { name: secretName, readyAt }
 }
 
 /** Sleep until a freshly remounted secret has reached the proxy. */
-export async function waitForSecretPropagation(mounted: MountedSecret): Promise<void> {
-  const remaining = mounted.readyAt - Date.now()
-  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
+export function waitForSecretPropagation(mounted: MountedSecret): Promise<void> {
+  return waitForPropagation(mounted)
 }
 
 /**
@@ -239,48 +159,13 @@ export function applySecretToAgentEnv(env: Record<string, string>): void {
   env.OPENCODE_CONFIG_CONTENT = AGENT_OPENCODE_CONFIG
 }
 
-function mountLabel(secretName: string): string {
-  return `${SECRET_ENV}:${secretName}`
-}
-
-/** The secret named by a mount label, or undefined for any other value. */
-function parseMountLabel(label: string): string | undefined {
-  const prefix = `${SECRET_ENV}:`
-  return label.startsWith(prefix) ? label.slice(prefix.length) || undefined : undefined
-}
-
 /**
  * Detach the shared OpenCode secret when a turn ends, so the placeholder left
  * in the sandbox stops working until the next turn mounts it again. Call it
  * BEFORE the chat is released back to "ready": sends are refused while the
  * chat is running, so the next turn's mount can never race this detach.
- *
- * A no-op (no API call) for sandboxes with nothing mounted. Never throws — a
- * failed detach leaves the placeholder live a while longer, which must not
- * fail the turn it follows.
- *
- * The label is flipped BEFORE the detach, and restored if the detach fails.
- * {@link mountSharedOpencodeSecret} trusts a "mounted" label and skips the
- * attach, so the opposite order could leave a label claiming a mount that no
- * longer exists, and the next turn would run with no key at all. This way the
- * only possible mismatch is a "detached" label over a live mount, which the
- * next mount simply re-attaches.
+ * A no-op for sandboxes with nothing mounted; never throws.
  */
-export async function releaseSharedOpencodeSecret(sandbox: DaytonaSandbox): Promise<void> {
-  const current = sandbox.labels?.[OPENCODE_SECRET_LABEL]
-  if (!current || current === DETACHED) return
-  const labels = { ...sandbox.labels }
-  try {
-    await sandbox.setLabels({ ...labels, [OPENCODE_SECRET_LABEL]: DETACHED })
-  } catch (err) {
-    console.error(`[opencode-secrets] failed to detach secret from sandbox ${sandbox.id}:`, err)
-    return
-  }
-  try {
-    await sandbox.updateSecrets({})
-  } catch (err) {
-    console.error(`[opencode-secrets] failed to detach secret from sandbox ${sandbox.id}:`, err)
-    // Still mounted: say so again, so the next mount keeps it without waiting.
-    await sandbox.setLabels(labels).catch(() => {})
-  }
+export function releaseSharedOpencodeSecret(sandbox: DaytonaSandbox): Promise<void> {
+  return releaseSecrets(sandbox, MOUNT_OPTIONS)
 }
