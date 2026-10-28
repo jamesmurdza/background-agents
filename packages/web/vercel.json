@@ -22,6 +22,10 @@
     {
       "path": "/api/cron/refresh-codex-creds",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/secret-cleanup",
+      "schedule": "30 3 * * *"
     }
   ]
 }

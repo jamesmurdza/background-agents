@@ -1,0 +1,201 @@
+/**
+ * Unit tests for sweeping unused Daytona secrets.
+ */
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
+import type { Daytona } from "@daytonaio/sdk"
+
+const db = vi.hoisted(() => ({
+  credentials: vi.fn(),
+  endpoints: vi.fn(),
+  userFindUnique: vi.fn(),
+  userFindMany: vi.fn(),
+  chatFindMany: vi.fn(),
+}))
+
+vi.mock("@/lib/db/api-helpers", () => ({ getUserCredentials: db.credentials }))
+vi.mock("@/lib/server/custom-endpoints", () => ({ getUserEndpoints: db.endpoints }))
+vi.mock("@/lib/db/prisma", () => ({
+  prisma: {
+    user: { findUnique: db.userFindUnique, findMany: db.userFindMany },
+    chat: { findMany: db.chatFindMany },
+  },
+}))
+
+import type { CustomEndpoint } from "@background-agents/common"
+import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import { chatEnvScope, encodeEnvVars, envVarSecretSpec, repoEnvScope } from "./env-var-secrets"
+import { endpointSecretSpec } from "./endpoint-secrets"
+import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
+import { CLAUDE_SHARED_SECRET_PREFIX, codexSecretPrefix } from "./subscription-secrets"
+import { userKeySecretName, userKeySecretPrefix, userSecretTag } from "./user-key-secrets"
+import {
+  GRACE_MS,
+  cleanupSecrets,
+  loadUserSecretState,
+  planSecretCleanup,
+  type ListedSecret,
+  type UserSecretState,
+} from "./secret-cleanup"
+
+const NOW = Date.UTC(2026, 9, 28, 12)
+const OLD = NOW - 2 * GRACE_MS
+const old = (name: string, ageMs = 0): ListedSecret => ({ id: `id_${name}`, name, createdAt: OLD - ageMs })
+
+const USER = "user-1"
+const TAG = userSecretTag(USER)
+
+beforeEach(() => {
+  process.env.OPENCODE_API_KEY = "oc-key-1"
+  process.env.DAYTONA_USER_KEY_SECRETS = "all,CODEX_CREDENTIALS,CLAUDE_SHARED"
+  db.credentials.mockReset().mockResolvedValue({})
+  db.endpoints.mockReset().mockResolvedValue([])
+  db.userFindUnique.mockReset().mockResolvedValue({ repoEnvironmentVariables: null })
+  db.userFindMany.mockReset().mockResolvedValue([])
+  db.chatFindMany.mockReset().mockResolvedValue([])
+  vi.spyOn(console, "error").mockImplementation(() => {})
+})
+
+afterEach(() => {
+  delete process.env.OPENCODE_API_KEY
+  delete process.env.DAYTONA_USER_KEY_SECRETS
+  vi.restoreAllMocks()
+})
+
+describe("planSecretCleanup", () => {
+  const plan = (secrets: ListedSecret[], users = new Map<string, UserSecretState | "unknown">()) =>
+    planSecretCleanup(secrets, users, NOW)
+  const doomedNames = (secrets: ListedSecret[], users?: Map<string, UserSecretState | "unknown">) =>
+    plan(secrets, users).doomed.map((s) => s.name)
+
+  it("deletes pool secrets for keys no longer configured, and the hand-made ones", () => {
+    const current = secretNameForKey(SHARED_KEY_POOLS.opencode, "oc-key-1")
+    const removed = secretNameForKey(SHARED_KEY_POOLS.opencode, "oc-key-gone")
+    expect(doomedNames([old(current), old(removed), old("OPENCODE_API_KEY_1"), old("OPENCODE_API_KEY_2")])).toEqual([
+      removed,
+      "OPENCODE_API_KEY_1",
+      "OPENCODE_API_KEY_2",
+    ])
+  })
+
+  it("leaves a pool alone when no keys are configured for it here", () => {
+    const gemini = secretNameForKey(SHARED_KEY_POOLS.gemini, "g-key")
+    expect(plan([old(gemini)])).toMatchObject({ doomed: [], ignored: 1 })
+  })
+
+  it("keeps the newest two shared Claude secrets, or none when that's off", () => {
+    const secrets = [0, 1, 2].map((i) => old(`${CLAUDE_SHARED_SECRET_PREFIX}${i}`, i * 1000))
+    expect(doomedNames(secrets)).toEqual([`${CLAUDE_SHARED_SECRET_PREFIX}2`])
+    process.env.DAYTONA_USER_KEY_SECRETS = "all"
+    expect(doomedNames(secrets)).toHaveLength(3)
+  })
+
+  it("deletes every secret of a user who is gone", () => {
+    const name = userKeySecretName("gone-user", "OPENAI_API_KEY", "sk")
+    expect(doomedNames([old(name)])).toEqual([name])
+  })
+
+  it("keeps what a user's settings would create, and their newest two Codex tokens", () => {
+    const keep = userKeySecretName(USER, "OPENAI_API_KEY", "sk-now")
+    const stale = userKeySecretName(USER, "OPENAI_API_KEY", "sk-before")
+    const codex = [0, 1, 2].map((i) => old(`${codexSecretPrefix(USER)}${i}`, i * 1000))
+    const users = new Map([[TAG, { expected: new Set([keep]), codexPrefix: codexSecretPrefix(USER) }]])
+    expect(doomedNames([old(keep), old(stale), ...codex], users)).toEqual([stale, `${codexSecretPrefix(USER)}2`])
+  })
+
+  it("leaves the secrets of a user whose settings couldn't be loaded", () => {
+    const name = userKeySecretName(USER, "OPENAI_API_KEY", "sk")
+    expect(plan([old(name)], new Map([[TAG, "unknown"]]))).toMatchObject({ doomed: [], ignored: 1 })
+  })
+
+  it("never deletes anything newer than the grace period, or not ours", () => {
+    const young = { ...old("OPENCODE_API_KEY_1"), createdAt: NOW - GRACE_MS / 2 }
+    expect(plan([young, old("someone_elses_secret"), old("BA_VERIFY_x")])).toEqual({ doomed: [], young: 1, ignored: 2 })
+  })
+})
+
+describe("loadUserSecretState", () => {
+  it("expects the names the user's keys, endpoints and env vars create", async () => {
+    const endpoint: CustomEndpoint = {
+      id: "e1", name: "proxy", type: "anthropic", baseUrl: "https://proxy.example.com/v1", model: "m",
+      headers: "x-api-key: ep-key",
+    }
+    db.credentials.mockResolvedValue({
+      OPENAI_API_KEY: "sk-own",
+      OPENCODE_API_KEY: toSecretMarker("opencode_abc"), // a pool's: not the user's
+      CODEX_CREDENTIALS: "{}",
+    })
+    db.endpoints.mockResolvedValue([endpoint])
+    const hosts = ["api.example.com"]
+    db.chatFindMany.mockResolvedValue([
+      { id: "c1", environmentVariables: encodeEnvVars({ values: { K: "v" }, secretHosts: { K: hosts } }) },
+      { id: "c2", environmentVariables: null },
+    ])
+    db.userFindUnique.mockResolvedValue({
+      repoEnvironmentVariables: { "o/r": encodeEnvVars({ values: { R: "r" }, secretHosts: { R: hosts } }) },
+    })
+
+    const state = await loadUserSecretState(USER)
+    expect([...state.expected].sort()).toEqual(
+      [
+        userKeySecretName(USER, "OPENAI_API_KEY", "sk-own"),
+        endpointSecretSpec(USER, "proxy.example.com", "ep-key").name,
+        envVarSecretSpec(USER, { key: "K", value: "v", hosts, scope: chatEnvScope("c1") }).name,
+        envVarSecretSpec(USER, { key: "R", value: "r", hosts, scope: repoEnvScope("o/r") }).name,
+      ].sort()
+    )
+    expect(state.codexPrefix).toBe(codexSecretPrefix(USER))
+  })
+
+  it("expects nothing a feature that's off would create", async () => {
+    process.env.DAYTONA_USER_KEY_SECRETS = ""
+    db.credentials.mockResolvedValue({ OPENAI_API_KEY: "sk-own", CODEX_CREDENTIALS: "{}" })
+    const state = await loadUserSecretState(USER)
+    expect(state).toEqual({ expected: new Set(), codexPrefix: undefined })
+  })
+})
+
+describe("cleanupSecrets", () => {
+  function fakeDaytona(names: string[]) {
+    const secret = {
+      list: vi.fn().mockResolvedValue({
+        items: names.map((name) => ({ id: `id_${name}`, name, createdAt: new Date(OLD).toISOString() })),
+        nextCursor: null,
+      }),
+      delete: vi.fn().mockResolvedValue(undefined),
+    }
+    return { secret, daytona: { secret } as unknown as Daytona }
+  }
+
+  const stale = userKeySecretName(USER, "OPENAI_API_KEY", "sk-before")
+  const gone = `${userKeySecretPrefix("gone-user")}x`
+
+  it("reports what it would delete in a dry run, deleting nothing", async () => {
+    db.userFindMany.mockResolvedValue([{ id: USER }])
+    const { secret, daytona } = fakeDaytona([stale, gone, "not_ours"])
+    const report = await cleanupSecrets(daytona, { dryRun: true })
+    expect(report).toEqual({ dryRun: true, scanned: 3, deleted: [stale, gone], young: 0, ignored: 1, errors: 0 })
+    expect(secret.delete).not.toHaveBeenCalled()
+  })
+
+  it("deletes, counting failures without stopping", async () => {
+    db.userFindMany.mockResolvedValue([{ id: USER }])
+    const { secret, daytona } = fakeDaytona([stale, gone])
+    secret.delete.mockRejectedValueOnce(new Error("500"))
+    const report = await cleanupSecrets(daytona, { dryRun: false })
+    expect(report).toMatchObject({ deleted: [gone], errors: 1 })
+    expect(secret.delete.mock.calls).toEqual([[`id_${stale}`], [`id_${gone}`]])
+  })
+
+  it("leaves a user's secrets alone when their settings fail to load", async () => {
+    db.userFindMany.mockResolvedValue([{ id: USER }])
+    db.credentials.mockRejectedValue(new Error("db down"))
+    const { daytona } = fakeDaytona([stale])
+    expect(await cleanupSecrets(daytona, { dryRun: false })).toMatchObject({ deleted: [], ignored: 1 })
+  })
+
+  it("only looks users up when there are user secrets", async () => {
+    const { daytona } = fakeDaytona(["OPENCODE_API_KEY_1"])
+    await cleanupSecrets(daytona, { dryRun: true })
+    expect(db.userFindMany).not.toHaveBeenCalled()
+  })
+})

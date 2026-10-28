@@ -67,9 +67,14 @@ export function userKeySecretsEnabled(credential: string): credential is Credent
   return enabled.includes("all") || enabled.includes(credential)
 }
 
+/** The tag naming `userId` in their secrets' names: a short SHA-256 of their id. */
+export function userSecretTag(userId: string): string {
+  return createHash("sha256").update(userId).digest("hex").slice(0, 10)
+}
+
 /** Prefix of every secret holding one of `userId`'s keys (for `credential`, if given). */
 export function userKeySecretPrefix(userId: string, credential?: CredentialId): string {
-  const userTag = createHash("sha256").update(userId).digest("hex").slice(0, 10)
+  const userTag = userSecretTag(userId)
   return credential ? `u_${userTag}_${credential.toLowerCase()}_` : `u_${userTag}_`
 }
 

@@ -36,7 +36,7 @@ export const CLAUDE_SHARED_SECRET_PREFIX = "claude_shared_"
 export const CLAUDE_SHARED_MOUNT_ENV = "SESSION_RELAY_TOKEN_CLAUDE"
 
 /** Secrets kept per token when pruning: the current one and the one before. */
-const KEEP_NEWEST = 2
+export const KEEP_NEWEST = 2
 
 /** Whether `kind` is put behind a secret: only when listed by name. */
 export function subscriptionSecretsEnabled(kind: SubscriptionSecret): boolean {
