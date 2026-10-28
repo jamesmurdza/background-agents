@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { refreshCodexTokens, revokeCodexToken } = vi.hoisted(() => ({
+const { refreshCodexTokens, revokeCodexToken, pruneCodexSecrets } = vi.hoisted(() => ({
   refreshCodexTokens: vi.fn(),
   revokeCodexToken: vi.fn().mockResolvedValue(true),
+  pruneCodexSecrets: vi.fn().mockResolvedValue(undefined),
 }))
+
+vi.mock("./subscription-secrets", () => ({ pruneCodexSecrets }))
 
 vi.mock("./codex-oauth", async () => {
   const actual = await vi.importActual<typeof import("./codex-oauth")>("./codex-oauth")
@@ -126,6 +129,7 @@ beforeEach(() => {
   testState.failNextUpdate = null
   refreshCodexTokens.mockReset()
   revokeCodexToken.mockReset().mockResolvedValue(true)
+  pruneCodexSecrets.mockClear()
 })
 
 /**
@@ -238,6 +242,7 @@ describe("resolveCodexAuthJson", () => {
     await storeCodexCredential("u1", cred())
     await resolveCodexAuthJson("u1")
     expect(refreshCodexTokens).not.toHaveBeenCalled()
+    expect(pruneCodexSecrets).not.toHaveBeenCalled()
   })
 
   it("refreshes once past earliest_refresh_at and persists the rotated token", async () => {
@@ -255,6 +260,8 @@ describe("resolveCodexAuthJson", () => {
 
     const stored = await readCodexCredential("u1")
     expect(stored?.refresh_token).toBe("rt.rotated")
+    // The old access token's Daytona secret is pruned once the new one is stored.
+    expect(pruneCodexSecrets).toHaveBeenCalledWith("u1")
   })
 
   it("refreshes exactly once when two callers race", async () => {
@@ -363,6 +370,12 @@ describe("disconnectCodex", () => {
     await storeCodexCredential("u1", cred({ refresh_token: "rt.to-revoke" }))
     await disconnectCodex("u1")
     expect(revokeCodexToken).toHaveBeenCalledWith("rt.to-revoke")
+  })
+
+  it("deletes the access token's Daytona secrets", async () => {
+    await storeCodexCredential("u1", cred())
+    await disconnectCodex("u1")
+    expect(pruneCodexSecrets).toHaveBeenCalledWith("u1", { all: true })
   })
 
   it("still succeeds when revocation fails", async () => {

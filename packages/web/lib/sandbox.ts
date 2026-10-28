@@ -15,6 +15,7 @@ import { TOKSCALE_VERSION, getActiveSnapshotName } from "@background-agents/sand
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
+import { turnSecretsCreateParams, type TurnSecret } from "@/lib/server/turn-secrets"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -141,6 +142,12 @@ export interface CreateSandboxOptions {
    * creating a fresh one. Used when recreating a deleted sandbox.
    */
   restoreExistingBranch?: boolean
+  /**
+   * The turn's secrets, mounted from the start (see lib/server/turn-secrets).
+   * Mounting at creation avoids the restart a sandbox created without
+   * secrets would need later.
+   */
+  turnSecrets?: TurnSecret[]
 }
 
 export interface CreatedSandbox {
@@ -171,7 +178,7 @@ function generateSandboxName(userId?: string): string {
 export async function createSandboxForChat(
   options: CreateSandboxOptions
 ): Promise<CreatedSandbox> {
-  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch } = options
+  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch, turnSecrets } = options
   const isNewRepo = repo === NEW_REPOSITORY || repo === "__new__"
   const repoName = "project"
   let branchRestored: boolean | undefined
@@ -190,6 +197,7 @@ export async function createSandboxForChat(
     }
   }
 
+  const secretParams = turnSecretsCreateParams(turnSecrets ?? [])
   const sandbox = await daytona.create({
     name: generateSandboxName(userId),
     snapshot: await getActiveSnapshotName(daytona),
@@ -200,7 +208,9 @@ export async function createSandboxForChat(
       [SANDBOX_CONFIG.LABEL_KEY]: "true",
       repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
       branch: newBranch,
+      ...secretParams?.labels,
     },
+    secrets: secretParams?.secrets,
   })
 
   await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)

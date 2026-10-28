@@ -46,10 +46,10 @@ This is a TypeScript monorepo (Next.js, Electron, Prisma) — there is no ESLint
 
 ## Testing
 
-- **Unit tests**: [Vitest](https://vitest.dev). Some packages colocate `*.test.ts` next to the source file (`packages/web/lib/*.test.ts`), others use a `tests/` directory (`packages/sdk/tests/`, `packages/sandbox-git/tests/`, `packages/sandbox-jobs/tests/`). Match whichever convention the package you're editing already uses.
+- **Unit tests**: [Vitest](https://vitest.dev). Some packages colocate `*.test.ts` next to the source file (`packages/web/lib/*.test.ts`), others use a `tests/` directory (`packages/sdk/tests/`, `packages/sandbox-git/tests/`, `packages/sandbox-jobs/tests/`, `packages/sandbox-secrets/tests/`). Match whichever convention the package you're editing already uses.
 - **Integration tests**: name them `*.integration.test.ts` or put them under a `tests/integration/` directory (see `packages/sandbox-terminal/tests/integration/`, run via that package's `test:e2e` script) to keep them separate from the fast unit suite.
 - **End-to-end**: [Playwright](https://playwright.dev), under `packages/web/e2e/*.spec.ts`. Run with `npm run test:e2e -w @background-agents/web` — needs the test DB and env from [Testing](./packages/web/README.md#testing); see [DEVELOPMENT.md](./DEVELOPMENT.md#run-e2e-tests).
-- **Run the relevant package's unit tests before opening a PR**: `npm run test -w @background-agents/<package>` (`sandbox-git`, `sandbox-jobs`, `sandbox-terminal`, and `sdk` all define this). There's no root command that runs every package's tests at once — run each package you touched individually.
+- **Run the relevant package's unit tests before opening a PR**: `npm run test -w @background-agents/<package>` (`sandbox-git`, `sandbox-jobs`, `sandbox-secrets`, `sandbox-terminal`, and `sdk` all define this). There's no root command that runs every package's tests at once — run each package you touched individually.
 - **Known gap**: `packages/web` has unit tests (`lib/*.test.ts`, `app/**/*.test.ts`) and a `vitest.config.ts`, but no `test` script in its `package.json` and no `vitest` devDependency of its own — so there's no documented `npm run` command for them. In practice `npx vitest run` from `packages/web` still works after `npm install` at the repo root, because `vitest` is already hoisted to the root `node_modules` as a devDependency of `sandbox-git`/`sandbox-jobs`/`sandbox-terminal`/`sdk`; don't rely on that staying true if those packages ever drop `vitest`.
 
 ## After editing code
@@ -78,7 +78,7 @@ npm run prisma:generate
 npm run typecheck
 ```
 
-- Changed a package with a `test` script (`sandbox-git`, `sandbox-jobs`, `sandbox-terminal`, `sdk`)? Also run `npm run test -w @background-agents/<package>`.
+- Changed a package with a `test` script (`sandbox-git`, `sandbox-jobs`, `sandbox-secrets`, `sandbox-terminal`, `sdk`)? Also run `npm run test -w @background-agents/<package>`.
 - Changed `prisma/schema.prisma`? Also run `npx prisma validate` from `packages/web`.
 - Changed anything under `packages/web`? Also run `npm run test:e2e -w @background-agents/web` (see [DEVELOPMENT.md](./DEVELOPMENT.md#run-e2e-tests) for the test DB setup) — see the Testing section's note on `packages/web`'s unit tests.
 - Changed `packages/sdk`'s public API? Update `packages/sdk/README.md` in the same PR (see Contribution rules above).

@@ -3,6 +3,11 @@ import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage } from "@/lib/db/usage-limit"
 import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
+import type { ClaudeRunToken } from "@/lib/server/subscription-secrets"
+import {
+  OwnClaudeCredentialsExpiredError,
+  getUserClaudeAccessToken,
+} from "@/lib/server/user-claude-credentials"
 import { ENDPOINT_MODEL_PREFIX } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
 import type { Credentials } from "@/lib/credentials"
@@ -11,8 +16,14 @@ import type { MessagePayload } from "./types"
 export interface ResolvedCredentials {
   credentials: Credentials
   githubToken: string | null
-  /** True when the shared pool should supply this run's OAuth access token. */
+  /** True when the shared pool should supply this run's OAuth access token (billed as such). */
   useSharedClaude: boolean
+  /**
+   * The access token a Claude Code subscription run fetches through its token
+   * runner (shared, or the user's own), as of now: for putting it behind a
+   * secret (lib/server/turn-secrets). Undefined for every other run.
+   */
+  claudeToken?: ClaudeRunToken
 }
 
 /**
@@ -23,6 +34,8 @@ export interface ResolvedCredentials {
  *  - 429 DAILY_LIMIT_EXCEEDED when the shared-pool budget is spent.
  *  - 503 SHARED_CREDS_UNAVAILABLE when the Claude shared credential can't be
  *    fetched and the user has no own-key fallback.
+ *  - 400 CLAUDE_CREDENTIALS_EXPIRED / 503 CLAUDE_CREDENTIALS_UNAVAILABLE when
+ *    the user's own Claude subscription can't be refreshed.
  *
  * Otherwise returns the resolved credentials. The Gemini/OpenCode shared keys
  * come from `process.env` via {@link getUserCredentials}, so only Claude Code
@@ -66,18 +79,32 @@ export async function resolveSendCredentials(
     )
   }
 
-  // Validate shared credentials before claiming a turn. The SDK's OAuth host
-  // callback obtains only access tokens; shared refresh tokens stay here.
+  // Validate subscription credentials before claiming a turn. The SDK's OAuth
+  // host callback obtains only access tokens; refresh tokens, shared or the
+  // user's own, stay here. A custom endpoint (any `endpoint:<id>`) supplies
+  // its own auth, so it never uses either.
   let useSharedClaude = false
-  if (
-    payload.agent === "claude-code" &&
-    // A custom endpoint (any `endpoint:<id>`) supplies its own auth, so never
-    // fall back to the shared Claude pool for it.
-    !payload.model?.startsWith(ENDPOINT_MODEL_PREFIX) &&
-    !credentials.CLAUDE_CODE_CREDENTIALS
-  ) {
+  let claudeToken: ClaudeRunToken | undefined
+  const claudeSubscriptionRun = payload.agent === "claude-code" && !payload.model?.startsWith(ENDPOINT_MODEL_PREFIX)
+  if (claudeSubscriptionRun && credentials.CLAUDE_CODE_CREDENTIALS) {
     try {
-      await getSharedClaudeAccessToken()
+      claudeToken = { source: "own", token: await getUserClaudeAccessToken(userId) }
+    } catch (err) {
+      const expired = err instanceof OwnClaudeCredentialsExpiredError
+      if (!expired) {
+        console.error("[chats/messages] Failed to refresh the user's Claude subscription:", err instanceof Error ? err.name : "Unknown error")
+      }
+      return Response.json(
+        {
+          error: expired ? "CLAUDE_CREDENTIALS_EXPIRED" : "CLAUDE_CREDENTIALS_UNAVAILABLE",
+          message: err instanceof Error && expired ? err.message : "Couldn't refresh your Claude subscription. Please try again.",
+        },
+        { status: expired ? 400 : 503 }
+      )
+    }
+  } else if (claudeSubscriptionRun) {
+    try {
+      claudeToken = { source: "shared", token: await getSharedClaudeAccessToken() }
       useSharedClaude = true
     } catch (err) {
       console.error(
@@ -106,5 +133,5 @@ export async function resolveSendCredentials(
     payload.model
   )
 
-  return { credentials, githubToken, useSharedClaude }
+  return { credentials, githubToken, useSharedClaude, claudeToken }
 }

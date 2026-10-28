@@ -24,6 +24,8 @@ import {
   validateEndpoints,
 } from "@/lib/server/custom-endpoints"
 import { withUserLock } from "@/lib/server/codex-credentials"
+import { pruneClaudeOwnSecrets } from "@/lib/server/subscription-secrets"
+import { syncUserKeySecret } from "@/lib/server/user-key-secrets"
 import { getProviderMultipliers } from "@/lib/db/provider-pricing"
 import type { Settings } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
@@ -239,6 +241,18 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       // Sit above the refresh path's worst case instead.
       { timeout: 20000 }
     )
+
+    // Saved or removed keys: replace their Daytona secrets (see
+    // lib/server/user-key-secrets). Best effort; never fails the save.
+    await Promise.all([
+      ...Object.entries(body.credentials ?? {})
+        .filter(([key, value]) => isCredentialId(key) && isClientWritableCredential(key) && value !== "***")
+        .map(([key, value]) => syncUserKeySecret(userId, key, typeof value === "string" && value ? value : undefined)),
+      // A replaced or removed Claude login: its access tokens' secrets go too.
+      ...(body.credentials?.CLAUDE_CODE_CREDENTIALS !== undefined && body.credentials.CLAUDE_CODE_CREDENTIALS !== "***"
+        ? [pruneClaudeOwnSecrets(userId, { all: true })]
+        : []),
+    ])
 
     // After updating credentials, recompute effective flags
     const [effective, providerMultipliers] = await Promise.all([

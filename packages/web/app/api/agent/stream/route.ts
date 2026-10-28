@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
+import { releaseTurnSecrets } from "@/lib/server/turn-secrets"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
@@ -259,7 +260,14 @@ export async function GET(req: Request) {
               throw new Error("Could not save the stopped turn; reload to retry")
             }
             finalSnapshotSaved = true
-            await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
+            try {
+              await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
+            } finally {
+              // The agent is done: stop the turn's secret placeholders from
+              // working until the next turn mounts them again. In a finally, as
+              // the chat is still released below when finalizeTurn throws.
+              await releaseTurnSecrets(sandbox)
+            }
 
             // Meter token/cost usage via tokscale while the sandbox is still
             // alive (best-effort). This is the live-stream completion path; the

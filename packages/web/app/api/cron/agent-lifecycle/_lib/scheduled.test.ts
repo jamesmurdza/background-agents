@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { AgentSessionOptions } from "@/lib/agent-session"
 
 const state = vi.hoisted(() => ({
-  credentials: vi.fn(), readShared: vi.fn(), createSandbox: vi.fn(), createSession: vi.fn(),
+  credentials: vi.fn(), readShared: vi.fn(), readOwn: vi.fn(), createSandbox: vi.fn(), createSession: vi.fn(),
   createChat: vi.fn(), updateChat: vi.fn(), createMessages: vi.fn(), updateJobRun: vi.fn(),
 }))
 vi.mock("@/lib/db/prisma", () => ({ prisma: {
@@ -15,6 +15,7 @@ vi.mock("@/lib/db/prisma", () => ({ prisma: {
 vi.mock("@/lib/db/api-helpers", () => ({ getUserCredentials: state.credentials, decryptUserCredentials: () => ({}) }))
 vi.mock("@/lib/db/usage-limit", () => ({ checkSharedPoolUsage: vi.fn().mockResolvedValue({ allowed: true }), UsageLimitError: Error }))
 vi.mock("@/lib/claude-credentials", () => ({ getSharedClaudeAccessToken: state.readShared }))
+vi.mock("@/lib/server/user-claude-credentials", () => ({ getUserClaudeAccessToken: state.readOwn }))
 vi.mock("@/lib/server/custom-endpoints", () => ({ getUserEndpoints: vi.fn().mockResolvedValue([]) }))
 vi.mock("@/lib/server/codex-credentials", () => ({ applyCodexSubscription: async (credentials: Record<string, string>) => credentials }))
 vi.mock("@/lib/server/shared-pool", () => ({ buildUsageMeta: () => ({ pool: "shared", provider: "claude" }) }))
@@ -44,6 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   state.credentials.mockResolvedValue({})
   state.readShared.mockReset().mockResolvedValue("shared-access-test")
+  state.readOwn.mockReset().mockResolvedValue("own-access-test")
   state.createChat.mockResolvedValue({ id: "chat-test" })
   state.createSandbox.mockResolvedValue({ sandbox: {}, sandboxId: "sandbox-test" })
   state.createSession.mockReset()
@@ -58,7 +60,7 @@ describe("scheduled Claude authentication", () => {
       expect(prompt).toBe("Perform the job")
       const options = state.createSession.mock.calls[0][1] as AgentSessionOptions
       const scope = verifyClaudeTokenCapability(options.env!.CLAUDE_CODE_TOKEN_AUTH)
-      expect(scope).toEqual({ userId: "user-test", chatId: "chat-test", backgroundSessionId: options.backgroundSessionId })
+      expect(scope).toEqual({ userId: "user-test", chatId: "chat-test", backgroundSessionId: options.backgroundSessionId, source: "shared" })
       expect(state.createChat).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ agent: "claude-code", status: "running" }),
       }))
@@ -83,13 +85,18 @@ describe("scheduled Claude authentication", () => {
     expect(state.createSession).not.toHaveBeenCalled()
   })
 
-  it("keeps a user's own subscription on the existing connection", async () => {
+  it("runs a user's own subscription through the token runner, never shipping their login", async () => {
     state.credentials.mockResolvedValue({ CLAUDE_CODE_CREDENTIALS: "own-subscription-test" })
-    state.createSession.mockResolvedValue({ backgroundSessionId: "direct-run", start: vi.fn() })
+    state.createSession.mockImplementation(async (_sandbox: unknown, options: AgentSessionOptions) => ({
+      backgroundSessionId: options.backgroundSessionId, start: vi.fn(),
+    }))
     await startJobExecution(job(), run, daytona)
     const options = state.createSession.mock.calls[0][1] as AgentSessionOptions
-    expect(options.env?.CLAUDE_CODE_CREDENTIALS).toBe("own-subscription-test")
-    expect(options.env?.CLAUDE_CODE_TOKEN_URL).toBeUndefined()
+    expect(JSON.stringify(options.env)).not.toContain("own-subscription-test")
+    expect(JSON.stringify(options.env)).not.toContain("own-access-test")
+    expect(options.env?.CLAUDE_CODE_TOKEN_URL).toBeDefined()
+    expect(verifyClaudeTokenCapability(options.env!.CLAUDE_CODE_TOKEN_AUTH)).toMatchObject({ userId: "user-test", source: "own" })
+    expect(state.readOwn).toHaveBeenCalledWith("user-test")
     expect(state.readShared).not.toHaveBeenCalled()
   })
 })

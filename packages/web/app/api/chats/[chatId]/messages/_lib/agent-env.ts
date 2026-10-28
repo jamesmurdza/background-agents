@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
-import { decrypt } from "@/lib/db/encryption"
+import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { getEnvForModel, type CustomEndpoint } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
@@ -35,7 +35,7 @@ export async function buildAgentEnv(params: {
     if (repoEnvVars) {
       for (const [key, encryptedValue] of Object.entries(repoEnvVars)) {
         if (encryptedValue) {
-          userEnv[key] = decrypt(encryptedValue)
+          userEnv[key] = decryptStoredEnvVar(encryptedValue)
         }
       }
     }
@@ -46,7 +46,7 @@ export async function buildAgentEnv(params: {
   if (chatEnvVars) {
     for (const [key, encryptedValue] of Object.entries(chatEnvVars)) {
       if (encryptedValue) {
-        userEnv[key] = decrypt(encryptedValue)
+        userEnv[key] = decryptStoredEnvVar(encryptedValue)
       }
     }
   }

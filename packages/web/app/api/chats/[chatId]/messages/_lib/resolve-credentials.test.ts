@@ -66,10 +66,21 @@ vi.mock("@/lib/db/usage-limit", () => ({
   checkSharedPoolUsage: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 vi.mock("@/lib/claude-credentials", () => ({ getSharedClaudeAccessToken: vi.fn() }))
+vi.mock("@/lib/server/user-claude-credentials", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/server/user-claude-credentials")>(
+    "@/lib/server/user-claude-credentials"
+  )
+  return { ...actual, getUserClaudeAccessToken: vi.fn() }
+})
 
 import { resolveSendCredentials } from "./resolve-credentials"
 import { getUserCredentials } from "@/lib/db/api-helpers"
 import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
+import {
+  OwnClaudeCredentialsExpiredError,
+  OwnClaudeCredentialsUnavailableError,
+  getUserClaudeAccessToken,
+} from "@/lib/server/user-claude-credentials"
 import {
   CODEX_PLACEHOLDER_REFRESH_TOKEN,
   type CodexStoredCredential,
@@ -124,6 +135,7 @@ beforeEach(() => {
   refreshCodexTokens.mockReset()
   vi.mocked(getUserCredentials).mockResolvedValue({})
   vi.mocked(getSharedClaudeAccessToken).mockReset().mockResolvedValue("shared-access-test")
+  vi.mocked(getUserClaudeAccessToken).mockReset()
 })
 
 describe("resolveSendCredentials never ships the real Codex refresh token", () => {
@@ -196,12 +208,35 @@ describe("shared Claude credential resolution", () => {
     expect(getSharedClaudeAccessToken).toHaveBeenCalledOnce()
   })
 
-  it("preserves the user's own direct subscription", async () => {
+  it("runs the user's own subscription on a server-refreshed access token, unbilled", async () => {
     vi.mocked(getUserCredentials).mockResolvedValue({ CLAUDE_CODE_CREDENTIALS: "own-subscription-test" })
+    vi.mocked(getUserClaudeAccessToken).mockResolvedValue("own-access-test")
     const resolved = await resolveSendCredentials("u1", { agent: "claude-code" } as never)
     if (resolved instanceof Response) throw new Error("Expected resolved credentials")
     expect(resolved.useSharedClaude).toBe(false)
-    expect(resolved.credentials.CLAUDE_CODE_CREDENTIALS).toBe("own-subscription-test")
+    expect(resolved.claudeToken).toEqual({ source: "own", token: "own-access-test" })
+    expect(getUserClaudeAccessToken).toHaveBeenCalledWith("u1")
+    expect(getSharedClaudeAccessToken).not.toHaveBeenCalled()
+  })
+
+  it("asks for a new login when the user's own subscription has expired, and never falls back to shared", async () => {
+    vi.mocked(getUserCredentials).mockResolvedValue({ CLAUDE_CODE_CREDENTIALS: "own-subscription-test" })
+    vi.mocked(getUserClaudeAccessToken).mockRejectedValue(new OwnClaudeCredentialsExpiredError())
+    const expired = await resolveSendCredentials("u1", { agent: "claude-code" } as never)
+    if (!(expired instanceof Response)) throw new Error("Expected an error response")
+    expect(expired.status).toBe(400)
+    expect(await expired.json()).toMatchObject({ error: "CLAUDE_CREDENTIALS_EXPIRED" })
+
+    vi.mocked(getUserClaudeAccessToken).mockRejectedValue(new OwnClaudeCredentialsUnavailableError())
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const unavailable = await resolveSendCredentials("u1", { agent: "claude-code" } as never)
+      if (!(unavailable instanceof Response)) throw new Error("Expected an error response")
+      expect(unavailable.status).toBe(503)
+      expect(await unavailable.json()).toMatchObject({ error: "CLAUDE_CREDENTIALS_UNAVAILABLE" })
+    } finally {
+      log.mockRestore()
+    }
     expect(getSharedClaudeAccessToken).not.toHaveBeenCalled()
   })
 

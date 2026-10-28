@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { buildSharedClaudeEnv, createClaudeTokenCapability, verifyClaudeTokenCapability } from "./claude-token-auth"
 
-const scope = { userId: "user-test", chatId: "chat-test", backgroundSessionId: "run-test" }
+const scope = { userId: "user-test", chatId: "chat-test", backgroundSessionId: "run-test", source: "shared" as const }
 beforeEach(() => {
   vi.stubEnv("NEXTAUTH_SECRET", "token-read-signing-test")
   vi.stubEnv("NEXTAUTH_URL", "https://app.test")
@@ -12,6 +12,14 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 describe("shared Claude token capabilities", () => {
   it("verifies the signed user, chat and run", () => {
     expect(verifyClaudeTokenCapability(createClaudeTokenCapability(scope))).toEqual(scope)
+  })
+
+  it("carries whose token the run gets, reading one from before that as shared", () => {
+    const own = { ...scope, source: "own" as const }
+    expect(verifyClaudeTokenCapability(createClaudeTokenCapability(own))).toEqual(own)
+    const { source: _source, ...legacy } = scope
+    expect(verifyClaudeTokenCapability(createClaudeTokenCapability(legacy as typeof scope))).toEqual(scope)
+    expect(verifyClaudeTokenCapability(createClaudeTokenCapability({ ...scope, source: "other" as "own" }))).toBeNull()
   })
 
   it.each(["", "x.y", "a.b.c", "a.!", "x".repeat(4097)])("rejects malformed capabilities", (token) => {
