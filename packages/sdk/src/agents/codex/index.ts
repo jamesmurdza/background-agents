@@ -14,7 +14,7 @@ import type { CodeAgentSandbox } from "../../types/provider"
 import { escapeShell, quote } from "../../utils/shell"
 import { parseCodexLine } from "./parser"
 import { CODEX_TOOL_MAPPINGS } from "./tools"
-import { buildCodexConfigToml } from "./config"
+import { buildCodexConfigToml, buildCodexSubscriptionHttpToml, usesSecretPlaceholder } from "./config"
 import { extractTomlSections, combineCodexConfig } from "./toml-merge"
 
 /** Codex credentials directory inside the sandbox. */
@@ -103,13 +103,17 @@ async function codexSetup(
   // Standard path: drop any custom provider config from an earlier custom run in
   // this sandbox so it can't override the default provider, while keeping the
   // MCP sections. Passing an empty provider config strips model_provider/
-  // model_providers but carries [mcp_servers.*] over.
-  await writeCodexConfig(sandbox, "")
+  // model_providers but carries [mcp_servers.*] over. A subscription behind
+  // the secrets proxy gets the default provider without websockets instead.
+  const subscription = env[CODEX_CREDENTIALS_ENV]
+  await writeCodexConfig(
+    sandbox,
+    subscription && usesSecretPlaceholder(subscription) ? buildCodexSubscriptionHttpToml() : ""
+  )
 
   // Subscription path: the web layer resolved a fresh access token and rendered
   // a complete auth.json. Write it rather than running `codex login`, which has
   // no non-interactive mode that accepts an OAuth access token.
-  const subscription = env[CODEX_CREDENTIALS_ENV]
   if (subscription) {
     await sandbox.executeCommand(buildCodexAuthSetupCommand(subscription), 30)
     return

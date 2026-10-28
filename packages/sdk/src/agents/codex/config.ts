@@ -89,3 +89,36 @@ export function buildCodexConfigToml(cfg: CodexCustomConfig): string {
 
   return lines.join("\n") + "\n"
 }
+
+/**
+ * Prefix of a Daytona secret placeholder. A subscription auth.json whose
+ * access token is one runs behind Daytona's secrets proxy, which swaps it on
+ * the way out.
+ */
+const DAYTONA_SECRET_PLACEHOLDER = "dtn_secret_"
+
+/** Whether a rendered subscription auth.json carries a secret placeholder. */
+export function usesSecretPlaceholder(authJson: string): boolean {
+  return authJson.includes(DAYTONA_SECRET_PLACEHOLDER)
+}
+
+/**
+ * config.toml for a ChatGPT-subscription run behind Daytona's secrets proxy:
+ * the built-in provider (ChatGPT backend, ChatGPT login) with websockets off.
+ * Codex's websocket client rejects the handshake as relayed by the proxy
+ * ("Attack attempt detected") and never recovers; over plain HTTPS the proxy
+ * works. Built-in providers can't be overridden, hence a copy under its own id.
+ */
+export function buildCodexSubscriptionHttpToml(): string {
+  const id = "chatgpt_https"
+  return [
+    `model_provider = ${tomlString(id)}`,
+    "",
+    `[model_providers.${id}]`,
+    `name = ${tomlString("OpenAI")}`,
+    `base_url = ${tomlString("https://chatgpt.com/backend-api/codex")}`,
+    `wire_api = ${tomlString("responses")}`,
+    "requires_openai_auth = true",
+    "supports_websockets = false",
+  ].join("\n")
+}
