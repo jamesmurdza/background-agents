@@ -38,7 +38,7 @@ import {
 
 import { getUserCredentials } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
-import { getSharedKeys, getSharedSecretNames, sharedPoolForSecret } from "@/lib/server/shared-key-pools"
+import { getSharedKeys, getSharedSecretNames, isSharedKey, sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SHARED_SECRET_PREFIX,
   KEEP_NEWEST,
@@ -182,7 +182,7 @@ export async function loadUserSecretState(userId: string): Promise<UserSecretSta
 
   for (const credential of Object.keys(USER_KEY_PROVIDERS)) {
     const value = credentials[credential as keyof typeof credentials]
-    if (value && userKeySecretsEnabled(credential) && !parseSecretMarker(value)) {
+    if (value && userKeySecretsEnabled(credential) && !parseSecretMarker(value) && !isSharedKey(credential, value)) {
       expected.add(userKeySecretName(userId, credential, value))
     }
   }

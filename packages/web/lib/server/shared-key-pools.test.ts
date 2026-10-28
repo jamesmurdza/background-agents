@@ -26,6 +26,7 @@ const marker = (key: string) => toSecretMarker(opencodeSecret(key))
 afterEach(() => {
   delete process.env[KEY]
   delete process.env.GEMINI_API_KEY
+  delete process.env.DAYTONA_USER_KEY_SECRETS
   vi.restoreAllMocks()
 })
 
@@ -71,6 +72,16 @@ describe("pickSharedKey", () => {
   it("never returns the raw key", () => {
     process.env[KEY] = "raw-key-value"
     expect(pickSharedKey(opencode)).not.toContain("raw-key-value")
+  })
+
+  it("returns the raw key when the pool's secrets are turned off, and only that pool's", () => {
+    process.env[KEY] = "raw-key-value"
+    process.env.GEMINI_API_KEY = "raw-gemini-key"
+    process.env.DAYTONA_USER_KEY_SECRETS = "GEMINI_SHARED"
+    expect(pickSharedKey(opencode)).toBe("raw-key-value")
+    expect(pickSharedKey(gemini)).toBe(toSecretMarker(secretNameForKey(gemini, "raw-gemini-key")))
+    process.env.DAYTONA_USER_KEY_SECRETS = "none"
+    expect(pickSharedKey(gemini)).toBe("raw-gemini-key")
   })
 
   it("selects by Math.random across all keys", () => {

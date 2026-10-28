@@ -58,7 +58,8 @@ export const USER_KEY_PROVIDERS: Partial<Record<CredentialId, UserKeyProvider>> 
 
 /**
  * Whether DAYTONA_USER_KEY_SECRETS turns on `entry` (a credential id,
- * CODEX_CREDENTIALS, CLAUDE_CODE_CREDENTIALS or CLAUDE_SHARED). Unset or
+ * CODEX_CREDENTIALS, CLAUDE_CODE_CREDENTIALS, CLAUDE_SHARED, OPENCODE_SHARED
+ * or GEMINI_SHARED). Unset or
  * "all" turns on everything; otherwise only the comma-separated entries
  * listed ("none" lists none).
  */

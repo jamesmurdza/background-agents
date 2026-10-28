@@ -9,6 +9,11 @@
  * placeholder, and Daytona's egress proxy swaps in the real value on HTTPS
  * requests to the pool's hosts. See lib/server/shared-pool-secrets.
  *
+ * DAYTONA_USER_KEY_SECRETS can turn that off per pool (OPENCODE_SHARED,
+ * GEMINI_SHARED; "none" turns off both): the pool's key then goes into the
+ * sandbox raw, as it did before secrets. A kill switch for when Daytona
+ * secrets misbehave, since a pool whose secret fails otherwise fails its runs.
+ *
  * With several keys, each shared run picks one uniformly at random, so an
  * operator can run several keys concurrently instead of manually swapping one.
  *
@@ -16,6 +21,8 @@
  */
 
 import { contentSecretName, parseSecretMarker, toSecretMarker } from "@background-agents/sandbox-secrets"
+
+import { userSecretsFlag } from "@/lib/server/user-key-secrets"
 
 export type SharedPoolId = "opencode" | "gemini"
 
@@ -36,6 +43,8 @@ export interface SharedKeyPool {
   mountEnv: string
   /** Human name, for secret descriptions and errors. */
   label: string
+  /** DAYTONA_USER_KEY_SECRETS entry that turns the pool's secrets on (see userSecretsFlag). */
+  secretFlag: "OPENCODE_SHARED" | "GEMINI_SHARED"
 }
 
 export const SHARED_KEY_POOLS: Record<SharedPoolId, SharedKeyPool> = {
@@ -47,6 +56,7 @@ export const SHARED_KEY_POOLS: Record<SharedPoolId, SharedKeyPool> = {
     // Predates the other pools; live sandbox labels record it, so it stays.
     mountEnv: "SESSION_RELAY_TOKEN",
     label: "OpenCode",
+    secretFlag: "OPENCODE_SHARED",
   },
   gemini: {
     id: "gemini",
@@ -55,6 +65,7 @@ export const SHARED_KEY_POOLS: Record<SharedPoolId, SharedKeyPool> = {
     hosts: ["generativelanguage.googleapis.com"],
     mountEnv: "SESSION_RELAY_TOKEN_GEMINI",
     label: "Gemini",
+    secretFlag: "GEMINI_SHARED",
   },
 }
 
@@ -106,6 +117,17 @@ export function sharedKeyForSecret(secretName: string): string | undefined {
   return getSharedKeys(pool).find((key) => secretNameForKey(pool, key) === secretName)
 }
 
+/** Whether the pool's keys go into sandboxes behind Daytona secrets. */
+export function sharedPoolSecretsEnabled(pool: SharedKeyPool): boolean {
+  return userSecretsFlag(pool.secretFlag)
+}
+
+/** Whether `value` is one of the keys configured for the pool behind `credentialId`. */
+export function isSharedKey(credentialId: string, value: string): boolean {
+  const pool = sharedPoolForCredential(credentialId)
+  return !!pool && getSharedKeys(pool).includes(value)
+}
+
 /** Whether the server has at least one key configured for the pool. */
 export function hasSharedKey(pool: SharedKeyPool): boolean {
   return getSharedKeys(pool).length > 0
@@ -113,16 +135,18 @@ export function hasSharedKey(pool: SharedKeyPool): boolean {
 
 /**
  * Pick one of the pool's keys uniformly at random and return it as a secret
- * marker (see toSecretMarker) — never the raw key — or undefined when none
- * are configured. The marker keeps every "is there a credential?" check
- * working, while being useless if it ever reached a sandbox unstripped.
+ * marker (see toSecretMarker), or undefined when none are configured. The
+ * marker keeps every "is there a credential?" check working, while being
+ * useless if it ever reached a sandbox unstripped. With the pool's secrets
+ * turned off ({@link sharedPoolSecretsEnabled}), the raw key instead.
  * Called per shared run so usage spreads evenly across the pool — every entry
  * has an equal chance.
  */
 export function pickSharedKey(pool: SharedKeyPool): string | undefined {
   const keys = getSharedKeys(pool)
   if (keys.length === 0) return undefined
-  return toSecretMarker(secretNameForKey(pool, pickRandom(keys)))
+  const key = pickRandom(keys)
+  return sharedPoolSecretsEnabled(pool) ? toSecretMarker(secretNameForKey(pool, key)) : key
 }
 
 function parseList(raw: string | undefined): string[] {

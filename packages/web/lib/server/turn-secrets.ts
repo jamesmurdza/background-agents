@@ -37,7 +37,7 @@ import {
 } from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
-import { sharedPoolForSecret } from "@/lib/server/shared-key-pools"
+import { isSharedKey, sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SHARED_MOUNT_ENV,
   claudeRunSecretSpec,
@@ -178,7 +178,8 @@ function planKeySecrets(params: {
       secrets.push({ kind: "user", name: spec.name, mountEnv: userKeyMountEnv(credential), envValue: token, envKeys: carrying(token), spec })
       continue
     }
-    if (!userKeySecretsEnabled(credential) || parseSecretMarker(value)) continue
+    // A pool key arrives raw only with the pool's secrets turned off: it isn't the user's.
+    if (!userKeySecretsEnabled(credential) || parseSecretMarker(value) || isSharedKey(credential, value)) continue
     const spec = userKeySecretSpec(userId, credential, value)
     secrets.push({
       kind: "user",
@@ -352,8 +353,8 @@ export function poolSecretOf(secrets: TurnSecret[]): string | undefined {
 
 /**
  * Detach every turn secret when a turn ends, so the placeholders left in the
- * sandbox stop working until the next turn mounts them again. Pinned env
- * secrets stay. Call it BEFORE
+ * sandbox stop working until the next turn mounts them again. The pinned
+ * keepalive stays. Call it BEFORE
  * the chat is released back to "ready": sends are refused while the chat is
  * running, so the next turn's mount can never race this detach. A no-op for
  * sandboxes with nothing mounted; never throws.

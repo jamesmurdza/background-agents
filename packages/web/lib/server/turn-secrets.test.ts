@@ -119,6 +119,22 @@ describe("planTurnSecrets", () => {
     ])
   })
 
+  it("passes a pool key raw when the pool's secrets are off, never as the user's own key", () => {
+    process.env.OPENCODE_API_KEY = "oc-pool-raw"
+    process.env.DAYTONA_USER_KEY_SECRETS = "OPENCODE_API_KEY"
+    try {
+      expect(planTurnSecrets({
+        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.5-pro", credentials: { OPENCODE_API_KEY: "oc-pool-raw" },
+      })).toEqual([])
+      // The user's own key still is.
+      expect(planTurnSecrets({
+        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.5-pro", credentials: { OPENCODE_API_KEY: "oc-own" },
+      })).toMatchObject([{ kind: "user", envValue: "oc-own" }])
+    } finally {
+      delete process.env.OPENCODE_API_KEY
+    }
+  })
+
   it("finds every env var a key is copied into", () => {
     const marker = toSecretMarker(GEMINI_SECRET)
     const [pool] = planTurnSecrets({
