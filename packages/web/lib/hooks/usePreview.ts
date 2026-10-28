@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import type { PreviewItem } from "@/components/PreviewView"
 import type { Chat } from "@/lib/types"
 import { basename } from "@/lib/format"
+import { useDragResize } from "@/lib/hooks/useDragResize"
 
 interface UsePreviewOptions {
   currentChat: Chat | null
@@ -45,9 +46,6 @@ export function usePreview({ currentChat, updateCurrentChat, availableServers }:
     if (typeof window === "undefined") return
     window.localStorage.setItem("simple-chat-preview-width", String(Math.round(previewWidth)))
   }, [previewWidth])
-
-  const [isResizingPreview, setIsResizingPreview] = useState(false)
-  const resizingPreview = useRef(false)
 
   // Preview state from chat
   const previewItems = (currentChat?.previewItems ?? []) as PreviewItem[]
@@ -135,39 +133,17 @@ export function usePreview({ currentChat, updateCurrentChat, availableServers }:
     updateCurrentChat({ previewPaneHidden: false })
   }, [updateCurrentChat])
 
-  const startPreviewResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    resizingPreview.current = true
-    setIsResizingPreview(true)
-    document.body.style.cursor = "col-resize"
-    document.body.style.userSelect = "none"
+  const resizePreview = useCallback((e: MouseEvent) => {
+    const nextWidth = window.innerWidth - e.clientX
+    // Clamp: keep the preview at least 320px wide, but also leave enough
+    // room for the chat column on the left.
+    const MIN_PREVIEW = 320
+    const MIN_CHAT = 600
+    const maxPreview = Math.max(MIN_PREVIEW, window.innerWidth - MIN_CHAT)
+    setPreviewWidth(Math.max(MIN_PREVIEW, Math.min(maxPreview, nextWidth)))
   }, [])
 
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (!resizingPreview.current) return
-      const nextWidth = window.innerWidth - e.clientX
-      // Clamp: keep the preview at least 320px wide, but also leave enough
-      // room for the chat column on the left.
-      const MIN_PREVIEW = 320
-      const MIN_CHAT = 600
-      const maxPreview = Math.max(MIN_PREVIEW, window.innerWidth - MIN_CHAT)
-      setPreviewWidth(Math.max(MIN_PREVIEW, Math.min(maxPreview, nextWidth)))
-    }
-    const up = () => {
-      if (!resizingPreview.current) return
-      resizingPreview.current = false
-      setIsResizingPreview(false)
-      document.body.style.cursor = ""
-      document.body.style.userSelect = ""
-    }
-    window.addEventListener("mousemove", move)
-    window.addEventListener("mouseup", up)
-    return () => {
-      window.removeEventListener("mousemove", move)
-      window.removeEventListener("mouseup", up)
-    }
-  }, [])
+  const { startDrag: startPreviewResize, isDragging: isResizingPreview } = useDragResize(resizePreview)
 
   // Relative file links inside MarkdownPreview dispatch this CustomEvent to
   // ask us to open the linked file. Keeps the markdown component decoupled
