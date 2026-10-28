@@ -76,7 +76,7 @@ export async function sendChatTurn({
   // already reserved it; its caller releases/pauses the claim on any failure.
   const resolved = await resolveSendCredentials(userId, payload)
   if (resolved instanceof Response) return resolved
-  const { credentials, githubToken, useSharedClaude, sharedClaudeToken } = resolved
+  const { credentials, githubToken, useSharedClaude, claudeToken } = resolved
   const customEndpoints = await getUserEndpoints(userId)
   const userEnv = await loadUserEnvVars(userId, chat)
 
@@ -108,7 +108,7 @@ export async function sendChatTurn({
   // Secrets for this run's keys (shared pools, subscriptions and the user's own) and secret env vars, if any.
   const plannedSecrets = planTurnSecrets({
     userId, agent: payload.agent as Agent, model: payload.model, credentials, endpoints: customEndpoints, envVars: userEnv,
-    sharedClaudeToken,
+    claudeToken,
   })
   // Set once the sandbox is known, so a turn that never starts detaches its secrets again.
   let secretSandbox: DaytonaSandbox | undefined
@@ -151,9 +151,13 @@ export async function sendChatTurn({
     }
 
     const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
-    const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
+    // A Claude subscription run (shared or the user's own) fetches its token
+    // through the token runner, keyed to this session.
+    const backgroundSessionId = claudeToken ? randomUUID() : undefined
     let env = buildAgentEnv({ payload, credentials, customEndpoints, userEnv: userEnv.values })
-    if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId })
+    if (backgroundSessionId && claudeToken) {
+      env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId, source: claudeToken.source })
+    }
     // Hand the agent the mounted secrets' placeholders instead of the keys.
     applyTurnSecretsToEnv(env, turnSecrets)
     let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []

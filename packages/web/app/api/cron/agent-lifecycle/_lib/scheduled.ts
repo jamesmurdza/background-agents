@@ -12,6 +12,8 @@ import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
 import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
 import { buildSharedClaudeEnv } from "@/lib/server/claude-token-auth"
+import type { ClaudeRunToken } from "@/lib/server/subscription-secrets"
+import { getUserClaudeAccessToken } from "@/lib/server/user-claude-credentials"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterTurnNow } from "./meter-turn"
@@ -80,13 +82,13 @@ export async function startJobExecution(
   // Validate shared authentication before provisioning a chat or sandbox.
   let credentials = await getUserCredentials(job.userId)
   const customEndpoints = await getUserEndpoints(job.userId)
-  let useSharedClaude = false
-  let sharedClaudeToken: string | undefined
-  if (
-    job.agent === "claude-code" && !job.model?.startsWith(ENDPOINT_MODEL_PREFIX) && !credentials.CLAUDE_CODE_CREDENTIALS
-  ) {
-    sharedClaudeToken = await getSharedClaudeAccessToken()
-    useSharedClaude = true
+  // A Claude subscription run, shared or the user's own, gets its token
+  // through the token runner; refresh tokens stay on the server.
+  let claudeToken: ClaudeRunToken | undefined
+  if (job.agent === "claude-code" && !job.model?.startsWith(ENDPOINT_MODEL_PREFIX)) {
+    claudeToken = credentials.CLAUDE_CODE_CREDENTIALS
+      ? { source: "own", token: await getUserClaudeAccessToken(job.userId) }
+      : { source: "shared", token: await getSharedClaudeAccessToken() }
   }
 
   // 1. Get GitHub token for the user — required for cloned repos, optional
@@ -193,7 +195,7 @@ export async function startJobExecution(
     model: job.model ?? undefined,
     credentials,
     endpoints: customEndpoints,
-    sharedClaudeToken,
+    claudeToken,
   }))
 
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
@@ -221,9 +223,11 @@ export async function startJobExecution(
 
   // 7. Create background session
   const repoPath = `${PATHS.SANDBOX_HOME}/project`
-  const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
+  const backgroundSessionId = claudeToken ? randomUUID() : undefined
   let env = getEnvForModel(job.model ?? undefined, job.agent as Agent, credentials, customEndpoints)
-  if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId })
+  if (backgroundSessionId && claudeToken) {
+    env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId, source: claudeToken.source })
+  }
   // The secrets were mounted at creation (this confirms it without a
   // remount), and the agent is handed their placeholders instead of the
   // keys. No detach needed: the sandbox is deleted when the run ends.

@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-const state = vi.hoisted(() => ({ run: vi.fn(), credentials: vi.fn(), mount: vi.fn() }))
-vi.mock("@/lib/server/turn-secrets", () => ({ mountSharedClaudeSecret: state.mount }))
+const state = vi.hoisted(() => ({ run: vi.fn(), credentials: vi.fn(), mount: vi.fn(), own: vi.fn() }))
+vi.mock("@/lib/server/turn-secrets", () => ({ mountClaudeSecret: state.mount }))
+vi.mock("@/lib/server/user-claude-credentials", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/user-claude-credentials")>()),
+  getUserClaudeAccessToken: state.own,
+}))
 vi.mock("@/lib/db/prisma", () => ({ prisma: {
   chat: { findFirst: state.run }, ccAuthInfo: { findUnique: state.credentials },
 } }))
 import { GET } from "./route"
 import { createClaudeTokenCapability } from "@/lib/server/claude-token-auth"
+import { OwnClaudeCredentialsExpiredError } from "@/lib/server/user-claude-credentials"
 
-const scope = { userId: "user-test", chatId: "chat-test", backgroundSessionId: "run-test" }
+const scope = { userId: "user-test", chatId: "chat-test", backgroundSessionId: "run-test", source: "shared" as const }
 function grant(accessToken: string, expiresAt = Date.now() + 3600000) {
   return { value: JSON.stringify({ claudeAiOauth: { accessToken, refreshToken: "server-refresh-test", expiresAt } }) }
 }
@@ -19,6 +24,7 @@ beforeEach(() => {
   state.run.mockReset().mockResolvedValue({ id: scope.chatId })
   state.credentials.mockReset().mockResolvedValue(grant("access-test"))
   state.mount.mockReset().mockResolvedValue(undefined)
+  state.own.mockReset().mockResolvedValue("own-access-test")
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -39,9 +45,29 @@ describe("Claude host token reads", () => {
     state.run.mockResolvedValue({ id: scope.chatId, sandboxId: "sb-test" })
     state.mount.mockResolvedValueOnce("dtn_secret_test")
     expect(await (await GET(request())).json()).toEqual({ accessToken: "dtn_secret_test" })
-    expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", "access-test")
+    expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", scope.userId, { source: "shared", token: "access-test" })
     // No placeholder (feature off, secret failed): the token, as before.
     expect(await (await GET(request())).json()).toEqual({ accessToken: "access-test" })
+  })
+
+  it("serves a run on the user's own subscription their (refreshed) token, never the shared one", async () => {
+    vi.stubEnv("DAYTONA_API_KEY", "dtn-test")
+    state.run.mockResolvedValue({ id: scope.chatId, sandboxId: "sb-test" })
+    const own = createClaudeTokenCapability({ ...scope, source: "own" })
+    expect(await (await GET(request(own))).json()).toEqual({ accessToken: "own-access-test" })
+    expect(state.own).toHaveBeenCalledWith(scope.userId)
+    expect(state.credentials).not.toHaveBeenCalled()
+    expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", scope.userId, { source: "own", token: "own-access-test" })
+  })
+
+  it("answers 503 when the user's own login can't be used", async () => {
+    state.own.mockRejectedValue(new OwnClaudeCredentialsExpiredError())
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const response = await GET(request(createClaudeTokenCapability({ ...scope, source: "own" })))
+      expect(response.status).toBe(503)
+      expect(log).not.toHaveBeenCalled()
+    } finally { log.mockRestore() }
   })
 
   it("rejects invalid capabilities before querying credentials", async () => {

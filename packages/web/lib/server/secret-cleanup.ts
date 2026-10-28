@@ -19,7 +19,7 @@
  * - shared Claude token secrets but the newest two;
  * - a user's secrets (`u_<tag>_`) when the user is gone, or when nothing in
  *   their current keys, endpoints or env vars would create that name (their
- *   Codex token secrets: all but the newest two);
+ *   Codex and own Claude token secrets: all but the newest two);
  * - the shared OpenCode secrets once made by hand in the Daytona dashboard.
  *
  * Nothing mounted on a sandbox is ever deleted (a running turn, a dev server
@@ -53,6 +53,7 @@ import { getSharedKeys, getSharedSecretNames, sharedPoolForSecret } from "@/lib/
 import {
   CLAUDE_SHARED_SECRET_PREFIX,
   KEEP_NEWEST,
+  claudeOwnSecretPrefix,
   codexSecretPrefix,
   subscriptionSecretsEnabled,
 } from "@/lib/server/subscription-secrets"
@@ -91,8 +92,11 @@ export interface ListedSecret {
 export interface UserSecretState {
   /** Names their current keys, endpoints and env vars would create. */
   expected: Set<string>
-  /** Prefix of their Codex token secrets, when those are in use (newest kept). */
-  codexPrefix?: string
+  /**
+   * Prefixes of their subscription token secrets in use (Codex, their own
+   * Claude): of each, the newest are kept.
+   */
+  tokenPrefixes: string[]
 }
 
 export interface CleanupPlan {
@@ -136,11 +140,12 @@ export function planSecretCleanup(
   const keepClaude = subscriptionSecretsEnabled("CLAUDE_SHARED")
     ? newest(secrets.filter((s) => s.name.startsWith(CLAUDE_SHARED_SECRET_PREFIX)), KEEP_NEWEST)
     : new Set<string>()
-  const keepCodex = new Set<string>()
+  const keepTokens = new Set<string>()
   for (const state of users.values()) {
-    if (state === "unknown" || !state.codexPrefix) continue
-    const prefix = state.codexPrefix
-    for (const name of newest(secrets.filter((s) => s.name.startsWith(prefix)), KEEP_NEWEST)) keepCodex.add(name)
+    if (state === "unknown") continue
+    for (const prefix of state.tokenPrefixes) {
+      for (const name of newest(secrets.filter((s) => s.name.startsWith(prefix)), KEEP_NEWEST)) keepTokens.add(name)
+    }
   }
 
   for (const secret of secrets) {
@@ -171,7 +176,7 @@ export function planSecretCleanup(
     } else if (userTag) {
       const state = users.get(userTag)
       if (!state) unused = true
-      else if (state !== "unknown") unused = !state.expected.has(name) && !keepCodex.has(name)
+      else if (state !== "unknown") unused = !state.expected.has(name) && !keepTokens.has(name)
     }
 
     if (!unused) continue
@@ -213,8 +218,14 @@ export async function loadUserSecretState(userId: string): Promise<UserSecretSta
       }
     }
   }
-  const usesCodex = !!credentials.CODEX_CREDENTIALS && subscriptionSecretsEnabled("CODEX_CREDENTIALS")
-  return { expected, codexPrefix: usesCodex ? codexSecretPrefix(userId) : undefined }
+  const tokenPrefixes: string[] = []
+  if (credentials.CODEX_CREDENTIALS && subscriptionSecretsEnabled("CODEX_CREDENTIALS")) {
+    tokenPrefixes.push(codexSecretPrefix(userId))
+  }
+  if (credentials.CLAUDE_CODE_CREDENTIALS && subscriptionSecretsEnabled("CLAUDE_CODE_CREDENTIALS")) {
+    tokenPrefixes.push(claudeOwnSecretPrefix(userId))
+  }
+  return { expected, tokenPrefixes }
 }
 
 async function listAllSecrets(daytona: Daytona): Promise<ListedSecret[]> {

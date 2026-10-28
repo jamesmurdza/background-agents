@@ -9,6 +9,7 @@ import {
   refreshCredentials,
   refreshResultToResponse,
 } from "@/lib/server/refresh-claude-credentials"
+import { pruneClaudeSharedSecrets } from "@/lib/server/subscription-secrets"
 
 // maxDuration configures the timeout for this Vercel function. Mirrors the
 // cron route's budget — the first ccauth run in Daytona can take a few
@@ -121,6 +122,8 @@ export async function PUT(request: NextRequest) {
   // Re-stringify rather than storing `raw`: the value is echoed into a shell
   // command when the sandbox writes .credentials.json, so it must be one line.
   await writeCredentials(JSON.stringify(parsed))
+  // The replaced token's secrets: runs pick up the new one on their next ask.
+  await pruneClaudeSharedSecrets()
 
   return NextResponse.json({
     saved: true,

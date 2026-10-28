@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/db/prisma"
 import { getSharedClaudeAccessToken, SharedClaudeCredentialsUnavailableError } from "@/lib/claude-credentials"
 import { verifyClaudeTokenCapability } from "@/lib/server/claude-token-auth"
-import { mountSharedClaudeSecret } from "@/lib/server/turn-secrets"
+import { mountClaudeSecret } from "@/lib/server/turn-secrets"
+import {
+  OwnClaudeCredentialsExpiredError,
+  OwnClaudeCredentialsUnavailableError,
+  getUserClaudeAccessToken,
+} from "@/lib/server/user-claude-credentials"
 import { Daytona } from "@daytonaio/sdk"
 
 export const runtime = "nodejs"
@@ -20,19 +25,29 @@ export async function GET(request: Request): Promise<Response> {
       select: { id: true, sandboxId: true },
     })
     if (!run) return Response.json({ error: "Run is no longer active" }, { status: 401, headers: RESPONSE_HEADERS })
-    const accessToken = await getSharedClaudeAccessToken()
+    // The user's own subscription is refreshed here when it is about to expire.
+    const accessToken = scope.source === "own"
+      ? await getUserClaudeAccessToken(scope.userId)
+      : await getSharedClaudeAccessToken()
     // Behind a Daytona secret, the run gets its placeholder instead (see
     // lib/server/subscription-secrets); otherwise, or if that fails, the token.
     const daytonaApiKey = process.env.DAYTONA_API_KEY
     const placeholder = daytonaApiKey && run.sandboxId
-      ? await mountSharedClaudeSecret(new Daytona({ apiKey: daytonaApiKey }), run.sandboxId, accessToken)
+      ? await mountClaudeSecret(new Daytona({ apiKey: daytonaApiKey }), run.sandboxId, scope.userId, {
+          source: scope.source,
+          token: accessToken,
+        })
       : undefined
     return Response.json({ accessToken: placeholder ?? accessToken }, { headers: RESPONSE_HEADERS })
   } catch (error) {
-    if (!(error instanceof SharedClaudeCredentialsUnavailableError)) {
+    if (
+      !(error instanceof SharedClaudeCredentialsUnavailableError) &&
+      !(error instanceof OwnClaudeCredentialsExpiredError) &&
+      !(error instanceof OwnClaudeCredentialsUnavailableError)
+    ) {
       // Fetch/DB errors can contain secrets. Log the operation and class only.
       console.error("[claude-token] Credential read failed:", error instanceof Error ? error.name : "Unknown error")
     }
-    return Response.json({ error: "Shared Claude is temporarily unavailable" }, { status: 503, headers: RESPONSE_HEADERS })
+    return Response.json({ error: "Claude credentials are temporarily unavailable" }, { status: 503, headers: RESPONSE_HEADERS })
   }
 }

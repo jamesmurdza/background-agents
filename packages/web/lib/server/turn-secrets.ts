@@ -50,10 +50,11 @@ import {
 import { sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SHARED_MOUNT_ENV,
-  claudeSharedSecretSpec,
+  claudeRunSecretSpec,
   codexAccessToken,
   codexSecretSpec,
   subscriptionSecretsEnabled,
+  type ClaudeRunToken,
 } from "@/lib/server/subscription-secrets"
 import { ensureSharedPoolSecret, sharedPoolSecretForRun } from "@/lib/server/shared-pool-secrets"
 import {
@@ -96,8 +97,8 @@ export const KEEPALIVE_MOUNT_ENV = "SESSION_RELAY_TOKEN_KEEPALIVE"
 export interface TurnSecret {
   /**
    * "env" secrets are pinned: they stay mounted between turns, and so does
-   * {@link KEEPALIVE_SECRET}. "claude" is the shared Claude token, which the
-   * agent fetches itself (see {@link mountSharedClaudeSecret}) rather than
+   * {@link KEEPALIVE_SECRET}. "claude" is the Claude subscription token, the
+   * shared pool's or the user's own, which the agent fetches itself (see {@link mountClaudeSecret}) rather than
    * finding in its env.
    */
   kind: "pool" | "user" | "endpoint" | "env" | "claude" | "keepalive"
@@ -146,14 +147,14 @@ export function planTurnSecrets(params: {
   credentials: Credentials
   endpoints?: CustomEndpoint[]
   envVars?: UserEnvVars
-  /** The shared Claude access token, when the run uses shared Claude. */
-  sharedClaudeToken?: string
+  /** The Claude access token the run fetches (shared or its own subscription's), if any. */
+  claudeToken?: ClaudeRunToken
 }): TurnSecret[] {
-  const { userId, envVars, sharedClaudeToken } = params
+  const { userId, envVars, claudeToken } = params
   const secrets = planKeySecrets(params)
-  if (sharedClaudeToken && subscriptionSecretsEnabled("CLAUDE_SHARED")) {
-    const spec = claudeSharedSecretSpec(sharedClaudeToken)
-    secrets.push({ kind: "claude", name: spec.name, mountEnv: CLAUDE_SHARED_MOUNT_ENV, envValue: sharedClaudeToken, envKeys: [], spec })
+  const claudeSpec = claudeToken && claudeRunSecretSpec(userId, claudeToken)
+  if (claudeToken && claudeSpec) {
+    secrets.push({ kind: "claude", name: claudeSpec.name, mountEnv: CLAUDE_SHARED_MOUNT_ENV, envValue: claudeToken.token, envKeys: [], spec: claudeSpec })
   }
   if (envVars && envVarSecretsEnabled()) {
     for (const envVar of envVars.secrets) {
@@ -343,21 +344,23 @@ export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: Read
 }
 
 /**
- * The placeholder to hand a shared Claude run for `token`, mounting its
- * secret on the run's sandbox first if a turn started on an older token (the
- * token refreshed mid-turn). Undefined when the run should get the token
- * itself: the feature is off, the secret failed, or the sandbox has no
- * secrets enabled, since enabling them restarts it and would kill the run.
- * Never throws.
+ * The placeholder to hand `userId`'s Claude run for `run`'s token (shared or
+ * their own), mounting its secret on the run's sandbox first if a turn
+ * started on an older token (the token refreshed mid-turn). Undefined when
+ * the run should get the token itself: the feature is off, the secret
+ * failed, or the sandbox has no secrets enabled, since enabling them
+ * restarts it and would kill the run. Never throws.
  */
-export async function mountSharedClaudeSecret(
+export async function mountClaudeSecret(
   daytona: Daytona,
   sandboxId: string,
-  token: string
+  userId: string,
+  run: ClaudeRunToken
 ): Promise<string | undefined> {
-  if (!subscriptionSecretsEnabled("CLAUDE_SHARED")) return undefined
+  const spec = claudeRunSecretSpec(userId, run)
+  if (!spec) return undefined
   try {
-    const { name, placeholder } = await ensureSecret(daytona, claudeSharedSecretSpec(token))
+    const { name, placeholder } = await ensureSecret(daytona, spec)
     const sandbox = await daytona.get(sandboxId)
     const { enabled, mounts } = readMounts(sandbox, MOUNT_OPTIONS)
     if (!enabled) return undefined
@@ -367,7 +370,7 @@ export async function mountSharedClaudeSecret(
     await waitForPropagation(await mountSecrets(sandbox, { ...turn, [CLAUDE_SHARED_MOUNT_ENV]: name }, MOUNT_OPTIONS, pinned))
     return placeholder
   } catch (err) {
-    console.error("[turn-secrets] passing the shared Claude token unprotected; its secret failed:", err)
+    console.error(`[turn-secrets] passing the ${run.source} Claude token unprotected; its secret failed:`, err)
     return undefined
   }
 }

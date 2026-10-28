@@ -26,7 +26,7 @@ import { REVERIFY_MS, encodeMounts, stampLastUsed, toSecretMarker } from "@backg
 import { chatEnvScope, encodeEnvVars, envVarSecretSpec, repoEnvScope } from "./env-var-secrets"
 import { endpointSecretSpec } from "./endpoint-secrets"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
-import { CLAUDE_SHARED_SECRET_PREFIX, codexSecretPrefix } from "./subscription-secrets"
+import { CLAUDE_SHARED_SECRET_PREFIX, claudeOwnSecretPrefix, codexSecretPrefix } from "./subscription-secrets"
 import { PINNED_SECRETS_LABEL, TURN_SECRETS_LABEL } from "./turn-secrets"
 import { userKeySecretName, userKeySecretPrefix, userSecretTag } from "./user-key-secrets"
 import {
@@ -111,8 +111,16 @@ describe("planSecretCleanup", () => {
     const keep = userKeySecretName(USER, "OPENAI_API_KEY", "sk-now")
     const stale = userKeySecretName(USER, "OPENAI_API_KEY", "sk-before")
     const codex = [0, 1, 2].map((i) => old(`${codexSecretPrefix(USER)}${i}`, i * 1000))
-    const users = new Map([[TAG, { expected: new Set([keep]), codexPrefix: codexSecretPrefix(USER) }]])
+    const users = new Map([[TAG, { expected: new Set([keep]), tokenPrefixes: [codexSecretPrefix(USER)] }]])
     expect(doomedNames([old(keep), old(stale), ...codex], users)).toEqual([stale, `${codexSecretPrefix(USER)}2`])
+  })
+
+  it("keeps a user's newest two own Claude tokens beside their Codex ones", () => {
+    const prefixes = [codexSecretPrefix(USER), claudeOwnSecretPrefix(USER)]
+    const claude = [0, 1, 2].map((i) => old(`${prefixes[1]}${i}`, i * 1000))
+    const codex = [old(`${prefixes[0]}0`)]
+    const users = new Map([[TAG, { expected: new Set<string>(), tokenPrefixes: prefixes }]])
+    expect(doomedNames([...claude, ...codex], users)).toEqual([`${prefixes[1]}2`])
   })
 
   it("judges a user whose settings couldn't be loaded by use only", () => {
@@ -125,7 +133,7 @@ describe("planSecretCleanup", () => {
   it("deletes any of ours unused for a day, even one its owner's settings still need", () => {
     const current = secretNameForKey(SHARED_KEY_POOLS.opencode, "oc-key-1")
     const keep = userKeySecretName(USER, "OPENAI_API_KEY", "sk-now")
-    const users = new Map([[TAG, { expected: new Set([keep]) }]])
+    const users = new Map([[TAG, { expected: new Set([keep]), tokenPrefixes: [] }]])
     expect(doomedNames([used(current, UNUSED_MS), used(keep, UNUSED_MS + 1)], users)).toEqual([current, keep])
     expect(doomedNames([used(current, UNUSED_MS - 1), used(keep, REVERIFY_MS)], users)).toEqual([])
   })
@@ -176,14 +184,14 @@ describe("loadUserSecretState", () => {
         envVarSecretSpec(USER, { key: "R", value: "r", hosts, scope: repoEnvScope("o/r") }).name,
       ].sort()
     )
-    expect(state.codexPrefix).toBe(codexSecretPrefix(USER))
+    expect(state.tokenPrefixes).toEqual([codexSecretPrefix(USER)])
   })
 
   it("expects nothing a feature that's off would create", async () => {
     process.env.DAYTONA_USER_KEY_SECRETS = ""
     db.credentials.mockResolvedValue({ OPENAI_API_KEY: "sk-own", CODEX_CREDENTIALS: "{}" })
     const state = await loadUserSecretState(USER)
-    expect(state).toEqual({ expected: new Set(), codexPrefix: undefined })
+    expect(state).toEqual({ expected: new Set(), tokenPrefixes: [] })
   })
 })
 

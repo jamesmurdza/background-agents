@@ -24,6 +24,7 @@ import {
   validateEndpoints,
 } from "@/lib/server/custom-endpoints"
 import { withUserLock } from "@/lib/server/codex-credentials"
+import { pruneClaudeOwnSecrets } from "@/lib/server/subscription-secrets"
 import { syncUserKeySecret } from "@/lib/server/user-key-secrets"
 import { syncEndpointSecrets } from "@/lib/server/endpoint-secrets"
 import { getProviderMultipliers } from "@/lib/db/provider-pricing"
@@ -251,6 +252,10 @@ export async function PATCH(req: NextRequest): Promise<Response> {
         .filter(([key, value]) => isCredentialId(key) && isClientWritableCredential(key) && value !== "***")
         .map(([key, value]) => syncUserKeySecret(userId, key, typeof value === "string" && value ? value : undefined)),
       ...(incoming ? [syncEndpointSecrets(userId, incoming)] : []),
+      // A replaced or removed Claude login: its access tokens' secrets go too.
+      ...(body.credentials?.CLAUDE_CODE_CREDENTIALS !== undefined && body.credentials.CLAUDE_CODE_CREDENTIALS !== "***"
+        ? [pruneClaudeOwnSecrets(userId, { all: true })]
+        : []),
     ])
 
     // After updating credentials, recompute effective flags

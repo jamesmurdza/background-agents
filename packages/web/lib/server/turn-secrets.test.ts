@@ -9,7 +9,7 @@ import { agentModels, getEnvForModel, type Agent, type CredentialId, type Custom
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
 import { USER_KEY_PROVIDERS, userKeySecretName, userKeySecretSpec } from "./user-key-secrets"
 import { envVarSecretSpec, type EnvVarSecret } from "./env-var-secrets"
-import { claudeSharedSecretSpec, codexSecretSpec } from "./subscription-secrets"
+import { claudeOwnSecretPrefix, claudeSharedSecretSpec, codexSecretSpec } from "./subscription-secrets"
 import { buildCodexAuthJson } from "@/lib/codex-credentials"
 import {
   PINNED_SECRETS_LABEL as PINNED,
@@ -18,7 +18,7 @@ import {
   KEEPALIVE_SECRET,
   applyTurnSecretsToEnv,
   ensureTurnSecrets,
-  mountSharedClaudeSecret,
+  mountClaudeSecret,
   mountTurnSecrets,
   planTurnSecrets,
   poolSecretOf,
@@ -323,23 +323,41 @@ describe("planTurnSecrets with subscriptions", () => {
   it("plans the shared Claude token, which no env var carries", () => {
     process.env.DAYTONA_USER_KEY_SECRETS = "CLAUDE_SHARED"
     expect(
-      planTurnSecrets({ userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, sharedClaudeToken: "sk-ant-oat01-x" })
+      planTurnSecrets({ userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, claudeToken: { source: "shared", token: "sk-ant-oat01-x" } })
     ).toMatchObject([
       { kind: "claude", name: claudeSharedSecretSpec("sk-ant-oat01-x").name, mountEnv: "SESSION_RELAY_TOKEN_CLAUDE", envKeys: [] },
     ])
+  })
+
+  it("plans the user's own Claude subscription token under their name", () => {
+    process.env.DAYTONA_USER_KEY_SECRETS = "CLAUDE_CODE_CREDENTIALS"
+    const [secret, ...rest] = planTurnSecrets({
+      userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, claudeToken: { source: "own", token: "sk-ant-oat01-own" },
+    })
+    expect(rest).toEqual([])
+    expect(secret).toMatchObject({ kind: "claude", mountEnv: "SESSION_RELAY_TOKEN_CLAUDE", envKeys: [] })
+    expect(secret.name.startsWith(claudeOwnSecretPrefix(USER))).toBe(true)
+    expect(secret.spec?.hosts).toEqual(["api.anthropic.com"])
+    // Its flag is separate from the shared token's.
+    process.env.DAYTONA_USER_KEY_SECRETS = "CLAUDE_SHARED"
+    expect(planTurnSecrets({
+      userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, claudeToken: { source: "own", token: "t" },
+    })).toEqual([])
   })
 
   it("plans neither when left out", () => {
     process.env.DAYTONA_USER_KEY_SECRETS = "OPENAI_API_KEY"
     const run = () => [
       ...planTurnSecrets({ userId: USER, agent: "codex", model: "gpt-6.1-sol", credentials: { CODEX_CREDENTIALS: authJson } }),
-      ...planTurnSecrets({ userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, sharedClaudeToken: "t" }),
+      ...planTurnSecrets({ userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, claudeToken: { source: "shared", token: "t" } }),
+      ...planTurnSecrets({ userId: USER, agent: "claude-code", model: "sonnet", credentials: {}, claudeToken: { source: "own", token: "t" } }),
     ]
     expect(run()).toEqual([])
   })
 })
 
-describe("mountSharedClaudeSecret", () => {
+describe("mountClaudeSecret", () => {
+  const shared = (token: string) => ({ source: "shared" as const, token })
   function daytonaWith(sandbox: ReturnType<typeof fakeSandbox>) {
     const { secret, daytona } = fakeDaytona()
     ;(daytona as unknown as { get: unknown }).get = vi.fn().mockResolvedValue(sandbox)
@@ -354,7 +372,7 @@ describe("mountSharedClaudeSecret", () => {
     const name = claudeSharedSecretSpec(`tok-${counter}`).name
     const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN_CLAUDE:${name}` })
     const { daytona } = daytonaWith(sandbox)
-    expect(await mountSharedClaudeSecret(daytona, "sb-1", `tok-${counter++}`)).toBe(placeholderFor(name))
+    expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).toBe(placeholderFor(name))
     expect(sandbox.updateSecrets).not.toHaveBeenCalled()
   })
 
@@ -370,7 +388,7 @@ describe("mountSharedClaudeSecret", () => {
     const { daytona } = daytonaWith(sandbox)
     const token = `new-token-${counter++}`
     const name = claudeSharedSecretSpec(token).name
-    expect(await mountSharedClaudeSecret(daytona, "sb-1", token)).toBe(placeholderFor(name))
+    expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(token))).toBe(placeholderFor(name))
     expect(sandbox.updateSecrets).toHaveBeenCalledWith({
       STRIPE_KEY: stripe.name,
       SESSION_RELAY_TOKEN_CLAUDE: name,
@@ -383,7 +401,7 @@ describe("mountSharedClaudeSecret", () => {
   it("never enables secrets mid-run: that restart would kill the agent", async () => {
     const sandbox = fakeSandbox({ repo: "o/r" })
     const { daytona } = daytonaWith(sandbox)
-    expect(await mountSharedClaudeSecret(daytona, "sb-1", `tok-${counter++}`)).toBeUndefined()
+    expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).toBeUndefined()
     expect(sandbox.updateSecrets).not.toHaveBeenCalled()
   })
 
@@ -391,9 +409,9 @@ describe("mountSharedClaudeSecret", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     const { secret, daytona } = daytonaWith(fakeSandbox({ [LABEL]: "none" }))
     secret.list.mockRejectedValue(new Error("403"))
-    expect(await mountSharedClaudeSecret(daytona, "sb-1", `tok-${counter++}`)).toBeUndefined()
+    expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).toBeUndefined()
     process.env.DAYTONA_USER_KEY_SECRETS = ""
-    expect(await mountSharedClaudeSecret(daytona, "sb-1", `tok-${counter++}`)).toBeUndefined()
+    expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).toBeUndefined()
   })
 })
 
