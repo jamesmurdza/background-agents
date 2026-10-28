@@ -10,6 +10,9 @@
  * key (it accepted the placeholder, trusted the proxy and reached the API).
  *
  *   npx tsx scripts/verify-daytona-secrets.ts [proxy] [restart] [limits] [cli] [--out file.json]
+ *
+ * `quota` (creates up to 1000 secrets to find the org's limit) only runs when
+ * named.
  */
 import { config } from "dotenv"
 import { createHash, randomBytes } from "node:crypto"
@@ -499,6 +502,56 @@ async function realSection() {
 let deletedSandboxes = 0
 
 /** Deletes this run's sandboxes; called after each section to stay under the org's memory limit. */
+// ─── quota: how many secrets an org and a sandbox can hold ───────────────────
+//
+// Daytona keeps both as org settings (secretQuota, maxSecretsPerSandbox) that
+// an API key can't read, so this probes them. Only runs when named.
+
+const QUOTA_CAP = 1000
+
+async function quotaSection() {
+  const S = "quota"
+  const { total: existing } = await daytona.secret.list({ limit: 1 })
+  record(S, "secrets already in the org", "info", String(existing))
+
+  const names: string[] = []
+  let refusal = ""
+  for (let i = 0; i < QUOTA_CAP && !refusal; i += 10) {
+    const batch = await Promise.allSettled(
+      Array.from({ length: 10 }, (_, j) => makeSecret(`q${i + j}`, randomValue("q"), [ECHO_HOST]))
+    )
+    for (const r of batch) {
+      if (r.status === "fulfilled") names.push(r.value.name)
+      else refusal ||= errorText(r.reason)
+    }
+    if ((i + 10) % 100 === 0) console.log(`  created ${names.length}`)
+  }
+  record(
+    S,
+    "org secret limit",
+    refusal ? "REACHED" : "NOT REACHED",
+    refusal
+      ? `refused after ${names.length} new (${existing + names.length} total): ${refusal}`
+      : `${names.length} created on top of ${existing}, no refusal`
+  )
+
+  if (names.length < 2) return
+  const sandbox = await makeSandbox({ PROBE_0: names[0] })
+  let mounted = 1
+  for (const size of [5, 10, 15, 20, 21, 25, 30, 50, 100]) {
+    if (size > names.length) break
+    const set = Object.fromEntries(names.slice(0, size).map((name, k) => [`PROBE_${k}`, name]))
+    try {
+      await sandbox.updateSecrets(set)
+      mounted = size
+    } catch (err) {
+      record(S, "per-sandbox mount limit", "REACHED", `${mounted} mounted fine, ${size} refused: ${errorText(err)}`)
+      return
+    }
+  }
+  record(S, "per-sandbox mount limit", "NOT REACHED", `${mounted} mounted on one sandbox`)
+}
+
 async function dropSandboxes() {
   for (const sandbox of sandboxes.splice(0)) {
     await sandbox.delete().catch(() => {})
@@ -508,10 +561,19 @@ async function dropSandboxes() {
 
 async function cleanup() {
   await dropSandboxes()
-  for (const id of secretIds.values()) await daytona.secret.delete(id).catch(() => {})
+  const ids = [...secretIds.values()]
+  for (let i = 0; i < ids.length; i += 10) {
+    await Promise.all(ids.slice(i, i + 10).map((id) => daytona.secret.delete(id).catch(() => {})))
+  }
   try {
-    const { items } = await daytona.secret.list({ name: PREFIX, limit: 200 })
-    for (const s of items) if (s.name.startsWith(PREFIX)) await daytona.secret.delete(s.id).catch(() => {})
+    let cursor: string | undefined
+    const leftover: string[] = []
+    do {
+      const page = await daytona.secret.list({ name: PREFIX, limit: 200, cursor })
+      for (const s of page.items) if (s.name.startsWith(PREFIX)) leftover.push(s.id)
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+    for (const id of leftover) await daytona.secret.delete(id).catch(() => {})
   } catch { /* best effort */ }
   console.log(`cleaned up ${deletedSandboxes} sandboxes and secrets with prefix ${PREFIX}`)
 }
@@ -558,6 +620,7 @@ async function main() {
     await section("cli", cliSection)
     await section("control", controlSection)
     await section("real", realSection)
+    if (sections.includes("quota")) await section("quota", quotaSection)
   } finally {
     await cleanup()
     if (out) writeFileSync(out, JSON.stringify(results, null, 2))
