@@ -55,6 +55,8 @@ await releaseSecrets(sandbox, OPTIONS)
 
 The sandbox label stores the mounted set as `ENV:secret` pairs joined by `:` (or `none` when nothing is mounted). `mountSecrets` skips the API call when the label already matches, restarts a sandbox that has never had secrets, and rolls back if it fails partway. `releaseSecrets` writes the label first so a failure can never leave a label claiming mounts that are gone.
 
+`deleteSecrets(daytona, { prefix, keep })` removes a family of secrets (e.g. one user's stale keys); `forgetSecrets(names)` makes `ensureSecret` look again for names that may have been deleted by another process.
+
 To pass a reference to a secret through code that expects a credential value, use `toSecretMarker(name)` / `parseSecretMarker(value)`.
 
 The Daytona API key needs the secrets permissions.

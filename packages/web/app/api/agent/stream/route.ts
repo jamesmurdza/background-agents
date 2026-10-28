@@ -12,7 +12,7 @@ import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
 import { isAuthError, requireChatStreamAccess, serverConfigError } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
-import { releaseSharedPoolSecrets } from "@/lib/server/shared-pool-secrets"
+import { releaseTurnSecrets } from "@/lib/server/turn-secrets"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
 import { persistAgentSnapshot } from "./_lib/persist-snapshot"
@@ -263,10 +263,10 @@ export async function GET(req: Request) {
             try {
               await finalizeTurn(sandbox, backgroundSessionId, sessionOpts)
             } finally {
-              // The agent is done: stop the shared pool placeholder from
-              // working until the next turn mounts it again. In a finally, as
+              // The agent is done: stop the turn's secret placeholders from
+              // working until the next turn mounts them again. In a finally, as
               // the chat is still released below when finalizeTurn throws.
-              await releaseSharedPoolSecrets(sandbox)
+              await releaseTurnSecrets(sandbox)
             }
 
             // Meter token/cost usage via tokscale while the sandbox is still

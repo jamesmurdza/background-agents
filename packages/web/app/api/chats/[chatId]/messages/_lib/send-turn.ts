@@ -13,14 +13,14 @@ import {
 import { buildUsageMeta } from "@/lib/server/shared-pool"
 import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
-  applyPoolSecretToEnv,
-  ensureSharedPoolSecret,
-  mountSharedPoolSecret,
-  releaseSharedPoolSecrets,
-  sharedPoolSecretForRun,
-  waitForPoolSecret,
-  type MountedPoolSecret,
-} from "@/lib/server/shared-pool-secrets"
+  applyTurnSecretsToEnv,
+  ensureTurnSecrets,
+  mountTurnSecrets,
+  planTurnSecrets,
+  poolSecretOf,
+  releaseTurnSecrets,
+  waitForTurnSecrets,
+} from "@/lib/server/turn-secrets"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
 import { loadMcpConnections } from "@/lib/mcp/agent-servers"
@@ -103,30 +103,29 @@ export async function sendChatTurn({
   }
   let turnPersisted = false
 
-  // Shared pool secret for this run, if any.
-  const poolSecret = sharedPoolSecretForRun(credentials, payload.agent as Agent, payload.model)
-  // Set once the secret is mounted, so a turn that never starts detaches it again.
+  // Secrets for this run's keys (shared pool and the user's own), if any.
+  const plannedSecrets = planTurnSecrets({
+    userId, agent: payload.agent as Agent, model: payload.model, credentials, endpoints: customEndpoints,
+  })
+  // Set once the sandbox is known, so a turn that never starts detaches its secrets again.
   let secretSandbox: DaytonaSandbox | undefined
 
   try {
-    // Created from the pool's env var on first use; needed before the
-    // sandbox below is created with it or it is mounted.
-    if (poolSecret) await ensureSharedPoolSecret(daytona, poolSecret)
+    // Created on first use; needed before the sandbox below is created with
+    // them or they are mounted.
+    const turnSecrets = await ensureTurnSecrets(daytona, userId, plannedSecrets)
 
     const ensured = await ensureSandboxForChat({
-      daytona, chat, chatId, payload, githubToken, userId, state, poolSecret,
+      daytona, chat, chatId, payload, githubToken, userId, state, turnSecrets,
     })
     if (ensured instanceof Response) return ensured
     const { sandbox, sandboxId, branch, previewUrlPattern, createdSandbox, branchRestored } = ensured
 
-    // Mount the shared pool secret for this turn now, so Daytona's
-    // propagation delay overlaps the pull/upload work below. Detached again
-    // wherever the turn ends (see lib/server/shared-pool-secrets).
-    let mountedPoolSecret: MountedPoolSecret | undefined
-    if (poolSecret) {
-      mountedPoolSecret = await mountSharedPoolSecret(sandbox, daytona, poolSecret)
-      secretSandbox = sandbox
-    }
+    // Mount this turn's secrets now, so Daytona's propagation delay overlaps
+    // the pull/upload work below. Detached again wherever the turn ends (see
+    // lib/server/turn-secrets).
+    secretSandbox = sandbox
+    const mountedSecrets = await mountTurnSecrets(sandbox, turnSecrets)
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
     const pull = await runPreRunPull({
@@ -152,8 +151,8 @@ export async function sendChatTurn({
     const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
     let env = await buildAgentEnv({ chat, userId, payload, credentials, customEndpoints })
     if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId, chatId, backgroundSessionId })
-    // Hand the agent the mounted secret's placeholder instead of the marker.
-    applyPoolSecretToEnv(env, mountedPoolSecret)
+    // Hand the agent the mounted secrets' placeholders instead of the keys.
+    applyTurnSecretsToEnv(env, turnSecrets)
     let mcpServers: Awaited<ReturnType<typeof loadMcpConnections>> = []
     try {
       mcpServers = await loadMcpConnections({ kind: "chat", id: chatId })
@@ -183,14 +182,14 @@ export async function sendChatTurn({
       where: { id: userId }, select: { credentials: true },
     })
     // The key actually handed to the agent — for a shared pool run that's
-    // the secret the sandbox has mounted (which may differ from the one
-    // pickSharedKey chose) — so fingerprinting it here is what makes
-    // per-key spend attributable later.
+    // the secret the sandbox has mounted — so fingerprinting it here is what
+    // makes per-key spend attributable later.
+    const poolSecretName = poolSecretOf(turnSecrets)
     const usageMeta = buildUsageMeta(
       payload.agent as Agent,
       decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
       payload.model,
-      mountedPoolSecret ? toSecretMarker(mountedPoolSecret.name) : credentials.OPENCODE_API_KEY
+      poolSecretName ? toSecretMarker(poolSecretName) : credentials.OPENCODE_API_KEY
     )
 
     await persistTurn({
@@ -200,7 +199,7 @@ export async function sendChatTurn({
       claimedPromptId,
     })
     turnPersisted = true
-    if (mountedPoolSecret) await waitForPoolSecret(mountedPoolSecret)
+    await waitForTurnSecrets(mountedSecrets)
     await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     logActivityAsync(userId, "message_sent", {
@@ -236,7 +235,7 @@ export async function sendChatTurn({
   } finally {
     // The turn never started, so nothing else will detach the secret. A
     // persisted turn keeps it: Stop/cron finalize detach it with the turn.
-    if (!turnPersisted && secretSandbox) await releaseSharedPoolSecrets(secretSandbox)
+    if (!turnPersisted && secretSandbox) await releaseTurnSecrets(secretSandbox)
     // A pre-run rejection must not strand a direct send in "creating".
     // Queue claims are released by the caller, which also pauses the queue.
     if (!turnPersisted && !claimedPromptId) {

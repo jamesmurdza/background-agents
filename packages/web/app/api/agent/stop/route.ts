@@ -3,7 +3,7 @@ import { PATHS } from "@/lib/constants"
 import { cancelBackgroundAgent, snapshotBackgroundAgent } from "@/lib/agent-session"
 import { persistAgentSnapshot } from "../stream/_lib/persist-snapshot"
 import { prisma } from "@/lib/db/prisma"
-import { releaseSharedPoolSecrets } from "@/lib/server/shared-pool-secrets"
+import { releaseTurnSecrets } from "@/lib/server/turn-secrets"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { abandonFinalization, claimTurnFinalization, releaseTurn } from "@/lib/server/turn-ownership"
 import {
@@ -133,8 +133,8 @@ export async function POST(req: Request) {
     if (!(await persistAgentSnapshot({ prisma, turn, snapshot: after, finalizationClaimId: claimId })).persisted) {
       throw new Error("Agent stopped but final output could not be saved; retry Stop")
     }
-    // Detach the shared pool secret before the chat is released below.
-    await releaseSharedPoolSecrets(sandbox)
+    // Detach the turn secrets before the chat is released below.
+    await releaseTurnSecrets(sandbox)
 
     // Update database to mark chat as ready
     if (!await releaseTurn(turn, claimId, "ready", after.sessionId, { pauseQueue: true })) {

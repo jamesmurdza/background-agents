@@ -16,7 +16,7 @@ import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import { sleep } from "@/lib/utils"
-import { sharedPoolSecretCreateParams } from "@/lib/server/shared-pool-secrets"
+import { turnSecretsCreateParams, type TurnSecret } from "@/lib/server/turn-secrets"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -144,11 +144,11 @@ export interface CreateSandboxOptions {
    */
   restoreExistingBranch?: boolean
   /**
-   * Shared pool secret to mount from the start (see
-   * lib/server/shared-pool-secrets). Mounting at creation avoids the restart a
-   * sandbox created without secrets would need later.
+   * The turn's secrets, mounted from the start (see lib/server/turn-secrets).
+   * Mounting at creation avoids the restart a sandbox created without
+   * secrets would need later.
    */
-  poolSecret?: string
+  turnSecrets?: TurnSecret[]
 }
 
 export interface CreatedSandbox {
@@ -179,7 +179,7 @@ function generateSandboxName(userId?: string): string {
 export async function createSandboxForChat(
   options: CreateSandboxOptions
 ): Promise<CreatedSandbox> {
-  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch, poolSecret } = options
+  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch, turnSecrets } = options
   const isNewRepo = repo === NEW_REPOSITORY || repo === "__new__"
   const repoName = "project"
   let branchRestored: boolean | undefined
@@ -198,7 +198,7 @@ export async function createSandboxForChat(
     }
   }
 
-  const secretParams = poolSecret ? sharedPoolSecretCreateParams(poolSecret) : undefined
+  const secretParams = turnSecretsCreateParams(turnSecrets ?? [])
   const sandbox = await daytona.create({
     name: generateSandboxName(userId),
     snapshot: await getActiveSnapshotName(daytona),

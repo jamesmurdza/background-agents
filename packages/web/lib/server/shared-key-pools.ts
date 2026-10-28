@@ -31,7 +31,7 @@ export interface SharedKeyPool {
   /**
    * Env var a pool secret is mounted as inside the sandbox. Deliberately not
    * a name any CLI reads on its own: only the agent's process is handed the
-   * placeholder (see applyPoolSecretToEnv).
+   * placeholder (see lib/server/turn-secrets).
    */
   mountEnv: string
   /** Human name, for secret descriptions and errors. */

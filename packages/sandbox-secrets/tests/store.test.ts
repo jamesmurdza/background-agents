@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import { DaytonaConflictError, type Daytona } from "@daytonaio/sdk"
 
-import { ensureSecret } from "../src/index"
+import { deleteSecrets, ensureSecret, forgetSecrets } from "../src/index"
 
 const placeholderFor = (name: string) => `dtn_secret_${name}`
 
@@ -71,6 +71,15 @@ describe("ensureSecret", () => {
     expect(secret.create).toHaveBeenCalledTimes(1)
   })
 
+  it("checks again after forgetSecrets", async () => {
+    const name = uniqueName()
+    const { secret, daytona } = fakeDaytona([name])
+    await ensureSecret(daytona, { name, value: () => "v" })
+    forgetSecrets([name])
+    await ensureSecret(daytona, { name, value: () => "v" })
+    expect(secret.list).toHaveBeenCalledTimes(2)
+  })
+
   it("calls the value resolver first, so it can refuse an unknown name", async () => {
     const { secret, daytona } = fakeDaytona()
     const value = () => {
@@ -78,5 +87,42 @@ describe("ensureSecret", () => {
     }
     await expect(ensureSecret(daytona, { name: uniqueName(), value })).rejects.toThrow("unknown secret")
     expect(secret.list).not.toHaveBeenCalled()
+  })
+})
+
+describe("deleteSecrets", () => {
+  function listing(pages: { name: string }[][]) {
+    const secret = {
+      list: vi.fn(),
+      delete: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: placeholderFor(name) })),
+    }
+    pages.forEach((items, i) =>
+      secret.list.mockResolvedValueOnce({
+        items: items.map((s) => ({ ...s, id: `id_${s.name}`, placeholder: placeholderFor(s.name) })),
+        nextCursor: i < pages.length - 1 ? `c${i + 1}` : null,
+      })
+    )
+    return { secret, daytona: { secret } as unknown as Daytona }
+  }
+
+  it("deletes every page's prefixed secrets except those kept", async () => {
+    const { secret, daytona } = listing([
+      [{ name: "u_a_old1" }, { name: "x_u_a_other" }],
+      [{ name: "u_a_keep" }, { name: "u_a_old2" }],
+    ])
+    expect(await deleteSecrets(daytona, { prefix: "u_a_", keep: ["u_a_keep"] })).toEqual(["u_a_old1", "u_a_old2"])
+    expect(secret.list).toHaveBeenNthCalledWith(2, { name: "u_a_", cursor: "c1", limit: 200 })
+    expect(secret.delete.mock.calls).toEqual([["id_u_a_old1"], ["id_u_a_old2"]])
+  })
+
+  it("makes a deleted secret be checked for again", async () => {
+    const name = uniqueName()
+    const { secret, daytona } = listing([[{ name }], [{ name }]])
+    await ensureSecret(daytona, { name, value: () => "v" }) // found: memoized, not created
+    await deleteSecrets(daytona, { prefix: name })
+    secret.list.mockResolvedValueOnce({ items: [] })
+    await ensureSecret(daytona, { name, value: () => "v" })
+    expect(secret.create).toHaveBeenCalledTimes(1)
   })
 })

@@ -49,6 +49,42 @@ export function ensureSecret(daytona: Daytona, spec: EnsureSecretSpec): Promise<
   return ensured
 }
 
+/**
+ * Forget that `names` were ensured, so the next {@link ensureSecret} for each
+ * checks Daytona again. For when one may have been deleted behind this
+ * process's back, e.g. after a mount naming it was rejected.
+ */
+export function forgetSecrets(names: Iterable<string>): void {
+  for (const name of names) ensuredSecrets.delete(name)
+}
+
+/**
+ * Delete every secret whose name starts with `prefix`, except those in
+ * `keep`, and return the names deleted. A sandbox with one of them mounted
+ * stops getting it swapped within about half a minute, and stays up.
+ */
+export async function deleteSecrets(
+  daytona: Daytona,
+  { prefix, keep = [] }: { prefix: string; keep?: string[] }
+): Promise<string[]> {
+  const doomed: { id: string; name: string }[] = []
+  let cursor: string | undefined
+  do {
+    // `name` is a partial-match filter, hence the prefix check.
+    const page = await daytona.secret.list({ name: prefix, cursor, limit: 200 })
+    for (const s of page.items) {
+      if (s.name.startsWith(prefix) && !keep.includes(s.name)) doomed.push({ id: s.id, name: s.name })
+    }
+    cursor = page.nextCursor ?? undefined
+  } while (cursor)
+
+  for (const { id, name } of doomed) {
+    await daytona.secret.delete(id)
+    ensuredSecrets.delete(name)
+  }
+  return doomed.map((s) => s.name)
+}
+
 async function findSecret(daytona: Daytona, name: string): Promise<EnsuredSecret | undefined> {
   // `name` is a partial-match filter, hence the exact comparison.
   const { items } = await daytona.secret.list({ name })

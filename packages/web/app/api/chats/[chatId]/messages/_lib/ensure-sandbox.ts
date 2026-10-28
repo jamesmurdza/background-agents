@@ -7,6 +7,7 @@ import {
   ensureSandboxStarted,
   installSkillsForRepo,
 } from "@/lib/sandbox"
+import type { TurnSecret } from "@/lib/server/turn-secrets"
 import type { ChatRecord, MessagePayload } from "./types"
 
 type DaytonaSandbox = Awaited<ReturnType<Daytona["get"]>>
@@ -73,10 +74,10 @@ export async function ensureSandboxForChat(params: {
   githubToken: string | null
   userId: string
   state: SandboxState
-  /** Shared pool secret to mount if a sandbox has to be created. */
-  poolSecret?: string
+  /** The turn's secrets, to mount if a sandbox has to be created. */
+  turnSecrets?: TurnSecret[]
 }): Promise<EnsuredSandbox | Response> {
-  const { daytona, chat, chatId, payload, githubToken, userId, state, poolSecret } = params
+  const { daytona, chat, chatId, payload, githubToken, userId, state, turnSecrets } = params
 
   let sandboxId = state.sandboxId
   let branch = state.branch
@@ -132,7 +133,7 @@ export async function ensureSandboxForChat(params: {
       githubToken: githubToken ?? undefined,
       userId,
       restoreExistingBranch,
-      poolSecret,
+      turnSecrets,
     })
 
     sandbox = created.sandbox
