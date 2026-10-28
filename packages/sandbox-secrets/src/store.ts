@@ -60,23 +60,36 @@ export function forgetSecrets(names: Iterable<string>): void {
 
 /**
  * Delete every secret whose name starts with `prefix`, except those in
- * `keep`, and return the names deleted. A sandbox with one of them mounted
- * stops getting it swapped within about half a minute, and stays up.
+ * `keep` and the `keepNewest` most recently created, and return the names
+ * deleted. A sandbox with one of them mounted stops getting it swapped within
+ * about half a minute, and stays up.
+ *
+ * `keepNewest` is for values that rotate (an OAuth access token): pruning on
+ * each rotation while keeping the newest few leaves a turn that started on
+ * the previous value working.
  */
 export async function deleteSecrets(
   daytona: Daytona,
-  { prefix, keep = [] }: { prefix: string; keep?: string[] }
+  { prefix, keep = [], keepNewest = 0 }: { prefix: string; keep?: string[]; keepNewest?: number }
 ): Promise<string[]> {
-  const doomed: { id: string; name: string }[] = []
+  const matching: { id: string; name: string; createdAt: number }[] = []
   let cursor: string | undefined
   do {
     // `name` is a partial-match filter, hence the prefix check.
     const page = await daytona.secret.list({ name: prefix, cursor, limit: 200 })
     for (const s of page.items) {
-      if (s.name.startsWith(prefix) && !keep.includes(s.name)) doomed.push({ id: s.id, name: s.name })
+      if (s.name.startsWith(prefix)) matching.push({ id: s.id, name: s.name, createdAt: new Date(s.createdAt).getTime() })
     }
     cursor = page.nextCursor ?? undefined
   } while (cursor)
+
+  const newest = new Set(
+    [...matching]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, keepNewest)
+      .map((s) => s.name)
+  )
+  const doomed = matching.filter((s) => !keep.includes(s.name) && !newest.has(s.name))
 
   for (const { id, name } of doomed) {
     await daytona.secret.delete(id)

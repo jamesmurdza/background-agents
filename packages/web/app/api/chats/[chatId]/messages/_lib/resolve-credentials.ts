@@ -13,6 +13,8 @@ export interface ResolvedCredentials {
   githubToken: string | null
   /** True when the shared pool should supply this run's OAuth access token. */
   useSharedClaude: boolean
+  /** The shared access token as of now, for putting it behind a secret (lib/server/turn-secrets). */
+  sharedClaudeToken?: string
 }
 
 /**
@@ -69,6 +71,7 @@ export async function resolveSendCredentials(
   // Validate shared credentials before claiming a turn. The SDK's OAuth host
   // callback obtains only access tokens; shared refresh tokens stay here.
   let useSharedClaude = false
+  let sharedClaudeToken: string | undefined
   if (
     payload.agent === "claude-code" &&
     // A custom endpoint (any `endpoint:<id>`) supplies its own auth, so never
@@ -77,7 +80,7 @@ export async function resolveSendCredentials(
     !credentials.CLAUDE_CODE_CREDENTIALS
   ) {
     try {
-      await getSharedClaudeAccessToken()
+      sharedClaudeToken = await getSharedClaudeAccessToken()
       useSharedClaude = true
     } catch (err) {
       console.error(
@@ -106,5 +109,5 @@ export async function resolveSendCredentials(
     payload.model
   )
 
-  return { credentials, githubToken, useSharedClaude }
+  return { credentials, githubToken, useSharedClaude, sharedClaudeToken }
 }

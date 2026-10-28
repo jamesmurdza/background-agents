@@ -91,7 +91,7 @@ describe("ensureSecret", () => {
 })
 
 describe("deleteSecrets", () => {
-  function listing(pages: { name: string }[][]) {
+  function listing(pages: { name: string; createdAt?: string }[][]) {
     const secret = {
       list: vi.fn(),
       delete: vi.fn().mockResolvedValue(undefined),
@@ -114,6 +114,19 @@ describe("deleteSecrets", () => {
     expect(await deleteSecrets(daytona, { prefix: "u_a_", keep: ["u_a_keep"] })).toEqual(["u_a_old1", "u_a_old2"])
     expect(secret.list).toHaveBeenNthCalledWith(2, { name: "u_a_", cursor: "c1", limit: 200 })
     expect(secret.delete.mock.calls).toEqual([["id_u_a_old1"], ["id_u_a_old2"]])
+  })
+
+  it("keeps the newest few when asked, for values that rotate", async () => {
+    const { secret, daytona } = listing([
+      [
+        { name: "c_1", createdAt: "2026-10-01T00:00:00Z" },
+        { name: "c_3", createdAt: "2026-10-03T00:00:00Z" },
+        { name: "c_2", createdAt: "2026-10-02T00:00:00Z" },
+        { name: "c_0", createdAt: "2026-09-30T00:00:00Z" },
+      ],
+    ])
+    expect(await deleteSecrets(daytona, { prefix: "c_", keepNewest: 2 })).toEqual(["c_1", "c_0"])
+    expect(secret.delete.mock.calls).toEqual([["id_c_1"], ["id_c_0"]])
   })
 
   it("makes a deleted secret be checked for again", async () => {

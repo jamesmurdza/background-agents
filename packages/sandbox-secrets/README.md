@@ -55,6 +55,10 @@ await releaseSecrets(sandbox, OPTIONS)
 
 The sandbox label stores the mounted set as `ENV:secret` pairs joined by `:` (or `none` when nothing is mounted). `mountSecrets` skips the API call when the label already matches, restarts a sandbox that has never had secrets, and rolls back if it fails partway. `releaseSecrets` writes the label first so a failure can never leave a label claiming mounts that are gone.
 
+### Rotating values
+
+Name a rotating value's secret after the value too (`contentSecretName`), so each new value gets a new placeholder. When it rotates, prune with `deleteSecrets(daytona, { prefix, keepNewest: 2 })`: that keeps the newest two, so anything still using the previous value keeps working until it moves on.
+
 ### Pinned secrets
 
 Some secrets should stay mounted between uses, for example a value a long-running dev server needs. Set `pinnedLabel` in the options and pass them as `mountSecrets`' fourth argument (`secretsCreateParams`' third). They are mounted alongside the others, and `releaseSecrets` keeps them by default. Passing an explicit `keep` to `releaseSecrets` records that set as the new pinned one.

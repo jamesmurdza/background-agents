@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-const state = vi.hoisted(() => ({ run: vi.fn(), credentials: vi.fn() }))
+const state = vi.hoisted(() => ({ run: vi.fn(), credentials: vi.fn(), mount: vi.fn() }))
+vi.mock("@/lib/server/turn-secrets", () => ({ mountSharedClaudeSecret: state.mount }))
 vi.mock("@/lib/db/prisma", () => ({ prisma: {
   chat: { findFirst: state.run }, ccAuthInfo: { findUnique: state.credentials },
 } }))
@@ -17,6 +18,7 @@ beforeEach(() => {
   vi.stubEnv("NEXTAUTH_SECRET", "token-read-signing-test")
   state.run.mockReset().mockResolvedValue({ id: scope.chatId })
   state.credentials.mockReset().mockResolvedValue(grant("access-test"))
+  state.mount.mockReset().mockResolvedValue(undefined)
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -29,7 +31,17 @@ describe("Claude host token reads", () => {
     expect(await (await GET(request())).json()).toEqual({ accessToken: "new-access-test" })
     expect(state.credentials).toHaveBeenCalledTimes(2)
     expect(state.run).toHaveBeenCalledWith({ where: { userId: scope.userId, backgroundSessionId: scope.backgroundSessionId, id: scope.chatId,
-      agent: "claude-code", status: "running" }, select: { id: true } })
+      agent: "claude-code", status: "running" }, select: { id: true, sandboxId: true } })
+  })
+
+  it("hands a run on a sandbox the token's Daytona secret placeholder instead, when there is one", async () => {
+    vi.stubEnv("DAYTONA_API_KEY", "dtn-test")
+    state.run.mockResolvedValue({ id: scope.chatId, sandboxId: "sb-test" })
+    state.mount.mockResolvedValueOnce("dtn_secret_test")
+    expect(await (await GET(request())).json()).toEqual({ accessToken: "dtn_secret_test" })
+    expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", "access-test")
+    // No placeholder (feature off, secret failed): the token, as before.
+    expect(await (await GET(request())).json()).toEqual({ accessToken: "access-test" })
   })
 
   it("rejects invalid capabilities before querying credentials", async () => {

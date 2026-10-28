@@ -25,6 +25,7 @@ import {
   getCookies,
   recordCcAuthRun,
 } from "@/lib/claude-credentials"
+import { pruneClaudeSharedSecrets } from "@/lib/server/subscription-secrets"
 
 // Skip refresh while the live credential still has at least this much life.
 // Anthropic OAuth access tokens are 8h-lived, so 2h leaves us 6 hours of cron
@@ -116,6 +117,7 @@ async function runRefresh(force: boolean): Promise<RefreshResult> {
     try {
       const creds = await generateClaudeCredentials({ refreshToken })
       await writeCredentials(JSON.stringify(creds))
+      await pruneClaudeSharedSecrets()
       return { status: "refreshed", expiresAt: creds.claudeAiOauth.expiresAt }
     } catch (err) {
       if (err instanceof RefreshTokenExpiredError) {
@@ -160,6 +162,7 @@ async function runRefresh(force: boolean): Promise<RefreshResult> {
   }
 
   await writeCredentials(JSON.stringify(creds))
+  await pruneClaudeSharedSecrets()
   return { status: "refreshed", expiresAt: creds.claudeAiOauth.expiresAt }
 }
 

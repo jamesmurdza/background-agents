@@ -76,7 +76,7 @@ export async function sendChatTurn({
   // already reserved it; its caller releases/pauses the claim on any failure.
   const resolved = await resolveSendCredentials(userId, payload)
   if (resolved instanceof Response) return resolved
-  const { credentials, githubToken, useSharedClaude } = resolved
+  const { credentials, githubToken, useSharedClaude, sharedClaudeToken } = resolved
   const customEndpoints = await getUserEndpoints(userId)
   const userEnv = await loadUserEnvVars(userId, chat)
 
@@ -105,9 +105,10 @@ export async function sendChatTurn({
   }
   let turnPersisted = false
 
-  // Secrets for this run's keys (shared pool and the user's own) and the user's secret env vars, if any.
+  // Secrets for this run's keys (shared pools, subscriptions and the user's own) and secret env vars, if any.
   const plannedSecrets = planTurnSecrets({
     userId, agent: payload.agent as Agent, model: payload.model, credentials, endpoints: customEndpoints, envVars: userEnv,
+    sharedClaudeToken,
   })
   // Set once the sandbox is known, so a turn that never starts detaches its secrets again.
   let secretSandbox: DaytonaSandbox | undefined

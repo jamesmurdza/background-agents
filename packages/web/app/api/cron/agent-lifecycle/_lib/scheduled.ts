@@ -81,10 +81,11 @@ export async function startJobExecution(
   let credentials = await getUserCredentials(job.userId)
   const customEndpoints = await getUserEndpoints(job.userId)
   let useSharedClaude = false
+  let sharedClaudeToken: string | undefined
   if (
     job.agent === "claude-code" && !job.model?.startsWith(ENDPOINT_MODEL_PREFIX) && !credentials.CLAUDE_CODE_CREDENTIALS
   ) {
-    await getSharedClaudeAccessToken()
+    sharedClaudeToken = await getSharedClaudeAccessToken()
     useSharedClaude = true
   }
 
@@ -192,6 +193,7 @@ export async function startJobExecution(
     model: job.model ?? undefined,
     credentials,
     endpoints: customEndpoints,
+    sharedClaudeToken,
   }))
 
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and

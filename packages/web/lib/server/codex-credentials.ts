@@ -23,6 +23,7 @@ import {
   type CodexStoredCredential,
 } from "@/lib/codex-credentials"
 import { refreshCodexTokens, revokeCodexToken, CodexReconnectRequiredError } from "./codex-oauth"
+import { pruneCodexSecrets } from "./subscription-secrets"
 import { ENDPOINT_MODEL_PREFIX, type Agent, type CredentialId } from "@background-agents/common"
 
 // Typed as CredentialId, not string: normalizeStoredCredentials returns a
@@ -163,14 +164,23 @@ interface FreshCredentialResult {
    * from "nothing was due" or "genuinely needs reconnect" in cron reporting.
    */
   transientFailure: boolean
+  /** True when a new access token was minted and stored. */
+  refreshed?: boolean
 }
 
 /**
  * The shared read-lock-refresh-write core. Returns the credential to use
  * (null when there is none or it needs reconnecting) plus whether a
- * transient failure occurred along the way.
+ * transient failure occurred along the way. After a refresh, prunes the
+ * Daytona secrets of older access tokens (lib/server/subscription-secrets).
  */
 async function withFreshCredential(userId: string): Promise<FreshCredentialResult> {
+  const result = await refreshUnderLock(userId)
+  if (result.refreshed) await pruneCodexSecrets(userId)
+  return result
+}
+
+async function refreshUnderLock(userId: string): Promise<FreshCredentialResult> {
   return withUserLock(
     userId,
     async (tx) => {
@@ -207,7 +217,7 @@ async function withFreshCredential(userId: string): Promise<FreshCredentialResul
 
       const next = credentialFromTokenResponse(res, cred.account_id, Date.now())
       await writeCodexCredentialTx(tx, userId, next)
-      return { cred: next, transientFailure: false }
+      return { cred: next, transientFailure: false, refreshed: true }
     },
     // The refresh call is an outbound fetch to OpenAI made while holding the
     // row lock. Prisma's default interactive-transaction timeout (5s) is
@@ -255,4 +265,5 @@ export async function disconnectCodex(userId: string): Promise<void> {
     const revoked = await revokeCodexToken(cred.refresh_token)
     if (!revoked) console.warn("[codex-credentials] revocation failed; grant will age out")
   }
+  await pruneCodexSecrets(userId, { all: true })
 }

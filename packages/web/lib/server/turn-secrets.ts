@@ -2,8 +2,9 @@
  * The Daytona secrets a turn mounts (server-only): the shared pool key it
  * draws on, if any (lib/server/shared-pool-secrets), the user's own provider
  * keys (lib/server/user-key-secrets), the selected custom endpoint's
- * credentials (lib/server/endpoint-secrets) and the env vars the user marked
- * as secrets (lib/server/env-var-secrets).
+ * credentials (lib/server/endpoint-secrets), subscription access tokens
+ * (lib/server/subscription-secrets) and the env vars the user marked as
+ * secrets (lib/server/env-var-secrets).
  *
  * The agent is handed each secret's placeholder in place of the credential
  * it stands for, so neither a pool key nor the user's own key ever enters
@@ -28,6 +29,8 @@ import {
   forgetSecrets,
   mountSecrets,
   parseSecretMarker,
+  readMounts,
+  readPinned,
   releaseSecrets,
   secretsCreateParams,
   waitForPropagation,
@@ -45,6 +48,13 @@ import {
   endpointSecretsEnabled,
 } from "@/lib/server/endpoint-secrets"
 import { sharedPoolForSecret } from "@/lib/server/shared-key-pools"
+import {
+  CLAUDE_SHARED_MOUNT_ENV,
+  claudeSharedSecretSpec,
+  codexAccessToken,
+  codexSecretSpec,
+  subscriptionSecretsEnabled,
+} from "@/lib/server/subscription-secrets"
 import { ensureSharedPoolSecret, sharedPoolSecretForRun } from "@/lib/server/shared-pool-secrets"
 import {
   USER_KEY_PROVIDERS,
@@ -68,24 +78,29 @@ const MOUNT_OPTIONS: MountOptions = { label: TURN_SECRETS_LABEL, pinnedLabel: PI
 
 /** A secret a turn mounts, and the agent env value it stands in for. */
 export interface TurnSecret {
-  /** "env" secrets are pinned: they stay mounted between turns. */
-  kind: "pool" | "user" | "endpoint" | "env"
+  /**
+   * "env" secrets are pinned: they stay mounted between turns. "claude" is
+   * the shared Claude token, which the agent fetches itself (see
+   * {@link mountSharedClaudeSecret}) rather than finding in its env.
+   */
+  kind: "pool" | "user" | "endpoint" | "env" | "claude"
   /** Daytona secret name. */
   name: string
   /** Env var it is mounted as inside the sandbox. */
   mountEnv: string
   /**
    * What the agent env carries until it is swapped: a pool's credential
-   * marker, the user's own key, a custom endpoint's credential, or a secret
-   * env var's value.
+   * marker, the user's own key or subscription token, a custom endpoint's
+   * credential, or a secret env var's value.
    */
   envValue: string
   /**
    * The agent env vars carrying {@link envValue}, whole (a key and its
-   * aliases) or inside a larger value (an endpoint's header blob).
+   * aliases) or inside a larger value (an endpoint's header blob, Codex's
+   * auth.json). Empty for the shared Claude token.
    */
   envKeys: string[]
-  /** How to create a user, endpoint or env secret; a pool's comes from its pool. */
+  /** How to create the secret; a pool's comes from its pool. */
   spec?: EnsureSecretSpec
   /**
    * Env vars that, when the agent env sets one, send the value to a server
@@ -103,8 +118,9 @@ export interface ReadyTurnSecret extends TurnSecret {
 /**
  * The secrets a run would mount: the shared pool key it draws on, every
  * enabled user key the agent's env would carry, or the selected custom
- * endpoint's credentials, plus the user's secret env vars. Pure — call before
- * the sandbox exists so it can be created with them.
+ * endpoint's credentials, plus the shared Claude token and the user's secret
+ * env vars. Pure — call before the sandbox exists so it can be created with
+ * them.
  */
 export function planTurnSecrets(params: {
   userId: string
@@ -113,9 +129,15 @@ export function planTurnSecrets(params: {
   credentials: Credentials
   endpoints?: CustomEndpoint[]
   envVars?: UserEnvVars
+  /** The shared Claude access token, when the run uses shared Claude. */
+  sharedClaudeToken?: string
 }): TurnSecret[] {
-  const { userId, envVars } = params
+  const { userId, envVars, sharedClaudeToken } = params
   const secrets = planKeySecrets(params)
+  if (sharedClaudeToken && subscriptionSecretsEnabled("CLAUDE_SHARED")) {
+    const spec = claudeSharedSecretSpec(sharedClaudeToken)
+    secrets.push({ kind: "claude", name: spec.name, mountEnv: CLAUDE_SHARED_MOUNT_ENV, envValue: sharedClaudeToken, envKeys: [], spec })
+  }
   if (envVars && envVarSecretsEnabled()) {
     for (const envVar of envVars.secrets) {
       const spec = envVarSecretSpec(userId, envVar)
@@ -159,6 +181,15 @@ function planKeySecrets(params: {
   }
 
   for (const [credential, value] of Object.entries(systemEnv)) {
+    if (credential === "CODEX_CREDENTIALS" && subscriptionSecretsEnabled("CODEX_CREDENTIALS")) {
+      // A rendered auth.json: only its access token is a usable credential
+      // (the refresh token in it is already a stand-in).
+      const token = codexAccessToken(value)
+      if (!token) continue
+      const spec = codexSecretSpec(userId, token)
+      secrets.push({ kind: "user", name: spec.name, mountEnv: userKeyMountEnv(credential), envValue: token, envKeys: carrying(token), spec })
+      continue
+    }
     if (!userKeySecretsEnabled(credential) || parseSecretMarker(value)) continue
     const spec = userKeySecretSpec(userId, credential, value)
     secrets.push({
@@ -193,7 +224,7 @@ export async function ensureTurnSecrets(daytona: Daytona, secrets: TurnSecret[])
       const { placeholder } = await ensureSecret(daytona, secret.spec)
       ready.push({ ...secret, placeholder })
     } catch (err) {
-      console.error(`[turn-secrets] passing ${secret.envKeys.join(", ")} unprotected; its secret failed:`, err)
+      console.error(`[turn-secrets] passing ${secret.envKeys.join(", ") || secret.mountEnv} unprotected; its secret failed:`, err)
     }
   }
   return ready
@@ -277,6 +308,36 @@ export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: Read
   }
   for (const [key, value] of Object.entries(env)) {
     if (parseSecretMarker(value)) delete env[key]
+  }
+}
+
+/**
+ * The placeholder to hand a shared Claude run for `token`, mounting its
+ * secret on the run's sandbox first if a turn started on an older token (the
+ * token refreshed mid-turn). Undefined when the run should get the token
+ * itself: the feature is off, the secret failed, or the sandbox has no
+ * secrets enabled, since enabling them restarts it and would kill the run.
+ * Never throws.
+ */
+export async function mountSharedClaudeSecret(
+  daytona: Daytona,
+  sandboxId: string,
+  token: string
+): Promise<string | undefined> {
+  if (!subscriptionSecretsEnabled("CLAUDE_SHARED")) return undefined
+  try {
+    const { name, placeholder } = await ensureSecret(daytona, claudeSharedSecretSpec(token))
+    const sandbox = await daytona.get(sandboxId)
+    const { enabled, mounts } = readMounts(sandbox, MOUNT_OPTIONS)
+    if (!enabled) return undefined
+    if (mounts?.[CLAUDE_SHARED_MOUNT_ENV] === name) return placeholder
+    const pinned = readPinned(sandbox, MOUNT_OPTIONS)
+    const turn = Object.fromEntries(Object.entries(mounts ?? {}).filter(([env]) => !(env in pinned)))
+    await waitForPropagation(await mountSecrets(sandbox, { ...turn, [CLAUDE_SHARED_MOUNT_ENV]: name }, MOUNT_OPTIONS, pinned))
+    return placeholder
+  } catch (err) {
+    console.error("[turn-secrets] passing the shared Claude token unprotected; its secret failed:", err)
+    return undefined
   }
 }
 
