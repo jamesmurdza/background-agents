@@ -25,27 +25,60 @@ export interface EnsuredSecret {
 }
 
 /**
- * Secrets confirmed (or being confirmed) to exist this process lifetime, so
- * only the first call per name pays for the lookup. A failed attempt is
- * forgotten, so the next call retries it.
+ * How long a process trusts that a secret it ensured still exists before
+ * checking again, which also renews the secret's "last used" stamp
+ * ({@link secretLastUsedAt}). A sweep that deletes secrets unused for longer
+ * than this can't strand a process that still thinks one exists: it would
+ * have checked, and stamped it, in the meantime.
  */
-const ensuredSecrets = new Map<string, Promise<EnsuredSecret>>()
+export const REVERIFY_MS = 6 * 60 * 60 * 1000
+
+/**
+ * Secrets confirmed (or being confirmed) to exist, and when, so only the
+ * first call per name in {@link REVERIFY_MS} pays for the lookup. A failed
+ * attempt is forgotten, so the next call retries it.
+ */
+const ensuredSecrets = new Map<string, { ensured: Promise<EnsuredSecret>; at: number }>()
+
+/** Trailing `[used <ISO time>]` in a secret's description. */
+const USED_STAMP = /\s*\[used ([^\]]+)\]$/
+
+/** `description` with its "last used" stamp set to `at`. */
+export function stampLastUsed(description: string | undefined, at: number): string {
+  const base = (description ?? "").replace(USED_STAMP, "")
+  return `${base}${base ? " " : ""}[used ${new Date(at).toISOString()}]`
+}
+
+/**
+ * When a secret was last ensured by {@link ensureSecret} (at most
+ * {@link REVERIFY_MS} ago while in use), from its description's stamp;
+ * its creation time when it has none.
+ */
+export function secretLastUsedAt(secret: { description?: string; createdAt: Date | string }): number {
+  const created = new Date(secret.createdAt).getTime()
+  const stamp = secret.description?.match(USED_STAMP)?.[1]
+  const used = stamp ? Date.parse(stamp) : NaN
+  return Number.isNaN(used) ? created : Math.max(used, created)
+}
 
 /**
  * Make sure the Daytona secret `spec.name` exists, creating it if not, and
- * return its placeholder. An existing secret is never updated: names are meant
- * to be derived from the value, so an existing one already holds it. Call
- * before creating a sandbox with the secret or mounting it. Throws if the
- * secret can't be confirmed or created, e.g. when the Daytona API key lacks
- * permission to manage secrets.
+ * return its placeholder. An existing secret's value is never updated: names
+ * are meant to be derived from the value, so an existing one already holds
+ * it. Only its description is, to stamp it as used (see
+ * {@link secretLastUsedAt}). Call before creating a sandbox with the secret
+ * or mounting it. Throws if the secret can't be confirmed or created, e.g.
+ * when the Daytona API key lacks permission to manage secrets.
  */
 export function ensureSecret(daytona: Daytona, spec: EnsureSecretSpec): Promise<EnsuredSecret> {
-  let ensured = ensuredSecrets.get(spec.name)
-  if (!ensured) {
-    ensured = createSecretIfMissing(daytona, spec)
-    ensuredSecrets.set(spec.name, ensured)
-    ensured.catch(() => ensuredSecrets.delete(spec.name))
-  }
+  const now = Date.now()
+  const known = ensuredSecrets.get(spec.name)
+  if (known && now - known.at < REVERIFY_MS) return known.ensured
+  const ensured = createSecretIfMissing(daytona, spec, now)
+  ensuredSecrets.set(spec.name, { ensured, at: now })
+  ensured.catch(() => {
+    if (ensuredSecrets.get(spec.name)?.ensured === ensured) ensuredSecrets.delete(spec.name)
+  })
   return ensured
 }
 
@@ -98,24 +131,32 @@ export async function deleteSecrets(
   return doomed.map((s) => s.name)
 }
 
-async function findSecret(daytona: Daytona, name: string): Promise<EnsuredSecret | undefined> {
+async function findSecret(daytona: Daytona, name: string): Promise<{ id: string; placeholder: string } | undefined> {
   // `name` is a partial-match filter, hence the exact comparison.
   const { items } = await daytona.secret.list({ name })
-  const secret = items.find((s) => s.name === name)
-  return secret && { name, placeholder: secret.placeholder }
+  return items.find((s) => s.name === name)
 }
 
-async function createSecretIfMissing(daytona: Daytona, spec: EnsureSecretSpec): Promise<EnsuredSecret> {
+async function createSecretIfMissing(daytona: Daytona, spec: EnsureSecretSpec, now: number): Promise<EnsuredSecret> {
   const value = spec.value()
 
   const existing = await findSecret(daytona, spec.name)
-  if (existing) return existing
+  if (existing) {
+    try {
+      await daytona.secret.update(existing.id, { description: stampLastUsed(spec.description, now) })
+    } catch (err) {
+      // Only the stamp is lost; a sweep may then delete the secret early, and
+      // the next ensure after REVERIFY_MS recreates it.
+      console.error(`[sandbox-secrets] failed to stamp Daytona secret ${spec.name} as used:`, err)
+    }
+    return { name: spec.name, placeholder: existing.placeholder }
+  }
 
   try {
     const created = await daytona.secret.create({
       name: spec.name,
       value,
-      description: spec.description,
+      description: stampLastUsed(spec.description, now),
       hosts: spec.hosts,
     })
     console.log(`[sandbox-secrets] created Daytona secret ${spec.name}`)
@@ -125,6 +166,6 @@ async function createSecretIfMissing(daytona: Daytona, spec: EnsureSecretSpec): 
     // Another process created it between our list and create.
     const raced = await findSecret(daytona, spec.name)
     if (!raced) throw err
-    return raced
+    return { name: spec.name, placeholder: raced.placeholder }
   }
 }

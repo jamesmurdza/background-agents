@@ -2,11 +2,16 @@
  * Deleting Daytona secrets nothing uses any more (server-only), for the
  * secret-cleanup cron.
  *
- * Saves and refreshes already delete what they replace (syncUserKeySecret,
- * syncEndpointSecrets, syncEnvVarSecrets, the prune* helpers), but only
- * best effort, and some things never get that chance: a deleted user, a key
- * removed from a shared pool, a feature switched off. This sweep finds them
- * by name:
+ * Any of our secrets unused for {@link UNUSED_MS} goes, whatever it is:
+ * every use stamps it (ensureSecret, at most every few hours), and whatever
+ * still needs it recreates it on next use. Use is judged from that stamp, so
+ * this holds across every deployment sharing the Daytona org.
+ *
+ * Sooner than that, saves and refreshes already delete what they replace
+ * (syncUserKeySecret, syncEndpointSecrets, syncEnvVarSecrets, the prune*
+ * helpers), but only best effort, and some things never get that chance: a
+ * deleted user, a key removed from a shared pool, a feature switched off.
+ * This sweep also finds those by name:
  *
  * - shared pool secrets (`opencode_`, `gemini_`) for keys no longer
  *   configured; a pool with no keys configured here is left alone, as that
@@ -17,13 +22,20 @@
  *   Codex token secrets: all but the newest two);
  * - the shared OpenCode secrets once made by hand in the Daytona dashboard.
  *
- * Every other secret in the org is ignored, and so is anything created in
- * the last {@link GRACE_MS}: a secret is created before the setting that
- * needs it is saved, and must not be swept in between.
+ * Nothing mounted on a sandbox is ever deleted (a running turn, a dev server
+ * using a locked env var, a stopped sandbox keeping its pinned ones), nor a
+ * secret by name within {@link GRACE_MS} of its creation: a secret is created
+ * before the setting that needs it is saved, and must not be swept in
+ * between. Secrets this app didn't create are ignored.
  */
 
 import type { Daytona } from "@daytonaio/sdk"
-import { forgetSecrets, parseSecretMarker } from "@background-agents/sandbox-secrets"
+import {
+  decodeMounts,
+  forgetSecrets,
+  parseSecretMarker,
+  secretLastUsedAt,
+} from "@background-agents/sandbox-secrets"
 
 import { getUserCredentials } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
@@ -44,6 +56,7 @@ import {
   codexSecretPrefix,
   subscriptionSecretsEnabled,
 } from "@/lib/server/subscription-secrets"
+import { PINNED_SECRETS_LABEL, TURN_SECRETS_LABEL } from "@/lib/server/turn-secrets"
 import {
   USER_KEY_PROVIDERS,
   userKeySecretName,
@@ -51,8 +64,14 @@ import {
   userSecretTag,
 } from "@/lib/server/user-key-secrets"
 
-/** Secrets younger than this are never deleted. */
+/** Secrets younger than this are never deleted for being unneeded by name. */
 export const GRACE_MS = 60 * 60 * 1000
+
+/**
+ * Secrets unused for this long are deleted. Comfortably above REVERIFY_MS,
+ * how often a process using one stamps it.
+ */
+export const UNUSED_MS = 24 * 60 * 60 * 1000
 
 /** Shared OpenCode secrets created by hand before they were derived from the keys. */
 export const LEGACY_SECRET_NAMES = ["OPENCODE_API_KEY_1", "OPENCODE_API_KEY_2"]
@@ -64,6 +83,8 @@ export interface ListedSecret {
   name: string
   /** Epoch ms. */
   createdAt: number
+  /** Epoch ms; see secretLastUsedAt. */
+  lastUsedAt: number
 }
 
 /** What a user's secrets should be. */
@@ -75,11 +96,13 @@ export interface UserSecretState {
 }
 
 export interface CleanupPlan {
-  /** Unused, and old enough to delete. */
+  /** To delete. */
   doomed: ListedSecret[]
-  /** Unused, but within {@link GRACE_MS}. */
+  /** Unneeded by name, but within {@link GRACE_MS}. */
   young: number
-  /** Not ours to judge. */
+  /** Kept because a sandbox has it mounted. */
+  mounted: number
+  /** Not created by this app. */
   ignored: number
 }
 
@@ -87,18 +110,29 @@ function newest(secrets: ListedSecret[], count: number): Set<string> {
   return new Set([...secrets].sort((a, b) => b.createdAt - a.createdAt).slice(0, count).map((s) => s.name))
 }
 
+/** Whether this app created `name` (see the prefixes in this module's doc). */
+function isOurs(name: string): boolean {
+  return (
+    LEGACY_SECRET_NAMES.includes(name) ||
+    !!sharedPoolForSecret(name) ||
+    name.startsWith(CLAUDE_SHARED_SECRET_PREFIX) ||
+    USER_SECRET.test(name)
+  )
+}
+
 /**
  * Decide which of `secrets` to delete. Pure. `users` maps the tag in a
  * user secret's name to that user's state, "unknown" when it couldn't be
- * loaded (their secrets are then left alone); a tag missing from it belongs
- * to no user.
+ * loaded (their secrets are then judged by use only); a tag missing from it
+ * belongs to no user. `mounted` names the secrets some sandbox has mounted.
  */
 export function planSecretCleanup(
   secrets: ListedSecret[],
   users: Map<string, UserSecretState | "unknown">,
-  now: number
+  now: number,
+  mounted: Set<string> = new Set()
 ): CleanupPlan {
-  const plan: CleanupPlan = { doomed: [], young: 0, ignored: 0 }
+  const plan: CleanupPlan = { doomed: [], young: 0, mounted: 0, ignored: 0 }
   const keepClaude = subscriptionSecretsEnabled("CLAUDE_SHARED")
     ? newest(secrets.filter((s) => s.name.startsWith(CLAUDE_SHARED_SECRET_PREFIX)), KEEP_NEWEST)
     : new Set<string>()
@@ -111,6 +145,20 @@ export function planSecretCleanup(
 
   for (const secret of secrets) {
     const { name } = secret
+    if (!isOurs(name)) {
+      plan.ignored++
+      continue
+    }
+    if (mounted.has(name)) {
+      plan.mounted++
+      continue
+    }
+    if (now - secret.lastUsedAt >= UNUSED_MS) {
+      plan.doomed.push(secret)
+      continue
+    }
+
+    // Unneeded by name? Undefined when that can't be judged here.
     let unused: boolean | undefined
     const pool = sharedPoolForSecret(name)
     const userTag = USER_SECRET.exec(name)?.[1]
@@ -126,9 +174,8 @@ export function planSecretCleanup(
       else if (state !== "unknown") unused = !state.expected.has(name) && !keepCodex.has(name)
     }
 
-    if (unused === undefined) plan.ignored++
-    else if (!unused) continue
-    else if (now - secret.createdAt < GRACE_MS) plan.young++
+    if (!unused) continue
+    if (now - secret.createdAt < GRACE_MS) plan.young++
     else plan.doomed.push(secret)
   }
   return plan
@@ -175,10 +222,30 @@ async function listAllSecrets(daytona: Daytona): Promise<ListedSecret[]> {
   let cursor: string | undefined
   do {
     const page = await daytona.secret.list({ cursor, limit: 200 })
-    for (const s of page.items) secrets.push({ id: s.id, name: s.name, createdAt: new Date(s.createdAt).getTime() })
+    for (const s of page.items) {
+      secrets.push({ id: s.id, name: s.name, createdAt: new Date(s.createdAt).getTime(), lastUsedAt: secretLastUsedAt(s) })
+    }
     cursor = page.nextCursor ?? undefined
   } while (cursor)
   return secrets
+}
+
+/**
+ * Every secret some sandbox in the org has mounted, from the labels that
+ * record them (lib/server/turn-secrets). A label from before mount sets is a
+ * bare secret name.
+ */
+async function listMountedSecrets(daytona: Daytona): Promise<Set<string>> {
+  const mounted = new Set<string>()
+  for await (const sandbox of daytona.list({ limit: 200 })) {
+    for (const label of [TURN_SECRETS_LABEL, PINNED_SECRETS_LABEL]) {
+      const value = sandbox.labels?.[label]
+      if (!value) continue
+      const mounts = decodeMounts(value)
+      for (const name of mounts ? Object.values(mounts) : [value]) mounted.add(name)
+    }
+  }
+  return mounted
 }
 
 export interface CleanupReport {
@@ -187,13 +254,14 @@ export interface CleanupReport {
   /** Deleted, or with `dryRun`, would be. Names hold hashes only. */
   deleted: string[]
   young: number
+  mounted: number
   ignored: number
   errors: number
 }
 
 /** Sweep the org's secrets; with `dryRun`, only report what would go. */
 export async function cleanupSecrets(daytona: Daytona, { dryRun }: { dryRun: boolean }): Promise<CleanupReport> {
-  const secrets = await listAllSecrets(daytona)
+  const [secrets, mounted] = await Promise.all([listAllSecrets(daytona), listMountedSecrets(daytona)])
 
   const tags = new Set(secrets.flatMap((s) => USER_SECRET.exec(s.name)?.[1] ?? []))
   const users = new Map<string, UserSecretState | "unknown">()
@@ -210,12 +278,13 @@ export async function cleanupSecrets(daytona: Daytona, { dryRun }: { dryRun: boo
     }
   }
 
-  const plan = planSecretCleanup(secrets, users, Date.now())
+  const plan = planSecretCleanup(secrets, users, Date.now(), mounted)
   const report: CleanupReport = {
     dryRun,
     scanned: secrets.length,
     deleted: [],
     young: plan.young,
+    mounted: plan.mounted,
     ignored: plan.ignored,
     errors: 0,
   }

@@ -1,16 +1,17 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import { DaytonaConflictError, type Daytona } from "@daytonaio/sdk"
 
-import { deleteSecrets, ensureSecret, forgetSecrets } from "../src/index"
+import { REVERIFY_MS, deleteSecrets, ensureSecret, forgetSecrets, secretLastUsedAt, stampLastUsed } from "../src/index"
 
 const placeholderFor = (name: string) => `dtn_secret_${name}`
 
 function fakeDaytona(existing: string[] = []) {
   const secret = {
     list: vi.fn().mockImplementation(async ({ name }: { name: string }) => ({
-      items: existing.filter((n) => n.includes(name)).map((n) => ({ name: n, placeholder: placeholderFor(n) })),
+      items: existing.filter((n) => n.includes(name)).map((n) => ({ id: `id_${n}`, name: n, placeholder: placeholderFor(n) })),
     })),
     create: vi.fn().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: placeholderFor(name) })),
+    update: vi.fn().mockResolvedValue({}),
   }
   return { secret, daytona: { secret } as unknown as Daytona }
 }
@@ -29,11 +30,47 @@ afterEach(() => {
 
 describe("ensureSecret", () => {
   it("creates a missing secret with its value, hosts and description, and returns its placeholder", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 9, 28))
     const { secret, daytona } = fakeDaytona()
     const name = uniqueName()
     const ensured = await ensureSecret(daytona, { name, value: () => "v1", hosts: ["example.com"], description: "d" })
-    expect(secret.create).toHaveBeenCalledWith({ name, value: "v1", hosts: ["example.com"], description: "d" })
+    expect(secret.create).toHaveBeenCalledWith({
+      name,
+      value: "v1",
+      hosts: ["example.com"],
+      description: "d [used 2026-10-28T00:00:00.000Z]",
+    })
     expect(ensured).toEqual({ name, placeholder: placeholderFor(name) })
+  })
+
+  it("stamps an existing secret as used, never touching its value", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 9, 28))
+    const name = uniqueName()
+    const { secret, daytona } = fakeDaytona([name])
+    await ensureSecret(daytona, { name, value: () => "v", description: "d" })
+    expect(secret.update).toHaveBeenCalledWith(`id_${name}`, { description: "d [used 2026-10-28T00:00:00.000Z]" })
+  })
+
+  it("still returns the placeholder when the stamp fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const name = uniqueName()
+    const { secret, daytona } = fakeDaytona([name])
+    secret.update.mockRejectedValueOnce(new Error("500"))
+    expect(await ensureSecret(daytona, { name, value: () => "v" })).toEqual({ name, placeholder: placeholderFor(name) })
+  })
+
+  it("checks again, and recreates a since-deleted secret, once REVERIFY_MS has passed", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000)
+    const name = uniqueName()
+    const { secret, daytona } = fakeDaytona([name])
+    await ensureSecret(daytona, { name, value: () => "v" })
+    now.mockReturnValue(1_000_000 + REVERIFY_MS - 1)
+    await ensureSecret(daytona, { name, value: () => "v" })
+    expect(secret.list).toHaveBeenCalledTimes(1)
+    now.mockReturnValue(1_000_000 + REVERIFY_MS)
+    secret.list.mockResolvedValueOnce({ items: [] }) // swept in the meantime
+    await ensureSecret(daytona, { name, value: () => "v" })
+    expect(secret.create).toHaveBeenCalledTimes(1)
   })
 
   it("never recreates an existing secret, and checks once per process", async () => {
@@ -87,6 +124,21 @@ describe("ensureSecret", () => {
     }
     await expect(ensureSecret(daytona, { name: uniqueName(), value })).rejects.toThrow("unknown secret")
     expect(secret.list).not.toHaveBeenCalled()
+  })
+})
+
+describe("secretLastUsedAt", () => {
+  it("reads the stamp, falling back to the creation time", () => {
+    const createdAt = "2026-10-01T00:00:00.000Z"
+    expect(secretLastUsedAt({ createdAt, description: stampLastUsed("d", Date.UTC(2026, 9, 28)) })).toBe(Date.UTC(2026, 9, 28))
+    expect(secretLastUsedAt({ createdAt, description: "d" })).toBe(Date.UTC(2026, 9, 1))
+    expect(secretLastUsedAt({ createdAt, description: "d [used garbage]" })).toBe(Date.UTC(2026, 9, 1))
+    expect(secretLastUsedAt({ createdAt: new Date(createdAt) })).toBe(Date.UTC(2026, 9, 1))
+  })
+
+  it("replaces an old stamp instead of piling them up", () => {
+    expect(stampLastUsed(stampLastUsed("d", 0), Date.UTC(2026, 9, 28))).toBe("d [used 2026-10-28T00:00:00.000Z]")
+    expect(stampLastUsed(undefined, 0)).toBe("[used 1970-01-01T00:00:00.000Z]")
   })
 })
 

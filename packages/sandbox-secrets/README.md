@@ -71,6 +71,8 @@ await releaseSecrets(sandbox, OPTIONS) // STRIPE_KEY stays mounted
 
 `deleteSecrets(daytona, { prefix, keep })` removes a family of secrets (e.g. one user's stale keys); `forgetSecrets(names)` makes `ensureSecret` look again for names that may have been deleted by another process.
 
+`ensureSecret` also stamps a secret's description with when it was last used (`[used <ISO time>]`), at most once every `REVERIFY_MS` (6h) per process, which also re-checks that the secret still exists. `secretLastUsedAt(secret)` reads the stamp back (falling back to `createdAt`), so a sweep can delete secrets nothing has used for a while.
+
 To pass a reference to a secret through code that expects a credential value, use `toSecretMarker(name)` / `parseSecretMarker(value)`.
 
 The Daytona API key needs the secrets permissions.

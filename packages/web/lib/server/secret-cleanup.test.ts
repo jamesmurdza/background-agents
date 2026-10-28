@@ -22,14 +22,16 @@ vi.mock("@/lib/db/prisma", () => ({
 }))
 
 import type { CustomEndpoint } from "@background-agents/common"
-import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import { REVERIFY_MS, encodeMounts, stampLastUsed, toSecretMarker } from "@background-agents/sandbox-secrets"
 import { chatEnvScope, encodeEnvVars, envVarSecretSpec, repoEnvScope } from "./env-var-secrets"
 import { endpointSecretSpec } from "./endpoint-secrets"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
 import { CLAUDE_SHARED_SECRET_PREFIX, codexSecretPrefix } from "./subscription-secrets"
+import { PINNED_SECRETS_LABEL, TURN_SECRETS_LABEL } from "./turn-secrets"
 import { userKeySecretName, userKeySecretPrefix, userSecretTag } from "./user-key-secrets"
 import {
   GRACE_MS,
+  UNUSED_MS,
   cleanupSecrets,
   loadUserSecretState,
   planSecretCleanup,
@@ -39,7 +41,14 @@ import {
 
 const NOW = Date.UTC(2026, 9, 28, 12)
 const OLD = NOW - 2 * GRACE_MS
-const old = (name: string, ageMs = 0): ListedSecret => ({ id: `id_${name}`, name, createdAt: OLD - ageMs })
+const old = (name: string, ageMs = 0): ListedSecret => ({ id: `id_${name}`, name, createdAt: OLD - ageMs, lastUsedAt: OLD - ageMs })
+/** Created long ago, last used `usedAgoMs` ago. */
+const used = (name: string, usedAgoMs: number): ListedSecret => ({
+  id: `id_${name}`,
+  name,
+  createdAt: NOW - 30 * UNUSED_MS,
+  lastUsedAt: NOW - usedAgoMs,
+})
 
 const USER = "user-1"
 const TAG = userSecretTag(USER)
@@ -62,8 +71,11 @@ afterEach(() => {
 })
 
 describe("planSecretCleanup", () => {
-  const plan = (secrets: ListedSecret[], users = new Map<string, UserSecretState | "unknown">()) =>
-    planSecretCleanup(secrets, users, NOW)
+  const plan = (
+    secrets: ListedSecret[],
+    users = new Map<string, UserSecretState | "unknown">(),
+    mounted = new Set<string>()
+  ) => planSecretCleanup(secrets, users, NOW, mounted)
   const doomedNames = (secrets: ListedSecret[], users?: Map<string, UserSecretState | "unknown">) =>
     plan(secrets, users).doomed.map((s) => s.name)
 
@@ -77,9 +89,10 @@ describe("planSecretCleanup", () => {
     ])
   })
 
-  it("leaves a pool alone when no keys are configured for it here", () => {
+  it("doesn't judge a pool with no keys configured here by name, only by use", () => {
     const gemini = secretNameForKey(SHARED_KEY_POOLS.gemini, "g-key")
-    expect(plan([old(gemini)])).toMatchObject({ doomed: [], ignored: 1 })
+    expect(plan([old(gemini)])).toMatchObject({ doomed: [], ignored: 0 })
+    expect(doomedNames([used(gemini, UNUSED_MS)])).toEqual([gemini])
   })
 
   it("keeps the newest two shared Claude secrets, or none when that's off", () => {
@@ -102,14 +115,34 @@ describe("planSecretCleanup", () => {
     expect(doomedNames([old(keep), old(stale), ...codex], users)).toEqual([stale, `${codexSecretPrefix(USER)}2`])
   })
 
-  it("leaves the secrets of a user whose settings couldn't be loaded", () => {
+  it("judges a user whose settings couldn't be loaded by use only", () => {
     const name = userKeySecretName(USER, "OPENAI_API_KEY", "sk")
-    expect(plan([old(name)], new Map([[TAG, "unknown"]]))).toMatchObject({ doomed: [], ignored: 1 })
+    const users = new Map<string, UserSecretState | "unknown">([[TAG, "unknown"]])
+    expect(plan([old(name)], users)).toMatchObject({ doomed: [] })
+    expect(doomedNames([used(name, UNUSED_MS)], users)).toEqual([name])
+  })
+
+  it("deletes any of ours unused for a day, even one its owner's settings still need", () => {
+    const current = secretNameForKey(SHARED_KEY_POOLS.opencode, "oc-key-1")
+    const keep = userKeySecretName(USER, "OPENAI_API_KEY", "sk-now")
+    const users = new Map([[TAG, { expected: new Set([keep]) }]])
+    expect(doomedNames([used(current, UNUSED_MS), used(keep, UNUSED_MS + 1)], users)).toEqual([current, keep])
+    expect(doomedNames([used(current, UNUSED_MS - 1), used(keep, REVERIFY_MS)], users)).toEqual([])
+  })
+
+  it("never deletes what a sandbox has mounted, however idle or unneeded", () => {
+    const removed = secretNameForKey(SHARED_KEY_POOLS.opencode, "oc-key-gone")
+    const result = plan([used(removed, 5 * UNUSED_MS), old("OPENCODE_API_KEY_1")], undefined, new Set([removed, "OPENCODE_API_KEY_1"]))
+    expect(result).toMatchObject({ doomed: [], mounted: 2 })
+  })
+
+  it("ignores secrets this app didn't create, however idle", () => {
+    expect(plan([used("someone_elses_secret", 30 * UNUSED_MS)])).toEqual({ doomed: [], young: 0, mounted: 0, ignored: 1 })
   })
 
   it("never deletes anything newer than the grace period, or not ours", () => {
     const young = { ...old("OPENCODE_API_KEY_1"), createdAt: NOW - GRACE_MS / 2 }
-    expect(plan([young, old("someone_elses_secret"), old("BA_VERIFY_x")])).toEqual({ doomed: [], young: 1, ignored: 2 })
+    expect(plan([young, old("someone_elses_secret"), old("BA_VERIFY_x")])).toEqual({ doomed: [], young: 1, mounted: 0, ignored: 2 })
   })
 })
 
@@ -155,15 +188,22 @@ describe("loadUserSecretState", () => {
 })
 
 describe("cleanupSecrets", () => {
-  function fakeDaytona(names: string[]) {
+  function fakeDaytona(names: string[], sandboxLabels: Record<string, string>[] = []) {
+    // Created two hours ago and stamped as used then.
+    const items = names.map((name) => ({
+      id: `id_${name}`,
+      name,
+      createdAt: new Date(Date.now() - 2 * GRACE_MS).toISOString(),
+      description: stampLastUsed("d", Date.now() - 2 * GRACE_MS),
+    }))
     const secret = {
-      list: vi.fn().mockResolvedValue({
-        items: names.map((name) => ({ id: `id_${name}`, name, createdAt: new Date(OLD).toISOString() })),
-        nextCursor: null,
-      }),
+      list: vi.fn().mockResolvedValue({ items, nextCursor: null }),
       delete: vi.fn().mockResolvedValue(undefined),
     }
-    return { secret, daytona: { secret } as unknown as Daytona }
+    const list = vi.fn(async function* () {
+      for (const labels of sandboxLabels) yield { labels }
+    })
+    return { secret, daytona: { secret, list } as unknown as Daytona }
   }
 
   const stale = userKeySecretName(USER, "OPENAI_API_KEY", "sk-before")
@@ -173,7 +213,7 @@ describe("cleanupSecrets", () => {
     db.userFindMany.mockResolvedValue([{ id: USER }])
     const { secret, daytona } = fakeDaytona([stale, gone, "not_ours"])
     const report = await cleanupSecrets(daytona, { dryRun: true })
-    expect(report).toEqual({ dryRun: true, scanned: 3, deleted: [stale, gone], young: 0, ignored: 1, errors: 0 })
+    expect(report).toEqual({ dryRun: true, scanned: 3, deleted: [stale, gone], young: 0, mounted: 0, ignored: 1, errors: 0 })
     expect(secret.delete).not.toHaveBeenCalled()
   })
 
@@ -186,11 +226,26 @@ describe("cleanupSecrets", () => {
     expect(secret.delete.mock.calls).toEqual([[`id_${stale}`], [`id_${gone}`]])
   })
 
-  it("leaves a user's secrets alone when their settings fail to load", async () => {
+  it("leaves a user's recently used secrets alone when their settings fail to load", async () => {
     db.userFindMany.mockResolvedValue([{ id: USER }])
     db.credentials.mockRejectedValue(new Error("db down"))
     const { daytona } = fakeDaytona([stale])
-    expect(await cleanupSecrets(daytona, { dryRun: false })).toMatchObject({ deleted: [], ignored: 1 })
+    expect(await cleanupSecrets(daytona, { dryRun: false })).toMatchObject({ deleted: [] })
+  })
+
+  it("keeps whatever any sandbox's labels say is mounted, the pinned ones included", async () => {
+    db.userFindMany.mockResolvedValue([{ id: USER }])
+    const { secret, daytona } = fakeDaytona(
+      [stale, gone, "OPENCODE_API_KEY_1"],
+      [
+        { [TURN_SECRETS_LABEL]: encodeMounts({ USER_KEY_OPENAI_API_KEY: stale }) },
+        { [TURN_SECRETS_LABEL]: "none", [PINNED_SECRETS_LABEL]: encodeMounts({ K: gone }) },
+        { [TURN_SECRETS_LABEL]: "OPENCODE_API_KEY_1" }, // label from before mount sets
+        {},
+      ]
+    )
+    expect(await cleanupSecrets(daytona, { dryRun: false })).toMatchObject({ deleted: [], mounted: 3 })
+    expect(secret.delete).not.toHaveBeenCalled()
   })
 
   it("only looks users up when there are user secrets", async () => {

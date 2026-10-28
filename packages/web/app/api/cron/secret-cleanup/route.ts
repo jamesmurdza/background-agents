@@ -1,7 +1,7 @@
 /**
- * Daily sweep deleting Daytona secrets nothing uses any more: those of
- * deleted users, removed pool keys, replaced tokens and settings (see
- * lib/server/secret-cleanup).
+ * Daily sweep deleting Daytona secrets nothing uses any more: any of ours
+ * unused for a day, and sooner those of deleted users, removed pool keys,
+ * replaced tokens and settings (see lib/server/secret-cleanup).
  *
  * Reports only, unless DAYTONA_SECRET_CLEANUP=1: secrets live in the Daytona
  * org, which other deployments (local dev, previews) may share with
@@ -27,7 +27,7 @@ export async function GET(req: Request): Promise<Response> {
     const report = await cleanupSecrets(new Daytona({ apiKey }), { dryRun })
     console.log(
       `[secret-cleanup] ${dryRun ? "would delete" : "deleted"} ${report.deleted.length} of ${report.scanned} secrets` +
-        ` (${report.young} too new, ${report.ignored} not ours, ${report.errors} failed)`
+        ` (${report.mounted} mounted, ${report.young} too new, ${report.ignored} not ours, ${report.errors} failed)`
     )
     return Response.json(report)
   } catch (err) {

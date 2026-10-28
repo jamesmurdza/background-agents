@@ -9,7 +9,16 @@
  */
 export { contentSecretName, ENV_NAME_PATTERN, SECRET_NAME_PATTERN } from "./names"
 export { parseSecretMarker, toSecretMarker } from "./marker"
-export { deleteSecrets, ensureSecret, forgetSecrets, type EnsureSecretSpec, type EnsuredSecret } from "./store"
+export {
+  REVERIFY_MS,
+  deleteSecrets,
+  ensureSecret,
+  forgetSecrets,
+  secretLastUsedAt,
+  stampLastUsed,
+  type EnsureSecretSpec,
+  type EnsuredSecret,
+} from "./store"
 export {
   DEFAULT_PROPAGATION_MS,
   decodeMounts,
