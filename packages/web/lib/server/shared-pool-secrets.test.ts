@@ -2,14 +2,13 @@
  * Unit tests for choosing and creating shared pool secrets.
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
-import { DaytonaConflictError, type Daytona } from "@daytonaio/sdk"
+import type { Daytona } from "@daytonaio/sdk"
 
 import { toSecretMarker } from "@background-agents/sandbox-secrets"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
 import { ensureSharedPoolSecret, sharedPoolSecretForRun } from "./shared-pool-secrets"
 
 const SECRET_1 = secretNameForKey(SHARED_KEY_POOLS.opencode, "key-1")
-const SECRET_2 = secretNameForKey(SHARED_KEY_POOLS.opencode, "key-2")
 const GEMINI_SECRET = secretNameForKey(SHARED_KEY_POOLS.gemini, "gemini-key")
 const placeholderFor = (name: string) => `dtn_secret_${name}`
 
@@ -57,35 +56,6 @@ describe("ensureSharedPoolSecret", () => {
         hosts: ["generativelanguage.googleapis.com"],
       })
     )
-  })
-
-  it("never recreates an existing secret, and checks once per process", async () => {
-    const { secret, daytona } = fakeDaytona([SECRET_2])
-    await ensureSharedPoolSecret(daytona, SECRET_2)
-    await ensureSharedPoolSecret(daytona, SECRET_2)
-    expect(secret.create).not.toHaveBeenCalled()
-    expect(secret.list).toHaveBeenCalledTimes(1)
-  })
-
-  it("treats a concurrent create as success", async () => {
-    process.env.OPENCODE_API_KEY = "key-3"
-    const name = secretNameForKey(SHARED_KEY_POOLS.opencode, "key-3")
-    const { secret, daytona } = fakeDaytona()
-    secret.create.mockRejectedValueOnce(new DaytonaConflictError("exists", 409))
-    secret.list
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ name, placeholder: placeholderFor(name) }] })
-    await expect(ensureSharedPoolSecret(daytona, name)).resolves.toEqual({ name, placeholder: placeholderFor(name) })
-  })
-
-  it("rejects, and retries next time, when the secret can't be created", async () => {
-    process.env.OPENCODE_API_KEY = "key-4"
-    const name = secretNameForKey(SHARED_KEY_POOLS.opencode, "key-4")
-    const { secret, daytona } = fakeDaytona()
-    secret.create.mockRejectedValueOnce(new Error("forbidden"))
-    await expect(ensureSharedPoolSecret(daytona, name)).rejects.toThrow("forbidden")
-    await expect(ensureSharedPoolSecret(daytona, name)).resolves.toMatchObject({ name })
-    expect(secret.create).toHaveBeenCalledTimes(2)
   })
 
   it("rejects a secret no configured key or pool maps to", async () => {

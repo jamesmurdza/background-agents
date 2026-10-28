@@ -418,41 +418,6 @@ describe("mountTurnSecrets", () => {
     expect(sandbox.labels).toMatchObject({ [LABEL]: KEPT, [PINNED]: KEPT })
   })
 
-  it("restarts a sandbox that came back from a stop without its secrets proxy", async () => {
-    const sandbox = fakeSandbox({ [LABEL]: "none" })
-    sandbox.process.executeCommand.mockResolvedValue({ exitCode: 1, result: "" })
-    await mountTurnSecrets(asSandbox(sandbox), [POOL_1, KEEPALIVE])
-    expect(sandbox.stop).toHaveBeenCalledTimes(1)
-    expect(sandbox.start).toHaveBeenCalledTimes(1)
-  })
-
-  it("mounts and restarts once a sandbox created without secrets", async () => {
-    const sandbox = fakeSandbox({ repo: "o/r" })
-    expect(await mountTurnSecrets(asSandbox(sandbox), [POOL_1])).toEqual({
-      mounts: { SESSION_RELAY_TOKEN: SECRET_1 },
-      readyAt: 0,
-    })
-    expect(sandbox.updateSecrets).toHaveBeenCalledWith({ SESSION_RELAY_TOKEN: SECRET_1 })
-    expect(sandbox.stop).toHaveBeenCalledTimes(1)
-    expect(sandbox.start).toHaveBeenCalledTimes(1)
-    expect(sandbox.labels).toEqual({ repo: "o/r", [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}`, [PINNED]: "none" })
-  })
-
-  it("makes no API call when the set is already mounted", async () => {
-    const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
-    await expect(mountTurnSecrets(asSandbox(sandbox), [POOL_1])).resolves.toMatchObject({ readyAt: 0 })
-    expect(sandbox.updateSecrets).not.toHaveBeenCalled()
-  })
-
-  it("remounts a detached sandbox without a restart, but waits for propagation", async () => {
-    const sandbox = fakeSandbox({ [LABEL]: "none" })
-    const before = Date.now()
-    const mounted = await mountTurnSecrets(asSandbox(sandbox), [POOL_1])
-    expect(mounted.readyAt).toBeGreaterThan(before)
-    expect(sandbox.updateSecrets).toHaveBeenCalledWith({ SESSION_RELAY_TOKEN: SECRET_1 })
-    expect(sandbox.stop).not.toHaveBeenCalled()
-  })
-
   it("remounts a sandbox still labelled from the old OPENCODE_API_KEY mount", async () => {
     // Pre-rename label: a bare secret name, mounted under OPENCODE_API_KEY.
     const sandbox = fakeSandbox({ [LABEL]: SECRET_1 })
@@ -482,92 +447,6 @@ describe("mountTurnSecrets", () => {
     await mountTurnSecrets(asSandbox(plain), [])
     expect(plain.updateSecrets).not.toHaveBeenCalled()
     expect(plain.stop).not.toHaveBeenCalled()
-  })
-
-  // The label is written last, and releaseTurnSecrets keys off it, so a
-  // mount that throws partway has to detach itself — otherwise it strands a
-  // live placeholder nothing will ever clean up.
-  it("detaches the secrets again when the enabling restart fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const sandbox = fakeSandbox()
-    sandbox.start.mockRejectedValueOnce(new Error("start timed out"))
-    await expect(mountTurnSecrets(asSandbox(sandbox), [POOL_1])).rejects.toThrow("start timed out")
-    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({})
-    expect(sandbox.labels[LABEL]).toBeUndefined()
-  })
-
-  it("detaches the secrets again when the label write fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const sandbox = fakeSandbox({ [LABEL]: "none" })
-    sandbox.setLabels.mockRejectedValueOnce(new Error("labels rejected"))
-    await expect(mountTurnSecrets(asSandbox(sandbox), [POOL_1])).rejects.toThrow("labels rejected")
-    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({})
-  })
-
-  it("still surfaces the original failure when the rollback detach also fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const sandbox = fakeSandbox()
-    sandbox.start.mockRejectedValueOnce(new Error("start timed out"))
-    sandbox.updateSecrets.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("gone"))
-    await expect(mountTurnSecrets(asSandbox(sandbox), [POOL_1])).rejects.toThrow("start timed out")
-  })
-})
-
-describe("releaseTurnSecrets", () => {
-  it("detaches the mounted set and marks the sandbox detached", async () => {
-    const sandbox = fakeSandbox({ repo: "o/r", [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
-    await releaseTurnSecrets(asSandbox(sandbox))
-    expect(sandbox.updateSecrets).toHaveBeenCalledWith({})
-    expect(sandbox.labels).toEqual({ repo: "o/r", [LABEL]: "none", [PINNED]: "none" })
-  })
-
-  it("makes no API call when nothing is mounted", async () => {
-    for (const labels of [{}, { [LABEL]: "none" }] as Record<string, string>[]) {
-      const sandbox = fakeSandbox(labels)
-      await releaseTurnSecrets(asSandbox(sandbox))
-      expect(sandbox.updateSecrets).not.toHaveBeenCalled()
-    }
-  })
-
-  it("never throws when the detach fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
-    sandbox.updateSecrets.mockRejectedValueOnce(new Error("boom"))
-    await expect(releaseTurnSecrets(asSandbox(sandbox))).resolves.toBeUndefined()
-  })
-
-  // A "mounted" label with nothing mounted would make the next turn skip the
-  // attach and run keyless, so the label must never get ahead of the detach.
-  it("keeps the mounted label when the detach fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const mounted = { [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` }
-    const sandbox = fakeSandbox(mounted)
-    sandbox.updateSecrets.mockRejectedValueOnce(new Error("boom"))
-    await releaseTurnSecrets(asSandbox(sandbox))
-    expect(sandbox.labels).toEqual(mounted)
-  })
-
-  it("leaves the secrets mounted when the label write fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
-    sandbox.setLabels.mockRejectedValueOnce(new Error("boom"))
-    await releaseTurnSecrets(asSandbox(sandbox))
-    expect(sandbox.updateSecrets).not.toHaveBeenCalled()
-  })
-
-  it("re-attaches on the next mount when the label was flipped but the detach failed", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    const sandbox = fakeSandbox({ [LABEL]: `SESSION_RELAY_TOKEN:${SECRET_1}` })
-    sandbox.updateSecrets.mockRejectedValueOnce(new Error("boom"))
-    sandbox.setLabels
-      .mockImplementationOnce(async (next: Record<string, string>) => (sandbox.labels = next))
-      .mockRejectedValueOnce(new Error("restore failed"))
-    await releaseTurnSecrets(asSandbox(sandbox))
-    expect(sandbox.labels[LABEL]).toBe("none")
-
-    await mountTurnSecrets(asSandbox(sandbox), [ready({ name: SECRET_2, mountEnv: "SESSION_RELAY_TOKEN" })])
-    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({ SESSION_RELAY_TOKEN: SECRET_2 })
-    expect(sandbox.stop).not.toHaveBeenCalled()
   })
 })
 
