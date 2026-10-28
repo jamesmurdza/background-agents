@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { extractErrorMessage } from "@/lib/fetch-error"
 import { classifyResponse, type SandboxState } from "@/lib/sandbox-lifecycle"
 
 /** Outcome of a sandbox-backed fetch, as a panel renders it. */
@@ -26,8 +27,7 @@ export async function assertSandboxOk(res: Response): Promise<void> {
   const cls = classifyResponse(res)
   if (cls.kind === "state") throw new SandboxStateError(cls.state)
   if (cls.kind === "error") {
-    const data = await res.json().catch(() => ({}) as { error?: string })
-    throw new Error(data?.error || `Request failed (${res.status})`)
+    throw new Error(await extractErrorMessage(res, `Request failed (${res.status})`))
   }
 }
 

@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 import { PATHS } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
 import { isRealRepo } from "@/lib/types"
+import { extractErrorMessage } from "@/lib/fetch-error"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 
 // =============================================================================
@@ -96,8 +97,7 @@ export function useSandboxActions({
       })
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Download failed" }))
-        throw new Error(error.error || "Download failed")
+        throw new Error(await extractErrorMessage(response, "Download failed"))
       }
 
       // Create download link from blob

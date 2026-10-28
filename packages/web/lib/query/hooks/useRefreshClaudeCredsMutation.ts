@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "../keys"
+import { extractErrorMessage } from "@/lib/fetch-error"
 
 export interface RefreshClaudeCredsParams {
   /** Bypass the skip-while-fresh threshold and regenerate the token now. */
@@ -28,13 +29,10 @@ async function refreshClaudeCreds(
     }),
   })
 
-  const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(
-      data.message || data.error || "Failed to refresh Claude credentials",
-    )
+    throw new Error(await extractErrorMessage(response, "Failed to refresh Claude credentials"))
   }
-  return data
+  return response.json()
 }
 
 export function useRefreshClaudeCredsMutation() {

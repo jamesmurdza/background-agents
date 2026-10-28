@@ -10,6 +10,7 @@ import type {
   GitHubRepo,
   GitHubBranch,
 } from "@background-agents/common"
+import { extractErrorMessage } from "@/lib/fetch-error"
 
 // Re-export types for convenience
 export type { GitHubUser, GitHubRepo, GitHubBranch }
@@ -25,8 +26,7 @@ interface FetchReposPageResult {
  * falling back to a generic message when the body is missing or not JSON.
  */
 async function throwResponseError(res: Response, fallback: string): Promise<never> {
-  const data = await res.json().catch(() => ({}))
-  throw new Error((data as { error?: string }).error || fallback)
+  throw new Error(await extractErrorMessage(res, fallback))
 }
 
 /**

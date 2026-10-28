@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation } from "@tanstack/react-query"
+import { extractErrorMessage } from "@/lib/fetch-error"
 
 export interface SetClaudeCredsResult {
   saved: true
@@ -15,13 +16,10 @@ async function setClaudeCreds(credentials: string): Promise<SetClaudeCredsResult
     body: JSON.stringify({ credentials }),
   })
 
-  const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(
-      data.message || data.error || "Failed to save Claude credentials",
-    )
+    throw new Error(await extractErrorMessage(response, "Failed to save Claude credentials"))
   }
-  return data
+  return response.json()
 }
 
 export function useSetClaudeCredsMutation() {

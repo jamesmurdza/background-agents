@@ -8,6 +8,7 @@
 
 import type { Chat, Message, QueuedMessage, Settings, CustomEndpoint } from "@/lib/types"
 import type { Credentials, CredentialFlags } from "@/lib/credentials"
+import { extractErrorMessage } from "@/lib/fetch-error"
 
 // =============================================================================
 // Types
@@ -127,8 +128,7 @@ async function fetchApi<T>(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new ApiError(typeof error?.error === "string" ? error.error : `HTTP ${response.status}`, response.status)
+    throw new ApiError(await extractErrorMessage(response, `HTTP ${response.status}`), response.status)
   }
 
   return response.json()

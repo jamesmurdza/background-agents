@@ -1,5 +1,6 @@
 import { createSandboxGit, type SandboxLike } from "@background-agents/sandbox-git"
 import { getUserPushOptions } from "@/lib/git/push-options"
+import { extractErrorMessage } from "@/lib/fetch-error"
 
 /**
  * Whether the repo has a merge or rebase in progress.
@@ -149,8 +150,7 @@ export async function pushViaTemporaryBranch(params: {
   }
 
   if (!refRes.ok) {
-    const refData = await refRes.json().catch(() => ({}))
-    const errMsg = (refData as { message?: string }).message || String(refRes.status)
+    const errMsg = await extractErrorMessage(refRes, String(refRes.status))
     return { ok: false, stage: "patch-ref", detail: errMsg }
   }
 

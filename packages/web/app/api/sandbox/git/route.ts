@@ -4,6 +4,7 @@ import { ensureSandboxStarted } from "@/lib/sandbox"
 import { isSafeRepoPath, isSafeBranchName, isSafeRepoSegment } from "@/lib/git/ref-validation"
 import { clearPushFailureMessages, createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
+import { extractErrorMessage } from "@/lib/fetch-error"
 import {
   getConflictedFiles,
   pushViaTemporaryBranch,
@@ -186,8 +187,7 @@ export async function POST(req: Request) {
         )
 
         if (!mergeRes.ok) {
-          const mergeData = await mergeRes.json().catch(() => ({}))
-          const errorMessage = (mergeData as { message?: string }).message || `Status ${mergeRes.status}`
+          const errorMessage = await extractErrorMessage(mergeRes, `Status ${mergeRes.status}`)
           if (mergeRes.status === 409) {
             // Conflict
             if (!isMergingIntoActiveBranch) {
@@ -521,8 +521,8 @@ export async function POST(req: Request) {
           }
         )
         if (!deleteRes.ok && deleteRes.status !== 404) {
-          const deleteData = await deleteRes.json().catch(() => ({}))
-          return Response.json({ error: "Delete failed: " + ((deleteData as { message?: string }).message || deleteRes.status) }, { status: 500 })
+          const detail = await extractErrorMessage(deleteRes, String(deleteRes.status))
+          return Response.json({ error: "Delete failed: " + detail }, { status: 500 })
         }
         return Response.json({ success: true })
       }

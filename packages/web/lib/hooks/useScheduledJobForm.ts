@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { extractErrorMessage } from "@/lib/fetch-error"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 import { agentModels, getAgentModels, type Agent, NEW_REPOSITORY } from "@/lib/types"
@@ -373,8 +374,7 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
         method: "POST",
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || "Failed to rotate token")
+        throw new Error(await extractErrorMessage(res, "Failed to rotate token"))
       }
       const updated = await res.json()
       setIncomingToken(updated.incomingToken ?? null)

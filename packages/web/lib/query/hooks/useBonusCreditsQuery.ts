@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
 import { adminRetry, fetchAdminJson } from "./adminQuery"
 import type { BonusCreditRequest } from "@/lib/bonus-credits"
+import { extractErrorMessage } from "@/lib/fetch-error"
 
 export interface BonusCreditGrant {
   id: string
@@ -48,8 +49,7 @@ async function grantBonusCredits(params: BonusCreditRequest): Promise<GrantBonus
     body: JSON.stringify(params),
   })
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || "Failed to grant credits")
+    throw new Error(await extractErrorMessage(response, "Failed to grant credits"))
   }
   return response.json()
 }
