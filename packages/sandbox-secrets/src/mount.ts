@@ -118,6 +118,11 @@ export function secretsCreateParams(
  * - A sandbox created WITHOUT any secrets must be restarted before attached
  *   ones work (the proxy is only wired up at boot). One with the label has
  *   them enabled, and re-attaching after a full detach needs no restart.
+ * - The proxy is wired up at every boot, though, and only when some secret
+ *   is attached: a labelled sandbox stopped with none attached comes back
+ *   without it (its proxy env vars empty). A changed mount checks for that
+ *   and restarts such a sandbox too. Keeping one secret attached for good
+ *   (see `releaseSecrets`' `keep`) avoids it in the first place.
  * - A mounted env var is visible only to processes spawned after the change.
  *
  * Throws only after restoring the previous set, so a half-finished mount
@@ -140,10 +145,13 @@ export async function mountSecrets(
   if (changed) await sandbox.updateSecrets(all)
   try {
     let readyAt = changed ? Date.now() + (options.propagationMs ?? DEFAULT_PROPAGATION_MS) : 0
-    if (!current) {
+    const proxyLost = !!current && changed && !(await proxyWired(sandbox))
+    if (!current || proxyLost) {
       // Files survive the restart; running processes (dev servers, terminals)
       // don't — acceptable once per sandbox.
-      console.log(`[sandbox-secrets] restarting sandbox ${sandbox.id} to enable secrets`)
+      console.log(
+        `[sandbox-secrets] restarting sandbox ${sandbox.id} to ${proxyLost ? "rewire its secrets proxy" : "enable secrets"}`
+      )
       await sandbox.stop()
       await sandbox.start()
       readyAt = 0
@@ -159,6 +167,21 @@ export async function mountSecrets(
       console.error(`[sandbox-secrets] failed to roll back the mount on sandbox ${sandbox.id}:`, rollbackErr)
     })
     throw err
+  }
+}
+
+/**
+ * Whether `sandbox` booted with the secrets proxy: every process there has
+ * HTTPS_PROXY pointing at it, mounted secrets or not, and an empty one when
+ * it booted without. Assumed so when it can't be checked.
+ */
+async function proxyWired(sandbox: Sandbox): Promise<boolean> {
+  try {
+    const { result } = await sandbox.process.executeCommand("printenv HTTPS_PROXY", undefined, undefined, 15)
+    return result.trim() !== ""
+  } catch (err) {
+    console.error(`[sandbox-secrets] couldn't check the secrets proxy of sandbox ${sandbox.id}:`, err)
+    return true
   }
 }
 

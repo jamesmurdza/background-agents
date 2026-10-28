@@ -24,6 +24,8 @@ function fakeSandbox(labels: Record<string, string> = {}) {
     updateSecrets: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     start: vi.fn().mockResolvedValue(undefined),
+    // A sandbox that booted with the secrets proxy.
+    process: { executeCommand: vi.fn().mockResolvedValue({ exitCode: 0, result: "http://172.20.0.1:18080" }) },
     setLabels: vi.fn().mockImplementation(async (next: Record<string, string>) => {
       sandbox.labels = next
       return next
@@ -141,6 +143,27 @@ describe("mountSecrets", () => {
     await mountSecrets(asSandbox(sandbox), { A: "s1" }, OPTIONS)
     expect(sandbox.stop).not.toHaveBeenCalled()
     expect(sandbox.labels[LABEL]).toBe("A:s1")
+  })
+
+  it("restarts a detached sandbox that came back from a stop without its proxy", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "none" })
+    sandbox.process.executeCommand.mockResolvedValue({ exitCode: 1, result: "" })
+    const result = await mountSecrets(asSandbox(sandbox), { A: "s1" }, OPTIONS)
+    expect(sandbox.updateSecrets.mock.invocationCallOrder[0]).toBeLessThan(sandbox.stop.mock.invocationCallOrder[0])
+    expect(sandbox.start).toHaveBeenCalled()
+    expect(result.readyAt).toBe(0)
+    expect(sandbox.labels[LABEL]).toBe("A:s1")
+  })
+
+  it("doesn't restart when the proxy can't be checked, or the set is unchanged", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "none" })
+    sandbox.process.executeCommand.mockRejectedValue(new Error("toolbox down"))
+    await mountSecrets(asSandbox(sandbox), { A: "s1" }, OPTIONS)
+    expect(sandbox.stop).not.toHaveBeenCalled()
+
+    const unchanged = fakeSandbox({ [LABEL]: "A:s1" })
+    await mountSecrets(asSandbox(unchanged), { A: "s1" }, OPTIONS)
+    expect(unchanged.process.executeCommand).not.toHaveBeenCalled()
   })
 
   it("restarts a sandbox that has never had secrets, and needs no wait after", async () => {

@@ -11,7 +11,7 @@ Verified live (see `packages/web/scripts/verify-daytona-secrets.ts`):
 - The swap is done by an HTTPS proxy configured through env vars (`HTTPS_PROXY`, `NODE_EXTRA_CA_CERTS`, …), and only intercepts the secret's hosts. A client that ignores those vars sends the placeholder as-is: it fails, but nothing leaks. Node's built-in `fetch` needs `NODE_USE_ENV_PROXY=1`.
 - Swapped in headers and in Basic auth. **Not** in query strings (the proxy answers 502).
 - The real value is scrubbed back to the placeholder in responses.
-- A sandbox created **without** secrets must be restarted before attached ones work. Re-attaching after detaching everything does not need a restart.
+- A sandbox created **without** secrets must be restarted before attached ones work. Re-attaching after detaching everything does not need a restart, unless the sandbox was stopped and started while nothing was attached: the proxy is wired at boot only when some secret is attached, so it comes back without one (its `HTTPS_PROXY` empty). Keep one harmless secret pinned so that never happens.
 - An in-place value update (`daytona.secret.update`) reaches mounted sandboxes in about 20s.
 - The placeholder is the same in every sandbox; it only works where the secret is mounted.
 
@@ -53,7 +53,7 @@ await waitForPropagation(mounted)
 await releaseSecrets(sandbox, OPTIONS)
 ```
 
-The sandbox label stores the mounted set as `ENV:secret` pairs joined by `:` (or `none` when nothing is mounted). `mountSecrets` skips the API call when the label already matches, restarts a sandbox that has never had secrets, and rolls back if it fails partway. `releaseSecrets` writes the label first so a failure can never leave a label claiming mounts that are gone.
+The sandbox label stores the mounted set as `ENV:secret` pairs joined by `:` (or `none` when nothing is mounted). `mountSecrets` skips the API call when the label already matches, restarts a sandbox that has never had secrets (or, when the set changes, one whose `HTTPS_PROXY` is empty), and rolls back if it fails partway. `releaseSecrets` writes the label first so a failure can never leave a label claiming mounts that are gone.
 
 ### Rotating values
 

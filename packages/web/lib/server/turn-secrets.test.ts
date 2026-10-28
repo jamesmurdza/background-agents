@@ -4,7 +4,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
-import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import { forgetSecrets, toSecretMarker } from "@background-agents/sandbox-secrets"
 import { agentModels, getEnvForModel, type Agent, type CredentialId, type CustomEndpoint } from "@background-agents/common"
 import { SHARED_KEY_POOLS, secretNameForKey } from "./shared-key-pools"
 import { USER_KEY_PROVIDERS, userKeySecretName, userKeySecretSpec } from "./user-key-secrets"
@@ -14,6 +14,8 @@ import { buildCodexAuthJson } from "@/lib/codex-credentials"
 import {
   PINNED_SECRETS_LABEL as PINNED,
   TURN_SECRETS_LABEL as LABEL,
+  KEEPALIVE_MOUNT_ENV,
+  KEEPALIVE_SECRET,
   applyTurnSecretsToEnv,
   ensureTurnSecrets,
   mountSharedClaudeSecret,
@@ -33,6 +35,8 @@ function fakeSandbox(labels: Record<string, string> = {}) {
     updateSecrets: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     start: vi.fn().mockResolvedValue(undefined),
+    // Booted with the secrets proxy.
+    process: { executeCommand: vi.fn().mockResolvedValue({ exitCode: 0, result: "http://172.20.0.1:18080" }) },
     setLabels: vi.fn().mockImplementation(async (next: Record<string, string>) => {
       sandbox.labels = next
       return next
@@ -398,10 +402,26 @@ describe("ensureTurnSecrets", () => {
     const { secret, daytona } = fakeDaytona()
     const key = `sk-ant-${counter++}`
     const { placeholder: _placeholder, ...planned } = ownKey("ANTHROPIC_API_KEY", key)
-    expect(await ensureTurnSecrets(daytona, [planned])).toEqual([{ ...planned, placeholder: placeholderFor(planned.name) }])
+    expect(await ensureTurnSecrets(daytona, [planned])).toEqual([
+      { ...planned, placeholder: placeholderFor(planned.name) },
+      KEEPALIVE,
+    ])
     expect(secret.create).toHaveBeenCalledWith(
       expect.objectContaining({ name: planned.name, value: key, hosts: ["api.anthropic.com"] })
     )
+  })
+
+  it("adds no keepalive when there is nothing to mount, and mounts without it when it fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const { secret, daytona } = fakeDaytona()
+    expect(await ensureTurnSecrets(daytona, [])).toEqual([])
+    forgetSecrets([KEEPALIVE_SECRET.name])
+    secret.create.mockImplementation(async ({ name }: { name: string }) => {
+      if (name === KEEPALIVE_SECRET.name) throw new Error("quota")
+      return { name, placeholder: placeholderFor(name) }
+    })
+    const { placeholder: _placeholder, ...planned } = ownKey("OPENAI_API_KEY", `sk-${counter++}`)
+    expect(await ensureTurnSecrets(daytona, [planned])).toEqual([{ ...planned, placeholder: placeholderFor(planned.name) }])
   })
 
   it("leaves out a user secret that fails, so the agent gets the value as before", async () => {
@@ -423,7 +443,40 @@ describe("ensureTurnSecrets", () => {
   })
 })
 
+const KEEPALIVE: ReadyTurnSecret = {
+  kind: "keepalive",
+  name: KEEPALIVE_SECRET.name,
+  mountEnv: KEEPALIVE_MOUNT_ENV,
+  envValue: "",
+  envKeys: [],
+  placeholder: placeholderFor(KEEPALIVE_SECRET.name),
+}
+const KEPT = `${KEEPALIVE_MOUNT_ENV}:${KEEPALIVE_SECRET.name}`
+
 describe("mountTurnSecrets", () => {
+  it("pins the keepalive, so a turn's end and a turn with nothing to mount both keep it", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "none" })
+    await mountTurnSecrets(asSandbox(sandbox), [POOL_1, KEEPALIVE])
+    expect(sandbox.labels[PINNED]).toBe(KEPT)
+
+    await releaseTurnSecrets(asSandbox(sandbox))
+    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({ [KEEPALIVE_MOUNT_ENV]: KEEPALIVE_SECRET.name })
+    expect(sandbox.labels[LABEL]).toBe(KEPT)
+
+    await mountTurnSecrets(asSandbox(sandbox), [POOL_1, KEEPALIVE])
+    await mountTurnSecrets(asSandbox(sandbox), [])
+    expect(sandbox.updateSecrets).toHaveBeenLastCalledWith({ [KEEPALIVE_MOUNT_ENV]: KEEPALIVE_SECRET.name })
+    expect(sandbox.labels).toMatchObject({ [LABEL]: KEPT, [PINNED]: KEPT })
+  })
+
+  it("restarts a sandbox that came back from a stop without its secrets proxy", async () => {
+    const sandbox = fakeSandbox({ [LABEL]: "none" })
+    sandbox.process.executeCommand.mockResolvedValue({ exitCode: 1, result: "" })
+    await mountTurnSecrets(asSandbox(sandbox), [POOL_1, KEEPALIVE])
+    expect(sandbox.stop).toHaveBeenCalledTimes(1)
+    expect(sandbox.start).toHaveBeenCalledTimes(1)
+  })
+
   it("mounts and restarts once a sandbox created without secrets", async () => {
     const sandbox = fakeSandbox({ repo: "o/r" })
     expect(await mountTurnSecrets(asSandbox(sandbox), [POOL_1])).toEqual({

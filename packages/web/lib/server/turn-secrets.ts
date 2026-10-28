@@ -65,9 +65,10 @@ import {
 
 /**
  * Sandbox label recording the mounted set: `<env var>:<secret name>` pairs
- * during a turn, `none` between turns, absent on sandboxes that have never
- * had a secret. Named for the first pool that used it; renaming it would make
- * every existing sandbox look secret-less and force a restart.
+ * during a turn, only the pinned ones (or `none`) between turns, absent on
+ * sandboxes that have never had a secret. Named for the first pool that used
+ * it; renaming it would make every existing sandbox look secret-less and
+ * force a restart.
  */
 export const TURN_SECRETS_LABEL = "opencode-secret"
 
@@ -76,14 +77,30 @@ export const PINNED_SECRETS_LABEL = "pinned-secrets"
 
 const MOUNT_OPTIONS: MountOptions = { label: TURN_SECRETS_LABEL, pinnedLabel: PINNED_SECRETS_LABEL }
 
+/**
+ * A secret pinned on every sandbox that has secrets, and never detached.
+ * Daytona wires a sandbox's secrets proxy at boot only when some secret is
+ * attached, so one stopped between turns with none would come back without
+ * it and send placeholders out unswapped (mountSecrets then has to restart
+ * it). Holds no credential, and its host never resolves.
+ */
+export const KEEPALIVE_SECRET: EnsureSecretSpec = {
+  name: "sandbox_keepalive",
+  value: () => "keepalive",
+  hosts: ["keepalive.invalid"],
+  description: "Keeps a sandbox's secrets proxy across restarts; holds no credential",
+}
+export const KEEPALIVE_MOUNT_ENV = "SESSION_RELAY_TOKEN_KEEPALIVE"
+
 /** A secret a turn mounts, and the agent env value it stands in for. */
 export interface TurnSecret {
   /**
-   * "env" secrets are pinned: they stay mounted between turns. "claude" is
-   * the shared Claude token, which the agent fetches itself (see
-   * {@link mountSharedClaudeSecret}) rather than finding in its env.
+   * "env" secrets are pinned: they stay mounted between turns, and so does
+   * {@link KEEPALIVE_SECRET}. "claude" is the shared Claude token, which the
+   * agent fetches itself (see {@link mountSharedClaudeSecret}) rather than
+   * finding in its env.
    */
-  kind: "pool" | "user" | "endpoint" | "env" | "claude"
+  kind: "pool" | "user" | "endpoint" | "env" | "claude" | "keepalive"
   /** Daytona secret name. */
   name: string
   /** Env var it is mounted as inside the sandbox. */
@@ -210,7 +227,8 @@ function planKeySecrets(params: {
  * placeholder. Call before creating a sandbox with them or mounting them.
  * A pool secret that can't be ensured fails the turn: the shared key must
  * never fall back to the sandbox. A user's own secret that can't is left
- * out, so the agent gets the value itself, as it did before secrets.
+ * out, so the agent gets the value itself, as it did before secrets. With
+ * anything to mount, {@link KEEPALIVE_SECRET} is added too.
  */
 export async function ensureTurnSecrets(daytona: Daytona, secrets: TurnSecret[]): Promise<ReadyTurnSecret[]> {
   const ready: ReadyTurnSecret[] = []
@@ -227,6 +245,15 @@ export async function ensureTurnSecrets(daytona: Daytona, secrets: TurnSecret[])
       console.error(`[turn-secrets] passing ${secret.envKeys.join(", ") || secret.mountEnv} unprotected; its secret failed:`, err)
     }
   }
+  if (ready.length > 0) {
+    try {
+      const { name, placeholder } = await ensureSecret(daytona, KEEPALIVE_SECRET)
+      ready.push({ kind: "keepalive", name, mountEnv: KEEPALIVE_MOUNT_ENV, envValue: "", envKeys: [], placeholder })
+    } catch (err) {
+      // Only a later stop/start costs a restart without it (see mountSecrets).
+      console.error("[turn-secrets] mounting without the keepalive secret; it failed:", err)
+    }
+  }
   return ready
 }
 
@@ -234,11 +261,13 @@ function mountsOf(secrets: TurnSecret[]): SecretMounts {
   return Object.fromEntries(secrets.map((s) => [s.mountEnv, s.name]))
 }
 
-/** `secrets` split into the turn's own and the pinned (env) ones. */
+const isPinned = (secret: TurnSecret) => secret.kind === "env" || secret.kind === "keepalive"
+
+/** `secrets` split into the turn's own and the pinned (env, keepalive) ones. */
 function splitPinned(secrets: TurnSecret[]): { turn: SecretMounts; pinned: SecretMounts } {
   return {
-    turn: mountsOf(secrets.filter((s) => s.kind !== "env")),
-    pinned: mountsOf(secrets.filter((s) => s.kind === "env")),
+    turn: mountsOf(secrets.filter((s) => !isPinned(s))),
+    pinned: mountsOf(secrets.filter(isPinned)),
   }
 }
 
@@ -260,15 +289,17 @@ export function turnSecretsCreateParams(
  * when they already are), detaching whatever else is, pinned env secrets the
  * user has since removed included. Call as early in the send as possible,
  * then {@link waitForTurnSecrets} just before starting the agent. With
- * nothing to mount it only detaches leftovers, so a sandbox that never
- * needed secrets is never restarted for them.
+ * nothing to mount it only detaches leftovers (the keepalive stays), so a
+ * sandbox that never needed secrets is never restarted for them.
  */
 export async function mountTurnSecrets(
   sandbox: DaytonaSandbox,
   secrets: ReadyTurnSecret[]
 ): Promise<{ readyAt: number }> {
   if (secrets.length === 0) {
-    await releaseSecrets(sandbox, MOUNT_OPTIONS, {})
+    // Keep the keepalive, which needs no ensuring: it is already mounted.
+    const keepalive = readPinned(sandbox, MOUNT_OPTIONS)[KEEPALIVE_MOUNT_ENV]
+    await releaseSecrets(sandbox, MOUNT_OPTIONS, keepalive ? { [KEEPALIVE_MOUNT_ENV]: keepalive } : {})
     return { readyAt: 0 }
   }
   const { turn, pinned } = splitPinned(secrets)
