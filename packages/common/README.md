@@ -79,15 +79,18 @@ import {
 
 ### Codex Model Defaults
 
-Codex defaults to `gpt-6.1-sol` (`gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`
-are also offered). GPT-5.5 was fully retired from Codex on Oct 14, 2026 and is
-no longer offered under any auth method — it is not just gated behind an API
-key. When a ChatGPT subscription is connected it takes precedence over an API
-key, matching the SDK's authentication route. Saved GPT-5.5 preferences and
-chat selections resolve to the current default; custom-endpoint choices are
-preserved. This resolution does not send prompts or rewrite chat history.
-Credential checks do not prove account/plan access to a particular model; a
-provider rejection still needs the explicit model-selection recovery flow.
+Codex defaults to `gpt-6.1-sol` (`gpt-6.1-terra`, `gpt-6-astra`, `gpt-6-sol`,
+and `gpt-6-luna` are also offered). GPT-5.5 was retired from ChatGPT sign-in
+on Oct 14, 2026, not from the API — it's still offered, but gated to an
+OpenAI API key (`requiresKey: "openai"`, labeled "GPT-5.5 (API key only)").
+When a ChatGPT subscription is connected it takes precedence over an API key,
+matching the SDK's authentication route, so a subscription-backed run never
+falls back to GPT-5.5 even if an API key is also present. Saved GPT-5.5
+preferences and chat selections resolve to the current default once a
+subscription is connected; custom-endpoint choices are preserved. This
+resolution does not send prompts or rewrite chat history. Credential checks
+do not prove account/plan access to a particular model; a provider rejection
+still needs the explicit model-selection recovery flow.
 
 ### GitHub API Helpers
 
