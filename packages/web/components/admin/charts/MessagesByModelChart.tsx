@@ -13,9 +13,9 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { lineTooltipCursor, SingleAreaTooltipContent, useSingleAreaHover } from "@/components/charts/chartTooltip"
+import { timeSeriesGridProps, timeSeriesXAxisProps, valueYAxisProps } from "@/components/charts/chartAxes"
 import { ChartEmptyState } from "./ChartEmptyState"
 import {
-  formatAxisDate,
   formatTooltipDate,
   formatHour,
   formatMetricValue,
@@ -139,24 +139,9 @@ export function MessagesByModelChart({
               data={data}
               margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis
-                dataKey="time"
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={(value) =>
-                  isHourly ? formatHour(Number(value)) : formatAxisDate(value)
-                }
-                axisLine={{ stroke: "hsl(var(--border))" }}
-                tickLine={{ stroke: "hsl(var(--border))" }}
-                interval={isHourly ? 3 : "preserveStartEnd"}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                axisLine={{ stroke: "hsl(var(--border))" }}
-                tickLine={{ stroke: "hsl(var(--border))" }}
-                width={50}
-                tickFormatter={(value) => formatMetricValue(metric, Number(value))}
-              />
+              <CartesianGrid {...timeSeriesGridProps} />
+              <XAxis {...timeSeriesXAxisProps(isHourly)} />
+              <YAxis {...valueYAxisProps((value) => formatMetricValue(metric, value))} />
               {/* Only shows a tooltip for the specific band the mouse is over
                   (see useSingleAreaHover) — AreaChart has no built-in
                   per-item hover mode, so `active`/`content` fake one. */}

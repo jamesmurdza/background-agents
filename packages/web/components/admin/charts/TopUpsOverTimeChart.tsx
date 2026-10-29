@@ -10,8 +10,9 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "@/components/charts/chartTooltip"
+import { timeSeriesGridProps, timeSeriesXAxisProps } from "@/components/charts/chartAxes"
 import { ChartEmptyState } from "./ChartEmptyState"
-import { formatAxisDate, formatHour, formatTooltipDate } from "@/components/charts/chartFormatters"
+import { formatHour, formatTooltipDate } from "@/components/charts/chartFormatters"
 import type { TopupSeriesPoint } from "@/lib/query/hooks"
 
 const LINE_COLOR = "hsl(152, 60%, 50%)"
@@ -44,15 +45,8 @@ export function TopUpsOverTimeChart({ data, isHourly = false }: TopUpsOverTimeCh
               <stop offset="95%" stopColor={LINE_COLOR} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-          <XAxis
-            dataKey="time"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(value) => (isHourly ? formatHour(Number(value)) : formatAxisDate(value))}
-            axisLine={{ stroke: "hsl(var(--border))" }}
-            tickLine={{ stroke: "hsl(var(--border))" }}
-            interval={isHourly ? 3 : "preserveStartEnd"}
-          />
+          <CartesianGrid {...timeSeriesGridProps} />
+          <XAxis {...timeSeriesXAxisProps(isHourly)} />
           <YAxis
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={(value) => `$${Number(value).toLocaleString()}`}
