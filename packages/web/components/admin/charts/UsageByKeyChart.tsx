@@ -11,9 +11,9 @@ import {
   YAxis,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "@/components/charts/chartTooltip"
+import { timeSeriesGridProps, timeSeriesXAxisProps, valueYAxisProps } from "@/components/charts/chartAxes"
 import {
   CATEGORICAL_COLORS,
-  formatAxisDate,
   formatHour,
   formatMetricValue,
   formatTooltipDate,
@@ -83,24 +83,9 @@ export function UsageByKeyChart({ data, keyIds, metric, isHourly = false }: Usag
       <div className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis
-              dataKey="time"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(value) =>
-                isHourly ? formatHour(Number(value)) : formatAxisDate(value)
-              }
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={{ stroke: "hsl(var(--border))" }}
-              interval={isHourly ? 3 : "preserveStartEnd"}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={{ stroke: "hsl(var(--border))" }}
-              width={50}
-              tickFormatter={(v) => fmt(Number(v))}
-            />
+            <CartesianGrid {...timeSeriesGridProps} />
+            <XAxis {...timeSeriesXAxisProps(isHourly)} />
+            <YAxis {...valueYAxisProps(fmt)} />
             <Tooltip
               {...chartTooltipProps}
               cursor={lineTooltipCursor}

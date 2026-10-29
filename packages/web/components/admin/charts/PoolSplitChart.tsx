@@ -11,8 +11,9 @@ import {
   YAxis,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "@/components/charts/chartTooltip"
+import { timeSeriesGridProps, timeSeriesXAxisProps, valueYAxisProps } from "@/components/charts/chartAxes"
 import { ChartEmptyState } from "./ChartEmptyState"
-import { formatAxisDate, formatHour, formatMetricValue, formatTooltipDate } from "@/components/charts/chartFormatters"
+import { formatHour, formatMetricValue, formatTooltipDate } from "@/components/charts/chartFormatters"
 import type { PoolSplitPoint, UsageMetric } from "@/lib/query/hooks"
 
 // Shared is our spend, so it takes the primary colour; own-key is muted since it
@@ -49,24 +50,9 @@ export function PoolSplitChart({ data, metric, isHourly = false }: PoolSplitChar
       <div className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis
-              dataKey="time"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(value) =>
-                isHourly ? formatHour(Number(value)) : formatAxisDate(value)
-              }
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={{ stroke: "hsl(var(--border))" }}
-              interval={isHourly ? 3 : "preserveStartEnd"}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={{ stroke: "hsl(var(--border))" }}
-              width={50}
-              tickFormatter={(value) => fmt(Number(value))}
-            />
+            <CartesianGrid {...timeSeriesGridProps} />
+            <XAxis {...timeSeriesXAxisProps(isHourly)} />
+            <YAxis {...valueYAxisProps(fmt)} />
             <Tooltip
               {...chartTooltipProps}
               cursor={lineTooltipCursor}
