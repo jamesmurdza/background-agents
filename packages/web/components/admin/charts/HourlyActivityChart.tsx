@@ -11,6 +11,7 @@ import {
   Cell,
 } from "recharts"
 import { chartTooltipProps, barTooltipCursor } from "@/components/charts/chartTooltip"
+import { timeSeriesGridProps, valueYAxisProps } from "@/components/charts/chartAxes"
 import { ChartEmptyState } from "./ChartEmptyState"
 import { formatHour, formatMetricValue, metricLabel, type StatsMetric } from "@/components/charts/chartFormatters"
 
@@ -55,7 +56,7 @@ export function HourlyActivityChart({ data, metric }: HourlyActivityChartProps) 
           data={fullData}
           margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <CartesianGrid {...timeSeriesGridProps} />
           <XAxis
             dataKey="hour"
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
@@ -64,13 +65,7 @@ export function HourlyActivityChart({ data, metric }: HourlyActivityChartProps) 
             axisLine={{ stroke: "hsl(var(--border))" }}
             tickLine={{ stroke: "hsl(var(--border))" }}
           />
-          <YAxis
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-            axisLine={{ stroke: "hsl(var(--border))" }}
-            tickLine={{ stroke: "hsl(var(--border))" }}
-            width={50}
-            tickFormatter={(value) => formatMetricValue(metric, Number(value))}
-          />
+          <YAxis {...valueYAxisProps((value) => formatMetricValue(metric, value))} />
           <Tooltip
             {...chartTooltipProps}
             cursor={barTooltipCursor}

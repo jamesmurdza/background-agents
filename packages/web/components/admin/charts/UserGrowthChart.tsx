@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { chartTooltipProps, lineTooltipCursor } from "@/components/charts/chartTooltip"
+import { timeSeriesGridProps, valueYAxisProps } from "@/components/charts/chartAxes"
 import { formatAxisDate, formatTooltipDate } from "@/components/charts/chartFormatters"
 import { ChartEmptyState } from "./ChartEmptyState"
 
@@ -40,7 +41,7 @@ export function UserGrowthChart({ data }: UserGrowthChartProps) {
               <stop offset="95%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <CartesianGrid {...timeSeriesGridProps} />
           <XAxis
             dataKey="date"
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -48,12 +49,7 @@ export function UserGrowthChart({ data }: UserGrowthChartProps) {
             axisLine={{ stroke: "hsl(var(--border))" }}
             tickLine={{ stroke: "hsl(var(--border))" }}
           />
-          <YAxis
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-            axisLine={{ stroke: "hsl(var(--border))" }}
-            tickLine={{ stroke: "hsl(var(--border))" }}
-            width={45}
-          />
+          <YAxis {...valueYAxisProps((value) => String(value))} />
           <Tooltip
             {...chartTooltipProps}
             cursor={lineTooltipCursor}
