@@ -537,6 +537,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     // ── BYOK: OpenAI ──
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
+    { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     { value: "gpt-5", label: "GPT-5", requiresKey: "openai" },
     { value: "gpt-5-mini", label: "GPT-5 Mini", requiresKey: "openai" },
     { value: "gpt-4.1", label: "GPT-4.1", requiresKey: "openai" },
@@ -585,6 +586,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
     { value: "openai/gpt-5", label: "GPT-5", requiresKey: "openai" },
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
+    { value: "openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     // Google models — Flash also runs on the shared Gemini pool; Pro and Argon
     // are BYOK-only.
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
