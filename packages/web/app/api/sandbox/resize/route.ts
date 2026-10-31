@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { badRequest, requireAdmin, isAuthError, serverConfigError } from "@/lib/db/api-helpers"
+import { badRequest, requireAdmin, isAuthError, serverConfigError, internalError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 
 /** Hard ceilings enforced server-side regardless of what the client sends. */
@@ -75,8 +75,7 @@ export async function GET(req: Request) {
     return Response.json({ memory: sandbox.memory, disk: sandbox.disk, usage })
   } catch (error) {
     console.error("[sandbox/resize] GET error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }
 
@@ -160,7 +159,6 @@ export async function POST(req: Request) {
     return Response.json({ success: true, memory: memoryGb, disk: diskGb })
   } catch (error) {
     console.error("[sandbox/resize] Error:", error)
-    const message = error instanceof Error ? error.message : "Unknown error"
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }
