@@ -49,6 +49,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { pollUntilPopupCloses } from "@/lib/popup-poll"
 import { useToastStore } from "@/lib/stores/toast-store"
 import { cn } from "@/lib/utils"
 
@@ -140,21 +141,7 @@ interface UnlinkRequest {
 
 /** Wait until the popup reports back via postMessage or is closed. */
 function waitForPopup(popup: Window, source: string): Promise<void> {
-  return new Promise((resolve) => {
-    function done() {
-      clearInterval(t)
-      window.removeEventListener("message", onMessage)
-      resolve()
-    }
-    function onMessage(e: MessageEvent) {
-      const data = e.data as { source?: string } | null
-      if (data?.source === source) done()
-    }
-    window.addEventListener("message", onMessage)
-    const t = setInterval(() => {
-      if (popup.closed) done()
-    }, 500)
-  })
+  return new Promise((resolve) => pollUntilPopupCloses(popup, resolve, { messageSource: source }))
 }
 
 interface McpServersComboboxProps {
@@ -523,12 +510,8 @@ export function McpServersCombobox({
       }
 
       if (popupTimerRef.current) clearInterval(popupTimerRef.current)
-      popupTimerRef.current = setInterval(async () => {
-        if (!popup.closed) return
-        if (popupTimerRef.current) {
-          clearInterval(popupTimerRef.current)
-          popupTimerRef.current = null
-        }
+      popupTimerRef.current = pollUntilPopupCloses(popup, async () => {
+        popupTimerRef.current = null
         try {
           await fetch(
             `${apiBase}/${id}/mcp-servers/${data.serverId}/smithery-finalize`,
@@ -539,7 +522,7 @@ export function McpServersCombobox({
         }
         setBusySlug(null)
         await loadConnectedFor(id)
-      }, 500)
+      })
     } catch (err) {
       console.error("[McpServersCombobox] toggle failed:", err)
       setBusySlug(null)
