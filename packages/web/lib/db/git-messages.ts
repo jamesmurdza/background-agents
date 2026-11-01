@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client"
 import { nanoid } from "nanoid"
+import { isGitHubApiError } from "@background-agents/common"
 import { prisma } from "@/lib/db/prisma"
 
 /**
@@ -123,4 +124,31 @@ export async function clearPushFailureMessages(chatId: string): Promise<void> {
       metadata: { path: ["action"], equals: "force-push" },
     },
   })
+}
+
+/**
+ * Logs a failed GitHub-backed git operation (PR creation, squash, ...),
+ * records a matching error message in the chat history when a chatId is
+ * available, and returns the JSON error response the route should send.
+ *
+ * @param logTag - Bracketed log prefix, e.g. "github/pr" for `[github/pr] Error: ...`
+ * @param error - The caught error, typically a GitHubApiError or Error
+ * @param chatId - Chat to record the failure message in, if any
+ * @param actionLabel - Human-readable action, e.g. "PR creation" -> "PR creation failed: ...."
+ */
+export async function reportGitOperationError(
+  logTag: string,
+  error: unknown,
+  chatId: string | null | undefined,
+  actionLabel: string
+): Promise<Response> {
+  console.error(`[${logTag}] Error:`, error)
+  const message = isGitHubApiError(error) ? error.message : error instanceof Error ? error.message : "Unknown error"
+  const status = isGitHubApiError(error) ? error.status : 500
+
+  if (chatId) {
+    await createGitOperationMessage(chatId, `${actionLabel} failed: ${message}.`, true)
+  }
+
+  return Response.json({ error: message }, { status })
 }
