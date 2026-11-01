@@ -276,14 +276,14 @@ type Event =
 | Provider | Example | Docs |
 |----------|---------|------|
 | **Claude** | `model: "sonnet"`, `model: "opus"`, `model: "haiku"` | [Claude Code](https://code.claude.com/docs/en/model-config#model-aliases) |
-| **Codex** | `model: "gpt-6.1-sol"` (Backgrounder default), `model: "gpt-6-astra"`, `model: "gpt-6-sol"`, `model: "gpt-6-luna"`, `model: "gpt-5.5"`; `gpt-5.5` was retired from ChatGPT subscription sign-in, but is still available via `OPENAI_API_KEY` | [Codex CLI models](https://learn.chatgpt.com/docs/models) |
+| **Codex** | `model: "gpt-6.1-sol"` (Backgrounder default), `model: "gpt-6.1-terra"`, `model: "gpt-6-astra"`, `model: "gpt-6-sol"`, `model: "gpt-6-luna"`, `model: "gpt-5.5"`; `gpt-5.5` was retired from ChatGPT subscription sign-in, but is still available via `OPENAI_API_KEY` | [Codex CLI models](https://learn.chatgpt.com/docs/models) |
 | **Command Code** | `model: "xiaomi/mimo-v2.6-pro"`, `model: "claude-sonnet-5"`, `model: "deepseek/deepseek-v4-flash"` | [Command Code models](https://commandcode.ai/docs/reference/cli/models) |
 | **Copilot** | `model: "claude-sonnet-5"`, `model: "gpt-6.1-sol"`, `model: "gpt-5.6-terra"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
 | **Droid** | `model: "claude-sonnet-4-5-20250929"` (BYOK), `model: "gpt-5"`, `model: "factory/<id>"` (Factory-hosted) | [Factory Droid](https://docs.factory.ai/cli/) |
 | **Gemini** | `model: "gemini-3.5-flash-lite"`, `model: "gemini-3.8-flash"`, `model: "gemini-3.1-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
 | **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://goose-docs.ai/docs/getting-started/providers/) |
 | **Kilo** | `model: "kilo/kilo-auto/free"`, `model: "kilo/anthropic/claude-opus-4.7"` | [Kilo](https://kilo.codes/docs/) |
-| **Kimi** | `model: "kimi-k3"`, `model: "kimi-k2.7-code"`, `model: "kimi-k2.7-code-highspeed"`, `model: "kimi-k2.6"` | [Kimi Code](https://code.kimi.com/) |
+| **Kimi** | `model: "kimi-k3.1-pro"`, `model: "kimi-k3"`, `model: "kimi-k2.7-code"`, `model: "kimi-k2.7-code-highspeed"`, `model: "kimi-k2.6"` | [Kimi Code](https://code.kimi.com/) |
 | **OpenCode** | `model: "opencode/big-pickle"` (free), `model: "anthropic/claude-sonnet-4-5"` | [OpenCode models](https://opencode.ai/docs/models/) |
 | **Pi** | `model: "claude-sonnet-4-5"`, `model: "openai/gpt-4o"`, `model: "google/gemini-3.1-pro-preview"` | [Pi CLI models](https://pi.dev/models) |
 

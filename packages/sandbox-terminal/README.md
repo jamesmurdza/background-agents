@@ -183,8 +183,8 @@ Messages are JSON-encoded:
 
 ```bash
 npm run typecheck
-npm run test -w @background-agents/sandbox-terminal   # pure unit tests, instant
-DAYTONA_API_KEY=... npm run test:e2e -w @background-agents/sandbox-terminal  # + integration (creates a sandbox)
+npm run test -w @background-agents/sandbox-terminal       # same integration suite as test:e2e; skipped (instant) without DAYTONA_API_KEY
+DAYTONA_API_KEY=... npm run test:e2e -w @background-agents/sandbox-terminal  # integration tests (creates a sandbox)
 ```
 
 ## License
