@@ -6,7 +6,7 @@ import { PATHS } from "@background-agents/common"
 import { IMAGE_MIME_TYPES } from "@/lib/file-preview/types"
 import { LIST_SERVERS_COMMAND, parseListeningSockets, recordDevServers } from "@/lib/dev-servers"
 import { readDevServers, saveDevServers } from "@/lib/db/dev-servers-store"
-import { internalError, badRequest, notFound, requireSandboxOwner, getGitHubToken } from "@/lib/db/api-helpers"
+import { internalError, badRequest, notFound, requireSandboxOwner, getGitHubToken, serverConfigError } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
 import { inspectChanges } from "@/lib/git/changes"
 
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   try {
