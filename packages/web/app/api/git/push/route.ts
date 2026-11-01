@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
-import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest, verifySandboxOwnership, forbidden } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, requireAuth, isAuthError, internalError, badRequest, verifySandboxOwnership, forbidden, serverConfigError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { getUserPushOptions } from "@/lib/git/push-options"
 
@@ -40,10 +40,7 @@ export async function POST(req: Request) {
   // 3. Get Daytona API key
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return Response.json(
-      { error: "Daytona API key not configured" },
-      { status: 500 }
-    )
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   try {

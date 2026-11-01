@@ -3,7 +3,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
 import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, getChatWithAuth } from "@/lib/db/api-helpers"
+import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, getChatWithAuth, serverConfigError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { recreateChatSandbox } from "@/lib/sandbox"
 
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   try {
