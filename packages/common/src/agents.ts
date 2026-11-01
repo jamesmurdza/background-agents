@@ -556,7 +556,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── Factory-hosted (FACTORY_API_KEY; droid's built-in catalog). There is NO
     // free/no-key tier — verified: every built-in model 401s without a Factory key.
     { value: "factory/claude-opus-5-5", label: "Claude Opus 5.5 (Factory)", requiresKey: "factory" },
-    { value: "factory/claude-fable-5-1", label: "Claude Fable 5.1 (Factory)", requiresKey: "factory" },
+    { value: "factory/claude-fable-5.1", label: "Claude Fable 5.1 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-fable-5", label: "Claude Fable 5 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-opus-4-8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
