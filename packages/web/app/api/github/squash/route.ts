@@ -1,8 +1,8 @@
-import { compareBranches, githubFetch, isGitHubApiError } from "@background-agents/common"
+import { compareBranches, githubFetch } from "@background-agents/common"
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
-import { createGitOperationMessage } from "@/lib/db/git-messages"
+import { createGitOperationMessage, reportGitOperationError } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, getChatWithAuth, serverConfigError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { recreateChatSandbox } from "@/lib/sandbox"
@@ -251,14 +251,6 @@ export async function POST(req: Request) {
     }
 
   } catch (error: unknown) {
-    console.error("[github/squash] Error:", error)
-    const message = isGitHubApiError(error) ? error.message : (error instanceof Error ? error.message : "Unknown error")
-    const status = isGitHubApiError(error) ? error.status : 500
-
-    if (chatId) {
-      await createGitOperationMessage(chatId, `Squash failed: ${message}.`, true)
-    }
-
-    return Response.json({ error: message }, { status })
+    return reportGitOperationError("github/squash", error, chatId, "Squash")
   }
 }
