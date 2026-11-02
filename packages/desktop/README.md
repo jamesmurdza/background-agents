@@ -32,11 +32,14 @@ npm run dev:electron
 
 ### Standalone against production
 
-From the repo root, this launches the desktop app pointing at the production
-backend (`https://backgrounder.dev`):
+`npm run start:electron` runs `electron dist/main.js` directly — unlike
+`dev:electron`, it has no build step wired up, so `packages/desktop/dist/`
+must already exist (it's gitignored and absent on a fresh checkout). Build it
+once first, then launch:
 
 ```bash
-npm run start:electron
+npm run build:electron   # builds packages/desktop/dist/
+npm run start:electron   # launches the desktop app against https://backgrounder.dev
 ```
 
 Override the target with `BACKGROUND_AGENTS_URL` if needed.

@@ -51,6 +51,13 @@ await git.push(path, token, { noVerify: false })  // run pre-push hooks
 | `pull(path, token?)` | Pull from remote |
 | `push(path, token?, options?)` | Push to remote. `options.noVerify` skips pre-push hooks (default: `true`) |
 
+Also exported for error handling: `GitError` (base class, with `command`,
+`exitCode`, and `output`), `GitAuthError` and `GitNotFoundError` (subclasses for
+the two cases below), plus the helpers `isAuthError(output)`,
+`isNotFoundError(output)`, `isNonFastForwardError(output)`, and
+`createGitError(command, exitCode, output)` that build the right subclass from
+raw command output.
+
 ## How Credentials Work
 
 Credentials are passed inline via git's `-c` flag. The token is sent as HTTP Basic

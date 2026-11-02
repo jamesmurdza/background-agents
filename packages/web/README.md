@@ -112,6 +112,12 @@ ENCRYPTION_KEY="<openssl rand -hex 32>"
 
 # Required for /api/cron/* endpoints (set in Vercel project env)
 CRON_SECRET="<random-secret>"
+
+# Optional — takes the whole site down (pages and API routes return 503) for
+# maintenance. Bypass it yourself by visiting any URL with
+# ?bypass=<MAINTENANCE_BYPASS_SECRET>, which sets a cookie for your session.
+MAINTENANCE_MODE="true"
+MAINTENANCE_BYPASS_SECRET="<random-secret>"
 ```
 
 Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database. It connects using the first of `DIRECT_URL`, `POSTGRES_URL_NON_POOLING`, or `DATABASE_URL` that is set, and refuses to run through a transaction pooler (port 6543) because `prisma migrate deploy` takes a session-level advisory lock that hangs behind PgBouncer.
@@ -196,3 +202,17 @@ npm run dev:test
 ```
 
 This way, you can reproduce a failing test manually in your browser.
+
+### Maintenance scripts
+
+One-off operational scripts, run from the repo root. Both are read-only/dry-run
+by default and require `--apply` to write:
+
+```bash
+npm run backfill:claude-cost       # re-price historical Claude rows that recorded $0 cost
+npm run grant:signup-credits       # grant the signup credit to accounts that predate it
+```
+
+See the comment at the top of each script
+(`packages/web/scripts/backfill-claude-cost.ts`,
+`packages/web/scripts/grant-signup-credits.ts`) for flags and safety notes.

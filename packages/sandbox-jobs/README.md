@@ -146,6 +146,10 @@ returns `null` only for an absent record; corrupt records and failed reads
 throw. Custom `SandboxJobs` implementations must provide `abort()` and
 `isAborted()` with the same launch-fencing guarantees.
 
+Also exported: `DEFAULT_ROOT` (`"/tmp/sandbox-jobs"`, the fallback used when
+`StartJobOptions.root` is omitted) and `CANCELLED_EXIT_CODE` (`143`, the exit
+code a cancelled job's `JobStatus.exitCode` reports).
+
 ## Tests
 
 ```bash

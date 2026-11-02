@@ -22,7 +22,7 @@ All environment variables (below) are optional — sensible defaults are used.
 |----------|---------|-------------|
 | `BASE_URL` | `http://localhost:4000` | Base URL for the dev server |
 | `CRON_SECRET` | (none) | Bearer token for cron endpoint auth |
-| `VERCEL_JSON` | (auto-detected) | Path to `vercel.json`. If unset, the simulator searches `./vercel.json`, then the repo root, then `packages/web/vercel.json` (where the config actually lives). |
+| `VERCEL_JSON` | `./vercel.json` | Path to `vercel.json`, resolved relative to the current directory. If not found there, the simulator also tries the repo root, then `packages/web/vercel.json` (where the config actually lives). |
 
 ## Example Output
 
