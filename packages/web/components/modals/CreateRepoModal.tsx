@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { createRepository } from "@/lib/github"
 import { isValidRepoName } from "@background-agents/common"
 
@@ -124,7 +124,8 @@ export function CreateRepoModal({
       <Dialog.Portal>
         <Dialog.Overlay
           className={cn(
-            "fixed inset-0 z-50 transition-opacity duration-300 bg-black/15 backdrop-blur-[1px]",
+            MODAL_OVERLAY_CLASS,
+            "transition-opacity duration-300",
             open ? "opacity-100" : "opacity-0"
           )}
         />

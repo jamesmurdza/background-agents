@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 
 interface MobileBottomSheetProps {
@@ -55,8 +55,9 @@ export function MobileBottomSheet({
       {/* Backdrop */}
       <div
         className={cn(
-          "fixed inset-0 bg-black/15 backdrop-blur-[1px] transition-opacity duration-300",
-          elevated ? "z-[60]" : "z-50",
+          MODAL_OVERLAY_CLASS,
+          "transition-opacity duration-300",
+          elevated && "z-[60]",
           open ? "opacity-100" : "opacity-0"
         )}
         onClick={onClose}

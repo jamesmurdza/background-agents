@@ -4,7 +4,7 @@ import { useRef } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 
 // ============================================================================
 // BaseDialog - Shared dialog component for git operations
@@ -35,7 +35,7 @@ export function BaseDialog({ open, onClose, title, icon, children, isMobile = fa
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px]" />
+        <Dialog.Overlay className={MODAL_OVERLAY_CLASS} />
         <Dialog.Content
           onOpenAutoFocus={(e) => {
             if (initialFocusRef?.current) {

@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, CreditCard, Server, Wrench, BarChart3, Rocket } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import { useElectron, type LicenseDetectResult } from "@/lib/hooks/useElectron"
@@ -483,7 +483,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className={cn(
-          "fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px] transition-opacity duration-300",
+          MODAL_OVERLAY_CLASS,
+          "transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
