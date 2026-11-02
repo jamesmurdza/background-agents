@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useModals } from "@/lib/contexts"
 import { AgentIcon } from "@/components/icons/agent-icons"
@@ -77,7 +77,8 @@ export function ChatUsageModal({ chatId, onClose, isMobile = false }: ChatUsageM
       <Dialog.Portal>
         <Dialog.Overlay
           className={cn(
-            "fixed inset-0 z-50 transition-opacity duration-300 bg-black/15 backdrop-blur-[1px]",
+            MODAL_OVERLAY_CLASS,
+            "transition-opacity duration-300",
             open ? "opacity-100" : "opacity-0"
           )}
         />

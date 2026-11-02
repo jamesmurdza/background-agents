@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog"
 import { Github, MessageSquare } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { signInWithGitHub } from "@/lib/auth-utils"
 
@@ -21,7 +21,8 @@ export function SignInModal({ open, onClose, isMobile = false }: SignInModalProp
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className={cn(
-          "fixed inset-0 z-50 transition-opacity duration-300 bg-black/15 backdrop-blur-[1px]",
+          MODAL_OVERLAY_CLASS,
+          "transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content
