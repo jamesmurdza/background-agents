@@ -196,3 +196,5 @@ npm run dev:test
 ```
 
 This way, you can reproduce a failing test manually in your browser.
+
+Unit tests (`lib/*.test.ts`, `app/**/*.test.ts`) run on [Vitest](https://vitest.dev) via `vitest.config.ts`, but this package has no `test` script or `vitest` devDependency of its own. `npx vitest run` from `packages/web/` works after `npm install` at the repo root because `vitest` is hoisted from sibling packages (`sandbox-git`, `sandbox-jobs`, `sandbox-terminal`, `sdk`) — don't rely on that staying true if those packages ever drop it.

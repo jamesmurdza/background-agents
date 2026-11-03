@@ -53,19 +53,21 @@ This is an internal workspace package. It's automatically available to other pac
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
 import {
-  getAgentSandboxImage,
-  SNAPSHOT_NAME,
+  getActiveSnapshotName,
   SNAPSHOT_RESOURCES,
 } from "@background-agents/sandbox-image"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 
-// Create a sandbox from the pre-built image
+// Create a sandbox from the pre-built, already-active snapshot (fast — the
+// agent CLIs are already baked in, so this doesn't rebuild the Image spec)
 const sandbox = await daytona.create({
-  image: getAgentSandboxImage(),
+  snapshot: await getActiveSnapshotName(daytona),
   resources: SNAPSHOT_RESOURCES,
 })
 ```
+
+`getAgentSandboxImage()` builds the raw `Image` spec from scratch (the full install chain) and is only needed when building or rebuilding the snapshot itself — see `rebuildSnapshot` and `npm run build:snapshot`. For creating sandboxes day-to-day, resolve and pass the pre-built snapshot name as shown above.
 
 ## Exports
 
