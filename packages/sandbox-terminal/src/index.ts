@@ -31,6 +31,7 @@ export {
   setupTerminal,
   stopTerminal,
   getTerminalStatus,
+  httpsToWss,
 } from './sandbox'
 export type {
   TerminalSetupResult,
@@ -43,10 +44,3 @@ export {
   getPtyServerPackageJson,
   PTY_SERVER_PORT,
 } from './server'
-
-/**
- * Convert an HTTPS URL to a WebSocket URL
- */
-export function httpsToWss(httpsUrl: string): string {
-  return httpsUrl.replace(/^https:\/\//, 'wss://')
-}
