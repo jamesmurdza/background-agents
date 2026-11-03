@@ -422,6 +422,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "github" },
     { value: "claude-sonnet-5.5", label: "Claude Sonnet 5.5", requiresKey: "github" },
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
+    { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
     { value: "claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "github" },
     { value: "claude-opus-5", label: "Claude Opus 5", requiresKey: "github" },
     { value: "claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "github" },
@@ -478,6 +479,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Anthropic via Kilo gateway
     { value: "kilo/anthropic/claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", requiresKey: "kilo" },
+    { value: "kilo/anthropic/claude-fable-5.1", label: "Claude Fable 5.1", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-fable-5", label: "Claude Fable 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
@@ -486,6 +488,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
     // OpenAI via Kilo gateway
     { value: "kilo/openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "kilo" },
+    { value: "kilo/openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "kilo" },
     // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6-sol) — unlike
     // gpt-5.5, whose retirement is scoped to ChatGPT sign-in only, so it stays.
     { value: "kilo/openai/gpt-5.5", label: "GPT-5.5", requiresKey: "kilo" },
@@ -559,7 +562,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── Factory-hosted (FACTORY_API_KEY; droid's built-in catalog). There is NO
     // free/no-key tier — verified: every built-in model 401s without a Factory key.
     { value: "factory/claude-opus-5-5", label: "Claude Opus 5.5 (Factory)", requiresKey: "factory" },
-    { value: "factory/claude-fable-5.1", label: "Claude Fable 5.1 (Factory)", requiresKey: "factory" },
+    { value: "factory/claude-fable-5-1", label: "Claude Fable 5.1 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-fable-5", label: "Claude Fable 5 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-opus-4-8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
