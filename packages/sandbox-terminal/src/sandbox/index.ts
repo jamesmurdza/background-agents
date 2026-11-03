@@ -2,6 +2,7 @@ export {
   setupTerminal,
   stopTerminal,
   getTerminalStatus,
+  httpsToWss,
 } from './setup'
 
 export type {

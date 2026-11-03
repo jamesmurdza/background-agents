@@ -10,7 +10,7 @@ import {
 } from "@/lib/agent-session"
 import { prisma } from "@/lib/db/prisma"
 import { logLlmProviderError } from "@/lib/db/activity-log"
-import { isAuthError, requireChatStreamAccess } from "@/lib/db/api-helpers"
+import { isAuthError, requireChatStreamAccess, serverConfigError } from "@/lib/db/api-helpers"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { autoPushChat, type PushInfo } from "@/lib/git/auto-push"
 import { refreshUncommittedFilesWarning } from "@/lib/server/uncommitted-files-warning"
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return jsonResponse(500, { error: "Daytona API key not configured" })
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   const encoder = new TextEncoder()

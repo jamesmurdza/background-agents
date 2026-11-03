@@ -21,7 +21,7 @@ import { DialogFooter } from "@/components/ui/dialog-parts"
 import { Input } from "@/components/ui/input"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 
 const PRESET_OPTIONS: { label: string; description: string; tools: GmailToolName[] }[] = [
   {
@@ -143,7 +143,7 @@ export function GmailSettingsDialog({
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px]" />
+        <Dialog.Overlay className={MODAL_OVERLAY_CLASS} />
         <Dialog.Content
           aria-describedby={undefined}
           onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}

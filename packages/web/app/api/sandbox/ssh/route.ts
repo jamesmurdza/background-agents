@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
-import { internalError, badRequest, requireSandboxOwner } from "@/lib/db/api-helpers"
+import { internalError, badRequest, requireSandboxOwner, serverConfigError } from "@/lib/db/api-helpers"
 
 // maxDuration configures the timeout for this Vercel function.
 export const maxDuration = 30
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   try {

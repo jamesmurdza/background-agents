@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog"
 import { ModalHeader } from "@/components/ui/modal-header"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { formatMetricValue } from "@/components/charts/chartFormatters"
 import type { UserModelUsage } from "@/lib/query/hooks"
 
@@ -37,7 +37,7 @@ export function UserModelBreakdownModal({
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px]" />
+        <Dialog.Overlay className={MODAL_OVERLAY_CLASS} />
         <Dialog.Content
           className={cn(
             "fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",

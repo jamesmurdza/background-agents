@@ -1,5 +1,5 @@
 import { Daytona } from "@daytonaio/sdk"
-import { badRequest, requireSandboxOwner } from "@/lib/db/api-helpers"
+import { badRequest, internalError, requireSandboxOwner, serverConfigError } from "@/lib/db/api-helpers"
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -14,10 +14,7 @@ export async function POST(req: Request) {
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return Response.json(
-      { error: "Daytona API key not configured" },
-      { status: 500 }
-    )
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   try {
@@ -33,6 +30,6 @@ export async function POST(req: Request) {
     if (message.includes("not found") || message.includes("404")) {
       return Response.json({ success: true, alreadyDeleted: true })
     }
-    return Response.json({ error: message }, { status: 500 })
+    return internalError(error)
   }
 }

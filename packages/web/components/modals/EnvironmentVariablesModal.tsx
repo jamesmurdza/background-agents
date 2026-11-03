@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, type DragEvent } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X, Plus, Trash2, FolderGit2, Loader2, Upload, Check, Eye, EyeOff, Rocket } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { VariableIcon } from "@/components/icons/variable-icon"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -464,7 +464,8 @@ export function EnvironmentVariablesModal({
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className={cn(
-          "fixed inset-0 z-50 bg-black/15 backdrop-blur-[1px] transition-opacity duration-300",
+          MODAL_OVERLAY_CLASS,
+          "transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content

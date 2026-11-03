@@ -3,7 +3,7 @@
 import { useRef } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Clock, ChevronDown, X, Copy, RefreshCw, Check } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { RepoCombobox } from "@/components/chat/RepoCombobox"
 import { BranchCombobox } from "@/components/chat/BranchCombobox"
@@ -108,7 +108,8 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className={cn(
-          "fixed inset-0 z-50 transition-opacity duration-300 bg-black/15 backdrop-blur-[1px]",
+          MODAL_OVERLAY_CLASS,
+          "transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0"
         )} />
         <Dialog.Content

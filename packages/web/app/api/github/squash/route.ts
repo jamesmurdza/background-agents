@@ -1,11 +1,12 @@
-import { compareBranches, githubFetch, isGitHubApiError } from "@background-agents/common"
+import { compareBranches, githubFetch } from "@background-agents/common"
 import { Daytona } from "@daytonaio/sdk"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { PATHS } from "@/lib/constants"
-import { createGitOperationMessage } from "@/lib/db/git-messages"
-import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, getChatWithAuth } from "@/lib/db/api-helpers"
+import { createGitOperationMessage, reportGitOperationError } from "@/lib/db/git-messages"
+import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, getChatWithAuth, serverConfigError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { recreateChatSandbox } from "@/lib/sandbox"
+import { sleep } from "@/lib/utils"
 
 // maxDuration configures the timeout for this Vercel function. Squash
 // operation timeout - 60 seconds.
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
   if (!daytonaApiKey) {
-    return Response.json({ error: "Daytona API key not configured" }, { status: 500 })
+    return serverConfigError("DAYTONA_API_KEY")
   }
 
   try {
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
         try {
           // Wait a bit before merge to let GitHub's mergeability check complete
           if (attempt > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+            await sleep(1000 * attempt)
           }
 
           mergeResult = await githubFetch<{ sha: string; merged: boolean }>(
@@ -251,14 +252,6 @@ export async function POST(req: Request) {
     }
 
   } catch (error: unknown) {
-    console.error("[github/squash] Error:", error)
-    const message = isGitHubApiError(error) ? error.message : (error instanceof Error ? error.message : "Unknown error")
-    const status = isGitHubApiError(error) ? error.status : 500
-
-    if (chatId) {
-      await createGitOperationMessage(chatId, `Squash failed: ${message}.`, true)
-    }
-
-    return Response.json({ error: message }, { status })
+    return reportGitOperationError("github/squash", error, chatId, "Squash")
   }
 }

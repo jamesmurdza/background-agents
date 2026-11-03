@@ -1,12 +1,11 @@
 import {
   compareBranches,
   createPullRequest,
-  isGitHubApiError,
   formatPRTitleFromBranch,
   formatPRBodyFromCommits,
 } from "@background-agents/common"
 import { requireGitHubAuth, isGitHubAuthError } from "@/lib/db/api-helpers"
-import { createGitOperationMessage } from "@/lib/db/git-messages"
+import { createGitOperationMessage, reportGitOperationError } from "@/lib/db/git-messages"
 import { generateWithOpenRouter } from "@/lib/llm/openrouter"
 
 /** PR description format options */
@@ -115,14 +114,6 @@ export async function POST(req: Request) {
       title: prData.title,
     })
   } catch (error: unknown) {
-    console.error("[github/pr] Error:", error)
-    const message = isGitHubApiError(error) ? error.message : (error instanceof Error ? error.message : "Unknown error")
-    const status = isGitHubApiError(error) ? error.status : 500
-
-    if (chatId) {
-      await createGitOperationMessage(chatId, `PR creation failed: ${message}.`, true)
-    }
-
-    return Response.json({ error: message }, { status })
+    return reportGitOperationError("github/pr", error, chatId, "PR creation")
   }
 }
