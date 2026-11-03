@@ -6,6 +6,7 @@ import { createGitOperationMessage, reportGitOperationError } from "@/lib/db/git
 import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, getChatWithAuth, serverConfigError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { recreateChatSandbox } from "@/lib/sandbox"
+import { sleep } from "@/lib/utils"
 
 // maxDuration configures the timeout for this Vercel function. Squash
 // operation timeout - 60 seconds.
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
         try {
           // Wait a bit before merge to let GitHub's mergeability check complete
           if (attempt > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+            await sleep(1000 * attempt)
           }
 
           mergeResult = await githubFetch<{ sha: string; merged: boolean }>(

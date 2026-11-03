@@ -1,5 +1,6 @@
 import { forkRepo, getRepo, type GitHubRepo } from "@background-agents/common"
 import { requireGitHubAuth, isGitHubAuthError, internalError, badRequest } from "@/lib/db/api-helpers"
+import { sleep } from "@/lib/utils"
 
 export async function POST(req: Request) {
   // 1. Get GitHub token from DB
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       } catch {
         // Repo not ready yet, continue polling
       }
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await sleep(1000)
       attempts++
     }
 
