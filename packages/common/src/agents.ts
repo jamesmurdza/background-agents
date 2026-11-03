@@ -402,11 +402,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "commandcode" },
     { value: "gpt-6-sol", label: "GPT-6 Sol", requiresKey: "commandcode" },
     { value: "gpt-6-luna", label: "GPT-6 Luna", requiresKey: "commandcode" },
+    { value: "gpt-5.5", label: "GPT-5.5", requiresKey: "commandcode" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "commandcode" },
     // ── Google (Pro plan and above) ──
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "commandcode" },
     { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "commandcode" },
-    { value: "google/gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite", requiresKey: "commandcode" },
+    { value: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "commandcode" },
   ],
   "codex": [
     // GPT-5.5 retired from Codex/ChatGPT sign-in (Oct 14, 2026) — see
@@ -425,6 +426,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "github" },
     { value: "claude-sonnet-5.5", label: "Claude Sonnet 5.5", requiresKey: "github" },
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
+    { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
     { value: "claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "github" },
     { value: "claude-opus-5", label: "Claude Opus 5", requiresKey: "github" },
     { value: "claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "github" },
@@ -481,6 +483,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Anthropic via Kilo gateway
     { value: "kilo/anthropic/claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", requiresKey: "kilo" },
+    { value: "kilo/anthropic/claude-fable-5.1", label: "Claude Fable 5.1", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-fable-5", label: "Claude Fable 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
@@ -489,6 +492,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
     // OpenAI via Kilo gateway
     { value: "kilo/openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "kilo" },
+    { value: "kilo/openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "kilo" },
     // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6-sol) — unlike
     // gpt-5.5, whose retirement is scoped to ChatGPT sign-in only, so it stays.
     { value: "kilo/openai/gpt-5.5", label: "GPT-5.5", requiresKey: "kilo" },
@@ -539,6 +543,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", requiresKey: "anthropic" },
     { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
+    { value: "claude-fable-5-1", label: "Claude Fable 5.1", requiresKey: "anthropic" },
+    { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "anthropic" },
     // ── BYOK: OpenAI ──
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
