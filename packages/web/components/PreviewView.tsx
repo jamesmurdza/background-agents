@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
-import { RefreshCw, X, ExternalLink, ChevronsUpDown, Download } from "lucide-react"
+import { RefreshCw, X, ExternalLink, ChevronsUpDown, Download, SquareMousePointer } from "lucide-react"
 import { PATHS } from "@background-agents/common"
 import { basename } from "@/lib/format"
 import { getPanelPlugin } from "@/lib/plugins/registry"
@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { PreviewItem } from "@/lib/plugins/types"
+import type { PreviewItem, SelectMode } from "@/lib/plugins/types"
 
 // Re-export types from plugins for backwards compatibility
 export type { PreviewItem } from "@/lib/plugins/types"
@@ -119,6 +119,8 @@ export function PreviewView({
   // opening a dead sandbox's URL.
   const [recover, setRecover] = useState<(() => Promise<string | null>) | null>(null)
   const [isOpeningPreview, setIsOpeningPreview] = useState(false)
+  // Set by the server preview (onSelectModeChange) for the "Select element" button.
+  const [selectMode, setSelectMode] = useState<SelectMode | null>(null)
   // useState's setter treats a function argument as an updater `(prev) =>
   // next`, not a value to store — passing `setRecover` straight down would
   // call the panel's recover function instead of saving it. Wrap it so a
@@ -373,6 +375,21 @@ export function PreviewView({
             </Select>
           )}
 
+          {selectMode && (
+            <button
+              onClick={selectMode.toggle}
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer",
+                selectMode.active && "bg-accent text-foreground"
+              )}
+              title={selectMode.active ? "Stop selecting" : "Select an element to comment on"}
+              aria-label={selectMode.active ? "Stop selecting elements" : "Select an element to comment on"}
+              aria-pressed={selectMode.active}
+            >
+              <SquareMousePointer className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           {/* External link button - for files in repo (GitHub) and servers (preview URL).
               On a stopped/expired server preview this recovers the sandbox
               before opening (see handleOpenExternal), so it's disabled
@@ -443,6 +460,7 @@ export function PreviewView({
             explicitStart={explicitStart}
             onRefresh={handleRefresh}
             onOpenItem={onOpenItem}
+            onSelectModeChange={setSelectMode}
           />
         </div>
       </div>
