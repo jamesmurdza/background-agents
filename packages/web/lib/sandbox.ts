@@ -15,6 +15,7 @@ import { TOKSCALE_VERSION, getActiveSnapshotName } from "@background-agents/sand
 import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
+import { sleep } from "@/lib/utils"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -121,7 +122,7 @@ export async function ensureSandboxStarted(
 
       // Exponential backoff: 500ms, 1s, 2s, 4s
       const delayMs = baseDelayMs * Math.pow(2, attempt)
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      await sleep(delayMs)
     }
   }
 }

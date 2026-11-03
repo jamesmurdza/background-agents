@@ -30,3 +30,8 @@ export function mergeRefs<T>(...refs: Array<Ref<T> | undefined>) {
     }
   }
 }
+
+/** Resolves after `ms` milliseconds. Shared helper for inline retry/poll delays. */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}

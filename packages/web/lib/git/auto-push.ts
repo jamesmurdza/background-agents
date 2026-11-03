@@ -14,6 +14,7 @@ import {
   createPushFailedMessage,
 } from "@/lib/db/git-messages"
 import { logGitPushError } from "@/lib/db/activity-log"
+import { sleep } from "@/lib/utils"
 
 /** Client-notification payload for a push that advanced the remote. */
 export interface PushInfo {
@@ -31,10 +32,6 @@ export interface PushInfo {
  * left to a later user turn or a manual force-push, same as before.
  */
 const PUSH_RETRY_DELAY_MS = 750
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 /**
  * Whether a push failure is worth the one bounded retry above.
