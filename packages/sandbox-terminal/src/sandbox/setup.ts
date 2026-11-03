@@ -9,6 +9,13 @@ import type { Sandbox } from "@daytonaio/sdk"
 import { getPtyServerCode, getPtyServerPackageJson, PTY_SERVER_PORT } from "../server"
 
 /**
+ * Convert an HTTPS URL to a WebSocket URL
+ */
+export function httpsToWss(httpsUrl: string): string {
+  return httpsUrl.replace(/^https:\/\//, "wss://")
+}
+
+/**
  * Result from terminal setup operations
  */
 export interface TerminalSetupResult {
@@ -76,7 +83,7 @@ export async function getTerminalStatus(
 
   if (running) {
     const signedUrl = await sandbox.getSignedPreviewUrl(port, expiresIn)
-    const wsUrl = signedUrl.url.replace("https://", "wss://")
+    const wsUrl = httpsToWss(signedUrl.url)
 
     return {
       status: "running",
@@ -137,7 +144,7 @@ export async function setupTerminal(
   // Check if already running
   if (await isServerRunning(sandbox)) {
     const signedUrl = await sandbox.getSignedPreviewUrl(port, expiresIn)
-    const wsUrl = signedUrl.url.replace("https://", "wss://")
+    const wsUrl = httpsToWss(signedUrl.url)
 
     const logTail = await sandbox.process.executeCommand(
       `tail -30 ${LOG_FILE} 2>/dev/null || echo "(no log)"`,
@@ -281,7 +288,7 @@ export async function setupTerminal(
 
   // Get signed preview URL
   const signedUrl = await sandbox.getSignedPreviewUrl(port, expiresIn)
-  const wsUrl = signedUrl.url.replace("https://", "wss://")
+  const wsUrl = httpsToWss(signedUrl.url)
 
   const logTail = await sandbox.process.executeCommand(
     `tail -30 ${LOG_FILE} 2>/dev/null || echo "(no log)"`,
