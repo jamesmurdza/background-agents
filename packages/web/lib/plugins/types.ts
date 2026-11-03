@@ -69,6 +69,13 @@ export interface PanelProps {
    * from within themselves, e.g. the file-browser opening a file it lists.
    */
   onOpenItem?: (item: PreviewItem) => void
+  /** Server preview only: "Select element" state for PreviewView's title bar button, or null. */
+  onSelectModeChange?: (mode: SelectMode | null) => void
+}
+
+export interface SelectMode {
+  active: boolean
+  toggle: () => void
 }
 
 /**

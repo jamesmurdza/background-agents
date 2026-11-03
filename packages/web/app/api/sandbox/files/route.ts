@@ -9,6 +9,7 @@ import { readDevServers, saveDevServers } from "@/lib/db/dev-servers-store"
 import { internalError, badRequest, notFound, requireSandboxOwner, getGitHubToken, serverConfigError } from "@/lib/db/api-helpers"
 import { prisma } from "@/lib/db/prisma"
 import { inspectChanges } from "@/lib/git/changes"
+import { pickerPort, startElementPicker } from "@/lib/element-picker-sandbox"
 
 // maxDuration configures the timeout for this Vercel function.
 export const maxDuration = 30
@@ -46,6 +47,8 @@ export async function POST(req: Request) {
      * so they never resurrect an idle sandbox; see the lifecycle block below.
      */
     autoStart?: boolean
+    /** Dev server port, for start-element-picker. */
+    port?: number
   } | null
 
   if (!body) return badRequest("Invalid JSON body")
@@ -237,6 +240,20 @@ export async function POST(req: Request) {
           await saveDevServers(sandboxId, await recordDevServers(sandbox, unknown))
         }
         return Response.json({ ports: sockets.map((s) => s.port) })
+      }
+
+      case "start-element-picker": {
+        // "Select element" in the Live Preview; see lib/element-picker.ts. The
+        // port goes into a shell command, so it must be a plain number.
+        const port = Number(body.port)
+        if (!Number.isInteger(port) || port < 3000 || port > 9999) return badRequest("Invalid port")
+        const result = await startElementPicker(sandbox, port)
+        if (result.state === "failed") {
+          console.error("[sandbox/files] element picker failed to start:", result.log)
+          return internalError(new Error("The element picker failed to start"))
+        }
+        const link = await sandbox.getPreviewLink(pickerPort(port))
+        return Response.json({ url: link.url })
       }
 
       default:
