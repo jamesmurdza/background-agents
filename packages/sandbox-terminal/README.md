@@ -183,7 +183,7 @@ Messages are JSON-encoded:
 
 ```bash
 npm run typecheck
-npm run test -w @background-agents/sandbox-terminal   # pure unit tests, instant
+npm run test -w @background-agents/sandbox-terminal   # no-op without DAYTONA_API_KEY (the only suite is integration-gated)
 DAYTONA_API_KEY=... npm run test:e2e -w @background-agents/sandbox-terminal  # + integration (creates a sandbox)
 ```
 

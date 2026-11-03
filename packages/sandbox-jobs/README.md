@@ -151,5 +151,5 @@ throw. Custom `SandboxJobs` implementations must provide `abort()` and
 ```bash
 npm run typecheck
 npm run test -w @background-agents/sandbox-jobs   # pure unit tests, instant
-DAYTONA_API_KEY=... npx vitest run                # + integration (creates a sandbox)
+DAYTONA_API_KEY=... npm run test -w @background-agents/sandbox-jobs  # + integration (creates a sandbox)
 ```

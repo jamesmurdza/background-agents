@@ -49,7 +49,23 @@ await git.push(path, token, { noVerify: false })  // run pre-push hooks
 | `fetch(path, token?, refspec?)` | Fetch from remote |
 | `fetchBranch(path, branch, token?)` | Fetch a specific branch |
 | `pull(path, token?)` | Pull from remote |
-| `push(path, token?, options?)` | Push to remote. `options.noVerify` skips pre-push hooks (default: `true`) |
+| `push(path, token?, options?)` | Push to remote. `options.noVerify` skips pre-push hooks (default: `true`). Resolves to a `PushResult` |
+
+`push()` resolves to a `PushResult` (derived from `--porcelain` output): `{ output, updated, newBranch, range }`, where `updated` is `true` only when the remote ref actually advanced, `newBranch` is `true` when the push created a new remote branch, and `range` is the `"<old>..<new>"` sha range when an existing ref moved (`null` otherwise).
+
+## Errors
+
+Git operations throw on failure. `@background-agents/sandbox-git` exports:
+
+| Export | Description |
+|--------|-------------|
+| `GitError` | Base error — `message`, `command`, `exitCode`, `output` |
+| `GitAuthError` | Thrown when auth fails (invalid/expired token, no access) |
+| `GitNotFoundError` | Thrown when the repository doesn't exist or isn't accessible |
+| `isAuthError(output)` | Heuristic check for auth failures in raw command output |
+| `isNotFoundError(output)` | Heuristic check for "repository not found" in raw command output |
+| `isNonFastForwardError(output)` | Heuristic check for a rejected non-fast-forward push |
+| `createGitError(command, exitCode, output)` | Builds the right `GitError` subclass from raw output |
 
 ## How Credentials Work
 
