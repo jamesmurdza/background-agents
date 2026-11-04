@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
 import { useCreditWarning } from "@/lib/hooks/useCreditWarning"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
 import { useTwoTierCollapse } from "@/lib/hooks/useTwoTierCollapse"
 import { useCollapsibleLabel } from "@/lib/hooks/useCollapsibleLabel"
@@ -325,6 +326,7 @@ export function ChatInput({
   })
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModeSheet, setShowModeSheet] = useState(false)
+  const modeDropdownContainerRef = useRef<HTMLDivElement>(null)
   const modeDropdownRef = useRef<HTMLDivElement>(null)
   const modeDropdownMaxHeight = useUpwardMenuMaxHeight(showModeDropdown, modeDropdownRef)
   // The left (repo/branch/MCP) and right (mode/reasoning effort/agent/model)
@@ -433,17 +435,11 @@ export function ChatInput({
   }, [speech, onSend, onBranchSend, canBranch])
 
   // Close mode dropdown when clicking outside (desktop only)
-  useEffect(() => {
-    if (isMobile) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('[data-dropdown]')) {
-        setShowModeDropdown(false)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [isMobile])
+  useClickOutside(
+    modeDropdownContainerRef,
+    useCallback(() => setShowModeDropdown(false), []),
+    showModeDropdown && !isMobile
+  )
 
   // Mode options for mobile bottom sheet
   const modeOptions = [
@@ -842,7 +838,7 @@ export function ChatInput({
                   />
                 </>
               ) : (
-                <div className="relative" data-dropdown>
+                <div ref={modeDropdownContainerRef} className="relative">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
