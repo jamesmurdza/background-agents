@@ -379,8 +379,10 @@ export function PreviewView({
             <button
               onClick={selectMode.toggle}
               className={cn(
-                "flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer",
-                selectMode.active && "bg-accent text-foreground"
+                "flex h-6 w-6 items-center justify-center rounded-md transition-colors cursor-pointer",
+                selectMode.active
+                  ? "text-green-500 hover:bg-green-500/10"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
               title={selectMode.active ? "Stop selecting" : "Select an element to comment on"}
               aria-label={selectMode.active ? "Stop selecting elements" : "Select an element to comment on"}
