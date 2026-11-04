@@ -5,6 +5,8 @@
  *   picker → panel  { type: PREFIX + "ready" }               on every page load
  *   panel → picker  { type: PREFIX + "toggle", on }
  *   picker → panel  { type: PREFIX + "selected", element }   on click
+ *   picker → panel  { type: PREFIX + "deselect" }            on scroll
+ *   picker → panel  { type: PREFIX + "exit" }                on Esc in the page
  */
 
 export const PICKER_MESSAGE_PREFIX = "backgrounder-element-picker:"

@@ -241,10 +241,23 @@ function ServerPreviewComponent({
         const element = event.data.element as SelectedElement
         const position = commentBoxPosition(element.rect, scale, containerRef.current.getBoundingClientRect())
         setPickerState((prev) => prev && { ...prev, selected: { element, position } })
+      } else if (type === `${PICKER_MESSAGE_PREFIX}deselect`) {
+        setPickerState((prev) => prev && { ...prev, selected: undefined })
+      } else if (type === `${PICKER_MESSAGE_PREFIX}exit`) {
+        exit()
       }
     }
+    const exit = () => setPickerState((prev) => prev && { ...prev, selecting: false, selected: undefined })
+    // Esc while focus is outside the page. The comment box handles its own Esc first.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (selecting && event.key === "Escape" && !event.defaultPrevented) exit()
+    }
     window.addEventListener("message", onMessage)
-    return () => window.removeEventListener("message", onMessage)
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("message", onMessage)
+      window.removeEventListener("keydown", onKeyDown)
+    }
   }, [pickerUrl, selecting, scale])
 
   // Several comments can be collected in the chat input before sending.
@@ -425,6 +438,8 @@ function ElementCommentBox({
             e.preventDefault()
             add()
           } else if (e.key === "Escape") {
+            // Closes only the box; a second Esc leaves select mode.
+            e.preventDefault()
             onCancel()
           }
         }}
