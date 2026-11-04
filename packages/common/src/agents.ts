@@ -538,7 +538,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "anthropic" },
     { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", requiresKey: "anthropic" },
-    { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
+    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     { value: "claude-fable-5-1", label: "Claude Fable 5.1", requiresKey: "anthropic" },
     { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "anthropic" },
     // ── BYOK: OpenAI ──
