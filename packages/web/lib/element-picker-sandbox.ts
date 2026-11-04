@@ -131,6 +131,18 @@ function getPickerCode(): string {
     })
   }, true)
 
+  document.addEventListener("keydown", (event) => {
+    if (active && event.key === "Escape") send({ type: PREFIX + "exit" })
+  })
+
+  // The outline is fixed to where the element was, so scrolling makes it point
+  // at the wrong place. Once per scroll: it stays hidden until the mouse moves.
+  document.addEventListener("scroll", () => {
+    if (!active || outline.style.display === "none") return
+    outline.style.display = "none"
+    send({ type: PREFIX + "deselect" })
+  }, true)
+
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent || event.data?.type !== PREFIX + "toggle") return
     panelOrigin = event.origin
