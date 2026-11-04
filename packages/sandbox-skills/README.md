@@ -108,6 +108,15 @@ import { stripAnsi, parseSkillList, extractCleanError } from "@background-agents
 - Node.js >= 20.9.0
 - `@daytonaio/sdk` >= 0.170.0 (peer dependency for sandbox operations)
 
+## Tests
+
+Unit tests live under `tests/sandbox/` (`discover.test.ts`, `install-archive.test.ts`) and mock `sandbox.process.executeCommand`, so they don't need a real sandbox or `DAYTONA_API_KEY`. There's no `test` script in this package's `package.json` yet, so run them directly with the hoisted `vitest`:
+
+```bash
+npm run typecheck
+npx vitest run   # from packages/sandbox-skills
+```
+
 ## License
 
 Apache-2.0
