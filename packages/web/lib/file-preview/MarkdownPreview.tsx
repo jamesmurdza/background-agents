@@ -2,9 +2,8 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useCopyToClipboard, extractCodeText } from "@/lib/hooks/useCopyToClipboard"
+import { CodeBlock } from "@/components/message/CodeBlock"
 import { highlightCode } from "./highlight"
 
 interface MarkdownPreviewProps {
@@ -181,7 +180,7 @@ export function MarkdownPreview({
 
             // Code blocks
             pre: ({ children }) => (
-              <CodeBlock>{children}</CodeBlock>
+              <CodeBlock variant="github">{children}</CodeBlock>
             ),
 
             // Headings
@@ -286,40 +285,6 @@ export function MarkdownPreview({
           {content}
         </ReactMarkdown>
       </div>
-    </div>
-  )
-}
-
-/**
- * Code block with copy button - GitHub style
- */
-function CodeBlock({ children }: { children: React.ReactNode }) {
-  const { copied, copy } = useCopyToClipboard()
-
-  const handleCopy = () => copy(extractCodeText(children))
-
-  return (
-    <div className="relative group mb-4 last:mb-0">
-      <pre className="overflow-x-auto rounded-md p-4 bg-[#f6f8fa] dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d]">
-        {children}
-      </pre>
-      <button
-        onClick={handleCopy}
-        className={cn(
-          "absolute top-2 right-2 p-1.5 rounded-md cursor-pointer",
-          "opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-all",
-          "bg-[#f6f8fa] dark:bg-[#21262d] hover:bg-[#eaeef2] dark:hover:bg-[#30363d]",
-          "border border-[#d0d7de] dark:border-[#30363d]",
-          copied && "opacity-100"
-        )}
-        aria-label={copied ? "Copied!" : "Copy code"}
-      >
-        {copied ? (
-          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-        ) : (
-          <Copy className="h-4 w-4 text-[#656d76] dark:text-[#848d97]" />
-        )}
-      </button>
     </div>
   )
 }
