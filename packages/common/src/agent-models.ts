@@ -47,7 +47,6 @@ export const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/minimax-m2.7",
   "opencode-go/minimax-m3",
   "opencode-go/qwen3.6-plus",
-  "opencode-go/qwen3.7-max",
   "opencode-go/qwen3.7-plus",
   "opencode-go/deepseek-v4-pro",
   "opencode-go/deepseek-v4.1-flash",
@@ -62,6 +61,7 @@ export const SHARED_OPENCODE_ALLOWED = new Set<string>([
  * stay available by default — only the ids listed here are gated.
  */
 export const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
+  "gemini-3-pro-preview",
   "gemini-3.1-pro-preview",
   "google/gemini-3.1-pro-preview",
   "google/gemini-4-argon",
@@ -113,7 +113,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode-go/minimax-m3", label: "MiniMax M3", requiresKey: "opencode", priceUsdPerM: 0.3 },
     { value: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode", priceUsdPerM: 0.5 },
     { value: "opencode-go/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "opencode", priceUsdPerM: 2 },
-    { value: "opencode-go/qwen3.7-max", label: "Qwen3.7 Max", requiresKey: "opencode", priceUsdPerM: 2.5 },
     { value: "opencode-go/qwen3.7-plus", label: "Qwen3.7 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
     { value: "opencode-go/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode", priceUsdPerM: 0.66 },
     { value: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "opencode", priceUsdPerM: 0.22 },
@@ -136,7 +135,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/claude-fable-5-1", label: "Claude Fable 5.1", requiresKey: "opencode" },
     { value: "opencode/gpt-5", label: "GPT-5", requiresKey: "opencode" },
     { value: "opencode/gpt-5-nano", label: "GPT-5 Nano", requiresKey: "opencode" },
-    // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6-sol) — unlike
+    // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6.1-sol) — unlike
     // gpt-5.5, whose retirement is scoped to ChatGPT sign-in only, so it stays.
     { value: "opencode/gpt-5.5", label: "GPT-5.5", requiresKey: "opencode" },
     { value: "opencode/gpt-5.6-sol", label: "GPT-5.6 Sol", requiresKey: "opencode" },
@@ -207,6 +206,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "z-ai/glm-5.3-flash", label: "GLM-5.3 Flash", requiresKey: "commandcode" },
     { value: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "commandcode" },
     { value: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", requiresKey: "commandcode" },
+    // Catalog's current default model (per Command Code's own CLI docs).
+    { value: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "commandcode" },
     { value: "moonshotai/Kimi-K3.1-Pro", label: "Kimi K3.1 Pro", requiresKey: "commandcode" },
     { value: "moonshotai/Kimi-K3", label: "Kimi K3", requiresKey: "commandcode" },
     { value: "moonshotai/Kimi-K2.7-Code", label: "Kimi K2.7 Code", requiresKey: "commandcode" },
@@ -214,7 +215,6 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "Qwen/Qwen3.8-Max", label: "Qwen 3.8 Max", requiresKey: "commandcode" },
     { value: "Qwen/Qwen3.8-Flash", label: "Qwen 3.8 Flash", requiresKey: "commandcode" },
     { value: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra", requiresKey: "commandcode" },
-    { value: "poolside/laguna-s-2.1-free", label: "Laguna S 2.1", requiresKey: "commandcode" },
     // ── Anthropic (Pro plan and above) ──
     { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", requiresKey: "commandcode" },
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "commandcode" },
@@ -236,12 +236,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   ],
   "codex": [
     // GPT-5.5 retired from Codex/ChatGPT sign-in (Oct 14, 2026) — see
-    // https://developers.openai.com/codex/models. GPT-6 Sol/Luna/Astra and
-    // GPT-6.1 Sol/Terra are the current generation.
+    // https://developers.openai.com/codex/models. GPT-6 Astra/Luna and
+    // GPT-6.1 Sol/Terra are the current generation. There is no "GPT-6 Sol" —
+    // the Sol tier only ships as 6.1.
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "openai" },
     { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
-    { value: "gpt-6-sol", label: "GPT-6 Sol", requiresKey: "openai" },
     { value: "gpt-6-luna", label: "GPT-6 Luna", requiresKey: "openai" },
     { value: "gpt-5.5", label: "GPT-5.5 (API key only)", requiresKey: "openai" },
   ],
@@ -251,6 +251,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "github" },
     { value: "claude-sonnet-5.5", label: "Claude Sonnet 5.5", requiresKey: "github" },
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
+    { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
     { value: "claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "github" },
     { value: "claude-opus-5", label: "Claude Opus 5", requiresKey: "github" },
     { value: "claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "github" },
@@ -283,6 +284,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-3.6-flash", label: "Gemini 3.6 Flash", requiresKey: "gemini", priceUsdPerM: 1.5 },
     { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini", priceUsdPerM: 0.5 },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
+    { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
     { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
   ],
   "goose": [
@@ -299,23 +301,21 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Auto-routers
     { value: "kilo/kilo-auto/free", label: "Auto Free", requiresKey: "none", priceUsdPerM: 0 },
     { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
-    { value: "kilo/kilo-auto/balanced", label: "Auto Balanced", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/efficient", label: "Auto Efficient", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
     // Free models
     { value: "kilo/nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra", requiresKey: "none", priceUsdPerM: 0 },
     // Anthropic via Kilo gateway
     { value: "kilo/anthropic/claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "kilo" },
-    { value: "kilo/anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", requiresKey: "kilo" },
+    { value: "kilo/anthropic/claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-fable-5", label: "Claude Fable 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
-    { value: "kilo/anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
     // OpenAI via Kilo gateway
     { value: "kilo/openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "kilo" },
-    // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6-sol) — unlike
+    // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6.1-sol) — unlike
     // gpt-5.5, whose retirement is scoped to ChatGPT sign-in only, so it stays.
     { value: "kilo/openai/gpt-5.5", label: "GPT-5.5", requiresKey: "kilo" },
     // Google via Kilo gateway
@@ -385,7 +385,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── Factory-hosted (FACTORY_API_KEY; droid's built-in catalog). There is NO
     // free/no-key tier — verified: every built-in model 401s without a Factory key.
     { value: "factory/claude-opus-5-5", label: "Claude Opus 5.5 (Factory)", requiresKey: "factory" },
-    { value: "factory/claude-fable-5-1", label: "Claude Fable 5.1 (Factory)", requiresKey: "factory" },
+    // Fable is the one Factory catalog id that uses a dot, not a hyphen, for
+    // the point release — every other Factory id here uses a hyphen.
+    { value: "factory/claude-fable-5.1", label: "Claude Fable 5.1 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-fable-5", label: "Claude Fable 5 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-opus-4-8", label: "Claude Opus 4.8 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
@@ -396,6 +398,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Factory)", requiresKey: "factory" },
     { value: "factory/glm-5.2", label: "GLM 5.2 (Factory)", requiresKey: "factory" },
+    { value: "factory/grok-4.7", label: "Grok 4.7 (Factory)", requiresKey: "factory" },
   ],
   "pi": [
     // Anthropic models (default provider)
