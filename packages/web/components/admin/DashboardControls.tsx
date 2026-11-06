@@ -10,24 +10,63 @@ export interface SegmentedOption<K extends string> {
   hint?: string
 }
 
-/** Pill-style single-select button group used across the admin dashboard. */
+/**
+ * Single-select button group. Two visual flavors:
+ * - "pill" (default): the admin dashboard's filled-background style.
+ * - "outline": a lighter bordered style used in the settings modal.
+ */
 export function SegmentedControl<K extends string>({
   options,
   value,
   onChange,
   disabled = false,
   disabledHint,
+  variant = "pill",
+  ariaLabel,
 }: {
   options: readonly SegmentedOption<K>[]
   value: K
   onChange: (key: K) => void
-  /** Greys out the whole group and shows no active option. */
+  /** Greys out the whole group and shows no active option. Pill variant only. */
   disabled?: boolean
   /** Tooltip shown on the group and every button while disabled. */
   disabledHint?: string
+  variant?: "pill" | "outline"
+  /** Accessible group label. Recommended for the outline variant, which has no visible label. */
+  ariaLabel?: string
 }) {
+  if (variant === "outline") {
+    return (
+      <div
+        role="group"
+        aria-label={ariaLabel}
+        className="inline-flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
+      >
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            onClick={() => onChange(option.key)}
+            aria-pressed={value === option.key}
+            title={option.hint}
+            className={cn(
+              "rounded px-2.5 py-1 text-xs transition-colors cursor-pointer",
+              value === option.key
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div
+      role="group"
+      aria-label={ariaLabel}
       className={cn("flex gap-1 rounded-lg bg-muted p-1", disabled && "opacity-50")}
       title={disabled ? disabledHint : undefined}
     >
