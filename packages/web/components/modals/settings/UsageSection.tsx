@@ -10,6 +10,7 @@ import { fmtBalance, fmtTokens } from "@/lib/format"
 import type { UsageDimension, UsageRange } from "@/lib/db/user-usage"
 import { MobileSectionHeader } from "./shared"
 import { ScopeCombobox, ACCOUNT_SCOPE } from "./ScopeCombobox"
+import { SegmentedControl } from "@/components/admin/DashboardControls"
 import { SpendPerDayChart, type UsageMetricKey } from "./charts/SpendPerDayChart"
 
 const RANGES: { key: UsageRange; label: string; days: number }[] = [
@@ -83,12 +84,14 @@ export function UsageSection({ isMobile, initialScope = ACCOUNT_SCOPE }: UsageSe
       {/* Controls in one row above the charts. */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <SegmentedControl
+          variant="outline"
           options={RANGES.map((r) => ({ key: r.key, label: r.label }))}
           value={range}
           onChange={setRange}
           ariaLabel="Date range"
         />
         <SegmentedControl
+          variant="outline"
           options={METRICS}
           value={metric}
           onChange={setMetric}
@@ -159,6 +162,7 @@ export function UsageSection({ isMobile, initialScope = ACCOUNT_SCOPE }: UsageSe
                 </p>
               </div>
               <SegmentedControl
+                variant="outline"
                 options={DIMENSIONS}
                 value={dimension}
                 onChange={setDimension}
@@ -227,43 +231,6 @@ function StatTile({ label, value, delta, caption, hero = false }: StatTileProps)
         </div>
       )}
       {caption && <div className="mt-1.5 text-[11px] text-muted-foreground">{caption}</div>}
-    </div>
-  )
-}
-
-function SegmentedControl<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  options: { key: T; label: string }[]
-  value: T
-  onChange: (next: T) => void
-  ariaLabel: string
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={ariaLabel}
-      className="inline-flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
-    >
-      {options.map((option) => (
-        <button
-          key={option.key}
-          type="button"
-          onClick={() => onChange(option.key)}
-          aria-pressed={value === option.key}
-          className={cn(
-            "rounded px-2.5 py-1 text-xs transition-colors cursor-pointer",
-            value === option.key
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
     </div>
   )
 }
