@@ -43,7 +43,7 @@ key as admin grants to prevent repeat or concurrent claims.
 - **Database**: PostgreSQL with Prisma ORM (local, Supabase, or Neon serverless)
 - **Agent SDK**: Uses [`@background-agents/sdk`](../sdk) for agent session management
 - **Sandbox**: Daytona SDK for isolated development environments
-- **State Management**: Server-first with localStorage as read cache for cross-device sync
+- **State Management**: Server data (chats, messages, settings) managed via TanStack Query; localStorage holds only device-local UI state (current chat, drafts, unseen markers)
 
 ## Usage
 
