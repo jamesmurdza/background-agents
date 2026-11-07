@@ -1,17 +1,3 @@
-import { Daytona } from "@daytonaio/sdk"
-import { NEW_REPOSITORY } from "@/lib/types"
-import { prisma } from "@/lib/db/prisma"
-import { ensureSandboxStarted, recreateChatSandbox } from "@/lib/sandbox"
-import {
-  requireAuth,
-  isAuthError,
-  getChatWithAuth,
-  notFound,
-  serverConfigError,
-  internalError,
-  getGitHubToken,
-} from "@/lib/db/api-helpers"
-
 /**
  * POST /api/chats/[chatId]/sandbox/recreate
  *
@@ -31,6 +17,11 @@ import {
  * automatically once this updates `chat.sandboxId` — a follow-up explicit
  * refresh of the server-preview panel can still replay the dev server command.
  *
+ * Behaviorally identical to `/api/chats/[chatId]/sandbox/ensure` (both reuse
+ * an existing live sandbox or create one via `ensureSandboxRunning`) — this
+ * route exists only so the preview panel has a URL that matches its mental
+ * model of "recreate", while reusing the same shared handler.
+ *
  * Body: {} (chatId comes from the route param)
  * Responses:
  *   200 { sandboxId, previewUrlPattern, branch }
@@ -38,58 +29,4 @@ import {
  *   410 { error: "SANDBOX_NOT_FOUND" } — cloned repo with no GitHub token to
  *     reclone (the one genuinely unrecoverable case, same as ensure-sandbox.ts)
  */
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ chatId: string }> }
-) {
-  const { chatId } = await params
-
-  const auth = await requireAuth()
-  if (isAuthError(auth)) return auth
-
-  const chat = await getChatWithAuth(chatId, auth.userId)
-  if (!chat) return notFound("Chat not found")
-
-  const daytonaApiKey = process.env.DAYTONA_API_KEY
-  if (!daytonaApiKey) return serverConfigError("DAYTONA_API_KEY")
-  const daytona = new Daytona({ apiKey: daytonaApiKey })
-
-  // If the sandbox is actually still alive (e.g. the panel's probe raced a
-  // transient 404, or the user retried twice), don't create a second one —
-  // just make sure it's started and hand back what's already there.
-  if (chat.sandboxId) {
-    try {
-      const sandbox = await daytona.get(chat.sandboxId)
-      await ensureSandboxStarted(sandbox)
-      return Response.json({
-        sandboxId: chat.sandboxId,
-        previewUrlPattern: chat.previewUrlPattern,
-        branch: chat.branch,
-      })
-    } catch {
-      // Confirmed gone — fall through and recreate.
-    }
-  }
-
-  const isNewRepo = chat.repo === NEW_REPOSITORY || chat.repo === "__new__"
-  const githubToken = isNewRepo ? null : await getGitHubToken(auth.userId)
-
-  try {
-    const created = await recreateChatSandbox({ daytona, chat, userId: auth.userId, githubToken })
-    if (!created) {
-      return Response.json(
-        { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },
-        { status: 410 }
-      )
-    }
-
-    return Response.json({
-      sandboxId: created.sandboxId,
-      previewUrlPattern: created.previewUrlPattern ?? null,
-      branch: created.branch,
-    })
-  } catch (error) {
-    await prisma.chat.update({ where: { id: chatId }, data: { status: "error" } }).catch(() => {})
-    return internalError(error)
-  }
-}
+export { POST } from "../ensure/route"

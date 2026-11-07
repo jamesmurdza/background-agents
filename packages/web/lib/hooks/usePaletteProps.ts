@@ -13,6 +13,7 @@ import { useGitHubUserQuery } from "@/lib/query"
 import { getChatRepos } from "@/components/sidebar/index"
 import { isDraftChatId } from "@/lib/chat-state"
 import { PATHS } from "@background-agents/common"
+import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
 
 /** All props the PaletteProvider takes, minus `children` (supplied by JSX). */
 export type PaletteProps = Omit<React.ComponentProps<typeof PaletteProvider>, "children">
@@ -61,6 +62,13 @@ interface UsePalettePropsOptions {
 
   // Toggles
   onToggleSkillsModal: () => void
+
+  /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
+  materializeDraft: (draftId: string) => Promise<Chat | null>
+  /** Draft chat's staged config (repo, pending env vars, etc.), if there is one. */
+  draftChatConfig?: { id: string; pendingEnvironmentVariables?: Record<string, string> }
+  /** Stage/update the draft chat's config. */
+  updateDraftChatConfig?: (updates: { pendingEnvironmentVariables?: Record<string, string> }) => void
 }
 
 /**
@@ -104,6 +112,9 @@ export function usePaletteProps({
   sidebar,
   preview,
   onToggleSkillsModal,
+  materializeDraft,
+  draftChatConfig,
+  updateDraftChatConfig,
 }: UsePalettePropsOptions): PaletteProps {
   const { data: session } = useSession()
   const { data: currentUserLogin } = useGitHubUserQuery()
@@ -120,11 +131,24 @@ export function usePaletteProps({
   // lives in the browser only, so those requests would 404.
   const savedChatId = isDraftChatId(displayCurrentChatId) ? null : displayCurrentChatId
 
+  // Draft chats have no sandbox yet. Materialize the draft into a real chat
+  // row and make sure it has a running sandbox before proceeding — same
+  // helper the Merge dialog uses (see lib/sandbox-client.ts).
+  const ensureSandboxForDraft = async (): Promise<string | null> => {
+    if (!displayCurrentChatId || !isDraftChatId(displayCurrentChatId)) return null
+    const ensured = await materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft, {
+      environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+      clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+    })
+    return ensured?.sandboxId ?? null
+  }
+
   // Find or create a uniquely-numbered terminal id for this sandbox. We scan
   // existing terminal preview items, pull the trailing `-<n>` suffix from each,
   // and pick the next integer above the highest one we've seen.
-  const openNewTerminal = () => {
-    if (!sandboxId) return
+  const openNewTerminal = async () => {
+    const resolvedSandboxId = sandboxId ?? (await ensureSandboxForDraft())
+    if (!resolvedSandboxId) return
     const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
     const terminalNumbers = existingTerminals.map((t) => {
       if (t.type !== "terminal") return 0
@@ -132,13 +156,12 @@ export function usePaletteProps({
       return match ? parseInt(match[1], 10) : 1
     })
     const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
-    preview.openPreview({ type: "terminal", id: `${sandboxId}-${nextNumber}` })
+    preview.openPreview({ type: "terminal", id: `${resolvedSandboxId}-${nextNumber}` })
   }
 
   // Toggle the terminal preview pane: if a terminal already exists, just
   // show/hide the pane; otherwise create one.
-  const toggleTerminal = () => {
-    if (!sandboxId) return
+  const toggleTerminal = async () => {
     const existingTerminal = preview.previewItems.find((i) => i.type === "terminal")
     if (existingTerminal) {
       if (preview.previewOpen) {
@@ -146,9 +169,11 @@ export function usePaletteProps({
       } else {
         preview.openPreview(existingTerminal)
       }
-    } else {
-      preview.openPreview({ type: "terminal", id: `${sandboxId}-1` })
+      return
     }
+    const resolvedSandboxId = sandboxId ?? (await ensureSandboxForDraft())
+    if (!resolvedSandboxId) return
+    preview.openPreview({ type: "terminal", id: `${resolvedSandboxId}-1` })
   }
 
   return {
@@ -194,13 +219,15 @@ export function usePaletteProps({
       savedChatId && !currentChat?.archived
         ? () => handleArchiveChat(savedChatId)
         : undefined,
-    onOpenInVSCode: sandboxId ? handleOpenInVSCode : undefined,
-    onOpenTerminal: sandboxId ? openNewTerminal : undefined,
+    // "Open in VS Code" and Terminal can also run on a draft chat: they
+    // materialize it + boot a sandbox first (see ensureSandboxForDraft above).
+    onOpenInVSCode: sandboxId || isDraftChatId(displayCurrentChatId) ? handleOpenInVSCode : undefined,
+    onOpenTerminal: sandboxId || isDraftChatId(displayCurrentChatId) ? openNewTerminal : undefined,
     onOpenFileBrowser: sandboxId
       ? () => preview.openPreview({ type: "directory", dirPath: PATHS.SANDBOX_HOME })
       : undefined,
     onOpenChanges: sandboxId && hasRepo ? () => preview.openPreview({ type: "changes" }) : undefined,
-    onToggleTerminal: sandboxId ? toggleTerminal : undefined,
+    onToggleTerminal: sandboxId || isDraftChatId(displayCurrentChatId) ? toggleTerminal : undefined,
     servers: availableServers,
     onOpenServer: (port, url) => preview.openPreview({ type: "server", port, url }),
     onClosePreview: preview.previewOpen ? preview.closePreview : undefined,

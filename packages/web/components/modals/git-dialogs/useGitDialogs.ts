@@ -6,12 +6,23 @@ import { EMPTY_CONFLICT_STATE } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
 import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, RebaseConflictState } from "./types"
 import { callSandboxGit } from "./api"
+import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
 
 // ============================================================================
 // useGitDialogs Hook
 // ============================================================================
 
-export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, setOnConflictStateChange }: UseGitDialogsOptions): UseGitDialogsResult {
+export function useGitDialogs({
+  chat,
+  chats,
+  updateChatById,
+  refetchMessages,
+  setOnConflictStateChange,
+  isDraftChatId,
+  materializeDraft,
+  draftChatConfig,
+  updateDraftChatConfig,
+}: UseGitDialogsOptions): UseGitDialogsResult {
   const chatId = chat?.id ?? ""
   const branchName = chat?.branch ?? ""
   const baseBranch = chat?.baseBranch ?? ""
@@ -148,14 +159,20 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
   // optionally close the originating dialog. The action body only has to do the
   // work that's actually specific to it (fire the request, update local state).
   const runGitAction = useCallback(
-    async (action: () => Promise<void>, closeDialog?: (open: boolean) => void) => {
+    async (
+      action: () => Promise<void>,
+      closeDialog?: (open: boolean) => void,
+      /** Overrides the chat id to refetch messages for (e.g. a chat just materialized from a draft). */
+      refetchChatId?: string
+    ) => {
       setActionLoading(true)
       try {
         await action()
       } catch {
         // Error message may have been created by the backend - the refetch shows it.
       } finally {
-        if (chatId) await refetchMessages?.(chatId)
+        const idToRefetch = refetchChatId ?? chatId
+        if (idToRefetch) await refetchMessages?.(idToRefetch)
         closeDialog?.(false)
         setActionLoading(false)
       }
@@ -177,7 +194,35 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
 
   // Handle merge
   const handleMerge = useCallback(async () => {
-    if (!selectedBranch || !branchName || !sandboxId || !chatId) return
+    if (!selectedBranch || !branchName) return
+
+    let activeSandboxId = sandboxId
+    let activeChatId = chatId
+
+    // Draft chat (no DB row / sandbox yet): materialize it into a real chat
+    // row, then make sure it has a running sandbox, before merging. Kept
+    // deliberately independent of this hook's own lifecycle — if the dialog
+    // (and this hook) unmounts while this is in flight, the materialize +
+    // ensure + merge sequence below keeps running; it isn't tied to any
+    // component-unmount abort signal.
+    if ((!activeSandboxId || !activeChatId) && chatId && isDraftChatId?.(chatId) && materializeDraft) {
+      setActionLoading(true)
+      const ensured = await materializeAndEnsureSandbox(
+        chatId,
+        materializeDraft,
+        {
+          environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+          clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+        },
+        { failureBody: "Merge not performed — try again." }
+      )
+      setActionLoading(false)
+      if (!ensured) return
+      activeChatId = ensured.chatId
+      activeSandboxId = ensured.sandboxId
+    }
+
+    if (!activeSandboxId || !activeChatId) return
 
     // Look up the *other* chat that owns the target branch in this repo (if any).
     // We use it both pre-merge (to block merging into a running chat) and
@@ -202,7 +247,7 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
         conflictedFiles?: string[]
         needsSync?: boolean
       }>({
-        sandboxId,
+        sandboxId: activeSandboxId,
         repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
         action: "merge",
         targetBranch: selectedBranch,
@@ -211,12 +256,17 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
         repoOwner,
         repoApiName,
         targetSandboxId: targetChat?.sandboxId ?? null,
-        chatId,
+        chatId: activeChatId,
         sourceName,
         targetName,
       })
 
-      syncRecreatedSandboxId(recreatedSandboxId)
+      // Use activeChatId/activeSandboxId rather than the syncRecreatedSandboxId
+      // helper here: for a chat just materialized from a draft, `chat.id` is
+      // still the stale draft id.
+      if (recreatedSandboxId && recreatedSandboxId !== activeSandboxId) {
+        void updateChatById(activeChatId, { sandboxId: recreatedSandboxId })
+      }
 
       if (status === 409 && data.conflict && data.inMerge) {
         setRebaseConflict({
@@ -237,11 +287,11 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
 
       // If this chat has no parent chat, advance its base branch to the merge
       // target so subsequent rebases/squashes use the right reference.
-      if (!chat?.parentChatId && chat) {
-        void updateChatById(chat.id, { baseBranch: selectedBranch })
+      if (!chat?.parentChatId) {
+        void updateChatById(activeChatId, { baseBranch: selectedBranch })
       }
-    }, setMergeOpen)
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, findOtherChatOnBranch, chat, resolveChatName, updateChatById, runGitAction, syncRecreatedSandboxId])
+    }, setMergeOpen, activeChatId)
+  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, findOtherChatOnBranch, chat, resolveChatName, updateChatById, runGitAction, isDraftChatId, materializeDraft, draftChatConfig, updateDraftChatConfig])
 
   // Shared rebase mechanics, parameterized on the target branch so callers
   // that already know it (the rebase-suggestion banner) can skip the
