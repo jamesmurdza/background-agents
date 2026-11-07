@@ -20,7 +20,7 @@
  * Never imported from client code — reads raw key values from process.env.
  */
 
-import { contentSecretName, parseSecretMarker, toSecretMarker } from "@background-agents/sandbox-secrets"
+import { parseSecretMarker, secretName, toSecretMarker } from "@background-agents/sandbox-secrets"
 
 import { userSecretsFlag } from "@/lib/server/user-key-secrets"
 
@@ -31,8 +31,6 @@ export interface SharedKeyPool {
   id: SharedPoolId
   /** Server env var holding the pool's keys, and the credential id they back. */
   envKey: "OPENCODE_API_KEY" | "GEMINI_API_KEY"
-  /** Prefix of every Daytona secret backing one of the pool's keys. */
-  secretPrefix: string
   /** Hosts the pool's keys may be sent to. */
   hosts: string[]
   /**
@@ -51,7 +49,6 @@ export const SHARED_KEY_POOLS: Record<SharedPoolId, SharedKeyPool> = {
   opencode: {
     id: "opencode",
     envKey: "OPENCODE_API_KEY",
-    secretPrefix: "opencode_",
     hosts: ["opencode.ai"],
     // Predates the other pools; live sandbox labels record it, so it stays.
     mountEnv: "SESSION_RELAY_TOKEN",
@@ -61,7 +58,6 @@ export const SHARED_KEY_POOLS: Record<SharedPoolId, SharedKeyPool> = {
   gemini: {
     id: "gemini",
     envKey: "GEMINI_API_KEY",
-    secretPrefix: "gemini_",
     hosts: ["generativelanguage.googleapis.com"],
     mountEnv: "SESSION_RELAY_TOKEN_GEMINI",
     label: "Gemini",
@@ -70,9 +66,6 @@ export const SHARED_KEY_POOLS: Record<SharedPoolId, SharedKeyPool> = {
 }
 
 const POOLS = Object.values(SHARED_KEY_POOLS)
-
-/** Hex characters of the key's SHA-256 kept in its secret name. */
-const SECRET_NAME_HASH_LENGTH = 12
 
 /** The pool a provider id (as models name it in `requiresKey`) draws on, if any. */
 export function sharedPoolForProvider(provider: string | undefined): SharedKeyPool | undefined {
@@ -84,9 +77,12 @@ export function sharedPoolForCredential(credentialId: string): SharedKeyPool | u
   return POOLS.find((pool) => pool.envKey === credentialId)
 }
 
-/** The pool a secret name belongs to, by its prefix. */
-export function sharedPoolForSecret(secretName: string): SharedKeyPool | undefined {
-  return POOLS.find((pool) => secretName.startsWith(pool.secretPrefix))
+/**
+ * The pool a secret name belongs to, found by recomputing every configured
+ * key's secret name (there is no prefix to read it back from any more).
+ */
+export function sharedPoolForSecret(name: string): SharedKeyPool | undefined {
+  return POOLS.find((pool) => getSharedKeys(pool).some((key) => secretNameForKey(pool, key) === name))
 }
 
 /**
@@ -98,11 +94,11 @@ export function getSharedKeys(pool: SharedKeyPool): string[] {
 }
 
 /**
- * Daytona secret name for a pool key: the pool's prefix plus a short hash of
- * the key, so a rotated key gets a new secret (see contentSecretName).
+ * Daytona secret name for a pool key: a hash of the key restricted to the
+ * pool's hosts, so a rotated key gets a new secret (see {@link secretName}).
  */
 export function secretNameForKey(pool: SharedKeyPool, key: string): string {
-  return contentSecretName(pool.secretPrefix, key, SECRET_NAME_HASH_LENGTH)
+  return secretName(key, pool.hosts)
 }
 
 /** The Daytona secret names backing the pool's configured keys. */
@@ -111,10 +107,10 @@ export function getSharedSecretNames(pool: SharedKeyPool): string[] {
 }
 
 /** The configured pool key a secret name was derived from, if any. */
-export function sharedKeyForSecret(secretName: string): string | undefined {
-  const pool = sharedPoolForSecret(secretName)
+export function sharedKeyForSecret(name: string): string | undefined {
+  const pool = sharedPoolForSecret(name)
   if (!pool) return undefined
-  return getSharedKeys(pool).find((key) => secretNameForKey(pool, key) === secretName)
+  return getSharedKeys(pool).find((key) => secretNameForKey(pool, key) === name)
 }
 
 /** Whether the pool's keys go into sandboxes behind Daytona secrets. */
@@ -181,8 +177,8 @@ const KEY_FINGERPRINT_LENGTH = 5
  */
 export function fingerprintKey(key: string | undefined | null): string | undefined {
   if (!key) return undefined
-  const secretName = parseSecretMarker(key)
-  if (secretName) return secretName
+  const asSecretName = parseSecretMarker(key)
+  if (asSecretName) return asSecretName
   const trimmed = key.trim()
   if (trimmed.length < KEY_FINGERPRINT_LENGTH) return undefined
   return trimmed.slice(-KEY_FINGERPRINT_LENGTH)

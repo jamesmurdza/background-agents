@@ -2,7 +2,7 @@
  * Unit tests for the shared provider key pools.
  */
 import { describe, it, expect, afterEach, vi } from "vitest"
-import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import { SECRET_PREFIX, toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
   SHARED_KEY_POOLS,
   fingerprintKey,
@@ -142,7 +142,7 @@ describe("fingerprintKey", () => {
 describe("secret names", () => {
   it("derives a stable, valid Daytona secret name from the key", () => {
     const name = opencodeSecret("sk-some-key")
-    expect(name).toMatch(/^opencode_[0-9a-f]{12}$/)
+    expect(name).toMatch(new RegExp(`^${SECRET_PREFIX}[0-9a-f]{16}$`))
     expect(opencodeSecret("sk-some-key")).toBe(name)
     expect(opencodeSecret("sk-other-key")).not.toBe(name)
     expect(name).not.toContain("some-key")
@@ -165,7 +165,7 @@ describe("pools", () => {
     process.env.OPENCODE_API_KEY = "same-key"
     process.env.GEMINI_API_KEY = "same-key, g2"
     const geminiName = secretNameForKey(gemini, "same-key")
-    expect(geminiName).toMatch(/^gemini_[0-9a-f]{12}$/)
+    expect(geminiName).toMatch(new RegExp(`^${SECRET_PREFIX}[0-9a-f]{16}$`))
     expect(geminiName).not.toBe(opencodeSecret("same-key"))
     expect(getSharedKeys(gemini)).toEqual(["same-key", "g2"])
     expect(sharedPoolForSecret(geminiName)).toBe(gemini)

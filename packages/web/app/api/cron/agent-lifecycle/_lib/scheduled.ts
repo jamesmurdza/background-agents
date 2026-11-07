@@ -231,7 +231,7 @@ export async function startJobExecution(
   // The secrets were mounted at creation (this confirms it without a
   // remount), and the agent is handed their placeholders instead of the
   // keys. No detach needed: the sandbox is deleted when the run ends.
-  await mountTurnSecrets(sandbox, turnSecrets)
+  await mountTurnSecrets(daytona, sandbox, turnSecrets)
   applyTurnSecretsToEnv(env, turnSecrets)
 
   // Load job-scoped MCP servers. The loader marks rows with status="error" and

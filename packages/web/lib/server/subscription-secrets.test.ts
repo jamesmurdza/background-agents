@@ -6,6 +6,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 const daytonaSecret = vi.hoisted(() => ({
   list: vi.fn(),
   create: vi.fn(),
+  update: vi.fn(),
   delete: vi.fn(),
 }))
 
@@ -16,18 +17,19 @@ vi.mock("@daytonaio/sdk", async (importOriginal) => ({
   },
 }))
 
-import { SECRET_NAME_PATTERN } from "@background-agents/sandbox-secrets"
+import { secretName } from "@background-agents/sandbox-secrets"
 import { buildCodexAuthJson, type CodexStoredCredential } from "@/lib/codex-credentials"
 import {
-  CLAUDE_SHARED_SECRET_PREFIX,
-  claudeSharedSecretSpec,
+  CLAUDE_SECRET_HOSTS,
+  CODEX_SECRET_HOSTS,
   codexAccessToken,
-  codexSecretPrefix,
-  codexSecretSpec,
+  ensureClaudeSharedSecret,
+  ensureCodexSecret,
   pruneClaudeSharedSecrets,
   pruneCodexSecrets,
   subscriptionSecretsEnabled,
 } from "./subscription-secrets"
+import { Daytona } from "@daytonaio/sdk"
 
 const codexCred: CodexStoredCredential = {
   refresh_token: "rt-real",
@@ -40,21 +42,15 @@ const codexCred: CodexStoredCredential = {
   status: "connected",
 }
 
-const listed = (names: string[]) => ({
-  items: names.map((name, i) => ({ id: `id_${name}`, name, createdAt: new Date(2026, 9, i + 1).toISOString() })),
-  nextCursor: null,
-})
-
 beforeEach(() => {
-  process.env.DAYTONA_API_KEY = "dtn-test"
   process.env.DAYTONA_USER_KEY_SECRETS = "CODEX_CREDENTIALS,CLAUDE_SHARED"
   daytonaSecret.list.mockReset().mockResolvedValue({ items: [], nextCursor: null })
-  daytonaSecret.delete.mockReset().mockResolvedValue(undefined)
+  daytonaSecret.create.mockReset().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: `ph_${name}` }))
+  daytonaSecret.update.mockReset().mockResolvedValue({})
   vi.spyOn(console, "log").mockImplementation(() => {})
 })
 
 afterEach(() => {
-  delete process.env.DAYTONA_API_KEY
   delete process.env.DAYTONA_USER_KEY_SECRETS
   vi.restoreAllMocks()
 })
@@ -85,54 +81,28 @@ describe("codexAccessToken", () => {
   })
 })
 
-describe("secret specs", () => {
-  it("name each token's secret after a hash of it, on its provider's hosts", () => {
-    const codex = codexSecretSpec("user-1", "eyJ.access.token")
-    expect(codex.name).toMatch(SECRET_NAME_PATTERN)
-    expect(codex.name.startsWith(codexSecretPrefix("user-1"))).toBe(true)
-    expect(codex.name).not.toContain("access")
-    expect(codex.hosts).toEqual(["chatgpt.com", "*.chatgpt.com"])
-    expect(codexSecretSpec("user-1", "eyJ.refreshed").name).not.toBe(codex.name)
+describe("ensureCodexSecret / ensureClaudeSharedSecret", () => {
+  it("names each token's secret after a hash of it, on its provider's hosts", async () => {
+    const daytona = new Daytona({ apiKey: "dtn-test" })
+    await ensureCodexSecret(daytona, "eyJ.access.token")
+    expect(daytonaSecret.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: secretName("eyJ.access.token", CODEX_SECRET_HOSTS), hosts: CODEX_SECRET_HOSTS })
+    )
+    expect(daytonaSecret.create.mock.calls[0][0].name).not.toContain("access")
 
-    const claude = claudeSharedSecretSpec("sk-ant-oat01-x")
-    expect(claude.name.startsWith(CLAUDE_SHARED_SECRET_PREFIX)).toBe(true)
-    expect(claude.hosts).toEqual(["api.anthropic.com"])
-    expect(claude.value()).toBe("sk-ant-oat01-x")
+    await ensureClaudeSharedSecret(daytona, "sk-ant-oat01-x")
+    expect(daytonaSecret.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: secretName("sk-ant-oat01-x", CLAUDE_SECRET_HOSTS), hosts: CLAUDE_SECRET_HOSTS })
+    )
   })
 })
 
-describe("pruning", () => {
-  it("keeps the two newest Codex token secrets after a refresh", async () => {
-    const prefix = codexSecretPrefix("user-1")
-    daytonaSecret.list.mockResolvedValueOnce(listed([`${prefix}a`, `${prefix}b`, `${prefix}c`]))
-    await pruneCodexSecrets("user-1")
-    expect(daytonaSecret.delete.mock.calls).toEqual([[`id_${prefix}a`]])
-  })
-
-  it("deletes every Codex token secret on disconnect, even with the feature off", async () => {
-    process.env.DAYTONA_USER_KEY_SECRETS = ""
-    const prefix = codexSecretPrefix("user-1")
-    daytonaSecret.list.mockResolvedValueOnce(listed([`${prefix}a`, `${prefix}b`]))
-    await pruneCodexSecrets("user-1", { all: true })
-    expect(daytonaSecret.delete).toHaveBeenCalledTimes(2)
-  })
-
-  it("keeps the two newest shared Claude secrets, and does nothing while off", async () => {
-    const p = CLAUDE_SHARED_SECRET_PREFIX
-    daytonaSecret.list.mockResolvedValueOnce(listed([`${p}a`, `${p}b`, `${p}c`]))
-    await pruneClaudeSharedSecrets()
-    expect(daytonaSecret.delete.mock.calls).toEqual([[`id_${p}a`]])
-
-    process.env.DAYTONA_USER_KEY_SECRETS = "CODEX_CREDENTIALS"
-    daytonaSecret.list.mockClear()
-    await pruneClaudeSharedSecrets()
-    expect(daytonaSecret.list).not.toHaveBeenCalled()
-  })
-
-  it("never throws", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    daytonaSecret.list.mockRejectedValue(new Error("403"))
+describe("pruning is now a no-op", () => {
+  it("never throws, and never touches Daytona: an old token's secret just ages out of the cleanup sweep", async () => {
     await expect(pruneCodexSecrets("user-1")).resolves.toBeUndefined()
+    await expect(pruneCodexSecrets("user-1", { all: true })).resolves.toBeUndefined()
     await expect(pruneClaudeSharedSecrets()).resolves.toBeUndefined()
+    expect(daytonaSecret.list).not.toHaveBeenCalled()
+    expect(daytonaSecret.delete).not.toHaveBeenCalled()
   })
 })

@@ -8,21 +8,22 @@
  * doesn't either: the agent gets its placeholder, mounted for the turn like
  * any key (lib/server/turn-secrets).
  *
- * Each token value gets its own secret, named after a hash of it, so a
- * refreshed token gets a new placeholder. Claude relies on that: when a call
- * fails it asks for a token and only retries with a different one, which the
- * claude-token route mounts mid-turn. Old secrets are pruned when the token
- * refreshes, keeping the newest {@link KEEP_NEWEST} so a turn that started on
- * the previous token keeps working until it ends.
+ * Each token value gets its own secret, named after a hash of it (see
+ * {@link secretName}), so a refreshed token gets a new placeholder. Claude
+ * relies on that: when a call fails it asks for a token and only retries
+ * with a different one, which the claude-token route mounts mid-turn. A
+ * secret for a token that stopped being used simply ages out of the
+ * app-wide secret-cleanup sweep (see @background-agents/sandbox-secrets'
+ * `deleteStaleSecrets`) rather than being eagerly pruned per user or scope.
  *
  * On unless DAYTONA_USER_KEY_SECRETS leaves them out (CODEX_CREDENTIALS,
  * CLAUDE_SHARED, CLAUDE_CODE_CREDENTIALS; see userSecretsFlag).
  */
 
-import { Daytona } from "@daytonaio/sdk"
-import { contentSecretName, deleteSecrets, type EnsureSecretSpec } from "@background-agents/sandbox-secrets"
+import type { Daytona } from "@daytonaio/sdk"
+import { ensureSecret } from "@background-agents/sandbox-secrets"
 
-import { userKeySecretPrefix, userSecretsFlag } from "@/lib/server/user-key-secrets"
+import { userSecretsFlag } from "@/lib/server/user-key-secrets"
 
 export type SubscriptionSecret = "CODEX_CREDENTIALS" | "CLAUDE_SHARED" | "CLAUDE_CODE_CREDENTIALS"
 
@@ -40,12 +41,8 @@ export const CODEX_SECRET_HOSTS = ["chatgpt.com", "*.chatgpt.com"]
 /** Where Claude Code sends a subscription access token. */
 export const CLAUDE_SECRET_HOSTS = ["api.anthropic.com"]
 
-export const CLAUDE_SHARED_SECRET_PREFIX = "claude_shared_"
 /** Env var the shared Claude token's secret is mounted as; nothing reads it. */
 export const CLAUDE_SHARED_MOUNT_ENV = "SESSION_RELAY_TOKEN_CLAUDE"
-
-/** Secrets kept per token when pruning: the current one and the one before. */
-export const KEEP_NEWEST = 2
 
 /** Whether `kind` is put behind a secret. */
 export function subscriptionSecretsEnabled(kind: SubscriptionSecret): boolean {
@@ -63,79 +60,43 @@ export function codexAccessToken(authJson: string): string | undefined {
   }
 }
 
-export function codexSecretPrefix(userId: string): string {
-  return userKeySecretPrefix(userId, "CODEX_CREDENTIALS")
+/** Make sure the Daytona secret for a Codex access token `token` exists, and return its placeholder. */
+export function ensureCodexSecret(daytona: Daytona, token: string): Promise<string> {
+  return ensureSecret(daytona, () => token, CODEX_SECRET_HOSTS)
 }
 
-/** How to create the secret holding `userId`'s Codex access token `token`. */
-export function codexSecretSpec(userId: string, token: string): EnsureSecretSpec {
-  return {
-    name: contentSecretName(codexSecretPrefix(userId), token),
-    value: () => token,
-    hosts: CODEX_SECRET_HOSTS,
-    description: "Codex ChatGPT access token of a background-agents user",
-  }
-}
-
-/** How to create the secret holding the shared Claude access token `token`. */
-export function claudeSharedSecretSpec(token: string): EnsureSecretSpec {
-  return {
-    name: contentSecretName(CLAUDE_SHARED_SECRET_PREFIX, token),
-    value: () => token,
-    hosts: CLAUDE_SECRET_HOSTS,
-    description: "Shared Claude subscription access token",
-  }
-}
-
-export function claudeOwnSecretPrefix(userId: string): string {
-  return userKeySecretPrefix(userId, "CLAUDE_CODE_CREDENTIALS")
+/** Make sure the Daytona secret for the shared Claude access token `token` exists, and return its placeholder. */
+export function ensureClaudeSharedSecret(daytona: Daytona, token: string): Promise<string> {
+  return ensureSecret(daytona, () => token, CLAUDE_SECRET_HOSTS)
 }
 
 /**
- * How to create the secret holding a Claude run's token, or undefined when
- * that kind isn't put behind one.
+ * Make sure the Daytona secret for a Claude run's token exists, and return
+ * its placeholder — or undefined when that kind isn't put behind one.
  */
-export function claudeRunSecretSpec(userId: string, run: ClaudeRunToken): EnsureSecretSpec | undefined {
-  if (run.source === "shared") return subscriptionSecretsEnabled("CLAUDE_SHARED") ? claudeSharedSecretSpec(run.token) : undefined
+export function ensureClaudeRunSecret(
+  daytona: Daytona,
+  run: ClaudeRunToken
+): Promise<string> | undefined {
+  if (run.source === "shared") return subscriptionSecretsEnabled("CLAUDE_SHARED") ? ensureClaudeSharedSecret(daytona, run.token) : undefined
   if (!subscriptionSecretsEnabled("CLAUDE_CODE_CREDENTIALS")) return undefined
-  return {
-    name: contentSecretName(claudeOwnSecretPrefix(userId), run.token),
-    value: () => run.token,
-    hosts: CLAUDE_SECRET_HOSTS,
-    description: "Claude subscription access token of a background-agents user",
-  }
-}
-
-async function prune(prefix: string, keepNewest: number, what: string): Promise<void> {
-  const apiKey = process.env.DAYTONA_API_KEY
-  if (!apiKey) return
-  try {
-    await deleteSecrets(new Daytona({ apiKey }), { prefix, keepNewest })
-  } catch (err) {
-    console.error(`[subscription-secrets] failed to prune ${what} secrets:`, err)
-  }
+  return ensureSecret(daytona, () => run.token, CLAUDE_SECRET_HOSTS)
 }
 
 /**
- * After `userId`'s Codex token was refreshed (or with `all`, disconnected):
- * delete their Codex token secrets but the newest. Never throws.
+ * Previously pruned a user's or the shared pool's old subscription-token
+ * secrets eagerly on refresh (per-user/per-scope name prefixes made that
+ * possible). Secrets are no longer named per user or scope — just per value
+ * — so there is nothing to find and delete here any more: an old token's
+ * secret simply stops being touched, and ages out of the app-wide
+ * secret-cleanup sweep (see @background-agents/sandbox-secrets'
+ * `deleteStaleSecrets`) like anything else unused. Kept as a no-op so
+ * existing call sites don't need to change.
  */
-export async function pruneCodexSecrets(userId: string, { all = false }: { all?: boolean } = {}): Promise<void> {
-  if (!all && !subscriptionSecretsEnabled("CODEX_CREDENTIALS")) return
-  await prune(codexSecretPrefix(userId), all ? 0 : KEEP_NEWEST, "Codex")
-}
+export async function pruneCodexSecrets(_userId: string, _options?: { all?: boolean }): Promise<void> {}
 
-/**
- * After `userId`'s own Claude token was refreshed (or with `all`, their login
- * replaced or removed): delete its secrets but the newest. Never throws.
- */
-export async function pruneClaudeOwnSecrets(userId: string, { all = false }: { all?: boolean } = {}): Promise<void> {
-  if (!all && !subscriptionSecretsEnabled("CLAUDE_CODE_CREDENTIALS")) return
-  await prune(claudeOwnSecretPrefix(userId), all ? 0 : KEEP_NEWEST, "own Claude")
-}
+/** @see pruneCodexSecrets */
+export async function pruneClaudeOwnSecrets(_userId: string, _options?: { all?: boolean }): Promise<void> {}
 
-/** After the shared Claude token was refreshed: delete its secrets but the newest. Never throws. */
-export async function pruneClaudeSharedSecrets(): Promise<void> {
-  if (!subscriptionSecretsEnabled("CLAUDE_SHARED")) return
-  await prune(CLAUDE_SHARED_SECRET_PREFIX, KEEP_NEWEST, "shared Claude")
-}
+/** @see pruneCodexSecrets */
+export async function pruneClaudeSharedSecrets(): Promise<void> {}
