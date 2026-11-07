@@ -345,6 +345,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     updateChatById,
     refetchMessages,
     setOnConflictStateChange,
+    isDraftChatId,
+    materializeDraft,
   })
 
   // Chat/job navigation: view-switching handlers, keyboard traversal,
