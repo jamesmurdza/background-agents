@@ -25,6 +25,10 @@ import {
  * one via the same path as first-time creation / recreation after expiry
  * (see `ensureSandboxRunning` in lib/sandbox.ts).
  *
+ * `/api/chats/[chatId]/sandbox/recreate` re-exports this same handler — the
+ * two routes are behaviorally identical, `recreate` just gives the preview
+ * panel a URL matching its "recreate" mental model.
+ *
  * Body: {} (chatId comes from the route param)
  * Responses:
  *   200 { sandboxId, previewUrlPattern, branch }
