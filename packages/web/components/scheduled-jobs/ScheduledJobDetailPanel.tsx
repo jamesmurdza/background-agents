@@ -26,7 +26,7 @@ interface ScheduledJobDetailPanelProps {
 /**
  * Renders a single scheduled job's detail/run history (the content behind
  * /jobs/[jobId]). Jobs are now created via the chat composer's popover and
- * browsed via the "Search Jobs" command palette — this panel only owns the
+ * browsed via the "Events" command palette — this panel only owns the
  * run/message fetching for the detail view itself; the job record comes from
  * the shared React Query cache (`useScheduledJobQuery`) so a title patched
  * elsewhere (e.g. the fire-and-forget rename after creation) is reflected

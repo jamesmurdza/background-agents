@@ -50,7 +50,7 @@ export function useUrlSync({
       switch (matched.route) {
         case "jobs":
           // There's no bare jobs list anymore (browsing happens via the
-          // "Search Jobs" command palette) — redirect to the home page.
+          // "Events" command palette) — redirect to the home page.
           setViewMode("chat")
           setSelectedScheduledJob(null)
           if (!isInitialSync) selectChat(null)

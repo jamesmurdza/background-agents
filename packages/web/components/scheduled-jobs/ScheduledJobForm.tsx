@@ -2,7 +2,7 @@
 
 import { useRef } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Clock, ChevronDown, X } from "lucide-react"
+import { AlarmClock, ChevronDown } from "lucide-react"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { RepoCombobox } from "@/components/chat/RepoCombobox"
@@ -34,7 +34,6 @@ interface ScheduledJobFormProps {
 
 export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = false }: ScheduledJobFormProps) {
   const {
-    isEditing,
     jobId,
     name,
     prompt,
@@ -55,7 +54,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     loading,
     error,
     fieldErrors,
-    materializedJobId,
     showAgentDropdown,
     showModelDropdown,
     incomingToken,
@@ -84,7 +82,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
     setContinueFromLastRun,
     setShowAgentDropdown,
     setShowModelDropdown,
-    materializeJob,
     handleSubmit,
     handleClose,
     handleCopyUrl,
@@ -125,8 +122,8 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           <ModalHeader
             title={
               <>
-                <Clock className="h-4 w-4" />
-                {isEditing ? "Edit Scheduled Agent" : "New Scheduled Agent"}
+                <AlarmClock className="h-4 w-4" />
+                Edit Scheduled Agent
               </>
             }
           />
@@ -255,34 +252,18 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                     "flex items-center gap-2",
                     isMobile ? "w-full" : "flex-1"
                   )}>
-                    {/* Repo selector */}
+                    {/* Repo selector — edits keep the repo immutable since
+                        the sandbox/branch pipeline is already wired to it. */}
                     <RepoCombobox
                       value={repo || null}
                       onChange={(newRepo, defaultBranch) => {
                         setRepo(newRepo)
                         setBaseBranch(defaultBranch)
                       }}
-                      disabled={isEditing}
+                      disabled
                       isMobile={isMobile}
                       showLabel
                     />
-
-                    {/* Clear-repo X — only in create mode; edits keep the
-                        repo immutable since the sandbox/branch pipeline is
-                        already wired to it. */}
-                    {repo && !isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRepo("")
-                          setBaseBranch("main")
-                        }}
-                        className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-0.5"
-                        title="Remove repository"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
 
                     {/* Branch selector — only meaningful when a repo is set. */}
                     {repo && (
@@ -297,14 +278,10 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                     )}
 
                     {/* MCP servers picker — inline alongside repo/branch like
-                        the chat input. In create mode the first click
-                        materializes the job so the picker has a real id;
-                        cancel cleans up. */}
+                        the chat input. */}
                     <McpServersCombobox
-                      entityId={materializedJobId ?? jobId ?? "draft"}
+                      entityId={jobId ?? "draft"}
                       apiBase="/api/scheduled-jobs"
-                      isDraft={!isEditing && !materializedJobId}
-                      onMaterializeDraft={materializeJob}
                       isMobile={isMobile}
                     />
                   </div>
@@ -416,7 +393,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               disabled={loading}
               className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"
             >
-              {loading ? "Saving..." : isEditing ? "Save Changes" : "Create"}
+              {loading ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </Dialog.Content>

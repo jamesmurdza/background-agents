@@ -664,63 +664,68 @@ export function ChatInput({
             />
           </div>
 
-          {/* Voice dictation (speech-to-text) — stays on the left of the fixed
-              action slot so run-state changes cannot move it under a pending
-              click. Bottom-aligned as the textarea grows. Only shown when
-              supported. */}
-          {speech.isSupported && (
-            <button
-              type="button"
-              onClick={toggleListening}
-              disabled={speech.permissionDenied}
-              aria-pressed={speech.isListening}
-              className={cn(
-                "shrink-0 flex items-center justify-center rounded-md transition-colors",
-                isMobile ? "h-9 w-9" : "h-7 w-7",
-                speech.permissionDenied
-                  ? "text-muted-foreground/40 cursor-not-allowed"
-                  : speech.isListening
-                  ? "text-red-500 bg-red-500/10 animate-pulse cursor-pointer"
-                  : "text-muted-foreground hover:text-foreground cursor-pointer"
-              )}
-              title={
-                speech.permissionDenied
-                  ? "Microphone access denied"
-                  : speech.isListening
-                  ? "Stop dictation"
-                  : "Dictate prompt"
-              }
-              aria-label={
-                speech.permissionDenied
-                  ? "Microphone access denied"
-                  : speech.isListening
-                  ? "Stop voice dictation"
-                  : "Start voice dictation"
-              }
-            >
-              <Mic className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-            </button>
-          )}
+          {/* Voice dictation + schedule-this-prompt — grouped tightly together
+              (smaller gap than the rest of the action row) since they're both
+              "composer utility" actions, distinct from send. Bottom-aligned as
+              the textarea grows. */}
+          <div className="flex items-end gap-0.5">
+            {/* Voice dictation (speech-to-text). Only shown when supported. */}
+            {speech.isSupported && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={speech.permissionDenied}
+                aria-pressed={speech.isListening}
+                className={cn(
+                  "shrink-0 flex items-center justify-center rounded-md transition-colors",
+                  isMobile ? "h-9 w-9" : "h-7 w-7",
+                  speech.permissionDenied
+                    ? "text-muted-foreground/40 cursor-not-allowed"
+                    : speech.isListening
+                    ? "text-red-500 bg-red-500/10 animate-pulse cursor-pointer"
+                    : "text-muted-foreground hover:text-foreground cursor-pointer"
+                )}
+                title={
+                  speech.permissionDenied
+                    ? "Microphone access denied"
+                    : speech.isListening
+                    ? "Stop dictation"
+                    : "Dictate prompt"
+                }
+                aria-label={
+                  speech.permissionDenied
+                    ? "Microphone access denied"
+                    : speech.isListening
+                    ? "Stop voice dictation"
+                    : "Start voice dictation"
+                }
+              >
+                <Mic className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+              </button>
+            )}
 
-          {/* Schedule this prompt — only active when the send button itself
-              would be active for a non-empty composer (not running, canSend,
-              non-empty input). Doesn't depend on a repo being selected. */}
-          {!isRunning && canSend && !!input.trim() && (
+            {/* Schedule this prompt — always visible on the composer; disabled
+                (not hidden) when there's no prompt text to schedule yet.
+                Doesn't depend on a repo being selected. */}
             <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
+                  disabled={isRunning || !canSend || !input.trim()}
                   aria-label="Schedule this prompt"
                   title="Schedule this prompt"
                   className={cn(
-                    "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
-                    isMobile ? "h-9 w-9" : "h-7 w-7"
+                    "shrink-0 flex items-center justify-center rounded-md transition-colors",
+                    isMobile ? "h-9 w-9" : "h-7 w-7",
+                    isRunning || !canSend || !input.trim()
+                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      : "text-muted-foreground hover:text-foreground cursor-pointer"
                   )}
                 >
                   <AlarmClock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" side="top" sideOffset={8} className="w-80 space-y-4">
+              <PopoverContent align="end" side="top" sideOffset={8} className="w-[28rem] space-y-4">
                 <TriggerOptionsFields {...triggerOptions} />
                 <div className="flex justify-end gap-2 pt-1 border-t border-border">
                   <button
@@ -734,7 +739,7 @@ export function ChatInput({
                 </div>
               </PopoverContent>
             </Popover>
-          )}
+          </div>
 
           {/* Send / stop / queue button — the slot remains mounted while idle
               so the adjacent microphone never replaces its hit target. */}

@@ -16,6 +16,12 @@ import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import { NEW_REPOSITORY } from "@/lib/types"
 import type { PaletteChat } from "./types"
 
+/** "owner/repo" -> "repo" (drop the user/owner prefix). */
+function repoNameOnly(repo: string): string {
+  const idx = repo.lastIndexOf("/")
+  return idx === -1 ? repo : repo.slice(idx + 1)
+}
+
 interface SearchPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -140,13 +146,11 @@ export function SearchPalette({
                 value={`chat:${chat.displayName ?? chat.id}:${chat.repo}`}
                 onSelect={() => handleSelectChat(chat)}
               >
-                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-                <span>
-                  {chat.displayName ?? "Untitled Chat"}
-                  {chat.repo !== NEW_REPOSITORY && (
-                    <span className="text-muted-foreground text-xs ml-2">({chat.repo})</span>
-                  )}
-                </span>
+                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="flex-1 truncate">{chat.displayName ?? "Untitled Chat"}</span>
+                {chat.repo !== NEW_REPOSITORY && (
+                  <span className="text-muted-foreground text-xs ml-2 shrink-0">({repoNameOnly(chat.repo)})</span>
+                )}
               </CommandItem>
             ))}
           </CommandGroup>

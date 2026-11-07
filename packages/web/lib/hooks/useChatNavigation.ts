@@ -153,7 +153,7 @@ export function useChatNavigation({
   }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat])
 
   // Handler for navigating to a job (updates URL and sidebar state). Jobs are
-  // now opened via the "Search Jobs" palette and the composer popover (both
+  // now opened via the "Events" palette and the composer popover (both
   // use router.push and go through useUrlSync), so in practice this is only
   // called with `null` — e.g. after deleting a job from its detail page, to
   // navigate back out to the home/chat view since there's no bare jobs list
