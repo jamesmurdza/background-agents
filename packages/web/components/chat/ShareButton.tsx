@@ -59,7 +59,7 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
           <Share2 className="h-4 w-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[28rem]">
+      <PopoverContent align="end" className="w-80">
         <PopoverHeader icon={<Globe className="h-4 w-4 text-muted-foreground" />} title="Share chat" />
 
         {shareId ? (
