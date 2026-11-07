@@ -302,18 +302,19 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/kilo-auto/free", label: "Auto Free", requiresKey: "none", priceUsdPerM: 0 },
     { value: "kilo/kilo-auto/frontier", label: "Auto Frontier", requiresKey: "kilo" },
     { value: "kilo/kilo-auto/efficient", label: "Auto Efficient", requiresKey: "kilo" },
-    { value: "kilo/kilo-auto/small", label: "Auto Small", requiresKey: "kilo" },
     // Free models
     { value: "kilo/nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra", requiresKey: "none", priceUsdPerM: 0 },
     // Anthropic via Kilo gateway
     { value: "kilo/anthropic/claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-fable-5", label: "Claude Fable 5", requiresKey: "kilo" },
+    { value: "kilo/anthropic/claude-fable-5.1", label: "Claude Fable 5.1", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
     // OpenAI via Kilo gateway
+    { value: "kilo/openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "kilo" },
     { value: "kilo/openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "kilo" },
     // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6.1-sol) — unlike
     // gpt-5.5, whose retirement is scoped to ChatGPT sign-in only, so it stays.
@@ -330,6 +331,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/moonshotai/kimi-k2.6", label: "Kimi K2.6", requiresKey: "kilo" },
     { value: "kilo/qwen/qwen3-coder", label: "Qwen3 Coder", requiresKey: "kilo" },
     { value: "kilo/x-ai/grok-4.6", label: "Grok 4.6", requiresKey: "kilo" },
+    { value: "kilo/x-ai/grok-4.7", label: "Grok 4.7", requiresKey: "kilo" },
   ],
   "kimi": [
     // Moonshot (Kimi) models, routed through the user's KIMI_API_KEY against
@@ -364,7 +366,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "anthropic" },
     { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", requiresKey: "anthropic" },
-    { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
+    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     // ── BYOK: OpenAI ──
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "gpt-5", label: "GPT-5", requiresKey: "openai" },
@@ -378,7 +380,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // SHARED_GEMINI_POOL_PRO_MODELS), hence the priceUsdPerM; Pro is BYOK-only.
     { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
-    { value: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite", requiresKey: "gemini", priceUsdPerM: 0.3 },
+    { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
     { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "gemini", priceUsdPerM: 0.75 },
     { value: "gemini-3.6-flash", label: "Gemini 3.6 Flash", requiresKey: "gemini", priceUsdPerM: 1.5 },
     { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini", priceUsdPerM: 0.5 },
@@ -417,7 +419,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o3", label: "o3", requiresKey: "openai" },
     { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
     { value: "openai/gpt-5", label: "GPT-5", requiresKey: "openai" },
+    { value: "openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
+    { value: "openai/gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "openai" },
     // Google models — Flash also runs on the shared Gemini pool; Pro and Argon
     // are BYOK-only.
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
