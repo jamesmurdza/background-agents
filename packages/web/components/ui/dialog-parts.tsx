@@ -100,6 +100,8 @@ export interface DialogFooterProps {
   isMobile?: boolean
   variant?: "primary" | "destructive" | "success"
   actionButtonRef?: React.RefObject<HTMLButtonElement | null>
+  /** Optional extra button rendered on the opposite side from Cancel/Action (e.g. "Show changes"). */
+  extraButton?: React.ReactNode
 }
 
 export function DialogFooter({
@@ -111,20 +113,24 @@ export function DialogFooter({
   isMobile = false,
   variant = "primary",
   actionButtonRef,
+  extraButton,
 }: DialogFooterProps) {
   return (
-    <div className="flex justify-end gap-2 pt-2">
-      <DialogCancelButton onClick={onCancel} isMobile={isMobile} />
-      <DialogActionButton
-        onClick={onAction}
-        disabled={disabled}
-        loading={loading}
-        isMobile={isMobile}
-        variant={variant}
-        buttonRef={actionButtonRef}
-      >
-        {actionLabel}
-      </DialogActionButton>
+    <div className={cn("flex items-center gap-2 pt-2", extraButton ? "justify-between" : "justify-end")}>
+      {extraButton}
+      <div className="flex items-center gap-2 ml-auto">
+        <DialogCancelButton onClick={onCancel} isMobile={isMobile} />
+        <DialogActionButton
+          onClick={onAction}
+          disabled={disabled}
+          loading={loading}
+          isMobile={isMobile}
+          variant={variant}
+          buttonRef={actionButtonRef}
+        >
+          {actionLabel}
+        </DialogActionButton>
+      </div>
     </div>
   )
 }
