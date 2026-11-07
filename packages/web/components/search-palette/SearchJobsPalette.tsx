@@ -72,8 +72,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
     // handleNavigateToJob — set view state directly and pushState the URL,
     // rather than router.push, which renders /jobs/[id] as a separate Next
     // route and remounts the whole app shell on every click.
-    sidebar.setViewMode("scheduled-jobs")
-    sidebar.setSelectedScheduledJob({ id: job.id, name: job.name })
+    sidebar.setActiveView({ type: "job", jobId: job.id, jobName: job.name })
     window.history.pushState(null, "", ROUTES.job.build(job.id))
     onOpenChange(false)
   }

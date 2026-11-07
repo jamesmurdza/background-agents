@@ -6,6 +6,21 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 // SidebarContext - Provides sidebar UI state to avoid prop drilling
 // =============================================================================
 
+/**
+ * What the main content area is currently showing. Single source of truth
+ * for "which view is active" — previously this was two independent pieces
+ * of state (viewMode + selectedScheduledJob) that callers had to set
+ * together and keep in sync by convention. That's what caused bugs like the
+ * live preview panel (tied to the chat) staying visible while viewing a
+ * job: nothing forced viewMode and selectedScheduledJob to agree, so a
+ * consumer checking only one of them could get a stale answer. Representing
+ * it as one discriminated union makes "what's showing" unambiguous and
+ * leaves no way to set one half without the other.
+ */
+export type ActiveView =
+  | { type: "chat" }
+  | { type: "job"; jobId: string; jobName: string }
+
 export interface SidebarContextValue {
   // Sidebar collapse state
   collapsed: boolean
@@ -30,11 +45,16 @@ export interface SidebarContextValue {
   toggleChatCollapsed: (id: string) => void
   expandChatAndAncestors: (targetId: string, byId: Map<string, { parentChatId?: string | null }>) => void
 
-  // Scheduled jobs view
+  // What the main content area is showing (chat vs. a scheduled job) — see
+  // ActiveView above. viewMode/selectedScheduledJob below are read-only
+  // derived conveniences for existing display-only call sites; new code
+  // should read/write activeView directly.
+  activeView: ActiveView
+  setActiveView: (view: ActiveView) => void
+  /** Derived from activeView — "scheduled-jobs" iff activeView.type === "job". */
   viewMode: "chat" | "scheduled-jobs"
-  setViewMode: (mode: "chat" | "scheduled-jobs") => void
+  /** Derived from activeView — non-null iff activeView.type === "job". */
   selectedScheduledJob: { id: string; name: string } | null
-  setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
 }
 
 interface SidebarProviderProps {
@@ -94,9 +114,12 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     })
   }, [])
 
-  // View mode (chat vs scheduled jobs)
-  const [viewMode, setViewMode] = useState<"chat" | "scheduled-jobs">("chat")
-  const [selectedScheduledJob, setSelectedScheduledJob] = useState<{ id: string; name: string } | null>(null)
+  // What the main content area is showing — see ActiveView.
+  const [activeView, setActiveView] = useState<ActiveView>({ type: "chat" })
+  const viewMode = activeView.type === "job" ? "scheduled-jobs" : "chat"
+  const selectedScheduledJob = activeView.type === "job"
+    ? { id: activeView.jobId, name: activeView.jobName }
+    : null
 
   const value: SidebarContextValue = {
     collapsed,
@@ -112,10 +135,10 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     collapsedChatIds,
     toggleChatCollapsed,
     expandChatAndAncestors,
+    activeView,
+    setActiveView,
     viewMode,
-    setViewMode,
     selectedScheduledJob,
-    setSelectedScheduledJob,
   }
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>

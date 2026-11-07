@@ -129,8 +129,7 @@ export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromCo
     // set view state directly and pushState the URL, rather than
     // router.push, which renders /jobs/[id] as a separate Next route and
     // remounts the whole app shell.
-    sidebar.setViewMode("scheduled-jobs")
-    sidebar.setSelectedScheduledJob({ id: created.id, name: created.name })
+    sidebar.setActiveView({ type: "job", jobId: created.id, jobName: created.name })
     window.history.pushState(null, "", ROUTES.job.build(created.id))
     return created
   }, [prompt, repo, baseBranch, agent, model, triggerType, effectiveIntervalMinutes,

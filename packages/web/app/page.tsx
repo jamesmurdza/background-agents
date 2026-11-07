@@ -103,10 +103,19 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
 
-  // For jobs, we derive the ID from sidebar state since we use pushState for navigation.
-  // The sidebar.selectedScheduledJob is updated by useUrlSync (and handleNavigateToJob).
-  // Use ?? null to ensure urlJobId is always string | null (never undefined).
-  const urlJobId = sidebar.selectedScheduledJob?.id ?? null
+  // sidebar.activeView is the single source of truth for what the main
+  // content area shows (see ActiveView) — updated by useUrlSync (URL →
+  // state) and the interactive nav handlers (state → URL). urlJobId/
+  // isShowingChat are read-only conveniences derived from it below; they
+  // can't disagree with each other because they both come from one value.
+  const urlJobId = sidebar.activeView.type === "job" ? sidebar.activeView.jobId : null
+  // Whether the chat panel (and thus its sandbox/live preview) is the one
+  // actually on screen right now — mirrors the exact condition the main
+  // content area branches on below. The preview belongs to currentChat, so
+  // it must never render unless that chat's panel is what's showing (e.g.
+  // not while viewing a scheduled job, which swaps the main content area
+  // for ScheduledJobDetailPanel but otherwise leaves currentChat alone).
+  const isShowingChat = sidebar.activeView.type !== "job"
 
   const {
     chats,
@@ -298,8 +307,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     startNewChat,
     startAgentDraft: (agent) =>
       startNewChat(NEW_REPOSITORY, "main", undefined, true, "pending", agent),
-    setViewMode: sidebar.setViewMode,
-    setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
+    setActiveView: sidebar.setActiveView,
   })
 
   // =============================================================================
@@ -718,9 +726,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              {sidebar.viewMode === "scheduled-jobs" && urlJobId ? (
+              {!isShowingChat ? (
                 <ScheduledJobDetailPanel
-                  jobId={urlJobId}
+                  jobId={urlJobId as string}
                   onNavigateAway={() => handleNavigateToJob(null)}
                 />
               ) : (
@@ -763,7 +771,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                 />
               )}
             </div>
-            {!isMobile && preview.previewOpen && (
+            {!isMobile && isShowingChat && preview.previewOpen && (
               <>
                 <div
                   onMouseDown={preview.startPreviewResize}
@@ -780,7 +788,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                 />
               </>
             )}
-            {!preview.previewOpen && preview.previewItems.length > 0 && (
+            {isShowingChat && !preview.previewOpen && preview.previewItems.length > 0 && (
               <button
                 onClick={preview.showPreview}
                 className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex h-12 w-5 items-center justify-center rounded-l-md border border-r-0 border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
@@ -794,7 +802,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       </div>
 
       {/* Mobile preview - full-screen overlay since there's no room for a split pane. */}
-      {isMobile && preview.previewOpen && (
+      {isMobile && isShowingChat && preview.previewOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-card pt-safe">
           <PreviewView
             className="flex-1 min-h-0"
