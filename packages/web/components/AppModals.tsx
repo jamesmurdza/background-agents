@@ -161,6 +161,7 @@ export function AppModals({
           chatId={skillsChat.id}
           repo={skillsChat.repo}
           hasSandbox={!!currentChat?.sandboxId}
+          isMobile={isMobile}
         />
       )}
 

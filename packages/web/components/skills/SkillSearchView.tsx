@@ -1,9 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, type ChangeEvent } from "react"
+import * as Dialog from "@radix-ui/react-dialog"
 import { Search, X, Check, Loader2, Zap, Trash2, ExternalLink, Upload } from "lucide-react"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
-import { cn } from "@/lib/utils"
+import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
+import { focusChatPrompt } from "@/components/ui/modal-header"
+import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import type { Skill, SkillSearchResult } from "@/lib/types"
 
 interface SkillSearchViewProps {
@@ -12,9 +15,10 @@ interface SkillSearchViewProps {
   chatId: string
   repo: string
   hasSandbox: boolean
+  isMobile?: boolean
 }
 
-export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }: SkillSearchViewProps) {
+export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, isMobile = false }: SkillSearchViewProps) {
   const [query, setQuery] = useState("")
   const [searchResults, setSearchResults] = useState<(SkillSearchResult & { installs?: number })[]>([])
   const [installedSkills, setInstalledSkills] = useState<Skill[]>([])
@@ -28,6 +32,14 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
   const inputRef = useRef<HTMLInputElement>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const onClose = useCallback(() => onOpenChange(false), [onOpenChange])
+
+  // Drag to dismiss (mobile only)
+  const { handlers: dragHandlers, dragY, isDragging } = useDragToClose({
+    onClose,
+    enabled: isMobile,
+  })
 
   // Fetch installed skills on open
   useEffect(() => {
@@ -235,8 +247,6 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
     }
   }
 
-  if (!open) return null
-
   const selectedCount = selectedHandles.size
   const hasQuery = query.trim().length > 0
 
@@ -252,248 +262,317 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
   const showEmptyState = !hasQuery && installedSkills.length === 0
   const showNoResults = hasQuery && !isSearching && filteredInstalled.length === 0 && newResults.length === 0
 
-  return (
+  const renderList = () => (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in-0"
-        onClick={() => onOpenChange(false)}
-      />
+      {error && (
+        <div className="px-4 py-3 text-sm text-destructive bg-destructive/10 whitespace-pre-line rounded-md">
+          {error}
+        </div>
+      )}
 
-      {/* Modal */}
-      <div className="fixed inset-x-0 top-[15vh] z-50 mx-auto w-full max-w-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-200">
-        <div className="rounded-xl border border-border bg-popover shadow-2xl overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-            <Zap className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium text-foreground">Skills</span>
-            <span className="text-xs text-muted-foreground">
-              {repo}
-            </span>
-            <div className="flex-1" />
-            {installedSkills.length > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                {installedSkills.length} installed
+      {showEmptyState && (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          No skills installed for this repo.
+          <br />
+          Search the Skills.sh registry above to find skills for your agent.
+        </div>
+      )}
+
+      {showNoResults && (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          No skills found for &ldquo;{query}&rdquo;
+        </div>
+      )}
+
+      {/* Installed rows */}
+      {filteredInstalled.map((skill) => (
+        <div
+          key={skill.id}
+          className="flex items-center gap-3 px-1 py-3 hover:bg-accent/30 transition-colors group rounded-md"
+        >
+          <Zap className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground truncate">
+                {skill.fullHandle}
               </span>
-            )}
-            <button
-              onClick={() => onOpenChange(false)}
-              className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                Installed
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Installed {new Date(skill.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+          {skill.url && (
+            <a
+              href={skill.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
             >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Search Input */}
-          <div className="relative px-4 py-3 border-b border-border">
-            <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search skills..."
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
-              autoFocus
-            />
-            {isSearching && (
-              <Loader2 className="absolute right-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+          <button
+            onClick={() => setDeleteSkill(skill)}
+            disabled={removingId === skill.id}
+            className={cn(
+              "flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100",
+              removingId === skill.id && "opacity-100"
             )}
-          </div>
+            title="Uninstall skill"
+          >
+            {removingId === skill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      ))}
 
-          {/* Combined list: installed skills (filtered by query) + new search results */}
-          <div className="max-h-[50vh] overflow-y-auto scrollbar-auto-hide">
-            {error && (
-              <div className="px-4 py-3 text-sm text-destructive bg-destructive/10 whitespace-pre-line">
-                {error}
-              </div>
+      {/* New (not-yet-installed) search result rows */}
+      {newResults.map((result) => {
+        const selected = selectedHandles.has(result.fullHandle)
+        return (
+          <button
+            key={result.fullHandle}
+            onClick={() => toggleSelection(result.fullHandle)}
+            disabled={isInstalling}
+            className={cn(
+              "flex items-start gap-3 w-full px-1 py-3 text-left transition-colors rounded-md",
+              selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
             )}
+          >
+            {/* Checkbox */}
+            <div
+              className={cn(
+                "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
+                selected ? "border-primary bg-primary" : "border-border"
+              )}
+            >
+              {selected && <Check className="h-4 w-4 text-primary-foreground" />}
+            </div>
 
-            {showEmptyState && (
-              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No skills installed for this repo.
-                <br />
-                Search the Skills.sh registry above to find skills for your agent.
-              </div>
-            )}
-
-            {showNoResults && (
-              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No skills found for &ldquo;{query}&rdquo;
-              </div>
-            )}
-
-            {/* Installed rows */}
-            {filteredInstalled.map((skill) => (
-              <div
-                key={skill.id}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors group"
-              >
-                <Zap className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground truncate">
-                      {skill.fullHandle}
-                    </span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                      Installed
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Installed {new Date(skill.createdAt).toLocaleDateString()}
-                  </div>
-                </div>
-                {skill.url && (
-                  <a
-                    href={skill.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-foreground truncate">
+                  {result.fullHandle}
+                </span>
+                {result.installs != null && result.installs > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {result.installs.toLocaleString()} installs
+                  </span>
                 )}
-                <button
-                  onClick={() => setDeleteSkill(skill)}
-                  disabled={removingId === skill.id}
-                  className={cn(
-                    "flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100",
-                    removingId === skill.id && "opacity-100"
-                  )}
-                  title="Uninstall skill"
-                >
-                  {removingId === skill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                </button>
               </div>
-            ))}
-
-            {/* New (not-yet-installed) search result rows */}
-            {newResults.map((result) => {
-              const selected = selectedHandles.has(result.fullHandle)
-              return (
-                <button
-                  key={result.fullHandle}
-                  onClick={() => toggleSelection(result.fullHandle)}
-                  disabled={isInstalling}
-                  className={cn(
-                    "flex items-start gap-3 w-full px-4 py-3 text-left transition-colors",
-                    selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
-                  )}
-                >
-                  {/* Checkbox */}
-                  <div
-                    className={cn(
-                      "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
-                      selected ? "border-primary bg-primary" : "border-border"
-                    )}
-                  >
-                    {selected && <Check className="h-4 w-4 text-primary-foreground" />}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground truncate">
-                        {result.fullHandle}
-                      </span>
-                      {result.installs != null && result.installs > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {result.installs.toLocaleString()} installs
-                        </span>
-                      )}
-                    </div>
-                    {result.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        {result.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* External link */}
-                  {result.url && (
-                    <a
-                      href={result.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Install Bar */}
-          {(selectedCount > 0 || installProgress) && (
-            <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-accent/30">
-              {installProgress ? (
-                <div className="flex items-center gap-2 flex-1">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-sm text-foreground">
-                    Installing {installProgress.installed}/{installProgress.total} skills…
-                  </span>
-                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-300"
-                      style={{
-                        width: `${installProgress.total > 0 ? (installProgress.installed / installProgress.total) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <span className="text-sm text-muted-foreground">
-                    {selectedCount} skill{selectedCount !== 1 ? "s" : ""} selected
-                  </span>
-                  <div className="flex-1" />
-                  <button
-                    onClick={() => setSelectedHandles(new Set())}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={handleInstallSelected}
-                    disabled={isInstalling}
-                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                  >
-                    Install selected
-                  </button>
-                </>
+              {result.description && (
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                  {result.description}
+                </p>
               )}
             </div>
-          )}
 
-          {/* Upload Bar — always visible; uploading is just another way to add a skill */}
-          <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-accent/30">
-            <span className="text-sm text-muted-foreground">
-              {hasSandbox
-                ? "Upload your own skill: a .zip with its SKILL.md and files."
-                : "Send a message first to upload your own .zip skill."}
-            </span>
-            <div className="flex-1" />
-            <button
-              onClick={() => zipInputRef.current?.click()}
-              disabled={isInstalling || !hasSandbox}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              {isInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {isInstalling ? "Uploading…" : "Upload .zip"}
-            </button>
-            <input
-              ref={zipInputRef}
-              type="file"
-              accept=".zip"
-              className="hidden"
-              onChange={handleUploadZip}
-            />
-          </div>
-        </div>
+            {/* External link */}
+            {result.url && (
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </button>
+        )
+      })}
+    </>
+  )
+
+  const renderContent = () => (
+    <>
+      {/* Search Input */}
+      <div className="relative mb-3">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search skills..."
+          className="w-full pl-9 pr-8 py-2 text-sm bg-muted/50 rounded-md border-none outline-none placeholder:text-muted-foreground"
+          autoFocus
+        />
+        {isSearching && (
+          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+        )}
       </div>
+
+      {/* Combined list: installed skills (filtered by query) + new search results */}
+      <div className="space-y-0.5">{renderList()}</div>
+
+      {/* Install bar */}
+      {(selectedCount > 0 || installProgress) && (
+        <div className="flex items-center gap-3 mt-3 px-3 py-2.5 rounded-md bg-accent/30">
+          {installProgress ? (
+            <div className="flex items-center gap-2 flex-1">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="text-sm text-foreground">
+                Installing {installProgress.installed}/{installProgress.total} skills…
+              </span>
+              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{
+                    width: `${installProgress.total > 0 ? (installProgress.installed / installProgress.total) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selectedCount} skill{selectedCount !== 1 ? "s" : ""} selected
+              </span>
+              <div className="flex-1" />
+              <button
+                onClick={() => setSelectedHandles(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleInstallSelected}
+                disabled={isInstalling}
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                Install selected
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  return (
+    <>
+      <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={cn(
+            MODAL_OVERLAY_CLASS,
+            "transition-opacity duration-300",
+            open ? "opacity-100" : "opacity-0"
+          )} />
+          <Dialog.Content
+            onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
+            className={cn(
+              "fixed z-50 bg-popover overflow-hidden flex flex-col",
+              isMobile
+                ? "inset-x-0 bottom-0 top-0 rounded-none"
+                : "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl h-[480px] max-h-[80vh] border border-border rounded-xl shadow-xl",
+              !isDragging && isMobile && "transition-transform duration-300"
+            )}
+            style={isMobile ? { transform: `translateY(${dragY}px)` } : undefined}
+          >
+            {isMobile ? (
+              <>
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1" {...dragHandlers}>
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                </div>
+
+                {/* Header - also draggable */}
+                <div
+                  className="sticky top-0 flex items-center justify-between border-b border-border bg-popover z-10 px-4 py-3"
+                  {...dragHandlers}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Dialog.Title className="font-semibold text-lg">Skills</Dialog.Title>
+                    <span className="text-xs text-muted-foreground truncate">{repo}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {installedSkills.length > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {installedSkills.length} installed
+                      </span>
+                    )}
+                    <Dialog.Close className="flex items-center justify-center rounded-lg hover:bg-accent active:bg-accent transition-colors p-2 -mr-2 touch-target cursor-pointer">
+                      <X className="h-5 w-5" />
+                    </Dialog.Close>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="relative flex-1 overflow-y-auto mobile-scroll p-4">
+                  {renderContent()}
+                </div>
+
+                {/* Footer */}
+                <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-border bg-popover px-4 py-4 pb-safe">
+                  <span className="text-sm text-muted-foreground">
+                    {hasSandbox ? "Upload a .zip with its SKILL.md and files." : "Send a message first to upload."}
+                  </span>
+                  <button
+                    onClick={() => zipInputRef.current?.click()}
+                    disabled={isInstalling || !hasSandbox}
+                    className="flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors touch-target px-4 py-2.5 text-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {isInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    Upload
+                  </button>
+                  <input ref={zipInputRef} type="file" accept=".zip" className="hidden" onChange={handleUploadZip} />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col flex-1 min-h-0">
+                {/* Header with close button and title */}
+                <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Dialog.Title className="text-lg font-semibold">Skills</Dialog.Title>
+                    <span className="text-xs text-muted-foreground truncate">{repo}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {installedSkills.length > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {installedSkills.length} installed
+                      </span>
+                    )}
+                    <Dialog.Close
+                      className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </Dialog.Close>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="relative flex-1 overflow-y-auto px-5 pt-2 pb-4">
+                  {renderContent()}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3">
+                  <span className="text-sm text-muted-foreground">
+                    {hasSandbox
+                      ? "Upload your own skill: a .zip with its SKILL.md and files."
+                      : "Send a message first to upload your own .zip skill."}
+                  </span>
+                  <button
+                    onClick={() => zipInputRef.current?.click()}
+                    disabled={isInstalling || !hasSandbox}
+                    className="flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors px-3 py-1.5 text-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {isInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    Upload .zip
+                  </button>
+                  <input ref={zipInputRef} type="file" accept=".zip" className="hidden" onChange={handleUploadZip} />
+                </div>
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <ConfirmDialog
         open={!!deleteSkill}
