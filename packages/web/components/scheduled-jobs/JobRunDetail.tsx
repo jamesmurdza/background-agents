@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Clock, AlarmClock, ChevronDown, Check, GitPullRequest } from "lucide-react"
+import { Clock, ChevronDown, Check, GitPullRequest } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { MessageBubble } from "@/components/MessageBubble"
@@ -268,7 +268,7 @@ export function JobRunDetail({
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <AlarmClock className="h-6 w-6 text-muted-foreground/50 mb-3" />
+            <Clock className="h-6 w-6 text-muted-foreground/50 mb-3" />
             <h2 className="text-sm font-medium mb-1">No runs yet</h2>
             <p className="text-sm text-muted-foreground">
               {job.triggerType === "incoming"

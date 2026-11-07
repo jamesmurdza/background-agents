@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { AlarmClock, Webhook } from "lucide-react"
+import { Clock, Webhook } from "lucide-react"
 import { format } from "date-fns"
 import {
   CommandDialog,
@@ -36,7 +36,7 @@ function TriggerIcon({ job }: { job: { triggerType: string } }) {
   return job.triggerType === "incoming" ? (
     <Webhook className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
   ) : (
-    <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+    <Clock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
   )
 }
 

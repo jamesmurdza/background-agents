@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback, useState, type ReactNode } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, ListPlus, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play, AlarmClock } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, ListPlus, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
@@ -724,7 +724,7 @@ export function ChatInput({
                       : "text-muted-foreground hover:text-foreground cursor-pointer"
                   )}
                 >
-                  <AlarmClock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                  <Clock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" side="bottom" sideOffset={8} className="w-[28rem] space-y-4">
