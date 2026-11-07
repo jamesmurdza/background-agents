@@ -84,7 +84,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
           <div className="flex items-center px-2 pt-2">
             <span className="flex-1" />
             <span className="text-muted-foreground text-xs ml-2 shrink-0">Last run</span>
-            <span className="ml-1 shrink-0 w-6" />
+            <span className="ml-1 shrink-0 w-14" />
           </div>
         )}
         <CommandList>
@@ -99,16 +99,18 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
                 <TriggerIcon job={job} />
                 <span className="flex-1 truncate">{job.name}</span>
                 <span className="text-muted-foreground text-xs ml-2 shrink-0">{lastRunLabel(job)}</span>
-                <ScheduledJobActionsMenu
-                  job={job}
-                  onEdit={setEditingJob}
-                  onRunNow={runNow}
-                  onRotateToken={rotateToken}
-                  onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
-                  onRequestDelete={setDeletingJob}
-                  stopPropagation
-                  className="ml-1 shrink-0 p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                />
+                <span className="ml-1 shrink-0">
+                  <ScheduledJobActionsMenu
+                    job={job}
+                    onEdit={setEditingJob}
+                    onRunNow={runNow}
+                    onRotateToken={rotateToken}
+                    onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
+                    onRequestDelete={setDeletingJob}
+                    stopPropagation
+                    className="shrink-0 p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  />
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>
