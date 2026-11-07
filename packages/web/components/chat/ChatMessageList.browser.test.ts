@@ -90,7 +90,7 @@ async function mount(initial: Record<string, unknown> = {}) {
     if (url.includes("/messages") && route.request().method() === "POST") {
       const payload: MessagePayload = route.request().postDataJSON()
       await page.evaluate(data => { (window as unknown as { requests: unknown[] }).requests.push(data) }, payload)
-      await persistTurn({ chatId: "chat", payload, agentPrompt: payload.message, uploadedFilePaths: [],
+      await persistTurn({ chatId: "chat", payload, displayContent: payload.message, uploadedFilePaths: [],
         usageMeta: { pool: "user", provider: "codex" }, backgroundSessionId: "job", isAgentSwitch: false })
       return route.fulfill({ json: { sandboxId: "sandbox", backgroundSessionId: "job" } })
     }

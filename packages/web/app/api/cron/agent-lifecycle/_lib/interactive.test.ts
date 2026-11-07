@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-const mocks = vi.hoisted(() => ({ persist: vi.fn(), update: vi.fn(), upsert: vi.fn(), claim: vi.fn(), release: vi.fn(), abandon: vi.fn(), failure: vi.fn(), record: vi.fn(), cancel: vi.fn(), snapshot: vi.fn(), stop: vi.fn() }))
+const mocks = vi.hoisted(() => ({ persist: vi.fn(), update: vi.fn(), upsert: vi.fn(), claim: vi.fn(), release: vi.fn(), abandon: vi.fn(), failure: vi.fn(), record: vi.fn(), cancel: vi.fn(), snapshot: vi.fn(), stop: vi.fn(), autoPush: vi.fn(), refreshUncommitted: vi.fn() }))
 vi.mock("@/lib/db/prisma", () => ({ prisma: { message: { update: mocks.update, upsert: mocks.upsert } } }))
 vi.mock("@/lib/agent-session", () => ({ finalizeTurn: vi.fn(), cancelBackgroundAgent: mocks.cancel, snapshotBackgroundAgent: mocks.snapshot }))
 vi.mock("@/lib/server/turn-ownership", () => ({ claimTurnFinalization: mocks.claim, releaseTurn: mocks.release, abandonFinalization: mocks.abandon }))
@@ -8,8 +8,8 @@ vi.mock("./monitor", () => ({ stopInteractiveAgent: mocks.stop }))
 vi.mock("@/app/api/agent/stream/_lib/persist-snapshot", () => ({ persistAgentSnapshot: mocks.persist }))
 vi.mock("@/lib/server/token-metering", () => ({ meterAssistantTurn: vi.fn() }))
 vi.mock("./meter-turn", () => ({ meterTurnNow: vi.fn() }))
-vi.mock("@/lib/git/auto-push", () => ({ autoPushChat: vi.fn() }))
-vi.mock("@/lib/server/uncommitted-files-warning", () => ({ refreshUncommittedFilesWarning: vi.fn() }))
+vi.mock("@/lib/git/auto-push", () => ({ autoPushChat: mocks.autoPush }))
+vi.mock("@/lib/server/uncommitted-files-warning", () => ({ refreshUncommittedFilesWarning: mocks.refreshUncommitted }))
 import { finalizeInteractiveChat, markChatError, stopInteractiveChat } from "./interactive"
 
 const chat = { id: "chat", userId: "user", repo: "__new__", branch: null, sandboxId: "sandbox", backgroundSessionId: "session", activeAssistantMessageId: "assistant", messages: [{ id: "assistant" }] } as never
@@ -69,6 +69,11 @@ describe("cron finalization durability", () => {
     expect(await markChatError(chat, "failure", daytona, { ...snapshot, status: "error" })).toBe(true)
     expect(mocks.upsert).toHaveBeenCalledTimes(2)
     expect(mocks.upsert.mock.calls[0][0].where.id).toBe(mocks.upsert.mock.calls[1][0].where.id)
+  })
+  it("still refreshes the uncommitted-files count for a new-repo chat, even though there's no remote to auto-push to", async () => {
+    expect(await finalizeInteractiveChat(chat, snapshot, daytona)).toBe(true)
+    expect(mocks.autoPush).not.toHaveBeenCalled()
+    expect(mocks.refreshUncommitted).toHaveBeenCalledTimes(1)
   })
   it.each(["persist", "release"])("preserves timeout intent when %s fails and the next observer sees completed", async (stage) => {
     let intent: { reason: string; executionStopped: boolean } | null = null

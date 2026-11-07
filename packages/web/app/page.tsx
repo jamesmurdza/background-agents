@@ -494,10 +494,12 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         handleBranchChat()
         break
       case "abort":
-        gitDialogs.handleAbortConflict()
+        // Same confirmation dialog as the conflict banner's "abort" link —
+        // discarding conflict-resolution progress is destructive.
+        modals.setAbortConflictOpen(true)
         break
     }
-  }, [gitDialogs, handleBranchChat])
+  }, [gitDialogs, handleBranchChat, modals])
 
   // Palette handlers
   const handlePaletteSelectRepo = useCallback((repo: GitHubRepo) => {

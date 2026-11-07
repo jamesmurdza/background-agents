@@ -61,7 +61,7 @@ export interface EnvironmentVariables {
 export type MessageType = "chat" | "git-operation" | "error"
 
 /** Action types for git-operation messages */
-export type MessageAction = "force-push" | "view-pr" | "view-branch"
+export type MessageAction = "force-push" | "view-pr" | "view-branch" | "rebase"
 
 /** Metadata for git-operation messages */
 export interface MessageMetadata {

@@ -28,6 +28,9 @@ interface ChatMessageListProps {
   /** Opens the repo-creation dialog, linked from the uncommitted-files
    * warning when the chat has no GitHub repo linked yet. */
   onCreateRepo?: () => void
+  /** Opens the abort-merge/rebase confirmation dialog, linked from the
+   * conflict banner. */
+  onAbortConflict?: () => void
   onReload?: (chatId: string) => Promise<void> | void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean, reasoningEffort?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
@@ -59,6 +62,7 @@ export function ChatMessageList({
   onOpenFile,
   onOpenChanges,
   onCreateRepo,
+  onAbortConflict,
   onReload,
   onSendMessage,
   onRemoveQueuedMessage,
@@ -82,19 +86,44 @@ export function ChatMessageList({
   const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
   const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
 
-  // Hide the uncommitted-files banner the moment the user asks the agent to
-  // commit, rather than leaving it up until the triggered turn finishes and
-  // the server recomputes the count. Resets — so the banner can reappear if
-  // the commit didn't actually clear it — the next time a turn completes, or
-  // immediately when switching to a different chat.
+  // A push failure with a force-push recovery is surfaced as a standalone
+  // banner (below) instead of inline in the conversation — it's an
+  // actionable warning about the chat's current state, not a transcript
+  // entry. At most one is ever outstanding (see clearPushFailureMessages).
+  const forcePushFailure = chat.messages.find(
+    (message) => message.isError && message.metadata?.action === "force-push"
+  )
+
+  // A merge attempted from a sandbox not checked out on the target branch
+  // can't be replicated locally for conflict resolution, so the backend
+  // points at rebase instead (see /api/sandbox/git's merge handler). Surfaced
+  // as a banner rather than inline — and, unlike force-push, nothing clears
+  // these out, so only the most recent one is shown/kept live.
+  const rebaseSuggestions = chat.messages.filter(
+    (message) => message.isError && message.metadata?.action === "rebase"
+  )
+  const rebaseSuggestion = rebaseSuggestions[rebaseSuggestions.length - 1]
+
+  const rebaseConflict = git.rebaseConflict
+  const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
+  const isMergeConflict = rebaseConflict?.inMerge ?? false
+
+  // Hide the uncommitted-files/conflict banners the moment the user asks the
+  // agent to commit/resolve, rather than leaving them up until the triggered
+  // turn finishes and the server recomputes the underlying state. Resets —
+  // so a banner can reappear if the turn didn't actually clear it — the next
+  // time a turn completes, or immediately when switching to a different chat.
   const [commitRequested, setCommitRequested] = useState(false)
+  const [resolveRequested, setResolveRequested] = useState(false)
   const wasRunningRef = useRef(isRunning)
   useEffect(() => {
     setCommitRequested(false)
+    setResolveRequested(false)
   }, [chat.id])
   useEffect(() => {
     if (wasRunningRef.current && !isRunning) {
       setCommitRequested(false)
+      setResolveRequested(false)
     }
     wasRunningRef.current = isRunning
   }, [isRunning])
@@ -122,16 +151,17 @@ export function ChatMessageList({
             return (
               <Fragment key={message.id}>
                 {isBranchStart && <BranchDivider />}
-                <div className={cn(message.inherited && "opacity-60")}>
-                  <MessageBubble
-                    message={message}
-                    isStreaming={isLastAssistant}
-                    isMobile={isMobile}
-                    repo={isNewRepo ? undefined : chat.repo}
-                    onOpenFile={onOpenFile}
-                    onForcePush={git.handleForcePush}
-                  />
-                </div>
+                {message !== forcePushFailure && !rebaseSuggestions.includes(message) && (
+                  <div className={cn(message.inherited && "opacity-60")}>
+                    <MessageBubble
+                      message={message}
+                      isStreaming={isLastAssistant}
+                      isMobile={isMobile}
+                      repo={isNewRepo ? undefined : chat.repo}
+                      onOpenFile={onOpenFile}
+                    />
+                  </div>
+                )}
               </Fragment>
             )
           })}
@@ -153,6 +183,89 @@ export function ChatMessageList({
           {showStarting && (
             <div data-testid="starting-indicator" className="text-2xl text-muted-foreground animate-pulse">
               ...
+            </div>
+          )}
+          {inConflict && !resolveRequested && (
+            <div
+              data-testid="conflict-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                A {isMergeConflict ? "merge" : "rebase"} conflict is in progress
+                {rebaseConflict.conflictedFiles.length > 0 && (
+                  <> ({rebaseConflict.conflictedFiles.length} file{rebaseConflict.conflictedFiles.length === 1 ? "" : "s"})</>
+                )}.{" "}
+                <button
+                  type="button"
+                  data-testid="conflict-resolve"
+                  onClick={() => {
+                    setResolveRequested(true)
+                    onSendMessage(
+                      `Resolve the ${isMergeConflict ? "merge" : "rebase"} conflict`,
+                      currentAgent, currentModel, undefined, planModeEnabled, currentReasoningEffort
+                    )
+                  }}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Resolve
+                </button>{" "}
+                or{" "}
+                <button
+                  type="button"
+                  data-testid="conflict-abort"
+                  onClick={onAbortConflict}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  abort
+                </button>{" "}
+                it.
+              </span>
+            </div>
+          )}
+          {rebaseSuggestion && (
+            <div
+              data-testid="rebase-suggestion"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                {rebaseSuggestion.content} This sandbox isn&apos;t on that branch, so merging can&apos;t be resolved here.{" "}
+                <button
+                  type="button"
+                  data-testid="rebase-suggestion-action"
+                  onClick={() => {
+                    if (rebaseSuggestion.linkBranch) git.rebaseOnto(rebaseSuggestion.linkBranch)
+                  }}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Rebase
+                </button>{" "}
+                onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} instead.
+              </span>
+            </div>
+          )}
+          {forcePushFailure && (
+            <div
+              data-testid="force-push-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                {forcePushFailure.content.replace(/\s*You can force push to overwrite the remote history\.?$/, "")}{" "}
+                <button
+                  type="button"
+                  data-testid="force-push-action"
+                  onClick={git.handleForcePush}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Force push
+                </button>{" "}
+                to overwrite the remote history.
+              </span>
             </div>
           )}
           {(chat.uncommittedFilesCount ?? 0) > 0 && isNewRepo && (

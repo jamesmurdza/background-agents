@@ -5,7 +5,7 @@ import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ChatMessageList } from "./ChatMessageList"
 
-function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrides: Partial<Chat> = {}) {
+function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrides: Partial<Chat> = {}, git: Partial<GitContextValue> = {}) {
   const chat = {
     id: "chat-1",
     repo: isNewRepo ? "__new__" : "owner/repo",
@@ -27,7 +27,7 @@ function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrid
     isRunning: chat.status === "running" || !!chat.queuedMessages?.length,
     isCreating: chat.status === "creating",
     isNewRepo,
-    git: {} as GitContextValue,
+    git: git as GitContextValue,
     onSendMessage: () => {},
     onOpenChanges: () => {},
     onCreateRepo: () => {},
@@ -77,6 +77,74 @@ describe("uncommitted file warning", () => {
   it("singularizes the no-repo copy when there is exactly one file", () => {
     const html = renderWarning(1, true)
     expect(html).toContain("You have 1 uncommitted file with nowhere to back it up.")
+  })
+})
+
+describe("force-push failure banner", () => {
+  const forcePushMessage = {
+    id: "push-fail", role: "assistant" as const, content: "Push failed: non-fast-forward. You can force push to overwrite the remote history.",
+    timestamp: 1, messageType: "git-operation" as const, isError: true, metadata: { action: "force-push" as const },
+  }
+
+  it("shows an amber banner (matching the uncommitted-files one) with a force-push action, instead of the inline git-operation message", () => {
+    const html = renderWarning(0, false, { messages: [forcePushMessage] })
+    expect(html).toContain('data-testid="force-push-warning"')
+    expect(html).toContain("Push failed: non-fast-forward.")
+    expect(html).toContain(">Force push</button> to overwrite the remote history.")
+    // Not also rendered inline as a normal assistant message.
+    expect(html).not.toContain('data-message-id="push-fail"')
+  })
+})
+
+describe("conflict banner", () => {
+  it("shows a merge-conflict banner with resolve and abort actions", () => {
+    const html = renderWarning(0, false, {}, {
+      rebaseConflict: { inRebase: false, inMerge: true, conflictedFiles: ["a.ts", "b.ts"] },
+    })
+    expect(html).toContain('data-testid="conflict-warning"')
+    expect(html).toContain("A merge conflict is in progress (2 files).")
+    expect(html).toContain(">Resolve</button>")
+    expect(html).toContain(">abort</button>")
+  })
+
+  it("labels a rebase conflict distinctly and singularizes a single file", () => {
+    const html = renderWarning(0, false, {}, {
+      rebaseConflict: { inRebase: true, inMerge: false, conflictedFiles: ["a.ts"] },
+    })
+    expect(html).toContain("A rebase conflict is in progress (1 file).")
+  })
+
+  it("hides when there is no conflict in progress", () => {
+    const html = renderWarning(0, false, {}, {
+      rebaseConflict: { inRebase: false, inMerge: false, conflictedFiles: [] },
+    })
+    expect(html).not.toContain('data-testid="conflict-warning"')
+  })
+})
+
+describe("rebase-suggestion banner", () => {
+  const suggestion = {
+    id: "rebase-suggest", role: "assistant" as const, content: 'Merge conflict with "main".',
+    timestamp: 1, messageType: "git-operation" as const, isError: true,
+    metadata: { action: "rebase" as const }, linkBranch: "main",
+  }
+
+  it("shows a banner pointing at rebase instead of the inline git-operation message", () => {
+    const html = renderWarning(0, false, { messages: [suggestion] })
+    expect(html).toContain('data-testid="rebase-suggestion"')
+    expect(html).toContain('Merge conflict with "main".')
+    expect(html).toContain(">Rebase</button>")
+    expect(html).toContain('onto "main" instead.')
+    // Not also rendered inline as a normal assistant message.
+    expect(html).not.toContain('data-message-id="rebase-suggest"')
+  })
+
+  it("only shows the most recent suggestion when more than one is outstanding", () => {
+    const older = { ...suggestion, id: "older", content: 'Merge conflict with "dev".', linkBranch: "dev" }
+    const html = renderWarning(0, false, { messages: [older, suggestion] })
+    expect(html.match(/data-testid="rebase-suggestion"/g)).toHaveLength(1)
+    expect(html).toContain('Merge conflict with "main".')
+    expect(html).not.toContain('Merge conflict with "dev".')
   })
 })
 

@@ -12,7 +12,10 @@ import type { MessagePayload } from "./types"
 export async function persistTurn(params: {
   chatId: string
   payload: MessagePayload
-  agentPrompt: string
+  /** What the user actually typed — persisted/shown as-is. Deliberately
+   * excludes plumbing appended to the agent's own prompt (the merge-conflict
+   * note, the uploaded-files path list) that the user never asked to see. */
+  displayContent: string
   uploadedFilePaths: string[]
   usageMeta: ReturnType<typeof buildUsageMeta>
   backgroundSessionId: string
@@ -22,7 +25,7 @@ export async function persistTurn(params: {
   const {
     chatId,
     payload,
-    agentPrompt,
+    displayContent,
     uploadedFilePaths,
     usageMeta,
     backgroundSessionId,
@@ -54,7 +57,7 @@ export async function persistTurn(params: {
         id: payload.userMessageId,
         chatId,
         role: "user",
-        content: agentPrompt,
+        content: displayContent,
         timestamp: BigInt(now),
         agent: payload.agent,
         model: payload.model,
@@ -65,7 +68,7 @@ export async function persistTurn(params: {
             : undefined,
       },
       update: {
-        content: agentPrompt,
+        content: displayContent,
         agent: payload.agent,
         model: payload.model,
         metadata: { reasoningEffort: payload.reasoningEffort ?? "default" },

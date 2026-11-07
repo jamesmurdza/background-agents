@@ -14,6 +14,7 @@ vi.mock("@/lib/db/prisma", () => ({ prisma: { message } }))
 import {
   createPushFailedMessage,
   clearPushFailureMessages,
+  clearRebaseSuggestionMessages,
 } from "./git-messages"
 
 beforeEach(() => {
@@ -78,6 +79,22 @@ describe("clearPushFailureMessages", () => {
       messageType: "git-operation",
       isError: true,
       metadata: { path: ["action"], equals: "force-push" },
+    })
+  })
+})
+
+describe("clearRebaseSuggestionMessages", () => {
+  it("deletes outstanding rebase-instead suggestions for the chat", async () => {
+    message.deleteMany.mockResolvedValue({ count: 1 })
+
+    await clearRebaseSuggestionMessages("chat-1")
+
+    expect(message.deleteMany).toHaveBeenCalledTimes(1)
+    expect(message.deleteMany.mock.calls[0][0].where).toMatchObject({
+      chatId: "chat-1",
+      messageType: "git-operation",
+      isError: true,
+      metadata: { path: ["action"], equals: "rebase" },
     })
   })
 })

@@ -103,13 +103,17 @@ export async function finalizeInteractiveChat(
           userId: chat.userId,
           branch: chat.branch,
         })
-        await refreshUncommittedFilesWarning({
-          sandbox,
-          repoPath: `${PATHS.SANDBOX_HOME}/project`,
-          chatId: chat.id,
-          backgroundSessionId: chat.backgroundSessionId,
-        })
       }
+
+      // Independent of auto-push: a new-repo chat has no remote to push to,
+      // but the uncommitted-files banner still needs this count so it can
+      // nudge the user to create a repo.
+      await refreshUncommittedFilesWarning({
+        sandbox,
+        repoPath: `${PATHS.SANDBOX_HOME}/project`,
+        chatId: chat.id,
+        backgroundSessionId: chat.backgroundSessionId,
+      })
     } catch (err) {
       console.error(`[agent-lifecycle] Failed to finalize chat ${chat.id}:`, err)
     }

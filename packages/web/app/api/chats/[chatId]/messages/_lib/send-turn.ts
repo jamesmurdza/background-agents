@@ -143,6 +143,10 @@ export async function sendChatTurn({
         console.error("[chats/messages] file upload failed:", error)
       }
     }
+    // The agent needs the merge-conflict note and uploaded file paths to act on
+    // this turn, but neither should appear in the persisted/displayed message:
+    // the conflict note is plumbing the user never asked to see, and the
+    // uploaded files are already shown as file chips (see MessageBubble).
     let agentPrompt = pullConflictNote + payload.message
     if (uploadedFilePaths.length > 0) {
       agentPrompt += "\n\n---\nUploaded files:\n" + uploadedFilePaths.map((path) => `- ${path}`).join("\n")
@@ -198,7 +202,7 @@ export async function sendChatTurn({
     )
 
     await persistTurn({
-      chatId, payload, agentPrompt, uploadedFilePaths, usageMeta,
+      chatId, payload, displayContent: payload.message, uploadedFilePaths, usageMeta,
       backgroundSessionId: bgSession.backgroundSessionId,
       isAgentSwitch,
       claimedPromptId,
