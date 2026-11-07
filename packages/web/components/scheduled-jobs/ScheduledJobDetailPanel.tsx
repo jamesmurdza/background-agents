@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { JobRunDetail } from "@/components/scheduled-jobs/JobRunDetail"
+import { JobRunDetailSkeleton } from "@/components/scheduled-jobs/JobRunDetailSkeleton"
 import { useScheduledJobQuery } from "@/lib/query/hooks/useScheduledJobQuery"
 import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
 import { type ScheduledJob, type ScheduledJobRun } from "@/lib/scheduled-jobs/types"
@@ -26,7 +27,7 @@ interface ScheduledJobDetailPanelProps {
 /**
  * Renders a single scheduled job's detail/run history (the content behind
  * /jobs/[jobId]). Jobs are now created via the chat composer's popover and
- * browsed via the "Events" command palette — this panel only owns the
+ * browsed via the "Triggers" command palette — this panel only owns the
  * run/message fetching for the detail view itself; the job record comes from
  * the shared React Query cache (`useScheduledJobQuery`) so a title patched
  * elsewhere (e.g. the fire-and-forget rename after creation) is reflected
@@ -108,11 +109,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   }
 
   if (jobLoading && !job) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    )
+    return <JobRunDetailSkeleton />
   }
 
   if (!job) {

@@ -26,7 +26,7 @@ function repoNameOnly(repo: string): string {
 }
 
 /**
- * Standalone "Events" command palette — lists all scheduled jobs,
+ * Standalone "Triggers" command palette — lists all scheduled jobs,
  * most-recently-updated first, and navigates to the job's detail page on
  * selection. Kept separate from SearchPalette (chats/repos/branches) since
  * scheduled jobs are a distinct entity with their own cache/query hook.
@@ -49,10 +49,10 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Events"
-      description="Search for scheduled events"
+      title="Triggers"
+      description="Search for scheduled triggers"
     >
-      <CommandInput placeholder="Search events..." />
+      <CommandInput placeholder="Search triggers..." />
       <CommandList>
         <CommandEmpty>No scheduled jobs found.</CommandEmpty>
         <CommandGroup heading="Scheduled Jobs">
