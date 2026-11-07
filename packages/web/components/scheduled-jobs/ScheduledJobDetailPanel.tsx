@@ -39,6 +39,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   const { runNow, rotateToken, setEnabled, rename, deleteJob } = useScheduledJobActions()
 
   const [runs, setRuns] = useState<ScheduledJobRun[]>([])
+  const [runsLoading, setRunsLoading] = useState(true)
   const [selectedRun, setSelectedRun] = useState<ScheduledJobRun | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
@@ -48,10 +49,14 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   useEffect(() => {
     if (!session || !jobId) {
       setRuns([])
+      setRunsLoading(false)
       setSelectedRun(null)
       setMessages([])
       return
     }
+
+    let isFirstFetch = true
+    setRunsLoading(true)
 
     const fetchRuns = async () => {
       try {
@@ -64,6 +69,11 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error")
+      } finally {
+        if (isFirstFetch) {
+          setRunsLoading(false)
+          isFirstFetch = false
+        }
       }
     }
 
@@ -136,6 +146,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
     <JobRunDetail
       job={job}
       runs={runs}
+      runsLoading={runsLoading}
       selectedRun={selectedRun}
       onSelectRun={setSelectedRun}
       messages={messages}

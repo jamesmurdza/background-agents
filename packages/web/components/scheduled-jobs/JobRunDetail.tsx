@@ -19,6 +19,9 @@ import { formatDurationRange } from "@/lib/format"
 interface JobRunDetailProps {
   job: ScheduledJob
   runs: ScheduledJobRun[]
+  /** True while the run list is being fetched for the first time — avoids
+   *  briefly showing "No runs yet" before we actually know. */
+  runsLoading: boolean
   selectedRun: ScheduledJobRun | null
   onSelectRun: (run: ScheduledJobRun) => void
   messages: Message[]
@@ -37,6 +40,7 @@ interface JobRunDetailProps {
 export function JobRunDetail({
   job,
   runs,
+  runsLoading,
   selectedRun,
   onSelectRun,
   messages,
@@ -119,7 +123,7 @@ export function JobRunDetail({
                   {getRunStatusIcon(selectedRun.status)}
                   <span className="text-sm">{formatRunLabel(selectedRun)}</span>
                 </>
-              ) : (
+              ) : runsLoading ? null : (
                 <span className="text-sm text-muted-foreground">No runs yet</span>
               )}
               <ChevronDown className={cn("h-4 w-4 transition-transform", dropdownOpen && "rotate-180")} />
@@ -257,7 +261,7 @@ export function JobRunDetail({
               )}
             </div>
           </div>
-        ) : (
+        ) : runsLoading ? null : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <AlarmClock className="h-6 w-6 text-muted-foreground/50 mb-3" />
             <h2 className="text-sm font-medium mb-1">No runs yet</h2>
