@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { GitBranchDialog, type GitBranchDialogConfig } from "./GitBranchDialog"
 import type { GitDialogProps } from "./types"
 
-export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false, onReviewChanges }: GitDialogProps & { onReviewChanges?: () => void }) {
+export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false }: GitDialogProps) {
   const config = useMemo<GitBranchDialogConfig>(() => ({
     title: "Merge Branch",
     icon: <GitMerge />,
@@ -28,22 +28,7 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false,
         )}>Squash commits</span>
       </label>
     ),
-    footerExtraButton: onReviewChanges && (
-      <button
-        type="button"
-        onClick={() => {
-          onClose()
-          onReviewChanges()
-        }}
-        className={cn(
-          "rounded-md hover:bg-accent transition-colors",
-          isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
-        )}
-      >
-        Show changes
-      </button>
-    ),
-  }), [gitDialogs.handleMerge, gitDialogs.squashMerge, gitDialogs.setSquashMerge, isMobile, onClose, onReviewChanges])
+  }), [gitDialogs.handleMerge, gitDialogs.squashMerge, gitDialogs.setSquashMerge, isMobile])
 
   return (
     <GitBranchDialog
