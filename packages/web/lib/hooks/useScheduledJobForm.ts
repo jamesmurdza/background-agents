@@ -32,8 +32,6 @@ interface UseScheduledJobFormArgs {
  * here, change the markup there.
  */
 export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseScheduledJobFormArgs) {
-  const isEditing = !!job
-
   // Form state
   const [name, setName] = useState(job?.name ?? "")
   const [prompt, setPrompt] = useState(job?.prompt ?? "")
@@ -59,15 +57,6 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<ScheduledJobFormErrors>({})
-
-  // In create mode, the form may "materialize" the job into the DB the first
-  // time the user clicks the MCP picker, so MCP server connections have a real
-  // job id to hang off of. If the user then cancels, we DELETE the row so we
-  // don't leave a half-configured job behind. On final submit this id is what
-  // we PATCH (instead of POSTing again).
-  // Materialized rows are created with enabled: false so the cron doesn't pick
-  // them up before the user finishes; the final submit flips enabled back on.
-  const [materializedJobId, setMaterializedJobId] = useState<string | null>(null)
 
   // Dropdown state
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
@@ -125,7 +114,6 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
       setContinueFromLastRun(job?.continueFromLastRun ?? false)
       setError(null)
       setFieldErrors({})
-      setMaterializedJobId(null)
       setIncomingToken(job?.incomingToken ?? null)
       setRotating(false)
     }
@@ -180,75 +168,6 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     }
   }
 
-  /**
-   * Materialize callback for the MCP picker — fired on the first MCP click
-   * during create mode. POSTs the job (with enabled: false so the cron won't
-   * pick it up mid-config) and returns the new id to the picker. Uses
-   * placeholders for name/prompt if the user hasn't typed them yet; the
-   * final-submit validation in handleSubmit enforces real values before the
-   * row goes live. The form stays open and continues acting like create mode
-   * until the user hits "Create" (PATCH to flip enabled on) or "Cancel"
-   * (DELETE the row).
-   *
-   * Works for both interval and incoming triggers — the POST mints an
-   * incomingToken regardless, so the URL panel can render immediately for
-   * incoming-typed drafts. If the user flips the trigger pill after
-   * materialize, the final-submit PATCH carries the new triggerType.
-   */
-  async function materializeJob(_draftId: string): Promise<string | null> {
-    setError(null)
-    try {
-      const res = await fetch("/api/scheduled-jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Placeholders only exist on disk while isDraft = true. They're never
-          // shown in the UI list (the GET filters drafts out) and the cron
-          // skips drafts. The final submit PATCH replaces them with real
-          // values before flipping isDraft to false.
-          name: name.trim() || "(draft)",
-          prompt: prompt.trim() || "(draft)",
-          // Drafts default to the repo-less sentinel so the row passes the
-          // backend's repo check before the user fills the form in fully.
-          repo: repo || NEW_REPOSITORY,
-          baseBranch: baseBranch || "main",
-          agent,
-          model: model || null,
-          triggerType,
-          // Carry the client-minted token (if any) so the persisted URL matches
-          // what the panel is already showing. Null on interval drafts — the
-          // server mints a dormant one.
-          incomingToken: incomingToken ?? undefined,
-          // intervalMinutes is required by the POST for "interval" — pass a
-          // safe placeholder for incoming drafts so the validator doesn't
-          // reject. Final submit overrides whichever value matters.
-          intervalMinutes:
-            triggerType === "interval" ? effectiveIntervalMinutes : 10,
-          autoPR,
-          continueFromLastRun,
-          enabled: false,
-          isDraft: true,
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || "Failed to save job")
-        return null
-      }
-      const created = await res.json()
-      setMaterializedJobId(created.id)
-      // Capture the token minted by POST so the URL panel can render the
-      // moment the user flips to "Via webhook".
-      if (created.incomingToken) {
-        setIncomingToken(created.incomingToken)
-      }
-      return created.id
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save job")
-      return null
-    }
-  }
-
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -277,30 +196,10 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     setLoading(true)
 
     try {
-      const targetId = materializedJobId ?? job?.id
-      const isUpdate = !!targetId
-      const url = isUpdate
-        ? `/api/scheduled-jobs/${targetId}`
-        : "/api/scheduled-jobs"
-      const method = isUpdate ? "PATCH" : "POST"
-
-      // For materialized rows we created with enabled: false + isDraft: true;
-      // promote both on final Create. For real edits, we leave existing state
-      // alone.
-      // Persist the client-minted token on every create path so the saved URL
-      // matches what the panel shows — including after a pre-save rotate. Edits
-      // leave the token alone (rotation there goes through the server endpoint).
-      const body =
-        materializedJobId && !isEditing
-          ? { ...payload, enabled: true, isDraft: false, incomingToken: incomingToken ?? undefined }
-          : isUpdate
-            ? payload
-            : { ...payload, incomingToken: incomingToken ?? undefined }
-
-      const res = await fetch(url, {
-        method,
+      const res = await fetch(`/api/scheduled-jobs/${job?.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -309,33 +208,12 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
       }
 
       const savedJob = await res.json()
-      // Clear the materialized marker so the close handler doesn't try to
-      // delete what we just successfully saved.
-      setMaterializedJobId(null)
       onSuccess(savedJob)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save job")
     } finally {
       setLoading(false)
     }
-  }
-
-  /**
-   * Close handler: if we materialized a job in create mode and the user is
-   * walking away without saving, drop the row so we don't leak draft jobs.
-   * Best-effort — even if cleanup fails we still close the modal.
-   */
-  const handleClose = async () => {
-    if (materializedJobId && !isEditing) {
-      const idToDelete = materializedJobId
-      setMaterializedJobId(null)
-      try {
-        await fetch(`/api/scheduled-jobs/${idToDelete}`, { method: "DELETE" })
-      } catch (err) {
-        console.error("[ScheduledJobForm] cleanup delete failed:", err)
-      }
-    }
-    onClose()
   }
 
   /**
@@ -354,15 +232,8 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
   }
 
   const handleRotateToken = async () => {
-    // Create mode: the URL hasn't been handed out anywhere yet, so "rotate" is
-    // just minting a fresh client-side UUID. No server round-trip, no confirm —
-    // the new token is persisted on save (create POST / final PATCH carry it).
-    if (!isEditing) {
-      setIncomingToken(crypto.randomUUID())
-      return
-    }
-    // Edit mode: the URL is live (the user may have wired it into an external
-    // app), so rotate server-side to invalidate the old one immediately.
+    // The URL is live (the user may have wired it into an external app), so
+    // rotate server-side to invalidate the old one immediately.
     const targetId = job?.id
     if (!targetId) return
     if (!confirm("Rotating will invalidate the existing webhook URL. Continue?")) return
@@ -405,8 +276,7 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
   }
 
   return {
-    // identity / mode
-    isEditing,
+    // identity
     jobId: job?.id,
     // values
     name,
@@ -428,7 +298,6 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     loading,
     error,
     fieldErrors,
-    materializedJobId,
     showAgentDropdown,
     showModelDropdown,
     incomingToken,
@@ -461,9 +330,8 @@ export function useScheduledJobForm({ open, job, onClose, onSuccess }: UseSchedu
     setShowAgentDropdown,
     setShowModelDropdown,
     // handlers
-    materializeJob,
     handleSubmit,
-    handleClose,
+    handleClose: onClose,
     handleCopyUrl,
     handleRotateToken,
     handleAgentChange,
