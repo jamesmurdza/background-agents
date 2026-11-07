@@ -87,7 +87,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
               <div className="flex items-center">
                 <span className="flex-1">Scheduled Jobs</span>
                 <span className="ml-2 shrink-0">Last run</span>
-                <span className="ml-1 shrink-0 w-6" />
+                <span className="ml-1 shrink-0 w-5" />
               </div>
             }
           >
