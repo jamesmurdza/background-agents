@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { AlarmClock, AlertCircle, Pause, Webhook } from "lucide-react"
+import { AlarmClock } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -19,17 +19,10 @@ interface SearchJobsPaletteProps {
   onOpenChange: (open: boolean) => void
 }
 
-function jobStatusLabel(job: { enabled: boolean; triggerType: string; lastRun: { status: string } | null }): string {
-  if (!job.enabled) return "Disabled"
-  if (job.lastRun?.status === "error") return "Failing"
-  return job.triggerType === "incoming" ? "Webhook" : "Enabled"
-}
-
-function JobStatusIcon({ job }: { job: { enabled: boolean; lastRun: { status: string } | null; triggerType: string } }) {
-  if (!job.enabled) return <Pause className="mr-2 h-4 w-4 text-muted-foreground" />
-  if (job.lastRun?.status === "error") return <AlertCircle className="mr-2 h-4 w-4 text-destructive" />
-  if (job.triggerType === "incoming") return <Webhook className="mr-2 h-4 w-4 text-muted-foreground" />
-  return <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground" />
+/** "owner/repo" -> "repo" (drop the user/owner prefix). */
+function repoNameOnly(repo: string): string {
+  const idx = repo.lastIndexOf("/")
+  return idx === -1 ? repo : repo.slice(idx + 1)
 }
 
 /**
@@ -69,12 +62,11 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
               value={`job:${job.name}:${job.repo}`}
               onSelect={() => handleSelect(job.id)}
             >
-              <JobStatusIcon job={job} />
+              <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
               <span className="flex-1 truncate">{job.name}</span>
               {job.repo !== NEW_REPOSITORY && (
-                <span className="text-muted-foreground text-xs ml-2 truncate">{job.repo}</span>
+                <span className="text-muted-foreground text-xs ml-2 shrink-0">({repoNameOnly(job.repo)})</span>
               )}
-              <span className="text-muted-foreground text-xs ml-2 shrink-0">{jobStatusLabel(job)}</span>
             </CommandItem>
           ))}
         </CommandGroup>
