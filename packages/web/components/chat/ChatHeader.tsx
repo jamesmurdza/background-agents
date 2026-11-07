@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, Rocket, HelpCircle } from "lucide-react"
+import { ChevronDown, Github, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, Rocket, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useElectron } from "@/lib/hooks/useElectron"
@@ -13,10 +13,9 @@ import { Input } from "../ui/input"
 import { ShareButton } from "./ShareButton"
 import { CreditBalancePill } from "./CreditBalancePill"
 import { isRealRepo, type Chat } from "@/lib/types"
-import type { RebaseConflictState } from "@background-agents/common"
 
 // =============================================================================
-// ChatHeader - Title bar with conflict indicator and title menu
+// ChatHeader - Title bar with title menu
 // =============================================================================
 
 interface ChatHeaderProps {
@@ -288,44 +287,3 @@ function DeployButton({ repo, branch, onClick }: { repo: string; branch: string;
   )
 }
 
-// =============================================================================
-// ConflictBar - Banner shown while a merge/rebase conflict is in progress
-// =============================================================================
-
-interface ConflictBarProps {
-  rebaseConflict: RebaseConflictState | null
-  isMergeConflict: boolean
-  onAbort: () => void
-  actionLoading: boolean
-}
-
-export function ConflictBar({
-  rebaseConflict,
-  isMergeConflict,
-  onAbort,
-  actionLoading,
-}: ConflictBarProps) {
-  return (
-    <div className="flex items-center justify-between px-4 py-2 text-xs bg-amber-500/10 border-b border-amber-500/20">
-      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-        <AlertTriangle className="h-3.5 w-3.5" />
-        <span>{isMergeConflict ? "Merge" : "Rebase"} conflict</span>
-        {rebaseConflict?.conflictedFiles && rebaseConflict.conflictedFiles.length > 0 && (
-          <span className="text-amber-500/70">({rebaseConflict.conflictedFiles.length} files)</span>
-        )}
-      </div>
-      <button
-        onClick={onAbort}
-        disabled={actionLoading}
-        className="flex items-center gap-1 text-destructive hover:text-destructive/80 disabled:opacity-50"
-      >
-        {actionLoading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <X className="h-3.5 w-3.5" />
-        )}
-        Abort
-      </button>
-    </div>
-  )
-}

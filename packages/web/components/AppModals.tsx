@@ -260,6 +260,25 @@ export function AppModals({
         isMobile={isMobile}
       />
 
+      <ConfirmDialog
+        open={modals.abortConflictOpen}
+        onClose={() => modals.setAbortConflictOpen(false)}
+        onConfirm={() => { gitDialogs.handleAbortConflict() }}
+        title={gitDialogs.rebaseConflict.inMerge ? "Abort merge" : "Abort rebase"}
+        description={
+          <>
+            Abort the in-progress {gitDialogs.rebaseConflict.inMerge ? "merge" : "rebase"}
+            {gitDialogs.rebaseConflict.conflictedFiles.length > 0 && (
+              <> ({gitDialogs.rebaseConflict.conflictedFiles.length} conflicted file{gitDialogs.rebaseConflict.conflictedFiles.length === 1 ? "" : "s"})</>
+            )}
+            ? Any progress resolving the conflict will be lost.
+          </>
+        }
+        confirmLabel={gitDialogs.rebaseConflict.inMerge ? "Abort merge" : "Abort rebase"}
+        variant="destructive"
+        isMobile={isMobile}
+      />
+
       {/* Mobile Rename Modal */}
       <MobileRenameModal
         open={modals.mobileRenameChat !== null}

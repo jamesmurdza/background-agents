@@ -28,6 +28,9 @@ interface ChatMessageListProps {
   /** Opens the repo-creation dialog, linked from the uncommitted-files
    * warning when the chat has no GitHub repo linked yet. */
   onCreateRepo?: () => void
+  /** Opens the abort-merge/rebase confirmation dialog, linked from the
+   * conflict banner. */
+  onAbortConflict?: () => void
   onReload?: (chatId: string) => Promise<void> | void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean, reasoningEffort?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
@@ -59,6 +62,7 @@ export function ChatMessageList({
   onOpenFile,
   onOpenChanges,
   onCreateRepo,
+  onAbortConflict,
   onReload,
   onSendMessage,
   onRemoveQueuedMessage,
@@ -90,19 +94,26 @@ export function ChatMessageList({
     (message) => message.isError && message.metadata?.action === "force-push"
   )
 
-  // Hide the uncommitted-files banner the moment the user asks the agent to
-  // commit, rather than leaving it up until the triggered turn finishes and
-  // the server recomputes the count. Resets — so the banner can reappear if
-  // the commit didn't actually clear it — the next time a turn completes, or
-  // immediately when switching to a different chat.
+  const rebaseConflict = git.rebaseConflict
+  const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
+  const isMergeConflict = rebaseConflict?.inMerge ?? false
+
+  // Hide the uncommitted-files/conflict banners the moment the user asks the
+  // agent to commit/resolve, rather than leaving them up until the triggered
+  // turn finishes and the server recomputes the underlying state. Resets —
+  // so a banner can reappear if the turn didn't actually clear it — the next
+  // time a turn completes, or immediately when switching to a different chat.
   const [commitRequested, setCommitRequested] = useState(false)
+  const [resolveRequested, setResolveRequested] = useState(false)
   const wasRunningRef = useRef(isRunning)
   useEffect(() => {
     setCommitRequested(false)
+    setResolveRequested(false)
   }, [chat.id])
   useEffect(() => {
     if (wasRunningRef.current && !isRunning) {
       setCommitRequested(false)
+      setResolveRequested(false)
     }
     wasRunningRef.current = isRunning
   }, [isRunning])
@@ -162,6 +173,45 @@ export function ChatMessageList({
           {showStarting && (
             <div data-testid="starting-indicator" className="text-2xl text-muted-foreground animate-pulse">
               ...
+            </div>
+          )}
+          {inConflict && !resolveRequested && (
+            <div
+              data-testid="conflict-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                A {isMergeConflict ? "merge" : "rebase"} conflict is in progress
+                {rebaseConflict.conflictedFiles.length > 0 && (
+                  <> ({rebaseConflict.conflictedFiles.length} file{rebaseConflict.conflictedFiles.length === 1 ? "" : "s"})</>
+                )}.{" "}
+                <button
+                  type="button"
+                  data-testid="conflict-resolve"
+                  onClick={() => {
+                    setResolveRequested(true)
+                    onSendMessage(
+                      `Resolve the ${isMergeConflict ? "merge" : "rebase"} conflict`,
+                      currentAgent, currentModel, undefined, planModeEnabled, currentReasoningEffort
+                    )
+                  }}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Resolve
+                </button>{" "}
+                or{" "}
+                <button
+                  type="button"
+                  data-testid="conflict-abort"
+                  onClick={onAbortConflict}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  abort
+                </button>{" "}
+                it.
+              </span>
             </div>
           )}
           {forcePushFailure && (
