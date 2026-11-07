@@ -243,9 +243,11 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     }, setMergeOpen)
   }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, findOtherChatOnBranch, chat, resolveChatName, updateChatById, runGitAction, syncRecreatedSandboxId])
 
-  // Handle rebase
-  const handleRebase = useCallback(async () => {
-    if (!selectedBranch || !branchName || !sandboxId || !chatId) return
+  // Shared rebase mechanics, parameterized on the target branch so callers
+  // that already know it (the rebase-suggestion banner) can skip the
+  // dialog's own selectedBranch state entirely.
+  const performRebase = useCallback(async (targetBranch: string, closeDialog?: (open: boolean) => void) => {
+    if (!targetBranch || !branchName || !sandboxId || !chatId) return
 
     await runGitAction(async () => {
       const { ok, status, data, recreatedSandboxId } = await callSandboxGit<{
@@ -255,7 +257,7 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
         sandboxId,
         repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
         action: "rebase",
-        targetBranch: selectedBranch,
+        targetBranch,
         currentBranch: branchName,
         repoOwner,
         repoApiName,
@@ -274,8 +276,18 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
       }
 
       if (!ok) return
-    }, setRebaseOpen)
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, runGitAction, syncRecreatedSandboxId])
+    }, closeDialog)
+  }, [branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, runGitAction, syncRecreatedSandboxId])
+
+  // Handle rebase from the dialog, using its own selected target branch.
+  const handleRebase = useCallback(async () => {
+    await performRebase(selectedBranch, setRebaseOpen)
+  }, [performRebase, selectedBranch])
+
+  // Rebase onto an explicit branch, bypassing the dialog entirely.
+  const rebaseOnto = useCallback(async (targetBranch: string) => {
+    await performRebase(targetBranch)
+  }, [performRebase])
 
   // Handle create PR
   const handleCreatePR = useCallback(async (descriptionType: PRDescriptionType = "short") => {
@@ -452,6 +464,7 @@ export function useGitDialogs({ chat, chats, updateChatById, refetchMessages, se
     branchLabel: (branch: string) => resolveChatName(branch) || branch,
     handleMerge,
     handleRebase,
+    rebaseOnto,
     handleCreatePR,
     handleSquash,
     handleForcePush,
