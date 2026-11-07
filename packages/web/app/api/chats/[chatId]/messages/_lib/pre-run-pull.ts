@@ -18,7 +18,8 @@ import type { ChatRecord } from "./types"
  *  - a `Response` (409 PULL_CONFLICT) when *this* send started a merge that
  *    conflicted — the merge is left in progress and the agent is NOT started, so
  *    the client surfaces the existing merge-conflict UI; or
- *  - `{ pullConflictNote }`, a (possibly empty) prefix to prepend to the prompt
+ *  - `{ pullConflictNote }`, a (possibly empty) prefix to prepend to the *agent's*
+ *    prompt (never shown in the persisted/displayed message — see send-turn.ts)
  *    when a prior conflicted merge is still in progress and should be handed to
  *    the agent to resolve this turn.
  *
@@ -78,9 +79,7 @@ export async function runPreRunPull(params: {
         // A prior conflicted pull is still in progress and the user sent a
         // message — hand the conflict to the agent to resolve this turn.
         const fileList = pull.conflictedFiles.join(", ")
-        pullConflictNote =
-          `A merge of origin/${branch} is in progress with conflicts in: ${fileList}. ` +
-          `Resolve the conflicts, commit the merge, then address the request below.\n\n---\n\n`
+        pullConflictNote = `A merge of origin/${branch} is in progress with conflicts in: ${fileList}. `
       }
     } catch (err) {
       // Never block a turn on the auto-pull. If it fails, the agent runs on
