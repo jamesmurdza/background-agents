@@ -5,8 +5,9 @@
  * @background-agents/claude-credentials generator, which pulls in
  * @daytonaio/sdk -> @opentelemetry -> @grpc (Node-only). It's kept separate
  * from lib/claude-credentials.ts so the read helpers that sit on hot request
- * paths stay Prisma-weight. All DB access is delegated to that data-access
- * layer; this module only composes it with the generator.
+ * paths stay Prisma-weight. The generator is only the fallback now: a refresh
+ * normally spends the stored refresh token directly (lib/server/claude-oauth),
+ * under a lock on the credentials row.
  */
 
 // Enforces the server-only contract and, more importantly, quarantines the
@@ -14,17 +15,25 @@
 import "server-only"
 import {
   generateClaudeCredentials,
-  RefreshTokenExpiredError,
   isClaudeOAuthCredentials,
   CLAUDE_COOKIES_KEY,
   type ClaudeOAuthCredentials,
 } from "@background-agents/claude-credentials"
 import {
+  CLAUDE_CREDS_KEY,
   readCredentials,
   writeCredentials,
   getCookies,
   recordCcAuthRun,
 } from "@/lib/claude-credentials"
+import { prisma } from "@/lib/db/prisma"
+import {
+  ClaudeRefreshRejectedError,
+  claudeTokenExpiring,
+  parseClaudeCredentials,
+  refreshClaudeOAuth,
+} from "@/lib/server/claude-oauth"
+import { pruneClaudeSharedSecrets } from "@/lib/server/subscription-secrets"
 
 // Skip refresh while the live credential still has at least this much life.
 // Anthropic OAuth access tokens are 8h-lived, so 2h leaves us 6 hours of cron
@@ -108,19 +117,22 @@ async function runRefresh(force: boolean): Promise<RefreshResult> {
     }
   }
 
-  // Preferred path: renew from the refresh token — a plain grant_type=refresh_token
-  // call in a lightweight sandbox, no browser/Cloudflare. Only when the refresh
-  // token itself is expired do we fall through to the full cookie-based flow.
-  const refreshToken = current?.claudeAiOauth.refreshToken
-  if (refreshToken) {
+  // Preferred path: renew from the refresh token — Claude Code's own
+  // grant_type=refresh_token call, made from here: no browser, no sandbox, no
+  // ccauth. Only when the refresh token itself is dead do we fall through to
+  // the full cookie-based flow.
+  if (current?.claudeAiOauth.refreshToken) {
     try {
-      const creds = await generateClaudeCredentials({ refreshToken })
-      await writeCredentials(JSON.stringify(creds))
-      return { status: "refreshed", expiresAt: creds.claudeAiOauth.expiresAt }
+      const result = await refreshSharedUnderLock(force)
+      if (result) {
+        if (result.status === "refreshed") await pruneClaudeSharedSecrets()
+        return result
+      }
+      // The row vanished or turned unparseable meanwhile: seed it from cookies.
     } catch (err) {
-      if (err instanceof RefreshTokenExpiredError) {
+      if (err instanceof ClaudeRefreshRejectedError) {
         console.warn(
-          "[refresh-claude-credentials] refresh token expired; falling back to ccauth:",
+          "[refresh-claude-credentials] refresh token rejected; falling back to ccauth:",
           err.message,
         )
         // fall through to the cookie flow below
@@ -160,7 +172,38 @@ async function runRefresh(force: boolean): Promise<RefreshResult> {
   }
 
   await writeCredentials(JSON.stringify(creds))
+  await pruneClaudeSharedSecrets()
   return { status: "refreshed", expiresAt: creds.claudeAiOauth.expiresAt }
+}
+
+/**
+ * Spend the shared refresh token under a row lock, so the cron and an admin
+ * refresh can't both spend it (the loser's would be dead: they rotate). The
+ * row is re-read inside the lock, and a refresh someone else just finished
+ * is not repeated unless `force`d. Null when there is no usable row.
+ */
+async function refreshSharedUnderLock(
+  force: boolean,
+): Promise<Extract<RefreshResult, { status: "skipped" | "refreshed" }> | null> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "CcAuthInfo" WHERE id = ${CLAUDE_CREDS_KEY} FOR UPDATE`
+      const row = await tx.ccAuthInfo.findUnique({ where: { id: CLAUDE_CREDS_KEY }, select: { value: true } })
+      const creds = row ? parseClaudeCredentials(row.value) : null
+      if (!creds) return null
+      if (!force && !claudeTokenExpiring(creds, SKIP_THRESHOLD_MS)) {
+        return { status: "skipped", expiresAt: creds.claudeAiOauth.expiresAt }
+      }
+      const next = await refreshClaudeOAuth(creds)
+      // Persist before anything else: the old refresh token is dead now.
+      await tx.ccAuthInfo.update({ where: { id: CLAUDE_CREDS_KEY }, data: { value: JSON.stringify(next) } })
+      return { status: "refreshed", expiresAt: next.claudeAiOauth.expiresAt }
+    },
+    // The refresh is an outbound call made while holding the lock (bounded at
+    // 15s itself); the default 5s would abort after Anthropic rotated the token
+    // but before it is saved.
+    { timeout: 30_000 },
+  )
 }
 
 /**

@@ -7,7 +7,7 @@ import {
   normalizeStoredCredentials,
   type Credentials,
 } from "@/lib/credentials"
-import { pickSharedOpencodeKey } from "@/lib/server/opencode-pool"
+import { pickSharedKey, sharedPoolForCredential } from "@/lib/server/shared-key-pools"
 
 // =============================================================================
 // Types
@@ -322,12 +322,13 @@ export async function getUserCredentials(userId: string): Promise<Credentials> {
 
   // Fallback: if a credential isn't stored in the DB, check process.env.
   // This lets operators set API keys in .env / .env.local without the UI.
-  // OpenCode's shared key comes from a pool (comma-separated OPENCODE_API_KEY) —
-  // pick one at random per resolution so runs spread evenly across the keys.
+  // Shared pool keys (comma-separated OPENCODE_API_KEY / GEMINI_API_KEY) are
+  // picked at random per resolution so runs spread evenly across the keys,
+  // and arrive as secret markers, never raw (see lib/server/shared-key-pools).
   for (const { id } of CREDENTIAL_KEYS) {
     if (creds[id]) continue
-    const envVal =
-      id === "OPENCODE_API_KEY" ? pickSharedOpencodeKey() : process.env[id]
+    const pool = sharedPoolForCredential(id)
+    const envVal = pool ? pickSharedKey(pool) : process.env[id]
     if (envVal) creds[id] = envVal
   }
 

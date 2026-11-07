@@ -12,10 +12,20 @@ import { logActivityAsync } from "@/lib/db/activity-log"
 import { checkSharedPoolUsage, UsageLimitError } from "@/lib/db/usage-limit"
 import { getSharedClaudeAccessToken } from "@/lib/claude-credentials"
 import { buildSharedClaudeEnv } from "@/lib/server/claude-token-auth"
+import type { ClaudeRunToken } from "@/lib/server/subscription-secrets"
+import { getUserClaudeAccessToken } from "@/lib/server/user-claude-credentials"
 import { applyCodexSubscription } from "@/lib/server/codex-credentials"
 import { meterAssistantTurn } from "@/lib/server/token-metering"
 import { meterTurnNow } from "./meter-turn"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
+import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import {
+  applyTurnSecretsToEnv,
+  ensureTurnSecrets,
+  mountTurnSecrets,
+  planTurnSecrets,
+  poolSecretOf,
+} from "@/lib/server/turn-secrets"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { createSandboxForChat, deleteSandboxQuietly } from "@/lib/sandbox"
@@ -72,12 +82,13 @@ export async function startJobExecution(
   // Validate shared authentication before provisioning a chat or sandbox.
   let credentials = await getUserCredentials(job.userId)
   const customEndpoints = await getUserEndpoints(job.userId)
-  let useSharedClaude = false
-  if (
-    job.agent === "claude-code" && !job.model?.startsWith(ENDPOINT_MODEL_PREFIX) && !credentials.CLAUDE_CODE_CREDENTIALS
-  ) {
-    await getSharedClaudeAccessToken()
-    useSharedClaude = true
+  // A Claude subscription run, shared or the user's own, gets its token
+  // through the token runner; refresh tokens stay on the server.
+  let claudeToken: ClaudeRunToken | undefined
+  if (job.agent === "claude-code" && !job.model?.startsWith(ENDPOINT_MODEL_PREFIX)) {
+    claudeToken = credentials.CLAUDE_CODE_CREDENTIALS
+      ? { source: "own", token: await getUserClaudeAccessToken(job.userId) }
+      : { source: "shared", token: await getSharedClaudeAccessToken() }
   }
 
   // 1. Get GitHub token for the user — required for cloned repos, optional
@@ -164,6 +175,29 @@ export async function startJobExecution(
     }
   }
 
+  // Codex ChatGPT subscription. This ALWAYS strips the stored CODEX_CREDENTIALS
+  // blob (which carries the user's real refresh token) and only then re-adds a
+  // freshly rendered auth.json when the subscription applies to this run. See
+  // applyCodexSubscription for why the strip must be unconditional. Done
+  // before planning the run's secrets, which go by the final credentials.
+  credentials = await applyCodexSubscription(
+    credentials,
+    job.userId,
+    job.agent,
+    job.model
+  )
+
+  // Resolved before the sandbox exists so the run's secrets can be mounted
+  // at creation (see lib/server/turn-secrets).
+  const turnSecrets = await ensureTurnSecrets(daytona, planTurnSecrets({
+    userId: job.userId,
+    agent: job.agent as Agent,
+    model: job.model ?? undefined,
+    credentials,
+    endpoints: customEndpoints,
+    claudeToken,
+  }))
+
   // 5. Create fresh sandbox. createSandboxForChat detects NEW_REPOSITORY and
   //    skips the clone path, so we don't need the GitHub token in that case.
   const branch = `scheduled/${job.id}/${format(new Date(), "yyyyMMdd-HHmmss")}`
@@ -174,6 +208,7 @@ export async function startJobExecution(
     newBranch: branch,
     githubToken: account?.access_token ?? undefined,
     userId: job.userId,
+    turnSecrets,
   })
 
   // 6. Update chat with sandbox info
@@ -186,22 +221,18 @@ export async function startJobExecution(
     },
   })
 
-  // Codex ChatGPT subscription. This ALWAYS strips the stored CODEX_CREDENTIALS
-  // blob (which carries the user's real refresh token) and only then re-adds a
-  // freshly rendered auth.json when the subscription applies to this run. See
-  // applyCodexSubscription for why the strip must be unconditional.
-  credentials = await applyCodexSubscription(
-    credentials,
-    job.userId,
-    job.agent,
-    job.model
-  )
-
   // 7. Create background session
   const repoPath = `${PATHS.SANDBOX_HOME}/project`
-  const backgroundSessionId = useSharedClaude ? randomUUID() : undefined
+  const backgroundSessionId = claudeToken ? randomUUID() : undefined
   let env = getEnvForModel(job.model ?? undefined, job.agent as Agent, credentials, customEndpoints)
-  if (backgroundSessionId) env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId })
+  if (backgroundSessionId && claudeToken) {
+    env = buildSharedClaudeEnv(env, { userId: job.userId, chatId: chat.id, backgroundSessionId, source: claudeToken.source })
+  }
+  // The secrets were mounted at creation (this confirms it without a
+  // remount), and the agent is handed their placeholders instead of the
+  // keys. No detach needed: the sandbox is deleted when the run ends.
+  await mountTurnSecrets(sandbox, turnSecrets)
+  applyTurnSecretsToEnv(env, turnSecrets)
 
   // Load job-scoped MCP servers. The loader marks rows with status="error" and
   // a descriptive lastError if the GitHub App is gone or any other auth issue
@@ -320,11 +351,12 @@ export async function startJobExecution(
     where: { id: job.userId },
     select: { credentials: true },
   })
+  const poolSecret = poolSecretOf(turnSecrets)
   const usageMeta = buildUsageMeta(
     job.agent as Agent,
     decryptUserCredentials(storedUser?.credentials as Record<string, unknown> | null),
     job.model ?? undefined,
-    credentials.OPENCODE_API_KEY
+    poolSecret ? toSecretMarker(poolSecret) : credentials.OPENCODE_API_KEY
   )
 
   await prisma.message.createMany({

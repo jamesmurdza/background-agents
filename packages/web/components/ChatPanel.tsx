@@ -282,6 +282,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
         git={git}
         onOpenFile={onOpenFile}
         onOpenChanges={onOpenChanges}
+        onCreateRepo={() => modals.setRepoCreateOpen(true)}
         onReload={onReload}
         onSendMessage={onSendMessage}
         onRemoveQueuedMessage={onRemoveQueuedMessage}

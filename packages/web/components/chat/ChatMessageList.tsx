@@ -25,6 +25,9 @@ interface ChatMessageListProps {
   onOpenFile?: (filePath: string) => void
   /** Opens the Changes panel, linked from the uncommitted-files warning. */
   onOpenChanges?: () => void
+  /** Opens the repo-creation dialog, linked from the uncommitted-files
+   * warning when the chat has no GitHub repo linked yet. */
+  onCreateRepo?: () => void
   onReload?: (chatId: string) => Promise<void> | void
   onSendMessage: (message: string, agent: string, model: string, files?: File[], planMode?: boolean, reasoningEffort?: string) => void
   onRemoveQueuedMessage?: (id: string) => void
@@ -55,6 +58,7 @@ export function ChatMessageList({
   git,
   onOpenFile,
   onOpenChanges,
+  onCreateRepo,
   onReload,
   onSendMessage,
   onRemoveQueuedMessage,
@@ -149,6 +153,35 @@ export function ChatMessageList({
           {showStarting && (
             <div data-testid="starting-indicator" className="text-2xl text-muted-foreground animate-pulse">
               ...
+            </div>
+          )}
+          {(chat.uncommittedFilesCount ?? 0) > 0 && isNewRepo && (
+            <div
+              data-testid="uncommitted-files-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                You have {chat.uncommittedFilesCount} uncommitted{" "}
+                {chat.uncommittedFilesCount === 1 ? "file" : "files"} with nowhere to back{" "}
+                {chat.uncommittedFilesCount === 1 ? "it" : "them"} up.{" "}
+                {onCreateRepo ? (
+                  <>
+                    <button
+                      type="button"
+                      data-testid="uncommitted-files-create-repo"
+                      onClick={onCreateRepo}
+                      className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                    >
+                      Create a repo
+                    </button>{" "}
+                    to save your work.
+                  </>
+                ) : (
+                  "Link a GitHub repo to save your work."
+                )}
+              </span>
             </div>
           )}
           {(chat.uncommittedFilesCount ?? 0) > 0 && !isNewRepo && !commitRequested && (

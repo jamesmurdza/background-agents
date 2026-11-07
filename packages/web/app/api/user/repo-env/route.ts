@@ -6,7 +6,8 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import { encrypt, decrypt } from "@/lib/db/encryption"
+import { encrypt } from "@/lib/db/encryption"
+import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
 
 // =============================================================================
 // Types
@@ -44,7 +45,7 @@ export async function GET(): Promise<Response> {
       decrypted[repo] = {}
       for (const [key, value] of Object.entries(envVars)) {
         if (value) {
-          decrypted[repo][key] = decrypt(value)
+          decrypted[repo][key] = decryptStoredEnvVar(value)
         }
       }
     }

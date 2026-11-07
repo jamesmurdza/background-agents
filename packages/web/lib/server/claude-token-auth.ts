@@ -10,6 +10,8 @@ export interface ClaudeTokenScope {
   userId: string
   chatId: string
   backgroundSessionId: string
+  /** Whose token the run gets: the shared pool's, or the user's own subscription's. */
+  source: "shared" | "own"
 }
 
 function signature(payload: string): Buffer {
@@ -48,7 +50,14 @@ export function verifyClaudeTokenCapability(token: string): ClaudeTokenScope | n
     !validScopeField(fields.userId) || !validScopeField(fields.chatId) || !validScopeField(fields.backgroundSessionId) ||
     typeof fields.expiresAt !== "number" || !Number.isSafeInteger(fields.expiresAt) || fields.expiresAt <= Date.now()
   ) return null
-  return { userId: fields.userId, chatId: fields.chatId, backgroundSessionId: fields.backgroundSessionId }
+  // Capabilities from before own subscriptions used the runner carry no source.
+  if (fields.source !== undefined && fields.source !== "shared" && fields.source !== "own") return null
+  return {
+    userId: fields.userId,
+    chatId: fields.chatId,
+    backgroundSessionId: fields.backgroundSessionId,
+    source: fields.source ?? "shared",
+  }
 }
 
 export function buildSharedClaudeEnv(env: Record<string, string>, scope: ClaudeTokenScope): Record<string, string> {

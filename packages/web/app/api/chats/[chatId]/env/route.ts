@@ -8,7 +8,8 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import { encrypt, decrypt } from "@/lib/db/encryption"
+import { encrypt } from "@/lib/db/encryption"
+import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
 
 // =============================================================================
 // Types
@@ -46,7 +47,7 @@ export async function GET(
     const decrypted: Record<string, string> = {}
     for (const [key, value] of Object.entries(encrypted)) {
       if (value) {
-        decrypted[key] = decrypt(value)
+        decrypted[key] = decryptStoredEnvVar(value)
       }
     }
 
