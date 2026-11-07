@@ -225,7 +225,7 @@ export function ApiKeysSection({
 
                   {!licenseAutoDetectEnabled && (
                     <p className="text-xs text-muted-foreground">
-                      Enable to automatically use credentials from your local Claude Code installation.
+                      Enable this to automatically use credentials from your local Claude Code installation.
                     </p>
                   )}
                 </div>
@@ -247,7 +247,7 @@ export function ApiKeysSection({
                 {/* Show indication when auto-detected credentials are being used */}
                 {autoDetectActive && (
                   <p className="text-xs text-muted-foreground">
-                    Using auto-detected credentials. Toggle off to enter manually.
+                    Using auto-detected credentials. Toggle this off to enter credentials manually.
                   </p>
                 )}
               </SettingsRow>

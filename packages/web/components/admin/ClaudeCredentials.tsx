@@ -106,10 +106,10 @@ export function ClaudeCredentials() {
         <h2 className="text-lg font-semibold md:text-xl">Claude Credentials</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Regenerate the shared Claude OAuth token from the stored claude.ai
-          cookies. <span className="font-medium">Refresh</span> no-ops while the
-          current token still has plenty of life;{" "}
-          <span className="font-medium">Force refresh</span> regenerates it
-          regardless.
+          cookies. <span className="font-medium">Refresh</span> does nothing
+          if the token is still fresh, but{" "}
+          <span className="font-medium">Force refresh</span> always
+          regenerates it.
         </p>
       </div>
 
@@ -123,8 +123,8 @@ export function ClaudeCredentials() {
             New cookies (optional)
           </label>
           <p className="text-xs text-muted-foreground">
-            Paste fresh claude.ai cookies JSON to rotate them before refreshing.
-            Leave blank to reuse the stored cookies.
+            Paste fresh claude.ai cookies JSON to rotate them before refreshing,
+            or leave this blank to reuse the stored cookies.
           </p>
           <textarea
             id="claude-cookies"
@@ -182,8 +182,8 @@ export function ClaudeCredentials() {
             Set credentials directly
           </label>
           <p className="text-xs text-muted-foreground">
-            For when neither refresh can run: paste the contents of a working{" "}
-            <code>~/.claude/.credentials.json</code> and it&apos;s stored as-is.
+            If neither refresh works, paste the contents of a working{" "}
+            <code>~/.claude/.credentials.json</code> and it will be stored as-is.
           </p>
           <textarea
             id="claude-credentials"

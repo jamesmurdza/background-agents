@@ -303,14 +303,14 @@ export function BonusCredits() {
                 className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                When set, the same user can&apos;t be rewarded twice for the same{" "}
+                This prevents the same user from being rewarded twice for the same{" "}
                 {reason === "pull_request" ? "PR" : "issue"}.
               </p>
             </div>
           )}
           {reason === "github_star" && (
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              Each user can only receive the star reward once — repeat grants are skipped.
+              Each user can only receive the star reward once, and repeat grants are skipped.
             </p>
           )}
           <div className="space-y-1.5 sm:col-span-2">
