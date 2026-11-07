@@ -610,10 +610,18 @@ export async function installSkillsForRepo(
     repoPath,
     skills.map((s) => ({ id: s.id, fullHandle: s.fullHandle, archive: s.archive })),
     async (id) => {
-      console.warn(`[sandbox] Removing stale skill DB record: ${id}`)
+      console.warn(`[sandbox] Removing stale skill DB record (confirmed not found): ${id}`)
       await prisma.skill.delete({ where: { id } }).catch(() => {})
     }
   )
+
+  const failed = result.batchResults.filter((r) => r.status === "failed")
+  if (failed.length > 0) {
+    console.warn(
+      `[sandbox] ${failed.length} skill install(s) failed transiently for ${repo} (DB records kept, will retry on next sandbox creation):`,
+      failed.map((r) => `${r.fullHandle}: ${r.error ?? "unknown error"}`).join("; ")
+    )
+  }
 
   if (result.installed > 0) {
     console.log(

@@ -53,12 +53,26 @@ export interface SkillInstallResult {
 }
 
 /**
+ * Per-skill outcome of a batch install, distinguishing a confirmed
+ * "doesn't exist" (safe to delete the DB record) from a transient
+ * install failure (DB record should be left alone).
+ */
+export interface SkillBatchResult {
+  id: string
+  fullHandle: string
+  status: "installed" | "not-found" | "failed"
+  error?: string
+}
+
+/**
  * Result of batch skill installation
  */
 export interface SkillsInstallResult {
   installed: number
   total: number
   results: SkillInstallResult[]
+  /** Per-skill outcome, including whether a failure was "not-found" vs transient. */
+  batchResults: SkillBatchResult[]
 }
 
 /**
