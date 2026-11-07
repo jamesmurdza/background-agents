@@ -100,8 +100,8 @@ export function TriggerOptionsFields({
       {/* Trigger Type - Segmented Control. Always editable — PATCH
           handles the swap for both still-open drafts and existing
           jobs. */}
-      <div>
-        <label className="block text-sm font-medium mb-2">Trigger</label>
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium">Trigger</label>
         <div className="inline-flex rounded-md bg-muted p-0.5">
           {TRIGGER_TYPES.map((t) => (
             <button
@@ -183,9 +183,6 @@ export function TriggerOptionsFields({
                   <RefreshCw className={cn("h-3.5 w-3.5", rotating && "animate-spin")} />
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Anyone with this URL can fire this agent — rotate it if it leaks.
-              </p>
             </>
           ) : (
             <p className="text-xs text-muted-foreground">

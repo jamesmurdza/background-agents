@@ -65,7 +65,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
               <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
               <span className="flex-1 truncate">{job.name}</span>
               {job.repo !== NEW_REPOSITORY && (
-                <span className="text-muted-foreground text-xs ml-2 shrink-0">({repoNameOnly(job.repo)})</span>
+                <span className="text-muted-foreground text-xs ml-2 shrink-0">{repoNameOnly(job.repo)}</span>
               )}
             </CommandItem>
           ))}
