@@ -329,36 +329,69 @@ export async function createSandboxForChat(
   }
 }
 
-export interface RecreateChatSandboxOptions {
+export interface EnsureSandboxRunningOptions {
   daytona: Daytona
-  chat: { id: string; repo: string; baseBranch: string | null; branch: string | null }
+  chat: {
+    id: string
+    repo: string
+    baseBranch: string | null
+    branch: string | null
+    sandboxId: string | null
+    previewUrlPattern?: string | null
+  }
   userId: string
   githubToken: string | null
+  /** The turn's secrets, to mount if a sandbox has to be created. */
+  turnSecrets?: TurnSecret[]
+}
+
+export interface EnsuredSandboxRunning extends CreatedSandbox {
+  /** True if a new sandbox had to be created; false if the existing one was reused. */
+  createdSandbox: boolean
 }
 
 /**
- * Recreate a chat's sandbox after it expired (auto-deleted by Daytona), and
- * persist the new id onto the chat row. Restores the chat's existing branch
- * from remote when it has one — the same semantics as the first message after
- * deletion in `ensure-sandbox.ts`, and as `/api/chats/[chatId]/sandbox/recreate`.
+ * Ensure a chat has a live, started sandbox: reuse the chat's existing one if
+ * it's still alive, otherwise create a fresh one (first-time creation and
+ * recreation after expiry are the same path — see `ensure-sandbox.ts` for why).
+ * Persists the resolved sandbox id/branch onto the chat row either way.
  *
- * This is the one shared implementation both of those call, plus any other
- * server route that needs to recover from an expired sandbox for an action
- * that's safe to retry against a fresh clone (anything that only reads/writes
- * already-pushed remote state — e.g. re-fetching after a GitHub-side squash,
- * or reinstalling a skill file). It is NOT appropriate for actions whose only
- * copy of the data lived in the dead sandbox's local working tree (e.g.
- * pushing uncommitted local changes) — that data is already gone the moment
- * the sandbox expired, recreating doesn't bring it back, and silently
- * "succeeding" against an empty retry would be misleading.
+ * This is the one shared "reuse-or-create" implementation for any server
+ * route that needs a running sandbox for a chat without message/agent-run
+ * concerns layered on top (see `recreateChatSandbox` and `ensureSandboxForChat`
+ * for callers that add their own extra bookkeeping on top of this).
+ *
+ * KNOWN GAP: no locking/idempotency around creation — two concurrent callers
+ * for the same chat could both decide there's nothing to reuse and each
+ * create their own sandbox. Deliberately skipped for now; revisit if this
+ * becomes a real race in practice.
  *
  * Returns null for the one genuinely unrecoverable case: a cloned repo with
- * no GitHub token to re-clone from.
+ * no GitHub token to (re)clone from.
  */
-export async function recreateChatSandbox(
-  options: RecreateChatSandboxOptions
-): Promise<CreatedSandbox | null> {
-  const { daytona, chat, userId, githubToken } = options
+export async function ensureSandboxRunning(
+  options: EnsureSandboxRunningOptions
+): Promise<EnsuredSandboxRunning | null> {
+  const { daytona, chat, userId, githubToken, turnSecrets } = options
+
+  // Reuse the chat's existing sandbox if it's still there.
+  if (chat.sandboxId) {
+    try {
+      const sandbox = await daytona.get(chat.sandboxId)
+      await ensureSandboxStarted(sandbox)
+      return {
+        sandbox,
+        sandboxId: chat.sandboxId,
+        branch: chat.branch ?? "",
+        previewUrlPattern: chat.previewUrlPattern ?? undefined,
+        repoName: "project",
+        createdSandbox: false,
+      }
+    } catch {
+      // Confirmed gone — fall through and recreate.
+    }
+  }
+
   const isNewRepo = chat.repo === NEW_REPOSITORY || chat.repo === "__new__"
 
   if (!isNewRepo && !githubToken) {
@@ -382,6 +415,7 @@ export async function recreateChatSandbox(
     githubToken: githubToken ?? undefined,
     userId,
     restoreExistingBranch,
+    turnSecrets,
   })
 
   // Freshly created sandbox: no agent conversation history on disk, so any
@@ -402,7 +436,48 @@ export async function recreateChatSandbox(
     await installSkillsForRepo(created.sandbox, userId, chat.repo)
   }
 
-  return created
+  return { ...created, createdSandbox: true }
+}
+
+export interface RecreateChatSandboxOptions {
+  daytona: Daytona
+  chat: { id: string; repo: string; baseBranch: string | null; branch: string | null }
+  userId: string
+  githubToken: string | null
+}
+
+/**
+ * Recreate a chat's sandbox after it expired (auto-deleted by Daytona), and
+ * persist the new id onto the chat row. Restores the chat's existing branch
+ * from remote when it has one — the same semantics as the first message after
+ * deletion in `ensure-sandbox.ts`, and as `/api/chats/[chatId]/sandbox/recreate`.
+ *
+ * Delegates the reuse-or-create core to `ensureSandboxRunning`; this wrapper
+ * exists for callers that already know they want recreation semantics and
+ * don't have (or want to pass) a `sandboxId` on `chat`.
+ *
+ * It is NOT appropriate for actions whose only copy of the data lived in the
+ * dead sandbox's local working tree (e.g. pushing uncommitted local changes)
+ * — that data is already gone the moment the sandbox expired, recreating
+ * doesn't bring it back, and silently "succeeding" against an empty retry
+ * would be misleading.
+ *
+ * Returns null for the one genuinely unrecoverable case: a cloned repo with
+ * no GitHub token to re-clone from.
+ */
+export async function recreateChatSandbox(
+  options: RecreateChatSandboxOptions
+): Promise<CreatedSandbox | null> {
+  const { daytona, chat, userId, githubToken } = options
+  // No sandboxId on the chat here: this wrapper always means "treat as
+  // expired/gone", so force the create path rather than attempting a reuse.
+  const result = await ensureSandboxRunning({
+    daytona,
+    chat: { ...chat, sandboxId: null },
+    userId,
+    githubToken,
+  })
+  return result
 }
 
 /**
