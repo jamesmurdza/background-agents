@@ -7,6 +7,7 @@ const PORT = 4502;
 const VIEWPORT = { width: 1280, height: 800 };
 
 const app = express();
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.send(`<!doctype html>
@@ -89,13 +90,94 @@ function broadcastFrame(base64Data) {
   }
 }
 
+let page; // set once the browser is ready; control routes use this
+
+// --- Control API --------------------------------------------------------
+// POST /control  { "action": "...", ...params }
+// Drives the same live `page` the mirror is streaming, so every action is
+// visible to anyone watching the viewer page in real time.
+
+app.post("/control", async (req, res) => {
+  if (!page) return res.status(503).json({ success: false, error: "Browser not ready yet" });
+
+  const { action, ...params } = req.body ?? {};
+
+  try {
+    switch (action) {
+      case "goto": {
+        if (!params.url) throw new Error("goto requires 'url'");
+        await page.goto(params.url, { waitUntil: "load", timeout: 30000 });
+        return res.json({ success: true, url: page.url(), title: await page.title() });
+      }
+
+      case "click": {
+        if (!params.selector) throw new Error("click requires 'selector'");
+        await page.click(params.selector, { timeout: params.timeout ?? 10000 });
+        return res.json({ success: true });
+      }
+
+      case "type": {
+        if (!params.selector || params.text == null) throw new Error("type requires 'selector' and 'text'");
+        await page.fill(params.selector, String(params.text), { timeout: params.timeout ?? 10000 });
+        return res.json({ success: true });
+      }
+
+      case "press": {
+        if (!params.key) throw new Error("press requires 'key'");
+        if (params.selector) {
+          await page.focus(params.selector);
+        }
+        await page.keyboard.press(params.key);
+        return res.json({ success: true });
+      }
+
+      case "scroll": {
+        await page.mouse.wheel(params.deltaX ?? 0, params.deltaY ?? 400);
+        return res.json({ success: true });
+      }
+
+      case "waitForSelector": {
+        if (!params.selector) throw new Error("waitForSelector requires 'selector'");
+        await page.waitForSelector(params.selector, { timeout: params.timeout ?? 10000 });
+        return res.json({ success: true });
+      }
+
+      case "wait": {
+        await page.waitForTimeout(params.ms ?? 1000);
+        return res.json({ success: true });
+      }
+
+      case "evaluate": {
+        if (!params.script) throw new Error("evaluate requires 'script' (a JS expression)");
+        const result = await page.evaluate(new Function(`return (${params.script})`));
+        return res.json({ success: true, result });
+      }
+
+      case "status": {
+        return res.json({ success: true, url: page.url(), title: await page.title() });
+      }
+
+      case "screenshot": {
+        const buffer = await page.screenshot({ type: "jpeg", quality: 70 });
+        return res.json({ success: true, image: buffer.toString("base64") });
+      }
+
+      default:
+        return res.status(400).json({ success: false, error: `Unknown action: "${action}"` });
+    }
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`Mirror page: http://localhost:${PORT}`);
+  console.log(`Control API: POST http://localhost:${PORT}/control`);
 });
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: VIEWPORT });
+  page = await browser.newPage({ viewport: VIEWPORT });
 
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Page.startScreencast", { format: "jpeg", quality: 60, everyNthFrame: 1 });
@@ -109,29 +191,6 @@ server.listen(PORT, () => {
     }
   });
 
-  console.log("Starting automated actions (looping)...");
-
-  while (true) {
-    await page.goto("https://example.com");
-    await page.waitForTimeout(2000);
-
-    await page.goto("https://news.ycombinator.com");
-    await page.waitForTimeout(2000);
-
-    for (let i = 0; i < 5; i++) {
-      await page.mouse.wheel(0, 400);
-      await page.waitForTimeout(800);
-    }
-
-    const firstLink = page.locator(".titleline > a").first();
-    const title = await firstLink.textContent().catch(() => null);
-    console.log("Clicking first story:", title);
-    await firstLink.click().catch(() => {});
-    await page.waitForTimeout(3000);
-
-    await page.goBack().catch(() => {});
-    await page.waitForTimeout(2000);
-
-    console.log("Loop iteration complete, restarting...");
-  }
+  await page.goto("about:blank");
+  console.log("Browser ready. Waiting for /control commands...");
 })();
