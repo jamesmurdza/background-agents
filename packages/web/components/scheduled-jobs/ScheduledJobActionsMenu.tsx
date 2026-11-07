@@ -1,6 +1,6 @@
 "use client"
 
-import { MoreHorizontal, Play, Pencil, Trash2, KeyRound } from "lucide-react"
+import { MoreHorizontal, Play, Pencil, Trash2, KeyRound, Power } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,6 +14,7 @@ interface ScheduledJobActionsMenuProps {
   onEdit: (job: ScheduledJob) => void
   onRunNow: (job: ScheduledJob) => void
   onRotateToken?: (job: ScheduledJob) => void
+  onToggleEnabled?: (job: ScheduledJob, enabled: boolean) => void
   onRequestDelete: (job: ScheduledJob) => void
   /** Stop the trigger click from bubbling to a row's onClick (row layouts only). */
   stopPropagation?: boolean
@@ -21,16 +22,17 @@ interface ScheduledJobActionsMenuProps {
 }
 
 /**
- * The "..." overflow menu (Edit / Run Now / Rotate Webhook Token / Delete)
- * shared by the job detail page's header menu (previously also JobsList's
- * per-row menu, before the standalone jobs list was removed), so
- * the menu markup lives in exactly one place.
+ * The "..." overflow menu (Edit / Run Now / Enable-Disable / Rotate Webhook
+ * Token / Delete) shared by the job detail page's header menu (previously
+ * also JobsList's per-row menu, before the standalone jobs list was
+ * removed), so the menu markup lives in exactly one place.
  */
 export function ScheduledJobActionsMenu({
   job,
   onEdit,
   onRunNow,
   onRotateToken,
+  onToggleEnabled,
   onRequestDelete,
   stopPropagation,
   className,
@@ -58,6 +60,12 @@ export function ScheduledJobActionsMenu({
           <Play className="h-3.5 w-3.5 mr-2" />
           Run Now
         </DropdownMenuItem>
+        {onToggleEnabled && (
+          <DropdownMenuItem onSelect={() => onToggleEnabled(job, !job.enabled)}>
+            <Power className="h-3.5 w-3.5 mr-2" />
+            {job.enabled ? "Disable" : "Enable"}
+          </DropdownMenuItem>
+        )}
         {job.triggerType === "incoming" && onRotateToken && (
           <DropdownMenuItem onSelect={() => onRotateToken(job)}>
             <KeyRound className="h-3.5 w-3.5 mr-2" />

@@ -517,7 +517,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Don't render chats until hydrated to avoid SSR mismatch
   const displayChats = isHydrated ? chats : []
-  const displayCurrentChatId = isHydrated ? currentChatId : null
+  // Don't highlight a chat row in the sidebar while viewing a scheduled job —
+  // currentChatId still reflects whatever chat was last open and shouldn't
+  // visually look "selected" on an unrelated /jobs/[id] page.
+  const displayCurrentChatId = isHydrated && !isJobsRoute ? currentChatId : null
 
   // Props shared by the desktop split-pane and mobile full-screen PreviewView.
   // Only style/className differ between the two layouts.

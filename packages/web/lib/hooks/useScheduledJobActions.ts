@@ -63,6 +63,23 @@ export function useScheduledJobActions() {
     }
   }, [patchJobCaches])
 
+  const rename = useCallback(async (job: ScheduledJob, name: string): Promise<ScheduledJob | null> => {
+    try {
+      const res = await fetch(`/api/scheduled-jobs/${job.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) throw new Error("Failed to rename job")
+      const updated: ScheduledJob = await res.json()
+      patchJobCaches(updated)
+      return updated
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rename job")
+      return null
+    }
+  }, [patchJobCaches])
+
   const deleteJob = useCallback(async (job: ScheduledJob): Promise<boolean> => {
     try {
       const res = await fetch(`/api/scheduled-jobs/${job.id}`, { method: "DELETE" })
@@ -78,5 +95,5 @@ export function useScheduledJobActions() {
     }
   }, [queryClient])
 
-  return { error, setError, runNow, rotateToken, setEnabled, deleteJob }
+  return { error, setError, runNow, rotateToken, setEnabled, rename, deleteJob }
 }
