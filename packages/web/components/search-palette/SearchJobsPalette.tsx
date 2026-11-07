@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { Clock, Webhook } from "lucide-react"
 import { format } from "date-fns"
@@ -18,6 +17,8 @@ import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { useScheduledJobsQuery } from "@/lib/query/hooks/useScheduledJobsQuery"
 import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
+import { useSidebar } from "@/lib/contexts"
+import { ROUTES } from "@/lib/hooks/useUrlNavigation"
 import { queryKeys } from "@/lib/query/keys"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 
@@ -47,7 +48,7 @@ function TriggerIcon({ job }: { job: { triggerType: string } }) {
  * scheduled jobs are a distinct entity with their own cache/query hook.
  */
 export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps) {
-  const router = useRouter()
+  const sidebar = useSidebar()
   const queryClient = useQueryClient()
   const { data: jobs = [] } = useScheduledJobsQuery()
   const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
@@ -67,7 +68,13 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
     // different cache keys, so without this it's a guaranteed network
     // round-trip on every click).
     queryClient.setQueryData(queryKeys.scheduledJobs.detail(job.id), job)
-    router.push(`/jobs/${job.id}`)
+    // Same in-SPA navigation pattern as useUrlSync's "job" route case /
+    // handleNavigateToJob — set view state directly and pushState the URL,
+    // rather than router.push, which renders /jobs/[id] as a separate Next
+    // route and remounts the whole app shell on every click.
+    sidebar.setViewMode("scheduled-jobs")
+    sidebar.setSelectedScheduledJob({ id: job.id, name: job.name })
+    window.history.pushState(null, "", ROUTES.job.build(job.id))
     onOpenChange(false)
   }
 
