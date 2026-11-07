@@ -97,6 +97,32 @@ describe("force-push failure banner", () => {
   })
 })
 
+describe("conflict banner", () => {
+  it("shows a merge-conflict banner with resolve and abort actions", () => {
+    const html = renderWarning(0, false, {}, {
+      rebaseConflict: { inRebase: false, inMerge: true, conflictedFiles: ["a.ts", "b.ts"] },
+    })
+    expect(html).toContain('data-testid="conflict-warning"')
+    expect(html).toContain("A merge conflict is in progress (2 files).")
+    expect(html).toContain(">Resolve</button>")
+    expect(html).toContain(">abort</button>")
+  })
+
+  it("labels a rebase conflict distinctly and singularizes a single file", () => {
+    const html = renderWarning(0, false, {}, {
+      rebaseConflict: { inRebase: true, inMerge: false, conflictedFiles: ["a.ts"] },
+    })
+    expect(html).toContain("A rebase conflict is in progress (1 file).")
+  })
+
+  it("hides when there is no conflict in progress", () => {
+    const html = renderWarning(0, false, {}, {
+      rebaseConflict: { inRebase: false, inMerge: false, conflictedFiles: [] },
+    })
+    expect(html).not.toContain('data-testid="conflict-warning"')
+  })
+})
+
 describe("chat execution presentation", () => {
   it.each([false, true])("offers model selection without replaying an unsupported turn (persisted=%s)", persisted => {
     const reason = "400 invalid_request_error: The model is not supported. private-provider-detail"

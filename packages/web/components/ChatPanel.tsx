@@ -4,7 +4,6 @@ import { useState } from "react"
 
 import {
   ChatHeader,
-  ConflictBar,
   ChatInput,
   FilePreviewModal,
   ChatPanelSkeleton,
@@ -106,9 +105,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
     reasoningEffortCapability,
     currentAgent,
     currentModel,
-    rebaseConflict,
     inConflict,
-    isMergeConflict,
     hasQueued,
     isPaused,
     isRunning,
@@ -265,17 +262,6 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
         />
       )}
 
-      {/* Conflict banner — replaces the old header icon so the warning is
-          visible without needing to click anything. */}
-      {inConflict && (
-        <ConflictBar
-          rebaseConflict={rebaseConflict}
-          isMergeConflict={isMergeConflict}
-          onAbort={() => git.handleAbortConflict?.()}
-          actionLoading={git.actionLoading}
-        />
-      )}
-
       {/* Messages */}
       <ChatMessageList
         chat={chat}
@@ -287,6 +273,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
         onOpenFile={onOpenFile}
         onOpenChanges={onOpenChanges}
         onCreateRepo={() => modals.setRepoCreateOpen(true)}
+        onAbortConflict={() => modals.setAbortConflictOpen(true)}
         onReload={onReload}
         onSendMessage={onSendMessage}
         onRemoveQueuedMessage={onRemoveQueuedMessage}

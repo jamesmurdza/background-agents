@@ -40,6 +40,10 @@ export interface ModalContextValue {
   deleteConfirmChatId: string | null
   setDeleteConfirmChatId: (chatId: string | null) => void
 
+  // Abort merge/rebase confirmation (triggered from the conflict banner)
+  abortConflictOpen: boolean
+  setAbortConflictOpen: (open: boolean) => void
+
   // Environment variables modal
   envVarsModalOpen: boolean
   setEnvVarsModalOpen: (open: boolean) => void
@@ -102,6 +106,9 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
 
   // Delete confirmation
   const [deleteConfirmChatId, setDeleteConfirmChatId] = useState<string | null>(null)
+
+  // Abort merge/rebase confirmation
+  const [abortConflictOpen, setAbortConflictOpen] = useState(false)
 
   // Environment variables modal
   const [envVarsModalOpen, setEnvVarsModalOpen] = useState(false)
@@ -186,6 +193,10 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
     // Delete confirmation
     deleteConfirmChatId,
     setDeleteConfirmChatId,
+
+    // Abort merge/rebase confirmation
+    abortConflictOpen,
+    setAbortConflictOpen,
 
     // Environment variables modal
     envVarsModalOpen,
