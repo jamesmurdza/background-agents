@@ -211,19 +211,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     }
   }, [currentChatId, addMessage])
 
-  // Git dialogs state — the hook does its own target-chat lookups internally
-  // (finding the chat that owns a branch in this repo) given `chats` and
-  // `updateChatById`, and subscribes to SSE conflict updates via
-  // setOnConflictStateChange so the warning icon refreshes live. Backend
-  // creates messages directly in DB; refetchMessages pulls them down.
-  const gitDialogs = useGitDialogs({
-    chat: currentChat ?? null,
-    chats,
-    updateChatById,
-    refetchMessages,
-    setOnConflictStateChange,
-  })
-
   // Close mobile sidebar when switching to desktop
   useEffect(() => {
     if (!isMobile) {
@@ -341,6 +328,22 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     materializeDraft,
     drafts,
     updateDraft,
+  })
+
+  // Git dialogs state — the hook does its own target-chat lookups internally
+  // (finding the chat that owns a branch in this repo) given `chats` and
+  // `updateChatById`, and subscribes to SSE conflict updates via
+  // setOnConflictStateChange so the warning icon refreshes live. Backend
+  // creates messages directly in DB; refetchMessages pulls them down. Uses
+  // displayCurrentChat (not the real currentChat) so draft chats — which have
+  // no DB row yet but do have repo/baseBranch data — still populate the
+  // branch dropdowns correctly.
+  const gitDialogs = useGitDialogs({
+    chat: displayCurrentChat ?? null,
+    chats,
+    updateChatById,
+    refetchMessages,
+    setOnConflictStateChange,
   })
 
   // Chat/job navigation: view-switching handlers, keyboard traversal,
