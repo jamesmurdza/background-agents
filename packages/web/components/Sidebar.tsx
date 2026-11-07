@@ -356,8 +356,8 @@ export function Sidebar({
         >
           {/* Header with close button */}
           <div className="flex items-center justify-between px-4 pt-safe">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold text-foreground">
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-base font-semibold text-foreground truncate">
                 Background Agents
               </h1>
             </div>
@@ -532,10 +532,10 @@ export function Sidebar({
         ) : (
           <>
             <div className={cn(
-              "flex items-center gap-2",
+              "flex items-center gap-2 min-w-0",
               isDesktopApp && "invisible" // Hide text but keep space for window controls
             )}>
-              <h1 className="text-sm font-semibold text-foreground truncate">
+              <h1 className="text-sm font-semibold text-foreground truncate min-w-0">
                 Background Agents
               </h1>
             </div>

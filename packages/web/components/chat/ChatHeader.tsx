@@ -103,7 +103,7 @@ export function ChatHeader({
       }}
     >
       <div
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 min-w-0"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
         {/* Conflict indicator */}
@@ -134,13 +134,13 @@ export function ChatHeader({
             className="w-56 font-medium"
           />
         ) : (
-          <div className="group/title relative flex items-center gap-[2px]" ref={titleMenuRef}>
+          <div className="group/title relative flex items-center gap-[2px] min-w-0" ref={titleMenuRef}>
             <button
               onClick={startEditingTitle}
-              className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-pointer"
+              className="flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-pointer"
               title="Click to rename"
             >
-              {chatTitle}
+              <span className="truncate">{chatTitle}</span>
             </button>
             <button
               onClick={() => setTitleMenuOpen((v) => !v)}
