@@ -149,7 +149,7 @@ export function SearchPalette({
                 <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{chat.displayName ?? "Untitled Chat"}</span>
                 {chat.repo !== NEW_REPOSITORY && (
-                  <span className="text-muted-foreground text-xs ml-2 shrink-0">({repoNameOnly(chat.repo)})</span>
+                  <span className="text-muted-foreground text-xs ml-2 shrink-0">{repoNameOnly(chat.repo)}</span>
                 )}
               </CommandItem>
             ))}
