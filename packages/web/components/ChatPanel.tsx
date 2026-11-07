@@ -4,7 +4,7 @@ import { useState } from "react"
 
 import {
   ChatHeader,
-  MobileConflictBar,
+  ConflictBar,
   ChatInput,
   FilePreviewModal,
   ChatPanelSkeleton,
@@ -262,9 +262,10 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
         />
       )}
 
-      {/* Mobile conflict bar */}
-      {isMobile && inConflict && (
-        <MobileConflictBar
+      {/* Conflict banner — replaces the old header icon so the warning is
+          visible without needing to click anything. */}
+      {inConflict && (
+        <ConflictBar
           rebaseConflict={rebaseConflict}
           isMergeConflict={isMergeConflict}
           onAbort={() => git.handleAbortConflict?.()}

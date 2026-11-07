@@ -19,13 +19,11 @@ interface MessageBubbleProps {
   repo?: string
   /** Called when the user clicks a tool-call row that references a file. */
   onOpenFile?: (filePath: string) => void
-  /** Called when the user clicks the "force push" link in a push-failure message. */
-  onForcePush?: () => void
 }
 
 // Memoized MessageBubble to prevent re-renders when parent (ChatPanel) re-renders
 // due to input changes. Only re-render when message content actually changes.
-export const MessageBubble = memo(function MessageBubble({ message, isStreaming, isMobile = false, repo, onOpenFile, onForcePush }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ message, isStreaming, isMobile = false, repo, onOpenFile }: MessageBubbleProps) {
   const isUser = message.role === "user"
   const hasUploadedFiles = isUser && message.uploadedFiles && message.uploadedFiles.length > 0
 
@@ -68,7 +66,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
             )}
           </div>
         ) : (
-          <AssistantContent message={message} isStreaming={isStreaming} isMobile={isMobile} repo={repo} onOpenFile={onOpenFile} onForcePush={onForcePush} />
+          <AssistantContent message={message} isStreaming={isStreaming} isMobile={isMobile} repo={repo} onOpenFile={onOpenFile} />
         )}
       </div>
     </div>
@@ -84,7 +82,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
     prevProps.isStreaming === nextProps.isStreaming &&
     prevProps.isMobile === nextProps.isMobile &&
     prevProps.repo === nextProps.repo
-    // Note: onOpenFile and onForcePush are stable callbacks from parent
+    // Note: onOpenFile is a stable callback from parent
   )
 })
 
@@ -93,7 +91,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
 // Assistant Content (with tool calls)
 // =============================================================================
 
-function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpenFile, onForcePush }: { message: Message; isStreaming?: boolean; isMobile?: boolean; repo?: string; onOpenFile?: (filePath: string) => void; onForcePush?: () => void }) {
+function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpenFile }: { message: Message; isStreaming?: boolean; isMobile?: boolean; repo?: string; onOpenFile?: (filePath: string) => void }) {
   const hasContent = message.content && message.content.trim().length > 0
   const hasToolCalls = message.toolCalls && message.toolCalls.length > 0
   const hasBlocks = message.contentBlocks && message.contentBlocks.length > 0
@@ -113,7 +111,9 @@ function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpen
     )
   }
 
-  // Git operation messages use SystemMessage component
+  // Git operation messages use SystemMessage component. Force-push failures
+  // are filtered out before reaching here — see ChatMessageList's
+  // forcePushFailure banner.
   if (isGitOperation) {
     return (
       <SystemMessage
@@ -124,7 +124,6 @@ function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpen
         repo={repo}
         linkBranch={message.linkBranch}
         metadata={message.metadata}
-        onForcePush={onForcePush}
       />
     )
   }

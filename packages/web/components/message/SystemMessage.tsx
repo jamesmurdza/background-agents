@@ -16,13 +16,12 @@ export interface SystemMessageProps {
   repo?: string
   linkBranch?: string
   metadata?: MessageMetadata
-  onForcePush?: () => void
   /** Color the message text red to match the error icon. Used for agent errors
    *  but not git errors (which keep the red icon with muted text). */
   redText?: boolean
 }
 
-export function SystemMessage({ icon: Icon, content, variant = "success", isMobile = false, repo, linkBranch, metadata, onForcePush, redText = false }: SystemMessageProps) {
+export function SystemMessage({ icon: Icon, content, variant = "success", isMobile = false, repo, linkBranch, metadata, redText = false }: SystemMessageProps) {
   const iconClasses = cn(
     "shrink-0",
     variant === "error" && "text-red-500 dark:text-red-400",
@@ -62,34 +61,9 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
     return null
   }
 
-  // Check if this message has a force-push action via metadata
-  const hasForcePushAction = metadata?.action === "force-push" && onForcePush
-
-  // Find "force push" text in content to make it clickable
-  const FORCE_PUSH_TEXT = "force push"
-  const forcePushIdx = hasForcePushAction ? content.toLowerCase().indexOf(FORCE_PUSH_TEXT) : -1
-  const hasForcePushLink = forcePushIdx !== -1
-
   const parsed = parseOperationMessage(content)
 
   const renderContent = () => {
-    if (hasForcePushLink && onForcePush) {
-      const before = content.slice(0, forcePushIdx)
-      const after = content.slice(forcePushIdx + FORCE_PUSH_TEXT.length)
-      return (
-        <>
-          {before}
-          <button
-            type="button"
-            onClick={onForcePush}
-            className="font-semibold underline underline-offset-2 hover:text-foreground transition-colors cursor-pointer"
-          >
-            force push
-          </button>
-          {after}
-        </>
-      )
-    }
     if (!parsed) return content
     if (parsed.type === "two") {
       return (
@@ -112,7 +86,7 @@ export function SystemMessage({ icon: Icon, content, variant = "success", isMobi
   }
 
   // Determine the link URL (PR link takes precedence over branch link)
-  const linkUrl = prUrl || (branchUrl && !hasForcePushLink ? branchUrl : null)
+  const linkUrl = prUrl || branchUrl
 
   return (
     <div className={cn(

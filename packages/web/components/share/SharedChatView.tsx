@@ -73,7 +73,7 @@ export function SharedChatView({ chat }: SharedChatViewProps) {
                       // JSONB tool data is already sanitized server-side.
                       message={message as unknown as Message}
                       repo={chat.repo ?? undefined}
-                      // No onOpenFile / onForcePush: file references render as text.
+                      // No onOpenFile: file references render as text.
                     />
                   </div>
                 </Fragment>
