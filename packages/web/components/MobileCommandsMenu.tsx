@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { GitMerge, GitBranch, GitPullRequest, GitCommitVertical, GitBranchPlus, XCircle, Share2, ChevronLeft, Copy, Check, Link2Off, Loader2 } from "lucide-react"
 import { MobileBottomSheet } from "./ui/MobileBottomSheet"
 import { cn } from "@/lib/utils"
@@ -176,6 +176,13 @@ function ShareSheet({ chat, onBack }: { chat: Chat; onBack: () => void }) {
   const { shareId, busy, copied, shareUrl, enableShare, revokeShare, copyLink } =
     useShareChat(chat.id, chat.shareId)
 
+  // Create the link automatically as soon as this sheet is shown — no extra
+  // "Create public link" step for the user to tap through.
+  useEffect(() => {
+    if (!shareId && !busy) enableShare()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div className="px-4 py-3">
       <button
@@ -225,23 +232,10 @@ function ShareSheet({ chat, onBack }: { chat: Chat; onBack: () => void }) {
           </button>
         </>
       ) : (
-        <>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Create a public link so anyone can view this chat read-only.
-          </p>
-          <button
-            onClick={enableShare}
-            disabled={busy}
-            className="mt-4 flex items-center justify-center gap-2 w-full rounded-md bg-foreground px-3 py-2.5 text-sm font-medium text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
-          >
-            {busy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Share2 className="h-4 w-4" />
-            )}
-            Create public link
-          </button>
-        </>
+        <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Creating link…
+        </p>
       )}
     </div>
   )

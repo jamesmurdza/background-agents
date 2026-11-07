@@ -13,7 +13,6 @@ import {
   PopoverHeader,
   PopoverDescription,
   CopyableField,
-  PopoverPrimaryButton,
   PopoverTextButton,
 } from "@/components/ui/popover-parts"
 
@@ -37,8 +36,15 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
   const { shareId, busy, copied, shareUrl, enableShare, revokeShare, copyLink } =
     useShareChat(chatId, initialShareId)
 
+  // Create the link automatically as soon as the popover opens — no extra
+  // "Create public link" step for the user to click through.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (next && !shareId && !busy) enableShare()
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           className={cn(
@@ -68,14 +74,7 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
             </PopoverTextButton>
           </>
         ) : (
-          <>
-            <PopoverDescription>
-              Create a public link so anyone can view this chat read-only.
-            </PopoverDescription>
-            <PopoverPrimaryButton onClick={enableShare} loading={busy}>
-              Create public link
-            </PopoverPrimaryButton>
-          </>
+          <PopoverDescription>Creating link…</PopoverDescription>
         )}
       </PopoverContent>
     </Popover>
