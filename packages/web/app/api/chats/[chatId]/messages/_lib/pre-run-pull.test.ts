@@ -74,4 +74,16 @@ describe("runPreRunPull — gate", () => {
       "agent/abc123"
     )
   })
+
+  it("hands a short note to the agent when a prior conflicted pull is still in progress", async () => {
+    autoPullBeforeRun.mockResolvedValue({
+      status: "conflict", alreadyInProgress: true, conflictedFiles: ["a.ts", "b.ts"],
+    })
+
+    const result = await runPreRunPull({ ...baseParams, createdSandbox: false })
+
+    expect(result).toEqual({
+      pullConflictNote: "A merge of origin/agent/abc123 is in progress with conflicts in: a.ts, b.ts. ",
+    })
+  })
 })
