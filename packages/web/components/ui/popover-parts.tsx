@@ -19,7 +19,7 @@ export function PopoverHeader({ icon, title }: { icon: React.ReactNode; title: s
 
 /** Small muted description line under the header. */
 export function PopoverDescription({ children }: { children: React.ReactNode }) {
-  return <p className="mt-2 text-xs text-muted-foreground">{children}</p>
+  return <p className="mt-2 text-sm text-muted-foreground">{children}</p>
 }
 
 /** Readonly value row with an optional copy button and optional external link. */
@@ -41,7 +41,7 @@ export function CopyableField({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 min-w-0 truncate rounded-md border border-border bg-muted px-2 py-1.5 text-xs text-primary hover:underline"
+          className="flex-1 min-w-0 truncate rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-primary hover:underline"
         >
           {value}
         </a>
@@ -50,7 +50,7 @@ export function CopyableField({
           readOnly
           value={value}
           onFocus={(e) => e.currentTarget.select()}
-          className="flex-1 min-w-0 rounded-md border border-border bg-muted px-2 py-1.5 text-xs text-foreground outline-none"
+          className="flex-1 min-w-0 rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground outline-none"
         />
       )}
       {onCopy && (
@@ -87,8 +87,8 @@ export function PopoverPrimaryButton({
         onClick={onClick}
         disabled={disabled || loading}
         className={cn(
-          "flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white",
-          "hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+          "flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white",
+          "hover:bg-green-700 active:bg-green-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
         )}
       >
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -99,7 +99,8 @@ export function PopoverPrimaryButton({
   )
 }
 
-/** Secondary/destructive text action, e.g. "Stop sharing". */
+/** Secondary/destructive action, e.g. "Stop sharing" — a real button,
+    right-aligned like PopoverPrimaryButton, just styled as destructive. */
 export function PopoverTextButton({
   onClick,
   disabled = false,
@@ -114,13 +115,15 @@ export function PopoverTextButton({
   children: React.ReactNode
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      className="mt-3 flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 transition-colors cursor-pointer disabled:opacity-50"
-    >
-      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
-      {children}
-    </button>
+    <div className="mt-3 flex justify-end">
+      <button
+        onClick={onClick}
+        disabled={disabled || loading}
+        className="flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 active:bg-destructive/15 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+      >
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
+        {children}
+      </button>
+    </div>
   )
 }

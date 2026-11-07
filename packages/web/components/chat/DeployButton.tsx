@@ -140,7 +140,7 @@ export function DeployButton({ chatId, repo, branch }: DeployButtonProps) {
           <Rocket className="h-4 w-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
+      <PopoverContent align="end" className="w-[28rem]">
         <PopoverHeader icon={<Rocket className="h-4 w-4 text-muted-foreground" />} title="Deploy to Netlify" />
 
         {!info && !error && (
