@@ -343,6 +343,12 @@ export interface EnsureSandboxRunningOptions {
   githubToken: string | null
   /** The turn's secrets, to mount if a sandbox has to be created. */
   turnSecrets?: TurnSecret[]
+  /**
+   * Preferred name for the fresh branch created when the chat has no
+   * existing branch yet (first-time creation). Ignored when the chat already
+   * has a branch to restore. Falls back to a random `agent/<id>` name.
+   */
+  newBranchHint?: string
 }
 
 export interface EnsuredSandboxRunning extends CreatedSandbox {
@@ -372,7 +378,7 @@ export interface EnsuredSandboxRunning extends CreatedSandbox {
 export async function ensureSandboxRunning(
   options: EnsureSandboxRunningOptions
 ): Promise<EnsuredSandboxRunning | null> {
-  const { daytona, chat, userId, githubToken, turnSecrets } = options
+  const { daytona, chat, userId, githubToken, turnSecrets, newBranchHint } = options
 
   // Reuse the chat's existing sandbox if it's still there.
   if (chat.sandboxId) {
@@ -388,7 +394,10 @@ export async function ensureSandboxRunning(
         createdSandbox: false,
       }
     } catch {
-      // Confirmed gone — fall through and recreate.
+      // The recorded sandbox is gone (deleted out from under us, or Daytona
+      // auto-deleted it). Fall through and create a fresh one below,
+      // restoring the branch if we have one.
+      console.log(`[sandbox] Sandbox ${chat.sandboxId} not found for chat ${chat.id}; creating a new one`)
     }
   }
 
@@ -405,7 +414,7 @@ export async function ensureSandboxRunning(
   await prisma.chat.update({ where: { id: chat.id }, data: { status: "creating" } })
 
   const restoreExistingBranch = !!chat.branch
-  const newBranch = chat.branch ?? `agent/${randomUUID().slice(0, 8)}`
+  const newBranch = chat.branch ?? newBranchHint ?? `agent/${randomUUID().slice(0, 8)}`
 
   const created = await createSandboxForChat({
     daytona,

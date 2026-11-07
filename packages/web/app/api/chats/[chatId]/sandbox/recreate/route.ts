@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
-import { ensureSandboxStarted, recreateChatSandbox } from "@/lib/sandbox"
+import { ensureSandboxRunning } from "@/lib/sandbox"
 import {
   requireAuth,
   isAuthError,
@@ -54,28 +54,14 @@ export async function POST(
   if (!daytonaApiKey) return serverConfigError("DAYTONA_API_KEY")
   const daytona = new Daytona({ apiKey: daytonaApiKey })
 
-  // If the sandbox is actually still alive (e.g. the panel's probe raced a
-  // transient 404, or the user retried twice), don't create a second one —
-  // just make sure it's started and hand back what's already there.
-  if (chat.sandboxId) {
-    try {
-      const sandbox = await daytona.get(chat.sandboxId)
-      await ensureSandboxStarted(sandbox)
-      return Response.json({
-        sandboxId: chat.sandboxId,
-        previewUrlPattern: chat.previewUrlPattern,
-        branch: chat.branch,
-      })
-    } catch {
-      // Confirmed gone — fall through and recreate.
-    }
-  }
-
   const isNewRepo = chat.repo === NEW_REPOSITORY || chat.repo === "__new__"
   const githubToken = isNewRepo ? null : await getGitHubToken(auth.userId)
 
   try {
-    const created = await recreateChatSandbox({ daytona, chat, userId: auth.userId, githubToken })
+    // ensureSandboxRunning handles both cases: if the sandbox is actually
+    // still alive (e.g. the panel's probe raced a transient 404, or the user
+    // retried twice), it reuses it instead of creating a second one.
+    const created = await ensureSandboxRunning({ daytona, chat, userId: auth.userId, githubToken })
     if (!created) {
       return Response.json(
         { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },

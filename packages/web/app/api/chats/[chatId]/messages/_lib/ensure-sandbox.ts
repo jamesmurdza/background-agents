@@ -1,12 +1,6 @@
 import { Daytona } from "@daytonaio/sdk"
-import { randomUUID } from "crypto"
-import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
-import {
-  createSandboxForChat,
-  ensureSandboxStarted,
-  installSkillsForRepo,
-} from "@/lib/sandbox"
+import { ensureSandboxRunning } from "@/lib/sandbox"
 import type { TurnSecret } from "@/lib/server/turn-secrets"
 import type { ChatRecord, MessagePayload } from "./types"
 
@@ -79,102 +73,65 @@ export async function ensureSandboxForChat(params: {
 }): Promise<EnsuredSandbox | Response> {
   const { daytona, chat, chatId, payload, githubToken, userId, state, turnSecrets } = params
 
-  let sandboxId = state.sandboxId
-  let branch = state.branch
-  let previewUrlPattern = state.previewUrlPattern
+  // The reuse-or-create core (same checks, same order of operations) lives in
+  // the shared `ensureSandboxRunning` — this wrapper only layers the
+  // message-send-specific bookkeeping (SandboxState, in-memory sessionId,
+  // keeping the chat in "creating" rather than "idle" until persistTurn marks
+  // the turn running) on top.
+  const result = await ensureSandboxRunning({
+    daytona,
+    chat: {
+      id: chatId,
+      repo: chat.repo,
+      baseBranch: chat.baseBranch,
+      branch: state.branch,
+      sandboxId: state.sandboxId,
+      previewUrlPattern: state.previewUrlPattern,
+    },
+    userId,
+    githubToken,
+    turnSecrets,
+    newBranchHint: payload.newBranch,
+  })
 
-  // ── Reuse the chat's existing sandbox if it's still there ──────────────
-  let sandbox: DaytonaSandbox | null = null
-  if (sandboxId) {
-    try {
-      sandbox = await daytona.get(sandboxId)
-    } catch {
-      // The recorded sandbox is gone (deleted out from under us). Fall through
-      // and create a fresh one below, restoring the branch if we have one.
-      console.log(`[chats/messages] Sandbox ${sandboxId} not found for chat ${chatId}; creating a new one`)
-      sandbox = null
-    }
+  if (!result) {
+    // The one genuinely unrecoverable case: a cloned repo with no GitHub
+    // token to (re)clone from. ensureSandboxRunning already persisted the
+    // chat row as sandboxId: null / status: "error".
+    return Response.json(
+      { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },
+      { status: 410 }
+    )
   }
 
-  // ── Otherwise create one (first-time *or* recreation — same path) ──────
-  let createdSandbox = false
-  let branchRestored: boolean | undefined
-  if (!sandbox) {
-    const isNewRepo = chat.repo === NEW_REPOSITORY || chat.repo === "__new__"
+  const { sandbox, sandboxId, branch, previewUrlPattern, createdSandbox, branchRestored } = result
+  const resolvedPreviewUrlPattern = previewUrlPattern ?? null
 
-    // A cloned repo can only be (re)created with a token to clone it. This is
-    // the one genuinely unrecoverable case — everything else we can build.
-    if (!isNewRepo && !githubToken) {
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: { sandboxId: null, branch: null, previewUrlPattern: null, status: "error" },
-      })
-      return Response.json(
-        { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },
-        { status: 410 }
-      )
-    }
-
-    await prisma.chat.update({
-      where: { id: chatId },
-      data: { status: "creating" },
-    })
-
-    // Restore the chat's branch when it has one (recreation); otherwise create
-    // a fresh branch (first message of a new chat).
-    const restoreExistingBranch = !!branch
-    const newBranch = branch ?? payload.newBranch ?? `agent/${randomUUID().slice(0, 8)}`
-
-    const created = await createSandboxForChat({
-      daytona,
-      repo: chat.repo,
-      baseBranch: chat.baseBranch ?? "main",
-      newBranch,
-      githubToken: githubToken ?? undefined,
-      userId,
-      restoreExistingBranch,
-      turnSecrets,
-    })
-
-    sandbox = created.sandbox
-    sandboxId = created.sandboxId
-    branch = created.branch
-    previewUrlPattern = created.previewUrlPattern ?? null
-    createdSandbox = true
-    branchRestored = created.branchRestored
+  if (createdSandbox) {
     state.sandboxId = sandboxId
     state.branch = branch
-    state.previewUrlPattern = previewUrlPattern
+    state.previewUrlPattern = resolvedPreviewUrlPattern
     state.createdSandbox = true
 
     // A freshly created sandbox is a clean clone with no agent conversation
-    // history on disk. Drop any stale session pointer so the agent starts a new
-    // conversation instead of resuming a session the CLI can't find ("No
-    // conversation found with session ID"). Clear it both in the DB (future
-    // requests) and in memory (this request's resume read below). Agent-
-    // agnostic: sessionId is the generic resume pointer used by every agent.
-    await prisma.chat.update({
-      where: { id: chatId },
-      data: {
-        sandboxId,
-        branch,
-        previewUrlPattern,
-        sessionId: null,
-        // Keep the per-chat send claim until persistTurn marks the turn running.
-        // Releasing it here lets another tab or queue worker start a second turn.
-        status: "creating",
-      },
-    })
+    // history on disk. ensureSandboxRunning already cleared sessionId in the
+    // DB; mirror that in memory too so this request's resume read below
+    // doesn't try to resume a session the CLI can't find.
     chat.sessionId = null
+
+    // ensureSandboxRunning marks the chat row "idle" once the sandbox is up,
+    // since it has no notion of an in-flight message. The message path isn't
+    // done yet — keep the per-chat send claim by moving status back to
+    // "creating" until persistTurn marks the turn running.
+    await prisma.chat.update({ where: { id: chatId }, data: { status: "creating" } })
   }
 
-  await ensureSandboxStarted(sandbox)
-
-  // On a newly created sandbox (first-time or recreation), install all skills
-  // associated with this user+repo so the agent has them from the first prompt.
-  if (createdSandbox && chat.repo !== NEW_REPOSITORY) {
-    await installSkillsForRepo(sandbox, userId, chat.repo)
+  return {
+    sandbox,
+    sandboxId,
+    branch,
+    previewUrlPattern: resolvedPreviewUrlPattern,
+    createdSandbox,
+    branchRestored,
   }
-
-  return { sandbox, sandboxId: sandboxId as string, branch, previewUrlPattern, createdSandbox, branchRestored }
 }
