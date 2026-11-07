@@ -51,11 +51,25 @@ describe("isChatVisibleForFilter", () => {
     expect(isChatVisibleForFilter(withRepo, NO_REPOSITORY)).toBe(false)
   })
 
-  it("hides empty chats unless they were branched (have a parent)", () => {
-    const emptyRoot = makeChat({ id: "a", messages: [], messageCount: 0 })
-    const emptyBranch = makeChat({ id: "b", messages: [], messageCount: 0, parentChatId: "a" })
+  it("hides empty chats that are abandoned drafts (no parent, no sandbox)", () => {
+    const emptyRoot = makeChat({ id: "a", messages: [], messageCount: 0, sandboxId: null })
     expect(isChatVisibleForFilter(emptyRoot, ALL_REPOSITORIES)).toBe(false)
+  })
+
+  it("shows empty chats that were branched (have a parent)", () => {
+    const emptyBranch = makeChat({
+      id: "b",
+      messages: [],
+      messageCount: 0,
+      sandboxId: null,
+      parentChatId: "a",
+    })
     expect(isChatVisibleForFilter(emptyBranch, ALL_REPOSITORIES)).toBe(true)
+  })
+
+  it("shows empty chats that have been materialized with a sandbox", () => {
+    const materializedEmpty = makeChat({ id: "c", messages: [], messageCount: 0, sandboxId: "sb-1" })
+    expect(isChatVisibleForFilter(materializedEmpty, ALL_REPOSITORIES)).toBe(true)
   })
 })
 
