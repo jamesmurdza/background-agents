@@ -47,8 +47,19 @@ export {
   uninstallSkill,
   getSkillNameFromHandle,
   discoverInstalledSkills,
+  installPredefinedSkill,
   type OnSkillRemove,
 } from "./sandbox"
+
+// Predefined (built-in) skills manifest
+export {
+  PREDEFINED_SKILLS,
+  PREDEFINED_SKILLS_REPO,
+  predefinedSkillsBranch,
+  getPredefinedSkill,
+  buildPredefinedSkillUrl,
+  type PredefinedSkill,
+} from "./predefined-skills"
 
 // Utilities
 export { stripAnsi, parseSkillList, extractCleanError } from "./utils"
