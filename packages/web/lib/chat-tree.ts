@@ -21,9 +21,13 @@ import { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
  * this logic anywhere else — import it.
  */
 export function isChatVisibleForFilter(chat: Chat, repoFilter: string): boolean {
-  // Empty chats are only shown when branched (they carry a parentChatId).
+  // Empty chats are only shown when branched (parentChatId) or when they've
+  // been materialized with a real sandbox (sandboxId) — e.g. via Terminal,
+  // Open-in-VS-Code, or Merge on a draft chat, which creates a permanent DB
+  // row before any message is sent. A chat with none of these signals is an
+  // abandoned client-only draft and should stay hidden.
   const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
-  if (!hasMessages && !chat.parentChatId) return false
+  if (!hasMessages && !chat.parentChatId && !chat.sandboxId) return false
   // The "Archived chats" view shows only archived chats (across all repos);
   // every other filter shows only active (non-archived) chats.
   if (repoFilter === ARCHIVED_CHATS) return !!chat.archived
