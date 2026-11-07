@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, CreditCard, Server, Wrench, BarChart3, Rocket } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, CreditCard, Server, Wrench, BarChart3, Rocket, Globe } from "lucide-react"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -29,6 +29,7 @@ import {
   DeveloperSection,
   UsageSection,
   DeploymentsSection,
+  SharedLinksSection,
   initialCredValues,
   MASK,
   type HighlightKey,
@@ -38,7 +39,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "credits" | "usage" | "git" | "deployments" | "notifications" | "local-sync" | "appearance" | "developer"
+export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "credits" | "usage" | "git" | "deployments" | "shared-links" | "notifications" | "local-sync" | "appearance" | "developer"
 
 interface SettingsModalProps {
   open: boolean
@@ -72,6 +73,7 @@ const baseSections: SectionDef[] = [
   { key: "appearance", label: "Appearance", icon: Sun },
   { key: "git", label: "Git", icon: GitBranch },
   { key: "deployments", label: "Deployments", icon: Rocket },
+  { key: "shared-links", label: "Shared Links", icon: Globe },
   { key: "notifications", label: "Notifications", icon: Bell },
   { key: "developer", label: "Developer", icon: Wrench },
 ]
@@ -439,6 +441,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
         )
       case "deployments":
         return <DeploymentsSection isMobile={isMobile} />
+      case "shared-links":
+        return <SharedLinksSection isMobile={isMobile} />
       case "notifications":
         return (
           <NotificationsSection

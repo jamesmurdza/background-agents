@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useLayoutEffect, useState } from "react"
 
 /**
  * Coordinates two label groups (e.g. the composer's left and right trigger
@@ -19,20 +19,28 @@ import { useLayoutEffect, useRef, useState } from "react"
  * shift the available space and make the check lie about itself.
  */
 export function useTwoTierCollapse() {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const leftNaturalRef = useRef<HTMLDivElement | null>(null)
-  const leftCollapsedRef = useRef<HTMLDivElement | null>(null)
-  const rightNaturalRef = useRef<HTMLDivElement | null>(null)
-  const rightCollapsedRef = useRef<HTMLDivElement | null>(null)
+  // Plain refs can't tell us when the node they point at changes (e.g. the
+  // measurement clones get unmounted/remounted as the composer flips between
+  // mobile/desktop layouts) — a `useLayoutEffect` with an empty dependency
+  // array would keep its ResizeObserver attached to the old, now-detached
+  // nodes forever. Callback refs that land in state make every (re)mount
+  // visible as a dependency change, so the effect below tears down and
+  // re-observes whenever any of the five nodes is swapped out.
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  const [leftNatural, setLeftNatural] = useState<HTMLDivElement | null>(null)
+  const [leftCollapsed, setLeftCollapsed] = useState<HTMLDivElement | null>(null)
+  const [rightNatural, setRightNatural] = useState<HTMLDivElement | null>(null)
+  const [rightCollapsed, setRightCollapsed] = useState<HTMLDivElement | null>(null)
   const [showLeft, setShowLeft] = useState(true)
   const [showRight, setShowRight] = useState(true)
 
+  const containerRef = useCallback((node: HTMLDivElement | null) => setContainer(node), [])
+  const leftNaturalRef = useCallback((node: HTMLDivElement | null) => setLeftNatural(node), [])
+  const leftCollapsedRef = useCallback((node: HTMLDivElement | null) => setLeftCollapsed(node), [])
+  const rightNaturalRef = useCallback((node: HTMLDivElement | null) => setRightNatural(node), [])
+  const rightCollapsedRef = useCallback((node: HTMLDivElement | null) => setRightCollapsed(node), [])
+
   useLayoutEffect(() => {
-    const container = containerRef.current
-    const leftNatural = leftNaturalRef.current
-    const leftCollapsed = leftCollapsedRef.current
-    const rightNatural = rightNaturalRef.current
-    const rightCollapsed = rightCollapsedRef.current
     if (!container || !leftNatural || !leftCollapsed || !rightNatural || !rightCollapsed) return
 
     const check = () => {
@@ -69,7 +77,7 @@ export function useTwoTierCollapse() {
     observer.observe(rightNatural)
     observer.observe(rightCollapsed)
     return () => observer.disconnect()
-  }, [])
+  }, [container, leftNatural, leftCollapsed, rightNatural, rightCollapsed])
 
   return { containerRef, leftNaturalRef, leftCollapsedRef, rightNaturalRef, rightCollapsedRef, showLeft, showRight }
 }
