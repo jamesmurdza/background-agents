@@ -35,6 +35,8 @@ interface ChatPanelProps {
   onOpenChanges?: () => void
   /** Callback to open the environment variables modal */
   onOpenEnvVars?: () => void
+  /** Callback to open the skills modal */
+  onOpenSkills?: () => void
   /** True when the current chat is a not-yet-persisted draft. */
   isDraftChat?: boolean
   /** Persists the draft chat to the DB and returns the real chatId. */
@@ -58,7 +60,7 @@ interface ChatPanelProps {
   onOpenSandboxResize?: () => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenChanges, onOpenEnvVars, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, isAdmin = false, onOpenSandboxResize }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenChanges, onOpenEnvVars, onOpenSkills, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, isAdmin = false, onOpenSandboxResize }: ChatPanelProps) {
   const [modelPickerRequest, setModelPickerRequest] = useState<{ chatId: string; sequence: number }>()
   const composer = useChatComposer({
     chat,
@@ -256,6 +258,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
           chat={chat}
           onUpdateChat={onUpdateChat}
           onOpenEnvVars={onOpenEnvVars}
+          onOpenSkills={onOpenSkills}
           onOpenCommandPalette={onOpenCommandPalette}
           isAdmin={isAdmin}
           onOpenSandboxResize={onOpenSandboxResize}
