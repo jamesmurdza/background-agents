@@ -3,6 +3,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Global clickable-cursor convention: every interactive control should show
+   a hand cursor on hover, with no per-component opt-in required. Tailwind's
+   preflight resets native <button> to `cursor: default`, which is why this
+   was inconsistent across the app — this rule is the single source of truth
+   going forward, so new buttons/links/role="button" elements get a pointer
+   cursor for free without remembering to add `cursor-pointer` by hand.
+   Disabled elements are excluded here so existing per-component
+   `disabled:cursor-not-allowed` / `disabled:cursor-wait` utilities (which
+   are more specific about per-case disabled styling) keep working as
+   intended instead of being fought by this global rule. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+summary,
+label[for],
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+select:not(:disabled) {
+  cursor: pointer;
+}
+
 /* sugar-high syntax highlighting */
 :root {
   --sh-class: #1e88e5;
