@@ -65,8 +65,7 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
         {shareId ? (
           <>
             <PopoverDescription>
-              Anyone with this link can view this chat read-only. New messages
-              stay visible as the chat continues.
+              Anyone with this link can view but not edit this chat.
             </PopoverDescription>
             <CopyableField value={shareUrl} copied={copied} onCopy={copyLink} />
             <PopoverTextButton
