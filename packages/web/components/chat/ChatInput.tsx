@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback, useState, type ReactNode } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, Clock, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, List, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
@@ -160,9 +160,9 @@ export function ChatActionSlot({
             isMobile ? "h-9 w-9" : "h-7 w-7"
           )}
         >
-          {/* Clock (not ArrowUp) so a queued send reads differently from an
+          {/* List (not ArrowUp) so a queued send reads differently from an
               immediate one at a glance, not just via the tooltip. */}
-          <Clock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+          <List className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
         </button>
       ) : isRunning ? (
         <button
