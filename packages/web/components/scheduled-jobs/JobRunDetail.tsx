@@ -116,7 +116,7 @@ export function JobRunDetail({
           <div className="relative">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-accent transition-colors cursor-pointer"
+              className="flex h-7 items-center gap-2 px-3 rounded-md hover:bg-accent transition-colors cursor-pointer"
             >
               {selectedRun ? (
                 <>

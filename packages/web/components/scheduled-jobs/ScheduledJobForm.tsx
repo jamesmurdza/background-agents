@@ -176,41 +176,6 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
               )}
             </div>
 
-            <TriggerOptionsFields
-              triggerType={triggerType}
-              setTriggerType={setTriggerType}
-              clearFieldError={clearFieldError}
-              isCustomInterval={isCustomInterval}
-              intervalMinutes={intervalMinutes}
-              customIntervalValue={customIntervalValue}
-              customIntervalUnit={customIntervalUnit}
-              runAtDay={runAtDay}
-              runAtHourLocal={runAtHourLocal}
-              effectiveIntervalMinutes={effectiveIntervalMinutes}
-              timezoneName={timezoneName}
-              setIsCustomInterval={setIsCustomInterval}
-              setIntervalMinutes={setIntervalMinutes}
-              setCustomIntervalValue={setCustomIntervalValue}
-              setCustomIntervalUnit={setCustomIntervalUnit}
-              setRunAtDay={setRunAtDay}
-              setRunAtHourLocal={setRunAtHourLocal}
-              fieldErrors={fieldErrors}
-              incomingToken={incomingToken}
-              incomingWebhookUrl={incomingWebhookUrl}
-              copiedUrl={copiedUrl}
-              rotating={rotating}
-              handleCopyUrl={handleCopyUrl}
-              handleRotateToken={handleRotateToken}
-              isRepoLess={isRepoLess}
-              showContinueOption={showContinueOption}
-              showAutoPROption={showAutoPROption}
-              hasOptions={hasOptions}
-              continueFromLastRun={continueFromLastRun}
-              setContinueFromLastRun={setContinueFromLastRun}
-              autoPR={autoPR}
-              setAutoPR={setAutoPR}
-            />
-
             {/* Prompt Field - styled like ChatInput */}
             <div>
               <label htmlFor="scheduled-job-prompt" className="block text-sm font-medium mb-1">Prompt</label>
@@ -375,6 +340,41 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
                 </p>
               )}
             </div>
+
+            <TriggerOptionsFields
+              triggerType={triggerType}
+              setTriggerType={setTriggerType}
+              clearFieldError={clearFieldError}
+              isCustomInterval={isCustomInterval}
+              intervalMinutes={intervalMinutes}
+              customIntervalValue={customIntervalValue}
+              customIntervalUnit={customIntervalUnit}
+              runAtDay={runAtDay}
+              runAtHourLocal={runAtHourLocal}
+              effectiveIntervalMinutes={effectiveIntervalMinutes}
+              timezoneName={timezoneName}
+              setIsCustomInterval={setIsCustomInterval}
+              setIntervalMinutes={setIntervalMinutes}
+              setCustomIntervalValue={setCustomIntervalValue}
+              setCustomIntervalUnit={setCustomIntervalUnit}
+              setRunAtDay={setRunAtDay}
+              setRunAtHourLocal={setRunAtHourLocal}
+              fieldErrors={fieldErrors}
+              incomingToken={incomingToken}
+              incomingWebhookUrl={incomingWebhookUrl}
+              copiedUrl={copiedUrl}
+              rotating={rotating}
+              handleCopyUrl={handleCopyUrl}
+              handleRotateToken={handleRotateToken}
+              isRepoLess={isRepoLess}
+              showContinueOption={showContinueOption}
+              showAutoPROption={showAutoPROption}
+              hasOptions={hasOptions}
+              continueFromLastRun={continueFromLastRun}
+              setContinueFromLastRun={setContinueFromLastRun}
+              autoPR={autoPR}
+              setAutoPR={setAutoPR}
+            />
 
           </form>
 
