@@ -79,8 +79,9 @@ import {
 
 ### Codex Model Defaults
 
-Codex defaults to `gpt-6.1-sol` (`gpt-6.1-terra`, `gpt-6-astra`, `gpt-6-sol`,
-and `gpt-6-luna` are also offered). GPT-5.5 was retired from ChatGPT sign-in
+Codex defaults to `gpt-6.1-sol` (`gpt-6.1-terra`, `gpt-6-astra`, and
+`gpt-6-luna` are also offered; there is no "GPT-6 Sol" — the Sol tier only
+ships as 6.1). GPT-5.5 was retired from ChatGPT sign-in
 on Oct 14, 2026, not from the API — it's still offered, but gated to an
 OpenAI API key (`requiresKey: "openai"`, labeled "GPT-5.5 (API key only)").
 When a ChatGPT subscription is connected it takes precedence over an API key,
