@@ -26,7 +26,7 @@ export type UsageRange = "7d" | "30d" | "90d"
 const RANGE_DAYS: Record<UsageRange, number> = { "7d": 7, "30d": 30, "90d": 90 }
 
 /** Days covered by a range. */
-export function usageRangeDays(range: UsageRange): number {
+function usageRangeDays(range: UsageRange): number {
   return RANGE_DAYS[range]
 }
 
@@ -71,7 +71,7 @@ export function parseUsageScope(value: string | null): UsageScope {
 }
 
 /** Serialize a scope back into its query-param form. */
-export function formatUsageScope(scope: UsageScope): string {
+function formatUsageScope(scope: UsageScope): string {
   if (scope.kind === "repo") return `repo:${scope.repo}`
   if (scope.kind === "chat") return `chat:${scope.chatId}`
   return "account"
@@ -84,7 +84,7 @@ export function formatUsageScope(scope: UsageScope): string {
  * the chart has eight validated colours and a ninth would be indistinguishable
  * from one of them under colour-vision deficiency.
  */
-export const OTHER_SERIES_KEY = "__other__"
+const OTHER_SERIES_KEY = "__other__"
 
 /** How many real series a chart draws before the tail becomes "Other". */
 const MAX_SERIES = 8

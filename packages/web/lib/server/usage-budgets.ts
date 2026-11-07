@@ -93,7 +93,7 @@ interface BalanceBoost {
  * here (with a hard `until` expiry) to temporarily scale the balance; one whose
  * `until` is in the past is inert.
  */
-export const BALANCE_BOOST: BalanceBoost | null = null
+const BALANCE_BOOST: BalanceBoost | null = null
 
 /** The boost multiplier at `now` — 1 when no boost is live. */
 function getBoostMultiplier(now: Date): number {
