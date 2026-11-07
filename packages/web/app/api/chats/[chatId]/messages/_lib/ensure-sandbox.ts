@@ -76,7 +76,7 @@ export async function ensureSandboxForChat(params: {
   // The reuse-or-create core (same checks, same order of operations) lives in
   // the shared `ensureSandboxRunning` — this wrapper only layers the
   // message-send-specific bookkeeping (SandboxState, in-memory sessionId,
-  // keeping the chat in "creating" rather than "idle" until persistTurn marks
+  // keeping the chat in "creating" rather than "ready" until persistTurn marks
   // the turn running) on top.
   const result = await ensureSandboxRunning({
     daytona,
@@ -119,7 +119,7 @@ export async function ensureSandboxForChat(params: {
     // doesn't try to resume a session the CLI can't find.
     chat.sessionId = null
 
-    // ensureSandboxRunning marks the chat row "idle" once the sandbox is up,
+    // ensureSandboxRunning marks the chat row "ready" once the sandbox is up,
     // since it has no notion of an in-flight message. The message path isn't
     // done yet — keep the per-chat send claim by moving status back to
     // "creating" until persistTurn marks the turn running.
