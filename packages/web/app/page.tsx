@@ -762,7 +762,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                 />
               )}
             </div>
-            {!isMobile && preview.previewOpen && (
+            {!isMobile && sidebar.viewMode !== "scheduled-jobs" && preview.previewOpen && (
               <>
                 <div
                   onMouseDown={preview.startPreviewResize}
@@ -779,7 +779,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                 />
               </>
             )}
-            {!preview.previewOpen && preview.previewItems.length > 0 && (
+            {sidebar.viewMode !== "scheduled-jobs" && !preview.previewOpen && preview.previewItems.length > 0 && (
               <button
                 onClick={preview.showPreview}
                 className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex h-12 w-5 items-center justify-center rounded-l-md border border-r-0 border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
@@ -793,7 +793,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       </div>
 
       {/* Mobile preview - full-screen overlay since there's no room for a split pane. */}
-      {isMobile && preview.previewOpen && (
+      {isMobile && sidebar.viewMode !== "scheduled-jobs" && preview.previewOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-card pt-safe">
           <PreviewView
             className="flex-1 min-h-0"
