@@ -276,23 +276,18 @@ export function ChatMessageList({
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
-                You have {chat.uncommittedFilesCount} uncommitted{" "}
-                {chat.uncommittedFilesCount === 1 ? "file" : "files"} with nowhere to back{" "}
-                {chat.uncommittedFilesCount === 1 ? "it" : "them"} up.{" "}
+                Your changes will be lost if you don&apos;t commit them.{" "}
                 {onCreateRepo ? (
-                  <>
-                    <button
-                      type="button"
-                      data-testid="uncommitted-files-create-repo"
-                      onClick={onCreateRepo}
-                      className="underline underline-offset-2 hover:no-underline cursor-pointer"
-                    >
-                      Create a repo
-                    </button>{" "}
-                    to save your work.
-                  </>
+                  <button
+                    type="button"
+                    data-testid="uncommitted-files-create-repo"
+                    onClick={onCreateRepo}
+                    className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                  >
+                    Create a GitHub repository.
+                  </button>
                 ) : (
-                  "Link a GitHub repo to save your work."
+                  "Create a GitHub repository."
                 )}
               </span>
             </div>

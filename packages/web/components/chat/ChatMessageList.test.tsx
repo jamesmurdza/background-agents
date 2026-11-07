@@ -68,15 +68,15 @@ describe("uncommitted file warning", () => {
   it("offers to create a repo instead of committing when there is no linked repo", () => {
     const html = renderWarning(2, true)
     expect(html).toContain('data-testid="uncommitted-files-warning"')
-    expect(html).toContain("You have 2 uncommitted files with nowhere to back them up.")
+    expect(html).toContain("Your changes will be lost if you don't commit them.")
     expect(html).toContain('data-testid="uncommitted-files-create-repo"')
-    expect(html).toContain(">Create a repo</button> to save your work.")
+    expect(html).toContain(">Create a GitHub repository.</button>")
     expect(html).not.toContain(">commit</button>")
   })
 
-  it("singularizes the no-repo copy when there is exactly one file", () => {
+  it("shows the no-repo banner for a single file too", () => {
     const html = renderWarning(1, true)
-    expect(html).toContain("You have 1 uncommitted file with nowhere to back it up.")
+    expect(html).toContain('data-testid="uncommitted-files-warning"')
   })
 })
 
