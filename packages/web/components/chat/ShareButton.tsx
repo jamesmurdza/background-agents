@@ -69,7 +69,14 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
               stay visible as the chat continues.
             </PopoverDescription>
             <CopyableField value={shareUrl} copied={copied} onCopy={copyLink} />
-            <PopoverTextButton onClick={revokeShare} loading={busy} icon={<Link2Off className="h-3.5 w-3.5" />}>
+            <PopoverTextButton
+              onClick={async () => {
+                await revokeShare()
+                setOpen(false)
+              }}
+              loading={busy}
+              icon={<Link2Off className="h-3.5 w-3.5" />}
+            >
               Stop sharing
             </PopoverTextButton>
           </>
