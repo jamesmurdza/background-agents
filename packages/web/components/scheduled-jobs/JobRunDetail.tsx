@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Clock, AlarmClock, ChevronDown, Check, GitPullRequest } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { MessageBubble } from "@/components/MessageBubble"
-import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { ScheduledJobActionsMenu } from "@/components/scheduled-jobs/ScheduledJobActionsMenu"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
@@ -25,6 +25,7 @@ interface JobRunDetailProps {
   onRunNow: (job: ScheduledJob) => void
   onRotateToken: (job: ScheduledJob) => void
   onToggleEnabled: (job: ScheduledJob, enabled: boolean) => void
+  onRename: (job: ScheduledJob, name: string) => void
   /** Deletes the job; resolves to whether it succeeded. The caller handles
    *  navigating away from /jobs/[id] once it has. */
   onDelete: (job: ScheduledJob) => Promise<boolean>
@@ -39,6 +40,7 @@ export function JobRunDetail({
   onRunNow,
   onRotateToken,
   onToggleEnabled,
+  onRename,
   onDelete,
 }: JobRunDetailProps) {
   const queryClient = useQueryClient()
@@ -46,26 +48,63 @@ export function JobRunDetail({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
+  // Title editing state — same inline-rename pattern as ChatHeader.
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState("")
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  const startEditingTitle = () => {
+    setEditTitleValue(job.name)
+    setIsEditingTitle(true)
+    setTimeout(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    }, 0)
+  }
+
+  const saveTitle = () => {
+    const trimmed = editTitleValue.trim()
+    if (trimmed && trimmed !== job.name) {
+      onRename(job, trimmed)
+    }
+    setIsEditingTitle(false)
+  }
+
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setEditTitleValue("")
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Detail Header - styled like chat header */}
       <div className="flex items-center justify-between pt-3 shrink-0" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
-        <div className="flex items-center gap-2">
-          {/* Title - styled like chat title */}
-          <span className="flex h-7 items-center text-sm font-medium text-foreground px-2 rounded-md hover:bg-accent transition-colors cursor-default">
-            {job.name}
-          </span>
-        </div>
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Title - editable, same pattern as the chat header */}
+          {isEditingTitle ? (
+            <Input
+              ref={titleInputRef}
+              type="text"
+              value={editTitleValue}
+              onChange={(e) => setEditTitleValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveTitle()
+                if (e.key === "Escape") cancelEditingTitle()
+              }}
+              onBlur={saveTitle}
+              className="w-56 font-medium"
+            />
+          ) : (
+            <button
+              onClick={startEditingTitle}
+              className="flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-md hover:bg-accent transition-colors cursor-pointer"
+              title="Click to rename"
+            >
+              <span className="truncate">{job.name}</span>
+            </button>
+          )}
 
-        <div className="flex items-center gap-1.5">
-          {/* Enabled/disabled toggle */}
-          <Switch
-            checked={job.enabled}
-            onCheckedChange={(enabled) => onToggleEnabled(job, enabled)}
-            aria-label={job.enabled ? "Disable job" : "Enable job"}
-          />
-
-          {/* Run selector dropdown */}
+          {/* Run selector dropdown — directly to the right of the title */}
           <div className="relative">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -88,7 +127,7 @@ export function JobRunDetail({
                   className="fixed inset-0 z-40"
                   onClick={() => setDropdownOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg py-1">
+                <div className="absolute left-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg py-1">
                   {runs.map((run) => (
                     <button
                       key={run.id}
@@ -109,12 +148,15 @@ export function JobRunDetail({
               </>
             )}
           </div>
+        </div>
 
+        <div className="flex items-center gap-1.5">
           {/* Overflow actions menu */}
           <ScheduledJobActionsMenu
             job={job}
             onEdit={() => setEditOpen(true)}
             onRunNow={onRunNow}
+            onToggleEnabled={onToggleEnabled}
             onRotateToken={onRotateToken}
             onRequestDelete={() => setDeleteConfirmOpen(true)}
           />

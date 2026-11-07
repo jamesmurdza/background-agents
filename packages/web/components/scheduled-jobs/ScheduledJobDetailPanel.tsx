@@ -35,7 +35,7 @@ interface ScheduledJobDetailPanelProps {
 export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobDetailPanelProps) {
   const { data: session } = useSession()
   const { data: job, isLoading: jobLoading } = useScheduledJobQuery(jobId)
-  const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
+  const { runNow, rotateToken, setEnabled, rename, deleteJob } = useScheduledJobActions()
 
   const [runs, setRuns] = useState<ScheduledJobRun[]>([])
   const [selectedRun, setSelectedRun] = useState<ScheduledJobRun | null>(null)
@@ -99,6 +99,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   const handleRunNow = (j: ScheduledJob) => runNow(j)
   const handleRotateToken = (j: ScheduledJob) => rotateToken(j)
   const handleToggleEnabled = (j: ScheduledJob, enabled: boolean) => setEnabled(j, enabled)
+  const handleRename = (j: ScheduledJob, name: string) => rename(j, name)
 
   const handleDelete = async (j: ScheduledJob): Promise<boolean> => {
     const ok = await deleteJob(j)
@@ -134,6 +135,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
       onRunNow={handleRunNow}
       onRotateToken={handleRotateToken}
       onToggleEnabled={handleToggleEnabled}
+      onRename={handleRename}
       onDelete={handleDelete}
     />
   )
