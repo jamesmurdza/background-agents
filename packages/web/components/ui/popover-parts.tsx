@@ -82,17 +82,20 @@ export function PopoverPrimaryButton({
   children: React.ReactNode
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      className={cn(
-        "mt-3 flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white",
-        "hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
-      )}
-    >
-      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
-      {children}
-    </button>
+    <div className="mt-3 flex justify-end">
+      <button
+        onClick={onClick}
+        disabled={disabled || loading}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white",
+          "hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+        )}
+      >
+        {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {!loading && icon}
+        {children}
+      </button>
+    </div>
   )
 }
 
