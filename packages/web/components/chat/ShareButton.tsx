@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Share2, Copy, Check, Loader2, Globe, Link2Off } from "lucide-react"
+import { Share2, Globe, Link2Off } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useShareChat } from "@/lib/hooks/useShareChat"
 import {
@@ -9,6 +9,13 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover"
+import {
+  PopoverHeader,
+  PopoverDescription,
+  CopyableField,
+  PopoverPrimaryButton,
+  PopoverTextButton,
+} from "@/components/ui/popover-parts"
 
 // =============================================================================
 // ShareButton — create / copy / revoke a public read-only link for a chat
@@ -47,67 +54,27 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Globe className="h-4 w-4 text-muted-foreground" />
-          Share chat
-        </div>
+        <PopoverHeader icon={<Globe className="h-4 w-4 text-muted-foreground" />} title="Share chat" />
 
         {shareId ? (
           <>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <PopoverDescription>
               Anyone with this link can view this chat read-only. New messages
               stay visible as the chat continues.
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                readOnly
-                value={shareUrl}
-                onFocus={(e) => e.currentTarget.select()}
-                className="flex-1 min-w-0 rounded-md border border-border bg-muted px-2 py-1.5 text-xs text-foreground outline-none"
-              />
-              <button
-                onClick={copyLink}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-                title="Copy link"
-                aria-label="Copy link"
-              >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5 text-green-500" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-            <button
-              onClick={revokeShare}
-              disabled={busy}
-              className="mt-3 flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Link2Off className="h-3.5 w-3.5" />
-              )}
+            </PopoverDescription>
+            <CopyableField value={shareUrl} copied={copied} onCopy={copyLink} />
+            <PopoverTextButton onClick={revokeShare} loading={busy} icon={<Link2Off className="h-3.5 w-3.5" />}>
               Stop sharing
-            </button>
+            </PopoverTextButton>
           </>
         ) : (
           <>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <PopoverDescription>
               Create a public link so anyone can view this chat read-only.
-            </p>
-            <button
-              onClick={enableShare}
-              disabled={busy}
-              className="mt-3 flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Share2 className="h-3.5 w-3.5" />
-              )}
+            </PopoverDescription>
+            <PopoverPrimaryButton onClick={enableShare} loading={busy} icon={<Share2 className="h-3.5 w-3.5" />}>
               Create public link
-            </button>
+            </PopoverPrimaryButton>
           </>
         )}
       </PopoverContent>

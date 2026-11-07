@@ -1,16 +1,16 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, Rocket, HelpCircle } from "lucide-react"
+import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useElectron } from "@/lib/hooks/useElectron"
 import { useRepoFolderButton } from "@/lib/hooks/useLocalSync"
-import { useNetlifySitesQuery } from "@/lib/query/hooks/useNetlifySitesQuery"
 import { useModals, useGit } from "@/lib/contexts"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import { Input } from "../ui/input"
 import { ShareButton } from "./ShareButton"
+import { DeployButton } from "./DeployButton"
 import { CreditBalancePill } from "./CreditBalancePill"
 import { isRealRepo, type Chat } from "@/lib/types"
 import type { RebaseConflictState } from "@background-agents/common"
@@ -218,7 +218,7 @@ export function ChatHeader({
         <CreditBalancePill />
         <FolderSyncButton repo={chat.repo} />
         {isRealRepo(chat.repo) && (
-          <DeployButton repo={chat.repo} branch={chat.baseBranch} onClick={() => modals.setNetlifyDeployOpen(true)} />
+          <DeployButton chatId={chat.id} repo={chat.repo} branch={chat.baseBranch} />
         )}
         <ShareButton key={chat.id} chatId={chat.id} initialShareId={chat.shareId} />
         {showCommandPaletteButton && onOpenCommandPalette && (
@@ -282,32 +282,6 @@ function FolderSyncButton({ repo }: { repo: string }) {
       ) : (
         <FolderDown className="h-4 w-4" />
       )}
-    </button>
-  )
-}
-
-// =============================================================================
-// DeployButton - Opens Deploy to Netlify; green once the repo has a site
-// =============================================================================
-
-function DeployButton({ repo, branch, onClick }: { repo: string; branch: string; onClick: () => void }) {
-  const { data } = useNetlifySitesQuery()
-  const site = data?.sites.find((s) => s.repo === repo && s.branch === branch)
-  const title = site ? `Deployed: ${site.url.replace(/^https:\/\//, "")}` : "Deploy to Netlify"
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer",
-        site
-          ? "text-green-500 hover:bg-green-500/10"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
-      )}
-      title={title}
-      aria-label={title}
-    >
-      <Rocket className="h-4 w-4" />
     </button>
   )
 }
