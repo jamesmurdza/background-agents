@@ -1,0 +1,12 @@
+{
+  "name": "@background-agents/predefined-skills",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bundled, built-in SKILL.md content shipped by this app. Each top-level folder is one installable skill.",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.47.0",
+    "ws": "^8.18.0"
+  }
+}

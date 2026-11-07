@@ -12,3 +12,4 @@ export {
 } from "./install"
 export { uninstallSkill, getSkillNameFromHandle } from "./uninstall"
 export { discoverInstalledSkills } from "./discover"
+export { installPredefinedSkill } from "./predefined"

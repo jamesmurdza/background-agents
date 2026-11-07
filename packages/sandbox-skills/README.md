@@ -59,6 +59,35 @@ const result = await installSkill(sandbox, "/home/daytona/project", "owner/repo"
 await uninstallSkill(sandbox, "/home/daytona/project", "skill-id")
 ```
 
+### Install a Predefined (Built-in) Skill
+
+Predefined skills ship with this app — their content lives in
+`@background-agents/predefined-skills` (`packages/predefined-skills/<id>/`),
+not on the skills.sh marketplace. Installing one still goes through
+`installSkill` under the hood: `installPredefinedSkill` just resolves the
+id to this repo's own GitHub tree URL for that skill's folder.
+
+```typescript
+import { installPredefinedSkill, PREDEFINED_SKILLS } from "@background-agents/sandbox-skills"
+
+// See what's available (id, name, description, path)
+console.log(PREDEFINED_SKILLS)
+
+// Install one by id
+const result = await installPredefinedSkill(sandbox, "/home/daytona/project", "browser-mirror")
+if (result.success) {
+  console.log("Installed:", result.fullHandle) // "predefined/browser-mirror"
+}
+```
+
+Adding a new predefined skill is two steps:
+1. Add its folder (`SKILL.md` + assets) under `packages/predefined-skills/`.
+2. Add a matching entry to `PREDEFINED_SKILLS` in `src/predefined-skills.ts`.
+
+While this repo is mid-review and not yet on `main`, set
+`PREDEFINED_SKILLS_BRANCH` to the PR's branch name so installs resolve
+against the right ref; it defaults to `main` once unset.
+
 ## Exports
 
 ### Types
@@ -93,8 +122,22 @@ import {
   uninstallSkill,
   getSkillNameFromHandle,
   discoverInstalledSkills,
+  installPredefinedSkill,
   type OnSkillRemove,
 } from "@background-agents/sandbox-skills/sandbox"
+```
+
+### Predefined Skills Manifest
+
+```typescript
+import {
+  PREDEFINED_SKILLS,
+  PREDEFINED_SKILLS_REPO,
+  predefinedSkillsBranch,
+  getPredefinedSkill,
+  buildPredefinedSkillUrl,
+  type PredefinedSkill,
+} from "@background-agents/sandbox-skills"
 ```
 
 ### Utilities
