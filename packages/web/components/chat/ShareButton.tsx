@@ -72,7 +72,7 @@ export function ShareButton({ chatId, initialShareId }: ShareButtonProps) {
             <PopoverDescription>
               Create a public link so anyone can view this chat read-only.
             </PopoverDescription>
-            <PopoverPrimaryButton onClick={enableShare} loading={busy} icon={<Share2 className="h-3.5 w-3.5" />}>
+            <PopoverPrimaryButton onClick={enableShare} loading={busy}>
               Create public link
             </PopoverPrimaryButton>
           </>
