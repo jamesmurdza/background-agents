@@ -14,7 +14,7 @@ import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { recreateChatSandbox } from "@/lib/sandbox"
-import { installSkills } from "@background-agents/sandbox-skills/sandbox"
+import { installSkills, installPredefinedSkill } from "@background-agents/sandbox-skills/sandbox"
 
 // =============================================================================
 // POST - Install skills into a chat's sandbox
@@ -86,18 +86,43 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
-    // Install skills using the package function
-    const result = await installSkills(
-      sandbox,
-      repoPath,
-      skills.map((s) => ({ id: s.id, fullHandle: s.fullHandle, archive: s.archive })),
-      async (id) => {
-        // Clean up invalid DB records
-        await prisma.skill.delete({ where: { id } }).catch(() => {})
-      }
+    // Predefined skills (fullHandle "predefined/<id>") aren't skills.sh
+    // handles — they're built-in skills shipped by this app, installed via
+    // a GitHub tree URL back at this repo's own packages/predefined-skills/.
+    // Route them to installPredefinedSkill instead of the generic installer.
+    const predefinedSkills = skills.filter((s) => s.fullHandle.startsWith("predefined/"))
+    const regularSkills = skills.filter((s) => !s.fullHandle.startsWith("predefined/"))
+
+    const predefinedResults = await Promise.all(
+      predefinedSkills.map(async (s) => {
+        const id = s.fullHandle.slice("predefined/".length)
+        const result = await installPredefinedSkill(sandbox, repoPath, id)
+        if (!result.success) {
+          await prisma.skill.delete({ where: { id: s.id } }).catch(() => {})
+        }
+        return result
+      })
     )
 
-    return Response.json(result)
+    const regularResult =
+      regularSkills.length > 0
+        ? await installSkills(
+            sandbox,
+            repoPath,
+            regularSkills.map((s) => ({ id: s.id, fullHandle: s.fullHandle, archive: s.archive })),
+            async (id) => {
+              // Clean up invalid DB records
+              await prisma.skill.delete({ where: { id } }).catch(() => {})
+            }
+          )
+        : { installed: 0, total: 0, results: [] }
+
+    const results = [...predefinedResults, ...regularResult.results]
+    return Response.json({
+      installed: regularResult.installed + predefinedResults.filter((r) => r.success).length,
+      total: skills.length,
+      results,
+    })
   } catch (error) {
     return internalError(error)
   }

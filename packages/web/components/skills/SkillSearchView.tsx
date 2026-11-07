@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, type ChangeEvent } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Search, X, Check, Loader2, Zap, Trash2, ExternalLink, Upload } from "lucide-react"
+import { Search, X, Check, Loader2, Zap, Trash2, ExternalLink, Upload, Sparkles } from "lucide-react"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
@@ -21,6 +21,7 @@ interface SkillSearchViewProps {
 export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, isMobile = false }: SkillSearchViewProps) {
   const [query, setQuery] = useState("")
   const [searchResults, setSearchResults] = useState<(SkillSearchResult & { installs?: number })[]>([])
+  const [predefinedSkills, setPredefinedSkills] = useState<SkillSearchResult[]>([])
   const [installedSkills, setInstalledSkills] = useState<Skill[]>([])
   const [selectedHandles, setSelectedHandles] = useState<Set<string>>(new Set())
   const [isSearching, setIsSearching] = useState(false)
@@ -41,10 +42,11 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
     enabled: isMobile,
   })
 
-  // Fetch installed skills on open
+  // Fetch installed + predefined (built-in) skills on open
   useEffect(() => {
     if (!open) return
     fetchInstalledSkills()
+    fetchPredefinedSkills()
     // Focus input on open
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [open, repo])
@@ -71,6 +73,28 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
       // Silent fail — non-critical
     }
   }, [repo])
+
+  const fetchPredefinedSkills = useCallback(async () => {
+    try {
+      const res = await fetch("/api/skills/predefined")
+      if (res.ok) {
+        const data = await res.json()
+        setPredefinedSkills(
+          (data.results ?? []).map(
+            (s: { id: string; name: string; description: string; fullHandle: string; url: string }) => ({
+              publisher: "predefined",
+              name: s.name,
+              fullHandle: s.fullHandle,
+              description: s.description,
+              url: s.url,
+            })
+          )
+        )
+      }
+    } catch {
+      // Silent fail — non-critical
+    }
+  }, [])
 
   // Debounced search
   useEffect(() => {
@@ -132,8 +156,8 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
     setInstallProgress({ installed: 0, total: selectedHandles.size })
 
     try {
-      // Build skill objects from search results
-      const skillsToInstall = searchResults
+      // Build skill objects from search results + featured/predefined skills
+      const skillsToInstall = [...predefinedSkills, ...searchResults]
         .filter((r) => selectedHandles.has(r.fullHandle))
         .map((r) => ({
           publisher: r.publisher,
@@ -259,8 +283,19 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
   // the installed list above instead of duplicated here.
   const newResults = searchResults.filter((r) => !isAlreadyInstalled(r.fullHandle))
 
-  const showEmptyState = !hasQuery && installedSkills.length === 0
-  const showNoResults = hasQuery && !isSearching && filteredInstalled.length === 0 && newResults.length === 0
+  // Featured/predefined skills that aren't already installed, filtered by the
+  // current query just like everything else in the list.
+  const newPredefined = predefinedSkills.filter(
+    (r) =>
+      !isAlreadyInstalled(r.fullHandle) &&
+      (!hasQuery ||
+        r.fullHandle.toLowerCase().includes(query.trim().toLowerCase()) ||
+        r.description.toLowerCase().includes(query.trim().toLowerCase()))
+  )
+
+  const showEmptyState = !hasQuery && installedSkills.length === 0 && newPredefined.length === 0
+  const showNoResults =
+    hasQuery && !isSearching && filteredInstalled.length === 0 && newResults.length === 0 && newPredefined.length === 0
 
   const renderList = () => (
     <>
@@ -274,7 +309,8 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
           No skills installed for this repo.
           <br />
-          Search the Skills.sh registry above to find skills for your agent.
+          Search the Skills.sh registry above to find skills for your agent,
+          or check back for featured skills.
         </div>
       )}
 
@@ -327,6 +363,63 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
           </button>
         </div>
       ))}
+
+      {/* Featured/predefined (built-in) skill rows */}
+      {newPredefined.map((result) => {
+        const selected = selectedHandles.has(result.fullHandle)
+        return (
+          <button
+            key={result.fullHandle}
+            onClick={() => toggleSelection(result.fullHandle)}
+            disabled={isInstalling}
+            className={cn(
+              "flex items-start gap-3 w-full px-1 py-3 text-left transition-colors rounded-md",
+              selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
+            )}
+          >
+            {/* Checkbox */}
+            <div
+              className={cn(
+                "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
+                selected ? "border-primary bg-primary" : "border-border"
+              )}
+            >
+              {selected && <Check className="h-4 w-4 text-primary-foreground" />}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-foreground truncate">
+                  {result.name}
+                </span>
+                <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Sparkles className="h-3 w-3" />
+                  Featured
+                </span>
+              </div>
+              {result.description && (
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                  {result.description}
+                </p>
+              )}
+            </div>
+
+            {/* External link */}
+            {result.url && (
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </button>
+        )
+      })}
 
       {/* New (not-yet-installed) search result rows */}
       {newResults.map((result) => {
