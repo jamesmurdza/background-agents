@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback, useState, type ReactNode } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, ListPlus, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play } from "lucide-react"
+import { AlertTriangle, ArrowUp, Square, ChevronDown, ListPlus, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play, AlarmClock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
@@ -11,6 +11,8 @@ import { useUpwardMenuMaxHeight } from "@/lib/hooks/useUpwardMenuMaxHeight"
 import { useTwoTierCollapse } from "@/lib/hooks/useTwoTierCollapse"
 import { useCollapsibleLabel } from "@/lib/hooks/useCollapsibleLabel"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
+import { useTriggerOptionsState } from "@/lib/hooks/useTriggerOptionsState"
+import { useCreateScheduledJobFromComposer } from "@/lib/hooks/useCreateScheduledJobFromComposer"
 import { isModKeyPressed } from "@/lib/keyboard"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
 import { NEW_REPOSITORY, sharedPoolProviderForModel, agentLabels, getModelLabel } from "@/lib/types"
@@ -29,6 +31,8 @@ import { McpServersCombobox } from "./McpServersCombobox"
 import { AgentIcon } from "../icons/agent-icons"
 import { SlashCommandMenu, type SlashCommandType } from "../SlashCommandMenu"
 import { MobileSelect } from "../ui/MobileBottomSheet"
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
+import { TriggerOptionsFields } from "../scheduled-jobs/TriggerOptionsFields"
 
 // =============================================================================
 // ChatInput - The main chat input area with all controls
@@ -375,6 +379,42 @@ export function ChatInput({
   }, [])
   const showBranchAffordance = branchModifierHeld && canBranch && !!onBranchSend
 
+  // -- Schedule-this-prompt popover (alarm-clock button) --------------------
+  // Only meaningful once there's something to schedule and nothing else is
+  // competing for the send affordance — mirrors the exact condition under
+  // which ChatActionSlot renders its "send" (not queue/stop/resume) button.
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const isComposerRepoLess = isNewRepo || !chat.repo
+  const triggerOptions = useTriggerOptionsState({ isRepoLess: isComposerRepoLess, open: scheduleOpen })
+  const { createJob: createScheduledJobFromComposer } = useCreateScheduledJobFromComposer({
+    prompt: input,
+    repo: isComposerRepoLess ? null : chat.repo,
+    baseBranch: chat.baseBranch || chat.branch || "main",
+    agent: currentAgent,
+    model: currentModel,
+    triggerType: triggerOptions.triggerType,
+    effectiveIntervalMinutes: triggerOptions.effectiveIntervalMinutes,
+    runAtHourLocal: triggerOptions.runAtHourLocal,
+    runAtDay: triggerOptions.runAtDay,
+    autoPR: triggerOptions.autoPR,
+    continueFromLastRun: triggerOptions.continueFromLastRun,
+    incomingToken: triggerOptions.incomingToken,
+    isRepoLess: isComposerRepoLess,
+    onInputChange,
+  })
+  const [scheduleCreating, setScheduleCreating] = useState(false)
+  const handleCreateScheduledJob = useCallback(async () => {
+    setScheduleCreating(true)
+    try {
+      await createScheduledJobFromComposer()
+      setScheduleOpen(false)
+    } catch (err) {
+      console.error("[ChatInput] failed to create scheduled job:", err)
+    } finally {
+      setScheduleCreating(false)
+    }
+  }, [createScheduledJobFromComposer])
+
   // -- Speech-to-text (voice dictation) -------------------------------------
   // Keep the latest input in a ref so the recognition callback (created once
   // per render but invoked asynchronously) always reads the current value.
@@ -660,6 +700,40 @@ export function ChatInput({
             >
               <Mic className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
             </button>
+          )}
+
+          {/* Schedule this prompt — only active when the send button itself
+              would be active for a non-empty composer (not running, canSend,
+              non-empty input). Doesn't depend on a repo being selected. */}
+          {!isRunning && canSend && !!input.trim() && (
+            <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Schedule this prompt"
+                  title="Schedule this prompt"
+                  className={cn(
+                    "shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer",
+                    isMobile ? "h-9 w-9" : "h-7 w-7"
+                  )}
+                >
+                  <AlarmClock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" sideOffset={8} className="w-80 space-y-4">
+                <TriggerOptionsFields {...triggerOptions} />
+                <div className="flex justify-end gap-2 pt-1 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={handleCreateScheduledJob}
+                    disabled={scheduleCreating}
+                    className="mt-3 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {scheduleCreating ? "Creating..." : "Create"}
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
 
           {/* Send / stop / queue button — the slot remains mounted while idle

@@ -1,10 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Clock, ChevronDown, Check, GitPullRequest } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { MessageBubble } from "@/components/MessageBubble"
+import { Switch } from "@/components/ui/switch"
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
+import { ScheduledJobActionsMenu } from "@/components/scheduled-jobs/ScheduledJobActionsMenu"
+import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
+import { queryKeys } from "@/lib/query/keys"
 import { type ScheduledJob, type ScheduledJobRun } from "@/lib/scheduled-jobs/types"
 import type { Message } from "@/lib/types"
 import { getRunStatusIcon, formatRunLabel } from "./helpers"
@@ -16,10 +22,29 @@ interface JobRunDetailProps {
   selectedRun: ScheduledJobRun | null
   onSelectRun: (run: ScheduledJobRun) => void
   messages: Message[]
+  onRunNow: (job: ScheduledJob) => void
+  onRotateToken: (job: ScheduledJob) => void
+  onToggleEnabled: (job: ScheduledJob, enabled: boolean) => void
+  /** Deletes the job; resolves to whether it succeeded. The caller handles
+   *  navigating away from /jobs/[id] once it has. */
+  onDelete: (job: ScheduledJob) => Promise<boolean>
 }
 
-export function JobRunDetail({ job, runs, selectedRun, onSelectRun, messages }: JobRunDetailProps) {
+export function JobRunDetail({
+  job,
+  runs,
+  selectedRun,
+  onSelectRun,
+  messages,
+  onRunNow,
+  onRotateToken,
+  onToggleEnabled,
+  onDelete,
+}: JobRunDetailProps) {
+  const queryClient = useQueryClient()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -32,51 +57,96 @@ export function JobRunDetail({ job, runs, selectedRun, onSelectRun, messages }: 
           </span>
         </div>
 
-        {/* Run selector dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-accent transition-colors cursor-pointer"
-          >
-            {selectedRun ? (
-              <>
-                {getRunStatusIcon(selectedRun.status)}
-                <span className="text-sm">{formatRunLabel(selectedRun)}</span>
-              </>
-            ) : (
-              <span className="text-sm text-muted-foreground">No runs yet</span>
-            )}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", dropdownOpen && "rotate-180")} />
-          </button>
+        <div className="flex items-center gap-1.5">
+          {/* Enabled/disabled toggle */}
+          <Switch
+            checked={job.enabled}
+            onCheckedChange={(enabled) => onToggleEnabled(job, enabled)}
+            aria-label={job.enabled ? "Disable job" : "Enable job"}
+          />
 
-          {dropdownOpen && runs.length > 0 && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setDropdownOpen(false)}
-              />
-              <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg py-1">
-                {runs.map((run) => (
-                  <button
-                    key={run.id}
-                    onClick={() => {
-                      onSelectRun(run)
-                      setDropdownOpen(false)
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left",
-                      run.id === selectedRun?.id && "bg-accent"
-                    )}
-                  >
-                    {getRunStatusIcon(run.status)}
-                    <span className="flex-1">{formatRunLabel(run)}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          {/* Run selector dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-accent transition-colors cursor-pointer"
+            >
+              {selectedRun ? (
+                <>
+                  {getRunStatusIcon(selectedRun.status)}
+                  <span className="text-sm">{formatRunLabel(selectedRun)}</span>
+                </>
+              ) : (
+                <span className="text-sm text-muted-foreground">No runs yet</span>
+              )}
+              <ChevronDown className={cn("h-4 w-4 transition-transform", dropdownOpen && "rotate-180")} />
+            </button>
+
+            {dropdownOpen && runs.length > 0 && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setDropdownOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 z-50 w-72 max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg py-1">
+                  {runs.map((run) => (
+                    <button
+                      key={run.id}
+                      onClick={() => {
+                        onSelectRun(run)
+                        setDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left",
+                        run.id === selectedRun?.id && "bg-accent"
+                      )}
+                    >
+                      {getRunStatusIcon(run.status)}
+                      <span className="flex-1">{formatRunLabel(run)}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Overflow actions menu */}
+          <ScheduledJobActionsMenu
+            job={job}
+            onEdit={() => setEditOpen(true)}
+            onRunNow={onRunNow}
+            onRotateToken={onRotateToken}
+            onRequestDelete={() => setDeleteConfirmOpen(true)}
+          />
         </div>
       </div>
+
+      {/* Edit form */}
+      <ScheduledJobForm
+        open={editOpen}
+        job={job}
+        onClose={() => setEditOpen(false)}
+        onSuccess={(updated) => {
+          setEditOpen(false)
+          queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(updated.id), updated)
+          queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) =>
+            old.map((j) => (j.id === updated.id ? updated : j))
+          )
+        }}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete scheduled job?"
+        description={`This will permanently delete "${job.name}" and all its run history.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          void onDelete(job)
+        }}
+        onClose={() => setDeleteConfirmOpen(false)}
+      />
 
       {/* Detail Content */}
       <main className="flex-1 overflow-auto">

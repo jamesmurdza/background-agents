@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useTheme } from "next-themes"
 import { SearchPalette } from "./SearchPalette"
+import { SearchJobsPalette } from "./SearchJobsPalette"
 import { CommandPalette } from "./CommandPalette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import type { Theme } from "@/lib/types"
@@ -12,6 +13,7 @@ import { isModKeyPressed } from "@/lib/keyboard"
 interface PaletteContextValue {
   openSearch: () => void
   openCommand: () => void
+  openJobsSearch: () => void
 }
 
 const PaletteContext = createContext<PaletteContextValue | null>(null)
@@ -96,8 +98,9 @@ export function PaletteProvider({
   const { theme, setTheme } = useTheme()
   const [searchOpen, setSearchOpenState] = useState(false)
   const [commandOpen, setCommandOpenState] = useState(false)
+  const [jobsSearchOpen, setJobsSearchOpenState] = useState(false)
 
-  // Exclusive: opening one closes the other. Closing either returns focus to
+  // Exclusive: opening one closes the others. Closing any returns focus to
   // the chat prompt so the user can start typing right away.
   const focusPrompt = useCallback(() => {
     setTimeout(() => {
@@ -107,17 +110,29 @@ export function PaletteProvider({
   }, [])
   const setSearchOpen = useCallback((open: boolean) => {
     setSearchOpenState(open)
-    if (open) setCommandOpenState(false)
-    else focusPrompt()
+    if (open) {
+      setCommandOpenState(false)
+      setJobsSearchOpenState(false)
+    } else focusPrompt()
   }, [focusPrompt])
   const setCommandOpen = useCallback((open: boolean) => {
     setCommandOpenState(open)
-    if (open) setSearchOpenState(false)
-    else focusPrompt()
+    if (open) {
+      setSearchOpenState(false)
+      setJobsSearchOpenState(false)
+    } else focusPrompt()
+  }, [focusPrompt])
+  const setJobsSearchOpen = useCallback((open: boolean) => {
+    setJobsSearchOpenState(open)
+    if (open) {
+      setSearchOpenState(false)
+      setCommandOpenState(false)
+    } else focusPrompt()
   }, [focusPrompt])
 
   const openSearch = useCallback(() => setSearchOpen(true), [setSearchOpen])
   const openCommand = useCallback(() => setCommandOpen(true), [setCommandOpen])
+  const openJobsSearch = useCallback(() => setJobsSearchOpen(true), [setJobsSearchOpen])
 
   // Find current chat index for Alt+Up/Down navigation
   const currentChatIndex = chatIds.findIndex((id) => id === currentChatId)
@@ -203,8 +218,12 @@ export function PaletteProvider({
   }, [chatIds, currentChatIndex, onSelectChat, openSearch, openCommand, onNavigateChat, onToggleSidebar, onToggleTerminal, onOpenSkills, onNewChat, onBranchChat])
 
   return (
-    <PaletteContext.Provider value={{ openSearch, openCommand }}>
+    <PaletteContext.Provider value={{ openSearch, openCommand, openJobsSearch }}>
       {children}
+      <SearchJobsPalette
+        open={jobsSearchOpen}
+        onOpenChange={setJobsSearchOpen}
+      />
       <SearchPalette
         open={searchOpen}
         onOpenChange={setSearchOpen}

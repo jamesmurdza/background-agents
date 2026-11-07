@@ -20,7 +20,6 @@ import { SandboxResizeModal } from "@/components/modals/SandboxResizeModal"
 import { NetlifyDeployDialog } from "@/components/modals/NetlifyDeployDialog"
 import { MobileCommandsMenu } from "@/components/MobileCommandsMenu"
 import { MobileRenameModal } from "@/components/ui/MobileBottomSheet"
-import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { SkillSearchView } from "@/components/skills/SkillSearchView"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useModals, useGit, useChat } from "@/lib/contexts"
@@ -63,9 +62,6 @@ interface AppModalsProps {
   skillsModalOpen: boolean
   onSkillsModalOpenChange: (open: boolean) => void
 
-  // Scheduled jobs — fired after a job is created/saved (e.g. to refresh the list)
-  onScheduledJobSuccess: () => void
-
   // Mobile commands menu
   onSlashCommand: (command: SlashCommandType) => void
 
@@ -91,7 +87,6 @@ export function AppModals({
   envVarsDeployEnvVars,
   skillsModalOpen,
   onSkillsModalOpenChange,
-  onScheduledJobSuccess,
   onSlashCommand,
   onDeleteChat,
   limitReachedState,
@@ -212,17 +207,6 @@ export function AppModals({
       <HelpModal
         open={modals.helpOpen}
         onClose={() => modals.setHelpOpen(false)}
-        isMobile={isMobile}
-      />
-
-      {/* Scheduled Job Form */}
-      <ScheduledJobForm
-        open={modals.scheduledJobFormOpen}
-        onClose={() => modals.setScheduledJobFormOpen(false)}
-        onSuccess={() => {
-          modals.setScheduledJobFormOpen(false)
-          onScheduledJobSuccess()
-        }}
         isMobile={isMobile}
       />
 

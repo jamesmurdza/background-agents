@@ -15,6 +15,14 @@ export const queryKeys = {
     shared: () => [...queryKeys.chats.all, "shared"] as const,
   },
 
+  // Scheduled jobs
+  scheduledJobs: {
+    all: ["scheduledJobs"] as const,
+    list: () => [...queryKeys.scheduledJobs.all, "list"] as const,
+    detail: (jobId: string) => [...queryKeys.scheduledJobs.all, "detail", jobId] as const,
+    runs: (jobId: string) => [...queryKeys.scheduledJobs.detail(jobId), "runs"] as const,
+  },
+
   // Settings
   settings: {
     all: ["settings"] as const,
