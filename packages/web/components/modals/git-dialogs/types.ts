@@ -75,6 +75,10 @@ export interface UseGitDialogsResult {
   // Actions
   handleMerge: () => Promise<void>
   handleRebase: () => Promise<void>
+  /** Rebase onto an explicit branch without going through the rebase dialog's
+   *  own selectedBranch state — for callers (e.g. the rebase-suggestion
+   *  banner) that already know which branch to target. */
+  rebaseOnto: (targetBranch: string) => Promise<void>
   handleCreatePR: (descriptionType?: PRDescriptionType) => Promise<void>
   handleSquash: () => Promise<void>
   handleForcePush: () => Promise<void>

@@ -237,8 +237,7 @@ export function ChatMessageList({
                   type="button"
                   data-testid="rebase-suggestion-action"
                   onClick={() => {
-                    if (rebaseSuggestion.linkBranch) git.setSelectedBranch(rebaseSuggestion.linkBranch)
-                    git.setRebaseOpen(true)
+                    if (rebaseSuggestion.linkBranch) git.rebaseOnto(rebaseSuggestion.linkBranch)
                   }}
                   className="underline underline-offset-2 hover:no-underline cursor-pointer"
                 >
