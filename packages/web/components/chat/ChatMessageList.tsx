@@ -215,14 +215,25 @@ export function ChatMessageList({
             </div>
           )}
           {forcePushFailure && (
-            <ErrorBanner
-              key={forcePushFailure.id}
-              message={forcePushFailure.content.replace(/\s*You can force push to overwrite the remote history\.?$/, "")}
-              isMobile={isMobile}
-              onRetry={git.handleForcePush}
-              actionLabel="Force push"
-              actionPendingLabel="Force pushing…"
-            />
+            <div
+              data-testid="force-push-warning"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                {forcePushFailure.content.replace(/\s*You can force push to overwrite the remote history\.?$/, "")}{" "}
+                <button
+                  type="button"
+                  data-testid="force-push-action"
+                  onClick={git.handleForcePush}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Force push
+                </button>{" "}
+                to overwrite the remote history.
+              </span>
+            </div>
           )}
           {(chat.uncommittedFilesCount ?? 0) > 0 && isNewRepo && (
             <div

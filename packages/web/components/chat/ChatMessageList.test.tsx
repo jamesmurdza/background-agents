@@ -86,12 +86,11 @@ describe("force-push failure banner", () => {
     timestamp: 1, messageType: "git-operation" as const, isError: true, metadata: { action: "force-push" as const },
   }
 
-  it("shows a banner with a force-push action instead of the inline git-operation message", () => {
+  it("shows an amber banner (matching the uncommitted-files one) with a force-push action, instead of the inline git-operation message", () => {
     const html = renderWarning(0, false, { messages: [forcePushMessage] })
-    expect(html).toContain('data-testid="chat-error-banner"')
+    expect(html).toContain('data-testid="force-push-warning"')
     expect(html).toContain("Push failed: non-fast-forward.")
-    expect(html).not.toContain("You can force push to overwrite the remote history.")
-    expect(html).toContain(">Force push</button>")
+    expect(html).toContain(">Force push</button> to overwrite the remote history.")
     // Not also rendered inline as a normal assistant message.
     expect(html).not.toContain('data-message-id="push-fail"')
   })
