@@ -80,16 +80,17 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
         description="Search for scheduled agents"
       >
         <CommandInput placeholder="Search agents..." />
-        {sortedJobs.length > 0 && (
-          <div className="flex items-center px-2 pt-2">
-            <span className="flex-1" />
-            <span className="text-muted-foreground text-xs ml-2 shrink-0">Last run</span>
-            <span className="ml-1 shrink-0 w-6" />
-          </div>
-        )}
         <CommandList>
           <CommandEmpty>No scheduled jobs found.</CommandEmpty>
-          <CommandGroup heading="Scheduled Jobs">
+          <CommandGroup
+            heading={
+              <div className="flex items-center">
+                <span className="flex-1">Scheduled Jobs</span>
+                <span className="ml-2 shrink-0">Last run</span>
+                <span className="ml-1 shrink-0 w-6" />
+              </div>
+            }
+          >
             {sortedJobs.map((job) => (
               <CommandItem
                 key={job.id}
