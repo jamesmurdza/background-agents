@@ -49,9 +49,12 @@ export function useUrlSync({
 
       switch (matched.route) {
         case "jobs":
-          setViewMode("scheduled-jobs")
-          if (!isInitialSync) selectChat(null)
+          // There's no bare jobs list anymore (browsing happens via the
+          // "Search Jobs" command palette) — redirect to the home page.
+          setViewMode("chat")
           setSelectedScheduledJob(null)
+          if (!isInitialSync) selectChat(null)
+          window.history.replaceState(null, "", ROUTES.home.build())
           break
 
         case "job":

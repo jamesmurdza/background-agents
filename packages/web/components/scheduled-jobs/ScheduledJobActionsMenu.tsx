@@ -22,7 +22,8 @@ interface ScheduledJobActionsMenuProps {
 
 /**
  * The "..." overflow menu (Edit / Run Now / Rotate Webhook Token / Delete)
- * shared by JobsList's per-row menu and the job detail page's header menu, so
+ * shared by the job detail page's header menu (previously also JobsList's
+ * per-row menu, before the standalone jobs list was removed), so
  * the menu markup lives in exactly one place.
  */
 export function ScheduledJobActionsMenu({

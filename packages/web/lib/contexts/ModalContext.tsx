@@ -56,10 +56,6 @@ export interface ModalContextValue {
   mcpServersModalOpen: boolean
   setMcpServersModalOpen: (open: boolean) => void
 
-  // Scheduled jobs
-  scheduledJobFormOpen: boolean
-  setScheduledJobFormOpen: (open: boolean) => void
-
   // Mobile-specific modals
   mobileCommandsOpen: boolean
   setMobileCommandsOpen: (open: boolean) => void
@@ -118,9 +114,6 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
 
   // MCP servers picker (popover, attached to chat input)
   const [mcpServersModalOpen, setMcpServersModalOpen] = useState(false)
-
-  // Scheduled jobs
-  const [scheduledJobFormOpen, setScheduledJobFormOpen] = useState(false)
 
   // Mobile-specific modals
   const [mobileCommandsOpen, setMobileCommandsOpen] = useState(false)
@@ -209,10 +202,6 @@ export function ModalProvider({ children, isMobile, onMobileSidebarClose }: Moda
     // MCP servers picker (popover, attached to chat input)
     mcpServersModalOpen,
     setMcpServersModalOpen,
-
-    // Scheduled jobs
-    scheduledJobFormOpen,
-    setScheduledJobFormOpen,
 
     // Mobile-specific modals
     mobileCommandsOpen,

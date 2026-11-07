@@ -7,9 +7,9 @@ import type { ScheduledJob } from "@/lib/scheduled-jobs/types"
 
 /**
  * Shared scheduled-job actions (Run Now / Rotate Webhook Token / Delete / set
- * enabled) backing both the JobsList row menu and the job detail page's
- * overflow menu, so the API-call logic for each action lives in exactly one
- * place and both views patch the same React Query cache.
+ * enabled) backing the job detail page's overflow menu, so the API-call logic
+ * for each action lives in exactly one place and patches the shared React
+ * Query cache.
  */
 export function useScheduledJobActions() {
   const queryClient = useQueryClient()

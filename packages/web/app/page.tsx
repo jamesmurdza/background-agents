@@ -10,7 +10,7 @@ import { ChatPanel } from "@/components/ChatPanel"
 import { PreviewView } from "@/components/PreviewView"
 import { AppModals } from "@/components/AppModals"
 import { useGitDialogs } from "@/components/modals/git-dialogs"
-import { ScheduledJobsView } from "@/components/scheduled-jobs/ScheduledJobsView"
+import { ScheduledJobDetailPanel } from "@/components/scheduled-jobs/ScheduledJobDetailPanel"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
 import { basename } from "@/lib/format"
@@ -103,10 +103,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
 
-  // For jobs, we derive the ID from sidebar state since we use pushState for navigation
-  // The sidebar.selectedScheduledJob is updated by handleNavigateToJob
-  // Use ?? null to ensure urlJobId is always string | null (never undefined)
-  // This keeps ScheduledJobsView in URL-controlled mode so row clicks work
+  // For jobs, we derive the ID from sidebar state since we use pushState for navigation.
+  // The sidebar.selectedScheduledJob is updated by useUrlSync (and handleNavigateToJob).
+  // Use ?? null to ensure urlJobId is always string | null (never undefined).
   const urlJobId = sidebar.selectedScheduledJob?.id ?? null
 
   const {
@@ -154,7 +153,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
 
   // Additional state not in contexts
-  const [scheduledJobsRefreshKey, setScheduledJobsRefreshKey] = useState(0)
   const [skillsModalOpen, setSkillsModalOpen] = useState(false)
 
   // Sandbox/repo actions (env vars, download, open in VS Code/GitHub, git clipboard)
@@ -352,7 +350,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleNewChat,
     handleSelectChat,
     handleRepoFilterChange,
-    handleOpenScheduledJobs,
     handleNavigateToJob,
     handleNavigateChat,
     handleRequestMergeChats,
@@ -678,16 +675,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         onToggleChatCollapsed={sidebar.toggleChatCollapsed}
         onRequestMergeChats={handleRequestMergeChats}
         onRequestRebaseChat={handleRequestRebaseChat}
-        onOpenScheduledJobs={
-          isMobile
-            ? () => {
-                handleOpenScheduledJobs()
-                sidebar.setMobileSidebarOpen(false)
-              }
-            : handleOpenScheduledJobs
-        }
-        scheduledJobsActive={sidebar.viewMode === "scheduled-jobs"}
-        selectedScheduledJob={sidebar.viewMode === "scheduled-jobs" ? sidebar.selectedScheduledJob : null}
         isLoadingChats={!isHydrated || (isLoading && displayChats.length === 0)}
       />
 
@@ -711,12 +698,10 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              {sidebar.viewMode === "scheduled-jobs" ? (
-                <ScheduledJobsView
-                  onOpenForm={() => modals.setScheduledJobFormOpen(true)}
-                  refreshKey={scheduledJobsRefreshKey}
-                  urlJobId={urlJobId}
-                  onNavigateToJob={handleNavigateToJob}
+              {sidebar.viewMode === "scheduled-jobs" && urlJobId ? (
+                <ScheduledJobDetailPanel
+                  jobId={urlJobId}
+                  onNavigateAway={() => handleNavigateToJob(null)}
                 />
               ) : (
                 <ChatPanelWithPalette
@@ -826,7 +811,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         envVarsDeployEnvVars={envVarsDeployEnvVars}
         skillsModalOpen={skillsModalOpen}
         onSkillsModalOpenChange={setSkillsModalOpen}
-        onScheduledJobSuccess={() => setScheduledJobsRefreshKey((k) => k + 1)}
         onSlashCommand={handleSlashCommand}
         onDeleteChat={(chatId) => removeChat(chatId, getNextChatId)}
         limitReachedState={limitReachedState}

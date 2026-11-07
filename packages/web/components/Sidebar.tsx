@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { signInWithGitHub } from "@/lib/auth-utils"
 import { SquarePen, PanelLeft, X, Clock, Search, MessageCircle } from "lucide-react"
@@ -65,12 +64,6 @@ interface SidebarProps {
   onRequestMergeChats?: (sourceId: string, targetId?: string) => void
   /** Pick Rebase from a chat's context menu. */
   onRequestRebaseChat?: (sourceId: string) => void
-  /** Open scheduled jobs view */
-  onOpenScheduledJobs?: () => void
-  /** Whether scheduled jobs view is active */
-  scheduledJobsActive?: boolean
-  /** Currently selected scheduled job (shown as indented item) */
-  selectedScheduledJob?: { id: string; name: string } | null
   /** Whether chats are still being loaded from storage/server */
   isLoadingChats?: boolean
 }
@@ -101,9 +94,6 @@ export function Sidebar({
   onToggleChatCollapsed: controlledToggleChatCollapsed,
   onRequestMergeChats,
   onRequestRebaseChat,
-  onOpenScheduledJobs,
-  scheduledJobsActive = false,
-  selectedScheduledJob,
   isLoadingChats = false,
 }: SidebarProps) {
   const modals = useModals()
@@ -112,7 +102,6 @@ export function Sidebar({
   // Current user's GitHub login, used to drop the redundant `login/` prefix
   // from their own repos in the filter menu.
   const { data: currentUserLogin } = useGitHubUserQuery()
-  const router = useRouter()
   const { openSearch, openJobsSearch } = usePalette()
   const { isDesktopApp } = useElectron()
   const isResizing = useRef(false)
@@ -309,17 +298,6 @@ export function Sidebar({
     }
   }
 
-  // Open the scheduled jobs panel (if the host provides one), falling back
-  // to navigating to the standalone page. Shared by the mobile and desktop
-  // "Scheduled Agents" buttons.
-  const handleOpenScheduledJobsClick = () => {
-    if (onOpenScheduledJobs) {
-      onOpenScheduledJobs()
-    } else {
-      router.push("/scheduled-jobs")
-    }
-  }
-
   // Prevent body scroll when drawer is open
   useEffect(() => {
     if (isMobile && mobileOpen) {
@@ -403,20 +381,6 @@ export function Sidebar({
             >
               <Clock className="h-5 w-5 text-muted-foreground" />
               <span className="text-base text-foreground">Search Jobs</span>
-            </button>
-
-            {/* Scheduled Jobs Button */}
-            <button
-              onClick={handleOpenScheduledJobsClick}
-              className={cn(
-                "flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target",
-                scheduledJobsActive && !selectedScheduledJob
-                  ? "bg-accent text-accent-foreground"
-                  : "hover:bg-accent/50 active:bg-accent"
-              )}
-            >
-              <Clock className={cn("h-5 w-5", scheduledJobsActive && !selectedScheduledJob ? "text-foreground" : "text-muted-foreground")} />
-              <span className="text-base text-foreground">Scheduled Agents</span>
             </button>
           </div>
 
@@ -602,6 +566,7 @@ export function Sidebar({
         </button>
 
         {/* Chat Switcher - collapsed only, since the chat list itself is hidden */}
+
         {collapsed && (
           <div className="relative" ref={chatSwitcherRef}>
             <button
@@ -648,20 +613,6 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Scheduled Jobs Button */}
-        <button
-          onClick={handleOpenScheduledJobsClick}
-          className={cn(
-            "flex items-center gap-2 rounded-md transition-colors cursor-pointer",
-            collapsed ? "p-1.5" : "w-full px-2 py-[7px]",
-            scheduledJobsActive && !selectedScheduledJob
-              ? "bg-accent text-accent-foreground"
-              : "hover:bg-accent/50"
-          )}
-        >
-          <Clock className={cn("h-[18px] w-[18px]", scheduledJobsActive && !selectedScheduledJob ? "text-foreground" : "text-muted-foreground")} />
-          {!collapsed && <span className="text-sm text-foreground">Scheduled Agents</span>}
-        </button>
       </div>
 
       <div className="pb-2" />
