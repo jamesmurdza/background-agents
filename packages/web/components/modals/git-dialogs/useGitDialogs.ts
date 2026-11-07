@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { PATHS } from "@/lib/constants"
 import { EMPTY_CONFLICT_STATE } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
@@ -28,6 +29,7 @@ export function useGitDialogs({
   const baseBranch = chat?.baseBranch ?? ""
   const sandboxId = chat?.sandboxId ?? ""
   const repo = chat?.repo ?? ""
+  const queryClient = useQueryClient()
 
   // Helpers to look up another chat on the same repo by branch. We use this
   // both for friendly display names ("merged into <chatname>" rather than the
@@ -210,6 +212,7 @@ export function useGitDialogs({
       const ensured = await materializeAndEnsureSandbox(
         chatId,
         materializeDraft,
+        queryClient,
         {
           environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
           clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),

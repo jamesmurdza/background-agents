@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useSession, signOut } from "next-auth/react"
+import { useQueryClient } from "@tanstack/react-query"
 import { signInWithGitHub } from "@/lib/auth-utils"
 import { clearAllStorage } from "@/lib/storage"
 import { PaletteProvider } from "@/components/search-palette"
@@ -13,7 +14,7 @@ import { useGitHubUserQuery } from "@/lib/query"
 import { getChatRepos } from "@/components/sidebar/index"
 import { isDraftChatId } from "@/lib/chat-state"
 import { PATHS } from "@background-agents/common"
-import { materializeAndEnsureSandbox, type EnsuredDraftSandbox } from "@/lib/sandbox-client"
+import { materializeDraftChat, ensureSandboxForChat } from "@/lib/sandbox-client"
 
 /** All props the PaletteProvider takes, minus `children` (supplied by JSX). */
 export type PaletteProps = Omit<React.ComponentProps<typeof PaletteProvider>, "children">
@@ -129,6 +130,7 @@ export function usePaletteProps({
 }: UsePalettePropsOptions): PaletteProps {
   const { data: session } = useSession()
   const { data: currentUserLogin } = useGitHubUserQuery()
+  const queryClient = useQueryClient()
 
   // Repositories shown in the sidebar's repository selector — reused so Command
   // P lists exactly the same repos.
@@ -143,29 +145,46 @@ export function usePaletteProps({
   const savedChatId = isDraftChatId(displayCurrentChatId) ? null : displayCurrentChatId
 
   // Draft chats have no sandbox yet. Materialize the draft into a real chat
-  // row and make sure it has a running sandbox before proceeding — same
-  // helper the Merge dialog uses (see lib/sandbox-client.ts).
-  const ensureSandboxForDraft = async (): Promise<EnsuredDraftSandbox | null> => {
+  // row immediately (this is what flips the screen from the draft/welcome
+  // view to the normal chat view), then kick off ensuring it has a running
+  // sandbox in the background — don't make the caller wait on that part.
+  // The terminal panel renders its own "connecting…" state while
+  // `sandboxId` is still null, and picks up the real sandboxId reactively
+  // once `ensureSandboxForChat` patches it into the chat query cache (see
+  // lib/sandbox-client.ts), so there's nothing further to wire up here.
+  const materializeDraftForTerminal = async (): Promise<string | null> => {
     if (!displayCurrentChatId || !isDraftChatId(displayCurrentChatId)) return null
-    return materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft, {
+    const chatId = await materializeDraftChat(displayCurrentChatId, materializeDraft, {
       environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
       clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
     })
+    if (!chatId) return null
+    // Fire-and-forget: boots the sandbox and patches sandboxId into the
+    // cache once ready. Not awaited — the terminal panel is already open by
+    // the time this resolves.
+    void ensureSandboxForChat(chatId, queryClient)
+    return chatId
   }
 
-  // Find or create a uniquely-numbered terminal id for this sandbox. We scan
-  // existing terminal preview items, pull the trailing `-<n>` suffix from each,
-  // and pick the next integer above the highest one we've seen.
+  // Find or create a uniquely-numbered terminal id. We scan existing terminal
+  // preview items, pull the trailing `-<n>` suffix from each, and pick the
+  // next integer above the highest one we've seen. The prefix is just an
+  // opaque unique key (nothing parses a sandboxId back out of it), so it's
+  // safe to use the chat id even before a sandbox exists.
+  const nextTerminalId = (prefix: string) => {
+    const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
+    const terminalNumbers = existingTerminals.map((t) => {
+      if (t.type !== "terminal") return 0
+      const match = t.id.match(/-(\d+)$/)
+      return match ? parseInt(match[1], 10) : 1
+    })
+    const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
+    return `${prefix}-${nextNumber}`
+  }
+
   const openNewTerminal = async () => {
     if (sandboxId) {
-      const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
-      const terminalNumbers = existingTerminals.map((t) => {
-        if (t.type !== "terminal") return 0
-        const match = t.id.match(/-(\d+)$/)
-        return match ? parseInt(match[1], 10) : 1
-      })
-      const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
-      preview.openPreview({ type: "terminal", id: `${sandboxId}-${nextNumber}` })
+      preview.openPreview({ type: "terminal", id: nextTerminalId(sandboxId) })
       return
     }
     // Draft chat: materialize it first. The draft just became a real chat row
@@ -173,10 +192,10 @@ export function usePaletteProps({
     // `preview.openPreview`, which closes over them) won't reflect that until
     // a later render. Write the new terminal onto the freshly-materialized
     // chat by id directly instead of going through `preview.openPreview`.
-    const ensured = await ensureSandboxForDraft()
-    if (!ensured) return
-    await updateChatById(ensured.chatId, {
-      previewItems: [{ type: "terminal", id: `${ensured.sandboxId}-1` }],
+    const chatId = await materializeDraftForTerminal()
+    if (!chatId) return
+    await updateChatById(chatId, {
+      previewItems: [{ type: "terminal", id: `${chatId}-1` }],
       activePreviewIndex: 0,
       previewPaneHidden: false,
     })
@@ -195,14 +214,14 @@ export function usePaletteProps({
       return
     }
     if (sandboxId) {
-      preview.openPreview({ type: "terminal", id: `${sandboxId}-1` })
+      preview.openPreview({ type: "terminal", id: nextTerminalId(sandboxId) })
       return
     }
     // Draft chat — see openNewTerminal for why we write by id directly.
-    const ensured = await ensureSandboxForDraft()
-    if (!ensured) return
-    await updateChatById(ensured.chatId, {
-      previewItems: [{ type: "terminal", id: `${ensured.sandboxId}-1` }],
+    const chatId = await materializeDraftForTerminal()
+    if (!chatId) return
+    await updateChatById(chatId, {
+      previewItems: [{ type: "terminal", id: `${chatId}-1` }],
       activePreviewIndex: 0,
       previewPaneHidden: false,
     })
