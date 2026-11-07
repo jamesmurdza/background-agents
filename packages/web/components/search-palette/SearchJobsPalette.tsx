@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { AlarmClock } from "lucide-react"
+import { AlarmClock, Webhook } from "lucide-react"
 import { format } from "date-fns"
 import {
   CommandDialog,
@@ -31,8 +31,17 @@ function lastRunLabel(job: { lastRun: { startedAt: number } | null }): string {
   return job.lastRun ? format(job.lastRun.startedAt, "MMM d, h:mm a") : ""
 }
 
+/** Icon reflecting how the job is triggered — a schedule vs. an incoming webhook. */
+function TriggerIcon({ job }: { job: { triggerType: string } }) {
+  return job.triggerType === "incoming" ? (
+    <Webhook className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+  ) : (
+    <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+  )
+}
+
 /**
- * Standalone "Triggers" command palette — lists all scheduled jobs,
+ * Standalone "Agents" command palette — lists all scheduled jobs,
  * most-recently-updated first, and navigates to the job's detail page on
  * selection. Kept separate from SearchPalette (chats/repos/branches) since
  * scheduled jobs are a distinct entity with their own cache/query hook.
@@ -67,10 +76,17 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
       <CommandDialog
         open={open}
         onOpenChange={onOpenChange}
-        title="Triggers"
-        description="Search for scheduled triggers"
+        title="Agents"
+        description="Search for scheduled agents"
       >
-        <CommandInput placeholder="Search triggers..." />
+        <CommandInput placeholder="Search agents..." />
+        {sortedJobs.length > 0 && (
+          <div className="flex items-center px-2 pt-2">
+            <span className="flex-1" />
+            <span className="text-muted-foreground text-xs ml-2 shrink-0">Last run</span>
+            <span className="ml-1 shrink-0 w-6" />
+          </div>
+        )}
         <CommandList>
           <CommandEmpty>No scheduled jobs found.</CommandEmpty>
           <CommandGroup heading="Scheduled Jobs">
@@ -80,7 +96,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
                 value={`job:${job.name}:${job.repo}`}
                 onSelect={() => handleSelect(job)}
               >
-                <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                <TriggerIcon job={job} />
                 <span className="flex-1 truncate">{job.name}</span>
                 <span className="text-muted-foreground text-xs ml-2 shrink-0">{lastRunLabel(job)}</span>
                 <ScheduledJobActionsMenu
