@@ -323,6 +323,12 @@ export async function GET(req: Request) {
                     userId: chat.userId,
                     branch: chat.branch,
                   })) ?? undefined
+              }
+
+              // Independent of auto-push: a new-repo chat has no remote to
+              // push to, but the uncommitted-files banner still needs this
+              // count so it can nudge the user to create a repo.
+              if (chat) {
                 uncommittedFilesCount = await refreshUncommittedFilesWarning({
                   sandbox,
                   repoPath: sessionOpts.repoPath,
