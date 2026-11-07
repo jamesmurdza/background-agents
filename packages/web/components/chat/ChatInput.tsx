@@ -668,7 +668,7 @@ export function ChatInput({
               (smaller gap than the rest of the action row) since they're both
               "composer utility" actions, distinct from send. Bottom-aligned as
               the textarea grows. */}
-          <div className="flex items-end gap-0.5">
+          <div className="flex items-end gap-x-[-2px]">
             {/* Voice dictation (speech-to-text). Only shown when supported. */}
             {speech.isSupported && (
               <button
@@ -704,9 +704,11 @@ export function ChatInput({
               </button>
             )}
 
-            {/* Schedule this prompt — always visible on the composer; disabled
-                (not hidden) when there's no prompt text to schedule yet.
-                Doesn't depend on a repo being selected. */}
+            {/* Schedule this prompt — only on the new-chat composer (there's
+                no "current prompt" to schedule once a chat already exists).
+                Visible (not hidden) but disabled when there's no prompt text
+                to schedule yet. Doesn't depend on a repo being selected. */}
+            {isNewChat && (
             <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -739,6 +741,7 @@ export function ChatInput({
                 </div>
               </PopoverContent>
             </Popover>
+            )}
           </div>
 
           {/* Send / stop / queue button — the slot remains mounted while idle
