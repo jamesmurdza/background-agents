@@ -30,6 +30,7 @@ function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrid
     git: {} as GitContextValue,
     onSendMessage: () => {},
     onOpenChanges: () => {},
+    onCreateRepo: () => {},
     onReload: () => {},
     onResumeQueue: () => {},
     onChooseModel: () => {},
@@ -61,7 +62,21 @@ describe("uncommitted file warning", () => {
 
   it("disappears when the authoritative chat count clears", () => {
     expect(renderWarning(0)).not.toContain("uncommitted-files-warning")
-    expect(renderWarning(2, true)).not.toContain("uncommitted-files-warning")
+    expect(renderWarning(0, true)).not.toContain("uncommitted-files-warning")
+  })
+
+  it("offers to create a repo instead of committing when there is no linked repo", () => {
+    const html = renderWarning(2, true)
+    expect(html).toContain('data-testid="uncommitted-files-warning"')
+    expect(html).toContain("You have 2 uncommitted files with nowhere to back them up.")
+    expect(html).toContain('data-testid="uncommitted-files-create-repo"')
+    expect(html).toContain(">Create a repo</button> to save your work.")
+    expect(html).not.toContain(">commit</button>")
+  })
+
+  it("singularizes the no-repo copy when there is exactly one file", () => {
+    const html = renderWarning(1, true)
+    expect(html).toContain("You have 1 uncommitted file with nowhere to back it up.")
   })
 })
 
