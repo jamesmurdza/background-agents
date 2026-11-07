@@ -1,4 +1,4 @@
-import { Daytona } from "@daytonaio/sdk"
+import { Daytona, type Sandbox } from "@daytonaio/sdk"
 import { Prisma } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { format } from "date-fns"
@@ -376,6 +376,31 @@ export async function startJobExecution(
 // Run Finalization
 // =============================================================================
 
+/**
+ * Pushes the run's branch to the remote using the job owner's GitHub
+ * credentials, if any are on file. Returns the access token on success (so
+ * callers that also need to hit the GitHub API, e.g. to open a PR, don't have
+ * to look it up again), or null if there's no linked GitHub account.
+ */
+async function pushScheduledRunBranch(
+  job: ScheduledJobRunWithJob["job"],
+  sandbox: Sandbox,
+  repoPath: string
+): Promise<string | null> {
+  const account = await prisma.account.findFirst({
+    where: { userId: job.userId, provider: "github" },
+    select: { access_token: true },
+  })
+
+  if (!account?.access_token) return null
+
+  const git = createSandboxGit(sandbox)
+  const pushOptions = await getUserPushOptions(job.userId)
+  await git.push(repoPath, account.access_token, pushOptions)
+
+  return account.access_token
+}
+
 export async function finalizeScheduledRun(
   run: ScheduledJobRunWithJob,
   snapshot: AgentSnapshot,
@@ -475,17 +500,9 @@ export async function finalizeScheduledRun(
 
       // Push and create PR if there are commits
       if (job.autoPR && commitCount > 0) {
-        const account = await prisma.account.findFirst({
-          where: { userId: job.userId, provider: "github" },
-          select: { access_token: true },
-        })
+        const accessToken = await pushScheduledRunBranch(job, sandbox, repoPath)
 
-        if (account?.access_token) {
-          // Push branch
-          const git = createSandboxGit(sandbox)
-          const pushOptions = await getUserPushOptions(job.userId)
-          await git.push(repoPath, account.access_token, pushOptions)
-
+        if (accessToken) {
           // Create PR via GitHub API
           const [owner, repoName] = job.repo.split("/")
           const prTitle = `[Scheduled] ${job.name} - ${format(run.startedAt, "MMM d")}`
@@ -495,7 +512,7 @@ export async function finalizeScheduledRun(
             {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${account.access_token}`,
+                Authorization: `Bearer ${accessToken}`,
                 Accept: "application/vnd.github.v3+json",
                 "Content-Type": "application/json",
               },
@@ -521,16 +538,7 @@ export async function finalizeScheduledRun(
         }
       } else if (commitCount > 0) {
         // Still push even if not creating PR
-        const account = await prisma.account.findFirst({
-          where: { userId: job.userId, provider: "github" },
-          select: { access_token: true },
-        })
-
-        if (account?.access_token) {
-          const git = createSandboxGit(sandbox)
-          const pushOptions = await getUserPushOptions(job.userId)
-          await git.push(repoPath, account.access_token, pushOptions)
-        }
+        await pushScheduledRunBranch(job, sandbox, repoPath)
       }
       } // end !isRepoLess
     } catch (err) {

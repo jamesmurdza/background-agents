@@ -34,9 +34,9 @@ export function bonusReasonLabel(reason: string): string {
  */
 export const MAX_BONUS_CREDIT_USD = 1_000
 /** Cap on an explicit recipient list; "all users" is its own mode. */
-export const MAX_BONUS_RECIPIENTS = 1_000
-export const MAX_BONUS_NOTE_LENGTH = 500
-export const MAX_BONUS_REFERENCE_LENGTH = 300
+const MAX_BONUS_RECIPIENTS = 1_000
+const MAX_BONUS_NOTE_LENGTH = 500
+const MAX_BONUS_REFERENCE_LENGTH = 300
 
 export interface BonusCreditRequest {
   target: "users" | "all"
