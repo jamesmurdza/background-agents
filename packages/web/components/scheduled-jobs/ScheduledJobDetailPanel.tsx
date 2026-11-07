@@ -45,16 +45,24 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch job runs for the selected job.
+  // Fetch job runs for the selected job. Resets all job-scoped state
+  // synchronously on jobId change — otherwise the previous job's runs/
+  // selectedRun/messages stay on screen (behind the already-updated header,
+  // since that's driven reactively by useScheduledJobQuery) until this
+  // fetch resolves, making it look like you navigated to a different job
+  // but the chat didn't change.
   useEffect(() => {
+    setRuns([])
+    setSelectedRun(null)
+    setMessages([])
+    setError(null)
+
     if (!session || !jobId) {
-      setRuns([])
       setRunsLoading(false)
-      setSelectedRun(null)
-      setMessages([])
       return
     }
 
+    let cancelled = false
     let isFirstFetch = true
     setRunsLoading(true)
 
@@ -63,14 +71,15 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
         const runsRes = await fetch(`/api/scheduled-jobs/${jobId}/runs`)
         if (!runsRes.ok) throw new Error("Failed to fetch runs")
         const runsData = await runsRes.json()
+        if (cancelled) return
         setRuns(runsData.runs)
         if (runsData.runs.length > 0) {
           setSelectedRun(runsData.runs[0])
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error")
+        if (!cancelled) setError(err instanceof Error ? err.message : "Unknown error")
       } finally {
-        if (isFirstFetch) {
+        if (isFirstFetch && !cancelled) {
           setRunsLoading(false)
           isFirstFetch = false
         }
@@ -79,7 +88,10 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
 
     fetchRuns()
     const interval = setInterval(fetchRuns, 30000)
-    return () => clearInterval(interval)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [session, jobId])
 
   // Fetch messages when the selected run changes.
@@ -90,6 +102,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
       return
     }
 
+    let cancelled = false
     let isFirstFetch = true
 
     const fetchMessages = async () => {
@@ -98,12 +111,12 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
         const res = await fetch(`/api/chats/${selectedRun.chatId}/messages`)
         if (!res.ok) throw new Error("Failed to fetch messages")
         const data = await res.json()
-        setMessages(data.messages || [])
+        if (!cancelled) setMessages(data.messages || [])
       } catch (err) {
         console.error("Failed to fetch messages:", err)
-        setMessages([])
+        if (!cancelled) setMessages([])
       } finally {
-        if (isFirstFetch) {
+        if (isFirstFetch && !cancelled) {
           setMessagesLoading(false)
           isFirstFetch = false
         }
@@ -111,9 +124,13 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
     }
 
     fetchMessages()
+    let interval: ReturnType<typeof setInterval> | undefined
     if (selectedRun.status === "running") {
-      const interval = setInterval(fetchMessages, 5000)
-      return () => clearInterval(interval)
+      interval = setInterval(fetchMessages, 5000)
+    }
+    return () => {
+      cancelled = true
+      if (interval) clearInterval(interval)
     }
   }, [selectedRun?.chatId, selectedRun?.status])
 
