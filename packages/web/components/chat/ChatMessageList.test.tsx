@@ -68,9 +68,9 @@ describe("uncommitted file warning", () => {
   it("offers to create a repo instead of committing when there is no linked repo", () => {
     const html = renderWarning(2, true)
     expect(html).toContain('data-testid="uncommitted-files-warning"')
-    expect(html).toContain("Your changes will be lost if you don't commit them.")
+    expect(html).toContain("Your changes will be lost unless you commit them.")
     expect(html).toContain('data-testid="uncommitted-files-create-repo"')
-    expect(html).toContain(">Create a GitHub repository.</button>")
+    expect(html).toContain(">Create a repo</button> to save your work.")
     expect(html).not.toContain(">commit</button>")
   })
 
