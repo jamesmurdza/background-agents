@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { AlarmClock } from "lucide-react"
+import { format } from "date-fns"
 import {
   CommandDialog,
   CommandInput,
@@ -12,17 +13,15 @@ import {
   CommandItem,
 } from "@/components/ui/command"
 import { useScheduledJobsQuery } from "@/lib/query/hooks/useScheduledJobsQuery"
-import { NEW_REPOSITORY } from "@/lib/types"
 
 interface SearchJobsPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-/** "owner/repo" -> "repo" (drop the user/owner prefix). */
-function repoNameOnly(repo: string): string {
-  const idx = repo.lastIndexOf("/")
-  return idx === -1 ? repo : repo.slice(idx + 1)
+/** Last run date, or blank if the job has never run. */
+function lastRunLabel(job: { lastRun: { startedAt: number } | null }): string {
+  return job.lastRun ? format(job.lastRun.startedAt, "MMM d, h:mm a") : ""
 }
 
 /**
@@ -64,9 +63,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
             >
               <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
               <span className="flex-1 truncate">{job.name}</span>
-              {job.repo !== NEW_REPOSITORY && (
-                <span className="text-muted-foreground text-xs ml-2 shrink-0">{repoNameOnly(job.repo)}</span>
-              )}
+              <span className="text-muted-foreground text-xs ml-2 shrink-0">{lastRunLabel(job)}</span>
             </CommandItem>
           ))}
         </CommandGroup>
