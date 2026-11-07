@@ -21,7 +21,7 @@ function makeChat(overrides: Partial<Chat> & Pick<Chat, "id">): Chat {
     createdAt: 0,
     updatedAt: 0,
     displayName: overrides.id,
-    status: "idle" as Chat["status"],
+    status: "ready",
     ...overrides,
   }
 }

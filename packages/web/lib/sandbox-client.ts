@@ -26,12 +26,36 @@ type PendingEnv = {
   clearPending: () => void
 }
 
+/** Patch fields onto a chat in both the list and detail query caches (same
+ * query keys `useCreateChatMutation` writes), so every consumer of the
+ * cached chat object — not just whoever awaited the call that produced this
+ * patch — picks it up on its next render instead of waiting for an
+ * unrelated background refetch to backfill it. */
+function patchChatCache(queryClient: QueryClient, chatId: string, patch: Partial<Chat>) {
+  // Only overwrite fields the caller actually has a value for — an
+  // `undefined` entry (e.g. the ensure response not returning a branch)
+  // must leave the existing cached value alone, not blank it out.
+  const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+  const apply = (chat: Chat): Chat => ({ ...chat, ...defined })
+  queryClient.setQueryData<Chat[]>(queryKeys.chats.list(), (old) =>
+    old?.map((c) => (c.id === chatId ? apply(c) : c))
+  )
+  queryClient.setQueryData<Chat>(queryKeys.chats.detail(chatId), (old) => (old ? apply(old) : old))
+}
+
 /**
- * Materialize a draft chat (if `materializeDraft` resolves it) and apply any
- * env vars staged on it (see `DraftChatConfig.pendingEnvironmentVariables` in
- * lib/storage.ts, written by the Env Vars modal while a chat is still a
- * draft) — best-effort, a failure here doesn't block the caller's actual
- * action. Returns the real chat id, or `null` if materializing failed.
+ * Materialize a draft chat (if `materializeDraft` resolves it) as status
+ * "creating" — not "pending" — so every consumer reading `chat.status`
+ * (e.g. the composer's `canSend`/`isCreating` gate in useChatComposer.ts)
+ * blocks the chat immediately, without waiting on the sandbox-ensure round
+ * trip below to land. `ensureSandboxForChat` resolves the status to "ready"
+ * or "error" once that round trip settles.
+ *
+ * Also applies any env vars staged on the draft (see
+ * `DraftChatConfig.pendingEnvironmentVariables` in lib/storage.ts, written
+ * by the Env Vars modal while a chat is still a draft) — best-effort, a
+ * failure here doesn't block the caller's actual action. Returns the real
+ * chat id, or `null` if materializing failed.
  *
  * Split out from `ensureSandboxForChat` so callers that want to flip the UI
  * from the draft/welcome screen to the real chat screen immediately (e.g.
@@ -40,10 +64,10 @@ type PendingEnv = {
  */
 export async function materializeDraftChat(
   draftId: string,
-  materializeDraft: (draftId: string) => Promise<{ id: string } | null>,
+  materializeDraft: (draftId: string, options?: { status?: Chat["status"] }) => Promise<{ id: string } | null>,
   pendingEnv?: PendingEnv
 ): Promise<string | null> {
-  const materialized = await materializeDraft(draftId)
+  const materialized = await materializeDraft(draftId, { status: "creating" })
   if (!materialized) return null
 
   const chatId = materialized.id
@@ -69,11 +93,15 @@ export async function materializeDraftChat(
 /**
  * Hit `/api/chats/[chatId]/sandbox/ensure` to make sure the chat has a
  * running sandbox, then patch the result into the TanStack Query chat cache
- * (both the list and detail query keys — same shape `useCreateChatMutation`
- * writes) so every consumer of the cached chat object (not just whoever
- * awaited this call) picks up the new `sandboxId`/`branch`/`previewUrlPattern`
- * on its next render, instead of waiting for an unrelated background
- * refetch to backfill it.
+ * so every consumer of the cached chat object (not just whoever awaited this
+ * call) picks up the new `sandboxId`/`branch`/`previewUrlPattern` on its next
+ * render, instead of waiting for an unrelated background refetch to
+ * backfill it.
+ *
+ * Also resolves the "creating" status `materializeDraftChat` set: "ready" on
+ * success, "error" on failure — mirroring the server-side status lifecycle
+ * in `ensureSandboxRunning` (lib/sandbox.ts), so a chat that was materialized
+ * via this path never gets stuck showing as blocked/creating forever.
  */
 export async function ensureSandboxForChat(
   chatId: string,
@@ -84,6 +112,7 @@ export async function ensureSandboxForChat(
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       console.error("[sandbox-client] Failed to ensure sandbox for materialized draft:", data)
+      patchChatCache(queryClient, chatId, { status: "error" })
       return null
     }
     const ensured: EnsuredDraftSandbox = {
@@ -93,22 +122,17 @@ export async function ensureSandboxForChat(
       previewUrlPattern: data.previewUrlPattern ?? null,
     }
 
-    const patch = (chat: Chat): Chat => ({
-      ...chat,
+    patchChatCache(queryClient, chatId, {
       sandboxId: ensured.sandboxId,
-      branch: ensured.branch ?? chat.branch,
-      previewUrlPattern: ensured.previewUrlPattern ?? chat.previewUrlPattern ?? undefined,
+      branch: ensured.branch ?? undefined,
+      previewUrlPattern: ensured.previewUrlPattern ?? undefined,
+      status: "ready",
     })
-    queryClient.setQueryData<Chat[]>(queryKeys.chats.list(), (old) =>
-      old?.map((c) => (c.id === chatId ? patch(c) : c))
-    )
-    queryClient.setQueryData<Chat>(queryKeys.chats.detail(chatId), (old) =>
-      old ? patch(old) : old
-    )
 
     return ensured
   } catch (err) {
     console.error("[sandbox-client] Failed to ensure sandbox for materialized draft:", err)
+    patchChatCache(queryClient, chatId, { status: "error" })
     return null
   }
 }
@@ -131,7 +155,7 @@ export async function ensureSandboxForChat(
  */
 export async function materializeAndEnsureSandbox(
   draftId: string,
-  materializeDraft: (draftId: string) => Promise<{ id: string } | null>,
+  materializeDraft: (draftId: string, options?: { status?: Chat["status"] }) => Promise<{ id: string } | null>,
   queryClient: QueryClient,
   pendingEnv?: PendingEnv,
   options?: { failureBody?: string }

@@ -437,7 +437,7 @@ export async function ensureSandboxRunning(
       branch: created.branch,
       previewUrlPattern: created.previewUrlPattern ?? null,
       sessionId: null,
-      status: "idle",
+      status: "ready",
     },
   })
 
