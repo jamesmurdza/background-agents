@@ -276,7 +276,7 @@ export function ChatMessageList({
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
-                Your changes will be lost if you don&apos;t commit them.{" "}
+                Your changes will be lost unless you commit them.{" "}
                 {onCreateRepo ? (
                   <button
                     type="button"
@@ -284,11 +284,12 @@ export function ChatMessageList({
                     onClick={onCreateRepo}
                     className="underline underline-offset-2 hover:no-underline cursor-pointer"
                   >
-                    Create a GitHub repository.
+                    Create a repo
                   </button>
                 ) : (
-                  "Create a GitHub repository."
-                )}
+                  "Create a repo"
+                )}{" "}
+                to save your work.
               </span>
             </div>
           )}
