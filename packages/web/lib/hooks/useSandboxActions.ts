@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { PATHS } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
 import { isRealRepo } from "@/lib/types"
@@ -51,6 +52,7 @@ export function useSandboxActions({
   const [isStartingSandbox, setIsStartingSandbox] = useState(false)
   // Logs on failure (e.g. clipboard permission denied) instead of swallowing it silently.
   const { copy } = useCopyToClipboard()
+  const queryClient = useQueryClient()
 
   // Handler for opening environment variables modal
   const handleOpenEnvVars = useCallback(async () => {
@@ -207,7 +209,7 @@ export function useSandboxActions({
 
       setIsStartingSandbox(true)
       try {
-        const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft, {
+        const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft, queryClient, {
           environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
           clearPending: () => updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
         })
@@ -236,7 +238,7 @@ export function useSandboxActions({
     } catch (err) {
       console.error("Failed to open in VS Code:", err)
     }
-  }, [currentChat?.sandboxId, currentChatId, isDraftChatId, materializeDraft, draftChatConfig, updateDraftChatConfig])
+  }, [currentChat?.sandboxId, currentChatId, isDraftChatId, materializeDraft, draftChatConfig, updateDraftChatConfig, queryClient])
 
   return {
     isDownloading,
