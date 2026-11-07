@@ -66,6 +66,10 @@ interface UsePalettePropsOptions {
 
   /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
   materializeDraft: (draftId: string) => Promise<Chat | null>
+  /** Draft chat's staged config (repo, pending env vars, etc.), if there is one. */
+  draftChatConfig?: { id: string; pendingEnvironmentVariables?: Record<string, string> }
+  /** Stage/update the draft chat's config. */
+  updateDraftChatConfig?: (updates: { pendingEnvironmentVariables?: Record<string, string> }) => void
 }
 
 /**
@@ -110,6 +114,8 @@ export function usePaletteProps({
   preview,
   onToggleSkillsModal,
   materializeDraft,
+  draftChatConfig,
+  updateDraftChatConfig,
 }: UsePalettePropsOptions): PaletteProps {
   const { data: session } = useSession()
   const { data: currentUserLogin } = useGitHubUserQuery()
@@ -132,7 +138,10 @@ export function usePaletteProps({
   const ensureSandboxForDraft = async (): Promise<string | null> => {
     if (!displayCurrentChatId || !isDraftChatId(displayCurrentChatId)) return null
     useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
-    const ensured = await materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft)
+    const ensured = await materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft, {
+      environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+      clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+    })
     if (!ensured) {
       useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Try again." })
       return null

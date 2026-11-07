@@ -21,6 +21,8 @@ export function useGitDialogs({
   setOnConflictStateChange,
   isDraftChatId,
   materializeDraft,
+  draftChatConfig,
+  updateDraftChatConfig,
 }: UseGitDialogsOptions): UseGitDialogsResult {
   const chatId = chat?.id ?? ""
   const branchName = chat?.branch ?? ""
@@ -207,7 +209,10 @@ export function useGitDialogs({
     if ((!activeSandboxId || !activeChatId) && chatId && isDraftChatId?.(chatId) && materializeDraft) {
       setActionLoading(true)
       useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
-      const ensured = await materializeAndEnsureSandbox(chatId, materializeDraft)
+      const ensured = await materializeAndEnsureSandbox(chatId, materializeDraft, {
+        environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+        clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+      })
       setActionLoading(false)
       if (!ensured) {
         useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Merge not performed — try again." })
@@ -286,7 +291,7 @@ export function useGitDialogs({
         void updateChatById(activeChatId, { baseBranch: selectedBranch })
       }
     }, setMergeOpen, activeChatId)
-  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, findOtherChatOnBranch, chat, resolveChatName, updateChatById, runGitAction, isDraftChatId, materializeDraft])
+  }, [selectedBranch, branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, squashMerge, findOtherChatOnBranch, chat, resolveChatName, updateChatById, runGitAction, isDraftChatId, materializeDraft, draftChatConfig, updateDraftChatConfig])
 
   // Shared rebase mechanics, parameterized on the target branch so callers
   // that already know it (the rebase-suggestion banner) can skip the

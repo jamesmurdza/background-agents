@@ -31,6 +31,13 @@ export interface DraftChatConfig {
   agent: string | null
   model: string | null
   planMode?: boolean
+  /**
+   * Chat-level env vars staged while the chat is still a draft (no DB row to
+   * write them to yet). Applied via PATCH /api/chats/[chatId]/env right after
+   * the draft materializes into a real chat — see materializeAndEnsureSandbox
+   * in lib/sandbox-client.ts — then cleared.
+   */
+  pendingEnvironmentVariables?: Record<string, string>
 }
 
 /** Preview state for a chat */

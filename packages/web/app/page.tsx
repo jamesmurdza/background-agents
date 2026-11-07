@@ -176,6 +176,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     isDraftChatId,
     onOpenEnvVarsModal: () => modals.setEnvVarsModalOpen(true),
     materializeDraft,
+    draftChatConfig,
+    updateDraftChatConfig,
   })
 
   // Use TanStack Query for server polling
@@ -347,6 +349,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     setOnConflictStateChange,
     isDraftChatId,
     materializeDraft,
+    draftChatConfig,
+    updateDraftChatConfig,
   })
 
   // Chat/job navigation: view-switching handlers, keyboard traversal,
@@ -645,6 +649,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     preview,
     onToggleSkillsModal: () => setSkillsModalOpen((prev) => !prev),
     materializeDraft,
+    draftChatConfig,
+    updateDraftChatConfig,
   })
 
   return (

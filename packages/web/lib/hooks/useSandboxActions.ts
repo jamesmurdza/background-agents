@@ -7,6 +7,7 @@ import { isRealRepo } from "@/lib/types"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
 import { useToastStore } from "@/lib/stores/toast-store"
+import type { DraftChatConfig } from "@/lib/storage"
 
 // =============================================================================
 // useSandboxActions — actions that operate on the current chat's sandbox/repo:
@@ -25,6 +26,10 @@ interface UseSandboxActionsOptions {
   onOpenEnvVarsModal: () => void
   /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
   materializeDraft: (draftId: string) => Promise<Chat | null>
+  /** Draft chat's staged config (repo, pending env vars, etc.), if there is one. */
+  draftChatConfig: DraftChatConfig | undefined
+  /** Stage/update the draft chat's config (used to park env vars before materializing). */
+  updateDraftChatConfig: (updates: Partial<Omit<DraftChatConfig, "id">>) => void
 }
 
 export function useSandboxActions({
@@ -34,6 +39,8 @@ export function useSandboxActions({
   isDraftChatId,
   onOpenEnvVarsModal,
   materializeDraft,
+  draftChatConfig,
+  updateDraftChatConfig,
 }: UseSandboxActionsOptions) {
   const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
@@ -48,32 +55,39 @@ export function useSandboxActions({
 
   // Handler for opening environment variables modal
   const handleOpenEnvVars = useCallback(async () => {
-    if (!currentChatId || isDraftChatId(currentChatId)) return
+    if (!currentChatId) return
+    const isDraft = isDraftChatId(currentChatId)
+    if (isDraft && draftChatConfig?.id !== currentChatId) return
 
     try {
-      // Fetch chat env vars
-      const chatRes = await fetch(`/api/chats/${currentChatId}/env`)
-      const chatData = chatRes.ok ? await chatRes.json() : { environmentVariables: {} }
+      // Chat-level env vars: a draft has no DB row yet, so read back whatever
+      // was staged on its draftChatConfig instead of hitting the API.
+      const chatData = isDraft
+        ? { environmentVariables: draftChatConfig?.pendingEnvironmentVariables ?? {} }
+        : await fetch(`/api/chats/${currentChatId}/env`).then((r) => (r.ok ? r.json() : { environmentVariables: {} }))
 
-      // Fetch repo env vars
+      // Repo env vars are keyed by repo name, not chat id, so these work the
+      // same for a draft as for a real chat.
       const repoRes = await fetch("/api/user/repo-env")
       const repoData = repoRes.ok ? await repoRes.json() : { repoEnvironmentVariables: {} }
 
-      const chat = chats.find((c) => c.id === currentChatId)
-      const repoName = isRealRepo(chat?.repo) ? chat?.repo : undefined
+      const repoName = isDraft
+        ? (isRealRepo(draftChatConfig?.repo) ? draftChatConfig?.repo : undefined)
+        : (isRealRepo(chats.find((c) => c.id === currentChatId)?.repo) ? chats.find((c) => c.id === currentChatId)?.repo : undefined)
 
-      // Fetch deployment env vars
-      const deployRes = repoName ? await fetch(`/api/chats/${currentChatId}/netlify/env`) : null
+      // Deployment (Netlify) env vars need a real, deployed chat — not
+      // available for a draft.
+      const deployRes = !isDraft && repoName ? await fetch(`/api/chats/${currentChatId}/netlify/env`) : null
       const deployData = deployRes?.ok ? await deployRes.json() : { connected: false }
 
       setEnvVarsChatEnvVars(chatData.environmentVariables || {})
-      setEnvVarsRepoEnvVars(repoName && repoData.repoEnvironmentVariables?.[repoName] || {})
+      setEnvVarsRepoEnvVars((repoName && repoData.repoEnvironmentVariables?.[repoName]) || {})
       setEnvVarsDeployEnvVars(deployData.connected ? deployData.environmentVariables : null)
       onOpenEnvVarsModal()
     } catch (error) {
       console.error("Failed to fetch environment variables:", error)
     }
-  }, [currentChatId, isDraftChatId, chats, onOpenEnvVarsModal])
+  }, [currentChatId, isDraftChatId, chats, onOpenEnvVarsModal, draftChatConfig])
 
   // Handler for saving environment variables
   const handleSaveEnvVars = useCallback(async (
@@ -81,17 +95,28 @@ export function useSandboxActions({
     repoEnvVars: Record<string, string>,
     deployEnvVars?: Record<string, string>
   ) => {
-    if (!currentChatId || isDraftChatId(currentChatId)) return
+    if (!currentChatId) return
+    const isDraft = isDraftChatId(currentChatId)
+    if (isDraft && draftChatConfig?.id !== currentChatId) return
 
-    const chat = chats.find((c) => c.id === currentChatId)
-    const repoName = isRealRepo(chat?.repo) ? chat?.repo : undefined
+    const repoName = isDraft
+      ? (isRealRepo(draftChatConfig?.repo) ? draftChatConfig?.repo : undefined)
+      : (isRealRepo(chats.find((c) => c.id === currentChatId)?.repo) ? chats.find((c) => c.id === currentChatId)?.repo : undefined)
 
-    // Save chat env vars
-    await fetch(`/api/chats/${currentChatId}/env`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmentVariables: chatEnvVars }),
-    })
+    if (isDraft) {
+      // No DB row to PATCH yet — stage chat-level env vars on the draft
+      // config. Applied via materializeAndEnsureSandbox once the draft
+      // materializes into a real chat (see lib/sandbox-client.ts). Repo-level
+      // vars can be saved immediately below since they're keyed by repo name.
+      updateDraftChatConfig({ pendingEnvironmentVariables: chatEnvVars })
+    } else {
+      // Save chat env vars
+      await fetch(`/api/chats/${currentChatId}/env`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ environmentVariables: chatEnvVars }),
+      })
+    }
 
     // Save repo env vars if applicable
     if (repoName) {
@@ -102,8 +127,9 @@ export function useSandboxActions({
       })
     }
 
-    // Save the Netlify site's env vars (the server redeploys when they changed)
-    if (deployEnvVars) {
+    // Save the Netlify site's env vars (the server redeploys when they changed).
+    // Not available for a draft chat — it has no deployment to redeploy.
+    if (deployEnvVars && !isDraft) {
       const res = await fetch(`/api/chats/${currentChatId}/netlify/env`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -111,7 +137,7 @@ export function useSandboxActions({
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Couldn't save the deployment variables")
     }
-  }, [currentChatId, isDraftChatId, chats])
+  }, [currentChatId, isDraftChatId, chats, draftChatConfig, updateDraftChatConfig])
 
   const handleDownloadProject = useCallback(async () => {
     if (!currentChat?.sandboxId || isDownloading) return
@@ -183,7 +209,10 @@ export function useSandboxActions({
       setIsStartingSandbox(true)
       useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
       try {
-        const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft)
+        const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft, {
+          environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+          clearPending: () => updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
+        })
         if (!ensured) {
           useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Try again." })
           return
@@ -212,7 +241,7 @@ export function useSandboxActions({
     } catch (err) {
       console.error("Failed to open in VS Code:", err)
     }
-  }, [currentChat?.sandboxId, currentChatId, isDraftChatId, materializeDraft])
+  }, [currentChat?.sandboxId, currentChatId, isDraftChatId, materializeDraft, draftChatConfig, updateDraftChatConfig])
 
   return {
     isDownloading,

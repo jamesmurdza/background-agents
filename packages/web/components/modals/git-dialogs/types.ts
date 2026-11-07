@@ -39,6 +39,10 @@ export interface UseGitDialogsOptions {
   isDraftChatId?: (chatId: string | null) => boolean
   /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
   materializeDraft?: (draftId: string) => Promise<Chat | null>
+  /** Draft chat's staged config (repo, pending env vars, etc.), if there is one. */
+  draftChatConfig?: { id: string; pendingEnvironmentVariables?: Record<string, string> }
+  /** Stage/update the draft chat's config. */
+  updateDraftChatConfig?: (updates: { pendingEnvironmentVariables?: Record<string, string> }) => void
 }
 
 /** PR description format options */
