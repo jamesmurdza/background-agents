@@ -47,6 +47,13 @@ export function parseSkillHandle(fullHandle: string): {
  * }
  * ```
  */
+/** Delays (ms) between install attempts; one entry per retry after the first try. */
+const INSTALL_RETRY_DELAYS_MS = [1000, 2000]
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function installSkill(
   sandbox: Sandbox,
   repoPath: string,
@@ -54,29 +61,50 @@ export async function installSkill(
   skillId?: string | null
 ): Promise<SkillInstallResult> {
   const fullHandle = skillId ? `${source}/${skillId}` : source
+  const skillFlag = skillId ? ` --skill ${skillId}` : ""
+  // -g installs at user-level (~/.agents/skills) instead of into the repo
+  // working tree, so the repository stays clean and skills are shared.
+  const installCmd = `npx -y skills add ${source}${skillFlag} --agent '*' -g -y`
 
-  try {
-    const skillFlag = skillId ? ` --skill ${skillId}` : ""
-    // -g installs at user-level (~/.agents/skills) instead of into the repo
-    // working tree, so the repository stays clean and skills are shared.
-    const installCmd = `npx -y skills add ${source}${skillFlag} --agent '*' -g -y`
-    const cmd = await sandbox.process.executeCommand(
-      `cd ${repoPath} && ${installCmd} 2>&1`
-    )
+  let lastResult: SkillInstallResult = {
+    fullHandle,
+    success: false,
+    error: "Install did not run",
+  }
 
-    const success = cmd.exitCode === 0
-    return {
-      fullHandle,
-      success,
-      error: success ? undefined : extractCleanError(cmd.result ?? ""),
+  // Retry blindly: at the exec level, a transient failure (sandbox fs/network
+  // not ready yet, npx cold-start, repo not fully cloned) and a genuine
+  // "skill not found" failure both just surface as a non-zero exit with
+  // similar-looking stderr, so there's no reliable signal here to distinguish
+  // them and skip retrying on the latter.
+  for (let attempt = 0; attempt <= INSTALL_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const cmd = await sandbox.process.executeCommand(
+        `cd ${repoPath} && ${installCmd} 2>&1`
+      )
+
+      const success = cmd.exitCode === 0
+      lastResult = {
+        fullHandle,
+        success,
+        error: success ? undefined : extractCleanError(cmd.result ?? ""),
+      }
+    } catch (error) {
+      lastResult = {
+        fullHandle,
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
     }
-  } catch (error) {
-    return {
-      fullHandle,
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+
+    if (lastResult.success) return lastResult
+
+    if (attempt < INSTALL_RETRY_DELAYS_MS.length) {
+      await sleep(INSTALL_RETRY_DELAYS_MS[attempt])
     }
   }
+
+  return lastResult
 }
 
 /** Uploaded skill names end up in shell commands, so only allow safe characters. */
