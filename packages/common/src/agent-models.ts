@@ -40,13 +40,13 @@ export interface ModelOption {
 export const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/glm-5.2",
   "opencode-go/glm-5.3",
-  "opencode-go/kimi-k2.6",
   "opencode-go/kimi-k2.7-code",
-  "opencode-go/mimo-v2.5",
-  "opencode-go/mimo-v2.5-pro",
-  "opencode-go/minimax-m2.7",
+  // mimo-v2.5(-pro) renamed to v2.6 upstream; kimi-k2.6, minimax-m2.7, and
+  // qwen3.6-plus were retired with no 1:1 successor id (qwen3.6-plus's
+  // "plus" tier continues as qwen3.7-plus below, already present).
+  "opencode-go/mimo-v2.6-flash",
+  "opencode-go/mimo-v2.6-pro",
   "opencode-go/minimax-m3",
-  "opencode-go/qwen3.6-plus",
   "opencode-go/qwen3.7-plus",
   "opencode-go/deepseek-v4-pro",
   "opencode-go/deepseek-v4.1-flash",
@@ -95,7 +95,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   "opencode": [
     // Free models (opencode/) - no API key needed
     { value: "opencode/big-pickle", label: "Big Pickle", requiresKey: "none", priceUsdPerM: 0 },
-    { value: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra", requiresKey: "none", priceUsdPerM: 0 },
+    // nemotron-3-ultra-free was retired upstream; nemotron-3.5-super-vl-free
+    // (the larger 120B-class tier, vs. the smaller -lightning- tier) is the
+    // closest live successor.
+    { value: "opencode/nemotron-3.5-super-vl-free", label: "Nemotron 3.5 Super VL", requiresKey: "none", priceUsdPerM: 0 },
     { value: "opencode/mimo-v2.6-flash-free", label: "MiMo v2.6 Flash", requiresKey: "none", priceUsdPerM: 0 },
     // Curated OpenCode Go models (opencode-go/ prefix), runnable on the
     // server-shared Go subscription key. Shown first when OPENCODE_API_KEY is
@@ -103,19 +106,17 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // priceUsdPerM is the input $/M-token rate from OpenCode's published Go rate card.
     { value: "opencode-go/glm-5.2", label: "GLM-5.2", requiresKey: "opencode", priceUsdPerM: 1.4 },
     { value: "opencode-go/glm-5.3", label: "GLM-5.3", requiresKey: "opencode", priceUsdPerM: 1.4 },
-    { value: "opencode-go/kimi-k3.1-pro", label: "Kimi K3.1 Pro", requiresKey: "opencode", priceUsdPerM: 3 },
+    { value: "opencode-go/kimi-k3.1-pro", label: "Kimi K3.1 Pro", requiresKey: "opencode", priceUsdPerM: 2 },
     { value: "opencode-go/kimi-k3", label: "Kimi K3", requiresKey: "opencode", priceUsdPerM: 3 },
-    { value: "opencode-go/kimi-k2.6", label: "Kimi K2.6", requiresKey: "opencode", priceUsdPerM: 0.95 },
     { value: "opencode-go/kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "opencode", priceUsdPerM: 0.95 },
-    { value: "opencode-go/mimo-v2.5", label: "MiMo v2.5", requiresKey: "opencode", priceUsdPerM: 0.14 },
-    { value: "opencode-go/mimo-v2.5-pro", label: "MiMo v2.5 Pro", requiresKey: "opencode", priceUsdPerM: 0.44 },
-    { value: "opencode-go/minimax-m2.7", label: "MiniMax M2.7", requiresKey: "opencode", priceUsdPerM: 0.3 },
+    // Renamed upstream from v2.5(-pro) to v2.6.
+    { value: "opencode-go/mimo-v2.6-flash", label: "MiMo v2.6 Flash", requiresKey: "opencode", priceUsdPerM: 0.14 },
+    { value: "opencode-go/mimo-v2.6-pro", label: "MiMo v2.6 Pro", requiresKey: "opencode", priceUsdPerM: 0.435 },
     { value: "opencode-go/minimax-m3", label: "MiniMax M3", requiresKey: "opencode", priceUsdPerM: 0.3 },
-    { value: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode", priceUsdPerM: 0.5 },
     { value: "opencode-go/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "opencode", priceUsdPerM: 2 },
     { value: "opencode-go/qwen3.7-plus", label: "Qwen3.7 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
     { value: "opencode-go/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode", priceUsdPerM: 0.66 },
-    { value: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "opencode", priceUsdPerM: 0.22 },
+    { value: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "opencode", priceUsdPerM: 0.15 },
 
     // Remaining paid models — route through OpenCode Zen (pay-as-you-go credits).
     // Preserve original order, excluding duplicates.
@@ -143,10 +144,11 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "opencode" },
     { value: "opencode/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "opencode" },
     { value: "opencode/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "opencode" },
-    { value: "opencode/gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "opencode" },
+    // gemini-3-flash and gemini-3.1-pro are not in OpenCode's Zen catalog —
+    // Zen only ever carried the numbered Flash tiers below plus Argon; there
+    // is no Zen "pro" tier at all.
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "opencode" },
-    { value: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "opencode" },
     { value: "opencode/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "opencode" },
     // Anthropic direct models — route to Anthropic on the user's own Anthropic key
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
@@ -434,7 +436,7 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 /** Default model per agent */
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "sonnet",
-  "opencode": "opencode-go/mimo-v2.5-pro",
+  "opencode": "opencode-go/mimo-v2.6-pro",
   "codex": "gpt-6.1-sol", // GPT-5.5 retired Oct 14, 2026; near-Astra quality at lower cost
   "command-code": "xiaomi/mimo-v2.6-pro", // widest plan availability of the catalog tiers
   "copilot": "gpt-5.6-terra", // GPT-5 Mini no longer offered; Terra is GitHub's recommended everyday model

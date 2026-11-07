@@ -261,7 +261,7 @@ describe("free models survive a spent balance", () => {
   })
 
   it("still blocks the paid shared models", () => {
-    const paid = { value: "opencode-go/mimo-v2.5-pro", label: "MiMo", requiresKey: "opencode" as const }
+    const paid = { value: "opencode-go/mimo-v2.6-pro", label: "MiMo", requiresKey: "opencode" as const }
     expect(hasCredentialsForModel(paid, spentWithSharedOpencode, "opencode")).toBe(false)
     expect(modelRequiresKey("opencode", paid.value)).toBe("opencode")
   })
