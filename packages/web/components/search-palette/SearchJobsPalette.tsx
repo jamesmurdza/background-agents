@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, AlertCircle, Pause, Webhook } from "lucide-react"
+import { AlarmClock, AlertCircle, Pause, Webhook } from "lucide-react"
 import {
   CommandDialog,
   CommandInput,
@@ -29,11 +29,11 @@ function JobStatusIcon({ job }: { job: { enabled: boolean; lastRun: { status: st
   if (!job.enabled) return <Pause className="mr-2 h-4 w-4 text-muted-foreground" />
   if (job.lastRun?.status === "error") return <AlertCircle className="mr-2 h-4 w-4 text-destructive" />
   if (job.triggerType === "incoming") return <Webhook className="mr-2 h-4 w-4 text-muted-foreground" />
-  return <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+  return <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground" />
 }
 
 /**
- * Standalone "Search Jobs" command palette — lists all scheduled jobs,
+ * Standalone "Events" command palette — lists all scheduled jobs,
  * most-recently-updated first, and navigates to the job's detail page on
  * selection. Kept separate from SearchPalette (chats/repos/branches) since
  * scheduled jobs are a distinct entity with their own cache/query hook.
@@ -56,10 +56,10 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Search Jobs"
-      description="Search for scheduled jobs"
+      title="Events"
+      description="Search for scheduled events"
     >
-      <CommandInput placeholder="Search scheduled jobs..." />
+      <CommandInput placeholder="Search events..." />
       <CommandList>
         <CommandEmpty>No scheduled jobs found.</CommandEmpty>
         <CommandGroup heading="Scheduled Jobs">

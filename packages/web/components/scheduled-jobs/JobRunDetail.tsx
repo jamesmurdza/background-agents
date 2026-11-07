@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Clock, ChevronDown, Check, GitPullRequest } from "lucide-react"
+import { Clock, AlarmClock, ChevronDown, Check, GitPullRequest } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { MessageBubble } from "@/components/MessageBubble"
@@ -213,7 +213,7 @@ export function JobRunDetail({
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Clock className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <AlarmClock className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h2 className="text-lg font-medium mb-2">No runs yet</h2>
             <p className="text-muted-foreground">
               This job will run {formatDistanceToNow(job.nextRunAt, { addSuffix: true })}
