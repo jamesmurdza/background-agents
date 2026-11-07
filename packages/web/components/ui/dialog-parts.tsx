@@ -52,7 +52,7 @@ export interface DialogActionButtonProps {
   disabled?: boolean
   loading?: boolean
   isMobile?: boolean
-  variant?: "primary" | "destructive"
+  variant?: "primary" | "destructive" | "success"
   children: React.ReactNode
   buttonRef?: React.RefObject<HTMLButtonElement | null>
 }
@@ -66,9 +66,12 @@ export function DialogActionButton({
   children,
   buttonRef,
 }: DialogActionButtonProps) {
-  const variantClasses = variant === "destructive"
-    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-    : "bg-primary text-primary-foreground hover:bg-primary/90"
+  const variantClasses =
+    variant === "destructive"
+      ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+      : variant === "success"
+        ? "bg-green-600 text-white hover:bg-green-700"
+        : "bg-primary text-primary-foreground hover:bg-primary/90"
 
   return (
     <button
@@ -95,7 +98,7 @@ export interface DialogFooterProps {
   disabled?: boolean
   loading?: boolean
   isMobile?: boolean
-  variant?: "primary" | "destructive"
+  variant?: "primary" | "destructive" | "success"
   actionButtonRef?: React.RefObject<HTMLButtonElement | null>
 }
 

@@ -197,6 +197,7 @@ export function NetlifyDeployDialog({ open, onClose, chatId, isMobile = false }:
           disabled={!info || building || (info.connected && !info.site && (!name.trim() || info.unmerged))}
           loading={busy}
           isMobile={isMobile}
+          variant={info && !info.connected ? "primary" : "success"}
         />
       </div>
     </BaseDialog>
