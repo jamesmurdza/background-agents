@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useSession } from "next-auth/react"
 import { signInWithGitHub } from "@/lib/auth-utils"
-import { SquarePen, PanelLeft, X, PersonStanding, Search, MessageCircle } from "lucide-react"
+import { SquarePen, PanelLeft, X, Clock, Search, MessageCircle } from "lucide-react"
 import Image from "next/image"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
@@ -367,7 +367,7 @@ export function Sidebar({
               }}
               className="flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target hover:bg-accent/50 active:bg-accent"
             >
-              <PersonStanding className="h-5 w-5 text-muted-foreground" />
+              <Clock className="h-5 w-5 text-muted-foreground" />
               <span className="text-base text-foreground">Agents</span>
             </button>
 
@@ -549,7 +549,7 @@ export function Sidebar({
             collapsed ? "p-1.5" : "w-full px-2 py-[7px]"
           )}
         >
-          <PersonStanding className="h-[18px] w-[18px] text-muted-foreground" />
+          <Clock className="h-[18px] w-[18px] text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">Agents</span>}
         </button>
 

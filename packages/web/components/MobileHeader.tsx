@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, AlarmClock, Command, HardDrive, Rocket, HelpCircle, Zap } from "lucide-react"
+import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, HardDrive, Rocket, HelpCircle, Zap } from "lucide-react"
 import { useModals, useSidebar } from "@/lib/contexts"
 import { CreditBalancePill } from "@/components/chat/CreditBalancePill"
 import { isRealRepo, type Chat } from "@/lib/types"
@@ -66,7 +66,7 @@ export function MobileHeader({
       {/* Title - different for scheduled jobs vs chat */}
       {viewMode === "scheduled-jobs" ? (
         <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 -ml-2">
-          <AlarmClock className="h-4 w-4 text-muted-foreground" />
+          <Clock className="h-4 w-4 text-muted-foreground" />
           <span className="text-base font-semibold">Scheduled Agents</span>
         </div>
       ) : (

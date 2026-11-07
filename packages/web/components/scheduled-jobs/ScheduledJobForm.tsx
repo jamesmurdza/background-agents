@@ -2,7 +2,7 @@
 
 import { useRef } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { AlarmClock, ChevronDown } from "lucide-react"
+import { Clock, ChevronDown } from "lucide-react"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 import { RepoCombobox } from "@/components/chat/RepoCombobox"
@@ -122,7 +122,7 @@ export function ScheduledJobForm({ open, job, onClose, onSuccess, isMobile = fal
           <ModalHeader
             title={
               <>
-                <AlarmClock className="h-4 w-4" />
+                <Clock className="h-4 w-4" />
                 Edit Scheduled Agent
               </>
             }
