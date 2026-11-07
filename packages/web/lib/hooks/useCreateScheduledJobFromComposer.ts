@@ -2,8 +2,10 @@
 
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { NEW_REPOSITORY, type Agent } from "@/lib/types"
 import { localHourToUtc } from "@/components/scheduled-jobs/form-config"
+import { queryKeys } from "@/lib/query/keys"
 import type { ScheduledJob } from "@/lib/scheduled-jobs/types"
 
 interface CreateScheduledJobFromComposerArgs {
@@ -41,13 +43,13 @@ function placeholderNameFromPrompt(prompt: string): string {
  * immediately (so navigation isn't blocked on an LLM title), then
  * fire-and-forget requests a better name and PATCHes it in once it resolves.
  *
- * There's no React Query infrastructure for scheduled jobs yet (the jobs
- * list/detail views use plain fetch, not useQuery) — so there's no cache to
- * patch here. The suggested-name PATCH lands on the server; the jobs list
- * and detail page will pick it up on their next natural fetch/navigation.
+ * Mirrors useSuggestNameMutation's cache-patch pattern on the chat side: once
+ * the LLM name resolves, the detail and list caches for scheduled jobs are
+ * updated directly rather than waiting on the next natural refetch.
  */
 export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromComposerArgs) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const {
     prompt, repo, baseBranch, agent, model, triggerType,
     effectiveIntervalMinutes, runAtHourLocal, runAtDay, autoPR,
@@ -86,6 +88,11 @@ export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromCo
     }
     const created: ScheduledJob = await res.json()
 
+    // Seed the shared caches so the detail page (navigated to below) and the
+    // jobs list render immediately without waiting on a refetch.
+    queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(created.id), created)
+    queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) => [created, ...old])
+
     // Fire-and-forget: don't block the navigation/clear on an LLM title.
     // See useMessageDispatch's suggestNameMutation.mutate(...) call for the
     // analogous pattern on the chat side.
@@ -103,6 +110,14 @@ export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromCo
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name }),
         })
+
+        // Patch the detail and list caches, mirroring useSuggestNameMutation.
+        queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(created.id), (old) =>
+          old ? { ...old, name } : old
+        )
+        queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) =>
+          old.map((j) => (j.id === created.id ? { ...j, name } : j))
+        )
       })
       .catch((err) => {
         console.error("[useCreateScheduledJobFromComposer] name suggestion failed:", err)
@@ -113,7 +128,7 @@ export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromCo
     return created
   }, [prompt, repo, baseBranch, agent, model, triggerType, effectiveIntervalMinutes,
     runAtHourLocal, runAtDay, autoPR, continueFromLastRun, incomingToken, isRepoLess,
-    onInputChange, router])
+    onInputChange, router, queryClient])
 
   return { createJob }
 }

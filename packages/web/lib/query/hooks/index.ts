@@ -9,6 +9,8 @@ export { useServersQuery } from "./useServersQuery"
 export type { ServerInfo } from "./useServersQuery"
 export { useNetlifySitesQuery } from "./useNetlifySitesQuery"
 export type { NetlifySiteInfo } from "./useNetlifySitesQuery"
+export { useScheduledJobsQuery } from "./useScheduledJobsQuery"
+export { useScheduledJobQuery } from "./useScheduledJobQuery"
 
 // Mutations
 export { useCreateChatMutation } from "./useCreateChatMutation"

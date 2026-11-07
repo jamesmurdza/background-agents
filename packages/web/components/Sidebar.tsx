@@ -113,7 +113,7 @@ export function Sidebar({
   // from their own repos in the filter menu.
   const { data: currentUserLogin } = useGitHubUserQuery()
   const router = useRouter()
-  const { openSearch } = usePalette()
+  const { openSearch, openJobsSearch } = usePalette()
   const { isDesktopApp } = useElectron()
   const isResizing = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -393,6 +393,18 @@ export function Sidebar({
               <span className="text-base text-foreground">Search Chats</span>
             </button>
 
+            {/* Search Jobs Button */}
+            <button
+              onClick={() => {
+                openJobsSearch()
+                if (onMobileClose) onMobileClose()
+              }}
+              className="flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target hover:bg-accent/50 active:bg-accent"
+            >
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <span className="text-base text-foreground">Search Jobs</span>
+            </button>
+
             {/* Scheduled Jobs Button */}
             <button
               onClick={handleOpenScheduledJobsClick}
@@ -575,6 +587,18 @@ export function Sidebar({
         >
           <Search className="h-[18px] w-[18px] text-muted-foreground" />
           {!collapsed && <span className="text-sm text-foreground">Search Chats</span>}
+        </button>
+
+        {/* Search Jobs Button */}
+        <button
+          onClick={openJobsSearch}
+          className={cn(
+            "flex items-center gap-2 rounded-md transition-colors hover:bg-accent/50 cursor-pointer",
+            collapsed ? "p-1.5" : "w-full px-2 py-[7px]"
+          )}
+        >
+          <Clock className="h-[18px] w-[18px] text-muted-foreground" />
+          {!collapsed && <span className="text-sm text-foreground">Search Jobs</span>}
         </button>
 
         {/* Chat Switcher - collapsed only, since the chat list itself is hidden */}

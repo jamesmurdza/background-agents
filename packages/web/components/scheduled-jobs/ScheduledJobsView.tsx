@@ -2,11 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Clock, Plus } from "lucide-react"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { JobsList } from "@/components/scheduled-jobs/JobsList"
 import { JobRunDetail } from "@/components/scheduled-jobs/JobRunDetail"
+import { useScheduledJobsQuery } from "@/lib/query/hooks/useScheduledJobsQuery"
+import { useScheduledJobQuery } from "@/lib/query/hooks/useScheduledJobQuery"
+import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
+import { queryKeys } from "@/lib/query/keys"
 import { type ScheduledJob, type ScheduledJobRun } from "@/lib/scheduled-jobs/types"
 import type { Message } from "@/lib/types"
 
@@ -30,6 +35,7 @@ interface ScheduledJobsViewProps {
 
 export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigateToJob }: ScheduledJobsViewProps) {
   const { data: session } = useSession()
+  const queryClient = useQueryClient()
 
   // The selected job ID - derived directly from URL
   const selectedJobId = urlJobId
@@ -39,79 +45,48 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
     onNavigateToJob?.(jobId, jobName)
   }
 
-  // Jobs list state
-  const [jobs, setJobs] = useState<ScheduledJob[]>([])
-  const [loading, setLoading] = useState(true)
+  // Jobs list state - backed by the shared React Query cache
+  const { data: queriedJobs, isLoading: jobsLoading } = useScheduledJobsQuery()
+  const jobs = queriedJobs ?? []
+  const loading = jobsLoading && jobs.length === 0
   const [error, setError] = useState<string | null>(null)
+  const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
 
   // Form/modal state
   const [formOpen, setFormOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null)
-  const [deleteJob, setDeleteJob] = useState<ScheduledJob | null>(null)
+  const [jobPendingDelete, setJobPendingDelete] = useState<ScheduledJob | null>(null)
 
-  // Detail view state
-  const [selectedJob, setSelectedJob] = useState<ScheduledJob | null>(null)
+  // Detail view state - job detail itself comes from the shared query cache
   const [runs, setRuns] = useState<ScheduledJobRun[]>([])
   const [selectedRun, setSelectedRun] = useState<ScheduledJobRun | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
 
-  // Reset detail state when returning to list view
-  // Note: Don't call setSelectedJobId here - URL changes should drive navigation
+  const { data: selectedJob } = useScheduledJobQuery(selectedJobId)
+
+  // Re-fetch the jobs list when the caller bumps refreshKey (e.g. after
+  // creating a job elsewhere in the app).
   useEffect(() => {
-    if (!selectedJobId) {
-      setSelectedJob(null)
+    if (session && refreshKey !== undefined) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduledJobs.list() })
     }
-  }, [selectedJobId])
+  }, [session, refreshKey, queryClient])
 
-  // Fetch jobs list
-  const fetchJobs = async () => {
-    try {
-      const res = await fetch("/api/scheduled-jobs")
-      if (!res.ok) throw new Error("Failed to fetch jobs")
-      const data = await res.json()
-      setJobs(data.jobs)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (session) {
-      fetchJobs()
-      const interval = setInterval(fetchJobs, 30000)
-      return () => clearInterval(interval)
-    }
-  }, [session, refreshKey])
-
-  // Fetch job detail when selected
+  // Fetch job runs when selected job changes
   useEffect(() => {
     if (!session || !selectedJobId) {
-      setSelectedJob(null)
       setRuns([])
       setSelectedRun(null)
       setMessages([])
       return
     }
 
-    const fetchJobDetail = async () => {
+    const fetchRuns = async () => {
       try {
-        const [jobRes, runsRes] = await Promise.all([
-          fetch(`/api/scheduled-jobs/${selectedJobId}`),
-          fetch(`/api/scheduled-jobs/${selectedJobId}/runs`),
-        ])
-
-        if (!jobRes.ok) throw new Error("Failed to fetch job")
+        const runsRes = await fetch(`/api/scheduled-jobs/${selectedJobId}/runs`)
         if (!runsRes.ok) throw new Error("Failed to fetch runs")
-
-        const jobData = await jobRes.json()
         const runsData = await runsRes.json()
-
-        setSelectedJob(jobData)
         setRuns(runsData.runs)
-
         if (runsData.runs.length > 0) {
           setSelectedRun(runsData.runs[0])
         }
@@ -120,8 +95,8 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
       }
     }
 
-    fetchJobDetail()
-    const interval = setInterval(fetchJobDetail, 30000)
+    fetchRuns()
+    const interval = setInterval(fetchRuns, 30000)
     return () => clearInterval(interval)
   }, [session, selectedJobId])
 
@@ -167,46 +142,37 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
   }
 
   const handleDelete = async () => {
-    if (!deleteJob) return
+    if (!jobPendingDelete) return
 
-    try {
-      const res = await fetch(`/api/scheduled-jobs/${deleteJob.id}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) throw new Error("Failed to delete job")
-      setJobs((prev) => prev.filter((j) => j.id !== deleteJob.id))
-      if (selectedJobId === deleteJob.id) {
-        setSelectedJobId(null)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete")
-    } finally {
-      setDeleteJob(null)
+    const ok = await deleteJob(jobPendingDelete)
+    if (ok && selectedJobId === jobPendingDelete.id) {
+      setSelectedJobId(null)
     }
+    setJobPendingDelete(null)
   }
 
-  const handleRunNow = async (job: ScheduledJob) => {
-    try {
-      const res = await fetch(`/api/scheduled-jobs/${job.id}/run`, {
-        method: "POST",
-      })
-      if (!res.ok) throw new Error("Failed to trigger run")
-      fetchJobs()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to trigger run")
-    }
+  // Used by the detail page's own delete flow (already confirmed there via
+  // ConfirmDialog) - deletes then navigates back to the list.
+  const handleDeleteFromDetail = async (job: ScheduledJob): Promise<boolean> => {
+    const ok = await deleteJob(job)
+    if (ok) setSelectedJobId(null)
+    return ok
   }
+
+  const handleRunNow = (job: ScheduledJob) => runNow(job)
+
+  const handleRotateToken = (job: ScheduledJob) => rotateToken(job)
+
+  const handleToggleEnabled = (job: ScheduledJob, enabled: boolean) => setEnabled(job, enabled)
 
   const handleFormSuccess = (job: ScheduledJob) => {
     setFormOpen(false)
-    if (editingJob) {
-      setJobs((prev) => prev.map((j) => (j.id === job.id ? job : j)))
-      if (selectedJobId === job.id) {
-        setSelectedJob(job)
-      }
-    } else {
-      setJobs((prev) => [job, ...prev])
-    }
+    queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(job.id), job)
+    queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) =>
+      editingJob
+        ? old.map((j) => (j.id === job.id ? job : j))
+        : [job, ...old]
+    )
     setEditingJob(null)
   }
 
@@ -228,6 +194,10 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
         selectedRun={selectedRun}
         onSelectRun={setSelectedRun}
         messages={messages}
+        onRunNow={handleRunNow}
+        onRotateToken={handleRotateToken}
+        onToggleEnabled={handleToggleEnabled}
+        onDelete={handleDeleteFromDetail}
       />
     )
   }
@@ -272,7 +242,8 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
             onSelect={setSelectedJobId}
             onEdit={handleEdit}
             onRunNow={handleRunNow}
-            onRequestDelete={setDeleteJob}
+            onRotateToken={handleRotateToken}
+            onRequestDelete={setJobPendingDelete}
           />
         )}
       </main>
@@ -290,13 +261,13 @@ export function ScheduledJobsView({ onOpenForm, refreshKey, urlJobId, onNavigate
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        open={!!deleteJob}
+        open={!!jobPendingDelete}
         title="Delete scheduled job?"
-        description={`This will permanently delete "${deleteJob?.name}" and all its run history.`}
+        description={`This will permanently delete "${jobPendingDelete?.name}" and all its run history.`}
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
-        onClose={() => setDeleteJob(null)}
+        onClose={() => setJobPendingDelete(null)}
       />
     </div>
   )

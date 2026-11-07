@@ -1,10 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { MoreHorizontal, Play, Pencil, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 import { NEW_REPOSITORY } from "@/lib/types"
+import { ScheduledJobActionsMenu } from "./ScheduledJobActionsMenu"
 import { getJobStatusIcon, getLastRunText, getTriggerDescription, getRepoLabel } from "./helpers"
 
 interface JobsListProps {
@@ -12,105 +11,19 @@ interface JobsListProps {
   onSelect: (jobId: string, jobName: string) => void
   onEdit: (job: ScheduledJob) => void
   onRunNow: (job: ScheduledJob) => void
+  onRotateToken: (job: ScheduledJob) => void
   onRequestDelete: (job: ScheduledJob) => void
 }
 
-/**
- * Per-row actions dropdown (Edit / Run Now / Delete). Shared by both the mobile
- * card and desktop table layouts so the menu markup lives in exactly one place.
- */
-function JobRowMenu({
-  job,
-  open,
-  onToggle,
-  onEdit,
-  onRunNow,
-  onRequestDelete,
-}: {
-  job: ScheduledJob
-  open: boolean
-  onToggle: () => void
-  onEdit: (job: ScheduledJob) => void
-  onRunNow: (job: ScheduledJob) => void
-  onRequestDelete: (job: ScheduledJob) => void
-}) {
-  return (
-    <div className="relative inline-block">
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle()
-        }}
-        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-
-      {open && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle()
-            }}
-          />
-          <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-md border border-border bg-popover py-1 shadow-lg">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit(job)
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onRunNow(job)
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-            >
-              <Play className="h-3.5 w-3.5" />
-              Run Now
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggle()
-                onRequestDelete(job)
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-accent"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-export function JobsList({ jobs, onSelect, onEdit, onRunNow, onRequestDelete }: JobsListProps) {
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
-
+export function JobsList({ jobs, onSelect, onEdit, onRunNow, onRotateToken, onRequestDelete }: JobsListProps) {
   const renderMenu = (job: ScheduledJob) => (
-    <JobRowMenu
+    <ScheduledJobActionsMenu
       job={job}
-      open={menuOpenId === job.id}
-      onToggle={() => setMenuOpenId(menuOpenId === job.id ? null : job.id)}
-      onEdit={(j) => {
-        setMenuOpenId(null)
-        onEdit(j)
-      }}
-      onRunNow={(j) => {
-        setMenuOpenId(null)
-        onRunNow(j)
-      }}
+      onEdit={onEdit}
+      onRunNow={onRunNow}
+      onRotateToken={onRotateToken}
       onRequestDelete={onRequestDelete}
+      stopPropagation
     />
   )
 
