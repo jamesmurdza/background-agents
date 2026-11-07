@@ -115,7 +115,7 @@ export async function POST(req: NextRequest): Promise<Response> {
               await prisma.skill.delete({ where: { id } }).catch(() => {})
             }
           )
-        : { installed: 0, total: 0, results: [] }
+        : { installed: 0, total: 0, results: [], batchResults: [] }
 
     const results = [...predefinedResults, ...regularResult.results]
     return Response.json({

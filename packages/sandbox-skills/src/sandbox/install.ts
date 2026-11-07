@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto"
 import type { Sandbox } from "@daytonaio/sdk"
-import type { SkillRecord, SkillInstallResult, SkillsInstallResult } from "../types"
+import type { SkillRecord, SkillInstallResult, SkillsInstallResult, SkillBatchResult } from "../types"
 import { extractCleanError } from "../utils"
 import { listAvailableSkills } from "./list"
 import { parseFrontmatter } from "./discover"
@@ -174,10 +174,11 @@ export async function installSkills(
   onRemove?: OnSkillRemove
 ): Promise<SkillsInstallResult> {
   if (skills.length === 0) {
-    return { installed: 0, total: 0, results: [] }
+    return { installed: 0, total: 0, results: [], batchResults: [] }
   }
 
   const results: SkillInstallResult[] = []
+  const batchResults: SkillBatchResult[] = []
 
   // Cache --list results per source repo so we only clone once per repo
   const availableSkillsCache = new Map<string, Set<string> | null>()
@@ -185,7 +186,14 @@ export async function installSkills(
   for (const skill of skills) {
     if (skill.archive) {
       // Uploaded skills can't be fetched again, so keep the record if this fails.
-      results.push(await installSkillArchive(sandbox, repoPath, skill.archive))
+      const result = await installSkillArchive(sandbox, repoPath, skill.archive)
+      results.push(result)
+      batchResults.push({
+        id: skill.id,
+        fullHandle: result.fullHandle,
+        status: result.success ? "installed" : "failed",
+        error: result.error,
+      })
       continue
     }
 
@@ -200,11 +208,18 @@ export async function installSkills(
 
       const available = availableSkillsCache.get(source)
       if (available && !available.has(skillId)) {
-        // Skill doesn't exist in the repo — skip install
+        // Skill is confirmed absent from the repo's skill list — skip install
+        // and let the caller clean up the now-invalid record.
         const errorMsg = `Skill "${skillId}" not found in ${source}. Available: ${[...available].slice(0, 5).join(", ")}${available.size > 5 ? "..." : ""}`
         results.push({
           fullHandle: skill.fullHandle,
           success: false,
+          error: errorMsg,
+        })
+        batchResults.push({
+          id: skill.id,
+          fullHandle: skill.fullHandle,
+          status: "not-found",
           error: errorMsg,
         })
 
@@ -216,16 +231,23 @@ export async function installSkills(
       }
     }
 
-    // Validated — proceed with install
+    // Validated (or the list check was inconclusive/null) — proceed with install
     const result = await installSkill(sandbox, repoPath, source, skillId)
     results.push(result)
+    batchResults.push({
+      id: skill.id,
+      fullHandle: result.fullHandle,
+      status: result.success ? "installed" : "failed",
+      error: result.error,
+    })
 
-    // Clean up DB record if install failed
-    if (!result.success && onRemove) {
-      await onRemove(skill.id).catch(() => {})
-    }
+    // Do NOT remove the DB record here: the skill was found in the available
+    // list (or the list check itself failed/was inconclusive), so a failed
+    // install exec is treated as a transient failure (sandbox not fully
+    // ready, npx cold-start, network blip, etc.), not confirmation that the
+    // skill doesn't exist. installSkill() already retries internally.
   }
 
   const installed = results.filter((r) => r.success).length
-  return { installed, total: skills.length, results }
+  return { installed, total: skills.length, results, batchResults }
 }
