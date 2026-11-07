@@ -131,8 +131,15 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
   const canCreateRepo = isNewRepo
   // Show the repo button if either action is available
   const showRepoButton = canSelectExistingRepo || canCreateRepo
-  // Only show welcome screen if no messages AND not loading messages AND not a child chat
-  const isNewChat = chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
+  // Only show the welcome/draft-composer screen for an actual (not yet
+  // persisted) draft chat. Checking just "no messages" here used to also
+  // catch a real, freshly-materialized chat (e.g. materialized via cmd-k's
+  // "Open Terminal" before any message was sent) that has 0 messages for a
+  // perfectly ordinary reason — it should render like any other real chat
+  // with an empty history, not fall back to the welcome screen. The normal
+  // first-message-send path never hits this because it adds an optimistic
+  // message before the draft materializes, so messages.length is already > 0.
+  const isNewChat = isDraftChat && chat.messages.length === 0 && !chat.parentChatId && !isLoadingMessages
 
   // File preview modal — built once, shared by the welcome and messages views.
   const filePreviewModal = previewFile ? (
