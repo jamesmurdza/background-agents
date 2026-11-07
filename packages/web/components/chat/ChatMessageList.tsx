@@ -94,6 +94,16 @@ export function ChatMessageList({
     (message) => message.isError && message.metadata?.action === "force-push"
   )
 
+  // A merge attempted from a sandbox not checked out on the target branch
+  // can't be replicated locally for conflict resolution, so the backend
+  // points at rebase instead (see /api/sandbox/git's merge handler). Surfaced
+  // as a banner rather than inline — and, unlike force-push, nothing clears
+  // these out, so only the most recent one is shown/kept live.
+  const rebaseSuggestions = chat.messages.filter(
+    (message) => message.isError && message.metadata?.action === "rebase"
+  )
+  const rebaseSuggestion = rebaseSuggestions[rebaseSuggestions.length - 1]
+
   const rebaseConflict = git.rebaseConflict
   const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
   const isMergeConflict = rebaseConflict?.inMerge ?? false
@@ -141,7 +151,7 @@ export function ChatMessageList({
             return (
               <Fragment key={message.id}>
                 {isBranchStart && <BranchDivider />}
-                {message !== forcePushFailure && (
+                {message !== forcePushFailure && !rebaseSuggestions.includes(message) && (
                   <div className={cn(message.inherited && "opacity-60")}>
                     <MessageBubble
                       message={message}
@@ -211,6 +221,30 @@ export function ChatMessageList({
                   abort
                 </button>{" "}
                 it.
+              </span>
+            </div>
+          )}
+          {rebaseSuggestion && (
+            <div
+              data-testid="rebase-suggestion"
+              role="status"
+              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                {rebaseSuggestion.content} This sandbox isn&apos;t on that branch, so merging can&apos;t be resolved here.{" "}
+                <button
+                  type="button"
+                  data-testid="rebase-suggestion-action"
+                  onClick={() => {
+                    if (rebaseSuggestion.linkBranch) git.setSelectedBranch(rebaseSuggestion.linkBranch)
+                    git.setRebaseOpen(true)
+                  }}
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                >
+                  Rebase
+                </button>{" "}
+                onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} instead.
               </span>
             </div>
           )}
