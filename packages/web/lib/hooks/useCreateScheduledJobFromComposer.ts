@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback } from "react"
-import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { NEW_REPOSITORY, type Agent } from "@/lib/types"
 import { localHourToUtc } from "@/components/scheduled-jobs/form-config"
+import { useSidebar } from "@/lib/contexts"
+import { ROUTES } from "@/lib/hooks/useUrlNavigation"
 import { queryKeys } from "@/lib/query/keys"
 import type { ScheduledJob } from "@/lib/scheduled-jobs/types"
 
@@ -48,7 +49,7 @@ function placeholderNameFromPrompt(prompt: string): string {
  * updated directly rather than waiting on the next natural refetch.
  */
 export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromComposerArgs) {
-  const router = useRouter()
+  const sidebar = useSidebar()
   const queryClient = useQueryClient()
   const {
     prompt, repo, baseBranch, agent, model, triggerType,
@@ -124,11 +125,17 @@ export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromCo
       })
 
     onInputChange("")
-    router.push(`/jobs/${created.id}`)
+    // Same in-SPA navigation pattern as useUrlSync's "job" route case —
+    // set view state directly and pushState the URL, rather than
+    // router.push, which renders /jobs/[id] as a separate Next route and
+    // remounts the whole app shell.
+    sidebar.setViewMode("scheduled-jobs")
+    sidebar.setSelectedScheduledJob({ id: created.id, name: created.name })
+    window.history.pushState(null, "", ROUTES.job.build(created.id))
     return created
   }, [prompt, repo, baseBranch, agent, model, triggerType, effectiveIntervalMinutes,
     runAtHourLocal, runAtDay, autoPR, continueFromLastRun, incomingToken, isRepoLess,
-    onInputChange, router, queryClient])
+    onInputChange, sidebar, queryClient])
 
   return { createJob }
 }
