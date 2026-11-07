@@ -255,10 +255,12 @@ export function JobRunDetail({
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <AlarmClock className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h2 className="text-lg font-medium mb-2">No runs yet</h2>
-            <p className="text-muted-foreground">
-              This job will run {formatDistanceToNow(job.nextRunAt, { addSuffix: true })}
+            <AlarmClock className="h-6 w-6 text-muted-foreground/50 mb-3" />
+            <h2 className="text-sm font-medium mb-1">No runs yet</h2>
+            <p className="text-sm text-muted-foreground">
+              {job.triggerType === "incoming"
+                ? "Waiting for a webhook request to trigger this job."
+                : `This job will run ${formatDistanceToNow(job.nextRunAt, { addSuffix: true })}`}
             </p>
           </div>
         )}

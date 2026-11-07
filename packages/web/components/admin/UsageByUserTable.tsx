@@ -404,16 +404,12 @@ export function UsageByUserTable({
         </tbody>
       </table>
       <p className="mt-3 text-xs text-muted-foreground">
-        Check a user to include them in the chart above; click a row for its
-        per-model breakdown. &ldquo;Topped up&rdquo;, &ldquo;Balance&rdquo;, and
-        &ldquo;Spent&rdquo; are real dollars from the credit ledger — purchases,
-        current balance, and usage debits — independent of which provider(s) are
-        filtered below; a negative balance means the account overshot. &ldquo;On
-        our pool&rdquo; is the share of that user&apos;s tokens, across the
-        filtered providers, that ran on our credentials rather than their own
-        key. List value is API-equivalent cost, not necessarily a bill — real
-        for OpenCode&apos;s and Gemini&apos;s metered keys, notional for
-        Claude&apos;s flat subscription.
+        Check a user to chart them above, or click a row for its per-model
+        breakdown. &ldquo;Topped up&rdquo;, &ldquo;Balance&rdquo;, and
+        &ldquo;Spent&rdquo; are real dollars and don&apos;t change with the
+        provider filter. &ldquo;On our pool&rdquo; is the share of tokens that
+        ran on our credentials. List value is API-equivalent cost, not
+        necessarily a bill.
       </p>
       <UserModelBreakdownModal
         user={modalUser}

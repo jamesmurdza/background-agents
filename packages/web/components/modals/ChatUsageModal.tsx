@@ -150,8 +150,7 @@ export function ChatUsageModal({ chatId, onClose, isMobile = false }: ChatUsageM
 
               <p className="text-[11px] text-muted-foreground">
                 Credits are what actually came off your balance. List is what the same
-                tokens would bill at API prices — higher, because shared pools are
-                subsidised, and charged to nobody at all on your own key or a free model.
+                tokens would cost at API prices, which is always higher.
               </p>
               </>
             )}

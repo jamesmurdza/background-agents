@@ -44,8 +44,7 @@ export function SharedLinksSection({ isMobile }: { isMobile: boolean }) {
     <div>
       {isMobile && <MobileSectionHeader icon={Globe} label="Shared Links" />}
       <p className="mb-3 text-xs text-muted-foreground">
-        Chats with a public read-only link. Anyone with the link can view the chat
-        as it continues; revoking a link breaks it immediately.
+        Chats with a public read-only link. Revoking a link breaks it immediately.
       </p>
 
       {isLoading ? (

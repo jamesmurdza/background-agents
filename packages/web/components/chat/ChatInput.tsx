@@ -727,7 +727,7 @@ export function ChatInput({
                   <AlarmClock className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" side="top" sideOffset={8} className="w-[28rem] space-y-4">
+              <PopoverContent align="end" side="bottom" sideOffset={8} className="w-[28rem] space-y-4">
                 <TriggerOptionsFields {...triggerOptions} />
                 <div className="flex justify-end gap-2">
                   <button
