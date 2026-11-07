@@ -359,7 +359,7 @@ export function Sidebar({
               <span className="text-base text-foreground">New Chat</span>
             </button>
 
-            {/* Events Button */}
+            {/* Triggers Button */}
             <button
               onClick={() => {
                 openJobsSearch()
@@ -368,7 +368,7 @@ export function Sidebar({
               className="flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target hover:bg-accent/50 active:bg-accent"
             >
               <AlarmClock className="h-5 w-5 text-muted-foreground" />
-              <span className="text-base text-foreground">Events</span>
+              <span className="text-base text-foreground">Triggers</span>
             </button>
 
             {/* Search Chats Button */}
@@ -541,7 +541,7 @@ export function Sidebar({
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
         </button>
 
-        {/* Events Button */}
+        {/* Triggers Button */}
         <button
           onClick={openJobsSearch}
           className={cn(
@@ -550,7 +550,7 @@ export function Sidebar({
           )}
         >
           <AlarmClock className="h-[18px] w-[18px] text-muted-foreground" />
-          {!collapsed && <span className="text-sm text-foreground">Events</span>}
+          {!collapsed && <span className="text-sm text-foreground">Triggers</span>}
         </button>
 
         {/* Search Chats Button */}
