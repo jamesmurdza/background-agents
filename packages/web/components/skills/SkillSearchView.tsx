@@ -25,7 +25,6 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
   const [error, setError] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [deleteSkill, setDeleteSkill] = useState<Skill | null>(null)
-  const [activeTab, setActiveTab] = useState<"search" | "installed">("search")
   const inputRef = useRef<HTMLInputElement>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -46,7 +45,6 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
       setSelectedHandles(new Set())
       setError(null)
       setInstallProgress(null)
-      setActiveTab("search")
     }
   }, [open])
 
@@ -149,7 +147,6 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
         await fetchInstalledSkills()
         setSelectedHandles(new Set())
         setInstallProgress(null)
-        setActiveTab("installed")
         return
       }
 
@@ -181,11 +178,7 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
         await fetchInstalledSkills()
         setSelectedHandles(new Set())
 
-        // Show installed tab only if at least one skill succeeded
         setTimeout(() => {
-          if (installedCount > 0) {
-            setActiveTab("installed")
-          }
           setInstallProgress(null)
         }, 2000)
       } else {
@@ -245,6 +238,19 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
   if (!open) return null
 
   const selectedCount = selectedHandles.size
+  const hasQuery = query.trim().length > 0
+
+  // Installed skills that match the current query (filtered as the user types).
+  const filteredInstalled = hasQuery
+    ? installedSkills.filter((s) => s.fullHandle.toLowerCase().includes(query.trim().toLowerCase()))
+    : installedSkills
+
+  // Search results that aren't already installed — installed ones are shown via
+  // the installed list above instead of duplicated here.
+  const newResults = searchResults.filter((r) => !isAlreadyInstalled(r.fullHandle))
+
+  const showEmptyState = !hasQuery && installedSkills.length === 0
+  const showNoResults = hasQuery && !isSearching && filteredInstalled.length === 0 && newResults.length === 0
 
   return (
     <>
@@ -278,280 +284,214 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox }
             </button>
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-border">
-            <button
-              onClick={() => setActiveTab("search")}
-              className={cn(
-                "flex-1 px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === "search"
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Search
-            </button>
-            <button
-              onClick={() => setActiveTab("installed")}
-              className={cn(
-                "flex-1 px-4 py-2 text-sm font-medium transition-colors relative",
-                activeTab === "installed"
-                  ? "text-foreground border-b-2 border-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Installed
-              {installedSkills.length > 0 && (
-                <span className="ml-1.5 text-xs text-muted-foreground">
-                  ({installedSkills.length})
-                </span>
-              )}
-            </button>
+          {/* Search Input */}
+          <div className="relative px-4 py-3 border-b border-border">
+            <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search skills..."
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+              autoFocus
+            />
+            {isSearching && (
+              <Loader2 className="absolute right-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+            )}
           </div>
 
-          {activeTab === "search" && (
-            <>
-              {/* Search Input */}
-              <div className="relative px-4 py-3 border-b border-border">
-                <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search skills..."
-                  className="w-full pl-8 pr-3 py-1.5 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
-                  autoFocus
-                />
-                {isSearching && (
-                  <Loader2 className="absolute right-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-                )}
+          {/* Combined list: installed skills (filtered by query) + new search results */}
+          <div className="max-h-[50vh] overflow-y-auto scrollbar-auto-hide">
+            {error && (
+              <div className="px-4 py-3 text-sm text-destructive bg-destructive/10 whitespace-pre-line">
+                {error}
               </div>
+            )}
 
-              {/* Search Results */}
-              <div className="max-h-[40vh] overflow-y-auto scrollbar-auto-hide">
-                {error && (
-                  <div className="px-4 py-3 text-sm text-destructive bg-destructive/10">
-                    {error}
-                  </div>
-                )}
-
-                {!query.trim() && !isSearching && searchResults.length === 0 && (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    Search the Skills.sh registry to find skills for your agent
-                  </div>
-                )}
-
-                {query.trim() && !isSearching && searchResults.length === 0 && (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No skills found for &ldquo;{query}&rdquo;
-                  </div>
-                )}
-
-                {searchResults.map((result) => {
-                  const installed = isAlreadyInstalled(result.fullHandle)
-                  const selected = selectedHandles.has(result.fullHandle)
-                  return (
-                    <button
-                      key={result.fullHandle}
-                      onClick={() => !installed && toggleSelection(result.fullHandle)}
-                      disabled={installed || isInstalling}
-                      className={cn(
-                        "flex items-start gap-3 w-full px-4 py-3 text-left transition-colors",
-                        installed
-                          ? "opacity-50 cursor-default"
-                          : selected
-                            ? "bg-primary/5"
-                            : "hover:bg-accent/50 cursor-pointer"
-                      )}
-                    >
-                      {/* Checkbox */}
-                      <div
-                        className={cn(
-                          "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
-                          installed
-                            ? "border-muted-foreground/30 bg-muted"
-                            : selected
-                              ? "border-primary bg-primary"
-                              : "border-border"
-                        )}
-                      >
-                        {(installed || selected) && (
-                          <Check className="h-4 w-4 text-primary-foreground" />
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground truncate">
-                            {result.fullHandle}
-                          </span>
-                          {installed && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                              Installed
-                            </span>
-                          )}
-                          {result.installs != null && result.installs > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {result.installs.toLocaleString()} installs
-                            </span>
-                          )}
-                        </div>
-                        {result.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                            {result.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* External link */}
-                      {result.url && (
-                        <a
-                          href={result.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      )}
-                    </button>
-                  )
-                })}
+            {showEmptyState && (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No skills installed for this repo.
+                <br />
+                Search the Skills.sh registry above to find skills for your agent.
               </div>
+            )}
 
-              {/* Install Bar */}
-              {(selectedCount > 0 || installProgress) && (
-                <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-accent/30">
-                  {installProgress ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <span className="text-sm text-foreground">
-                        Installing {installProgress.installed}/{installProgress.total} skills…
-                      </span>
-                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all duration-300"
-                          style={{
-                            width: `${installProgress.total > 0 ? (installProgress.installed / installProgress.total) * 100 : 0}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-sm text-muted-foreground">
-                        {selectedCount} skill{selectedCount !== 1 ? "s" : ""} selected
-                      </span>
-                      <div className="flex-1" />
-                      <button
-                        onClick={() => setSelectedHandles(new Set())}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        onClick={handleInstallSelected}
-                        disabled={isInstalling}
-                        className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                      >
-                        Install selected
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+            {showNoResults && (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No skills found for &ldquo;{query}&rdquo;
+              </div>
+            )}
 
-          {activeTab === "installed" && (
-            <div className="max-h-[50vh] overflow-y-auto scrollbar-auto-hide">
-              {error && (
-                <div className="px-4 py-3 text-sm text-destructive bg-destructive/10">
-                  {error}
+            {/* Installed rows */}
+            {filteredInstalled.map((skill) => (
+              <div
+                key={skill.id}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors group"
+              >
+                <Zap className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {skill.fullHandle}
+                    </span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      Installed
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Installed {new Date(skill.createdAt).toLocaleDateString()}
+                  </div>
                 </div>
-              )}
-              {installedSkills.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  No skills installed for this repo.
-                  <br />
-                  <button
-                    onClick={() => setActiveTab("search")}
-                    className="mt-2 text-primary hover:underline"
+                {skill.url && (
+                  <a
+                    href={skill.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
                   >
-                    Search for skills →
-                  </button>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                <button
+                  onClick={() => setDeleteSkill(skill)}
+                  disabled={removingId === skill.id}
+                  className={cn(
+                    "flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100",
+                    removingId === skill.id && "opacity-100"
+                  )}
+                  title="Uninstall skill"
+                >
+                  {removingId === skill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            ))}
+
+            {/* New (not-yet-installed) search result rows */}
+            {newResults.map((result) => {
+              const selected = selectedHandles.has(result.fullHandle)
+              return (
+                <button
+                  key={result.fullHandle}
+                  onClick={() => toggleSelection(result.fullHandle)}
+                  disabled={isInstalling}
+                  className={cn(
+                    "flex items-start gap-3 w-full px-4 py-3 text-left transition-colors",
+                    selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
+                  )}
+                >
+                  {/* Checkbox */}
+                  <div
+                    className={cn(
+                      "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
+                      selected ? "border-primary bg-primary" : "border-border"
+                    )}
+                  >
+                    {selected && <Check className="h-4 w-4 text-primary-foreground" />}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {result.fullHandle}
+                      </span>
+                      {result.installs != null && result.installs > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {result.installs.toLocaleString()} installs
+                        </span>
+                      )}
+                    </div>
+                    {result.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                        {result.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* External link */}
+                  {result.url && (
+                    <a
+                      href={result.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Install Bar */}
+          {(selectedCount > 0 || installProgress) && (
+            <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-accent/30">
+              {installProgress ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-sm text-foreground">
+                    Installing {installProgress.installed}/{installProgress.total} skills…
+                  </span>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-300"
+                      style={{
+                        width: `${installProgress.total > 0 ? (installProgress.installed / installProgress.total) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               ) : (
-                installedSkills.map((skill) => (
-                  <div
-                    key={skill.id}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors group"
+                <>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedCount} skill{selectedCount !== 1 ? "s" : ""} selected
+                  </span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => setSelectedHandles(new Set())}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <Zap className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">
-                        {skill.fullHandle}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Installed {new Date(skill.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                    {skill.url && (
-                      <a
-                        href={skill.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    )}
-                    <button
-                      onClick={() => setDeleteSkill(skill)}
-                      disabled={removingId === skill.id}
-                      className={cn(
-                        "flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100",
-                        removingId === skill.id && "opacity-100"
-                      )}
-                      title="Uninstall skill"
-                    >
-                      {removingId === skill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                ))
+                    Clear
+                  </button>
+                  <button
+                    onClick={handleInstallSelected}
+                    disabled={isInstalling}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    Install selected
+                  </button>
+                </>
               )}
             </div>
           )}
 
-          {/* Upload Bar */}
-          {activeTab === "installed" && (
-            <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-accent/30">
-              <span className="text-sm text-muted-foreground">
-                {hasSandbox
-                  ? "Upload your own skill: a .zip with its SKILL.md and files."
-                  : "Send a message first to upload your own .zip skill."}
-              </span>
-              <div className="flex-1" />
-              <button
-                onClick={() => zipInputRef.current?.click()}
-                disabled={isInstalling || !hasSandbox}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {isInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {isInstalling ? "Uploading…" : "Upload .zip"}
-              </button>
-              <input
-                ref={zipInputRef}
-                type="file"
-                accept=".zip"
-                className="hidden"
-                onChange={handleUploadZip}
-              />
-            </div>
-          )}
+          {/* Upload Bar — always visible; uploading is just another way to add a skill */}
+          <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-accent/30">
+            <span className="text-sm text-muted-foreground">
+              {hasSandbox
+                ? "Upload your own skill: a .zip with its SKILL.md and files."
+                : "Send a message first to upload your own .zip skill."}
+            </span>
+            <div className="flex-1" />
+            <button
+              onClick={() => zipInputRef.current?.click()}
+              disabled={isInstalling || !hasSandbox}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {isInstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {isInstalling ? "Uploading…" : "Upload .zip"}
+            </button>
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={handleUploadZip}
+            />
+          </div>
         </div>
       </div>
 

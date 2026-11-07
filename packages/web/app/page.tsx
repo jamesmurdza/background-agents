@@ -702,6 +702,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
             onOpenMenu={() => sidebar.setMobileSidebarOpen(true)}
             onOpenInGitHub={handleOpenInGitHub}
             onOpenEnvVars={handleOpenEnvVars}
+            onOpenSkills={() => setSkillsModalOpen(true)}
             isAdmin={!!session?.user?.isAdmin}
             onOpenSandboxResize={
               currentChat?.sandboxId ? () => modals.setSandboxResizeModalOpen(true) : undefined
@@ -742,6 +743,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   }}
                   onOpenChanges={() => preview.openPreview({ type: "changes" })}
                   onOpenEnvVars={handleOpenEnvVars}
+                  onOpenSkills={() => setSkillsModalOpen(true)}
                   isDraftChat={!!displayCurrentChatId && isDraftChatId(displayCurrentChatId)}
                   onMaterializeDraftForMcp={handleMaterializeDraftForMcp}
                   isMobile={isMobile}
