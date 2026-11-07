@@ -3,7 +3,7 @@ import { createSandboxGit } from "@background-agents/sandbox-git"
 import { ensureSandboxStarted } from "@/lib/sandbox"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
 import { isSafeRepoPath, isSafeBranchName, isSafeRepoSegment } from "@/lib/git/ref-validation"
-import { clearPushFailureMessages, createGitOperationMessage } from "@/lib/db/git-messages"
+import { clearPushFailureMessages, clearRebaseSuggestionMessages, createGitOperationMessage } from "@/lib/db/git-messages"
 import { requireGitHubAuth, isGitHubAuthError, verifySandboxOwnership, forbidden, serverConfigError } from "@/lib/db/api-helpers"
 import {
   getConflictedFiles,
@@ -197,17 +197,23 @@ export async function POST(req: Request) {
           const mergeData = await mergeRes.json().catch(() => ({}))
           const errorMessage = (mergeData as { message?: string }).message || `Status ${mergeRes.status}`
           if (mergeRes.status === 409) {
-            // Conflict
+            // Conflict. This sandbox isn't checked out on targetBranch, so we
+            // can't replicate the merge locally to let the user resolve it
+            // here — unlike a rebase, which always runs from currentBranch
+            // and works regardless of what's checked out. Point at rebase
+            // instead of asking the user to go switch chats.
             if (!isMergingIntoActiveBranch) {
               if (chatId) {
                 await createGitOperationMessage(
                   chatId,
-                  `Merge conflict. Switch to "${targetBranch}" and merge from there.`,
-                  true
+                  `Merge conflict with "${targetBranch}".`,
+                  true,
+                  { action: "rebase" },
+                  targetBranch
                 )
               }
               return Response.json(
-                { error: `Merge conflict. Switch to "${targetBranch}" and merge from there.` },
+                { error: `Merge conflict with "${targetBranch}". Rebase onto it to resolve.` },
                 { status: 409 }
               )
             }
@@ -285,6 +291,7 @@ export async function POST(req: Request) {
             undefined,
             targetBranch
           )
+          await clearRebaseSuggestionMessages(chatId)
         }
 
         if (isMergingIntoActiveBranch) {
@@ -405,6 +412,7 @@ export async function POST(req: Request) {
             undefined,
             currentBranch
           )
+          await clearRebaseSuggestionMessages(chatId)
         }
 
         return Response.json({ success: true })

@@ -122,6 +122,32 @@ describe("conflict banner", () => {
   })
 })
 
+describe("rebase-suggestion banner", () => {
+  const suggestion = {
+    id: "rebase-suggest", role: "assistant" as const, content: 'Merge conflict with "main".',
+    timestamp: 1, messageType: "git-operation" as const, isError: true,
+    metadata: { action: "rebase" as const }, linkBranch: "main",
+  }
+
+  it("shows a banner pointing at rebase instead of the inline git-operation message", () => {
+    const html = renderWarning(0, false, { messages: [suggestion] })
+    expect(html).toContain('data-testid="rebase-suggestion"')
+    expect(html).toContain('Merge conflict with "main".')
+    expect(html).toContain(">Rebase</button>")
+    expect(html).toContain('onto "main" instead.')
+    // Not also rendered inline as a normal assistant message.
+    expect(html).not.toContain('data-message-id="rebase-suggest"')
+  })
+
+  it("only shows the most recent suggestion when more than one is outstanding", () => {
+    const older = { ...suggestion, id: "older", content: 'Merge conflict with "dev".', linkBranch: "dev" }
+    const html = renderWarning(0, false, { messages: [older, suggestion] })
+    expect(html.match(/data-testid="rebase-suggestion"/g)).toHaveLength(1)
+    expect(html).toContain('Merge conflict with "main".')
+    expect(html).not.toContain('Merge conflict with "dev".')
+  })
+})
+
 describe("chat execution presentation", () => {
   it.each([false, true])("offers model selection without replaying an unsupported turn (persisted=%s)", persisted => {
     const reason = "400 invalid_request_error: The model is not supported. private-provider-detail"

@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db/prisma"
  * Used to provide action hints for the frontend (e.g., making "force push" clickable).
  */
 export interface GitOperationMetadata {
-  action?: "force-push" | "view-pr" | "view-branch"
+  action?: "force-push" | "view-pr" | "view-branch" | "rebase"
   prUrl?: string
   prNumber?: number
 }
@@ -122,6 +122,24 @@ export async function clearPushFailureMessages(chatId: string): Promise<void> {
       messageType: "git-operation",
       isError: true,
       metadata: { path: ["action"], equals: "force-push" },
+    },
+  })
+}
+
+/**
+ * Remove any outstanding "rebase instead" suggestions for a chat.
+ *
+ * Called once a merge or rebase actually succeeds, so a stale suggestion from
+ * an earlier failed attempt doesn't keep nudging the user after the
+ * underlying conflict is already resolved.
+ */
+export async function clearRebaseSuggestionMessages(chatId: string): Promise<void> {
+  await prisma.message.deleteMany({
+    where: {
+      chatId,
+      messageType: "git-operation",
+      isError: true,
+      metadata: { path: ["action"], equals: "rebase" },
     },
   })
 }
