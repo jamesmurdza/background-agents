@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { JobRunDetail } from "@/components/scheduled-jobs/JobRunDetail"
+import { JobRunDetailSkeleton } from "@/components/scheduled-jobs/JobRunDetailSkeleton"
 import { useScheduledJobQuery } from "@/lib/query/hooks/useScheduledJobQuery"
 import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
 import { type ScheduledJob, type ScheduledJobRun } from "@/lib/scheduled-jobs/types"
@@ -108,11 +109,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   }
 
   if (jobLoading && !job) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    )
+    return <JobRunDetailSkeleton />
   }
 
   if (!job) {
