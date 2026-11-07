@@ -92,8 +92,7 @@ export function useChatNavigation({
   const handleSelectChat = useCallback(
     (chatId: string) => {
       selectChat(chatId)
-      sidebar.setViewMode("chat")
-      sidebar.setSelectedScheduledJob(null)
+      sidebar.setActiveView({ type: "chat" })
       // Update URL without triggering Next.js navigation (which causes remount).
       // Using window.history.pushState avoids the component remount router.push causes.
       window.history.pushState(null, "", ROUTES.chat.build(chatId))
@@ -124,8 +123,7 @@ export function useChatNavigation({
       return
     }
     // Switch to chat view
-    sidebar.setViewMode("chat")
-    sidebar.setSelectedScheduledJob(null) // Clear selected job when switching to chat
+    sidebar.setActiveView({ type: "chat" })
     // If there's a current chat (real or draft) with a repo selected, inherit its repo and base branch.
     // Sibling chat — no parentChatId, and use baseBranch (not the working branch) so the
     // new chat starts from the same point the current one did.
@@ -163,11 +161,10 @@ export function useChatNavigation({
     (jobId: string | null, jobName?: string) => {
       if (jobId) {
         // Use jobName if provided, otherwise use jobId as placeholder
-        sidebar.setSelectedScheduledJob({ id: jobId, name: jobName ?? jobId })
+        sidebar.setActiveView({ type: "job", jobId, jobName: jobName ?? jobId })
         window.history.pushState(null, "", ROUTES.job.build(jobId))
       } else {
-        sidebar.setViewMode("chat")
-        sidebar.setSelectedScheduledJob(null)
+        sidebar.setActiveView({ type: "chat" })
         window.history.pushState(null, "", ROUTES.home.build())
       }
     },

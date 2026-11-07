@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { type Agent, resolveAgentSlug } from "@background-agents/common"
 import { ROUTES, matchRoute } from "@/lib/hooks/useUrlNavigation"
+import type { ActiveView } from "@/lib/contexts/SidebarContext"
 
 // =============================================================================
 // useUrlSync — keeps app state in sync with the URL for initial load and
@@ -25,8 +26,7 @@ interface UseUrlSyncOptions {
   // Enter a fresh draft chat with the given agent preselected. Used by the
   // /agent/:slug deep link so the agent is baked into the draft at creation.
   startAgentDraft: (agent: Agent) => void
-  setViewMode: (mode: "chat" | "scheduled-jobs") => void
-  setSelectedScheduledJob: (job: { id: string; name: string } | null) => void
+  setActiveView: (view: ActiveView) => void
 }
 
 export function useUrlSync({
@@ -36,8 +36,7 @@ export function useUrlSync({
   selectChat,
   startNewChat,
   startAgentDraft,
-  setViewMode,
-  setSelectedScheduledJob,
+  setActiveView,
 }: UseUrlSyncOptions) {
   // Sync URL to state - used for initial load and browser back/forward
   const syncUrlToState = useCallback(
@@ -50,25 +49,22 @@ export function useUrlSync({
       switch (matched.route) {
         case "jobs":
           // There's no bare jobs list anymore (browsing happens via the
-          // "Events" command palette) — redirect to the home page.
-          setViewMode("chat")
-          setSelectedScheduledJob(null)
+          // "Agents" command palette) — redirect to the home page.
+          setActiveView({ type: "chat" })
           if (!isInitialSync) selectChat(null)
           window.history.replaceState(null, "", ROUTES.home.build())
           break
 
         case "job":
-          setViewMode("scheduled-jobs")
+          // Name will be updated when job data loads (ScheduledJobDetailPanel
+          // reads the real job from the query cache, not this placeholder).
           if (!isInitialSync) selectChat(null)
-          // Set selected job with ID (name will be updated when job data loads)
-          setSelectedScheduledJob({ id: matched.jobId, name: matched.jobId })
+          setActiveView({ type: "job", jobId: matched.jobId, jobName: matched.jobId })
           break
 
         case "jobRun":
-          setViewMode("scheduled-jobs")
           if (!isInitialSync) selectChat(null)
-          // Set selected job with ID (name will be updated when job data loads)
-          setSelectedScheduledJob({ id: matched.jobId, name: matched.jobId })
+          setActiveView({ type: "job", jobId: matched.jobId, jobName: matched.jobId })
           // TODO: Handle run selection when runs view is implemented
           break
 
@@ -76,7 +72,7 @@ export function useUrlSync({
           // Drafts (new chats) don't get their own URL — show the home page
           // (backgrounder.dev) instead. Enter draft mode if we aren't already in
           // one, then rewrite the URL to "/".
-          setViewMode("chat")
+          setActiveView({ type: "chat" })
           if (!currentChatId || !isDraftChatId(currentChatId)) {
             startNewChat()
           }
@@ -86,7 +82,7 @@ export function useUrlSync({
         case "agent": {
           // Deep link like /agent/factory or /agent/kimi: preselect the agent on
           // a fresh draft chat, then normalize the URL to "/" like newChat does.
-          setViewMode("chat")
+          setActiveView({ type: "chat" })
           const agent = resolveAgentSlug(matched.slug)
           if (agent) {
             // Bake the agent into a new draft so it applies for both
@@ -102,7 +98,7 @@ export function useUrlSync({
 
         case "chat": {
           const urlChatId = matched.chatId
-          setViewMode("chat")
+          setActiveView({ type: "chat" })
           // A draft id in the URL (stale link, or an old session's draft) should
           // never stay there. Show the home page and ensure we're in draft mode.
           if (isDraftChatId(urlChatId)) {
@@ -123,7 +119,7 @@ export function useUrlSync({
         }
 
         case "home":
-          setViewMode("chat")
+          setActiveView({ type: "chat" })
           // A real chat selected at "/" gets promoted to its own URL. Drafts (or
           // no selection) stay on the home page; the auto-draft effect handles
           // entering draft mode when nothing is selected.
@@ -137,7 +133,7 @@ export function useUrlSync({
           break
       }
     },
-    [currentChatId, isDraftChatId, selectChat, startNewChat, startAgentDraft, setViewMode, setSelectedScheduledJob]
+    [currentChatId, isDraftChatId, selectChat, startNewChat, startAgentDraft, setActiveView]
   )
 
   // Track if we've done initial sync

@@ -103,17 +103,19 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
 
-  // For jobs, we derive the ID from sidebar state since we use pushState for navigation.
-  // The sidebar.selectedScheduledJob is updated by useUrlSync (and handleNavigateToJob).
-  // Use ?? null to ensure urlJobId is always string | null (never undefined).
-  const urlJobId = sidebar.selectedScheduledJob?.id ?? null
+  // sidebar.activeView is the single source of truth for what the main
+  // content area shows (see ActiveView) — updated by useUrlSync (URL →
+  // state) and the interactive nav handlers (state → URL). urlJobId/
+  // isShowingChat are read-only conveniences derived from it below; they
+  // can't disagree with each other because they both come from one value.
+  const urlJobId = sidebar.activeView.type === "job" ? sidebar.activeView.jobId : null
   // Whether the chat panel (and thus its sandbox/live preview) is the one
   // actually on screen right now — mirrors the exact condition the main
   // content area branches on below. The preview belongs to currentChat, so
   // it must never render unless that chat's panel is what's showing (e.g.
   // not while viewing a scheduled job, which swaps the main content area
   // for ScheduledJobDetailPanel but otherwise leaves currentChat alone).
-  const isShowingChat = !(sidebar.viewMode === "scheduled-jobs" && urlJobId)
+  const isShowingChat = sidebar.activeView.type !== "job"
 
   const {
     chats,
@@ -305,8 +307,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     startNewChat,
     startAgentDraft: (agent) =>
       startNewChat(NEW_REPOSITORY, "main", undefined, true, "pending", agent),
-    setViewMode: sidebar.setViewMode,
-    setSelectedScheduledJob: sidebar.setSelectedScheduledJob,
+    setActiveView: sidebar.setActiveView,
   })
 
   // =============================================================================
