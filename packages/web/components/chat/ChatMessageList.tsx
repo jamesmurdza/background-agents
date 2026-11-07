@@ -82,6 +82,14 @@ export function ChatMessageList({
   const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
   const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
 
+  // A push failure with a force-push recovery is surfaced as a standalone
+  // banner (below) instead of inline in the conversation — it's an
+  // actionable warning about the chat's current state, not a transcript
+  // entry. At most one is ever outstanding (see clearPushFailureMessages).
+  const forcePushFailure = chat.messages.find(
+    (message) => message.isError && message.metadata?.action === "force-push"
+  )
+
   // Hide the uncommitted-files banner the moment the user asks the agent to
   // commit, rather than leaving it up until the triggered turn finishes and
   // the server recomputes the count. Resets — so the banner can reappear if
@@ -122,16 +130,17 @@ export function ChatMessageList({
             return (
               <Fragment key={message.id}>
                 {isBranchStart && <BranchDivider />}
-                <div className={cn(message.inherited && "opacity-60")}>
-                  <MessageBubble
-                    message={message}
-                    isStreaming={isLastAssistant}
-                    isMobile={isMobile}
-                    repo={isNewRepo ? undefined : chat.repo}
-                    onOpenFile={onOpenFile}
-                    onForcePush={git.handleForcePush}
-                  />
-                </div>
+                {message !== forcePushFailure && (
+                  <div className={cn(message.inherited && "opacity-60")}>
+                    <MessageBubble
+                      message={message}
+                      isStreaming={isLastAssistant}
+                      isMobile={isMobile}
+                      repo={isNewRepo ? undefined : chat.repo}
+                      onOpenFile={onOpenFile}
+                    />
+                  </div>
+                )}
               </Fragment>
             )
           })}
@@ -154,6 +163,16 @@ export function ChatMessageList({
             <div data-testid="starting-indicator" className="text-2xl text-muted-foreground animate-pulse">
               ...
             </div>
+          )}
+          {forcePushFailure && (
+            <ErrorBanner
+              key={forcePushFailure.id}
+              message={forcePushFailure.content.replace(/\s*You can force push to overwrite the remote history\.?$/, "")}
+              isMobile={isMobile}
+              onRetry={git.handleForcePush}
+              actionLabel="Force push"
+              actionPendingLabel="Force pushing…"
+            />
           )}
           {(chat.uncommittedFilesCount ?? 0) > 0 && isNewRepo && (
             <div

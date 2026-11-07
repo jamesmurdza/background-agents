@@ -5,7 +5,7 @@ import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
 import { ChatMessageList } from "./ChatMessageList"
 
-function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrides: Partial<Chat> = {}) {
+function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrides: Partial<Chat> = {}, git: Partial<GitContextValue> = {}) {
   const chat = {
     id: "chat-1",
     repo: isNewRepo ? "__new__" : "owner/repo",
@@ -27,7 +27,7 @@ function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrid
     isRunning: chat.status === "running" || !!chat.queuedMessages?.length,
     isCreating: chat.status === "creating",
     isNewRepo,
-    git: {} as GitContextValue,
+    git: git as GitContextValue,
     onSendMessage: () => {},
     onOpenChanges: () => {},
     onCreateRepo: () => {},
@@ -77,6 +77,23 @@ describe("uncommitted file warning", () => {
   it("singularizes the no-repo copy when there is exactly one file", () => {
     const html = renderWarning(1, true)
     expect(html).toContain("You have 1 uncommitted file with nowhere to back it up.")
+  })
+})
+
+describe("force-push failure banner", () => {
+  const forcePushMessage = {
+    id: "push-fail", role: "assistant" as const, content: "Push failed: non-fast-forward. You can force push to overwrite the remote history.",
+    timestamp: 1, messageType: "git-operation" as const, isError: true, metadata: { action: "force-push" as const },
+  }
+
+  it("shows a banner with a force-push action instead of the inline git-operation message", () => {
+    const html = renderWarning(0, false, { messages: [forcePushMessage] })
+    expect(html).toContain('data-testid="chat-error-banner"')
+    expect(html).toContain("Push failed: non-fast-forward.")
+    expect(html).not.toContain("You can force push to overwrite the remote history.")
+    expect(html).toContain(">Force push</button>")
+    // Not also rendered inline as a normal assistant message.
+    expect(html).not.toContain('data-message-id="push-fail"')
   })
 })
 
