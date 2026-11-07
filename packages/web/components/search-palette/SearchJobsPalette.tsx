@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlarmClock } from "lucide-react"
+import { format } from "date-fns"
 import {
   CommandDialog,
   CommandInput,
@@ -11,18 +12,21 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command"
+import { ScheduledJobActionsMenu } from "@/components/scheduled-jobs/ScheduledJobActionsMenu"
+import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { useScheduledJobsQuery } from "@/lib/query/hooks/useScheduledJobsQuery"
-import { NEW_REPOSITORY } from "@/lib/types"
+import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
+import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 
 interface SearchJobsPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-/** "owner/repo" -> "repo" (drop the user/owner prefix). */
-function repoNameOnly(repo: string): string {
-  const idx = repo.lastIndexOf("/")
-  return idx === -1 ? repo : repo.slice(idx + 1)
+/** Last run date, or blank if the job has never run. */
+function lastRunLabel(job: { lastRun: { startedAt: number } | null }): string {
+  return job.lastRun ? format(job.lastRun.startedAt, "MMM d, h:mm a") : ""
 }
 
 /**
@@ -34,6 +38,10 @@ function repoNameOnly(repo: string): string {
 export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps) {
   const router = useRouter()
   const { data: jobs = [] } = useScheduledJobsQuery()
+  const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
+
+  const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null)
+  const [deletingJob, setDeletingJob] = useState<ScheduledJob | null>(null)
 
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => b.updatedAt - a.updatedAt),
@@ -46,31 +54,61 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
   }
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Triggers"
-      description="Search for scheduled triggers"
-    >
-      <CommandInput placeholder="Search triggers..." />
-      <CommandList>
-        <CommandEmpty>No scheduled jobs found.</CommandEmpty>
-        <CommandGroup heading="Scheduled Jobs">
-          {sortedJobs.map((job) => (
-            <CommandItem
-              key={job.id}
-              value={`job:${job.name}:${job.repo}`}
-              onSelect={() => handleSelect(job.id)}
-            >
-              <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="flex-1 truncate">{job.name}</span>
-              {job.repo !== NEW_REPOSITORY && (
-                <span className="text-muted-foreground text-xs ml-2 shrink-0">{repoNameOnly(job.repo)}</span>
-              )}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </CommandList>
-    </CommandDialog>
+    <>
+      <CommandDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Triggers"
+        description="Search for scheduled triggers"
+      >
+        <CommandInput placeholder="Search triggers..." />
+        <CommandList>
+          <CommandEmpty>No scheduled jobs found.</CommandEmpty>
+          <CommandGroup heading="Scheduled Jobs">
+            {sortedJobs.map((job) => (
+              <CommandItem
+                key={job.id}
+                value={`job:${job.name}:${job.repo}`}
+                onSelect={() => handleSelect(job.id)}
+              >
+                <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="flex-1 truncate">{job.name}</span>
+                <span className="text-muted-foreground text-xs ml-2 shrink-0">{lastRunLabel(job)}</span>
+                <ScheduledJobActionsMenu
+                  job={job}
+                  onEdit={setEditingJob}
+                  onRunNow={runNow}
+                  onRotateToken={rotateToken}
+                  onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
+                  onRequestDelete={setDeletingJob}
+                  stopPropagation
+                  className="ml-1 shrink-0 p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
+      <ScheduledJobForm
+        open={!!editingJob}
+        job={editingJob ?? undefined}
+        onClose={() => setEditingJob(null)}
+        onSuccess={() => setEditingJob(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deletingJob}
+        title="Delete scheduled job?"
+        description={deletingJob ? `This will permanently delete "${deletingJob.name}" and all its run history.` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          if (deletingJob) void deleteJob(deletingJob)
+          setDeletingJob(null)
+        }}
+        onClose={() => setDeletingJob(null)}
+      />
+    </>
   )
 }

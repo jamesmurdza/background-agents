@@ -41,6 +41,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   const [runs, setRuns] = useState<ScheduledJobRun[]>([])
   const [selectedRun, setSelectedRun] = useState<ScheduledJobRun | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [messagesLoading, setMessagesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Fetch job runs for the selected job.
@@ -75,10 +76,14 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
   useEffect(() => {
     if (!selectedRun?.chatId) {
       setMessages([])
+      setMessagesLoading(false)
       return
     }
 
+    let isFirstFetch = true
+
     const fetchMessages = async () => {
+      if (isFirstFetch) setMessagesLoading(true)
       try {
         const res = await fetch(`/api/chats/${selectedRun.chatId}/messages`)
         if (!res.ok) throw new Error("Failed to fetch messages")
@@ -87,6 +92,11 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
       } catch (err) {
         console.error("Failed to fetch messages:", err)
         setMessages([])
+      } finally {
+        if (isFirstFetch) {
+          setMessagesLoading(false)
+          isFirstFetch = false
+        }
       }
     }
 
@@ -129,6 +139,7 @@ export function ScheduledJobDetailPanel({ jobId, onNavigateAway }: ScheduledJobD
       selectedRun={selectedRun}
       onSelectRun={setSelectedRun}
       messages={messages}
+      messagesLoading={messagesLoading}
       onRunNow={handleRunNow}
       onRotateToken={handleRotateToken}
       onToggleEnabled={handleToggleEnabled}
