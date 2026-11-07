@@ -22,6 +22,9 @@ interface JobRunDetailProps {
   selectedRun: ScheduledJobRun | null
   onSelectRun: (run: ScheduledJobRun) => void
   messages: Message[]
+  /** True while messages for the selected run are being fetched — avoids
+   *  briefly showing "No messages for this run" before they arrive. */
+  messagesLoading: boolean
   onRunNow: (job: ScheduledJob) => void
   onRotateToken: (job: ScheduledJob) => void
   onToggleEnabled: (job: ScheduledJob, enabled: boolean) => void
@@ -37,6 +40,7 @@ export function JobRunDetail({
   selectedRun,
   onSelectRun,
   messages,
+  messagesLoading,
   onRunNow,
   onRotateToken,
   onToggleEnabled,
@@ -204,7 +208,7 @@ export function JobRunDetail({
 
             {/* Messages */}
             <div className="space-y-4">
-              {messages.length === 0 ? (
+              {messagesLoading ? null : messages.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   {selectedRun.status === "running" ? (
                     <div className="flex items-center justify-center gap-2">
