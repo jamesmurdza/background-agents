@@ -32,6 +32,10 @@ export async function GET(request: Request): Promise<Response> {
     // Behind a Daytona secret, the run gets its placeholder instead (see
     // lib/server/subscription-secrets); otherwise, or if that fails, the token.
     const daytonaApiKey = process.env.DAYTONA_API_KEY
+    // The turn's other mounted secrets (pool/user keys) aren't known here —
+    // this route only refreshes the Claude token mid-turn, it doesn't have
+    // the rest of the turn's plan. A Claude Code run authenticates with its
+    // subscription token alone, so in practice there's nothing else mounted.
     const placeholder = daytonaApiKey && run.sandboxId
       ? await mountClaudeSecret(new Daytona({ apiKey: daytonaApiKey }), run.sandboxId, scope.userId, {
           source: scope.source,

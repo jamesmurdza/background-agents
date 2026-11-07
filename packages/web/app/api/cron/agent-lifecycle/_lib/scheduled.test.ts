@@ -37,7 +37,15 @@ function job(overrides: Record<string, unknown> = {}) {
   } as unknown as Parameters<typeof startJobExecution>[0]
 }
 const run = { id: "job-run-test" } as Parameters<typeof startJobExecution>[1]
-const daytona = {} as Parameters<typeof startJobExecution>[2]
+// `ensureSecret`/`setSecrets` (@background-agents/sandbox-secrets) need a
+// Daytona client that can find-or-create secrets, including the keepalive
+// every mount/release touches.
+const fakeSecretClient = {
+  list: vi.fn().mockResolvedValue({ items: [] }),
+  create: vi.fn().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: `ph_${name}` })),
+  update: vi.fn().mockResolvedValue({}),
+}
+const daytona = { secret: fakeSecretClient } as unknown as Parameters<typeof startJobExecution>[2]
 
 beforeEach(() => {
   vi.stubEnv("NEXTAUTH_SECRET", "scheduled-token-signing-test")
@@ -47,7 +55,19 @@ beforeEach(() => {
   state.readShared.mockReset().mockResolvedValue("shared-access-test")
   state.readOwn.mockReset().mockResolvedValue("own-access-test")
   state.createChat.mockResolvedValue({ id: "chat-test" })
-  state.createSandbox.mockResolvedValue({ sandbox: {}, sandboxId: "sandbox-test" })
+  fakeSecretClient.list.mockReset().mockResolvedValue({ items: [] })
+  fakeSecretClient.create.mockReset().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: `ph_${name}` }))
+  fakeSecretClient.update.mockReset().mockResolvedValue({})
+  state.createSandbox.mockResolvedValue({
+    sandbox: {
+      id: "sandbox-test",
+      updateSecrets: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      start: vi.fn().mockResolvedValue(undefined),
+      process: { executeCommand: vi.fn().mockResolvedValue({ result: "http://proxy:1" }) },
+    },
+    sandboxId: "sandbox-test",
+  })
   state.createSession.mockReset()
 })
 afterEach(() => {

@@ -19,7 +19,6 @@ import {
   planTurnSecrets,
   poolSecretOf,
   releaseTurnSecrets,
-  waitForTurnSecrets,
 } from "@/lib/server/turn-secrets"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
@@ -126,7 +125,7 @@ export async function sendChatTurn({
     // the pull/upload work below. Detached again wherever the turn ends (see
     // lib/server/turn-secrets).
     secretSandbox = sandbox
-    const mountedSecrets = await mountTurnSecrets(sandbox, turnSecrets)
+    await mountTurnSecrets(daytona, sandbox, turnSecrets)
     const repoPath = `${PATHS.SANDBOX_HOME}/project`
 
     const pull = await runPreRunPull({
@@ -204,7 +203,6 @@ export async function sendChatTurn({
       claimedPromptId,
     })
     turnPersisted = true
-    await waitForTurnSecrets(mountedSecrets)
     await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     logActivityAsync(userId, "message_sent", {
@@ -240,7 +238,7 @@ export async function sendChatTurn({
   } finally {
     // The turn never started, so nothing else will detach the secret. A
     // persisted turn keeps it: Stop/cron finalize detach it with the turn.
-    if (!turnPersisted && secretSandbox) await releaseTurnSecrets(secretSandbox)
+    if (!turnPersisted && secretSandbox) await releaseTurnSecrets(daytona, secretSandbox)
     // A pre-run rejection must not strand a direct send in "creating".
     // Queue claims are released by the caller, which also pauses the queue.
     if (!turnPersisted && !claimedPromptId) {

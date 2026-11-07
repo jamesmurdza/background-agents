@@ -77,7 +77,7 @@ export async function finalizeInteractiveChat(
         // The agent is done: stop the turn's secret placeholders from working
         // until the next turn mounts them again. In a finally, as the chat is
         // still released below when finalizeTurn throws.
-        await releaseTurnSecrets(sandbox)
+        await releaseTurnSecrets(daytona, sandbox)
       }
 
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
@@ -171,7 +171,7 @@ export async function markChatError(
 
   // Detach the turn secrets before the chat is released below.
   try {
-    await releaseTurnSecrets(await daytona.get(chat.sandboxId))
+    await releaseTurnSecrets(daytona, await daytona.get(chat.sandboxId))
   } catch {
     // Sandbox already gone — nothing mounted to detach.
   }

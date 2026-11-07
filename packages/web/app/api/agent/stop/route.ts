@@ -134,7 +134,7 @@ export async function POST(req: Request) {
       throw new Error("Agent stopped but final output could not be saved; retry Stop")
     }
     // Detach the turn secrets before the chat is released below.
-    await releaseTurnSecrets(sandbox)
+    await releaseTurnSecrets(daytona, sandbox)
 
     // Update database to mark chat as ready
     if (!await releaseTurn(turn, claimId, "ready", after.sessionId, { pauseQueue: true })) {

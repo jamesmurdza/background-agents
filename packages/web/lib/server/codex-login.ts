@@ -23,6 +23,7 @@
 import "server-only"
 import { Daytona } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
+import { createSandbox } from "@background-agents/sandbox-secrets"
 import { getActiveSnapshotName } from "@background-agents/sandbox-image"
 import {
   credentialFromCliAuthFile,
@@ -237,7 +238,7 @@ export async function startCodexDeviceLogin(
   // auto-delete interval fires.
   await teardownExistingLogin(daytona, userId)
 
-  const sandbox = await daytona.create({
+  const sandbox = await createSandbox(daytona, {
     name: `codex-login-${userId.slice(0, 8)}-${Date.now().toString(36)}`,
     snapshot: await getActiveSnapshotName(daytona),
     autoStopInterval: 15,
