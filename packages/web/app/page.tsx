@@ -651,6 +651,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     materializeDraft,
     draftChatConfig,
     updateDraftChatConfig,
+    updateChatById,
   })
 
   return (

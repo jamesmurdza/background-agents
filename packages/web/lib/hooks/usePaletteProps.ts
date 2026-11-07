@@ -13,7 +13,7 @@ import { useGitHubUserQuery } from "@/lib/query"
 import { getChatRepos } from "@/components/sidebar/index"
 import { isDraftChatId } from "@/lib/chat-state"
 import { PATHS } from "@background-agents/common"
-import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
+import { materializeAndEnsureSandbox, type EnsuredDraftSandbox } from "@/lib/sandbox-client"
 
 /** All props the PaletteProvider takes, minus `children` (supplied by JSX). */
 export type PaletteProps = Omit<React.ComponentProps<typeof PaletteProvider>, "children">
@@ -69,6 +69,16 @@ interface UsePalettePropsOptions {
   draftChatConfig?: { id: string; pendingEnvironmentVariables?: Record<string, string> }
   /** Stage/update the draft chat's config. */
   updateDraftChatConfig?: (updates: { pendingEnvironmentVariables?: Record<string, string> }) => void
+  /**
+   * Update an arbitrary chat by id (not just "the current chat") — needed
+   * when a draft chat has just been materialized under us: `currentChat` /
+   * `currentChatId` in the rest of this render still reflect the old draft
+   * (the state update from materialization lands on a later render), so we
+   * can't route through `preview.openPreview`/`updateCurrentChat` (which
+   * close over that stale id) to write the newly-opened terminal onto the
+   * freshly-materialized chat. Passing the real id explicitly sidesteps that.
+   */
+  updateChatById: (chatId: string, updates: Partial<Chat>) => Promise<void>
 }
 
 /**
@@ -115,6 +125,7 @@ export function usePaletteProps({
   materializeDraft,
   draftChatConfig,
   updateDraftChatConfig,
+  updateChatById,
 }: UsePalettePropsOptions): PaletteProps {
   const { data: session } = useSession()
   const { data: currentUserLogin } = useGitHubUserQuery()
@@ -134,29 +145,41 @@ export function usePaletteProps({
   // Draft chats have no sandbox yet. Materialize the draft into a real chat
   // row and make sure it has a running sandbox before proceeding — same
   // helper the Merge dialog uses (see lib/sandbox-client.ts).
-  const ensureSandboxForDraft = async (): Promise<string | null> => {
+  const ensureSandboxForDraft = async (): Promise<EnsuredDraftSandbox | null> => {
     if (!displayCurrentChatId || !isDraftChatId(displayCurrentChatId)) return null
-    const ensured = await materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft, {
+    return materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft, {
       environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
       clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
     })
-    return ensured?.sandboxId ?? null
   }
 
   // Find or create a uniquely-numbered terminal id for this sandbox. We scan
   // existing terminal preview items, pull the trailing `-<n>` suffix from each,
   // and pick the next integer above the highest one we've seen.
   const openNewTerminal = async () => {
-    const resolvedSandboxId = sandboxId ?? (await ensureSandboxForDraft())
-    if (!resolvedSandboxId) return
-    const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
-    const terminalNumbers = existingTerminals.map((t) => {
-      if (t.type !== "terminal") return 0
-      const match = t.id.match(/-(\d+)$/)
-      return match ? parseInt(match[1], 10) : 1
+    if (sandboxId) {
+      const existingTerminals = preview.previewItems.filter((i) => i.type === "terminal")
+      const terminalNumbers = existingTerminals.map((t) => {
+        if (t.type !== "terminal") return 0
+        const match = t.id.match(/-(\d+)$/)
+        return match ? parseInt(match[1], 10) : 1
+      })
+      const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
+      preview.openPreview({ type: "terminal", id: `${sandboxId}-${nextNumber}` })
+      return
+    }
+    // Draft chat: materialize it first. The draft just became a real chat row
+    // with its own id, but `currentChat`/`currentChatId` (and therefore
+    // `preview.openPreview`, which closes over them) won't reflect that until
+    // a later render. Write the new terminal onto the freshly-materialized
+    // chat by id directly instead of going through `preview.openPreview`.
+    const ensured = await ensureSandboxForDraft()
+    if (!ensured) return
+    await updateChatById(ensured.chatId, {
+      previewItems: [{ type: "terminal", id: `${ensured.sandboxId}-1` }],
+      activePreviewIndex: 0,
+      previewPaneHidden: false,
     })
-    const nextNumber = terminalNumbers.length === 0 ? 1 : Math.max(...terminalNumbers) + 1
-    preview.openPreview({ type: "terminal", id: `${resolvedSandboxId}-${nextNumber}` })
   }
 
   // Toggle the terminal preview pane: if a terminal already exists, just
@@ -171,9 +194,18 @@ export function usePaletteProps({
       }
       return
     }
-    const resolvedSandboxId = sandboxId ?? (await ensureSandboxForDraft())
-    if (!resolvedSandboxId) return
-    preview.openPreview({ type: "terminal", id: `${resolvedSandboxId}-1` })
+    if (sandboxId) {
+      preview.openPreview({ type: "terminal", id: `${sandboxId}-1` })
+      return
+    }
+    // Draft chat — see openNewTerminal for why we write by id directly.
+    const ensured = await ensureSandboxForDraft()
+    if (!ensured) return
+    await updateChatById(ensured.chatId, {
+      previewItems: [{ type: "terminal", id: `${ensured.sandboxId}-1` }],
+      activePreviewIndex: 0,
+      previewPaneHidden: false,
+    })
   }
 
   return {
