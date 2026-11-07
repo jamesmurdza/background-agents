@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, HardDrive, Rocket, HelpCircle } from "lucide-react"
+import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, HardDrive, Rocket, HelpCircle, Zap } from "lucide-react"
 import { useModals, useSidebar } from "@/lib/contexts"
 import { CreditBalancePill } from "@/components/chat/CreditBalancePill"
 import { isRealRepo, type Chat } from "@/lib/types"
@@ -14,6 +14,7 @@ interface MobileHeaderProps {
   onOpenMenu: () => void
   onOpenInGitHub: () => void
   onOpenEnvVars: () => void
+  onOpenSkills?: () => void
   onOpenCommandPalette?: () => void
   /** Whether the current user is an admin — gates the "Increase resources" item. */
   isAdmin?: boolean
@@ -28,6 +29,7 @@ export function MobileHeader({
   onOpenMenu,
   onOpenInGitHub,
   onOpenEnvVars,
+  onOpenSkills,
   onOpenCommandPalette,
   isAdmin,
   onOpenSandboxResize,
@@ -126,6 +128,19 @@ export function MobileHeader({
                 <span className="h-4 w-4 flex items-center justify-center text-sm italic font-serif">𝑥</span>
                 Environment variables
               </button>
+
+              {onOpenSkills && (
+                <button
+                  onClick={() => {
+                    modals.setMobileTitleMenuOpen(false)
+                    onOpenSkills()
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left cursor-pointer"
+                >
+                  <Zap className="h-4 w-4" />
+                  Skills
+                </button>
+              )}
 
               {isAdmin && onOpenSandboxResize && (
                 <button

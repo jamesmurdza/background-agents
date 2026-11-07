@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, HelpCircle } from "lucide-react"
+import { AlertTriangle, ChevronDown, Github, X, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, HelpCircle, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useElectron } from "@/lib/hooks/useElectron"
@@ -23,6 +23,7 @@ interface ChatHeaderProps {
   chat: Chat
   onUpdateChat?: (updates: Partial<Chat>) => void
   onOpenEnvVars?: () => void
+  onOpenSkills?: () => void
   onOpenCommandPalette?: () => void
   /** Whether the current user is an admin — gates the "Increase resources" item. */
   isAdmin?: boolean
@@ -34,6 +35,7 @@ export function ChatHeader({
   chat,
   onUpdateChat,
   onOpenEnvVars,
+  onOpenSkills,
   onOpenCommandPalette,
   isAdmin,
   onOpenSandboxResize,
@@ -183,6 +185,18 @@ export function ChatHeader({
                   <span className="h-3.5 w-3.5 flex items-center justify-center text-xs italic font-serif">𝑥</span>
                   Environment Variables
                 </button>
+                {onOpenSkills && (
+                  <button
+                    onClick={() => {
+                      setTitleMenuOpen(false)
+                      onOpenSkills()
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    Skills
+                  </button>
+                )}
                 {isAdmin && onOpenSandboxResize && (
                   <button
                     onClick={() => {

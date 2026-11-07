@@ -15,35 +15,33 @@ export function MergeDialog({ open, onClose, gitDialogs, chat, isMobile = false,
     actionLabel: "Merge",
     onAction: gitDialogs.handleMerge,
     additionalContent: (
-      <div className="flex items-center justify-between gap-2">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={gitDialogs.squashMerge}
-            onChange={(e) => gitDialogs.setSquashMerge(e.target.checked)}
-            className="h-4 w-4 rounded border-border accent-primary"
-          />
-          <span className={cn(
-            "text-muted-foreground",
-            isMobile ? "text-base" : "text-sm"
-          )}>Squash commits</span>
-        </label>
-        {onReviewChanges && (
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              onReviewChanges()
-            }}
-            className={cn(
-              "underline underline-offset-2 hover:no-underline cursor-pointer",
-              isMobile ? "text-base" : "text-sm"
-            )}
-          >
-            Review changes
-          </button>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={gitDialogs.squashMerge}
+          onChange={(e) => gitDialogs.setSquashMerge(e.target.checked)}
+          className="h-4 w-4 rounded border-border accent-primary"
+        />
+        <span className={cn(
+          "text-muted-foreground",
+          isMobile ? "text-base" : "text-sm"
+        )}>Squash commits</span>
+      </label>
+    ),
+    footerExtraButton: onReviewChanges && (
+      <button
+        type="button"
+        onClick={() => {
+          onClose()
+          onReviewChanges()
+        }}
+        className={cn(
+          "rounded-md hover:bg-accent transition-colors",
+          isMobile ? "px-4 py-2.5 text-base" : "px-3 py-1.5 text-sm"
         )}
-      </div>
+      >
+        Show changes
+      </button>
     ),
   }), [gitDialogs.handleMerge, gitDialogs.squashMerge, gitDialogs.setSquashMerge, isMobile, onClose, onReviewChanges])
 

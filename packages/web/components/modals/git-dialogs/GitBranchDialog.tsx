@@ -30,6 +30,8 @@ export interface GitBranchDialogConfig {
   onAction: () => Promise<void>
   /** Optional additional content to render before the footer */
   additionalContent?: ReactNode
+  /** Optional extra button rendered in the footer, opposite Cancel/Action */
+  footerExtraButton?: ReactNode
 }
 
 interface GitBranchDialogProps extends GitDialogProps {
@@ -106,6 +108,7 @@ export function GitBranchDialog({
           disabled={agentRunning || !gitDialogs.selectedBranch}
           loading={gitDialogs.actionLoading}
           isMobile={isMobile}
+          extraButton={config.footerExtraButton}
         />
       </div>
     </BaseDialog>
