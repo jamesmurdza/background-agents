@@ -201,11 +201,14 @@ export function usePreview({ currentChat, updateCurrentChat, availableServers }:
       autoOpenedServersRef.current.set(sandboxId, seen)
     }
 
-    const newServer = servers.find((s) => !seen!.has(s.port))
-    if (newServer) {
-      servers.forEach((s) => seen!.add(s.port))
-      if (chatId === currentChat?.id) {
-        openPreview({ type: "server", port: newServer.port, url: newServer.url })
+    const newServers = servers.filter((s) => !seen!.has(s.port))
+    if (newServers.length > 0 && chatId === currentChat?.id) {
+      // Mark each new server seen only as it's actually opened, so a poll that
+      // surfaces several ports at once (e.g. two dev servers started back to
+      // back) opens a preview pane for every one of them, not just the first.
+      for (const s of newServers) {
+        seen!.add(s.port)
+        openPreview({ type: "server", port: s.port, url: s.url })
       }
     }
   }, [availableServers, currentChat?.sandboxId, currentChat?.id, openPreview])
