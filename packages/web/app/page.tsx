@@ -175,6 +175,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     chats,
     isDraftChatId,
     onOpenEnvVarsModal: () => modals.setEnvVarsModalOpen(true),
+    materializeDraft,
   })
 
   // Use TanStack Query for server polling
@@ -641,6 +642,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     sidebar,
     preview,
     onToggleSkillsModal: () => setSkillsModalOpen((prev) => !prev),
+    materializeDraft,
   })
 
   return (

@@ -5,6 +5,8 @@ import { PATHS } from "@background-agents/common"
 import type { Chat } from "@/lib/types"
 import { isRealRepo } from "@/lib/types"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
+import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
+import { useToastStore } from "@/lib/stores/toast-store"
 
 // =============================================================================
 // useSandboxActions — actions that operate on the current chat's sandbox/repo:
@@ -21,6 +23,8 @@ interface UseSandboxActionsOptions {
   isDraftChatId: (chatId: string | null) => boolean
   /** Called once env vars have been fetched, to actually open the modal. */
   onOpenEnvVarsModal: () => void
+  /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
+  materializeDraft: (draftId: string) => Promise<Chat | null>
 }
 
 export function useSandboxActions({
@@ -29,12 +33,16 @@ export function useSandboxActions({
   chats,
   isDraftChatId,
   onOpenEnvVarsModal,
+  materializeDraft,
 }: UseSandboxActionsOptions) {
   const [envVarsChatEnvVars, setEnvVarsChatEnvVars] = useState<Record<string, string>>({})
   const [envVarsRepoEnvVars, setEnvVarsRepoEnvVars] = useState<Record<string, string>>({})
   // null when Netlify isn't connected, which hides the Deployment tab
   const [envVarsDeployEnvVars, setEnvVarsDeployEnvVars] = useState<Record<string, string> | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  // True while a draft chat's sandbox is being materialized+booted for an
+  // action (e.g. VS Code) that needs one but isn't sending a message.
+  const [isStartingSandbox, setIsStartingSandbox] = useState(false)
   // Logs on failure (e.g. clipboard permission denied) instead of swallowing it silently.
   const { copy } = useCopyToClipboard()
 
@@ -165,7 +173,27 @@ export function useSandboxActions({
 
   // Open the current chat's sandbox in VS Code via an SSH remote link.
   const handleOpenInVSCode = useCallback(async () => {
-    const sandboxId = currentChat?.sandboxId
+    let sandboxId = currentChat?.sandboxId
+
+    // Draft chat with no sandbox yet: materialize it into a real chat row,
+    // then make sure it has a running sandbox, before opening VS Code.
+    if (!sandboxId) {
+      if (!currentChatId || !isDraftChatId(currentChatId)) return
+
+      setIsStartingSandbox(true)
+      useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
+      try {
+        const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft)
+        if (!ensured) {
+          useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Try again." })
+          return
+        }
+        sandboxId = ensured.sandboxId
+      } finally {
+        setIsStartingSandbox(false)
+      }
+    }
+
     if (!sandboxId) return
     try {
       const res = await fetch("/api/sandbox/ssh", {
@@ -184,10 +212,11 @@ export function useSandboxActions({
     } catch (err) {
       console.error("Failed to open in VS Code:", err)
     }
-  }, [currentChat?.sandboxId])
+  }, [currentChat?.sandboxId, currentChatId, isDraftChatId, materializeDraft])
 
   return {
     isDownloading,
+    isStartingSandbox,
     githubBranchUrl,
     envVarsChatEnvVars,
     envVarsRepoEnvVars,
