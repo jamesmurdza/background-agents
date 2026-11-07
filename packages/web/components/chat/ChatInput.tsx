@@ -727,7 +727,7 @@ export function ChatInput({
               </PopoverTrigger>
               <PopoverContent align="end" side="top" sideOffset={8} className="w-[28rem] space-y-4">
                 <TriggerOptionsFields {...triggerOptions} />
-                <div className="flex justify-end gap-2 pt-1 border-t border-border">
+                <div className="flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={handleCreateScheduledJob}
