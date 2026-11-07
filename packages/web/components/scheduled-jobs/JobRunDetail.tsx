@@ -261,7 +261,12 @@ export function JobRunDetail({
               )}
             </div>
           </div>
-        ) : runsLoading ? null : (
+        ) : runsLoading ? (
+          <div className="max-w-4xl mx-auto p-6 space-y-4 animate-pulse">
+            <div className="h-16 rounded-md bg-muted" />
+            <div className="h-16 w-2/3 rounded-md bg-muted" />
+          </div>
+        ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <AlarmClock className="h-6 w-6 text-muted-foreground/50 mb-3" />
             <h2 className="text-sm font-medium mb-1">No runs yet</h2>
