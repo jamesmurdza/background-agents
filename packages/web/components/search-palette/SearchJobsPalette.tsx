@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { AlarmClock } from "lucide-react"
 import { format } from "date-fns"
 import {
@@ -17,6 +18,7 @@ import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { useScheduledJobsQuery } from "@/lib/query/hooks/useScheduledJobsQuery"
 import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
+import { queryKeys } from "@/lib/query/keys"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 
 interface SearchJobsPaletteProps {
@@ -37,6 +39,7 @@ function lastRunLabel(job: { lastRun: { startedAt: number } | null }): string {
  */
 export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { data: jobs = [] } = useScheduledJobsQuery()
   const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
 
@@ -48,8 +51,14 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
     [jobs]
   )
 
-  const handleSelect = (jobId: string) => {
-    router.push(`/jobs/${jobId}`)
+  const handleSelect = (job: ScheduledJob) => {
+    // Seed the detail-page query cache with the row we already have so the
+    // job page renders immediately instead of showing the skeleton while it
+    // re-fetches data we already had (the list and detail queries use
+    // different cache keys, so without this it's a guaranteed network
+    // round-trip on every click).
+    queryClient.setQueryData(queryKeys.scheduledJobs.detail(job.id), job)
+    router.push(`/jobs/${job.id}`)
     onOpenChange(false)
   }
 
@@ -69,7 +78,7 @@ export function SearchJobsPalette({ open, onOpenChange }: SearchJobsPaletteProps
               <CommandItem
                 key={job.id}
                 value={`job:${job.name}:${job.repo}`}
-                onSelect={() => handleSelect(job.id)}
+                onSelect={() => handleSelect(job)}
               >
                 <AlarmClock className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{job.name}</span>
