@@ -292,7 +292,9 @@ export function useChatComposer({
       return
     }
     if (command === "abort") {
-      git.handleAbortConflict?.()
+      // Same confirmation dialog as the conflict banner's "abort" link —
+      // discarding conflict-resolution progress is destructive.
+      modals.setAbortConflictOpen(true)
       return
     }
     onSlashCommand?.(command)
