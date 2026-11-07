@@ -14,7 +14,6 @@ import { getChatRepos } from "@/components/sidebar/index"
 import { isDraftChatId } from "@/lib/chat-state"
 import { PATHS } from "@background-agents/common"
 import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
-import { useToastStore } from "@/lib/stores/toast-store"
 
 /** All props the PaletteProvider takes, minus `children` (supplied by JSX). */
 export type PaletteProps = Omit<React.ComponentProps<typeof PaletteProvider>, "children">
@@ -137,16 +136,11 @@ export function usePaletteProps({
   // helper the Merge dialog uses (see lib/sandbox-client.ts).
   const ensureSandboxForDraft = async (): Promise<string | null> => {
     if (!displayCurrentChatId || !isDraftChatId(displayCurrentChatId)) return null
-    useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
     const ensured = await materializeAndEnsureSandbox(displayCurrentChatId, materializeDraft, {
       environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
       clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
     })
-    if (!ensured) {
-      useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Try again." })
-      return null
-    }
-    return ensured.sandboxId
+    return ensured?.sandboxId ?? null
   }
 
   // Find or create a uniquely-numbered terminal id for this sandbox. We scan

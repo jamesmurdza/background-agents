@@ -7,7 +7,6 @@ import type { Chat } from "@/lib/types"
 import type { UseGitDialogsOptions, UseGitDialogsResult, PRDescriptionType, RebaseConflictState } from "./types"
 import { callSandboxGit } from "./api"
 import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
-import { useToastStore } from "@/lib/stores/toast-store"
 
 // ============================================================================
 // useGitDialogs Hook
@@ -208,16 +207,17 @@ export function useGitDialogs({
     // component-unmount abort signal.
     if ((!activeSandboxId || !activeChatId) && chatId && isDraftChatId?.(chatId) && materializeDraft) {
       setActionLoading(true)
-      useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
-      const ensured = await materializeAndEnsureSandbox(chatId, materializeDraft, {
-        environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
-        clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
-      })
+      const ensured = await materializeAndEnsureSandbox(
+        chatId,
+        materializeDraft,
+        {
+          environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+          clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+        },
+        { failureBody: "Merge not performed — try again." }
+      )
       setActionLoading(false)
-      if (!ensured) {
-        useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Merge not performed — try again." })
-        return
-      }
+      if (!ensured) return
       activeChatId = ensured.chatId
       activeSandboxId = ensured.sandboxId
     }

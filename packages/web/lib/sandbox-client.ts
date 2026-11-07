@@ -9,6 +9,8 @@
  * before proceeding with whatever action actually needed one.
  */
 
+import { useToastStore } from "@/lib/stores/toast-store"
+
 export interface EnsuredDraftSandbox {
   chatId: string
   sandboxId: string
@@ -19,7 +21,13 @@ export interface EnsuredDraftSandbox {
 /**
  * Materialize a draft chat (if `materializeDraft` resolves it), then ensure
  * the resulting chat has a running sandbox. Returns `null` if either step
- * fails — callers should surface their own error UI/toast in that case.
+ * fails.
+ *
+ * Owns the "Starting sandbox…" / "Couldn't start sandbox" toast pair for all
+ * three call sites (useSandboxActions, usePaletteProps, useGitDialogs) so
+ * they get consistent UX for free instead of each re-implementing it.
+ * `failureBody` lets a caller customize the failure toast's body text (e.g.
+ * the Merge dialog's "Merge not performed — try again.").
  *
  * If the draft had env vars staged on it (see `DraftChatConfig.pendingEnvironmentVariables`
  * in lib/storage.ts, written by the Env Vars modal while a chat is still a
@@ -28,6 +36,29 @@ export interface EnsuredDraftSandbox {
  * actual action.
  */
 export async function materializeAndEnsureSandbox(
+  draftId: string,
+  materializeDraft: (draftId: string) => Promise<{ id: string } | null>,
+  pendingEnv?: {
+    environmentVariables: Record<string, string> | undefined
+    clearPending: () => void
+  },
+  options?: { failureBody?: string }
+): Promise<EnsuredDraftSandbox | null> {
+  useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
+
+  const result = await materializeAndEnsureSandboxInner(draftId, materializeDraft, pendingEnv)
+
+  if (!result) {
+    useToastStore.getState().addToast({
+      title: "Couldn't start sandbox",
+      body: options?.failureBody ?? "Try again.",
+    })
+  }
+
+  return result
+}
+
+async function materializeAndEnsureSandboxInner(
   draftId: string,
   materializeDraft: (draftId: string) => Promise<{ id: string } | null>,
   pendingEnv?: {

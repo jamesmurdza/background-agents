@@ -6,7 +6,6 @@ import type { Chat } from "@/lib/types"
 import { isRealRepo } from "@/lib/types"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
-import { useToastStore } from "@/lib/stores/toast-store"
 import type { DraftChatConfig } from "@/lib/storage"
 
 // =============================================================================
@@ -207,16 +206,12 @@ export function useSandboxActions({
       if (!currentChatId || !isDraftChatId(currentChatId)) return
 
       setIsStartingSandbox(true)
-      useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
       try {
         const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft, {
           environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
           clearPending: () => updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
         })
-        if (!ensured) {
-          useToastStore.getState().addToast({ title: "Couldn't start sandbox", body: "Try again." })
-          return
-        }
+        if (!ensured) return
         sandboxId = ensured.sandboxId
       } finally {
         setIsStartingSandbox(false)
