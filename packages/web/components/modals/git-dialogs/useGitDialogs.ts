@@ -196,10 +196,19 @@ export function useGitDialogs({
 
   // Handle merge
   const handleMerge = useCallback(async () => {
-    if (!selectedBranch || !branchName) return
+    if (!selectedBranch) return
 
     let activeSandboxId = sandboxId
     let activeChatId = chatId
+    let activeBranchName = branchName
+
+    const isDraft = Boolean(chatId && isDraftChatId?.(chatId))
+
+    // A draft chat has no real branch yet (chat.branch is undefined until it
+    // materializes), so the branchName check below only makes sense for an
+    // already-real chat. For a draft, skip straight to materializing instead
+    // of bailing out here.
+    if (!isDraft && !branchName) return
 
     // Draft chat (no DB row / sandbox yet): materialize it into a real chat
     // row, then make sure it has a running sandbox, before merging. Kept
@@ -207,7 +216,7 @@ export function useGitDialogs({
     // (and this hook) unmounts while this is in flight, the materialize +
     // ensure + merge sequence below keeps running; it isn't tied to any
     // component-unmount abort signal.
-    if ((!activeSandboxId || !activeChatId) && chatId && isDraftChatId?.(chatId) && materializeDraft) {
+    if ((!activeSandboxId || !activeChatId) && isDraft && materializeDraft) {
       setActionLoading(true)
       const ensured = await materializeAndEnsureSandbox(
         chatId,
@@ -227,9 +236,10 @@ export function useGitDialogs({
       if (!ensured) return
       activeChatId = ensured.chatId
       activeSandboxId = ensured.sandboxId
+      activeBranchName = ensured.branch || activeBranchName
     }
 
-    if (!activeSandboxId || !activeChatId) return
+    if (!activeSandboxId || !activeChatId || !activeBranchName) return
 
     // Look up the *other* chat that owns the target branch in this repo (if any).
     // We use it both pre-merge (to block merging into a running chat) and
@@ -244,7 +254,7 @@ export function useGitDialogs({
     }
 
     // Resolve names for the success message
-    const sourceName = chat?.displayName || branchName
+    const sourceName = chat?.displayName || activeBranchName
     const targetName = resolveChatName(selectedBranch) || selectedBranch
 
     await runGitAction(async () => {
@@ -258,7 +268,7 @@ export function useGitDialogs({
         repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
         action: "merge",
         targetBranch: selectedBranch,
-        currentBranch: branchName,
+        currentBranch: activeBranchName,
         squash: squashMerge,
         repoOwner,
         repoApiName,
@@ -304,15 +314,24 @@ export function useGitDialogs({
   // that already know it (the rebase-suggestion banner) can skip the
   // dialog's own selectedBranch state entirely.
   const performRebase = useCallback(async (targetBranch: string, closeDialog?: (open: boolean) => void) => {
-    if (!targetBranch || !branchName) return
+    if (!targetBranch) return
 
     let activeSandboxId = sandboxId
     let activeChatId = chatId
+    let activeBranchName = branchName
+
+    const isDraft = Boolean(chatId && isDraftChatId?.(chatId))
+
+    // A draft chat has no real branch yet (chat.branch is undefined until it
+    // materializes), so the branchName check below only makes sense for an
+    // already-real chat. For a draft, skip straight to materializing instead
+    // of bailing out here.
+    if (!isDraft && !branchName) return
 
     // Draft chat (no DB row / sandbox yet): materialize it into a real chat
     // row, then make sure it has a running sandbox, before rebasing. See
     // handleMerge for why this is kept independent of this hook's lifecycle.
-    if ((!activeSandboxId || !activeChatId) && chatId && isDraftChatId?.(chatId) && materializeDraft) {
+    if ((!activeSandboxId || !activeChatId) && isDraft && materializeDraft) {
       setActionLoading(true)
       const ensured = await materializeAndEnsureSandbox(
         chatId,
@@ -332,9 +351,10 @@ export function useGitDialogs({
       if (!ensured) return
       activeChatId = ensured.chatId
       activeSandboxId = ensured.sandboxId
+      activeBranchName = ensured.branch || activeBranchName
     }
 
-    if (!activeSandboxId || !activeChatId) return
+    if (!activeSandboxId || !activeChatId || !activeBranchName) return
 
     await runGitAction(async () => {
       const { ok, status, data, recreatedSandboxId } = await callSandboxGit<{
@@ -345,7 +365,7 @@ export function useGitDialogs({
         repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
         action: "rebase",
         targetBranch,
-        currentBranch: branchName,
+        currentBranch: activeBranchName,
         repoOwner,
         repoApiName,
         chatId: activeChatId,
