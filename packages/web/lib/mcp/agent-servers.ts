@@ -23,11 +23,13 @@ import {
   createGitHubMcpProvider,
   GITHUB_MCP_QUALIFIED_NAME,
   GMAIL_MCP_QUALIFIED_NAME,
+  PADDLE_MCP_QUALIFIED_NAME,
   safeServerName,
 } from "@background-agents/mcp"
 import type { AgentMcpServer } from "@background-agents/agent-configuration/mcp"
 import { type McpOwner, ownerWhere } from "./owner"
 import { getGmailMcpUrl, getGmailProvider } from "./gmail"
+import { getPaddleProvider } from "./paddle"
 
 // Lazily-initialized GitHub provider
 let githubProvider: ReturnType<typeof createGitHubMcpProvider> | null = null
@@ -69,10 +71,12 @@ interface McpRow {
   encryptedApiKey: string | null
 }
 
-/** Per-user credentials the first-party (GitHub, Gmail) rows depend on. */
+/** Per-user credentials the first-party (GitHub, Gmail, Paddle) rows depend on. */
 interface OwnerUser {
+  id: string
   githubAppInstallationId: string | null
   googleRefreshTokenEncrypted: string | null
+  paddleRefreshTokenEncrypted: string | null
 }
 
 /**
@@ -133,6 +137,32 @@ async function translateRow(
     }
   }
 
+  if (row.qualifiedName === PADDLE_MCP_QUALIFIED_NAME) {
+    const paddle = getPaddleProvider()
+    if (!paddle) {
+      await markRowError(row.id, "Paddle not configured on server")
+      return null
+    }
+    if (!user?.paddleRefreshTokenEncrypted) {
+      await markRowError(row.id, "Paddle account not connected for this user")
+      return null
+    }
+    try {
+      const refreshToken = decrypt(user.paddleRefreshTokenEncrypted)
+      const token = await paddle.getToken(user.id, refreshToken)
+      return {
+        name: safeServerName(row.qualifiedName),
+        url: row.mcpUrl,
+        bearerToken: token,
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to mint token"
+      console.error("[agent-servers] failed to mint Paddle access token:", err)
+      await markRowError(row.id, `Paddle token mint failed: ${msg}`)
+      return null
+    }
+  }
+
   if (!row.encryptedApiKey) return null
   return {
     name: safeServerName(row.qualifiedName),
@@ -147,8 +177,10 @@ async function translateRow(
  * user relation regardless of the owner kind.
  */
 const ownerUserSelect = {
+  id: true,
   githubAppInstallationId: true,
   googleRefreshTokenEncrypted: true,
+  paddleRefreshTokenEncrypted: true,
 } as const
 
 export async function loadMcpConnections(

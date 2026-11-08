@@ -30,6 +30,7 @@ The agent can follow the setup and workflow instructions in this repo on its own
 - `SMITHERY_*` — remote MCP servers from the Smithery registry.
 - `GITHUB_APP_*` — authenticated GitHub MCP server.
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GMAIL_MCP_JWT_SECRET` (+ optional `GMAIL_MCP_BASE_URL`) — Gmail MCP server.
+- `PADDLE_CLIENT_ID`, `PADDLE_MCP_JWT_SECRET` — Paddle MCP server (OAuth, public client — no client secret).
 
 Before running tests or a dev server, confirm the required env vars above are exported, then follow [DEVELOPMENT.md](./DEVELOPMENT.md).
 
