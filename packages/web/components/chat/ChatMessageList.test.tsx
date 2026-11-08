@@ -60,9 +60,9 @@ describe("uncommitted file warning", () => {
     expect(html).toContain(">commit</button> it.")
   })
 
-  it("disappears when the authoritative chat count clears", () => {
+  it("disappears when the authoritative chat count clears, but only once a repo is linked", () => {
     expect(renderWarning(0)).not.toContain("uncommitted-files-warning")
-    expect(renderWarning(0, true)).not.toContain("uncommitted-files-warning")
+    expect(renderWarning(0, true)).toContain("uncommitted-files-warning")
   })
 
   it("offers to create a repo instead of committing when there is no linked repo", () => {
@@ -77,6 +77,13 @@ describe("uncommitted file warning", () => {
   it("shows the no-repo banner for a single file too", () => {
     const html = renderWarning(1, true)
     expect(html).toContain('data-testid="uncommitted-files-warning"')
+  })
+
+  it("shows the no-repo banner even with nothing uncommitted — commits still only live in the sandbox", () => {
+    const html = renderWarning(0, true)
+    expect(html).toContain('data-testid="uncommitted-files-warning"')
+    expect(html).toContain("Your changes will be lost unless you commit them.")
+    expect(html).toContain('data-testid="uncommitted-files-create-repo"')
   })
 })
 
