@@ -228,7 +228,11 @@ export function ChatMessageList({
             <div
               data-testid="rebase-suggestion"
               role="status"
-              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+              aria-busy={git.actionLoading}
+              className={cn(
+                "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground",
+                git.actionLoading && "opacity-60 pointer-events-none"
+              )}
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
@@ -236,12 +240,13 @@ export function ChatMessageList({
                 <button
                   type="button"
                   data-testid="rebase-suggestion-action"
+                  disabled={git.actionLoading}
                   onClick={() => {
                     if (rebaseSuggestion.linkBranch) git.rebaseOnto(rebaseSuggestion.linkBranch)
                   }}
-                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:no-underline disabled:cursor-default"
                 >
-                  Rebase
+                  {git.actionLoading ? "Rebasing…" : "Rebase"}
                 </button>{" "}
                 onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} before merging.
               </span>
@@ -251,7 +256,11 @@ export function ChatMessageList({
             <div
               data-testid="force-push-warning"
               role="status"
-              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+              aria-busy={git.actionLoading}
+              className={cn(
+                "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground",
+                git.actionLoading && "opacity-60 pointer-events-none"
+              )}
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
@@ -259,10 +268,11 @@ export function ChatMessageList({
                 <button
                   type="button"
                   data-testid="force-push-action"
+                  disabled={git.actionLoading}
                   onClick={git.handleForcePush}
-                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:no-underline disabled:cursor-default"
                 >
-                  Force push
+                  {git.actionLoading ? "Force pushing…" : "Force push"}
                 </button>{" "}
                 to overwrite the remote history.
               </span>

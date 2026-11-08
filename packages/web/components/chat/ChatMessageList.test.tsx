@@ -94,6 +94,14 @@ describe("force-push failure banner", () => {
     // Not also rendered inline as a normal assistant message.
     expect(html).not.toContain('data-message-id="push-fail"')
   })
+
+  it("disables itself while a git action is in flight", () => {
+    const html = renderWarning(0, false, { messages: [forcePushMessage] }, { actionLoading: true })
+    expect(html).toContain('data-testid="force-push-warning"')
+    expect(html).toContain("pointer-events-none")
+    expect(html).toContain(">Force pushing…</button>")
+    expect(html).toMatch(/data-testid="force-push-action"[^>]*disabled/)
+  })
 })
 
 describe("conflict banner", () => {
@@ -145,6 +153,14 @@ describe("rebase-suggestion banner", () => {
     expect(html.match(/data-testid="rebase-suggestion"/g)).toHaveLength(1)
     expect(html).toContain('Merge conflict with "main".')
     expect(html).not.toContain('Merge conflict with "dev".')
+  })
+
+  it("disables itself while a git action is in flight", () => {
+    const html = renderWarning(0, false, { messages: [suggestion] }, { actionLoading: true })
+    expect(html).toContain('data-testid="rebase-suggestion"')
+    expect(html).toContain("pointer-events-none")
+    expect(html).toContain(">Rebasing…</button>")
+    expect(html).toMatch(/data-testid="rebase-suggestion-action"[^>]*disabled/)
   })
 })
 
