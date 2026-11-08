@@ -101,16 +101,24 @@ describe("inspectGitWorkingTree", () => {
     expect(await files(f.sandbox, f.root)).toBe(0)
   })
 
-  it("is false for a freshly initialized repo with no commits yet, true once it has one", async () => {
+  it("is false for a repo with no commits beyond the scaffold's own baseline one", async () => {
     const root = mkdtempSync("/private/tmp/backgrounder-uncommitted-test-")
     execFileSync("git", ["init", "--initial-branch=main", root], { stdio: "pipe" })
     const sandbox = makeSandbox(root)
     expect(await inspectGitWorkingTree(sandbox, root)).toEqual({ uncommittedFilesCount: 0, hasCommits: false })
 
+    // Every sandbox repo starts from a template with one commit already
+    // made (by the scaffolding tool, not the user) — repoFixture's baseline
+    // commit mirrors that. hasCommits must stay false here: "HEAD exists"
+    // alone can't be the signal, since that's true immediately for every
+    // chat regardless of whether the agent has done anything.
     const f = repoFixture()
-    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 0, hasCommits: true })
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 0, hasCommits: false })
     f.write("src/new-page.tsx")
-    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 1, hasCommits: true })
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 1, hasCommits: false })
+    f.git("add", "src/new-page.tsx")
+    f.git("commit", "-m", "add new page")
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 0, hasCommits: true })
   })
 
   it("returns unknown when Git fails", async () => {
