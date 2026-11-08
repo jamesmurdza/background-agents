@@ -43,7 +43,6 @@ interface ChatResponse {
   parentChatId: string | null
   needsSync: boolean
   uncommittedFilesCount: number
-  hasCommits: boolean
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -113,7 +112,6 @@ export async function GET(req: NextRequest): Promise<Response> {
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
       uncommittedFilesCount: chat.uncommittedFilesCount,
-      hasCommits: chat.hasCommits,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
@@ -222,7 +220,6 @@ export async function POST(req: NextRequest): Promise<Response> {
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
       uncommittedFilesCount: chat.uncommittedFilesCount,
-      hasCommits: chat.hasCommits,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
