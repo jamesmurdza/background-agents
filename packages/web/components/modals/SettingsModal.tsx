@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import * as Dialog from "@radix-ui/react-dialog"
-import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, CreditCard, Server, Wrench, BarChart3, Rocket, Globe } from "lucide-react"
+import { X, Key, Sun, Bot, Settings as SettingsIcon, GitBranch, FolderDown, Bell, CreditCard, Server, Wrench, BarChart3, Rocket, Globe, Link as LinkIcon } from "lucide-react"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
@@ -30,6 +30,7 @@ import {
   UsageSection,
   DeploymentsSection,
   SharedLinksSection,
+  IntegrationsSection,
   initialCredValues,
   MASK,
   type HighlightKey,
@@ -39,7 +40,7 @@ import {
 export type { HighlightKey }
 
 /** Settings modal section identifier */
-export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "credits" | "usage" | "git" | "deployments" | "shared-links" | "notifications" | "local-sync" | "appearance" | "developer"
+export type SectionKey = "general" | "api-keys" | "custom-endpoints" | "integrations" | "credits" | "usage" | "git" | "deployments" | "shared-links" | "notifications" | "local-sync" | "appearance" | "developer"
 
 interface SettingsModalProps {
   open: boolean
@@ -68,6 +69,7 @@ const baseSections: SectionDef[] = [
   { key: "general", label: "General", icon: SettingsIcon },
   { key: "api-keys", label: "API Keys", icon: Key },
   { key: "custom-endpoints", label: "Custom endpoints", icon: Server },
+  { key: "integrations", label: "Integrations", icon: LinkIcon },
   { key: "credits", label: "Credits", icon: CreditCard },
   { key: "usage", label: "Usage", icon: BarChart3 },
   { key: "appearance", label: "Appearance", icon: Sun },
@@ -427,6 +429,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             setEndpoints={setEndpoints}
           />
         )
+      case "integrations":
+        return <IntegrationsSection isMobile={isMobile} />
       case "credits":
         return <CreditsSection isMobile={isMobile} />
       case "usage":
