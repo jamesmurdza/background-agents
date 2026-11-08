@@ -13,6 +13,7 @@ import type { QueryClient } from "@tanstack/react-query"
 import { useToastStore } from "@/lib/stores/toast-store"
 import { queryKeys } from "@/lib/query/keys"
 import type { Chat } from "@/lib/types"
+import type { PendingMcpServer } from "@/lib/storage"
 
 export interface EnsuredDraftSandbox {
   chatId: string
@@ -43,6 +44,44 @@ function patchChatCache(queryClient: QueryClient, chatId: string, patch: Partial
   queryClient.setQueryData<Chat>(queryKeys.chats.detail(chatId), (old) => (old ? apply(old) : old))
 }
 
+type PendingMcp = {
+  servers: PendingMcpServer[] | undefined
+  clearPending: () => void
+}
+
+/**
+ * Apply MCP servers staged on a draft (see `DraftChatConfig.pendingMcpServers`
+ * in lib/storage.ts, written by McpServersCombobox while a chat is still a
+ * draft) against the now-real chat — best-effort, a failure here doesn't
+ * block materialization. Mirrors the env var application below.
+ */
+async function applyPendingMcpServers(chatId: string, pendingMcp: PendingMcp): Promise<void> {
+  if (!pendingMcp.servers || pendingMcp.servers.length === 0) return
+  try {
+    await Promise.all(
+      pendingMcp.servers.map((server) =>
+        server.attachPath
+          ? fetch(`/api/chats/${chatId}/mcp-servers/${server.attachPath}`, { method: "POST" })
+          : fetch(`/api/chats/${chatId}/mcp-servers`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                slug: server.slug,
+                url: server.url,
+                name: server.name,
+                iconUrl: server.iconUrl,
+              }),
+            })
+      )
+    )
+    pendingMcp.clearPending()
+  } catch (err) {
+    // Best-effort: the chat still materializes even if this fails; the user
+    // can reattach the server(s) from the real chat.
+    console.error("[sandbox-client] Failed to apply staged draft MCP servers:", err)
+  }
+}
+
 /**
  * Materialize a draft chat (if `materializeDraft` resolves it) as status
  * "creating" — not "pending" — so every consumer reading `chat.status`
@@ -65,7 +104,8 @@ function patchChatCache(queryClient: QueryClient, chatId: string, patch: Partial
 export async function materializeDraftChat(
   draftId: string,
   materializeDraft: (draftId: string, options?: { status?: Chat["status"] }) => Promise<{ id: string } | null>,
-  pendingEnv?: PendingEnv
+  pendingEnv?: PendingEnv,
+  pendingMcp?: PendingMcp
 ): Promise<string | null> {
   const materialized = await materializeDraft(draftId, { status: "creating" })
   if (!materialized) return null
@@ -85,6 +125,10 @@ export async function materializeDraftChat(
       // this fails; the user can re-enter the env vars from the real chat.
       console.error("[sandbox-client] Failed to apply staged draft env vars:", err)
     }
+  }
+
+  if (pendingMcp) {
+    await applyPendingMcpServers(chatId, pendingMcp)
   }
 
   return chatId
@@ -158,11 +202,12 @@ export async function materializeAndEnsureSandbox(
   materializeDraft: (draftId: string, options?: { status?: Chat["status"] }) => Promise<{ id: string } | null>,
   queryClient: QueryClient,
   pendingEnv?: PendingEnv,
-  options?: { failureBody?: string }
+  options?: { failureBody?: string },
+  pendingMcp?: PendingMcp
 ): Promise<EnsuredDraftSandbox | null> {
   useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
 
-  const chatId = await materializeDraftChat(draftId, materializeDraft, pendingEnv)
+  const chatId = await materializeDraftChat(draftId, materializeDraft, pendingEnv, pendingMcp)
   const result = chatId ? await ensureSandboxForChat(chatId, queryClient) : null
 
   if (!result) {

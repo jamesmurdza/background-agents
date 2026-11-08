@@ -209,10 +209,20 @@ export function useSandboxActions({
 
       setIsStartingSandbox(true)
       try {
-        const ensured = await materializeAndEnsureSandbox(currentChatId, materializeDraft, queryClient, {
-          environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
-          clearPending: () => updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
-        })
+        const ensured = await materializeAndEnsureSandbox(
+          currentChatId,
+          materializeDraft,
+          queryClient,
+          {
+            environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+            clearPending: () => updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
+          },
+          undefined,
+          {
+            servers: draftChatConfig?.pendingMcpServers,
+            clearPending: () => updateDraftChatConfig({ pendingMcpServers: undefined }),
+          }
+        )
         if (!ensured) return
         sandboxId = ensured.sandboxId
       } finally {
