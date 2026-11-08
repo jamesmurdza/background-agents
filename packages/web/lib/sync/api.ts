@@ -34,10 +34,14 @@ export interface ChatResponse {
   parentChatId: string | null
   needsSync: boolean
   uncommittedFilesCount: number
-  // Optional: the chat list endpoint doesn't bother computing this since
-  // only the currently open chat's banner reads it; the chat-detail
-  // endpoint always sets it.
-  hasCommits?: boolean
+  // Must come from every endpoint that produces a ChatResponse, including
+  // the chat list: useChatsQuery's periodic/invalidation refetches rebuild
+  // each chat via toChatType from this exact shape, and that rebuilt chat
+  // wins over any more-detailed fetch whenever a detail refetch isn't
+  // triggered (see queue-sync's applyQueueSnapshot). Omitting it here once
+  // defaulted every chat back to false shortly after a correct update,
+  // making the no-repo banner flash and disappear.
+  hasCommits: boolean
   createdAt: number
   updatedAt: number
   lastActiveAt: number
