@@ -23,6 +23,7 @@ import {
   PADDLE_OAUTH_TOKEN_URL,
   PADDLE_MCP_URL,
   PADDLE_MCP_QUALIFIED_NAME,
+  PADDLE_MCP_RESOURCE,
 } from "./constants"
 import type { IMcpProvider } from "../types"
 
@@ -81,6 +82,7 @@ export class PaddleMcpProvider implements IMcpProvider {
       scope: PADDLE_OAUTH_SCOPE,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
+      resource: PADDLE_MCP_RESOURCE,
       state,
     })
     return `${PADDLE_OAUTH_AUTHORIZE_URL}?${params}`
@@ -162,6 +164,7 @@ export class PaddleMcpProvider implements IMcpProvider {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: this.config.clientId,
+        resource: PADDLE_MCP_RESOURCE,
         ...params,
       }),
     })
