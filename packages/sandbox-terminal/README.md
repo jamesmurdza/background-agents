@@ -177,7 +177,7 @@ Messages are JSON-encoded:
 
 - Node.js >= 20.9.0
 - React >= 18
-- `@daytonaio/sdk` >= 0.170.0 (for sandbox setup functions)
+- `@daytonaio/sdk` >= 0.217.0 (for sandbox setup functions)
 
 ## Tests
 
