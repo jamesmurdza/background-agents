@@ -134,7 +134,7 @@ describe("rebase-suggestion banner", () => {
     expect(html).toContain('data-testid="rebase-suggestion"')
     expect(html).toContain('Merge conflict with "main".')
     expect(html).toContain(">Rebase</button>")
-    expect(html).toContain('onto "main" instead.')
+    expect(html).toContain('onto "main" before merging.')
     // Not also rendered inline as a normal assistant message.
     expect(html).not.toContain('data-message-id="rebase-suggest"')
   })

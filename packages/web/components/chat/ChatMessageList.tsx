@@ -232,7 +232,7 @@ export function ChatMessageList({
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
-                {rebaseSuggestion.content} This sandbox isn&apos;t on that branch, so merging can&apos;t be resolved here.{" "}
+                {rebaseSuggestion.content}{" "}
                 <button
                   type="button"
                   data-testid="rebase-suggestion-action"
@@ -243,7 +243,7 @@ export function ChatMessageList({
                 >
                   Rebase
                 </button>{" "}
-                onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} instead.
+                onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} before merging.
               </span>
             </div>
           )}
