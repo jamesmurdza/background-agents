@@ -122,11 +122,18 @@ export function ChatMessageList({
   }, [chat.id])
   useEffect(() => {
     if (wasRunningRef.current && !isRunning) {
+      // The conflict banner's "in progress" state (git.rebaseConflict) is
+      // otherwise only fetched once, on mount/sandbox change — so without
+      // this, resetting resolveRequested here would make a successfully
+      // resolved conflict's banner reappear showing stale mount-time state.
+      // Re-check the sandbox first and only then reset — keeps the banner
+      // hidden through the refresh instead of flashing the stale value
+      // before the fresh one lands.
       setCommitRequested(false)
-      setResolveRequested(false)
+      void git.checkRebaseStatus().finally(() => setResolveRequested(false))
     }
     wasRunningRef.current = isRunning
-  }, [isRunning])
+  }, [isRunning, git.checkRebaseStatus])
 
   return (
     <div className="relative flex-1 flex flex-col min-h-0">
@@ -228,22 +235,27 @@ export function ChatMessageList({
             <div
               data-testid="rebase-suggestion"
               role="status"
-              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+              aria-busy={git.actionLoading}
+              className={cn(
+                "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground",
+                git.actionLoading && "opacity-60 pointer-events-none"
+              )}
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
-                {rebaseSuggestion.content} This sandbox isn&apos;t on that branch, so merging can&apos;t be resolved here.{" "}
+                {rebaseSuggestion.content}{" "}
                 <button
                   type="button"
                   data-testid="rebase-suggestion-action"
+                  disabled={git.actionLoading}
                   onClick={() => {
                     if (rebaseSuggestion.linkBranch) git.rebaseOnto(rebaseSuggestion.linkBranch)
                   }}
-                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:no-underline disabled:cursor-default"
                 >
-                  Rebase
+                  {git.actionLoading ? "Rebasing…" : "Rebase"}
                 </button>{" "}
-                onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} instead.
+                onto {rebaseSuggestion.linkBranch ? `"${rebaseSuggestion.linkBranch}"` : "it"} before merging.
               </span>
             </div>
           )}
@@ -251,7 +263,11 @@ export function ChatMessageList({
             <div
               data-testid="force-push-warning"
               role="status"
-              className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+              aria-busy={git.actionLoading}
+              className={cn(
+                "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground",
+                git.actionLoading && "opacity-60 pointer-events-none"
+              )}
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
@@ -259,10 +275,11 @@ export function ChatMessageList({
                 <button
                   type="button"
                   data-testid="force-push-action"
+                  disabled={git.actionLoading}
                   onClick={git.handleForcePush}
-                  className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                  className="underline underline-offset-2 hover:no-underline cursor-pointer disabled:no-underline disabled:cursor-default"
                 >
-                  Force push
+                  {git.actionLoading ? "Force pushing…" : "Force push"}
                 </button>{" "}
                 to overwrite the remote history.
               </span>

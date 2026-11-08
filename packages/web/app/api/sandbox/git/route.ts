@@ -244,16 +244,10 @@ export async function POST(req: Request) {
             const hasMergeHead = mergeHeadCheck.result.trim() === "yes"
 
             if (hasMergeHead) {
+              // No chat message here: the live conflict banner already
+              // covers an in-progress merge conflict the same way it does
+              // for rebase (see the "rebase" case above).
               const conflictedFiles = await getConflictedFiles(sandbox, repoPath)
-
-              if (chatId) {
-                const fileList = conflictedFiles.join(", ")
-                await createGitOperationMessage(
-                  chatId,
-                  `Merge conflict: ${currentBranch} into ${targetBranch}. Conflicted files: ${fileList}`,
-                  true
-                )
-              }
 
               return Response.json(
                 {
@@ -337,6 +331,14 @@ export async function POST(req: Request) {
           return Response.json({ error: "Missing required fields for rebase" }, { status: 400 })
         }
 
+        // Starting a rebase supersedes any earlier "merge conflict, rebase
+        // instead" suggestion regardless of how this attempt turns out —
+        // success, a fresh conflict (its own live banner), or an outright
+        // failure (its own error message) all make the old suggestion stale.
+        if (chatId) {
+          await clearRebaseSuggestionMessages(chatId)
+        }
+
         // Fetch target branch from remote first to ensure we have the latest.
         // Use fetchBranch to ensure the remote tracking ref (origin/<branch>) is created,
         // which is required for single-branch clones.
@@ -353,16 +355,11 @@ export async function POST(req: Request) {
                              rebaseResult.result.includes("could not apply")
 
           if (isConflict) {
+            // No chat message here: the live conflict banner (polled via
+            // check-rebase-status / git.rebaseConflict) already surfaces this
+            // with the same conflicted-file list, so a static one would just
+            // be a second, stale-the-moment-it's-written copy.
             const conflictedFiles = await getConflictedFiles(sandbox, repoPath)
-
-            if (chatId) {
-              const fileList = conflictedFiles.join(", ")
-              await createGitOperationMessage(
-                chatId,
-                `Rebase conflict: ${currentBranch} onto ${targetBranch}. Conflicted files: ${fileList}`,
-                true
-              )
-            }
 
             return Response.json({
               conflict: true,

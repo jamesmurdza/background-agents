@@ -110,7 +110,18 @@ export async function autoPushChat(params: {
     // attempt — so a blip that resolves on retry never shows up here.
     const giveUp = async (err: unknown) => {
       const message = err instanceof Error ? err.message : "Unknown error"
-      await createPushFailedMessage(chatId, message)
+      // Non-fast-forward rejections are by far the most common push failure
+      // (any rebase/force-push elsewhere on the branch triggers one) and git's
+      // own text for them is a wall of hints ("Updates were rejected...",
+      // "Integrate the remote changes...", "See the 'Note about
+      // fast-forwards'...") that's noisy for something this routine. Collapse
+      // it to the one fact the user actually needs; other failures (auth,
+      // not-found, network) keep their real message for debuggability.
+      const output = err instanceof GitError ? err.output : message
+      const displayMessage = isNonFastForwardError(output)
+        ? "your branch is behind the remote"
+        : message
+      await createPushFailedMessage(chatId, displayMessage)
       logGitPushError({ userId, chatId, branch, error: message })
       return null
     }
