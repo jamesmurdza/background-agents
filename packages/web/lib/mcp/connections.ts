@@ -21,6 +21,8 @@ import {
   GMAIL_MCP_QUALIFIED_NAME,
   GMAIL_POLICY_PRESETS,
   gmailToolPolicySchema,
+  PADDLE_MCP_QUALIFIED_NAME,
+  PADDLE_MCP_URL,
 } from "@background-agents/mcp"
 import { getGmailMcpUrl } from "./gmail"
 import {
@@ -258,6 +260,27 @@ export async function attachGmailResponse(
       owner.kind === "chat"
         ? GMAIL_POLICY_PRESETS.readDraft
         : GMAIL_POLICY_PRESETS.readOnly,
+  })
+}
+
+export async function attachPaddleResponse(
+  owner: McpOwner,
+  userId: string
+): Promise<Response> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { paddleRefreshTokenEncrypted: true },
+  })
+  if (!user?.paddleRefreshTokenEncrypted) {
+    return Response.json(
+      { error: "Paddle account not connected for this user" },
+      { status: 409 }
+    )
+  }
+  return attachSentinelResponse(owner, {
+    qualifiedName: PADDLE_MCP_QUALIFIED_NAME,
+    displayName: "Paddle",
+    mcpUrl: PADDLE_MCP_URL,
   })
 }
 

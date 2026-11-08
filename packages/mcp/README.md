@@ -1,6 +1,6 @@
 # @background-agents/mcp
 
-TypeScript library for connecting to MCP servers via GitHub, Smithery, and our own Gmail MCP server.
+TypeScript library for connecting to MCP servers via GitHub, Smithery, Paddle, and our own Gmail MCP server.
 
 ## GitHub
 
@@ -133,6 +133,45 @@ GMAIL_MCP_BASE_URL="https://<tunnel>.trycloudflare.com"
 ```
 
 In Testing mode Google expires refresh tokens after 7 days; publishing the app with Gmail scopes requires Google's verification.
+
+## Paddle
+
+Mints access tokens for Paddle's own hosted MCP server (`mcp.paddle.com/mcp`) via OAuth with PKCE against `id.paddle.com`. Paddle supports public clients (`token_endpoint_auth_method: "none"`), so there's no client secret to hold — only a `clientId`.
+
+```typescript
+import { createPaddleMcpProvider, PADDLE_MCP_URL } from "@background-agents/mcp"
+
+const paddle = createPaddleMcpProvider({
+  clientId: process.env.PADDLE_CLIENT_ID!,
+  jwtSecret: process.env.PADDLE_MCP_JWT_SECRET!,
+})
+
+// Linking a Paddle account (popup flow). The signed `authUrl`'s `state`
+// carries the PKCE code_verifier, so there's no server-side session to keep.
+const authUrl = await paddle.getAuthUrl(redirectUri, userId)
+// ...in the callback:
+const verified = await paddle.verifyOAuthState(state) // { userId, codeVerifier } | null
+if (verified?.userId === userId) {
+  const refreshToken = await paddle.exchangeCode(code, redirectUri, verified.codeVerifier)
+}
+
+// Per agent turn: mint a fresh access token (cached in-process, refreshed
+// lazily like the GitHub installation token)
+const token = await paddle.getToken(userId, refreshToken)
+```
+
+### Paddle OAuth Setup
+
+1. Register a public OAuth client with Paddle (dynamic client registration at `https://id.paddle.com/oauth2/register`, or ask Paddle support) with redirect URI `<NEXTAUTH_URL>/api/mcp/connect/paddle/callback`, `token_endpoint_auth_method: "none"`, and the `offline_access` scope (needed to get a refresh token back).
+2. Set the client id, plus a random secret for signing OAuth state/PKCE verifier pairs:
+
+```bash
+PADDLE_CLIENT_ID="..."
+# Any random 32+ byte secret, e.g. from `openssl rand -base64 32`
+PADDLE_MCP_JWT_SECRET="..."
+```
+
+Paddle's sandbox environment (`sandbox-mcp.paddle.com`) has no OAuth option — only a static sandbox API key (`pdl_sdbx_...`) passed as `Authorization: Bearer`. This provider targets the live environment only.
 
 ## Smithery
 

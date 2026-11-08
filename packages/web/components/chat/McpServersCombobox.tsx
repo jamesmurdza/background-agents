@@ -27,6 +27,7 @@ import {
   type GmailToolPolicy,
   parseGmailToolPolicy,
 } from "@background-agents/mcp/gmail/policy"
+import { PADDLE_MCP_QUALIFIED_NAME } from "@background-agents/mcp"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import type { PendingMcpServer } from "@/lib/storage"
 import {
@@ -37,6 +38,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { GmailIcon } from "@/components/icons/gmail-icon"
+import { PaddleIcon } from "@/components/icons/paddle-icon"
 import { ComboboxTriggerButton } from "./ComboboxTriggerButton"
 import { GmailSettingsDialog } from "./GmailSettingsDialog"
 import {
@@ -122,6 +124,19 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
     connectApi: "/api/mcp/connect/gmail",
     attachPath: "gmail",
     popupName: "gmail-oauth",
+  },
+  {
+    slug: PADDLE_MCP_QUALIFIED_NAME,
+    name: "Paddle",
+    description: "Billing, subscriptions and customers via Paddle",
+    iconUrl: null,
+    url: null,
+    verified: true,
+    useCount: 0,
+    icon: PaddleIcon,
+    connectApi: "/api/mcp/connect/paddle",
+    attachPath: "paddle",
+    popupName: "paddle-oauth",
   },
 ]
 
