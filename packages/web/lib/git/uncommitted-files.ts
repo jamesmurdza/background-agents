@@ -23,9 +23,13 @@ export function parseUncommittedPaths(status: string): string[] {
 export interface GitWorkingTreeStatus {
   /** Count of files still outside a commit. */
   uncommittedFilesCount: number
-  /** Whether the repo has made any commits at all — distinguishes a fresh,
-   * genuinely empty scaffold from one with committed work that just happens
-   * to have no *uncommitted* files right now. */
+  /** Whether the repo has any commits beyond the scaffold's own initial
+   * commit. Every sandbox repo starts from a template with exactly one
+   * commit already made (by the scaffolding tool, not the user) — so
+   * "HEAD exists" is true from turn one regardless of whether the agent has
+   * done anything. Counting commits and requiring more than that one baseline
+   * is what actually distinguishes "nothing has happened yet" from "there's
+   * committed work that only lives in the sandbox". */
   hasCommits: boolean
 }
 
@@ -40,7 +44,7 @@ export async function inspectGitWorkingTree(
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const check = sandbox.process.executeCommand(
-      `cd ${esc(repoPath)} && (git rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no) && ${UNCOMMITTED_STATUS_COMMAND} 2>&1`
+      `cd ${esc(repoPath)} && (git rev-list --count HEAD 2>/dev/null || echo 0) && ${UNCOMMITTED_STATUS_COMMAND} 2>&1`
     )
     // A stalled sandbox call must not keep the chat in "running" indefinitely.
     const timeout = new Promise<null>((resolve) => {
@@ -50,12 +54,13 @@ export async function inspectGitWorkingTree(
     if (!response) return null
     const { result, exitCode } = response
     if (exitCode !== 0) return null
-    // First line is the commit-check echo; the rest is the NUL-delimited
+    // First line is the commit count; the rest is the NUL-delimited
     // porcelain status, so splitting on the first newline can't collide
     // with it.
     const newline = result.indexOf("\n")
     if (newline === -1) return null
-    const hasCommits = result.slice(0, newline) === "yes"
+    const commitCount = parseInt(result.slice(0, newline), 10) || 0
+    const hasCommits = commitCount > 1
     const uncommittedFilesCount = parseUncommittedPaths(result.slice(newline + 1)).length
     return { uncommittedFilesCount, hasCommits }
   } catch (error) {
