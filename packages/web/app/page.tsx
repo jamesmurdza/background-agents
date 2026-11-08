@@ -325,7 +325,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     currentDraft,
     handleDraftChange,
     setOptimisticDraft,
-    handleMaterializeDraftForMcp,
   } = useDraftChat({
     isHydrated,
     currentChat,
@@ -757,7 +756,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onOpenEnvVars={handleOpenEnvVars}
                   onOpenSkills={() => setSkillsModalOpen(true)}
                   isDraftChat={!!displayCurrentChatId && isDraftChatId(displayCurrentChatId)}
-                  onMaterializeDraftForMcp={handleMaterializeDraftForMcp}
+                  pendingMcpServers={draftChatConfig?.id === displayCurrentChatId ? draftChatConfig.pendingMcpServers : undefined}
+                  onPendingMcpServersChange={(servers) => updateDraftChatConfig({ pendingMcpServers: servers })}
                   isMobile={isMobile}
                   isLoadingMessages={isLoadingMessages}
                   draft={currentDraft}

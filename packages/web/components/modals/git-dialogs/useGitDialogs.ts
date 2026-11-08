@@ -217,7 +217,11 @@ export function useGitDialogs({
           environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
           clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
         },
-        { failureBody: "Merge not performed — try again." }
+        { failureBody: "Merge not performed — try again." },
+        {
+          servers: draftChatConfig?.pendingMcpServers,
+          clearPending: () => updateDraftChatConfig?.({ pendingMcpServers: undefined }),
+        }
       )
       setActionLoading(false)
       if (!ensured) return
