@@ -304,24 +304,59 @@ export function useGitDialogs({
   // that already know it (the rebase-suggestion banner) can skip the
   // dialog's own selectedBranch state entirely.
   const performRebase = useCallback(async (targetBranch: string, closeDialog?: (open: boolean) => void) => {
-    if (!targetBranch || !branchName || !sandboxId || !chatId) return
+    if (!targetBranch || !branchName) return
+
+    let activeSandboxId = sandboxId
+    let activeChatId = chatId
+
+    // Draft chat (no DB row / sandbox yet): materialize it into a real chat
+    // row, then make sure it has a running sandbox, before rebasing. See
+    // handleMerge for why this is kept independent of this hook's lifecycle.
+    if ((!activeSandboxId || !activeChatId) && chatId && isDraftChatId?.(chatId) && materializeDraft) {
+      setActionLoading(true)
+      const ensured = await materializeAndEnsureSandbox(
+        chatId,
+        materializeDraft,
+        queryClient,
+        {
+          environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+          clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+        },
+        { failureBody: "Rebase not performed — try again." },
+        {
+          servers: draftChatConfig?.pendingMcpServers,
+          clearPending: () => updateDraftChatConfig?.({ pendingMcpServers: undefined }),
+        }
+      )
+      setActionLoading(false)
+      if (!ensured) return
+      activeChatId = ensured.chatId
+      activeSandboxId = ensured.sandboxId
+    }
+
+    if (!activeSandboxId || !activeChatId) return
 
     await runGitAction(async () => {
       const { ok, status, data, recreatedSandboxId } = await callSandboxGit<{
         conflict?: boolean
         conflictedFiles?: string[]
       }>({
-        sandboxId,
+        sandboxId: activeSandboxId,
         repoPath: `${PATHS.SANDBOX_HOME}/${repoName}`,
         action: "rebase",
         targetBranch,
         currentBranch: branchName,
         repoOwner,
         repoApiName,
-        chatId,
+        chatId: activeChatId,
       })
 
-      syncRecreatedSandboxId(recreatedSandboxId)
+      // Use activeChatId/activeSandboxId rather than the syncRecreatedSandboxId
+      // helper here: for a chat just materialized from a draft, `chat.id` is
+      // still the stale draft id.
+      if (recreatedSandboxId && recreatedSandboxId !== activeSandboxId) {
+        void updateChatById(activeChatId, { sandboxId: recreatedSandboxId })
+      }
 
       if (status === 409 && data.conflict) {
         setRebaseConflict({
@@ -333,8 +368,8 @@ export function useGitDialogs({
       }
 
       if (!ok) return
-    }, closeDialog)
-  }, [branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, runGitAction, syncRecreatedSandboxId])
+    }, closeDialog, activeChatId)
+  }, [branchName, sandboxId, chatId, repoName, repoOwner, repoApiName, runGitAction, isDraftChatId, materializeDraft, draftChatConfig, updateDraftChatConfig, updateChatById])
 
   // Handle rebase from the dialog, using its own selected target branch.
   const handleRebase = useCallback(async () => {
