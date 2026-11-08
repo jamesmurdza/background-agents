@@ -122,11 +122,18 @@ export function ChatMessageList({
   }, [chat.id])
   useEffect(() => {
     if (wasRunningRef.current && !isRunning) {
+      // The conflict banner's "in progress" state (git.rebaseConflict) is
+      // otherwise only fetched once, on mount/sandbox change — so without
+      // this, resetting resolveRequested here would make a successfully
+      // resolved conflict's banner reappear showing stale mount-time state.
+      // Re-check the sandbox first and only then reset — keeps the banner
+      // hidden through the refresh instead of flashing the stale value
+      // before the fresh one lands.
       setCommitRequested(false)
-      setResolveRequested(false)
+      void git.checkRebaseStatus().finally(() => setResolveRequested(false))
     }
     wasRunningRef.current = isRunning
-  }, [isRunning])
+  }, [isRunning, git.checkRebaseStatus])
 
   return (
     <div className="relative flex-1 flex flex-col min-h-0">
