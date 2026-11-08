@@ -83,6 +83,7 @@ interface ChatWithMessagesResponse {
   parentChatId: string | null
   needsSync: boolean
   uncommittedFilesCount: number
+  hasCommits: boolean
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -124,6 +125,7 @@ export async function GET(
         activeAssistantMessageId: chat.activeAssistantMessageId,
         sandboxId: chat.sandboxId,
         uncommittedFilesCount: chat.uncommittedFilesCount,
+        hasCommits: chat.hasCommits,
       })
     }
 
@@ -209,6 +211,7 @@ export async function GET(
       parentChatId: chat.parentChatId,
       needsSync: chat.needsSync,
       uncommittedFilesCount: chat.uncommittedFilesCount,
+      hasCommits: chat.hasCommits,
       createdAt: chat.createdAt.getTime(),
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
@@ -350,6 +353,7 @@ export async function PATCH(
       parentChatId: updatedChat.parentChatId,
       needsSync: updatedChat.needsSync,
       uncommittedFilesCount: updatedChat.uncommittedFilesCount,
+      hasCommits: updatedChat.hasCommits,
       createdAt: updatedChat.createdAt.getTime(),
       updatedAt: updatedChat.updatedAt.getTime(),
       lastActiveAt: updatedChat.lastActiveAt.getTime(),

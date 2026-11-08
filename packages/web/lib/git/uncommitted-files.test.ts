@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process"
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { describe, expect, it, vi } from "vitest"
-import { inspectUncommittedFiles } from "./uncommitted-files"
+import { inspectUncommittedFiles, hasAnyCommits } from "./uncommitted-files"
 
 function repoFixture() {
   const root = mkdtempSync("/private/tmp/backgrounder-uncommitted-test-")
@@ -108,6 +108,48 @@ describe("inspectUncommittedFiles", () => {
       const inspection = inspectUncommittedFiles(f.sandbox, f.root)
       await vi.advanceTimersByTimeAsync(5000)
       expect(await inspection).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("hasAnyCommits", () => {
+  it("is false for a freshly initialized repo with no commits yet", async () => {
+    const root = mkdtempSync("/private/tmp/backgrounder-uncommitted-test-")
+    execFileSync("git", ["init", "--initial-branch=main", root], { stdio: "pipe" })
+    const sandbox = {
+      process: {
+        executeCommand: async (command: string) => {
+          const res = spawnSync("/bin/sh", ["-c", command], { cwd: root, encoding: "utf8" })
+          return { result: res.stdout + res.stderr, exitCode: res.status ?? 1 }
+        },
+      },
+    }
+    expect(await hasAnyCommits(sandbox, root)).toBe(false)
+  })
+
+  it("is true once the repo has at least one commit, uncommitted files aside", async () => {
+    const f = repoFixture()
+    expect(await hasAnyCommits(f.sandbox, f.root)).toBe(true)
+    f.write("src/new-page.tsx")
+    expect(await hasAnyCommits(f.sandbox, f.root)).toBe(true)
+  })
+
+  it("returns unknown when Git fails", async () => {
+    const f = repoFixture()
+    f.sandbox.process.executeCommand = async () => ({ result: "Git failed", exitCode: 1 })
+    expect(await hasAnyCommits(f.sandbox, f.root)).toBeNull()
+  })
+
+  it("does not block turn completion if the sandbox stalls", async () => {
+    vi.useFakeTimers()
+    try {
+      const f = repoFixture()
+      f.sandbox.process.executeCommand = async () => new Promise(() => {})
+      const check = hasAnyCommits(f.sandbox, f.root)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(await check).toBeNull()
     } finally {
       vi.useRealTimers()
     }

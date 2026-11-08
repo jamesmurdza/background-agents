@@ -47,3 +47,36 @@ export async function inspectUncommittedFiles(
     if (timer) clearTimeout(timer)
   }
 }
+
+/** Whether the repo has made any commits at all. Distinguishes a fresh,
+ * genuinely empty scaffold from one with committed work that just happens to
+ * have no *uncommitted* files right now — the no-linked-repo warning needs
+ * both signals to tell "nothing to lose" apart from "commits only live in
+ * the sandbox". Null means Git could not be inspected, so callers must keep
+ * the last known warning state. */
+export async function hasAnyCommits(
+  sandbox: SandboxLike,
+  repoPath: string
+): Promise<boolean | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const check = sandbox.process.executeCommand(
+      `cd ${esc(repoPath)} && git rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no`
+    )
+    // Same stall guard as inspectUncommittedFiles — must not keep the chat
+    // in "running" indefinitely.
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), 5000)
+    })
+    const response = await Promise.race([check, timeout])
+    if (!response) return null
+    const { result, exitCode } = response
+    if (exitCode !== 0) return null
+    return result.trim() === "yes"
+  } catch (error) {
+    console.error("[uncommitted-files] Could not check for commits:", error)
+    return null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}

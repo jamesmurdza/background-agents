@@ -211,6 +211,7 @@ export async function GET(req: Request) {
             }
             let pushInfo: PushInfo | undefined
             let uncommittedFilesCount: number | undefined
+            let hasCommits: boolean | undefined
             let finalSnapshotSaved = false
             let turnReleased = false
             try {
@@ -329,12 +330,14 @@ export async function GET(req: Request) {
               // push to, but the uncommitted-files banner still needs this
               // count so it can nudge the user to create a repo.
               if (chat) {
-                uncommittedFilesCount = await refreshUncommittedFilesWarning({
+                const warning = await refreshUncommittedFilesWarning({
                   sandbox,
                   repoPath: sessionOpts.repoPath,
                   chatId,
                   backgroundSessionId,
                 })
+                uncommittedFilesCount = warning?.uncommittedFilesCount
+                hasCommits = warning?.hasCommits
               }
             }
 
@@ -392,6 +395,7 @@ export async function GET(req: Request) {
               conflictState,
               push: pushInfo,
               uncommittedFilesCount,
+              hasCommits,
             })
             closeStream()
             return

@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { inspect, updateMany } = vi.hoisted(() => ({
+const { inspect, hasCommitsCheck, updateMany } = vi.hoisted(() => ({
   inspect: vi.fn(),
+  hasCommitsCheck: vi.fn(),
   updateMany: vi.fn(),
 }))
-vi.mock("@/lib/git/uncommitted-files", () => ({ inspectUncommittedFiles: inspect }))
+vi.mock("@/lib/git/uncommitted-files", () => ({
+  inspectUncommittedFiles: inspect,
+  hasAnyCommits: hasCommitsCheck,
+}))
 vi.mock("@/lib/db/prisma", () => ({ prisma: { chat: { updateMany } } }))
 
 import { refreshUncommittedFilesWarning } from "./uncommitted-files-warning"
@@ -18,22 +22,30 @@ const params = {
 
 beforeEach(() => {
   inspect.mockReset()
+  hasCommitsCheck.mockReset().mockResolvedValue(true)
   updateMany.mockReset().mockResolvedValue({ count: 1 })
 })
 
 describe("refreshUncommittedFilesWarning", () => {
   it("sets and clears one chat count, scoped to the current turn", async () => {
     inspect.mockResolvedValueOnce(2).mockResolvedValueOnce(0)
-    expect(await refreshUncommittedFilesWarning(params)).toBe(2)
-    expect(await refreshUncommittedFilesWarning(params)).toBe(0)
+    expect(await refreshUncommittedFilesWarning(params)).toEqual({ uncommittedFilesCount: 2, hasCommits: true })
+    expect(await refreshUncommittedFilesWarning(params)).toEqual({ uncommittedFilesCount: 0, hasCommits: true })
     expect(updateMany.mock.calls.map(([arg]) => arg)).toEqual([
-      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 2 } },
-      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 0 } },
+      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 2, hasCommits: true } },
+      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 0, hasCommits: true } },
     ])
   })
 
   it("keeps the prior warning when Git inspection fails", async () => {
     inspect.mockResolvedValue(null)
+    expect(await refreshUncommittedFilesWarning(params)).toBeUndefined()
+    expect(updateMany).not.toHaveBeenCalled()
+  })
+
+  it("keeps the prior warning when the commit check fails, even if the status check succeeds", async () => {
+    inspect.mockResolvedValue(2)
+    hasCommitsCheck.mockResolvedValue(null)
     expect(await refreshUncommittedFilesWarning(params)).toBeUndefined()
     expect(updateMany).not.toHaveBeenCalled()
   })
@@ -49,7 +61,10 @@ describe("refreshUncommittedFilesWarning", () => {
     expect(await Promise.all([
       refreshUncommittedFilesWarning(params),
       refreshUncommittedFilesWarning(params),
-    ])).toEqual([2, 2])
+    ])).toEqual([
+      { uncommittedFilesCount: 2, hasCommits: true },
+      { uncommittedFilesCount: 2, hasCommits: true },
+    ])
     expect(updateMany).toHaveBeenCalledTimes(2)
     expect(updateMany.mock.calls.every(([arg]) => arg.data.uncommittedFilesCount === 2)).toBe(true)
   })
