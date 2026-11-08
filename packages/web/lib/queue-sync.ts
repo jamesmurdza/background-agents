@@ -82,6 +82,7 @@ export function applyQueueSnapshot(
     messageCount: state.messageCount ?? chat.messageCount,
     lastMessageId: state.lastMessageId ?? chat.lastMessageId,
     uncommittedFilesCount: detail?.uncommittedFilesCount ?? chat.uncommittedFilesCount,
+    hasCommits: detail?.hasCommits ?? chat.hasCommits,
     ...snapshotFailure(chat, state),
     recoverableAssistantMessageId,
   }

@@ -251,6 +251,12 @@ export interface Chat {
    * completed turn's successful Git status check. */
   uncommittedFilesCount?: number
 
+  /** Whether the sandbox's repo has any commits at all, from that same
+   * check. Needed alongside uncommittedFilesCount — a chat can have zero
+   * uncommitted files yet still have commits that only exist in the
+   * sandbox. */
+  hasCommits?: boolean
+
   /** Set if the last attempt to fetch this chat's messages from the server
    *  failed. Suppresses auto-retry on subsequent selects until the user
    *  explicitly retries. */
@@ -360,6 +366,8 @@ export interface SSECompleteEvent {
   cursor: number
   /** Present only when the backend successfully checked and persisted Git status. */
   uncommittedFilesCount?: number
+  /** Present alongside uncommittedFilesCount, same conditions. */
+  hasCommits?: boolean
   /** Conflict state after agent completion - allows frontend to update warning icon */
   conflictState?: {
     inRebase: boolean

@@ -20,28 +20,46 @@ export function parseUncommittedPaths(status: string): string[] {
   return paths
 }
 
-/** Count of files still outside a commit. Null means Git could not be
- * inspected, so callers must keep the last known warning state. */
-export async function inspectUncommittedFiles(
+export interface GitWorkingTreeStatus {
+  /** Count of files still outside a commit. */
+  uncommittedFilesCount: number
+  /** Whether the repo has made any commits at all — distinguishes a fresh,
+   * genuinely empty scaffold from one with committed work that just happens
+   * to have no *uncommitted* files right now. */
+  hasCommits: boolean
+}
+
+/** One sandbox round-trip for both working-tree signals the no-linked-repo
+ * warning needs. Null means Git could not be inspected (sandbox stalled or
+ * errored), so callers must keep the last known warning state rather than
+ * have one field go stale relative to the other. */
+export async function inspectGitWorkingTree(
   sandbox: SandboxLike,
   repoPath: string
-): Promise<number | null> {
+): Promise<GitWorkingTreeStatus | null> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const status = sandbox.process.executeCommand(
-      `cd ${esc(repoPath)} && ${UNCOMMITTED_STATUS_COMMAND} 2>&1`
+    const check = sandbox.process.executeCommand(
+      `cd ${esc(repoPath)} && (git rev-parse --verify HEAD >/dev/null 2>&1 && echo yes || echo no) && ${UNCOMMITTED_STATUS_COMMAND} 2>&1`
     )
     // A stalled sandbox call must not keep the chat in "running" indefinitely.
     const timeout = new Promise<null>((resolve) => {
       timer = setTimeout(() => resolve(null), 5000)
     })
-    const response = await Promise.race([status, timeout])
+    const response = await Promise.race([check, timeout])
     if (!response) return null
     const { result, exitCode } = response
     if (exitCode !== 0) return null
-    return parseUncommittedPaths(result).length
+    // First line is the commit-check echo; the rest is the NUL-delimited
+    // porcelain status, so splitting on the first newline can't collide
+    // with it.
+    const newline = result.indexOf("\n")
+    if (newline === -1) return null
+    const hasCommits = result.slice(0, newline) === "yes"
+    const uncommittedFilesCount = parseUncommittedPaths(result.slice(newline + 1)).length
+    return { uncommittedFilesCount, hasCommits }
   } catch (error) {
-    console.error("[uncommitted-files] Could not inspect Git status:", error)
+    console.error("[uncommitted-files] Could not inspect Git working tree:", error)
     return null
   } finally {
     if (timer) clearTimeout(timer)

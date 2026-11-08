@@ -196,6 +196,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             ...c,
             sessionId: data.sessionId ?? c.sessionId,
             uncommittedFilesCount: data.uncommittedFilesCount ?? c.uncommittedFilesCount,
+            hasCommits: data.hasCommits ?? c.hasCommits,
           } : c))
           void queryClient.invalidateQueries({ queryKey: queryKeys.chats.list() })
 
@@ -258,7 +259,7 @@ export function useStreaming(options: UseStreamingOptions = {}) {
             updateChatsCache((old) =>
               old.map((c) => {
                 if (c.id !== chatId || chatData.updatedAt < c.updatedAt) return c
-                return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount }
+                return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount, hasCommits: chatData.hasCommits }
               })
             )
           } catch (fetchErr) {

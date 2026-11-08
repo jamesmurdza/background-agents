@@ -285,7 +285,7 @@ export function ChatMessageList({
               </span>
             </div>
           )}
-          {isNewRepo && (
+          {isNewRepo && ((chat.uncommittedFilesCount ?? 0) > 0 || chat.hasCommits) && (
             <div
               data-testid="uncommitted-files-warning"
               role="status"

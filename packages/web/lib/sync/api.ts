@@ -34,6 +34,10 @@ export interface ChatResponse {
   parentChatId: string | null
   needsSync: boolean
   uncommittedFilesCount: number
+  // Optional: the chat list endpoint doesn't bother computing this since
+  // only the currently open chat's banner reads it; the chat-detail
+  // endpoint always sets it.
+  hasCommits?: boolean
   createdAt: number
   updatedAt: number
   lastActiveAt: number
@@ -327,6 +331,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     parentChatId: serverChat.parentChatId || undefined,
     needsSync: serverChat.needsSync,
     uncommittedFilesCount: serverChat.uncommittedFilesCount ?? 0,
+    hasCommits: serverChat.hasCommits ?? false,
     createdAt: serverChat.createdAt,
     updatedAt: serverChat.updatedAt,
     lastActiveAt: serverChat.lastActiveAt,

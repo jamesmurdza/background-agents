@@ -4,7 +4,7 @@ const { inspect, updateMany } = vi.hoisted(() => ({
   inspect: vi.fn(),
   updateMany: vi.fn(),
 }))
-vi.mock("@/lib/git/uncommitted-files", () => ({ inspectUncommittedFiles: inspect }))
+vi.mock("@/lib/git/uncommitted-files", () => ({ inspectGitWorkingTree: inspect }))
 vi.mock("@/lib/db/prisma", () => ({ prisma: { chat: { updateMany } } }))
 
 import { refreshUncommittedFilesWarning } from "./uncommitted-files-warning"
@@ -22,13 +22,15 @@ beforeEach(() => {
 })
 
 describe("refreshUncommittedFilesWarning", () => {
-  it("sets and clears one chat count, scoped to the current turn", async () => {
-    inspect.mockResolvedValueOnce(2).mockResolvedValueOnce(0)
-    expect(await refreshUncommittedFilesWarning(params)).toBe(2)
-    expect(await refreshUncommittedFilesWarning(params)).toBe(0)
+  it("sets and clears one chat's status, scoped to the current turn", async () => {
+    inspect
+      .mockResolvedValueOnce({ uncommittedFilesCount: 2, hasCommits: true })
+      .mockResolvedValueOnce({ uncommittedFilesCount: 0, hasCommits: true })
+    expect(await refreshUncommittedFilesWarning(params)).toEqual({ uncommittedFilesCount: 2, hasCommits: true })
+    expect(await refreshUncommittedFilesWarning(params)).toEqual({ uncommittedFilesCount: 0, hasCommits: true })
     expect(updateMany.mock.calls.map(([arg]) => arg)).toEqual([
-      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 2 } },
-      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 0 } },
+      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 2, hasCommits: true } },
+      { where: { id: "chat-1", backgroundSessionId: "turn-1" }, data: { uncommittedFilesCount: 0, hasCommits: true } },
     ])
   })
 
@@ -39,17 +41,20 @@ describe("refreshUncommittedFilesWarning", () => {
   })
 
   it("does not return stale state after another finalizer released the turn", async () => {
-    inspect.mockResolvedValue(2)
+    inspect.mockResolvedValue({ uncommittedFilesCount: 2, hasCommits: true })
     updateMany.mockResolvedValue({ count: 0 })
     expect(await refreshUncommittedFilesWarning(params)).toBeUndefined()
   })
 
   it("two concurrent finalizers write the same state without appending duplicate warnings", async () => {
-    inspect.mockResolvedValue(2)
+    inspect.mockResolvedValue({ uncommittedFilesCount: 2, hasCommits: true })
     expect(await Promise.all([
       refreshUncommittedFilesWarning(params),
       refreshUncommittedFilesWarning(params),
-    ])).toEqual([2, 2])
+    ])).toEqual([
+      { uncommittedFilesCount: 2, hasCommits: true },
+      { uncommittedFilesCount: 2, hasCommits: true },
+    ])
     expect(updateMany).toHaveBeenCalledTimes(2)
     expect(updateMany.mock.calls.every(([arg]) => arg.data.uncommittedFilesCount === 2)).toBe(true)
   })
