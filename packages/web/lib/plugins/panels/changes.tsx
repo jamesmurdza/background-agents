@@ -120,7 +120,7 @@ function ChangesComponent({ sandboxId, messages, explicitStart, onRefresh }: Pan
               <button
                 type="button"
                 onClick={() => toggle(file.path)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent cursor-pointer"
+                className="sticky top-0 z-10 flex w-full items-center gap-2 bg-background px-3 py-1.5 text-left text-sm hover:bg-accent cursor-pointer"
               >
                 <ChevronRight
                   className={cn("h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
