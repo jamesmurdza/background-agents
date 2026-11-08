@@ -36,7 +36,7 @@ Cron Secret: (none)
 
 Loading config from: /path/to/vercel.json
 
-Found 5 cron job(s):
+Found 6 cron job(s):
 
   /api/cron/refresh-claude-creds
     Schedule: 0 * * * *
@@ -53,6 +53,9 @@ Found 5 cron job(s):
   /api/cron/refresh-codex-creds
     Schedule: 0 * * * *
     Interval: 1h
+  /api/cron/secret-cleanup
+    Schedule: 30 3 * * *
+    Interval: 1m
 
 ─────────────────────────────────────────
 Press Ctrl+C to stop

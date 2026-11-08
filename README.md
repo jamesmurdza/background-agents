@@ -32,7 +32,9 @@ Not published — apps and shared internals used only in this repo.
 | [`desktop`](packages/desktop) | Electron desktop app for Background Agents | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`dev-cron`](packages/dev-cron) | Local development simulator for Vercel cron jobs | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`docs`](packages/docs) | Standalone docs site deployed to docs.backgrounder.dev | <a href="https://github.com/abdulrehmann231"><img src="https://github.com/abdulrehmann231.png?size=64" width="28" height="28"></a> |
+| [`predefined-skills`](packages/predefined-skills) | Content package for built-in, predefined skills shipped by this app | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 | [`sandbox-image`](packages/sandbox-image) | Custom Daytona sandbox image with pre-installed agent CLIs | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
+| [`sandbox-secrets`](packages/sandbox-secrets) | Keep credentials out of Daytona sandboxes by mounting Daytona secrets | <a href="https://github.com/abdulrehmann231"><img src="https://github.com/abdulrehmann231.png?size=64" width="28" height="28"></a> |
 | [`web`](packages/web) | Standalone chat app for AI coding agents | <a href="https://github.com/jamesmurdza"><img src="https://github.com/jamesmurdza.png?size=64" width="28" height="28"></a> |
 
 ---
