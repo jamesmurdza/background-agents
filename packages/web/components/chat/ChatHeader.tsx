@@ -122,6 +122,15 @@ export function ChatHeader({
         className="flex items-center gap-2 min-w-0"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
+        {/* Scheduled-job context — only for chats created by a scheduled
+         *  job run (see Chat.scheduledJobRun). This chat IS the real,
+         *  interactive chat for that run; this just adds status + a
+         *  "previous runs" switcher + job actions inline next to the title,
+         *  instead of a separate standalone report view/row. */}
+        {chat.scheduledJobRun && onSelectChat && (
+          <ChatJobRunHeader run={chat.scheduledJobRun} currentChatId={chat.id} onSelectChat={onSelectChat} />
+        )}
+
         {/* Title */}
         {isEditingTitle ? (
           <Input
@@ -242,25 +251,14 @@ export function ChatHeader({
             )}
           </div>
         )}
-
-        {/* Scheduled-job context — only for chats created by a scheduled
-         *  job run (see Chat.scheduledJobRun). This chat IS the real,
-         *  interactive chat for that run; this just adds status + a
-         *  "previous runs" switcher + job actions inline next to the title,
-         *  instead of a separate standalone report view/row. */}
-        {chat.scheduledJobRun && onSelectChat && (
-          <ChatJobRunHeader run={chat.scheduledJobRun} currentChatId={chat.id} onSelectChat={onSelectChat} />
-        )}
       </div>
       <div
         className="flex items-center gap-1"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
-        {/* Deploy/credit controls aren't relevant for a job-run chat and just
-         *  crowd out room for the job's Edit button — hide them there. */}
-        {!isJobChat && <CreditBalancePill />}
+        <CreditBalancePill />
         <FolderSyncButton repo={chat.repo} />
-        {!isJobChat && isRealRepo(chat.repo) && (
+        {isRealRepo(chat.repo) && (
           <DeployButton chatId={chat.id} repo={chat.repo} branch={chat.baseBranch} />
         )}
         <ShareButton key={chat.id} chatId={chat.id} initialShareId={chat.shareId} />
