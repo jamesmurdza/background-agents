@@ -56,16 +56,17 @@ export function useUrlSync({
           break
 
         case "job":
-          // Name will be updated when job data loads (ScheduledJobDetailPanel
-          // reads the real job from the query cache, not this placeholder).
-          if (!isInitialSync) selectChat(null)
-          setActiveView({ type: "job", jobId: matched.jobId, jobName: matched.jobId })
-          break
-
         case "jobRun":
+          // The standalone job report view (/jobs/:jobId[/runs/:runId]) was
+          // merged into the normal chat view — a job-linked chat now shows
+          // its own header strip instead (see ChatJobRunHeader). There's no
+          // client-side way to resolve "this job" to "its most recent run's
+          // chat" without an extra fetch here, and these are legacy/stale
+          // links at this point, so just send them home like the bare
+          // "jobs" list below.
+          setActiveView({ type: "chat" })
           if (!isInitialSync) selectChat(null)
-          setActiveView({ type: "job", jobId: matched.jobId, jobName: matched.jobId })
-          // TODO: Handle run selection when runs view is implemented
+          window.history.replaceState(null, "", ROUTES.home.build())
           break
 
         case "newChat":

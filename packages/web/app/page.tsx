@@ -10,7 +10,6 @@ import { ChatPanel } from "@/components/ChatPanel"
 import { PreviewView } from "@/components/PreviewView"
 import { AppModals } from "@/components/AppModals"
 import { useGitDialogs } from "@/components/modals/git-dialogs"
-import { ScheduledJobDetailPanel } from "@/components/scheduled-jobs/ScheduledJobDetailPanel"
 import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { PaletteProvider, usePalette } from "@/components/search-palette"
 import { basename } from "@/lib/format"
@@ -100,22 +99,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   const sidebar = useSidebar()
 
   // Derived route state for page title (uses Next.js pathname for SSR compatibility)
-  const isJobsRoute = pathname?.startsWith("/jobs") ?? false
   const isNewChatRoute = pathname === "/chat/new"
-
-  // sidebar.activeView is the single source of truth for what the main
-  // content area shows (see ActiveView) — updated by useUrlSync (URL →
-  // state) and the interactive nav handlers (state → URL). urlJobId/
-  // isShowingChat are read-only conveniences derived from it below; they
-  // can't disagree with each other because they both come from one value.
-  const urlJobId = sidebar.activeView.type === "job" ? sidebar.activeView.jobId : null
-  // Whether the chat panel (and thus its sandbox/live preview) is the one
-  // actually on screen right now — mirrors the exact condition the main
-  // content area branches on below. The preview belongs to currentChat, so
-  // it must never render unless that chat's panel is what's showing (e.g.
-  // not while viewing a scheduled job, which swaps the main content area
-  // for ScheduledJobDetailPanel but otherwise leaves currentChat alone).
-  const isShowingChat = sidebar.activeView.type !== "job"
 
   const {
     chats,
@@ -367,7 +351,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
     handleNewChat,
     handleSelectChat,
     handleRepoFilterChange,
-    handleNavigateToJob,
     handleNavigateChat,
     handleRequestMergeChats,
     handleRequestRebaseChat,
@@ -424,9 +407,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Dynamic page title based on current view
   const pageTitle = useMemo(() => {
-    if (isJobsRoute) {
-      return sidebar.selectedScheduledJob?.name ?? "Scheduled Triggers"
-    }
     if (displayCurrentChat?.displayName) {
       return displayCurrentChat.displayName
     }
@@ -434,7 +414,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       return "New Chat"
     }
     return null
-  }, [isJobsRoute, isNewChatRoute, isDraftMode, displayCurrentChat?.displayName, sidebar.selectedScheduledJob?.name])
+  }, [isNewChatRoute, isDraftMode, displayCurrentChat?.displayName])
 
   usePageTitle(pageTitle)
 
@@ -536,10 +516,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
   // Don't render chats until hydrated to avoid SSR mismatch
   const displayChats = isHydrated ? chats : []
-  // Don't highlight a chat row in the sidebar while viewing a scheduled job —
-  // currentChatId still reflects whatever chat was last open and shouldn't
-  // visually look "selected" on an unrelated /jobs/[id] page.
-  const displayCurrentChatId = isHydrated && !isJobsRoute ? currentChatId : null
+  const displayCurrentChatId = isHydrated ? currentChatId : null
 
   // Props shared by the desktop split-pane and mobile full-screen PreviewView.
   // Only style/className differ between the two layouts.
@@ -712,7 +689,6 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         {isMobile && (
           <MobileHeaderWithPalette
             chat={displayCurrentChat}
-            viewMode={sidebar.viewMode}
             githubBranchUrl={githubBranchUrl}
             onOpenMenu={() => sidebar.setMobileSidebarOpen(true)}
             onOpenInGitHub={handleOpenInGitHub}
@@ -727,13 +703,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
 
         <div className="flex-1 flex min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-              {!isShowingChat ? (
-                <ScheduledJobDetailPanel
-                  jobId={urlJobId as string}
-                  onNavigateAway={() => handleNavigateToJob(null)}
-                />
-              ) : (
-                <ChatPanelWithPalette
+              <ChatPanelWithPalette
                   chat={displayCurrentChat}
                   settings={settings}
                   credentialFlags={credentialFlags}
@@ -770,10 +740,9 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onOpenSandboxResize={
                     currentChat?.sandboxId ? () => modals.setSandboxResizeModalOpen(true) : undefined
                   }
-                />
-              )}
+              />
             </div>
-            {!isMobile && isShowingChat && preview.previewOpen && (
+            {!isMobile && preview.previewOpen && (
               <>
                 <div
                   onMouseDown={preview.startPreviewResize}
@@ -790,7 +759,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                 />
               </>
             )}
-            {isShowingChat && !preview.previewOpen && preview.previewItems.length > 0 && (
+            {!preview.previewOpen && preview.previewItems.length > 0 && (
               <button
                 onClick={preview.showPreview}
                 className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex h-12 w-5 items-center justify-center rounded-l-md border border-r-0 border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
@@ -804,7 +773,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
       </div>
 
       {/* Mobile preview - full-screen overlay since there's no room for a split pane. */}
-      {isMobile && isShowingChat && preview.previewOpen && (
+      {isMobile && preview.previewOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-card pt-safe">
           <PreviewView
             className="flex-1 min-h-0"
