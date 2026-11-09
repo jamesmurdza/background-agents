@@ -1,10 +1,12 @@
 # @background-agents/sandbox-secrets
 
-Give Daytona sandboxes credentials they can *use* but never *read*.
+[Daytona secrets](https://www.daytona.io/docs/en/secrets/) let a sandbox use a credential without ever being able to read it — the sandbox only sees an opaque placeholder (`dtn_secret_…`), and Daytona's egress proxy swaps in the real value on requests to that secret's allowed hosts.
 
-A secret mounted on a sandbox shows up there only as an opaque placeholder (`dtn_secret_…`); Daytona's egress proxy swaps in the real value on requests to that secret's allowed hosts, so nothing inside the sandbox can read it. This package adds what Daytona's raw API doesn't: secrets named after their value (so a rotation can't leave a stale one serving the old value), automatic expiry of unused secrets, and handling for Daytona's boot-time proxy quirk.
+This package simplifies secret handling on top of that: you just ask for a secret when you need one, and naming, creation, refreshing, and cleanup happen behind the scenes. It also adds a couple things Daytona's raw API doesn't do on its own — secrets named after their value, so a rotation can't leave a stale one serving the old value, and handling for Daytona's boot-time proxy quirk.
 
 ## Usage
+
+Ask for a secret with `ensureSecret`, then attach it with `createSandbox` or `setSecrets`.
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
@@ -23,6 +25,8 @@ const sandbox = await createSandbox(daytona, { snapshot: "..." }, { OPENAI_KEY: 
 // ...or set the mounted set on an existing one. Pass `{}` to detach everything.
 await setSecrets(daytona, sandbox, { OPENAI_KEY: name })
 ```
+
+Secrets this package creates don't need manual cleanup either — run `deleteStaleSecrets` on a schedule (e.g. a daily cron) and anything nothing has used recently is removed automatically.
 
 ```typescript
 import { deleteStaleSecrets } from "@background-agents/sandbox-secrets"
