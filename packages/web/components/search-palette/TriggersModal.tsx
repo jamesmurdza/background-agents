@@ -44,11 +44,12 @@ function StatusIcon({ status }: { status: string }) {
   return null
 }
 
-/** Status icon + when it last ran, as a button that opens that run's chat
- *  (or plain "Never run" text if the job hasn't fired yet — nothing to open). */
+/** Status icon + when it last ran, as a button that opens that run's chat.
+ *  Renders nothing if the job hasn't fired yet — there's nothing to show
+ *  or navigate to. */
 function LastRunBadge({ job, onSelect }: { job: { lastRun: { status: string; startedAt: number; chatId: string | null } | null }; onSelect: () => void }) {
   if (!job.lastRun) {
-    return <span className="px-1.5 py-1 text-xs text-muted-foreground">Never run</span>
+    return null
   }
   return (
     <button
