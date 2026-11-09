@@ -57,16 +57,48 @@ function LastRunBadge({ job }: { job: { lastRun: { status: string; startedAt: nu
   )
 }
 
-/** Icon reflecting how the job is triggered — a schedule vs. an incoming webhook. */
-function TriggerTypeCell({ job }: { job: { triggerType: string } }) {
-  return job.triggerType === "incoming" ? (
-    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-      <Webhook className="h-3.5 w-3.5" /> Webhook
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-      <Clock className="h-3.5 w-3.5" /> Interval
-    </span>
+const WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"]
+
+/** Plain-English description of when a job runs, derived from
+ *  intervalMinutes + nextRunAt (there's no separate stored "day of week" —
+ *  the form only uses that to compute nextRunAt, so we read it back out of
+ *  that timestamp here). */
+function describeTrigger(job: { triggerType: string; intervalMinutes: number; nextRunAt: number }): string {
+  if (job.triggerType === "incoming") return "Incoming webhook"
+
+  const { intervalMinutes, nextRunAt } = job
+  const time = format(nextRunAt, "h:mma").toLowerCase()
+
+  if (intervalMinutes === 10080) {
+    return `Weekly on ${WEEKDAYS[new Date(nextRunAt).getDay()]} at ${time}`
+  }
+  if (intervalMinutes === 1440) {
+    return `Daily at ${time}`
+  }
+  if (intervalMinutes === 60) {
+    return "Hourly"
+  }
+  if (intervalMinutes % 1440 === 0) {
+    return `Every ${intervalMinutes / 1440} days`
+  }
+  if (intervalMinutes % 60 === 0) {
+    return `Every ${intervalMinutes / 60} hours`
+  }
+  return `Every ${intervalMinutes} minutes`
+}
+
+/** Trigger description + next run time (for interval jobs — webhooks have
+ *  no "next run"). */
+function TriggerCell({ job }: { job: { triggerType: string; intervalMinutes: number; nextRunAt: number } }) {
+  return (
+    <div className="flex items-center gap-1.5 text-muted-foreground">
+      {job.triggerType === "incoming" ? (
+        <Webhook className="h-3.5 w-3.5 shrink-0" />
+      ) : (
+        <Clock className="h-3.5 w-3.5 shrink-0" />
+      )}
+      <span className="truncate">{describeTrigger(job)}</span>
+    </div>
   )
 }
 
@@ -133,8 +165,7 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                     <tr className="text-left text-xs font-semibold text-foreground/70 border-b border-border">
                       <th className="px-3 py-2">Enabled</th>
                       <th className="px-3 py-2">Name</th>
-                      <th className="px-3 py-2">Trigger type</th>
-                      <th className="px-3 py-2">Next run</th>
+                      <th className="px-3 py-2">Triggers</th>
                       <th className="px-3 py-2">Last run</th>
                       <th className="px-3 py-2 text-right">Actions</th>
                     </tr>
@@ -154,10 +185,7 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                           />
                         </td>
                         <td className="px-3 py-2.5 truncate max-w-[14rem]">{job.name}</td>
-                        <td className="px-3 py-2.5"><TriggerTypeCell job={job} /></td>
-                        <td className="px-3 py-2.5 text-muted-foreground">
-                          {job.triggerType === "interval" ? format(job.nextRunAt, "MMM d, h:mm a") : "—"}
-                        </td>
+                        <td className="px-3 py-2.5"><TriggerCell job={job} /></td>
                         <td className="px-3 py-2.5">
                           <LastRunBadge job={job} />
                         </td>
