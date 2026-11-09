@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { useQueryClient } from "@tanstack/react-query"
 import { Clock, Webhook, Play } from "lucide-react"
 import { format } from "date-fns"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
@@ -13,14 +12,16 @@ import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { useScheduledJobsQuery } from "@/lib/query/hooks/useScheduledJobsQuery"
 import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
-import { useSidebar } from "@/lib/contexts"
-import { ROUTES } from "@/lib/hooks/useUrlNavigation"
-import { queryKeys } from "@/lib/query/keys"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
 
 interface TriggersModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Opens a chat by id — same mechanism used to open any sidebar chat row.
+   *  Clicking a job row navigates to its most recent run's chat (the real,
+   *  interactive chat view with the job header strip on top) rather than
+   *  the old standalone report view. */
+  onSelectChat: (chatId: string) => void
 }
 
 /** Last run date, or blank if the job has never run. */
@@ -53,9 +54,7 @@ function TriggerTypeCell({ job }: { job: { triggerType: string } }) {
  * this is a browse/manage surface rather than a fuzzy-search one. Clicking a
  * row still navigates to the job detail view, matching the old behavior.
  */
-export function TriggersModal({ open, onOpenChange }: TriggersModalProps) {
-  const sidebar = useSidebar()
-  const queryClient = useQueryClient()
+export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModalProps) {
   const { data: jobs = [] } = useScheduledJobsQuery()
   const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
 
@@ -68,12 +67,13 @@ export function TriggersModal({ open, onOpenChange }: TriggersModalProps) {
   )
 
   const handleSelect = (job: ScheduledJob) => {
-    // Seed the detail-page query cache with the row we already have so the
-    // job page renders immediately instead of showing the skeleton while it
-    // re-fetches data we already had.
-    queryClient.setQueryData(queryKeys.scheduledJobs.detail(job.id), job)
-    sidebar.setActiveView({ type: "job", jobId: job.id, jobName: job.name })
-    window.history.pushState(null, "", ROUTES.job.build(job.id))
+    // Navigate straight to the most recent run's chat — the real,
+    // interactive chat view (with the job header strip on top), same as
+    // clicking that chat's row in the sidebar. There's no longer a
+    // standalone job report view to fall back to.
+    if (job.lastRun?.chatId) {
+      onSelectChat(job.lastRun.chatId)
+    }
     onOpenChange(false)
   }
 
