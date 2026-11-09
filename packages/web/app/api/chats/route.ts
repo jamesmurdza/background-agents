@@ -51,6 +51,11 @@ interface ChatResponse {
   lastMessageId: string | null
   queuedMessages: ReturnType<typeof toQueuedMessage>[]
   queuePaused: boolean
+  /** Present only when this chat was created by a scheduled job run. Null for
+   *  ordinary user-created chats. See startJobExecution in the agent-lifecycle
+   *  cron — these chats never get a displayName, so the sidebar derives a
+   *  title from the job name + run time instead. */
+  scheduledJobRun: { startedAt: number; jobName: string } | null
 }
 
 // =============================================================================
@@ -69,8 +74,6 @@ export async function GET(req: NextRequest): Promise<Response> {
     const chats = await prisma.chat.findMany({
       where: {
         userId,
-        // Exclude chats linked to scheduled job runs (they show in Scheduled Jobs UI)
-        scheduledJobRun: null,
         ...(updatedAfter && {
           updatedAt: { gt: new Date(parseInt(updatedAfter)) },
         }),
@@ -87,6 +90,12 @@ export async function GET(req: NextRequest): Promise<Response> {
         },
         _count: {
           select: { messages: true },
+        },
+        // Chats created by scheduled job runs (startJobExecution) show in the
+        // sidebar now too, but they never get a displayName — the sidebar
+        // derives a title from the job name + run start time instead.
+        scheduledJobRun: {
+          select: { startedAt: true, job: { select: { name: true } } },
         },
       },
       orderBy: { lastActiveAt: "desc" },
@@ -121,6 +130,9 @@ export async function GET(req: NextRequest): Promise<Response> {
       lastMessageId: chat.messages[0]?.id ?? null,
       queuedMessages: chat.queuedPrompts.map(toQueuedMessage),
       queuePaused: chat.queuePaused,
+      scheduledJobRun: chat.scheduledJobRun
+        ? { startedAt: chat.scheduledJobRun.startedAt.getTime(), jobName: chat.scheduledJobRun.job.name }
+        : null,
     }))
 
     return Response.json({ chats: response })
@@ -230,6 +242,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       lastMessageId: null,
       queuedMessages: [],
       queuePaused: false,
+      // POST-created chats are user-initiated, never scheduled-job-linked.
+      scheduledJobRun: null,
     }
 
     // Log activity (fire and forget)

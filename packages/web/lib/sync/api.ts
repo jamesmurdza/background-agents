@@ -49,6 +49,8 @@ export interface ChatResponse {
   lastMessageId?: string | null
   queuedMessages?: QueuedMessage[]
   queuePaused?: boolean
+  /** Present only for chats created by a scheduled job run. See lib/types.ts's Chat. */
+  scheduledJobRun?: { startedAt: number; jobName: string } | null
 }
 
 export interface MessageResponse {
@@ -344,6 +346,7 @@ export function toChatType(serverChat: ChatResponse): Chat {
     lastMessageId: serverChat.lastMessageId,
     queuedMessages: serverChat.queuedMessages ?? [],
     queuePaused: serverChat.queuePaused ?? false,
+    scheduledJobRun: serverChat.scheduledJobRun ?? null,
   }
 }
 
