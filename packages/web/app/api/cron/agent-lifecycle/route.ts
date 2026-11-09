@@ -187,9 +187,37 @@ export async function GET(req: Request) {
           }
         )
 
-        // An unreadable or terminal session must not fall through into timeout
-        // teardown, including when its final snapshot could not yet be saved.
-        if (!snapshot || snapshot.status !== "running") continue
+        // A snapshot that could not be read at all (sandbox unreachable) must
+        // still be subject to the hard timeout. Without this, a sandbox that
+        // is gone for good (not just transiently unreachable) leaves this
+        // chat "running" forever: every tick fails to read it and bails out
+        // below before the timeout check further down ever runs. One
+        // unreadable tick is normal and ignored (see monitorAgent), but one
+        // that has ALSO been running past its hard timeout is cause enough to
+        // force it closed. markChatError's own attempt to confirm the agent's
+        // final output is best-effort, so this still tries to stop it
+        // cleanly first and only falls back to the last known message if the
+        // sandbox truly can't be reached.
+        if (!snapshot) {
+          if (totalMinutes > hardTimeout) {
+            const lastMessage = chat.messages[0]
+            if (
+              await markChatError(chat, `Run exceeded ${hardTimeout} minute limit`, daytona, {
+                status: "error",
+                content: lastMessage?.content ?? "",
+                toolCalls: [],
+                contentBlocks: [],
+              })
+            ) {
+              results.timedOutInteractive++
+            }
+          }
+          continue
+        }
+
+        // A terminal session must not fall through into timeout teardown,
+        // including when its final snapshot could not yet be saved.
+        if (snapshot.status !== "running") continue
 
         if (snapshot.startupPending) {
           const preparedAt = snapshot.startupPreparedAt

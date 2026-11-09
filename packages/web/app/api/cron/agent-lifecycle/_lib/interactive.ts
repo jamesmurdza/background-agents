@@ -77,7 +77,7 @@ export async function finalizeInteractiveChat(
         // The agent is done: stop the turn's secret placeholders from working
         // until the next turn mounts them again. In a finally, as the chat is
         // still released below when finalizeTurn throws.
-        await releaseTurnSecrets(sandbox)
+        await releaseTurnSecrets(daytona, sandbox)
       }
 
       // 2b. Meter token/cost usage for this turn via tokscale (best-effort).
@@ -146,13 +146,22 @@ export async function markChatError(
   try {
   reason = stripNullBytes((await readTurnFailure(turn))?.reason ?? reason)
   if (!await recordTurnFailure(turn, claimId, reason, false)) return false
-  {
+  try {
     const sandbox = await daytona.get(chat.sandboxId)
     const options = { repoPath: `${PATHS.SANDBOX_HOME}/project` }
     await cancelBackgroundAgent(sandbox, turn.backgroundSessionId, options, true)
     const after = await snapshotBackgroundAgent(sandbox, turn.backgroundSessionId, options)
     if (after.transientReadFailure || after.status === "running") throw new Error("Cannot confirm failed agent output")
     snapshot = after
+  } catch (err) {
+    // The sandbox may be gone for good (deleted, expired, crashed beyond
+    // recovery) rather than just transiently unreachable — closing the turn
+    // out with whatever snapshot the caller already has beats refusing to
+    // ever release a chat whose sandbox will never answer again. Every
+    // caller of markChatError already passes a snapshot it trusts (a fresh
+    // read, or the last known message content), so this never regresses to
+    // fabricating empty output.
+    console.error(`[agent-lifecycle] Could not confirm stopped agent output for chat ${chat.id}, closing with the last known snapshot:`, err)
   }
   if (!(await persistAgentSnapshot({ prisma, turn, snapshot, finalizationClaimId: claimId })).persisted) {
     return false
@@ -175,7 +184,7 @@ export async function markChatError(
 
   // Detach the turn secrets before the chat is released below.
   try {
-    await releaseTurnSecrets(await daytona.get(chat.sandboxId))
+    await releaseTurnSecrets(daytona, await daytona.get(chat.sandboxId))
   } catch {
     // Sandbox already gone — nothing mounted to detach.
   }

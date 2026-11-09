@@ -17,7 +17,7 @@
 
 import type { Daytona } from "@daytonaio/sdk"
 import { modelRequiresKey, type Agent } from "@background-agents/common"
-import { ensureSecret, parseSecretMarker, type EnsuredSecret } from "@background-agents/sandbox-secrets"
+import { ensureSecret, parseSecretMarker } from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
 import {
@@ -47,22 +47,21 @@ export function sharedPoolSecretForRun(
 }
 
 /**
- * Make sure the Daytona secret `secretName` exists, creating it from the pool
- * key it was derived from if not, and return its placeholder. Call before
+ * Make sure the Daytona secret `name` exists, creating it from the pool key
+ * it was derived from if not, and return its placeholder. Call before
  * creating a sandbox with the secret or mounting it. Throws if the secret
  * can't be confirmed or created, e.g. when the Daytona API key lacks
  * permission to manage secrets.
  */
-export async function ensureSharedPoolSecret(daytona: Daytona, secretName: string): Promise<EnsuredSecret> {
-  const pool = requirePool(secretName)
-  return ensureSecret(daytona, {
-    name: secretName,
-    value: () => {
-      const key = sharedKeyForSecret(secretName)
-      if (!key) throw new Error(`No configured ${pool.label} key matches secret ${secretName}`)
+export async function ensureSharedPoolSecret(daytona: Daytona, name: string): Promise<string> {
+  const pool = requirePool(name)
+  return ensureSecret(
+    daytona,
+    () => {
+      const key = sharedKeyForSecret(name)
+      if (!key) throw new Error(`No configured ${pool.label} key matches secret ${name}`)
       return key
     },
-    hosts: pool.hosts,
-    description: `Shared ${pool.label} key, created by background-agents`,
-  })
+    pool.hosts
+  )
 }

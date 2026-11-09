@@ -1,81 +1,53 @@
 # @background-agents/sandbox-secrets
 
-Keep credentials out of Daytona sandboxes by mounting [Daytona secrets](https://www.daytona.io/docs) instead of passing raw values.
+[Daytona secrets](https://www.daytona.io/docs/en/secrets/) let a sandbox use a credential without ever being able to read it — the sandbox only sees an opaque placeholder (`dtn_secret_…`), and Daytona's egress proxy swaps in the real value on requests to that secret's allowed hosts.
 
-A mounted secret shows up in the sandbox only as an opaque placeholder (`dtn_secret_…`). Daytona's egress proxy swaps in the real value on HTTPS requests to the secret's allowed hosts, so nothing in the sandbox (`env`, `/proc/<pid>/environ`, `ps aux`, the agent's own transcript) can read the value itself. While a secret is mounted, anything in the sandbox can still *use* the placeholder.
+This package simplifies secret handling by abstracting away the lifecycle of a Daytona secret, including:
+- Create-or-reuse a secret for a value in one call, instead of checking if it exists yourself
+- Automatic naming by value and host, so a rotated credential never collides with the old one
+- Automatic "last used" tracking and expiry, instead of manually deleting secrets you're done with
+- Automatically keeping a secret attached so a sandbox's proxy stays on, instead of needing a reboot
 
-## How Daytona's swap behaves
+In short: ask for a credential when you need one, and schedule a periodic cleanup — everything else is handled for you.
 
-Verified live:
+## Prerequisites
 
-- The swap is done by an HTTPS proxy configured through env vars (`HTTPS_PROXY`, `NODE_EXTRA_CA_CERTS`, …), and only intercepts the secret's hosts. A client that ignores those vars sends the placeholder as-is: it fails, but nothing leaks. Node's built-in `fetch` needs `NODE_USE_ENV_PROXY=1`.
-- Swapped in headers and in Basic auth. **Not** in query strings (the proxy answers 502).
-- The real value is scrubbed back to the placeholder in responses.
-- A sandbox created **without** secrets must be restarted before attached ones work. Re-attaching after detaching everything does not need a restart, unless the sandbox was stopped and started while nothing was attached: the proxy is wired at boot only when some secret is attached, so it comes back without one (its `HTTPS_PROXY` empty). Keep one harmless secret pinned so that never happens.
-- An in-place value update (`daytona.secret.update`) reaches mounted sandboxes in about 20s.
-- The placeholder is the same in every sandbox; it only works where the secret is mounted.
+You need a Daytona API key with secrets permissions — this package creates, updates, lists, and deletes secrets in your Daytona organization on your behalf, so the key used must be allowed to manage them.
 
 ## Usage
 
+Ask for a secret with `ensureSecret`, then attach it with `createSandbox` or `setSecrets`.
+
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
-import {
-  contentSecretName,
-  ensureSecret,
-  mountSecrets,
-  releaseSecrets,
-  secretsCreateParams,
-  waitForPropagation,
-} from "@background-agents/sandbox-secrets"
+import { createSandbox, ensureSecret, secretName, setSecrets } from "@background-agents/sandbox-secrets"
 
 const daytona = new Daytona()
-const OPTIONS = { label: "my-secrets" } // sandbox label that records what is mounted
 
-// One secret per value, named after the value so it never needs updating.
-const name = contentSecretName("openai_", process.env.OPENAI_API_KEY!)
-const { placeholder } = await ensureSecret(daytona, {
-  name,
-  value: () => process.env.OPENAI_API_KEY!,
-  hosts: ["api.openai.com"],
-})
+// One secret per value (and the hosts it's restricted to), named after both,
+// so it never needs updating — a changed value gets a new name.
+const placeholder = await ensureSecret(daytona, () => process.env.OPENAI_API_KEY!, ["api.openai.com"])
+const name = secretName(process.env.OPENAI_API_KEY!, ["api.openai.com"])
 
-// Mount at creation (avoids the restart a later first mount would need)...
-const sandbox = await daytona.create({ ...secretsCreateParams({ OPENAI_KEY: name }, OPTIONS) })
+// Create a sandbox with secrets mounted from the start...
+const sandbox = await createSandbox(daytona, { snapshot: "..." }, { OPENAI_KEY: name })
 
-// ...or on an existing sandbox, then wait for the proxy before relying on it.
-const mounted = await mountSecrets(sandbox, { OPENAI_KEY: name }, OPTIONS)
-await waitForPropagation(mounted)
-
-// Hand the placeholder straight to the process that needs it (e.g. as
-// OPENAI_API_KEY in its env), so the mounted var can have a name no CLI reads.
-
-// Detach (or shrink the set) when it should stop working.
-await releaseSecrets(sandbox, OPTIONS)
+// ...or set the mounted set on an existing one. Pass `{}` to detach everything.
+await setSecrets(daytona, sandbox, { OPENAI_KEY: name })
 ```
 
-The sandbox label stores the mounted set as `ENV:secret` pairs joined by `:` (or `none` when nothing is mounted). `mountSecrets` skips the API call when the label already matches, restarts a sandbox that has never had secrets (or, when the set changes, one whose `HTTPS_PROXY` is empty), and rolls back if it fails partway. `releaseSecrets` writes the label first so a failure can never leave a label claiming mounts that are gone.
+Secrets this package creates don't need manual cleanup either — run `deleteStaleSecrets` on a schedule (e.g. a daily cron) and anything nothing has used recently is removed automatically.
 
-### Rotating values
+```typescript
+import { deleteStaleSecrets } from "@background-agents/sandbox-secrets"
 
-Name a rotating value's secret after the value too (`contentSecretName`), so each new value gets a new placeholder. When it rotates, prune with `deleteSecrets(daytona, { prefix, keepNewest: 2 })`: that keeps the newest two, so anything still using the previous value keeps working until it moves on.
-
-### Pinned secrets
-
-Some secrets should stay mounted between uses, for example a value a long-running dev server needs. Set `pinnedLabel` in the options and pass them as `mountSecrets`' fourth argument (`secretsCreateParams`' third). They are mounted alongside the others, and `releaseSecrets` keeps them by default. Passing an explicit `keep` to `releaseSecrets` records that set as the new pinned one.
-
-```ts
-const OPTIONS = { label: "my-secrets", pinnedLabel: "my-pinned-secrets" }
-await mountSecrets(sandbox, { OPENAI_KEY: keyName }, OPTIONS, { STRIPE_KEY: stripeName })
-await releaseSecrets(sandbox, OPTIONS) // STRIPE_KEY stays mounted
+// Delete every secret this app created that hasn't been used in a day.
+await deleteStaleSecrets(daytona, 24 * 60 * 60 * 1000)
 ```
-
-`deleteSecrets(daytona, { prefix, keep })` removes a family of secrets (e.g. one user's stale keys); `forgetSecrets(names)` makes `ensureSecret` look again for names that may have been deleted by another process.
-
-`ensureSecret` also stamps a secret's description with when it was last used (`[used <ISO time>]`), at most once every `REVERIFY_MS` (6h) per process, which also re-checks that the secret still exists. `secretLastUsedAt(secret)` reads the stamp back (falling back to `createdAt`), so a sweep can delete secrets nothing has used for a while.
 
 To pass a reference to a secret through code that expects a credential value, use `toSecretMarker(name)` / `parseSecretMarker(value)`.
 
-The Daytona API key needs the secrets permissions.
+See the JSDoc on each export in `src/` for details.
 
 ## Development
 

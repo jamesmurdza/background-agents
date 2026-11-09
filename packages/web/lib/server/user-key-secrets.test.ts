@@ -6,6 +6,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 const daytonaSecret = vi.hoisted(() => ({
   list: vi.fn(),
   create: vi.fn(),
+  update: vi.fn(),
   delete: vi.fn(),
 }))
 
@@ -16,13 +17,8 @@ vi.mock("@daytonaio/sdk", async (importOriginal) => ({
   },
 }))
 
-import { SECRET_NAME_PATTERN } from "@background-agents/sandbox-secrets"
-import {
-  syncUserKeySecret,
-  userKeySecretName,
-  userKeySecretPrefix,
-  userKeySecretsEnabled,
-} from "./user-key-secrets"
+import { secretName } from "@background-agents/sandbox-secrets"
+import { syncUserKeySecret, userKeySecretsEnabled } from "./user-key-secrets"
 
 let counter = 0
 
@@ -31,6 +27,7 @@ beforeEach(() => {
   process.env.DAYTONA_USER_KEY_SECRETS = "all"
   daytonaSecret.list.mockReset().mockResolvedValue({ items: [], nextCursor: null })
   daytonaSecret.create.mockReset().mockImplementation(async ({ name }: { name: string }) => ({ name, placeholder: "p" }))
+  daytonaSecret.update.mockReset().mockResolvedValue({})
   daytonaSecret.delete.mockReset().mockResolvedValue(undefined)
   vi.spyOn(console, "log").mockImplementation(() => {})
 })
@@ -64,59 +61,21 @@ describe("userKeySecretsEnabled", () => {
   })
 })
 
-describe("userKeySecretName", () => {
-  it("is a valid name, scoped to the user and credential, that hides both", () => {
-    const name = userKeySecretName("user-1", "ANTHROPIC_API_KEY", "sk-ant-secret")
-    expect(name).toMatch(SECRET_NAME_PATTERN)
-    expect(name.startsWith(userKeySecretPrefix("user-1", "ANTHROPIC_API_KEY"))).toBe(true)
-    expect(name.startsWith(userKeySecretPrefix("user-1"))).toBe(true)
-    expect(name).not.toContain("user-1")
-    expect(name).not.toContain("secret")
-  })
-
-  it("changes with the key, the user and the credential", () => {
-    const name = userKeySecretName("user-1", "OPENAI_API_KEY", "k")
-    expect(userKeySecretName("user-1", "OPENAI_API_KEY", "k")).toBe(name)
-    expect(userKeySecretName("user-1", "OPENAI_API_KEY", "k2")).not.toBe(name)
-    expect(userKeySecretName("user-2", "OPENAI_API_KEY", "k")).not.toBe(name)
-    expect(userKeySecretName("user-1", "KIMI_API_KEY", "k")).not.toBe(name)
-  })
-
-  it("never collides with a shared pool's secret names", () => {
-    expect(userKeySecretName("user-1", "OPENCODE_API_KEY", "k").startsWith("opencode_")).toBe(false)
-  })
-})
-
 describe("syncUserKeySecret", () => {
   const user = () => `user-sync-${counter++}`
 
-  it("creates the saved key's secret and deletes the user's others for it", async () => {
+  it("creates the saved key's secret, named after the value and its provider's hosts", async () => {
     const userId = user()
-    const prefix = userKeySecretPrefix(userId, "OPENAI_API_KEY")
-    const current = userKeySecretName(userId, "OPENAI_API_KEY", "sk-new")
-    daytonaSecret.list
-      .mockResolvedValueOnce({ items: [] }) // ensure: not there yet
-      .mockResolvedValueOnce({
-        items: [
-          { id: "1", name: `${prefix}old` },
-          { id: "2", name: current },
-        ],
-        nextCursor: null,
-      })
     await syncUserKeySecret(userId, "OPENAI_API_KEY", "sk-new")
+    const name = secretName("sk-new", ["api.openai.com"])
     expect(daytonaSecret.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: current, value: "sk-new", hosts: ["api.openai.com"] })
+      expect.objectContaining({ name, value: "sk-new", hosts: ["api.openai.com"] })
     )
-    expect(daytonaSecret.delete.mock.calls).toEqual([["1"]])
   })
 
-  it("deletes every secret for a removed key", async () => {
-    const userId = user()
-    const prefix = userKeySecretPrefix(userId, "KIMI_API_KEY")
-    daytonaSecret.list.mockResolvedValueOnce({ items: [{ id: "9", name: `${prefix}abc` }], nextCursor: null })
-    await syncUserKeySecret(userId, "KIMI_API_KEY", undefined)
+  it("does nothing for a removed key: nothing to create", async () => {
+    await syncUserKeySecret(user(), "KIMI_API_KEY", undefined)
     expect(daytonaSecret.create).not.toHaveBeenCalled()
-    expect(daytonaSecret.delete.mock.calls).toEqual([["9"]])
   })
 
   it("does nothing for a credential that isn't enabled", async () => {

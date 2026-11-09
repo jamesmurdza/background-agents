@@ -17,6 +17,7 @@ vi.mock("@/lib/server/turn-ownership", () => ({
 }))
 vi.mock("@/lib/agent-session", () => ({ snapshotBackgroundAgent: mocks.snapshot, cancelBackgroundAgent: mocks.cancel }))
 vi.mock("../stream/_lib/persist-snapshot", () => ({ persistAgentSnapshot: mocks.persist }))
+vi.mock("@/lib/server/turn-secrets", () => ({ releaseTurnSecrets: vi.fn().mockResolvedValue(undefined) }))
 
 import { POST } from "./route"
 

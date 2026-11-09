@@ -1,19 +1,20 @@
 import { describe, it, expect } from "vitest"
 
-import { contentSecretName, parseSecretMarker, SECRET_NAME_PATTERN, toSecretMarker } from "../src/index"
+import { parseSecretMarker, secretName, SECRET_NAME_PATTERN, SECRET_PREFIX, toSecretMarker } from "../src/index"
 
-describe("contentSecretName", () => {
+describe("secretName", () => {
   it("derives a stable, valid name that doesn't reveal the value", () => {
-    const name = contentSecretName("opencode_", "sk-some-key")
-    expect(name).toMatch(/^opencode_[0-9a-f]{12}$/)
+    const name = secretName("sk-some-key")
+    expect(name).toMatch(new RegExp(`^${SECRET_PREFIX}[0-9a-f]{16}$`))
     expect(name).toMatch(SECRET_NAME_PATTERN)
-    expect(contentSecretName("opencode_", "sk-some-key")).toBe(name)
-    expect(contentSecretName("opencode_", "sk-other-key")).not.toBe(name)
+    expect(secretName("sk-some-key")).toBe(name)
+    expect(secretName("sk-other-key")).not.toBe(name)
     expect(name).not.toContain("some-key")
   })
 
-  it("takes the hash length", () => {
-    expect(contentSecretName("p_", "v", 8)).toMatch(/^p_[0-9a-f]{8}$/)
+  it("distinguishes the same value restricted to different hosts", () => {
+    expect(secretName("v", ["a.com"])).not.toBe(secretName("v", ["b.com"]))
+    expect(secretName("v")).toBe(secretName("v", []))
   })
 })
 
