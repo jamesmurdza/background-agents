@@ -8,6 +8,13 @@ import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useScheduledJobRunsQuery } from "@/lib/query/hooks/useScheduledJobRunsQuery"
 import type { ChatScheduledJobRun } from "@/lib/scheduled-jobs/types"
 
+/** "Nov 9, 3:00pm" — month capitalized, am/pm lowercase. Matches
+ *  getChatDisplayTitle's formatting in lib/chat-tree.ts so run dates look
+ *  consistent wherever they're shown. */
+function formatRunDate(startedAt: number): string {
+  return format(startedAt, "MMM d, h:mma").replace(/AM|PM/, (m) => m.toLowerCase())
+}
+
 interface ChatJobRunHeaderProps {
   /** The run linked to the chat currently open — see Chat.scheduledJobRun. */
   run: ChatScheduledJobRun
@@ -40,7 +47,7 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
         title="Previous runs"
       >
         <RunStatusDot status={run.status} />
-        <span className="truncate">{format(run.startedAt, "MMM d, h:mma").toLowerCase()}</span>
+        <span className="truncate">{formatRunDate(run.startedAt)}</span>
         <ChevronDown className="h-3 w-3" />
       </button>
 
@@ -64,7 +71,7 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
                 )}
               >
                 <RunStatusDot status={r.status} />
-                <span className="flex-1 truncate">{format(r.startedAt, "MMM d, h:mma").toLowerCase()}</span>
+                <span className="flex-1 truncate">{formatRunDate(r.startedAt)}</span>
                 {r.chatId === currentChatId && <Check className="h-3.5 w-3.5 shrink-0" />}
               </button>
             ))
