@@ -2,16 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
-import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import { COMMENT_BOX_WIDTH } from "@/lib/element-picker"
 import { cn } from "@/lib/utils"
-
-/** Adds `text` to the chat input, after whatever is there, so several comments can be sent together. */
-export function addToChatDraft(chatId: string, text: string) {
-  const store = useChatSyncStore.getState()
-  const draft = store.localChatState.drafts[chatId]
-  store.setDraftText(chatId, draft ? `${draft}\n\n${text}` : text)
-}
 
 /**
  * The "What should change?" box for Select element in the Live Preview and for

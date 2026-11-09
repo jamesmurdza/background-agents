@@ -4,10 +4,11 @@ import { useMemo, useState } from "react"
 import { ChevronRight, GitCompare, Plus } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import type { ChangedFile, ChangesResult } from "@/lib/git/changes"
-import { describeLines, formatLineComment, numberDiffLines, type DiffLine } from "@/lib/git/diff-lines"
+import { describeLines, lineCommentContext, numberDiffLines, type DiffLine } from "@/lib/git/diff-lines"
 import { PanelState } from "./PanelState"
-import { CommentBox, addToChatDraft } from "./CommentBox"
+import { CommentBox } from "./CommentBox"
 import { useSandboxResource, assertSandboxOk } from "@/lib/hooks/useSandboxResource"
+import { useChatCommentsStore } from "@/lib/stores/chat-comments-store"
 import { cn } from "@/lib/utils"
 
 // Files with longer diffs start collapsed, so a lockfile doesn't bury the rest.
@@ -178,7 +179,11 @@ function ChangesComponent({ sandboxId, chatId, messages, explicitStart, onRefres
   }
   const addComment = (comment: string) => {
     if (!chatId || !selection) return
-    addToChatDraft(chatId, formatLineComment(selection.path, selection.lines, comment))
+    useChatCommentsStore.getState().addComment(chatId, {
+      label: describeLines(selection.path.split("/").pop() ?? selection.path, selection.lines),
+      context: lineCommentContext(selection.path, selection.lines),
+      comment,
+    })
     setLineSelection(null)
   }
 

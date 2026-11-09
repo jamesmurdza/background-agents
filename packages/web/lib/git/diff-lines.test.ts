@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { describeLines, formatLineComment, numberDiffLines } from "./diff-lines"
+import { describeLines, lineCommentContext, numberDiffLines } from "./diff-lines"
 
 const patch = [
   "@@ -10,3 +10,3 @@ export function Checkout() {",
@@ -31,12 +31,12 @@ describe("numberDiffLines", () => {
   })
 })
 
-describe("formatLineComment", () => {
+describe("lineCommentContext", () => {
   const lines = numberDiffLines(patch)
 
-  it("quotes the lines after their location", () => {
-    expect(formatLineComment("src/checkout.tsx", lines.slice(3, 4), "  Say Checkout.\n")).toBe(
-      "On src/checkout.tsx:11:\n```diff\n+    <Button>Pay now</Button>\n```\nSay Checkout."
+  it("gives the location, then the lines", () => {
+    expect(lineCommentContext("src/checkout.tsx", lines.slice(3, 4))).toBe(
+      "On src/checkout.tsx:11:\n```diff\n+    <Button>Pay now</Button>\n```"
     )
   })
 

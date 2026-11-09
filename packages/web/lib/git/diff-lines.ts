@@ -41,8 +41,8 @@ export function describeLines(path: string, lines: DiffLine[]): string {
   return current.length > 0 ? `${path}:${range}` : `${path}:${range} (removed)`
 }
 
-/** The text added to the chat input for a comment on some lines of a diff. */
-export function formatLineComment(path: string, lines: DiffLine[], comment: string): string {
+/** What a comment on some lines of a diff is about: where they are and the lines themselves. */
+export function lineCommentContext(path: string, lines: DiffLine[]): string {
   const code = lines.map((line) => line.text).join("\n")
-  return `On ${describeLines(path, lines)}:\n\`\`\`diff\n${code}\n\`\`\`\n${comment.trim()}`
+  return `On ${describeLines(path, lines)}:\n\`\`\`diff\n${code}\n\`\`\``
 }

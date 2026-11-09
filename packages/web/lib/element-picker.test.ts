@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { commentBoxPosition, formatElementComment, type SelectedElement } from "./element-picker"
+import { commentBoxPosition, elementCommentContext, type SelectedElement } from "./element-picker"
 
 const element: SelectedElement = {
   path: "/checkout",
@@ -8,10 +8,10 @@ const element: SelectedElement = {
   rect: { top: 100, left: 40, bottom: 130 },
 }
 
-describe("formatElementComment", () => {
-  it("puts the element before the comment", () => {
-    expect(formatElementComment(element, "  Make it darker.\n")).toBe(
-      'On /checkout, <button class="btn">Pay now</button> (main > button.btn):\nMake it darker.'
+describe("elementCommentContext", () => {
+  it("names the page and the element", () => {
+    expect(elementCommentContext(element)).toBe(
+      'On /checkout, <button class="btn">Pay now</button> (main > button.btn):'
     )
   })
 })

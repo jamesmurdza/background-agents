@@ -4,13 +4,14 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { Globe } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { PanelState } from "./PanelState"
-import { CommentBox, addToChatDraft } from "./CommentBox"
+import { CommentBox } from "./CommentBox"
 import { useSandboxResource, assertSandboxOk } from "@/lib/hooks/useSandboxResource"
+import { useChatCommentsStore } from "@/lib/stores/chat-comments-store"
 import { useToastStore } from "@/lib/stores/toast-store"
 import {
   PICKER_MESSAGE_PREFIX,
   commentBoxPosition,
-  formatElementComment,
+  elementCommentContext,
   type SelectedElement,
 } from "@/lib/element-picker"
 
@@ -260,7 +261,12 @@ function ServerPreviewComponent({
 
   const addComment = (comment: string) => {
     if (!chatId || !picker?.selected) return
-    addToChatDraft(chatId, formatElementComment(picker.selected.element, comment))
+    const { element } = picker.selected
+    useChatCommentsStore.getState().addComment(chatId, {
+      label: element.selector.split(" > ").pop() ?? element.selector,
+      context: elementCommentContext(element),
+      comment,
+    })
     setPickerState({ ...picker, selected: undefined })
   }
 
