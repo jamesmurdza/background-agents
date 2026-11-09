@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { useElectron } from "@/lib/hooks/useElectron"
 import { useGitHubUserQuery } from "@/lib/query"
-import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD } from "@/lib/contexts"
-import { isChatVisibleForFilter, groupChatsByParent } from "@/lib/chat-tree"
+import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, DEFAULT_CHAT_VISIBILITY_FILTERS, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD, type ChatVisibilityFilters } from "@/lib/contexts"
+import { isChatVisibleForFilter, groupChatsByParent, getChatDisplayTitle } from "@/lib/chat-tree"
 import type { Chat } from "@/lib/types"
 import { NEW_REPOSITORY } from "@/lib/types"
 import {
@@ -25,7 +25,7 @@ import {
 } from "./sidebar/index"
 
 // Re-export from context for backward compatibility
-export { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
+export { ALL_REPOSITORIES, NO_REPOSITORY } from "@/lib/contexts"
 
 interface SidebarProps {
   chats: Chat[]
@@ -55,6 +55,9 @@ interface SidebarProps {
   // Repository filter (controlled from parent)
   repoFilter?: string
   onRepoFilterChange?: (filter: string) => void
+  // Chat visibility filters: active / scheduled / archived (controlled from parent)
+  chatVisibilityFilters?: ChatVisibilityFilters
+  onToggleChatVisibilityFilter?: (key: keyof ChatVisibilityFilters) => void
   // Collapsed chat-tree state (controlled from parent so keyboard navigation
   // can expand branches programmatically).
   collapsedChatIds?: Set<string>
@@ -90,6 +93,8 @@ export function Sidebar({
   onMobileClose,
   repoFilter: controlledRepoFilter,
   onRepoFilterChange,
+  chatVisibilityFilters: controlledChatVisibilityFilters,
+  onToggleChatVisibilityFilter,
   collapsedChatIds: controlledCollapsedChatIds,
   onToggleChatCollapsed: controlledToggleChatCollapsed,
   onRequestMergeChats,
@@ -117,6 +122,12 @@ export function Sidebar({
   const [internalRepoFilter, setInternalRepoFilter] = useState<string>(ALL_REPOSITORIES)
   const repoFilter = controlledRepoFilter ?? internalRepoFilter
   const setRepoFilter = onRepoFilterChange ?? setInternalRepoFilter
+  const [internalChatVisibilityFilters, setInternalChatVisibilityFilters] = useState<ChatVisibilityFilters>(DEFAULT_CHAT_VISIBILITY_FILTERS)
+  const chatVisibilityFilters = controlledChatVisibilityFilters ?? internalChatVisibilityFilters
+  const defaultToggleChatVisibilityFilter = useCallback((key: keyof ChatVisibilityFilters) => {
+    setInternalChatVisibilityFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+  }, [])
+  const toggleChatVisibilityFilter = onToggleChatVisibilityFilter ?? defaultToggleChatVisibilityFilter
   const [repoDropdownOpen, setRepoDropdownOpen] = useState(false)
   const repoDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -132,16 +143,12 @@ export function Sidebar({
   // from what keyboard navigation reaches.
   const filteredChats = useMemo(() => {
     return chats
-      .filter((chat) => isChatVisibleForFilter(chat, repoFilter))
+      .filter((chat) => isChatVisibleForFilter(chat, repoFilter, chatVisibilityFilters))
       .sort((a, b) => {
         if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1
         return (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt)
       })
-  }, [chats, repoFilter])
-
-  // Whether the archived view is currently active — archived rows expose
-  // Unarchive (instead of Archive) and omit drag-to-merge.
-  const showingArchived = repoFilter === ARCHIVED_CHATS
+  }, [chats, repoFilter, chatVisibilityFilters])
 
   // Build a parent → children lookup + root list for the filtered chats.
   // Shared with keyboard navigation's tree walk via groupChatsByParent so the
@@ -211,8 +218,7 @@ export function Sidebar({
   // by anyone else keep the full "owner/name" form.
   const getRepoDisplayName = (repo: string) => {
     if (repo === NEW_REPOSITORY) return "No repository"
-    if (repo === ALL_REPOSITORIES) return "Active chats"
-    if (repo === ARCHIVED_CHATS) return "Archived chats"
+    if (repo === ALL_REPOSITORIES) return "All repositories"
     if (repo === NO_REPOSITORY) return "No repository"
     return stripOwnerPrefix(repo, currentUserLogin)
   }
@@ -368,7 +374,7 @@ export function Sidebar({
               className="flex items-center gap-3 w-full px-3 py-3 rounded-lg transition-colors touch-target hover:bg-accent/50 active:bg-accent"
             >
               <Clock className="h-5 w-5 text-muted-foreground" />
-              <span className="text-base text-foreground">Agents</span>
+              <span className="text-base text-foreground">Triggers</span>
             </button>
 
             {/* Search Chats Button */}
@@ -389,6 +395,8 @@ export function Sidebar({
             <RepoFilterDropdown
               repoFilter={repoFilter}
               setRepoFilter={setRepoFilter}
+              chatVisibilityFilters={chatVisibilityFilters}
+              onToggleChatVisibilityFilter={toggleChatVisibilityFilter}
               repoDropdownOpen={repoDropdownOpen}
               setRepoDropdownOpen={setRepoDropdownOpen}
               uniqueRepos={uniqueRepos}
@@ -418,10 +426,10 @@ export function Sidebar({
                   onToggleCollapsed: toggleChatCollapsed,
                   onSelectChat: handleSelectChat,
                   onDeleteChat,
-                  onPin: showingArchived ? undefined : onPinChat,
-                  onBranch: showingArchived ? undefined : onBranchChat,
-                  onArchive: showingArchived ? undefined : onArchiveChat,
-                  onUnarchive: showingArchived ? onUnarchiveChat : undefined,
+                  onPin: onPinChat,
+                  onBranch: onBranchChat,
+                  onArchive: onArchiveChat,
+                  onUnarchive: onUnarchiveChat,
                   onRequestRename: (id, name) => modals.setMobileRenameChat({ id, name }),
                 })
               )}
@@ -550,7 +558,7 @@ export function Sidebar({
           )}
         >
           <Clock className="h-[18px] w-[18px] text-muted-foreground" />
-          {!collapsed && <span className="text-sm text-foreground">Agents</span>}
+          {!collapsed && <span className="text-sm text-foreground">Triggers</span>}
         </button>
 
         {/* Search Chats Button */}
@@ -604,7 +612,7 @@ export function Sidebar({
                       )}
                       role="menuitem"
                     >
-                      <span className="truncate">{chat.displayName || "Untitled"}</span>
+                      <span className="truncate">{getChatDisplayTitle(chat)}</span>
                     </button>
                   ))
                 )}
@@ -625,6 +633,8 @@ export function Sidebar({
             <RepoFilterDropdown
               repoFilter={repoFilter}
               setRepoFilter={setRepoFilter}
+              chatVisibilityFilters={chatVisibilityFilters}
+              onToggleChatVisibilityFilter={toggleChatVisibilityFilter}
               repoDropdownOpen={repoDropdownOpen}
               setRepoDropdownOpen={setRepoDropdownOpen}
               uniqueRepos={uniqueRepos}
@@ -655,22 +665,23 @@ export function Sidebar({
                   onToggleCollapsed: toggleChatCollapsed,
                   onSelectChat,
                   onDeleteChat,
-                  onPin: showingArchived ? undefined : onPinChat,
-                  onBranch: showingArchived ? undefined : onBranchChat,
-                  onArchive: showingArchived ? undefined : onArchiveChat,
-                  onUnarchive: showingArchived ? onUnarchiveChat : undefined,
+                  onPin: onPinChat,
+                  onBranch: onBranchChat,
+                  onArchive: onArchiveChat,
+                  onUnarchive: onUnarchiveChat,
                   onRenameChat,
-                  // Merge/rebase and drag-to-merge apply to active chats only.
-                  onMerge: showingArchived || !onRequestMergeChats ? undefined : (id) => onRequestMergeChats(id),
-                  onRebase: showingArchived || !onRequestRebaseChat ? undefined : (id) => onRequestRebaseChat(id),
-                  dragSourceId: showingArchived ? null : dragSourceId,
-                  dragOverId: showingArchived ? null : dragOverId,
-                  canDrop: showingArchived ? undefined : canDrop,
-                  onDragStartChat: showingArchived ? undefined : (id) => setDragSourceId(id),
-                  onDragEndChat: showingArchived ? undefined : () => { setDragSourceId(null); setDragOverId(null) },
-                  onDragEnterChat: showingArchived ? undefined : (id) => setDragOverId(id),
-                  onDragLeaveChat: showingArchived ? undefined : (id) => setDragOverId((prev) => (prev === id ? null : prev)),
-                  onDropChat: showingArchived ? undefined : (id) => {
+                  // Merge/rebase and drag-to-merge apply to active (non-archived) chats
+                  // only — gated per-row inside renderChatTree via chat.archived.
+                  onMerge: onRequestMergeChats ? (id) => onRequestMergeChats(id) : undefined,
+                  onRebase: onRequestRebaseChat ? (id) => onRequestRebaseChat(id) : undefined,
+                  dragSourceId,
+                  dragOverId,
+                  canDrop,
+                  onDragStartChat: (id) => setDragSourceId(id),
+                  onDragEndChat: () => { setDragSourceId(null); setDragOverId(null) },
+                  onDragEnterChat: (id) => setDragOverId(id),
+                  onDragLeaveChat: (id) => setDragOverId((prev) => (prev === id ? null : prev)),
+                  onDropChat: (id) => {
                     if (onRequestMergeChats && dragSourceId) {
                       onRequestMergeChats(dragSourceId, id)
                     }

@@ -12,10 +12,10 @@ export {
   useSidebar,
   ALL_REPOSITORIES,
   NO_REPOSITORY,
-  ARCHIVED_CHATS,
+  DEFAULT_CHAT_VISIBILITY_FILTERS,
   MIN_WIDTH,
   MAX_WIDTH,
   COLLAPSED_WIDTH,
   COLLAPSE_THRESHOLD,
 } from "./SidebarContext"
-export type { SidebarContextValue } from "./SidebarContext"
+export type { SidebarContextValue, ChatVisibilityFilters } from "./SidebarContext"

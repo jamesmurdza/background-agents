@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useTheme } from "next-themes"
 import { SearchPalette } from "./SearchPalette"
-import { SearchJobsPalette } from "./SearchJobsPalette"
+import { TriggersModal } from "./TriggersModal"
 import { CommandPalette } from "./CommandPalette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import type { Theme } from "@/lib/types"
@@ -220,7 +220,7 @@ export function PaletteProvider({
   return (
     <PaletteContext.Provider value={{ openSearch, openCommand, openJobsSearch }}>
       {children}
-      <SearchJobsPalette
+      <TriggersModal
         open={jobsSearchOpen}
         onOpenChange={setJobsSearchOpen}
       />

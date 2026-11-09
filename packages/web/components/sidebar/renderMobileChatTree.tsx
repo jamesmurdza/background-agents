@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { isRealRepo, type Chat } from "@/lib/types"
+import { getChatDisplayTitle } from "@/lib/chat-tree"
 import { MobileChatItem } from "./MobileChatItem"
 
 interface RenderMobileChatTreeArgs {
@@ -50,11 +51,11 @@ export function renderMobileChatTree(args: RenderMobileChatTreeArgs): React.Reac
         onToggleExpanded={() => args.onToggleCollapsed(chat.id)}
         onSelect={() => args.onSelectChat(chat.id)}
         onDelete={() => args.onDeleteChat(chat.id)}
-        onPin={args.onPin ? (pinned) => args.onPin!(chat.id, pinned) : undefined}
-        onBranch={args.onBranch && isRealRepo(chat.repo) ? () => args.onBranch!(chat.id) : undefined}
-        onArchive={args.onArchive ? () => args.onArchive!(chat.id) : undefined}
-        onUnarchive={args.onUnarchive ? () => args.onUnarchive!(chat.id) : undefined}
-        onRequestRename={() => args.onRequestRename(chat.id, chat.displayName || "Untitled")}
+        onPin={args.onPin && !chat.archived ? (pinned) => args.onPin!(chat.id, pinned) : undefined}
+        onBranch={args.onBranch && !chat.archived && isRealRepo(chat.repo) ? () => args.onBranch!(chat.id) : undefined}
+        onArchive={args.onArchive && !chat.archived ? () => args.onArchive!(chat.id) : undefined}
+        onUnarchive={args.onUnarchive && chat.archived ? () => args.onUnarchive!(chat.id) : undefined}
+        onRequestRename={() => args.onRequestRename(chat.id, getChatDisplayTitle(chat))}
       />
     )
     if (isExpanded) {

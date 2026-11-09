@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ALL_REPOSITORIES, NO_REPOSITORY, ARCHIVED_CHATS } from "@/lib/contexts"
+import { ALL_REPOSITORIES, NO_REPOSITORY, DEFAULT_CHAT_VISIBILITY_FILTERS, type ChatVisibilityFilters } from "@/lib/contexts"
 import { NEW_REPOSITORY, type Chat } from "@/lib/types"
 import {
   buildTreeOrderedChatIds,
@@ -7,6 +7,11 @@ import {
   getNextChatIdAfterDeletion,
   isChatVisibleForFilter,
 } from "./chat-tree"
+
+// Filter that only shows archived chats — the old ARCHIVED_CHATS sentinel's
+// equivalent under the new independent-toggle model.
+const ARCHIVED_ONLY: ChatVisibilityFilters = { active: false, scheduled: false, archived: true }
+const ACTIVE_ONLY: ChatVisibilityFilters = { active: true, scheduled: false, archived: false }
 
 /** Build a minimally-valid Chat with sane defaults, overridable per field. */
 function makeChat(overrides: Partial<Chat> & Pick<Chat, "id">): Chat {
@@ -27,21 +32,41 @@ function makeChat(overrides: Partial<Chat> & Pick<Chat, "id">): Chat {
 }
 
 describe("isChatVisibleForFilter", () => {
-  it("hides archived chats under the Active-chats (all repos) filter", () => {
+  it("hides archived chats when only the Active toggle is on", () => {
     const archived = makeChat({ id: "a", archived: true })
-    expect(isChatVisibleForFilter(archived, ALL_REPOSITORIES)).toBe(false)
+    expect(isChatVisibleForFilter(archived, ALL_REPOSITORIES, ACTIVE_ONLY)).toBe(false)
   })
 
-  it("shows only archived chats under the Archived filter", () => {
+  it("shows only archived chats when only the Archived toggle is on", () => {
     const active = makeChat({ id: "a", archived: false })
     const archived = makeChat({ id: "b", archived: true })
-    expect(isChatVisibleForFilter(active, ARCHIVED_CHATS)).toBe(false)
-    expect(isChatVisibleForFilter(archived, ARCHIVED_CHATS)).toBe(true)
+    expect(isChatVisibleForFilter(active, ALL_REPOSITORIES, ARCHIVED_ONLY)).toBe(false)
+    expect(isChatVisibleForFilter(archived, ALL_REPOSITORIES, ARCHIVED_ONLY)).toBe(true)
   })
 
-  it("hides archived chats even when their repo matches a specific repo filter", () => {
+  it("hides archived chats even when their repo matches a specific repo filter (Active toggle only)", () => {
     const archived = makeChat({ id: "a", repo: "octocat/hello", archived: true })
-    expect(isChatVisibleForFilter(archived, "octocat/hello")).toBe(false)
+    expect(isChatVisibleForFilter(archived, "octocat/hello", ACTIVE_ONLY)).toBe(false)
+  })
+
+  it("hides a scheduled-job chat when the Scheduled toggle is off, shows it when on", () => {
+    const scheduled = makeChat({
+      id: "a",
+      scheduledJobRun: { startedAt: 1, jobName: "Nightly sweep" },
+    })
+    expect(isChatVisibleForFilter(scheduled, ALL_REPOSITORIES, { active: true, scheduled: false, archived: true })).toBe(false)
+    expect(isChatVisibleForFilter(scheduled, ALL_REPOSITORIES, { active: true, scheduled: true, archived: true })).toBe(true)
+  })
+
+  it("shows a chat that is both scheduled-job-linked and archived if EITHER toggle is on", () => {
+    const both = makeChat({
+      id: "a",
+      archived: true,
+      scheduledJobRun: { startedAt: 1, jobName: "Nightly sweep" },
+    })
+    expect(isChatVisibleForFilter(both, ALL_REPOSITORIES, { active: false, scheduled: true, archived: false })).toBe(true)
+    expect(isChatVisibleForFilter(both, ALL_REPOSITORIES, { active: false, scheduled: false, archived: true })).toBe(true)
+    expect(isChatVisibleForFilter(both, ALL_REPOSITORIES, { active: false, scheduled: false, archived: false })).toBe(false)
   })
 
   it("matches the No-repository filter to NEW_REPOSITORY chats only", () => {
@@ -76,13 +101,13 @@ describe("isChatVisibleForFilter", () => {
 describe("buildTreeOrderedChatIds", () => {
   // The bug this guards against: archived chats were reachable via Alt+Up/Down
   // even while the sidebar only showed active chats.
-  it("never yields an archived chat under the Active-chats filter", () => {
+  it("never yields an archived chat when only the Active toggle is on", () => {
     const chats = [
       makeChat({ id: "active-1", lastActiveAt: 3 }),
       makeChat({ id: "archived-1", archived: true, lastActiveAt: 2 }),
       makeChat({ id: "active-2", lastActiveAt: 1 }),
     ]
-    expect(buildTreeOrderedChatIds(chats, ALL_REPOSITORIES)).toEqual(["active-1", "active-2"])
+    expect(buildTreeOrderedChatIds(chats, ALL_REPOSITORIES, ACTIVE_ONLY)).toEqual(["active-1", "active-2"])
   })
 
   // The invariant that makes the whole bug-class impossible: what you can
@@ -96,11 +121,14 @@ describe("buildTreeOrderedChatIds", () => {
       makeChat({ id: "no-repo", repo: NEW_REPOSITORY, lastActiveAt: 2 }),
       makeChat({ id: "empty-root", messages: [], messageCount: 0, lastActiveAt: 1 }),
     ]
-    const filters = [ALL_REPOSITORIES, ARCHIVED_CHATS, NO_REPOSITORY, "octocat/hello", "acme/widgets"]
-    for (const filter of filters) {
-      const navigable = new Set(buildTreeOrderedChatIds(chats, filter))
-      const visible = new Set(chats.filter((c) => isChatVisibleForFilter(c, filter)).map((c) => c.id))
-      expect(navigable).toEqual(visible)
+    const repoFilters = [ALL_REPOSITORIES, NO_REPOSITORY, "octocat/hello", "acme/widgets"]
+    const visibilityFilters = [DEFAULT_CHAT_VISIBILITY_FILTERS, ARCHIVED_ONLY]
+    for (const repoFilter of repoFilters) {
+      for (const vf of visibilityFilters) {
+        const navigable = new Set(buildTreeOrderedChatIds(chats, repoFilter, vf))
+        const visible = new Set(chats.filter((c) => isChatVisibleForFilter(c, repoFilter, vf)).map((c) => c.id))
+        expect(navigable).toEqual(visible)
+      }
     }
   })
 })

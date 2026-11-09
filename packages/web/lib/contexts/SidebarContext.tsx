@@ -21,6 +21,26 @@ export type ActiveView =
   | { type: "chat" }
   | { type: "job"; jobId: string; jobName: string }
 
+/**
+ * Three independently toggleable "which chats show" filters, orthogonal to
+ * repo selection (repoFilter below). A chat is visible if ANY of the toggles
+ * that apply to it are on — see isChatVisibleForFilter in lib/chat-tree.ts.
+ */
+export interface ChatVisibilityFilters {
+  /** Non-archived, non-scheduled-job chats. */
+  active: boolean
+  /** Chats linked to a ScheduledJobRun (job-triggered chats). */
+  scheduled: boolean
+  /** Chats where chat.archived === true. */
+  archived: boolean
+}
+
+export const DEFAULT_CHAT_VISIBILITY_FILTERS: ChatVisibilityFilters = {
+  active: true,
+  scheduled: false,
+  archived: true,
+}
+
 export interface SidebarContextValue {
   // Sidebar collapse state
   collapsed: boolean
@@ -36,9 +56,15 @@ export interface SidebarContextValue {
   setMobileSidebarOpen: (open: boolean) => void
   closeMobileSidebar: () => void
 
-  // Repository filter
+  // Repository filter (which repo(s) to show — orthogonal to
+  // chatVisibilityFilters below, which control active/scheduled/archived).
   repoFilter: string
   setRepoFilter: (filter: string) => void
+
+  // Chat visibility filters (active / scheduled / archived) — independently
+  // toggleable, see ChatVisibilityFilters above.
+  chatVisibilityFilters: ChatVisibilityFilters
+  toggleChatVisibilityFilter: (key: keyof ChatVisibilityFilters) => void
 
   // Chat tree collapse state
   collapsedChatIds: Set<string>
@@ -66,7 +92,6 @@ const SidebarContext = createContext<SidebarContextValue | null>(null)
 // Constants for sidebar - exported for use by components
 export const ALL_REPOSITORIES = "__all__"
 export const NO_REPOSITORY = "__none__"
-export const ARCHIVED_CHATS = "__archived__"
 export const MIN_WIDTH = 140
 export const MAX_WIDTH = 400
 export const COLLAPSED_WIDTH = 56
@@ -86,6 +111,14 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   // Repository filter
   const [repoFilter, setRepoFilter] = useState<string>(ALL_REPOSITORIES)
+
+  // Chat visibility filters (active / scheduled / archived)
+  const [chatVisibilityFilters, setChatVisibilityFilters] = useState<ChatVisibilityFilters>(
+    DEFAULT_CHAT_VISIBILITY_FILTERS
+  )
+  const toggleChatVisibilityFilter = useCallback((key: keyof ChatVisibilityFilters) => {
+    setChatVisibilityFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   // Chat tree collapse state
   const [collapsedChatIds, setCollapsedChatIds] = useState<Set<string>>(new Set())
@@ -132,6 +165,8 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
     closeMobileSidebar,
     repoFilter,
     setRepoFilter,
+    chatVisibilityFilters,
+    toggleChatVisibilityFilter,
     collapsedChatIds,
     toggleChatCollapsed,
     expandChatAndAncestors,

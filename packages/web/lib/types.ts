@@ -201,6 +201,13 @@ export interface Chat {
   /** Pinned chats sort to the top of the sidebar and command palettes. */
   pinned?: boolean
 
+  /** Present only when this chat was created by a scheduled job run (e.g.
+   *  startJobExecution in the agent-lifecycle cron). Null for ordinary chats
+   *  created directly by the user — those never get a ScheduledJobRun. Used
+   *  to show the chat in the sidebar (job name + run time) since these chats
+   *  never get a displayName. */
+  scheduledJobRun?: { startedAt: number; jobName: string } | null
+
   /** When this chat was branched from another chat, the parent's id. */
   parentChatId?: string
 

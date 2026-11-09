@@ -9,6 +9,7 @@ import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { hasMergedSuccessfully } from "./utils"
 import { MergedChatCheckmark } from "./MergedChatCheckmark"
 import { hasActiveQueue } from "@/lib/chat-state"
+import { getChatDisplayTitle } from "@/lib/chat-tree"
 
 export interface ChatItemProps {
   chat: Chat
@@ -50,7 +51,7 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
   const [editName, setEditName] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const displayName = chat.displayName || "Untitled"
+  const displayName = getChatDisplayTitle(chat)
 
   const startEditing = () => {
     setEditName(displayName)

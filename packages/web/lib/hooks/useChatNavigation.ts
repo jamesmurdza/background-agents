@@ -107,7 +107,7 @@ export function useChatNavigation({
   const handleRepoFilterChange = useCallback(
     (filter: string) => {
       sidebar.setRepoFilter(filter)
-      const nextChatId = getChatIdForRepoFilter(chats, filter, currentChatId)
+      const nextChatId = getChatIdForRepoFilter(chats, filter, currentChatId, sidebar.chatVisibilityFilters)
       // Only select when it differs from what's already selected (keeps the
       // current chat if it survives the filter; selects the first visible chat
       // otherwise). null means the filter matches no chats — leave as-is.
@@ -175,8 +175,8 @@ export function useChatNavigation({
   // collapsed state — so Alt+Up/Down can reach every chat, expanding
   // collapsed ancestors along the way).
   const treeOrderedChatIds = useMemo(
-    () => buildTreeOrderedChatIds(chats, sidebar.repoFilter),
-    [chats, sidebar.repoFilter]
+    () => buildTreeOrderedChatIds(chats, sidebar.repoFilter, sidebar.chatVisibilityFilters),
+    [chats, sidebar.repoFilter, sidebar.chatVisibilityFilters]
   )
 
   const handleRequestMergeChats = useCallback(
