@@ -365,7 +365,7 @@ export function Sidebar({
               <span className="text-base text-foreground">New Chat</span>
             </button>
 
-            {/* Agents Button */}
+            {/* Triggers Button */}
             <button
               onClick={() => {
                 openJobsSearch()
@@ -549,7 +549,7 @@ export function Sidebar({
           {!collapsed && <span className="text-sm text-foreground">New Chat</span>}
         </button>
 
-        {/* Agents Button */}
+        {/* Triggers Button */}
         <button
           onClick={openJobsSearch}
           className={cn(

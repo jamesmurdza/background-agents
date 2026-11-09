@@ -49,7 +49,7 @@ export function useUrlSync({
       switch (matched.route) {
         case "jobs":
           // There's no bare jobs list anymore (browsing happens via the
-          // "Agents" command palette) — redirect to the home page.
+          // "Triggers" modal) — redirect to the home page.
           setActiveView({ type: "chat" })
           if (!isInitialSync) selectChat(null)
           window.history.replaceState(null, "", ROUTES.home.build())

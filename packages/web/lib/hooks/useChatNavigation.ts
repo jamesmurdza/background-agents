@@ -151,7 +151,7 @@ export function useChatNavigation({
   }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat])
 
   // Handler for navigating to a job (updates URL and sidebar state). Jobs are
-  // now opened via the "Agents" palette and the composer popover (both set
+  // now opened via the "Triggers" modal and the composer popover (both set
   // sidebar state directly + pushState, same pattern as this handler), so in
   // practice this is only called with `null` — e.g. after deleting a job
   // from its detail page, to

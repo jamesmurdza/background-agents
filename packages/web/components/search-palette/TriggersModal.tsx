@@ -88,7 +88,7 @@ export function TriggersModal({ open, onOpenChange }: TriggersModalProps) {
           )} />
           <Dialog.Content
             onCloseAutoFocus={(e) => { e.preventDefault(); focusChatPrompt() }}
-            className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[80vh] flex flex-col bg-popover border border-border rounded-xl shadow-xl overflow-hidden"
+            className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[80vh] flex flex-col bg-popover border border-border rounded-xl shadow-xl"
           >
             <ModalHeader
               title={
@@ -99,74 +99,76 @@ export function TriggersModal({ open, onOpenChange }: TriggersModalProps) {
               }
             />
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="p-4 overflow-y-auto">
               {sortedJobs.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <div className="py-8 text-center text-sm text-muted-foreground">
                   No scheduled jobs found.
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                      <th className="px-4 py-2 font-medium">Name</th>
-                      <th className="px-4 py-2 font-medium">Trigger type</th>
-                      <th className="px-4 py-2 font-medium">Next run</th>
-                      <th className="px-4 py-2 font-medium">Enabled</th>
-                      <th className="px-4 py-2 font-medium">Last run status</th>
-                      <th className="px-4 py-2 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedJobs.map((job) => (
-                      <tr
-                        key={job.id}
-                        className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer"
-                        onClick={() => handleSelect(job)}
-                      >
-                        <td className="px-4 py-2.5 truncate max-w-[14rem]">{job.name}</td>
-                        <td className="px-4 py-2.5"><TriggerTypeCell job={job} /></td>
-                        <td className="px-4 py-2.5 text-muted-foreground">
-                          {job.triggerType === "interval" ? format(job.nextRunAt, "MMM d, h:mm a") : "—"}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <Switch
-                            checked={job.enabled}
-                            onCheckedChange={(enabled) => setEnabled(job, enabled)}
-                            aria-label={job.enabled ? "Disable job" : "Enable job"}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">
-                          {lastRunStatusLabel(job)}
-                          {job.lastRun && (
-                            <span className="ml-1.5 text-xs">({lastRunLabel(job)})</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => runNow(job)}
-                              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                              title="Run now"
-                            >
-                              <Play className="h-3.5 w-3.5" />
-                            </button>
-                            <ScheduledJobActionsMenu
-                              job={job}
-                              onEdit={setEditingJob}
-                              onRunNow={runNow}
-                              onRotateToken={rotateToken}
-                              onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
-                              onRequestDelete={setDeletingJob}
-                              stopPropagation
-                              editInMenu
-                              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                            />
-                          </div>
-                        </td>
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground border-b border-border bg-muted/40">
+                        <th className="px-3 py-2 font-medium">Name</th>
+                        <th className="px-3 py-2 font-medium">Trigger type</th>
+                        <th className="px-3 py-2 font-medium">Next run</th>
+                        <th className="px-3 py-2 font-medium">Enabled</th>
+                        <th className="px-3 py-2 font-medium">Last run status</th>
+                        <th className="px-3 py-2 font-medium text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {sortedJobs.map((job) => (
+                        <tr
+                          key={job.id}
+                          className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer"
+                          onClick={() => handleSelect(job)}
+                        >
+                          <td className="px-3 py-2 truncate max-w-[14rem]">{job.name}</td>
+                          <td className="px-3 py-2"><TriggerTypeCell job={job} /></td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {job.triggerType === "interval" ? format(job.nextRunAt, "MMM d, h:mm a") : "—"}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Switch
+                              checked={job.enabled}
+                              onCheckedChange={(enabled) => setEnabled(job, enabled)}
+                              aria-label={job.enabled ? "Disable job" : "Enable job"}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {lastRunStatusLabel(job)}
+                            {job.lastRun && (
+                              <span className="ml-1.5 text-xs">({lastRunLabel(job)})</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => runNow(job)}
+                                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                                title="Run now"
+                              >
+                                <Play className="h-3.5 w-3.5" />
+                              </button>
+                              <ScheduledJobActionsMenu
+                                job={job}
+                                onEdit={setEditingJob}
+                                onRunNow={runNow}
+                                onRotateToken={rotateToken}
+                                onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
+                                onRequestDelete={setDeletingJob}
+                                stopPropagation
+                                editInMenu
+                                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </Dialog.Content>

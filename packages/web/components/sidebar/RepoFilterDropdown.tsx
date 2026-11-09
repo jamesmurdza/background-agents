@@ -72,9 +72,10 @@ export function RepoFilterDropdown({
 
       {repoDropdownOpen && (
         <div className={dropdownClassName}>
-          {/* Chat visibility toggles — active / scheduled / archived. Each
-              toggles independently and keeps the dropdown open, unlike the
-              repo-selection rows below which close it on pick. */}
+          {/* Chat visibility toggles — active / scheduled / archived. Every
+              row in this menu, including the repo-selection rows below,
+              keeps the dropdown open on click so multiple filters can be
+              combined without reopening the menu each time. */}
           <button
             onClick={() => onToggleChatVisibilityFilter("active")}
             className={itemClassName}
@@ -103,10 +104,7 @@ export function RepoFilterDropdown({
 
           {/* "All repositories" — repo selection is orthogonal to the toggles above. */}
           <button
-            onClick={() => {
-              setRepoFilter(ALL_REPOSITORIES)
-              setRepoDropdownOpen(false)
-            }}
+            onClick={() => setRepoFilter(ALL_REPOSITORIES)}
             className={itemClassName}
           >
             <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === ALL_REPOSITORIES ? "opacity-100" : "opacity-0")} />
@@ -126,10 +124,7 @@ export function RepoFilterDropdown({
             .map((repo) => (
               <button
                 key={repo}
-                onClick={() => {
-                  setRepoFilter(repo)
-                  setRepoDropdownOpen(false)
-                }}
+                onClick={() => setRepoFilter(repo)}
                 className={itemClassName}
               >
                 <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === repo ? "opacity-100" : "opacity-0")} />
@@ -144,10 +139,7 @@ export function RepoFilterDropdown({
               up with the repository labels above. */}
           {uniqueRepos.includes(NEW_REPOSITORY) && (
             <button
-              onClick={() => {
-                setRepoFilter(NO_REPOSITORY)
-                setRepoDropdownOpen(false)
-              }}
+              onClick={() => setRepoFilter(NO_REPOSITORY)}
               className={itemClassName}
             >
               <Check className={cn(`${checkSize} flex-shrink-0`, repoFilter === NO_REPOSITORY ? "opacity-100" : "opacity-0")} />

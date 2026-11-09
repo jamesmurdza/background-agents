@@ -425,7 +425,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
   // Dynamic page title based on current view
   const pageTitle = useMemo(() => {
     if (isJobsRoute) {
-      return sidebar.selectedScheduledJob?.name ?? "Scheduled Agents"
+      return sidebar.selectedScheduledJob?.name ?? "Scheduled Triggers"
     }
     if (displayCurrentChat?.displayName) {
       return displayCurrentChat.displayName
