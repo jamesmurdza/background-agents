@@ -8,7 +8,11 @@ This package simplifies secret handling by abstracting away the lifecycle of a D
 - Automatic "last used" tracking and expiry, instead of manually deleting secrets you're done with
 - Automatically keeping a secret attached so a sandbox's proxy stays on, instead of needing a reboot
 
-Instead of managing a secret's ID, name, staleness, and the sandbox's proxy state yourself, you only need to call `ensureSecret` when you need a credential and `deleteStaleSecrets` on a schedule.
+In short: ask for a credential when you need one, and schedule a periodic cleanup — everything else is handled for you.
+
+## Prerequisites
+
+You need a Daytona API key with secrets permissions — this package creates, updates, lists, and deletes secrets in your Daytona organization on your behalf, so the key used must be allowed to manage them.
 
 ## Usage
 
@@ -44,10 +48,6 @@ await deleteStaleSecrets(daytona, 24 * 60 * 60 * 1000)
 To pass a reference to a secret through code that expects a credential value, use `toSecretMarker(name)` / `parseSecretMarker(value)`.
 
 See the JSDoc on each export in `src/` for details.
-
-## Prerequisites
-
-The Daytona API key used needs secrets permissions.
 
 ## Development
 
