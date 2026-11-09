@@ -51,7 +51,11 @@ export function renderChatTree(args: RenderChatTreeArgs): React.ReactNode[] {
   const walk = (chat: Chat, depth: number) => {
     const children = args.childrenByParent.get(chat.id) ?? []
     const isExpanded = !args.collapsedChatIds.has(chat.id)
-    const canAcceptDrop = !!(args.canDrop && args.canDrop(args.dragSourceId ?? null, chat.id))
+    // Archived rows don't get pin/branch/archive/merge/rebase/drag actions —
+    // gated per-row (not by a global "showingArchived" flag) so active and
+    // archived chats can be mixed in one view when both toggles are on.
+    const archived = !!chat.archived
+    const canAcceptDrop = !archived && !!(args.canDrop && args.canDrop(args.dragSourceId ?? null, chat.id))
     out.push(
       <ChatItem
         key={chat.id}
@@ -66,16 +70,16 @@ export function renderChatTree(args: RenderChatTreeArgs): React.ReactNode[] {
         onToggleExpanded={() => args.onToggleCollapsed(chat.id)}
         onSelect={() => args.onSelectChat(chat.id)}
         onDelete={() => args.onDeleteChat(chat.id)}
-        onPin={args.onPin ? (pinned) => args.onPin!(chat.id, pinned) : undefined}
-        onBranch={args.onBranch && isRealRepo(chat.repo) ? () => args.onBranch!(chat.id) : undefined}
-        onArchive={args.onArchive ? () => args.onArchive!(chat.id) : undefined}
-        onUnarchive={args.onUnarchive ? () => args.onUnarchive!(chat.id) : undefined}
+        onPin={args.onPin && !archived ? (pinned) => args.onPin!(chat.id, pinned) : undefined}
+        onBranch={args.onBranch && !archived && isRealRepo(chat.repo) ? () => args.onBranch!(chat.id) : undefined}
+        onArchive={args.onArchive && !archived ? () => args.onArchive!(chat.id) : undefined}
+        onUnarchive={args.onUnarchive && archived ? () => args.onUnarchive!(chat.id) : undefined}
         onRename={(newName) => args.onRenameChat(chat.id, newName)}
-        onMerge={args.onMerge ? () => args.onMerge!(chat.id) : undefined}
-        onRebase={args.onRebase ? () => args.onRebase!(chat.id) : undefined}
-        isDragSource={args.dragSourceId === chat.id}
+        onMerge={args.onMerge && !archived ? () => args.onMerge!(chat.id) : undefined}
+        onRebase={args.onRebase && !archived ? () => args.onRebase!(chat.id) : undefined}
+        isDragSource={!archived && args.dragSourceId === chat.id}
         isDropTarget={canAcceptDrop && args.dragOverId === chat.id}
-        onDragStartRow={args.onDragStartChat ? () => args.onDragStartChat!(chat.id) : undefined}
+        onDragStartRow={!archived && args.onDragStartChat ? () => args.onDragStartChat!(chat.id) : undefined}
         onDragEndRow={args.onDragEndChat}
         onDragEnterRow={
           canAcceptDrop && args.onDragEnterChat ? () => args.onDragEnterChat!(chat.id) : undefined

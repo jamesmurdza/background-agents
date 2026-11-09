@@ -697,6 +697,8 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
         onMobileClose={isMobile ? () => sidebar.setMobileSidebarOpen(false) : undefined}
         repoFilter={sidebar.repoFilter}
         onRepoFilterChange={handleRepoFilterChange}
+        chatVisibilityFilters={sidebar.chatVisibilityFilters}
+        onToggleChatVisibilityFilter={sidebar.toggleChatVisibilityFilter}
         collapsedChatIds={sidebar.collapsedChatIds}
         onToggleChatCollapsed={sidebar.toggleChatCollapsed}
         onRequestMergeChats={handleRequestMergeChats}

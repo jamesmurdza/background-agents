@@ -8,6 +8,7 @@ import type { Chat } from "@/lib/types"
 import { hasMergedSuccessfully } from "./utils"
 import { MergedChatCheckmark } from "./MergedChatCheckmark"
 import { hasActiveQueue } from "@/lib/chat-state"
+import { getChatDisplayTitle } from "@/lib/chat-tree"
 
 export interface MobileChatItemProps {
   chat: Chat
@@ -34,7 +35,7 @@ export interface MobileChatItemProps {
 export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0, hasChildren = false, isExpanded = true, onToggleExpanded, onSelect, onDelete, onPin, onBranch, onArchive, onUnarchive, onRequestRename }: MobileChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const displayName = chat.displayName || "Untitled"
+  const displayName = getChatDisplayTitle(chat)
 
   // Close menu when clicking outside
   useClickOutside(menuRef, () => setMenuOpen(false), menuOpen)
