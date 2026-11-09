@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { GitPullRequest, ChevronDown } from "lucide-react"
 import { BaseDialog } from "@/components/modals/BaseDialog"
 import {
@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog-parts"
 import { BranchSelector } from "@/components/ui/BranchSelector"
 import { cn } from "@/lib/utils"
+import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
+import { DEFAULT_SETTINGS } from "@/lib/storage"
 import type { GitDialogProps, PRDescriptionType } from "./types"
 
 /** PR description format options */
@@ -27,9 +29,19 @@ const DESCRIPTION_TYPE_LABELS: Record<PRDescriptionType, { label: string; descri
 export function PRDialog({ open, onClose, gitDialogs, chat, isMobile = false }: GitDialogProps) {
   const isGitHubRepo = chat?.repo && chat.repo !== "__new__"
   const agentRunning = chat?.status === "running"
-  const [descriptionType, setDescriptionType] = useState<PRDescriptionType>("short")
+  const { data: settingsData } = useSettingsQuery()
+  const defaultDescriptionType =
+    settingsData?.settings.defaultPrDescriptionType ?? DEFAULT_SETTINGS.defaultPrDescriptionType
+  const [descriptionType, setDescriptionType] = useState<PRDescriptionType>(defaultDescriptionType)
   const [descriptionDropdownOpen, setDescriptionDropdownOpen] = useState(false)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
+
+  // Re-seed from the user's default each time the dialog opens, so a change
+  // made to the setting in a prior session takes effect immediately.
+  useEffect(() => {
+    if (open) setDescriptionType(defaultDescriptionType)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultDescriptionType])
 
   const handleCreatePRAndClose = useCallback(async () => {
     await gitDialogs.handleCreatePR(descriptionType)

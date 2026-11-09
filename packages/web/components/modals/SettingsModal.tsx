@@ -153,6 +153,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
   const [defaultModel, setDefaultModel] = useState(initialDefaultModel)
   const [selectedTheme, setSelectedTheme] = useState<Theme>(settings.theme)
   const [enablePrepushHooks, setEnablePrepushHooks] = useState(settings.enablePrepushHooks)
+  const [defaultPrDescriptionType, setDefaultPrDescriptionType] = useState(settings.defaultPrDescriptionType)
   const [notifyOnAgentFinished, setNotifyOnAgentFinished] = useState(settings.notifyOnAgentFinished)
   const [notifyOnAgentCommitted, setNotifyOnAgentCommitted] = useState(settings.notifyOnAgentCommitted)
   const [notificationSound, setNotificationSound] = useState(settings.notificationSound)
@@ -212,6 +213,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
       setDefaultModel(initialDefaultModel)
       setSelectedTheme(settings.theme)
       setEnablePrepushHooks(settings.enablePrepushHooks)
+      setDefaultPrDescriptionType(settings.defaultPrDescriptionType)
       setNotifyOnAgentFinished(settings.notifyOnAgentFinished)
       setNotifyOnAgentCommitted(settings.notifyOnAgentCommitted)
       setNotificationSound(settings.notificationSound)
@@ -311,6 +313,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     if (defaultModel !== initialDefaultModel) settingsPatch.defaultModel = defaultModel
     if (selectedTheme !== settings.theme) settingsPatch.theme = selectedTheme
     if (enablePrepushHooks !== settings.enablePrepushHooks) settingsPatch.enablePrepushHooks = enablePrepushHooks
+    if (defaultPrDescriptionType !== settings.defaultPrDescriptionType) settingsPatch.defaultPrDescriptionType = defaultPrDescriptionType
     if (notifyOnAgentFinished !== settings.notifyOnAgentFinished) settingsPatch.notifyOnAgentFinished = notifyOnAgentFinished
     if (notifyOnAgentCommitted !== settings.notifyOnAgentCommitted) settingsPatch.notifyOnAgentCommitted = notifyOnAgentCommitted
     if (notificationSound !== settings.notificationSound) settingsPatch.notificationSound = notificationSound
@@ -354,7 +357,7 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
     return Object.keys(data).length > 0 ? data : null
   }, [
     defaultAgent, initialDefaultAgent, defaultModel, initialDefaultModel,
-    selectedTheme, enablePrepushHooks, notifyOnAgentFinished, notifyOnAgentCommitted,
+    selectedTheme, enablePrepushHooks, defaultPrDescriptionType, notifyOnAgentFinished, notifyOnAgentCommitted,
     notificationSound, showCommandPaletteButton, elizaEnabled, maxAgentRunMinutes, settings, credValues, initialCreds,
     isDesktopApp, licenseAutoDetectEnabled, licenseDetectResult, endpoints, endpointsChanged,
   ])
@@ -441,6 +444,8 @@ export function SettingsModal({ open, onClose, settings, credentialFlags, onSave
             isMobile={isMobile}
             enablePrepushHooks={enablePrepushHooks}
             setEnablePrepushHooks={setEnablePrepushHooks}
+            defaultPrDescriptionType={defaultPrDescriptionType}
+            setDefaultPrDescriptionType={setDefaultPrDescriptionType}
           />
         )
       case "deployments":
