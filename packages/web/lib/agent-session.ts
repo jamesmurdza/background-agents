@@ -429,7 +429,7 @@ export async function snapshotBackgroundAgent(
 
     return summarizeEvents(result.events, running, result.sessionId)
   } catch (err) {
-    console.error("[snapshotBackgroundAgent] Error:", err)
+    console.error(`[snapshotBackgroundAgent] Error (sandbox=${sandbox.id} session=${backgroundSessionId}):`, err)
     if (previous) {
       return { ...previous, transientReadFailure: true }
     }
