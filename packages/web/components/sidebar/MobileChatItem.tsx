@@ -82,9 +82,9 @@ export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0
         <MergedChatCheckmark className="flex-shrink-0" />
       ) : chat.scheduledJobRun ? (
         chat.scheduledJobRun.triggerType === "incoming" ? (
-          <Webhook className="h-3 w-3 flex-shrink-0 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
+          <Webhook className="h-2.5 w-2.5 flex-shrink-0 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
         ) : (
-          <Calendar className="h-3 w-3 flex-shrink-0 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
+          <Calendar className="h-2.5 w-2.5 flex-shrink-0 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
         )
       ) : null}
 

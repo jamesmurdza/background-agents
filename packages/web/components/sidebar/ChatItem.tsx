@@ -185,9 +185,9 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
             ) : chat.scheduledJobRun ? (
               <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
                 {chat.scheduledJobRun.triggerType === "incoming" ? (
-                  <Webhook className="h-3 w-3 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
+                  <Webhook className="h-2.5 w-2.5 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
                 ) : (
-                  <Calendar className="h-3 w-3 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
+                  <Calendar className="h-2.5 w-2.5 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
                 )}
               </div>
             ) : null}
