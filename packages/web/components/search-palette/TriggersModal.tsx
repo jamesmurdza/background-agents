@@ -103,11 +103,13 @@ function TriggerCell({ job }: { job: { triggerType: string; intervalMinutes: num
 }
 
 /**
- * "Triggers" modal — lists all scheduled jobs in a table (name, trigger type,
- * next run, enabled, last run status, actions). Replaces the old "Agents"
- * command-palette (SearchJobsPalette) with a standard modal dialog, since
- * this is a browse/manage surface rather than a fuzzy-search one. Clicking a
- * row still navigates to the job detail view, matching the old behavior.
+ * "Triggers" modal — lists all scheduled jobs as card-style rows (enabled
+ * switch, name + trigger description, last-run status, actions), styled to
+ * match the settings modal's Deployments tab (DeploymentsSection.tsx) rather
+ * than a dense data-grid table. Replaces the old "Agents" command-palette
+ * (SearchJobsPalette) with a standard modal dialog, since this is a browse/
+ * manage surface rather than a fuzzy-search one. Clicking a row navigates to
+ * that job's most recent run's chat.
  */
 export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModalProps) {
   const { data: jobs = [] } = useScheduledJobsQuery()
@@ -156,56 +158,50 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
 
             <div className="p-4 overflow-y-auto">
               {sortedJobs.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-md border border-dashed border-border/60 py-8 text-center text-sm text-muted-foreground">
                   No scheduled jobs found.
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs font-semibold text-foreground/70 border-b border-border">
-                      <th className="px-3 py-2">Enabled</th>
-                      <th className="px-3 py-2">Name</th>
-                      <th className="px-3 py-2">Triggers</th>
-                      <th className="px-3 py-2">Last run</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedJobs.map((job) => (
-                      <tr
-                        key={job.id}
-                        className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer"
-                        onClick={() => handleSelect(job)}
-                      >
-                        <td className="px-3 py-2.5">
-                          <Switch
-                            checked={job.enabled}
-                            onCheckedChange={(enabled) => setEnabled(job, enabled)}
-                            aria-label={job.enabled ? "Disable job" : "Enable job"}
-                          />
-                        </td>
-                        <td className="px-3 py-2.5 truncate max-w-[14rem]">{job.name}</td>
-                        <td className="px-3 py-2.5"><TriggerCell job={job} /></td>
-                        <td className="px-3 py-2.5">
-                          <LastRunBadge job={job} />
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
-                            <ScheduledJobActionsMenu
-                              job={job}
-                              onEdit={setEditingJob}
-                              onRunNow={runNow}
-                              onRequestDelete={setDeletingJob}
-                              stopPropagation
-                              editInMenu
-                              className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <ul className="flex flex-col gap-1.5">
+                  {sortedJobs.map((job) => (
+                    <li
+                      key={job.id}
+                      onClick={() => handleSelect(job)}
+                      className="flex items-center gap-3 rounded-md border border-border/40 px-3 py-2.5 hover:bg-accent/50 cursor-pointer"
+                    >
+                      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                        <Switch
+                          checked={job.enabled}
+                          onCheckedChange={(enabled) => setEnabled(job, enabled)}
+                          aria-label={job.enabled ? "Disable job" : "Enable job"}
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{job.name}</div>
+                        <div className="truncate text-xs">
+                          <TriggerCell job={job} />
+                        </div>
+                      </div>
+
+                      <div className="shrink-0">
+                        <LastRunBadge job={job} />
+                      </div>
+
+                      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                        <ScheduledJobActionsMenu
+                          job={job}
+                          onEdit={setEditingJob}
+                          onRunNow={runNow}
+                          onRequestDelete={setDeletingJob}
+                          stopPropagation
+                          editInMenu
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </Dialog.Content>
