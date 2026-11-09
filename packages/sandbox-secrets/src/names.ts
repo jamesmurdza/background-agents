@@ -3,9 +3,6 @@ import { createHash } from "node:crypto"
 /** Daytona's rule for secret names. */
 export const SECRET_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]*$/
 
-/** Names a secret can be mounted under inside a sandbox (POSIX env var names). */
-export const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
-
 /**
  * Prefix of every secret this app creates. A single fixed prefix (rather
  * than one per caller/scope) is what lets {@link deleteStaleSecrets} find

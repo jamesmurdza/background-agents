@@ -7,7 +7,7 @@
  * strings). Anything inside the sandbox can still USE the placeholder while
  * the secret is mounted, but no process there can read the value itself.
  */
-export { secretName, ENV_NAME_PATTERN, SECRET_NAME_PATTERN, SECRET_PREFIX } from "./names"
+export { secretName, SECRET_NAME_PATTERN, SECRET_PREFIX } from "./names"
 export { parseSecretMarker, toSecretMarker } from "./marker"
 export { deleteStaleSecrets, ensureSecret, secretLastUsedAt, stampLastUsed } from "./store"
 export { createSandbox, setSecrets } from "./secrets"
