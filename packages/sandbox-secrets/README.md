@@ -58,8 +58,6 @@ await deleteStaleSecrets(daytona, 24 * 60 * 60 * 1000)
 
 `ensureSecret` and `setSecrets` both stamp a secret's description with when it was last used (`Last used: <ISO time>`) on every call — never cached, always refreshed. Writing a fresh, always-different stamp is what forces Daytona to bump the secret's own `updatedAt`, which `secretLastUsedAt(secret)` reads back directly (a no-op update wouldn't bump it). `deleteStaleSecrets` lists every secret named with this package's fixed prefix and deletes the ones whose `updatedAt` is old enough; nothing else (sandbox labels, a database) is consulted.
 
-`deleteSecrets(daytona, { prefix, keep })` removes a family of secrets (e.g. one user's stale keys); `forgetSecrets(names)` makes `ensureSecret` look again for names that may have been deleted by another process.
-
 To pass a reference to a secret through code that expects a credential value, use `toSecretMarker(name)` / `parseSecretMarker(value)`.
 
 The Daytona API key needs the secrets permissions.
