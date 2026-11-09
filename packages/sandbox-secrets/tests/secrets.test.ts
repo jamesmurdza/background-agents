@@ -67,6 +67,14 @@ describe("setSecrets", () => {
     expect(sandbox.start).toHaveBeenCalled()
   })
 
+  it("never restarts when there's nothing to attach, even with the proxy unwired", async () => {
+    const { daytona } = fakeDaytona()
+    const sandbox = fakeSandbox(false)
+    await setSecrets(daytona, sandbox, {})
+    expect(sandbox.process.executeCommand).not.toHaveBeenCalled()
+    expect(sandbox.stop).not.toHaveBeenCalled()
+  })
+
   it("doesn't restart when the proxy is already wired", async () => {
     const { daytona } = fakeDaytona(["bg_abc"])
     const sandbox = fakeSandbox(true)
@@ -76,22 +84,23 @@ describe("setSecrets", () => {
 })
 
 describe("createSandbox", () => {
-  it("creates the sandbox then sets its secrets", async () => {
+  it("creates the sandbox with its secrets and the keepalive attached, so it never restarts", async () => {
     const { daytona, create } = fakeDaytona(["bg_abc"])
     const sandbox = fakeSandbox()
     create.mockResolvedValue(sandbox)
     const result = await createSandbox(daytona, { name: "s" }, { MY_KEY: "bg_abc" })
-    expect(create).toHaveBeenCalledWith({ name: "s" })
-    expect(sandbox.updateSecrets).toHaveBeenCalled()
+    const { name, secrets } = create.mock.calls[0][0]
+    expect(name).toBe("s")
+    expect(Object.keys(secrets)).toEqual(["MY_KEY", "SESSION_RELAY_TOKEN_KEEPALIVE"])
+    expect(sandbox.updateSecrets).not.toHaveBeenCalled()
+    expect(sandbox.stop).not.toHaveBeenCalled()
     expect(result).toBe(sandbox)
   })
 
   it("defaults to no secrets beyond the keepalive", async () => {
     const { daytona, create } = fakeDaytona()
-    const sandbox = fakeSandbox()
-    create.mockResolvedValue(sandbox)
+    create.mockResolvedValue(fakeSandbox())
     await createSandbox(daytona, { name: "s" })
-    const mounted = sandbox.updateSecrets.mock.calls[0][0] as Record<string, string>
-    expect(Object.keys(mounted)).toEqual(["SESSION_RELAY_TOKEN_KEEPALIVE"])
+    expect(Object.keys(create.mock.calls[0][0].secrets)).toEqual(["SESSION_RELAY_TOKEN_KEEPALIVE"])
   })
 })

@@ -35,26 +35,29 @@ async function proxyWired(sandbox: Sandbox): Promise<boolean> {
   }
 }
 
+/** `secrets` plus the keepalive, each stamped as used (see {@link touchSecret}). */
+async function withKeepalive(daytona: Daytona, secrets: Record<string, string>): Promise<Record<string, string>> {
+  const all = { ...secrets, [KEEPALIVE_ENV]: await ensureKeepaliveSecret(daytona) }
+  await Promise.all(Object.values(all).map((name) => touchSecret(daytona, name)))
+  return all
+}
+
 /**
  * Set exactly `secrets` (env var name → Daytona secret name) as the sandbox's
  * mounted set, plus an internal keepalive secret that is always attached.
  * Pass `{}` to detach everything but the keepalive.
  *
- * Refreshes every named secret's "last used" stamp (see
- * {@link touchSecret}), so a secret {@link setSecrets} is still attaching
- * stays alive. Then restarts the sandbox if it comes back without its
- * secrets proxy wired — checked directly (`printenv HTTPS_PROXY` inside the
- * sandbox) rather than inferred from any stored state, since nothing
- * mount-related is stored any more.
+ * Refreshes every named secret's "last used" stamp, so a secret
+ * {@link setSecrets} is still attaching stays alive. When `secrets` isn't
+ * empty, restarts the sandbox if it booted without its secrets proxy —
+ * checked directly (`printenv HTTPS_PROXY` inside the sandbox). With nothing
+ * to attach it never restarts: a sandbox that doesn't need secrets keeps its
+ * running processes.
  */
 export async function setSecrets(daytona: Daytona, sandbox: Sandbox, secrets: Record<string, string>): Promise<void> {
-  const keepaliveName = await ensureKeepaliveSecret(daytona)
-  const all = { ...secrets, [KEEPALIVE_ENV]: keepaliveName }
+  await sandbox.updateSecrets(await withKeepalive(daytona, secrets))
 
-  await Promise.all(Object.values(all).map((name) => touchSecret(daytona, name)))
-  await sandbox.updateSecrets(all)
-
-  if (!(await proxyWired(sandbox))) {
+  if (Object.keys(secrets).length > 0 && !(await proxyWired(sandbox))) {
     // Files survive the restart; running processes (dev servers, terminals)
     // don't — acceptable once per sandbox.
     console.log(`[sandbox-secrets] restarting sandbox ${sandbox.id} to wire its secrets proxy`)
@@ -64,18 +67,14 @@ export async function setSecrets(daytona: Daytona, sandbox: Sandbox, secrets: Re
 }
 
 /**
- * Create a Daytona sandbox and immediately set its secrets — the only
- * sanctioned way to create one that needs any. Mounting right after
- * creation still costs the one restart a sandbox created without secrets
- * needs before attached ones work; there's no way around that from this
- * side, since Daytona only wires the secrets proxy at boot.
+ * Create a Daytona sandbox with `secrets` (plus the keepalive) attached from
+ * the start, so it boots with its secrets proxy wired and never needs the
+ * restart a later first mount would force.
  */
 export async function createSandbox(
   daytona: Daytona,
   opts: CreateSandboxFromSnapshotParams,
   secrets: Record<string, string> = {}
 ): Promise<Sandbox> {
-  const sandbox = await daytona.create(opts)
-  await setSecrets(daytona, sandbox, secrets)
-  return sandbox
+  return daytona.create({ ...opts, secrets: await withKeepalive(daytona, secrets) })
 }

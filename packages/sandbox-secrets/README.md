@@ -41,7 +41,7 @@ await setSecrets(daytona, sandbox, {}) // detach OPENAI_KEY again
 // OPENAI_API_KEY in its env), so the mounted var can have a name no CLI reads.
 ```
 
-`setSecrets` restarts the sandbox when it comes back with its secrets proxy unwired (checked directly with `printenv HTTPS_PROXY` inside the sandbox), and stamps every named secret's "last used" time on every call.
+`createSandbox` attaches the secrets at creation, so the sandbox boots with its proxy wired. `setSecrets` restarts the sandbox only when it has secrets to attach and the proxy is unwired (checked directly with `printenv HTTPS_PROXY` inside the sandbox), and stamps every named secret's "last used" time on every call.
 
 ### Rotating values
 
