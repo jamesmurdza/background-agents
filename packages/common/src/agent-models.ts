@@ -397,6 +397,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-6-astra", label: "GPT-6 Astra (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-6.1-sol", label: "GPT-6.1 Sol (Factory)", requiresKey: "factory" },
+    // Flagship per Factory's own "choosing your model" docs, alongside Astra/Sol above.
+    { value: "factory/gpt-6-luna", label: "GPT-6 Luna (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.8-flash", label: "Gemini 3.8 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
