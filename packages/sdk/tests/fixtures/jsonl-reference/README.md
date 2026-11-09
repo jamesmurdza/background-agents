@@ -45,6 +45,8 @@ Requires `DAYTONA_API_KEY` and provider-specific API keys (`ANTHROPIC_API_KEY`, 
 
 **Note:** The Eliza agent is deterministic and does not require an API key.
 
+**Note:** `generate-jsonl-references.ts` has no Copilot provider, so it cannot regenerate `copilot-gpt-4.1.jsonl` or `copilot-gpt-5-mini.jsonl` — those two fixtures were captured separately and must be refreshed/updated by hand.
+
 ### Capturing a failure fixture (e.g. `gemini-error.jsonl`)
 
 `gemini-error.jsonl` is the `error` event + failing `result` Gemini emits when a

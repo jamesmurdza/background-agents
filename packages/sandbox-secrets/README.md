@@ -6,7 +6,7 @@ A mounted secret shows up in the sandbox only as an opaque placeholder (`dtn_sec
 
 ## How Daytona's swap behaves
 
-Verified live (see `packages/web/scripts/verify-daytona-secrets.ts`):
+Verified live:
 
 - The swap is done by an HTTPS proxy configured through env vars (`HTTPS_PROXY`, `NODE_EXTRA_CA_CERTS`, …), and only intercepts the secret's hosts. A client that ignores those vars sends the placeholder as-is: it fails, but nothing leaks. Node's built-in `fetch` needs `NODE_USE_ENV_PROXY=1`.
 - Swapped in headers and in Basic auth. **Not** in query strings (the proxy answers 502).

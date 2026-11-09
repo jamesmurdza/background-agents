@@ -2,6 +2,7 @@
   "name": "@background-agents/sandbox-skills",
   "version": "0.1.0",
   "description": "Skills registry client and sandbox operations for Daytona",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
