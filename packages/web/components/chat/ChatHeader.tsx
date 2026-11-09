@@ -146,7 +146,7 @@ export function ChatHeader({
             className="w-56 font-medium"
           />
         ) : (
-          <div className="group/title relative flex items-center gap-[2px] min-w-0" ref={titleMenuRef}>
+          <div className={cn("group/title relative flex items-center min-w-0", isJobChat ? "gap-0" : "gap-[2px]")} ref={titleMenuRef}>
             <button
               onClick={isJobChat ? () => setTitleMenuOpen((v) => !v) : startEditingTitle}
               className="flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-pointer"
