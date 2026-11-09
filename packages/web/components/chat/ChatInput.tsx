@@ -20,6 +20,8 @@ import { NEW_REPOSITORY, sharedPoolProviderForModel, agentLabels, getModelLabel 
 import { basename } from "@/lib/format"
 import { queuedSendNotice } from "@/lib/composer-queue"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
+import { PendingCommentsDisplay } from "./PendingCommentsDisplay"
+import { useChatCommentsStore } from "@/lib/stores/chat-comments-store"
 import { DismissButton } from "./DismissButton"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { ReasoningEffortSelector } from "./ReasoningEffortSelector"
@@ -321,9 +323,12 @@ export function ChatInput({
   isMobile,
 }: ChatInputProps) {
   const modals = useModals()
+  // Comments in the input are sent as text, so they count as typed.
+  const hasComments = useChatCommentsStore((state) => !!state.byChat[chat.id]?.length)
+  const hasText = !!input.trim() || hasComments
   const queueNotice = queuedSendNotice({ isRunning,
     isPaused: !!chat.queuePaused && !!chat.queuedMessages?.length,
-    hasFiles: pendingFiles.length > 0, planMode: planModeEnabled, hasText: !!input.trim() })
+    hasFiles: pendingFiles.length > 0, planMode: planModeEnabled, hasText })
   // Keyed off the *current* agent+model, so switching to a free model or an
   // own-key one clears the warning along with the charge it was warning about.
   const creditWarning = useCreditWarning({
@@ -620,6 +625,8 @@ export function ChatInput({
           isMobile={isMobile}
         />
 
+        <PendingCommentsDisplay chatId={chat.id} isMobile={isMobile} />
+
         {/* Text input area */}
         <div className={cn(
           "flex items-end gap-2",
@@ -753,7 +760,7 @@ export function ChatInput({
             canStop={chat.status === "running" && !!chat.backgroundSessionId && !!chat.activeAssistantMessageId}
             isRunning={isRunning}
             isPaused={isPaused}
-            isInputEmpty={!input.trim()}
+            isInputEmpty={!hasText}
             canQueue={canQueue}
             canSend={canSend}
             isMobile={isMobile}

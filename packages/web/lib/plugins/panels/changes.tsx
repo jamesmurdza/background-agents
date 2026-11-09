@@ -1,11 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronRight, GitCompare } from "lucide-react"
+import { ChevronRight, GitCompare, Plus } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import type { ChangedFile, ChangesResult } from "@/lib/git/changes"
+import { describeLines, lineCommentContext, numberDiffLines, type DiffLine } from "@/lib/git/diff-lines"
 import { PanelState } from "./PanelState"
+import { CommentBox } from "./CommentBox"
 import { useSandboxResource, assertSandboxOk } from "@/lib/hooks/useSandboxResource"
+import { useChatCommentsStore } from "@/lib/stores/chat-comments-store"
 import { cn } from "@/lib/utils"
 
 // Files with longer diffs start collapsed, so a lockfile doesn't bury the rest.
@@ -13,6 +16,16 @@ const COLLAPSE_LINES = 300
 
 // Tagged with its sandbox, since the panel is reused when switching chats.
 type LoadedChanges = ChangesResult & { sandboxId: string }
+
+/** Lines with an open comment box: indexes into one file's patch lines, from the clicked line to the Shift+clicked one. */
+interface LineSelection {
+  sandboxId: string
+  path: string
+  anchor: number
+  head: number
+  /** The lines as they were when clicked, so a reload while the agent works doesn't change what's quoted. */
+  lines: DiffLine[]
+}
 
 async function loadChanges(args: {
   sandboxId: string
@@ -30,36 +43,89 @@ async function loadChanges(args: {
   return { ...(await res.json()), sandboxId }
 }
 
-function DiffLines({ file }: { file: ChangedFile }) {
-  if (file.lines.length === 0) {
+function DiffLines({
+  file,
+  selection,
+  onSelect,
+  onComment,
+  onCancel,
+}: {
+  file: ChangedFile
+  /** This file's commented lines, if any. */
+  selection: LineSelection | null
+  /** Missing when there's no chat to comment into. */
+  onSelect?: (index: number, extend: boolean, lines: DiffLine[]) => void
+  onComment: (comment: string) => void
+  onCancel: () => void
+}) {
+  const lines = useMemo(() => numberDiffLines(file.lines), [file.lines])
+  if (lines.length === 0) {
     return (
       <div className="px-3 pb-2 text-xs text-muted-foreground">
         {file.binary ? "Binary file" : "No content changes"}
       </div>
     )
   }
+
+  // The diff reloads while the agent works, so it may now be shorter.
+  const start = selection && Math.min(selection.anchor, selection.head, lines.length - 1)
+  const end = selection && Math.min(Math.max(selection.anchor, selection.head), lines.length - 1)
+
+  // One flat list, so the comment box keeps its text when it moves to other lines.
+  const rows: React.ReactNode[] = []
+  lines.forEach((line, i) => {
+    const numbered = line.oldLine !== undefined || line.newLine !== undefined
+    rows.push(
+      <div
+        key={i}
+        className={cn(
+          "group flex",
+          line.text.startsWith("+") && "bg-green-500/15",
+          line.text.startsWith("-") && "bg-red-500/15",
+          line.text.startsWith("@@") && "text-muted-foreground",
+          start !== null && end !== null && i >= start && i <= end && "bg-blue-500/15"
+        )}
+      >
+        <span className="w-9 flex-shrink-0 select-none pr-1 text-right text-muted-foreground/60">{line.oldLine}</span>
+        <span className="w-9 flex-shrink-0 select-none pr-1 text-right text-muted-foreground/60">{line.newLine}</span>
+        <span className="flex w-6 flex-shrink-0 items-center justify-center">
+          {numbered && onSelect && (
+            <button
+              type="button"
+              onClick={(e) => onSelect(i, e.shiftKey, lines)}
+              className="flex h-4 w-4 items-center justify-center rounded bg-blue-500 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer"
+              aria-label={`Comment on ${describeLines(file.path, [line])}`}
+              title="Comment on this line. Shift+click another line to comment on a range."
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )}
+        </span>
+        <span className="whitespace-pre pr-3">{line.text || " "}</span>
+      </div>
+    )
+    if (selection && i === end) {
+      rows.push(
+        <CommentBox
+          key="comment"
+          label={describeLines(file.path, selection.lines)}
+          target={selection}
+          onAdd={onComment}
+          onCancel={onCancel}
+          className="sticky left-3 my-1.5 font-sans"
+        />
+      )
+    }
+  })
+
   return (
     <div className="overflow-x-auto pb-2 font-mono text-xs leading-5">
-      <div className="min-w-fit">
-        {file.lines.map((line, i) => (
-          <div
-            key={i}
-            className={cn(
-              "whitespace-pre px-3",
-              line.startsWith("+") && "bg-green-500/15",
-              line.startsWith("-") && "bg-red-500/15",
-              line.startsWith("@@") && "text-muted-foreground"
-            )}
-          >
-            {line || " "}
-          </div>
-        ))}
-      </div>
+      <div className="min-w-fit">{rows}</div>
     </div>
   )
 }
 
-function ChangesComponent({ sandboxId, messages, explicitStart, onRefresh }: PanelProps) {
+function ChangesComponent({ sandboxId, chatId, messages, explicitStart, onRefresh }: PanelProps) {
   // Re-fetch whenever one of the agent's tool calls finishes (output attached),
   // since any of them may have changed files, and after a merge or other git
   // action, which posts a message to the chat.
@@ -82,6 +148,7 @@ function ChangesComponent({ sandboxId, messages, explicitStart, onRefresh }: Pan
   })
   // Files the user opened or closed, flipping their default.
   const [toggled, setToggled] = useState<Set<string>>(new Set())
+  const [lineSelection, setLineSelection] = useState<LineSelection | null>(null)
 
   if (status === "stopped") return <PanelState status="stopped" onRefresh={onRefresh} />
   if (status === "expired") return <PanelState status="expired" onRefresh={onRefresh} />
@@ -102,6 +169,23 @@ function ChangesComponent({ sandboxId, messages, explicitStart, onRefresh }: Pan
       if (!next.delete(path)) next.add(path)
       return next
     })
+
+  const selection = lineSelection?.sandboxId === changes.sandboxId ? lineSelection : null
+  const selectLine = (path: string, index: number, extend: boolean, lines: DiffLine[]) => {
+    const anchor = extend && selection?.path === path ? selection.anchor : index
+    const from = Math.min(anchor, index)
+    const to = Math.max(anchor, index)
+    setLineSelection({ sandboxId: changes.sandboxId, path, anchor, head: index, lines: lines.slice(from, to + 1) })
+  }
+  const addComment = (comment: string) => {
+    if (!chatId || !selection) return
+    useChatCommentsStore.getState().addComment(chatId, {
+      label: describeLines(selection.path.split("/").pop() ?? selection.path, selection.lines),
+      context: lineCommentContext(selection.path, selection.lines),
+      comment,
+    })
+    setLineSelection(null)
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -137,7 +221,15 @@ function ChangesComponent({ sandboxId, messages, explicitStart, onRefresh }: Pan
                 <span className="flex-shrink-0 text-xs text-green-600 dark:text-green-400">+{file.additions}</span>
                 <span className="flex-shrink-0 text-xs text-red-600 dark:text-red-400">−{file.deletions}</span>
               </button>
-              {open && <DiffLines file={file} />}
+              {open && (
+                <DiffLines
+                  file={file}
+                  selection={selection?.path === file.path ? selection : null}
+                  onSelect={chatId ? (index, extend, lines) => selectLine(file.path, index, extend, lines) : undefined}
+                  onComment={addComment}
+                  onCancel={() => setLineSelection(null)}
+                />
+              )}
             </div>
           )
         })}

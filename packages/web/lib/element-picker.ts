@@ -21,9 +21,9 @@ export interface SelectedElement {
   rect: { top: number; left: number; bottom: number }
 }
 
-/** The text added to the chat input for one comment. */
-export function formatElementComment(element: SelectedElement, comment: string): string {
-  return `On ${element.path}, ${element.html} (${element.selector}):\n${comment.trim()}`
+/** What a comment on an element is about. */
+export function elementCommentContext(element: SelectedElement): string {
+  return `On ${element.path}, ${element.html} (${element.selector}):`
 }
 
 export const COMMENT_BOX_WIDTH = 288

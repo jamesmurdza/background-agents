@@ -31,6 +31,7 @@ import type { SlashCommandType } from "@/components/SlashCommandMenu"
 import { useFileUpload } from "@/lib/hooks/useFileUpload"
 import { isModKeyPressed } from "@/lib/keyboard"
 import { useToastStore } from "@/lib/stores/toast-store"
+import { useChatCommentsStore, withPendingComments } from "@/lib/stores/chat-comments-store"
 import { NAVIGATE_TO_CHAT_EVENT, type NavigateToChatEventDetail } from "@/lib/notify"
 import { hasActiveQueue } from "@/lib/chat-state"
 import { queuedSendNotice } from "@/lib/composer-queue"
@@ -183,11 +184,19 @@ export function useChatComposer({
   const isRunning = chat?.status === "running" || hasActiveQueue(chat)
   // Include isSending for instant feedback before server responds
   const isCreating = chat?.status === "creating" || isSending
-  const hasContent = input.trim() || pendingFiles.length > 0
+  // Comments from the Changes panel and Select element go out with the next
+  // message, ahead of what was typed.
+  const pendingComments = useChatCommentsStore((state) => (chat ? state.byChat[chat.id] : undefined))
+  const outgoing = withPendingComments(input, pendingComments ?? [])
+  const clearSentInput = () => {
+    setInput("")
+    if (chat) useChatCommentsStore.getState().clearComments(chat.id)
+  }
+  const hasContent = outgoing || pendingFiles.length > 0
   const queueNotice = queuedSendNotice({ isRunning, isPaused, hasFiles: pendingFiles.length > 0,
-    planMode: planModeEnabled, hasText: !!input.trim() })
+    planMode: planModeEnabled, hasText: !!outgoing })
   // When the agent is running, text-only messages are queued for later dispatch.
-  const canQueue = !chat?.stopPending && !needsRecovery && !queueNotice && !!onEnqueueMessage && !!input.trim() && pendingFiles.length === 0
+  const canQueue = !chat?.stopPending && !needsRecovery && !queueNotice && !!onEnqueueMessage && !!outgoing && pendingFiles.length === 0
   // Paused queue: always show the send button (either to enqueue a new prompt
   // at the end or to resume draining with nothing typed).
   // A new direct send must not skip prompts waiting behind a failed turn.
@@ -302,7 +311,7 @@ export function useChatComposer({
 
   const handleSend = () => {
     if (!canSend) return
-    if (input.trim().length > 100_000) {
+    if (outgoing.length > 100_000) {
       useToastStore.getState().addToast({ title: "Message is too long", body: "Shorten your message to 100,000 characters or fewer. Your draft has been kept." })
       return
     }
@@ -318,8 +327,8 @@ export function useChatComposer({
 
     // If the agent is running, queue the message instead of sending.
     if (isRunning && onEnqueueMessage) {
-      onEnqueueMessage(input.trim(), currentAgent, currentModel, reasoningEffort)
-      setInput("")
+      onEnqueueMessage(outgoing, currentAgent, currentModel, reasoningEffort)
+      clearSentInput()
       textareaRef.current?.focus()
       return
     }
@@ -327,9 +336,9 @@ export function useChatComposer({
     // Paused queue: typed text goes to the end of the queue and unpauses it;
     // with nothing typed, just resume draining.
     if (isPaused) {
-      if (input.trim() && onEnqueueMessage) {
-        onEnqueueMessage(input.trim(), currentAgent, currentModel, reasoningEffort)
-        setInput("")
+      if (outgoing && onEnqueueMessage) {
+        onEnqueueMessage(outgoing, currentAgent, currentModel, reasoningEffort)
+        clearSentInput()
       } else {
         onResumeQueue?.()
       }
@@ -344,17 +353,17 @@ export function useChatComposer({
     // prompts do not carry those options yet.
     if (chat?.status === "ready" && !chat.id.startsWith("draft-") &&
         chat.messages.some((message) => !message.inherited) &&
-        input.trim() && pendingFiles.length === 0 && !planModeEnabled && onEnqueueMessage) {
-      onEnqueueMessage(input.trim(), currentAgent, currentModel, reasoningEffort)
-      setInput("")
+        outgoing && pendingFiles.length === 0 && !planModeEnabled && onEnqueueMessage) {
+      onEnqueueMessage(outgoing, currentAgent, currentModel, reasoningEffort)
+      clearSentInput()
       textareaRef.current?.focus()
       return
     }
 
     // Pass files to sendMessage - upload will happen after sandbox is ready
     const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
-    onSendMessage(input.trim(), currentAgent, currentModel, files, planModeEnabled || undefined, reasoningEffort)
-    setInput("")
+    onSendMessage(outgoing, currentAgent, currentModel, files, planModeEnabled || undefined, reasoningEffort)
+    clearSentInput()
     clearFiles()
     textareaRef.current?.focus()
   }
@@ -363,13 +372,13 @@ export function useChatComposer({
   // the message to it in the background. Triggered by Cmd/Alt/Ctrl+Enter or by
   // holding one of those modifiers while clicking the send button.
   const handleBranchSend = () => {
-    if (git.canBranch && input.trim()) {
+    if (git.canBranch && outgoing) {
       if (blockedProvider) {
         showCreditDialog(blockedProvider, balanceUsd)
         return
       }
-      git.handleBranchWithMessage(input.trim(), currentAgent, currentModel, reasoningEffort)
-      setInput("")
+      git.handleBranchWithMessage(outgoing, currentAgent, currentModel, reasoningEffort)
+      clearSentInput()
       clearFiles()
       textareaRef.current?.focus()
     }

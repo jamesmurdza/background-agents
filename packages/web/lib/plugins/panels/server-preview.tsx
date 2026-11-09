@@ -4,15 +4,14 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { Globe } from "lucide-react"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { PanelState } from "./PanelState"
+import { CommentBox } from "./CommentBox"
 import { useSandboxResource, assertSandboxOk } from "@/lib/hooks/useSandboxResource"
-import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
+import { useChatCommentsStore } from "@/lib/stores/chat-comments-store"
 import { useToastStore } from "@/lib/stores/toast-store"
-import { Textarea } from "@/components/ui/textarea"
 import {
-  COMMENT_BOX_WIDTH,
   PICKER_MESSAGE_PREFIX,
   commentBoxPosition,
-  formatElementComment,
+  elementCommentContext,
   type SelectedElement,
 } from "@/lib/element-picker"
 
@@ -260,13 +259,14 @@ function ServerPreviewComponent({
     }
   }, [pickerUrl, selecting, scale])
 
-  // Several comments can be collected in the chat input before sending.
   const addComment = (comment: string) => {
     if (!chatId || !picker?.selected) return
-    const store = useChatSyncStore.getState()
-    const draft = store.localChatState.drafts[chatId]
-    const text = formatElementComment(picker.selected.element, comment)
-    store.setDraftText(chatId, draft ? `${draft}\n\n${text}` : text)
+    const { element } = picker.selected
+    useChatCommentsStore.getState().addComment(chatId, {
+      label: element.selector.split(" > ").pop() ?? element.selector,
+      context: elementCommentContext(element),
+      comment,
+    })
     setPickerState({ ...picker, selected: undefined })
   }
 
@@ -390,75 +390,16 @@ function ServerPreviewComponent({
         </div>
       )}
       {picker?.selected && (
-        <ElementCommentBox
-          element={picker.selected.element}
-          position={picker.selected.position}
+        // Clicking another element while the box is open moves it there, text kept.
+        <CommentBox
+          label={picker.selected.element.html}
+          target={picker.selected.element}
           onAdd={addComment}
           onCancel={() => setPickerState({ ...picker, selected: undefined })}
+          className="absolute z-10"
+          style={picker.selected.position}
         />
       )}
-    </div>
-  )
-}
-
-function ElementCommentBox({
-  element,
-  position,
-  onAdd,
-  onCancel,
-}: {
-  element: SelectedElement
-  position: { top: number; left: number }
-  onAdd: (comment: string) => void
-  onCancel: () => void
-}) {
-  const [comment, setComment] = useState("")
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-  // Clicking another element while the box is open moves it there, text kept.
-  useEffect(() => inputRef.current?.focus(), [element])
-  const add = () => comment.trim() && onAdd(comment)
-
-  return (
-    <div
-      className="absolute z-10 rounded-md border border-border bg-popover p-2 shadow-lg"
-      style={{ ...position, width: COMMENT_BOX_WIDTH }}
-    >
-      <p className="mb-1.5 truncate font-mono text-[11px] text-muted-foreground" title={element.html}>
-        {element.html}
-      </p>
-      <Textarea
-        ref={inputRef}
-        rows={2}
-        value={comment}
-        placeholder="What should change?"
-        aria-label="Comment on this element"
-        onChange={(e) => setComment(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault()
-            add()
-          } else if (e.key === "Escape") {
-            // Closes only the box; a second Esc leaves select mode.
-            e.preventDefault()
-            onCancel()
-          }
-        }}
-      />
-      <div className="mt-1.5 flex justify-end gap-1.5">
-        <button
-          onClick={onCancel}
-          className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={add}
-          disabled={!comment.trim()}
-          className="rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"
-        >
-          Add to chat
-        </button>
-      </div>
     </div>
   )
 }
