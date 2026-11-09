@@ -43,7 +43,11 @@ await deleteStaleSecrets(daytona, 24 * 60 * 60 * 1000)
 
 To pass a reference to a secret through code that expects a credential value, use `toSecretMarker(name)` / `parseSecretMarker(value)`.
 
-See the JSDoc on each export in `src/` for details. The Daytona API key used needs secrets permissions.
+See the JSDoc on each export in `src/` for details.
+
+## Prerequisites
+
+The Daytona API key used needs secrets permissions.
 
 ## Development
 
