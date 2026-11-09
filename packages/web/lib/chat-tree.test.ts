@@ -52,7 +52,7 @@ describe("isChatVisibleForFilter", () => {
   it("hides a scheduled-job chat when the Scheduled toggle is off, shows it when on", () => {
     const scheduled = makeChat({
       id: "a",
-      scheduledJobRun: { startedAt: 1, jobName: "Nightly sweep" },
+      scheduledJobRun: { jobId: "job1", jobName: "Nightly sweep", status: "completed", startedAt: 1, completedAt: null, prUrl: null, prNumber: null, error: null },
     })
     expect(isChatVisibleForFilter(scheduled, ALL_REPOSITORIES, { active: true, scheduled: false, archived: true })).toBe(false)
     expect(isChatVisibleForFilter(scheduled, ALL_REPOSITORIES, { active: true, scheduled: true, archived: true })).toBe(true)
@@ -62,7 +62,7 @@ describe("isChatVisibleForFilter", () => {
     const both = makeChat({
       id: "a",
       archived: true,
-      scheduledJobRun: { startedAt: 1, jobName: "Nightly sweep" },
+      scheduledJobRun: { jobId: "job1", jobName: "Nightly sweep", status: "completed", startedAt: 1, completedAt: null, prUrl: null, prNumber: null, error: null },
     })
     expect(isChatVisibleForFilter(both, ALL_REPOSITORIES, { active: false, scheduled: true, archived: false })).toBe(true)
     expect(isChatVisibleForFilter(both, ALL_REPOSITORIES, { active: false, scheduled: false, archived: true })).toBe(true)

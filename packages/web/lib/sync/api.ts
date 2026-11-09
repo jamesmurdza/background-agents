@@ -8,6 +8,7 @@
 
 import type { Chat, Message, QueuedMessage, Settings, CustomEndpoint } from "@/lib/types"
 import type { Credentials, CredentialFlags } from "@/lib/credentials"
+import type { ChatScheduledJobRun } from "@/lib/scheduled-jobs/types"
 
 // =============================================================================
 // Types
@@ -50,7 +51,7 @@ export interface ChatResponse {
   queuedMessages?: QueuedMessage[]
   queuePaused?: boolean
   /** Present only for chats created by a scheduled job run. See lib/types.ts's Chat. */
-  scheduledJobRun?: { startedAt: number; jobName: string } | null
+  scheduledJobRun?: ChatScheduledJobRun | null
 }
 
 export interface MessageResponse {
