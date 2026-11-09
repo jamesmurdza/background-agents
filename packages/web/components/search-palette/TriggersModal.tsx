@@ -140,10 +140,10 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs font-semibold text-foreground/70 border-b border-border">
+                      <th className="px-3 py-2">Enabled</th>
                       <th className="px-3 py-2">Name</th>
                       <th className="px-3 py-2">Trigger type</th>
                       <th className="px-3 py-2">Next run</th>
-                      <th className="px-3 py-2">Enabled</th>
                       <th className="px-3 py-2">Last run</th>
                       <th className="px-3 py-2 text-right">Actions</th>
                     </tr>
@@ -155,17 +155,17 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                         className="border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer"
                         onClick={() => handleSelect(job)}
                       >
-                        <td className="px-3 py-2.5 truncate max-w-[14rem]">{job.name}</td>
-                        <td className="px-3 py-2.5"><TriggerTypeCell job={job} /></td>
-                        <td className="px-3 py-2.5 text-muted-foreground">
-                          {job.triggerType === "interval" ? format(job.nextRunAt, "MMM d, h:mm a") : "—"}
-                        </td>
                         <td className="px-3 py-2.5">
                           <Switch
                             checked={job.enabled}
                             onCheckedChange={(enabled) => setEnabled(job, enabled)}
                             aria-label={job.enabled ? "Disable job" : "Enable job"}
                           />
+                        </td>
+                        <td className="px-3 py-2.5 truncate max-w-[14rem]">{job.name}</td>
+                        <td className="px-3 py-2.5"><TriggerTypeCell job={job} /></td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {job.triggerType === "interval" ? format(job.nextRunAt, "MMM d, h:mm a") : "—"}
                         </td>
                         <td className="px-3 py-2.5">
                           <LastRunBadge job={job} />
