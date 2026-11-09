@@ -196,12 +196,19 @@ export function Sidebar({
     let total = 0
     let noRepoCount = 0
     let archivedCount = 0
+    let activeCount = 0
+    let scheduledCount = 0
     chats.forEach((chat) => {
       const hasMessages = chat.messages.length > 0 || (chat.messageCount ?? 0) > 0
       if (!hasMessages) return
       if (chat.archived) {
         archivedCount++
         return
+      }
+      if (chat.scheduledJobRun) {
+        scheduledCount++
+      } else {
+        activeCount++
       }
       total++
       if (chat.repo === NEW_REPOSITORY) {
@@ -210,7 +217,7 @@ export function Sidebar({
         counts[chat.repo] = (counts[chat.repo] || 0) + 1
       }
     })
-    return { counts, total, noRepoCount, archivedCount }
+    return { counts, total, noRepoCount, archivedCount, activeCount, scheduledCount }
   }, [chats])
 
   // Get display name for repository. Repos owned by the current user are shown

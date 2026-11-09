@@ -34,7 +34,7 @@ export interface ChatVisibilityFilters {
 
 export const DEFAULT_CHAT_VISIBILITY_FILTERS: ChatVisibilityFilters = {
   active: true,
-  scheduled: false,
+  scheduled: true,
   archived: true,
 }
 
