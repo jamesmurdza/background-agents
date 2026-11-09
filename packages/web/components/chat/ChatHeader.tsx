@@ -143,7 +143,7 @@ export function ChatHeader({
               if (e.key === "Escape") cancelEditingTitle()
             }}
             onBlur={saveTitle}
-            className="w-56 font-medium"
+            className="h-7 w-56 font-medium"
           />
         ) : (
           <div className={cn("group/title relative flex items-center min-w-0", isJobChat ? "gap-0" : "gap-[2px]")} ref={titleMenuRef}>
