@@ -139,11 +139,8 @@ export function ChatHeader({
         ) : (
           <div className="group/title relative flex items-center gap-[2px] min-w-0" ref={titleMenuRef}>
             <button
-              onClick={isJobChat ? undefined : startEditingTitle}
-              className={cn(
-                "flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none transition-colors",
-                isJobChat ? "cursor-default" : "hover:bg-accent group-hover/title:bg-accent cursor-pointer"
-              )}
+              onClick={isJobChat ? () => setTitleMenuOpen((v) => !v) : startEditingTitle}
+              className="flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-pointer"
               title={isJobChat ? undefined : "Click to rename"}
             >
               <span className="truncate">{chatTitle}</span>

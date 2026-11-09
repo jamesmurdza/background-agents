@@ -1,6 +1,6 @@
 "use client"
 
-import { MoreHorizontal, Play, Pencil, Trash2, KeyRound, Power } from "lucide-react"
+import { MoreHorizontal, Play, Pencil, Trash2, Power } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -13,7 +13,6 @@ interface ScheduledJobActionsMenuProps {
   job: ScheduledJob
   onEdit: (job: ScheduledJob) => void
   onRunNow: (job: ScheduledJob) => void
-  onRotateToken?: (job: ScheduledJob) => void
   onToggleEnabled?: (job: ScheduledJob, enabled: boolean) => void
   onRequestDelete: (job: ScheduledJob) => void
   /** Stop the trigger click from bubbling to a row's onClick (row layouts only). */
@@ -38,7 +37,6 @@ export function ScheduledJobActionsMenu({
   job,
   onEdit,
   onRunNow,
-  onRotateToken,
   onToggleEnabled,
   onRequestDelete,
   stopPropagation,
@@ -76,12 +74,6 @@ export function ScheduledJobActionsMenu({
           <DropdownMenuItem onSelect={() => onToggleEnabled(job, !job.enabled)}>
             <Power className="h-3.5 w-3.5 mr-2" />
             {job.enabled ? "Disable" : "Enable"}
-          </DropdownMenuItem>
-        )}
-        {job.triggerType === "incoming" && onRotateToken && (
-          <DropdownMenuItem onSelect={() => onRotateToken(job)}>
-            <KeyRound className="h-3.5 w-3.5 mr-2" />
-            Rotate Webhook Token
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
