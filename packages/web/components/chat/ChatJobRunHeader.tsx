@@ -10,9 +10,16 @@ import type { ChatScheduledJobRun } from "@/lib/scheduled-jobs/types"
 
 /** "Nov 9, 3:00pm" — month capitalized, am/pm lowercase. Matches
  *  getChatDisplayTitle's formatting in lib/chat-tree.ts so run dates look
- *  consistent wherever they're shown. */
+ *  consistent wherever they're shown. Used for the trigger button, which
+ *  stays compact since it sits inline with the title. */
 function formatRunDate(startedAt: number): string {
   return format(startedAt, "MMM d, h:mma").replace(/AM|PM/, (m) => m.toLowerCase())
+}
+
+/** "November 9, 3:00pm" — same as formatRunDate but with the full month
+ *  name, used inside the dropdown list where there's room for it. */
+function formatRunDateLong(startedAt: number): string {
+  return format(startedAt, "MMMM d, h:mma").replace(/AM|PM/, (m) => m.toLowerCase())
 }
 
 interface ChatJobRunHeaderProps {
@@ -52,7 +59,7 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
       </button>
 
       {runsOpen && (
-        <div className="absolute left-0 top-full mt-1 min-w-[220px] max-h-72 overflow-y-auto rounded-md border border-border bg-popover shadow-md py-1 z-50">
+        <div className="absolute left-0 top-full mt-1 min-w-[260px] max-h-72 overflow-y-auto rounded-md border border-border bg-popover shadow-md py-1 z-50">
           {runs.length === 0 ? (
             <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>
           ) : (
@@ -71,7 +78,7 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
                 )}
               >
                 <RunStatusDot status={r.status} />
-                <span className="flex-1 truncate">{formatRunDate(r.startedAt)}</span>
+                <span className="flex-1 truncate">{formatRunDateLong(r.startedAt)}</span>
                 {r.chatId === currentChatId && <Check className="h-3.5 w-3.5 shrink-0" />}
               </button>
             ))
