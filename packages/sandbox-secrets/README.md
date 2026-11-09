@@ -8,7 +8,7 @@ This package simplifies secret handling by abstracting away the lifecycle of a D
 - Automatic "last used" tracking and expiry, instead of manually deleting secrets you're done with
 - Automatically keeping a secret attached so a sandbox's proxy stays on, instead of needing a reboot
 
-In short: ask for a credential when you need one, and schedule a periodic cleanup — everything else is handled for you.
+In short: secrets are identified only by their value and list of allowed hosts — they're created automatically when you ask for them, and cleaned up on the schedule you choose to run.
 
 ## Prerequisites
 
