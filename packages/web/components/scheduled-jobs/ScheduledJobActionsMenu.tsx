@@ -29,7 +29,7 @@ interface ScheduledJobActionsMenuProps {
 /**
  * Job actions menu shared by the job detail page's header (previously also
  * JobsList's per-row menu, before the standalone jobs list was removed) and
- * the Agents command palette's row menu, so the markup lives in exactly one
+ * the Triggers modal's row menu, so the markup lives in exactly one
  * place. By default Edit is a standalone button to the left of the "..."
  * trigger (most common action); pass editInMenu to fold it into the
  * dropdown instead (see editInMenu above).
