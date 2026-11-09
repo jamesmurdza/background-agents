@@ -142,6 +142,16 @@ GMAIL_MCP_BASE_URL=""   # optional, defaults to NEXTAUTH_URL
 
 See [`mcp`](../mcp/README.md) for setup.
 
+To enable the Paddle MCP server (Paddle's own hosted server, OAuth with PKCE
+— no client secret), register a public OAuth client with Paddle (redirect URI
+`<NEXTAUTH_URL>/api/mcp/connect/paddle/callback`, scope `offline_access`),
+then set:
+
+```bash
+PADDLE_CLIENT_ID="..."
+PADDLE_MCP_JWT_SECRET="..."
+```
+
 To let users connect Netlify (Settings → API keys), create an OAuth application at [app.netlify.com/applications](https://app.netlify.com/applications) with the redirect URI `<NEXTAUTH_URL>/api/netlify/callback`, then set:
 
 ```bash

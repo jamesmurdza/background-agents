@@ -1,7 +1,7 @@
 /**
  * @background-agents/mcp
  *
- * MCP provider abstractions for GitHub, Smithery, and Gmail.
+ * MCP provider abstractions for GitHub, Smithery, Gmail, and Paddle.
  *
  * This package provides framework-agnostic implementations for connecting to
  * MCP servers through different providers:
@@ -14,6 +14,10 @@
  *
  * - **Gmail**: Our own MCP server (served by the web app) that enforces a
  *   per-connection tool policy in front of the Gmail API.
+ *
+ * - **Paddle**: Uses OAuth (authorization_code + PKCE) against Paddle's own
+ *   authorization server to mint access tokens for Paddle's hosted MCP
+ *   server (mcp.paddle.com/mcp).
  *
  * @example
  * ```typescript
@@ -67,6 +71,15 @@ export {
   SMITHERY_API_BASE,
   isSmitheryServer,
 } from "./smithery"
+
+// Paddle provider
+export {
+  createPaddleMcpProvider,
+  PaddleMcpProvider,
+  type PaddleMcpConfig,
+  PADDLE_MCP_URL,
+  PADDLE_MCP_QUALIFIED_NAME,
+} from "./paddle"
 
 // Gmail provider
 export {

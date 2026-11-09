@@ -149,7 +149,7 @@ import { stripAnsi, parseSkillList, extractCleanError } from "@background-agents
 ## Requirements
 
 - Node.js >= 20.9.0
-- `@daytonaio/sdk` >= 0.170.0 (peer dependency for sandbox operations)
+- `@daytonaio/sdk` >= 0.217.0 (peer dependency for sandbox operations)
 
 ## Tests
 

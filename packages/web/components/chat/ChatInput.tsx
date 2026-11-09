@@ -15,6 +15,7 @@ import { useTriggerOptionsState } from "@/lib/hooks/useTriggerOptionsState"
 import { useCreateScheduledJobFromComposer } from "@/lib/hooks/useCreateScheduledJobFromComposer"
 import { isModKeyPressed } from "@/lib/keyboard"
 import type { Chat, Agent, CredentialFlags, PendingFile } from "@/lib/types"
+import type { PendingMcpServer } from "@/lib/storage"
 import { NEW_REPOSITORY, sharedPoolProviderForModel, agentLabels, getModelLabel } from "@/lib/types"
 import { basename } from "@/lib/format"
 import { queuedSendNotice } from "@/lib/composer-queue"
@@ -106,7 +107,8 @@ interface ChatInputProps {
   // MCP servers (chat-scoped, draft-aware)
   showMcpButton: boolean
   isDraftChat: boolean
-  onMaterializeDraftForMcp: (draftId: string) => Promise<string | null>
+  pendingMcpServers?: PendingMcpServer[]
+  onPendingMcpServersChange?: (servers: PendingMcpServer[]) => void
   // Mobile
   isMobile: boolean
 }
@@ -313,7 +315,8 @@ export function ChatInput({
   // MCP servers
   showMcpButton,
   isDraftChat,
-  onMaterializeDraftForMcp,
+  pendingMcpServers,
+  onPendingMcpServersChange,
   // Mobile
   isMobile,
 }: ChatInputProps) {
@@ -870,7 +873,8 @@ export function ChatInput({
                 entityId={chat.id}
                 apiBase="/api/chats"
                 isDraft={isDraftChat}
-                onMaterializeDraft={onMaterializeDraftForMcp}
+                pendingServers={pendingMcpServers}
+                onPendingServersChange={onPendingMcpServersChange}
                 open={modals.mcpServersModalOpen}
                 onOpenChange={modals.setMcpServersModalOpen}
                 isMobile={isMobile}

@@ -70,11 +70,6 @@ interface UseDraftChatResult {
   /** Optimistic message bubble shown on a just-sent draft so the welcome screen leaves instantly. */
   optimisticDraft: OptimisticDraft | null
   setOptimisticDraft: React.Dispatch<React.SetStateAction<OptimisticDraft | null>>
-  /**
-   * Materialize the draft chat for the MCP modal (it can't persist changes
-   * against a non-existent chat row). Returns the real chatId or null on failure.
-   */
-  handleMaterializeDraftForMcp: (draftId: string) => Promise<string | null>
 }
 
 /**
@@ -245,16 +240,6 @@ export function useDraftChat({
     updateDraft(currentChatId, draft)
   }, [isDraftMode, currentChatId, updateDraft])
 
-  // Materialize the draft chat when the MCP modal needs to commit a change.
-  // Returns the real chatId, or null if materialization failed.
-  const handleMaterializeDraftForMcp = useCallback(
-    async (draftId: string): Promise<string | null> => {
-      const materialized = await materializeDraft(draftId)
-      return materialized?.id ?? null
-    },
-    [materializeDraft]
-  )
-
   return {
     displayCurrentChat,
     isDraftMode,
@@ -264,6 +249,5 @@ export function useDraftChat({
     handleDraftChange,
     optimisticDraft,
     setOptimisticDraft,
-    handleMaterializeDraftForMcp,
   }
 }

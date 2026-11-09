@@ -12,6 +12,7 @@ import {
 } from "./chat"
 import { cn } from "@/lib/utils"
 import type { Chat, Settings, CredentialFlags } from "@/lib/types"
+import type { PendingMcpServer } from "@/lib/storage"
 import { NEW_REPOSITORY, agentSupportsPlanMode } from "@/lib/types"
 import type { SlashCommandType } from "./SlashCommandMenu"
 import { useChatComposer } from "@/lib/hooks/useChatComposer"
@@ -38,8 +39,10 @@ interface ChatPanelProps {
   onOpenSkills?: () => void
   /** True when the current chat is a not-yet-persisted draft. */
   isDraftChat?: boolean
-  /** Persists the draft chat to the DB and returns the real chatId. */
-  onMaterializeDraftForMcp?: (draftId: string) => Promise<string | null>
+  /** MCP servers staged on the draft chat config (draft chats only — see lib/storage.ts). */
+  pendingMcpServers?: PendingMcpServer[]
+  /** Updates the staged MCP server list on the draft chat config (draft chats only). */
+  onPendingMcpServersChange?: (servers: PendingMcpServer[]) => void
   isMobile?: boolean
   /** Whether messages are currently being loaded for this chat */
   isLoadingMessages?: boolean
@@ -59,7 +62,7 @@ interface ChatPanelProps {
   onOpenSandboxResize?: () => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenChanges, onOpenEnvVars, onOpenSkills, isDraftChat = false, onMaterializeDraftForMcp, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, isAdmin = false, onOpenSandboxResize }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenChanges, onOpenEnvVars, onOpenSkills, isDraftChat = false, pendingMcpServers, onPendingMcpServersChange, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, isAdmin = false, onOpenSandboxResize }: ChatPanelProps) {
   const [modelPickerRequest, setModelPickerRequest] = useState<{ chatId: string; sequence: number }>()
   const composer = useChatComposer({
     chat,
@@ -222,9 +225,10 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
       onReasoningEffortChange={setReasoningEffort}
       reasoningEffortCapability={reasoningEffortCapability}
       // MCP servers — only show when authenticated and we have a chat to attach to.
-      showMcpButton={isAuthenticated && !!chat?.id && !!onMaterializeDraftForMcp}
+      showMcpButton={isAuthenticated && !!chat?.id}
       isDraftChat={isDraftChat}
-      onMaterializeDraftForMcp={onMaterializeDraftForMcp ?? (async () => null)}
+      pendingMcpServers={pendingMcpServers}
+      onPendingMcpServersChange={onPendingMcpServersChange}
       // Mobile
       isMobile={isMobile}
     />

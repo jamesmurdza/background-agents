@@ -72,6 +72,11 @@ model User {
   // scoped by McpServerConnection.toolPolicy, never this credential.
   googleRefreshTokenEncrypted String? @db.Text
 
+  // Encrypted Paddle OAuth refresh token, captured in the Paddle connect
+  // callback. agent-servers.ts exchanges it for a short-lived access token
+  // per turn; the agent never sees this credential.
+  paddleRefreshTokenEncrypted String? @db.Text
+
   chats              Chat[]
   accounts           Account[]
   sessions           Session[]
@@ -189,6 +194,12 @@ model Chat {
   // confirmed check after a completed agent turn. A failed check keeps the
   // last known value; this is surfaced independently of push notifications.
   uncommittedFilesCount Int @default(0)
+
+  // Whether the sandbox's repo has any commits at all, from that same
+  // check. Needed alongside uncommittedFilesCount for the no-linked-repo
+  // warning: a chat can have zero uncommitted files yet still have commits
+  // that only exist in the sandbox (nothing to show for a truly empty repo).
+  hasCommits Boolean @default(false)
 
   // JSONB for encrypted chat-level environment variables
   // { "KEY1": "encrypted_value1", ... }

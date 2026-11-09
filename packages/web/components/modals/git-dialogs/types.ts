@@ -1,4 +1,5 @@
 import type { Chat } from "@/lib/types"
+import type { PendingMcpServer } from "@/lib/storage"
 import { type RebaseConflictState } from "@background-agents/common"
 
 // Re-export for convenience
@@ -39,10 +40,17 @@ export interface UseGitDialogsOptions {
   isDraftChatId?: (chatId: string | null) => boolean
   /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
   materializeDraft?: (draftId: string) => Promise<Chat | null>
-  /** Draft chat's staged config (repo, pending env vars, etc.), if there is one. */
-  draftChatConfig?: { id: string; pendingEnvironmentVariables?: Record<string, string> }
+  /** Draft chat's staged config (repo, pending env vars, pending MCP servers, etc.), if there is one. */
+  draftChatConfig?: {
+    id: string
+    pendingEnvironmentVariables?: Record<string, string>
+    pendingMcpServers?: PendingMcpServer[]
+  }
   /** Stage/update the draft chat's config. */
-  updateDraftChatConfig?: (updates: { pendingEnvironmentVariables?: Record<string, string> }) => void
+  updateDraftChatConfig?: (updates: {
+    pendingEnvironmentVariables?: Record<string, string>
+    pendingMcpServers?: PendingMcpServer[]
+  }) => void
 }
 
 /** PR description format options */

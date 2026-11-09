@@ -28,7 +28,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 const chat = (id: string, updatedAt = 1): Chat => ({ id: "chat", repo: "__new__", baseBranch: "main", branch: null, sandboxId: "sandbox", sessionId: null, messages: [], createdAt: 1, updatedAt, displayName: null, status: "running", backgroundSessionId: id, activeAssistantMessageId: `assistant-${id}` })
-const remote = (overrides: Partial<ChatWithMessagesResponse> = {}): ChatWithMessagesResponse => ({ ...chat("A"), agent: "eliza", model: "eliza", planModeEnabled: false, previewUrlPattern: null, parentChatId: null, needsSync: false, uncommittedFilesCount: 0, lastActiveAt: 1, backgroundSessionId: "A", activeAssistantMessageId: "assistant-A", messageCount: 0, messages: [], ...overrides })
+const remote = (overrides: Partial<ChatWithMessagesResponse> = {}): ChatWithMessagesResponse => ({ ...chat("A"), agent: "eliza", model: "eliza", planModeEnabled: false, previewUrlPattern: null, parentChatId: null, needsSync: false, uncommittedFilesCount: 0, hasCommits: false, lastActiveAt: 1, backgroundSessionId: "A", activeAssistantMessageId: "assistant-A", messageCount: 0, messages: [], ...overrides })
 let cache: Chat[]
 const update = (fn: (value: Chat[]) => Chat[]) => { cache = fn(cache) }
 const messageSync = () => useChatMessageSync({ chats: cache, currentChatId: "chat", isHydrated: true, updateChatsCache: update })

@@ -368,6 +368,7 @@ export async function getChatWithAuth(
   parentChatId: string | null
   needsSync: boolean
   uncommittedFilesCount: number
+  hasCommits: boolean
   queuePaused: boolean
   queueDispatchId: string | null
   environmentVariables: unknown

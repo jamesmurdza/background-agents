@@ -77,6 +77,7 @@ export function useChatMessageSync({
               messages: mergeMessages(c.messages, incomingMessages),
               messageCount: chatData.messageCount,
               uncommittedFilesCount: chatData.uncommittedFilesCount,
+              hasCommits: chatData.hasCommits,
             }
           })
         )
@@ -103,7 +104,7 @@ export function useChatMessageSync({
       updateChatsCache((old) =>
         old.map((c) =>
           c.id === chatId
-            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount, uncommittedFilesCount: chatData.uncommittedFilesCount }
+            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount, uncommittedFilesCount: chatData.uncommittedFilesCount, hasCommits: chatData.hasCommits }
             : c
         )
       )
@@ -133,7 +134,7 @@ export function useChatMessageSync({
       updateChatsCache((old) =>
         old.map((c) => {
           if (c.id !== chatId) return c
-          return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount }
+          return { ...c, messages: mergeMessages(c.messages, incomingMessages), uncommittedFilesCount: chatData.uncommittedFilesCount, hasCommits: chatData.hasCommits }
         })
       )
     } catch (err) {

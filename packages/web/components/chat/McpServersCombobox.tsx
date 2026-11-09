@@ -27,7 +27,9 @@ import {
   type GmailToolPolicy,
   parseGmailToolPolicy,
 } from "@background-agents/mcp/gmail/policy"
+import { PADDLE_MCP_QUALIFIED_NAME } from "@background-agents/mcp"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
+import type { PendingMcpServer } from "@/lib/storage"
 import {
   Command,
   CommandEmpty,
@@ -36,6 +38,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { GmailIcon } from "@/components/icons/gmail-icon"
+import { PaddleIcon } from "@/components/icons/paddle-icon"
 import { ComboboxTriggerButton } from "./ComboboxTriggerButton"
 import { GmailSettingsDialog } from "./GmailSettingsDialog"
 import {
@@ -122,6 +125,19 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
     attachPath: "gmail",
     popupName: "gmail-oauth",
   },
+  {
+    slug: PADDLE_MCP_QUALIFIED_NAME,
+    name: "Paddle",
+    description: "Billing, subscriptions and customers via Paddle",
+    iconUrl: null,
+    url: null,
+    verified: true,
+    useCount: 0,
+    icon: PaddleIcon,
+    connectApi: "/api/mcp/connect/paddle",
+    attachPath: "paddle",
+    popupName: "paddle-oauth",
+  },
 ]
 
 const FIRST_PARTY_BY_SLUG = new Map(FIRST_PARTY_SERVERS.map((s) => [s.slug, s]))
@@ -159,10 +175,15 @@ interface McpServersComboboxProps {
    */
   isDraft?: boolean
   /**
-   * Called when a draft needs to be materialized before the first MCP write.
-   * Returns the real id (or null on failure). Only used when `isDraft` is true.
+   * MCP servers staged on the draft's local config while `isDraft` is true —
+   * selecting a server on a draft never materializes it (that used to force
+   * an unwanted navigation away from the draft screen); it just stages the
+   * selection here. Applied for real once the chat materializes — see
+   * `applyPendingMcpServers` in lib/sandbox-client.ts.
    */
-  onMaterializeDraft?: (draftId: string) => Promise<string | null>
+  pendingServers?: PendingMcpServer[]
+  /** Updates the staged server list above. Only used when `isDraft` is true. */
+  onPendingServersChange?: (servers: PendingMcpServer[]) => void
   disabled?: boolean
   isMobile?: boolean
   /** Optional controlled open state (e.g. from the command palette). */
@@ -180,7 +201,8 @@ export function McpServersCombobox({
   entityId,
   apiBase,
   isDraft: isDraftProp = false,
-  onMaterializeDraft,
+  pendingServers,
+  onPendingServersChange,
   disabled = false,
   isMobile = false,
   open: openProp,
@@ -208,15 +230,23 @@ export function McpServersCombobox({
     setIsDraft(isDraftProp)
   }, [entityId, isDraftProp])
 
-  const resolveEntityId = useCallback(async (): Promise<string | null> => {
-    if (!isDraft) return effectiveId
-    if (!onMaterializeDraft) return effectiveId
-    const realId = await onMaterializeDraft(effectiveId)
-    if (!realId) return null
-    setEffectiveId(realId)
-    setIsDraft(false)
-    return realId
-  }, [isDraft, effectiveId, onMaterializeDraft])
+  // Selecting a server never materializes the draft — selection just stages
+  // into `pendingServers` (see props doc above). Real entity-scoped writes
+  // (handleDisconnect, handleUpdateToolPolicy, and both toggle handlers below)
+  // only run once `isDraft` is false, so they can rely on `effectiveId` being
+  // a real id.
+
+  const pendingSlugs = useMemo(
+    () => new Set((isDraft ? pendingServers : undefined)?.map((p) => p.slug) ?? []),
+    [isDraft, pendingServers]
+  )
+
+  const updatePendingServers = useCallback(
+    (update: (prev: PendingMcpServer[]) => PendingMcpServer[]) => {
+      onPendingServersChange?.(update(pendingServers ?? []))
+    },
+    [onPendingServersChange, pendingServers]
+  )
 
   const [connected, setConnected] = useState<ConnectedServer[]>([])
   const [registry, setRegistry] = useState<RegistryServer[]>([])
@@ -355,15 +385,22 @@ export function McpServersCombobox({
   }
 
   async function handleToggleFirstParty(server: FirstPartyServer) {
-    const existing = connectedByName.get(server.slug)
-    if (existing) {
-      setBusySlug(server.slug)
-      try {
-        await handleDisconnect(existing.id)
-      } finally {
-        setBusySlug(null)
+    if (isDraft) {
+      if (pendingSlugs.has(server.slug)) {
+        updatePendingServers((prev) => prev.filter((p) => p.slug !== server.slug))
+        return
       }
-      return
+    } else {
+      const existing = connectedByName.get(server.slug)
+      if (existing) {
+        setBusySlug(server.slug)
+        try {
+          await handleDisconnect(existing.id)
+        } finally {
+          setBusySlug(null)
+        }
+        return
+      }
     }
     if (busySlug) return
     setBusySlug(server.slug)
@@ -383,12 +420,21 @@ export function McpServersCombobox({
         if (!status?.connected) return
       }
 
-      const id = await resolveEntityId()
-      if (!id) return
-      const res = await fetch(`${apiBase}/${id}/mcp-servers/${server.attachPath}`, {
+      // Account-level link is done (chat-independent). Attaching it to the
+      // chat is the only part that needs a real entity id — on a draft, just
+      // stage it instead of forcing materialization.
+      if (isDraft) {
+        updatePendingServers((prev) => [
+          ...prev,
+          { slug: server.slug, name: server.name, iconUrl: server.iconUrl, attachPath: server.attachPath },
+        ])
+        return
+      }
+
+      const res = await fetch(`${apiBase}/${effectiveId}/mcp-servers/${server.attachPath}`, {
         method: "POST",
       })
-      if (res.ok) await loadConnectedFor(id)
+      if (res.ok) await loadConnectedFor(effectiveId)
     } catch (err) {
       console.error(`[McpServersCombobox] ${server.name} connect failed:`, err)
     } finally {
@@ -445,15 +491,22 @@ export function McpServersCombobox({
   }
 
   async function handleToggleServer(server: RegistryServer) {
-    const existing = connectedByName.get(server.slug)
-    if (existing) {
-      setBusySlug(server.slug)
-      try {
-        await handleDisconnect(existing.id)
-      } finally {
-        setBusySlug(null)
+    if (isDraft) {
+      if (pendingSlugs.has(server.slug)) {
+        updatePendingServers((prev) => prev.filter((p) => p.slug !== server.slug))
+        return
       }
-      return
+    } else {
+      const existing = connectedByName.get(server.slug)
+      if (existing) {
+        setBusySlug(server.slug)
+        try {
+          await handleDisconnect(existing.id)
+        } finally {
+          setBusySlug(null)
+        }
+        return
+      }
     }
     if (busySlug) return
     setBusySlug(server.slug)
@@ -467,12 +520,21 @@ export function McpServersCombobox({
         if (!url) throw new Error("Server does not expose a remote URL")
       }
 
-      const id = await resolveEntityId()
-      if (!id) {
-        setBusySlug(null)
+      // Connecting a brand-new remote server can require an OAuth/setup popup
+      // tied to a real per-chat connection row, which a draft doesn't have.
+      // Stage the simple case (no popup needed) locally; this covers the vast
+      // majority of registry servers. If the real connect flow below turns
+      // out to need a popup, the caller is already past materialization by
+      // then (non-draft), so that path is unaffected.
+      if (isDraft) {
+        updatePendingServers((prev) => [
+          ...prev,
+          { slug: server.slug, name: server.name, iconUrl: server.iconUrl, url },
+        ])
         return
       }
 
+      const id = effectiveId
       const res = await fetch(`${apiBase}/${id}/mcp-servers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -531,7 +593,14 @@ export function McpServersCombobox({
 
   // ---------- render ----------
 
-  const connectedCount = connected.length
+  // Whether a slug counts as "attached" for display purposes — the staged
+  // draft selection when in draft mode, otherwise the real per-chat list.
+  const isSlugConnected = useCallback(
+    (slug: string) => (isDraft ? pendingSlugs.has(slug) : connectedByName.has(slug)),
+    [isDraft, pendingSlugs, connectedByName]
+  )
+
+  const connectedCount = isDraft ? pendingSlugs.size : connected.length
   const triggerLabel = `MCP servers${connectedCount > 0 ? `, ${connectedCount} connected` : ""}`
 
   // Combine first-party + registry, filter by search, sort connected to top
@@ -548,19 +617,19 @@ export function McpServersCombobox({
       ...registry.filter(
         (s) =>
           matches(s) &&
-          (connectedByName.has(s.slug) || !isSupersededRegistryServer(s))
+          (isSlugConnected(s.slug) || !isSupersededRegistryServer(s))
       ),
     ]
 
     // Sort: connected servers first
     return combined.sort((a, b) => {
-      const aConnected = connectedByName.has(a.slug)
-      const bConnected = connectedByName.has(b.slug)
+      const aConnected = isSlugConnected(a.slug)
+      const bConnected = isSlugConnected(b.slug)
       if (aConnected && !bConnected) return -1
       if (!aConnected && bConnected) return 1
       return 0
     })
-  }, [search, registry, connectedByName])
+  }, [search, registry, isSlugConnected])
 
   return (
     <>
@@ -620,9 +689,9 @@ export function McpServersCombobox({
               allServers.map((s) => {
                 const firstParty = FIRST_PARTY_BY_SLUG.get(s.slug)
                 const connectedServer = connectedByName.get(s.slug)
-                const isConn = !!connectedServer
-                const hasError = connectedServer?.status === "error"
-                const isPending = connectedServer?.status === "pending"
+                const isConn = isSlugConnected(s.slug)
+                const hasError = !isDraft && connectedServer?.status === "error"
+                const isPending = !isDraft && connectedServer?.status === "pending"
                 const isBusy = busySlug === s.slug
                 const handleSelect = firstParty
                   ? () => handleToggleFirstParty(firstParty)

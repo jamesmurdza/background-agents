@@ -2,7 +2,18 @@ import { execFileSync, spawnSync } from "node:child_process"
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { describe, expect, it, vi } from "vitest"
-import { inspectUncommittedFiles } from "./uncommitted-files"
+import { inspectGitWorkingTree } from "./uncommitted-files"
+
+function makeSandbox(root: string) {
+  return {
+    process: {
+      executeCommand: async (command: string) => {
+        const res = spawnSync("/bin/sh", ["-c", command], { cwd: root, encoding: "utf8" })
+        return { result: res.stdout + res.stderr, exitCode: res.status ?? 1 }
+      },
+    },
+  }
+}
 
 function repoFixture() {
   const root = mkdtempSync("/private/tmp/backgrounder-uncommitted-test-")
@@ -24,30 +35,26 @@ function repoFixture() {
   write(".gitignore", "ignored/\n")
   git("add", ".gitignore")
   git("commit", "-m", "baseline")
-
-  const sandbox = {
-    process: {
-      executeCommand: async (command: string) => {
-        const res = spawnSync("/bin/sh", ["-c", command], { cwd: root, encoding: "utf8" })
-        return { result: res.stdout + res.stderr, exitCode: res.status ?? 1 }
-      },
-    },
-  }
-  return { root, git, write, sandbox }
+  return { root, git, write, sandbox: makeSandbox(root) }
 }
 
-describe("inspectUncommittedFiles", () => {
+/** Just the uncommitted count, for assertions that don't care about hasCommits. */
+async function files(sandbox: ReturnType<typeof makeSandbox>, root: string) {
+  return (await inspectGitWorkingTree(sandbox, root))?.uncommittedFilesCount
+}
+
+describe("inspectGitWorkingTree", () => {
   it("distinguishes clean, untracked, staged, and ignored files", async () => {
     const f = repoFixture()
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
+    expect(await files(f.sandbox, f.root)).toBe(0)
     f.write("ignored/output.log")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
+    expect(await files(f.sandbox, f.root)).toBe(0)
     f.write("src/new-page.tsx")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(1)
+    expect(await files(f.sandbox, f.root)).toBe(1)
     f.git("add", "src/new-page.tsx")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(1)
+    expect(await files(f.sandbox, f.root)).toBe(1)
     f.git("commit", "-m", "add new page")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
+    expect(await files(f.sandbox, f.root)).toBe(0)
   })
 
   it("finds nested files even when Git is configured to hide untracked files", async () => {
@@ -55,7 +62,7 @@ describe("inspectUncommittedFiles", () => {
     f.git("config", "status.showUntrackedFiles", "no")
     f.write("nested/file with spaces.ts")
     f.write("nested/line\nbreak.ts")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(2)
+    expect(await files(f.sandbox, f.root)).toBe(2)
   })
 
   it("counts edited and deleted files that were committed before", async () => {
@@ -66,9 +73,9 @@ describe("inspectUncommittedFiles", () => {
     f.git("commit", "-m", "baseline files")
     f.write("src/toast.tsx", "new\n")
     f.git("rm", "-q", "src/old.ts")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(2)
+    expect(await files(f.sandbox, f.root)).toBe(2)
     f.git("commit", "-am", "edit and delete")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
+    expect(await files(f.sandbox, f.root)).toBe(0)
   })
 
   it("warns when a successful push leaves a new file outside the remote commit", async () => {
@@ -85,19 +92,39 @@ describe("inspectUncommittedFiles", () => {
 
     expect(f.git("--git-dir", remote, "show", "main:tracked.txt")).toBe("pushed\n")
     expect(() => f.git("--git-dir", remote, "show", "main:not-pushed.txt")).toThrow()
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(1)
+    expect(await files(f.sandbox, f.root)).toBe(1)
 
     f.git("add", "not-pushed.txt")
     f.git("commit", "-m", "include missing file")
     f.git("push", "origin", "main")
     expect(f.git("--git-dir", remote, "show", "main:not-pushed.txt")).toBe("missing from GitHub\n")
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBe(0)
+    expect(await files(f.sandbox, f.root)).toBe(0)
   })
 
-  it("returns unknown when Git status fails", async () => {
+  it("is false for a repo with no commits beyond the scaffold's own baseline one", async () => {
+    const root = mkdtempSync("/private/tmp/backgrounder-uncommitted-test-")
+    execFileSync("git", ["init", "--initial-branch=main", root], { stdio: "pipe" })
+    const sandbox = makeSandbox(root)
+    expect(await inspectGitWorkingTree(sandbox, root)).toEqual({ uncommittedFilesCount: 0, hasCommits: false })
+
+    // Every sandbox repo starts from a template with one commit already
+    // made (by the scaffolding tool, not the user) — repoFixture's baseline
+    // commit mirrors that. hasCommits must stay false here: "HEAD exists"
+    // alone can't be the signal, since that's true immediately for every
+    // chat regardless of whether the agent has done anything.
+    const f = repoFixture()
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 0, hasCommits: false })
+    f.write("src/new-page.tsx")
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 1, hasCommits: false })
+    f.git("add", "src/new-page.tsx")
+    f.git("commit", "-m", "add new page")
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toEqual({ uncommittedFilesCount: 0, hasCommits: true })
+  })
+
+  it("returns unknown when Git fails", async () => {
     const f = repoFixture()
     f.sandbox.process.executeCommand = async () => ({ result: "Git failed", exitCode: 1 })
-    expect(await inspectUncommittedFiles(f.sandbox, f.root)).toBeNull()
+    expect(await inspectGitWorkingTree(f.sandbox, f.root)).toBeNull()
   })
 
   it("does not block turn completion if the sandbox stalls", async () => {
@@ -105,7 +132,7 @@ describe("inspectUncommittedFiles", () => {
     try {
       const f = repoFixture()
       f.sandbox.process.executeCommand = async () => new Promise(() => {})
-      const inspection = inspectUncommittedFiles(f.sandbox, f.root)
+      const inspection = inspectGitWorkingTree(f.sandbox, f.root)
       await vi.advanceTimersByTimeAsync(5000)
       expect(await inspection).toBeNull()
     } finally {

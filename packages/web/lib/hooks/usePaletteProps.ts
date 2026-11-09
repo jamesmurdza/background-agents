@@ -4,7 +4,7 @@ import type React from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import { signInWithGitHub } from "@/lib/auth-utils"
-import { clearAllStorage } from "@/lib/storage"
+import { clearAllStorage, type PendingMcpServer } from "@/lib/storage"
 import { PaletteProvider } from "@/components/search-palette"
 import type { GitHubRepo, GitHubBranch } from "@/lib/github"
 import { NEW_REPOSITORY, isRealRepo, type Chat } from "@/lib/types"
@@ -66,10 +66,17 @@ interface UsePalettePropsOptions {
 
   /** Materializes a draft chat into a real one; see lib/hooks/useChatWithSync.ts. */
   materializeDraft: (draftId: string) => Promise<Chat | null>
-  /** Draft chat's staged config (repo, pending env vars, etc.), if there is one. */
-  draftChatConfig?: { id: string; pendingEnvironmentVariables?: Record<string, string> }
+  /** Draft chat's staged config (repo, pending env vars, pending MCP servers, etc.), if there is one. */
+  draftChatConfig?: {
+    id: string
+    pendingEnvironmentVariables?: Record<string, string>
+    pendingMcpServers?: PendingMcpServer[]
+  }
   /** Stage/update the draft chat's config. */
-  updateDraftChatConfig?: (updates: { pendingEnvironmentVariables?: Record<string, string> }) => void
+  updateDraftChatConfig?: (updates: {
+    pendingEnvironmentVariables?: Record<string, string>
+    pendingMcpServers?: PendingMcpServer[]
+  }) => void
   /**
    * Update an arbitrary chat by id (not just "the current chat") — needed
    * when a draft chat has just been materialized under us: `currentChat` /
@@ -154,10 +161,18 @@ export function usePaletteProps({
   // lib/sandbox-client.ts), so there's nothing further to wire up here.
   const materializeDraftForTerminal = async (): Promise<string | null> => {
     if (!displayCurrentChatId || !isDraftChatId(displayCurrentChatId)) return null
-    const chatId = await materializeDraftChat(displayCurrentChatId, materializeDraft, {
-      environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
-      clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
-    })
+    const chatId = await materializeDraftChat(
+      displayCurrentChatId,
+      materializeDraft,
+      {
+        environmentVariables: draftChatConfig?.pendingEnvironmentVariables,
+        clearPending: () => updateDraftChatConfig?.({ pendingEnvironmentVariables: undefined }),
+      },
+      {
+        servers: draftChatConfig?.pendingMcpServers,
+        clearPending: () => updateDraftChatConfig?.({ pendingMcpServers: undefined }),
+      }
+    )
     if (!chatId) return null
     // Fire-and-forget: boots the sandbox and patches sandboxId into the
     // cache once ready. Not awaited — the terminal panel is already open by

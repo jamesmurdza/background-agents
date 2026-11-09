@@ -127,6 +127,9 @@ describe("autoPushChat retry", () => {
 
     expect(push).toHaveBeenCalledTimes(1)
     expect(createPushFailedMessage).toHaveBeenCalledTimes(1)
+    // The chat-facing message collapses git's multi-line hint wall to the
+    // one fact that matters; the raw text still goes to the activity log.
+    expect(createPushFailedMessage).toHaveBeenCalledWith("chat-1", "your branch is behind the remote")
     expect(activityLogCreate).toHaveBeenCalledTimes(1)
     expect(result).toBeNull()
   })

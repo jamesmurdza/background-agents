@@ -62,6 +62,9 @@ describe("uncommitted file warning", () => {
 
   it("disappears when the authoritative chat count clears", () => {
     expect(renderWarning(0)).not.toContain("uncommitted-files-warning")
+  })
+
+  it("stays hidden for a truly empty new repo — nothing uncommitted and no commits yet", () => {
     expect(renderWarning(0, true)).not.toContain("uncommitted-files-warning")
   })
 
@@ -78,6 +81,13 @@ describe("uncommitted file warning", () => {
     const html = renderWarning(1, true)
     expect(html).toContain('data-testid="uncommitted-files-warning"')
   })
+
+  it("shows the no-repo banner with nothing uncommitted when there are commits — those still only live in the sandbox", () => {
+    const html = renderWarning(0, true, { hasCommits: true })
+    expect(html).toContain('data-testid="uncommitted-files-warning"')
+    expect(html).toContain("Your changes will be lost unless you commit them.")
+    expect(html).toContain('data-testid="uncommitted-files-create-repo"')
+  })
 })
 
 describe("force-push failure banner", () => {
@@ -93,6 +103,14 @@ describe("force-push failure banner", () => {
     expect(html).toContain(">Force push</button> to overwrite the remote history.")
     // Not also rendered inline as a normal assistant message.
     expect(html).not.toContain('data-message-id="push-fail"')
+  })
+
+  it("disables itself while a git action is in flight", () => {
+    const html = renderWarning(0, false, { messages: [forcePushMessage] }, { actionLoading: true })
+    expect(html).toContain('data-testid="force-push-warning"')
+    expect(html).toContain("pointer-events-none")
+    expect(html).toContain(">Force pushing…</button>")
+    expect(html).toMatch(/data-testid="force-push-action"[^>]*disabled/)
   })
 })
 
@@ -134,7 +152,7 @@ describe("rebase-suggestion banner", () => {
     expect(html).toContain('data-testid="rebase-suggestion"')
     expect(html).toContain('Merge conflict with "main".')
     expect(html).toContain(">Rebase</button>")
-    expect(html).toContain('onto "main" instead.')
+    expect(html).toContain('onto "main" before merging.')
     // Not also rendered inline as a normal assistant message.
     expect(html).not.toContain('data-message-id="rebase-suggest"')
   })
@@ -145,6 +163,14 @@ describe("rebase-suggestion banner", () => {
     expect(html.match(/data-testid="rebase-suggestion"/g)).toHaveLength(1)
     expect(html).toContain('Merge conflict with "main".')
     expect(html).not.toContain('Merge conflict with "dev".')
+  })
+
+  it("disables itself while a git action is in flight", () => {
+    const html = renderWarning(0, false, { messages: [suggestion] }, { actionLoading: true })
+    expect(html).toContain('data-testid="rebase-suggestion"')
+    expect(html).toContain("pointer-events-none")
+    expect(html).toContain(">Rebasing…</button>")
+    expect(html).toMatch(/data-testid="rebase-suggestion-action"[^>]*disabled/)
   })
 })
 
