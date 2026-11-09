@@ -1,9 +1,9 @@
-import type { Chat } from "@/lib/types"
+import type { Chat, PRDescriptionType } from "@/lib/types"
 import type { PendingMcpServer } from "@/lib/storage"
 import { type RebaseConflictState } from "@background-agents/common"
 
 // Re-export for convenience
-export type { RebaseConflictState }
+export type { RebaseConflictState, PRDescriptionType }
 
 // ============================================================================
 // Types for Git Dialogs
@@ -52,9 +52,6 @@ export interface UseGitDialogsOptions {
     pendingMcpServers?: PendingMcpServer[]
   }) => void
 }
-
-/** PR description format options */
-export type PRDescriptionType = "short" | "long" | "commits" | "none"
 
 export interface UseGitDialogsResult {
   // Dialog open states

@@ -66,6 +66,7 @@ function readSettings(raw: unknown): Settings {
     defaultModel: s.defaultModel ?? null,
     theme: s.theme ?? DEFAULT_SETTINGS.theme,
     enablePrepushHooks: s.enablePrepushHooks ?? DEFAULT_SETTINGS.enablePrepushHooks,
+    defaultPrDescriptionType: s.defaultPrDescriptionType ?? DEFAULT_SETTINGS.defaultPrDescriptionType,
     notifyOnAgentFinished: s.notifyOnAgentFinished ?? DEFAULT_SETTINGS.notifyOnAgentFinished,
     notifyOnAgentCommitted: s.notifyOnAgentCommitted ?? DEFAULT_SETTINGS.notifyOnAgentCommitted,
     elizaEnabled: s.elizaEnabled ?? DEFAULT_SETTINGS.elizaEnabled,

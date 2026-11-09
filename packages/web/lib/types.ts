@@ -302,6 +302,9 @@ export interface QueuedMessage {
 
 export type Theme = "light" | "dark" | "system"
 
+/** PR description format options */
+export type PRDescriptionType = "short" | "long" | "commits" | "none"
+
 export interface Settings {
   // null means "no preference" — resolve via getDefaultAgent() at the call site.
   defaultAgent: string | null
@@ -309,6 +312,8 @@ export interface Settings {
   theme: Theme
   /** When true, run pre-push hooks during autopush (removes --no-verify flag) */
   enablePrepushHooks: boolean
+  /** Default description format pre-selected when opening the Create PR dialog */
+  defaultPrDescriptionType: PRDescriptionType
   /** Notify (toast on web, native notification on desktop) when an agent turn finishes */
   notifyOnAgentFinished: boolean
   /** Notify when an agent's auto-push delivers new commits */

@@ -89,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultModel: null,
   theme: "system",
   enablePrepushHooks: false,
+  defaultPrDescriptionType: "short",
   notifyOnAgentFinished: true,
   notifyOnAgentCommitted: true,
   elizaEnabled: false,
