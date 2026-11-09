@@ -18,9 +18,9 @@ interface TriggersModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Opens a chat by id — same mechanism used to open any sidebar chat row.
-   *  Clicking a job row navigates to its most recent run's chat (the real,
-   *  interactive chat view with the job header strip on top) rather than
-   *  the old standalone report view. */
+   *  Clicking the last-run button for a job navigates to its most recent
+   *  run's chat (the real, interactive chat view with the job header strip
+   *  on top) rather than the old standalone report view. */
   onSelectChat: (chatId: string) => void
 }
 
@@ -44,16 +44,21 @@ function StatusIcon({ status }: { status: string }) {
   return null
 }
 
-/** Status icon + when it last ran, or "Never run" if the job hasn't fired yet. */
-function LastRunBadge({ job }: { job: { lastRun: { status: string; startedAt: number } | null } }) {
+/** Status icon + when it last ran, as a button that opens that run's chat
+ *  (or plain "Never run" text if the job hasn't fired yet — nothing to open). */
+function LastRunBadge({ job, onSelect }: { job: { lastRun: { status: string; startedAt: number; chatId: string | null } | null }; onSelect: () => void }) {
   if (!job.lastRun) {
     return <span className="text-sm text-muted-foreground">Never run</span>
   }
   return (
-    <div className="flex items-center gap-1.5">
+    <button
+      onClick={onSelect}
+      disabled={!job.lastRun.chatId}
+      className="flex items-center gap-1.5 rounded-md px-1.5 py-1 -mx-1.5 transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+    >
       <StatusIcon status={job.lastRun.status} />
       <span className="text-xs text-muted-foreground">{lastRunLabel(job)}</span>
-    </div>
+    </button>
   )
 }
 
@@ -108,8 +113,9 @@ function TriggerCell({ job }: { job: { triggerType: string; intervalMinutes: num
  * match the settings modal's Deployments tab (DeploymentsSection.tsx) rather
  * than a dense data-grid table. Replaces the old "Agents" command-palette
  * (SearchJobsPalette) with a standard modal dialog, since this is a browse/
- * manage surface rather than a fuzzy-search one. Clicking a row navigates to
- * that job's most recent run's chat.
+ * manage surface rather than a fuzzy-search one. Rows themselves aren't
+ * clickable — the last-run text is its own button that opens that run's
+ * chat, so it doesn't compete with the switch/actions also in the row.
  */
 export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModalProps) {
   const { data: jobs = [] } = useScheduledJobsQuery()
@@ -123,15 +129,15 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
     [jobs]
   )
 
-  const handleSelect = (job: ScheduledJob) => {
+  const handleSelectRun = (job: ScheduledJob) => {
     // Navigate straight to the most recent run's chat — the real,
     // interactive chat view (with the job header strip on top), same as
     // clicking that chat's row in the sidebar. There's no longer a
     // standalone job report view to fall back to.
     if (job.lastRun?.chatId) {
       onSelectChat(job.lastRun.chatId)
+      onOpenChange(false)
     }
-    onOpenChange(false)
   }
 
   return (
@@ -166,10 +172,9 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                   {sortedJobs.map((job) => (
                     <li
                       key={job.id}
-                      onClick={() => handleSelect(job)}
-                      className="flex items-center gap-3 rounded-md border border-border/40 px-3 py-2.5 hover:bg-accent/50 cursor-pointer"
+                      className="flex items-center gap-3 rounded-md border border-border/40 px-3 py-2.5"
                     >
-                      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <div className="shrink-0">
                         <Switch
                           checked={job.enabled}
                           onCheckedChange={(enabled) => setEnabled(job, enabled)}
@@ -185,16 +190,15 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                       </div>
 
                       <div className="shrink-0">
-                        <LastRunBadge job={job} />
+                        <LastRunBadge job={job} onSelect={() => handleSelectRun(job)} />
                       </div>
 
-                      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <div className="shrink-0">
                         <ScheduledJobActionsMenu
                           job={job}
                           onEdit={setEditingJob}
                           onRunNow={runNow}
                           onRequestDelete={setDeletingJob}
-                          stopPropagation
                           editInMenu
                           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                         />
