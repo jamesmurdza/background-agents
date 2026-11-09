@@ -111,7 +111,7 @@ function TriggerCell({ job }: { job: { triggerType: string; intervalMinutes: num
  */
 export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModalProps) {
   const { data: jobs = [] } = useScheduledJobsQuery()
-  const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
+  const { runNow, setEnabled, deleteJob } = useScheduledJobActions()
 
   const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null)
   const [deletingJob, setDeletingJob] = useState<ScheduledJob | null>(null)
@@ -195,7 +195,6 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                               job={job}
                               onEdit={setEditingJob}
                               onRunNow={runNow}
-                              onRotateToken={rotateToken}
                               onRequestDelete={setDeletingJob}
                               stopPropagation
                               editInMenu
