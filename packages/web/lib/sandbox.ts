@@ -8,6 +8,7 @@
 
 import type { Daytona, Sandbox } from "@daytonaio/sdk"
 import { randomUUID } from "crypto"
+import { createSandbox as createDaytonaSandbox } from "@background-agents/sandbox-secrets"
 import { createSandboxGit } from "@background-agents/sandbox-git"
 import { getRepoBranches } from "@background-agents/common"
 import { installSkills, discoverInstalledSkills } from "@background-agents/sandbox-skills/sandbox"
@@ -16,7 +17,7 @@ import { PATHS, SANDBOX_CONFIG } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import { sleep } from "@/lib/utils"
-import { turnSecretsCreateParams, type TurnSecret } from "@/lib/server/turn-secrets"
+import { turnSecretsCreateParams, type ReadyTurnSecret } from "@/lib/server/turn-secrets"
 
 /**
  * Sandbox ids we've already confirmed have tokscale this process lifetime, so
@@ -148,7 +149,7 @@ export interface CreateSandboxOptions {
    * Mounting at creation avoids the restart a sandbox created without
    * secrets would need later.
    */
-  turnSecrets?: TurnSecret[]
+  turnSecrets?: ReadyTurnSecret[]
 }
 
 export interface CreatedSandbox {
@@ -198,21 +199,22 @@ export async function createSandboxForChat(
     }
   }
 
-  const secretParams = turnSecretsCreateParams(turnSecrets ?? [])
-  const sandbox = await daytona.create({
-    name: generateSandboxName(userId),
-    snapshot: await getActiveSnapshotName(daytona),
-    autoStopInterval: 5,
-    autoDeleteInterval: 5760, // 4 days - auto-delete after being stopped for four days
-    public: true,
-    labels: {
-      [SANDBOX_CONFIG.LABEL_KEY]: "true",
-      repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
-      branch: newBranch,
-      ...secretParams?.labels,
+  const sandbox = await createDaytonaSandbox(
+    daytona,
+    {
+      name: generateSandboxName(userId),
+      snapshot: await getActiveSnapshotName(daytona),
+      autoStopInterval: 5,
+      autoDeleteInterval: 5760, // 4 days - auto-delete after being stopped for four days
+      public: true,
+      labels: {
+        [SANDBOX_CONFIG.LABEL_KEY]: "true",
+        repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
+        branch: newBranch,
+      },
     },
-    secrets: secretParams?.secrets,
-  })
+    turnSecretsCreateParams(turnSecrets ?? [])
+  )
 
   await sandbox.process.executeCommand(`mkdir -p ${PATHS.LOGS_DIR}`)
 
@@ -342,7 +344,7 @@ export interface EnsureSandboxRunningOptions {
   userId: string
   githubToken: string | null
   /** The turn's secrets, to mount if a sandbox has to be created. */
-  turnSecrets?: TurnSecret[]
+  turnSecrets?: ReadyTurnSecret[]
   /**
    * Preferred name for the fresh branch created when the chat has no
    * existing branch yet (first-time creation). Ignored when the chat already

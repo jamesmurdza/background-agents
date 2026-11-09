@@ -267,7 +267,7 @@ export async function GET(req: Request) {
               // The agent is done: stop the turn's secret placeholders from
               // working until the next turn mounts them again. In a finally, as
               // the chat is still released below when finalizeTurn throws.
-              await releaseTurnSecrets(sandbox)
+              await releaseTurnSecrets(daytona, sandbox)
             }
 
             // Meter token/cost usage via tokscale while the sandbox is still

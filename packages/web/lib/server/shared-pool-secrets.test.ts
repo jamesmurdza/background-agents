@@ -37,10 +37,7 @@ function fakeDaytona(existing: string[] = []) {
 describe("ensureSharedPoolSecret", () => {
   it("creates a missing secret from its key, allowlisted to opencode.ai", async () => {
     const { secret, daytona } = fakeDaytona()
-    await expect(ensureSharedPoolSecret(daytona, SECRET_1)).resolves.toEqual({
-      name: SECRET_1,
-      placeholder: placeholderFor(SECRET_1),
-    })
+    await expect(ensureSharedPoolSecret(daytona, SECRET_1)).resolves.toBe(placeholderFor(SECRET_1))
     expect(secret.create).toHaveBeenCalledWith(
       expect.objectContaining({ name: SECRET_1, value: "key-1", hosts: ["opencode.ai"] })
     )
