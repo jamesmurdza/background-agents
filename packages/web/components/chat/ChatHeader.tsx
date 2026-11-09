@@ -122,6 +122,15 @@ export function ChatHeader({
         className="flex items-center gap-2 min-w-0"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
+        {/* Scheduled-job context — only for chats created by a scheduled
+         *  job run (see Chat.scheduledJobRun). This chat IS the real,
+         *  interactive chat for that run; this just adds status + a
+         *  "previous runs" switcher + job actions inline next to the title,
+         *  instead of a separate standalone report view/row. */}
+        {chat.scheduledJobRun && onSelectChat && (
+          <ChatJobRunHeader run={chat.scheduledJobRun} currentChatId={chat.id} onSelectChat={onSelectChat} />
+        )}
+
         {/* Title */}
         {isEditingTitle ? (
           <Input
@@ -241,15 +250,6 @@ export function ChatHeader({
               </div>
             )}
           </div>
-        )}
-
-        {/* Scheduled-job context — only for chats created by a scheduled
-         *  job run (see Chat.scheduledJobRun). This chat IS the real,
-         *  interactive chat for that run; this just adds status + a
-         *  "previous runs" switcher + job actions inline next to the title,
-         *  instead of a separate standalone report view/row. */}
-        {chat.scheduledJobRun && onSelectChat && (
-          <ChatJobRunHeader run={chat.scheduledJobRun} currentChatId={chat.id} onSelectChat={onSelectChat} />
         )}
       </div>
       <div
