@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import { DaytonaConflictError, type Daytona } from "@daytonaio/sdk"
 
-import { deleteStaleSecrets, ensureSecret, secretLastUsedAt, secretName, stampLastUsed } from "../src/index"
+import { deleteStaleSecrets, ensureSecret, secretLastUsedAt, secretName } from "../src/index"
 
 const placeholderFor = (name: string) => `dtn_secret_${name}`
 
@@ -35,7 +35,7 @@ describe("ensureSecret", () => {
       name,
       value: "v1",
       hosts: ["example.com"],
-      description: "[used 2026-10-28T00:00:00.000Z]",
+      description: "Last used: 2026-10-28T00:00:00.000Z",
     })
     expect(placeholder).toBe(placeholderFor(name))
   })
@@ -45,7 +45,7 @@ describe("ensureSecret", () => {
     const name = secretName("v")
     const { secret, daytona } = fakeDaytona([name])
     await ensureSecret(daytona, () => "v")
-    expect(secret.update).toHaveBeenCalledWith(`id_${name}`, { description: "[used 2026-10-28T00:00:00.000Z]" })
+    expect(secret.update).toHaveBeenCalledWith(`id_${name}`, { description: "Last used: 2026-10-28T00:00:00.000Z" })
     expect(secret.create).not.toHaveBeenCalled()
   })
 
@@ -98,24 +98,22 @@ describe("ensureSecret", () => {
 })
 
 describe("secretLastUsedAt", () => {
-  it("reads the stamp, falling back to the creation time", () => {
-    const createdAt = "2026-10-01T00:00:00.000Z"
-    expect(secretLastUsedAt({ createdAt, description: stampLastUsed(Date.UTC(2026, 9, 28)) })).toBe(Date.UTC(2026, 9, 28))
-    expect(secretLastUsedAt({ createdAt, description: "d" })).toBe(Date.UTC(2026, 9, 1))
-    expect(secretLastUsedAt({ createdAt, description: "d [used garbage]" })).toBe(Date.UTC(2026, 9, 1))
-    expect(secretLastUsedAt({ createdAt: new Date(createdAt) })).toBe(Date.UTC(2026, 9, 1))
+  it("reads Daytona's own updatedAt", () => {
+    const updatedAt = "2026-10-28T00:00:00.000Z"
+    expect(secretLastUsedAt({ updatedAt })).toBe(Date.UTC(2026, 9, 28))
+    expect(secretLastUsedAt({ updatedAt: new Date(updatedAt) })).toBe(Date.UTC(2026, 9, 28))
   })
 })
 
 describe("deleteStaleSecrets", () => {
-  function listing(pages: { name: string; createdAt?: string; description?: string }[][]) {
+  function listing(pages: { name: string; updatedAt?: string }[][]) {
     const secret = {
       list: vi.fn(),
       delete: vi.fn().mockResolvedValue(undefined),
     }
     pages.forEach((items, i) =>
       secret.list.mockResolvedValueOnce({
-        items: items.map((s) => ({ createdAt: "2026-10-01T00:00:00Z", ...s, id: `id_${s.name}` })),
+        items: items.map((s) => ({ updatedAt: "2026-10-01T00:00:00Z", ...s, id: `id_${s.name}` })),
         nextCursor: i < pages.length - 1 ? `c${i + 1}` : null,
       })
     )
@@ -127,8 +125,8 @@ describe("deleteStaleSecrets", () => {
     vi.spyOn(Date, "now").mockReturnValue(now)
     const { secret, daytona } = listing([
       [
-        { name: "bg_old", description: stampLastUsed(now - 25 * 60 * 60 * 1000) },
-        { name: "bg_recent", description: stampLastUsed(now - 1000) },
+        { name: "bg_old", updatedAt: new Date(now - 25 * 60 * 60 * 1000).toISOString() },
+        { name: "bg_recent", updatedAt: new Date(now - 1000).toISOString() },
         { name: "unrelated_bg_but_not_prefixed" },
       ],
     ])
@@ -140,8 +138,8 @@ describe("deleteStaleSecrets", () => {
     const now = Date.UTC(2026, 9, 28)
     vi.spyOn(Date, "now").mockReturnValue(now)
     const { secret, daytona } = listing([
-      [{ name: "bg_1", description: stampLastUsed(now - 48 * 60 * 60 * 1000) }],
-      [{ name: "bg_2", description: stampLastUsed(now - 48 * 60 * 60 * 1000) }],
+      [{ name: "bg_1", updatedAt: new Date(now - 48 * 60 * 60 * 1000).toISOString() }],
+      [{ name: "bg_2", updatedAt: new Date(now - 48 * 60 * 60 * 1000).toISOString() }],
     ])
     expect(await deleteStaleSecrets(daytona, 24 * 60 * 60 * 1000)).toEqual(["bg_1", "bg_2"])
     expect(secret.list).toHaveBeenNthCalledWith(2, { name: "bg_", cursor: "c1", limit: 200 })
@@ -153,8 +151,8 @@ describe("deleteStaleSecrets", () => {
     vi.spyOn(Date, "now").mockReturnValue(now)
     const { secret, daytona } = listing([
       [
-        { name: "bg_1", description: stampLastUsed(now - 48 * 60 * 60 * 1000) },
-        { name: "bg_2", description: stampLastUsed(now - 48 * 60 * 60 * 1000) },
+        { name: "bg_1", updatedAt: new Date(now - 48 * 60 * 60 * 1000).toISOString() },
+        { name: "bg_2", updatedAt: new Date(now - 48 * 60 * 60 * 1000).toISOString() },
       ],
     ])
     secret.delete.mockRejectedValueOnce(new Error("boom"))
