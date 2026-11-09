@@ -1,15 +1,14 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Clock, Command, HardDrive, Rocket, HelpCircle, Zap } from "lucide-react"
-import { useModals, useSidebar } from "@/lib/contexts"
+import { Menu, MoreVertical, ChevronDown, Pencil, Github, Trash2, Command, HardDrive, Rocket, HelpCircle, Zap } from "lucide-react"
+import { useModals } from "@/lib/contexts"
 import { CreditBalancePill } from "@/components/chat/CreditBalancePill"
 import { isRealRepo, type Chat } from "@/lib/types"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 
 interface MobileHeaderProps {
   chat: Chat | null
-  viewMode: "chat" | "scheduled-jobs"
   githubBranchUrl: string | null
   onOpenMenu: () => void
   onOpenInGitHub: () => void
@@ -24,7 +23,6 @@ interface MobileHeaderProps {
 
 export function MobileHeader({
   chat,
-  viewMode,
   githubBranchUrl,
   onOpenMenu,
   onOpenInGitHub,
@@ -63,13 +61,8 @@ export function MobileHeader({
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Title - different for scheduled jobs vs chat */}
-      {viewMode === "scheduled-jobs" ? (
-        <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1 -ml-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <span className="text-base font-semibold">Scheduled Triggers</span>
-        </div>
-      ) : (
+      {/* Title */}
+      {(
         <div className="relative flex-1 min-w-0" ref={mobileTitleMenuRef}>
           <button
             onClick={() => chat && modals.setMobileTitleMenuOpen(!modals.mobileTitleMenuOpen)}
@@ -172,10 +165,10 @@ export function MobileHeader({
         </div>
       )}
 
-      {viewMode === "chat" && <CreditBalancePill compact />}
+      <CreditBalancePill compact />
 
       {/* Command palette - only show for chat view, and only when enabled in Appearance settings */}
-      {viewMode === "chat" && showCommandPaletteButton && onOpenCommandPalette && (
+      {showCommandPaletteButton && onOpenCommandPalette && (
         <button
           onClick={onOpenCommandPalette}
           className="p-2 -mr-1 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
@@ -186,7 +179,7 @@ export function MobileHeader({
       )}
 
       {/* Help - only show for chat view */}
-      {viewMode === "chat" && (
+      {(
         <button
           onClick={() => modals.setHelpOpen(true)}
           className="p-2 -mr-1 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"
@@ -197,7 +190,7 @@ export function MobileHeader({
       )}
 
       {/* Commands menu - only show for chat view */}
-      {viewMode === "chat" && (
+      {(
         <button
           onClick={() => modals.setMobileCommandsOpen(true)}
           className="p-2 -mr-2 rounded-lg hover:bg-accent active:bg-accent text-foreground transition-colors touch-target"

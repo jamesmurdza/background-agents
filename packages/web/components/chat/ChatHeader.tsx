@@ -12,6 +12,7 @@ import { Input } from "../ui/input"
 import { ShareButton } from "./ShareButton"
 import { DeployButton } from "./DeployButton"
 import { CreditBalancePill } from "./CreditBalancePill"
+import { ChatJobRunHeader } from "./ChatJobRunHeader"
 import { isRealRepo, type Chat } from "@/lib/types"
 
 // =============================================================================
@@ -84,7 +85,13 @@ export function ChatHeader({
   }
 
   return (
-    <div
+    <>
+      {/* Job run header strip — only for chats created by a scheduled job
+       *  run (see Chat.scheduledJobRun). Replaces the old standalone report
+       *  view (ScheduledJobDetailPanel/JobRunDetail): this chat IS the real,
+       *  interactive chat for that run, just with job context on top. */}
+      {chat.scheduledJobRun && <ChatJobRunHeader run={chat.scheduledJobRun} />}
+      <div
       className="flex items-center justify-between pt-3"
       style={{
         paddingLeft: "1.625rem",
@@ -229,7 +236,8 @@ export function ChatHeader({
           <HelpCircle className="h-4 w-4" />
         </button>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

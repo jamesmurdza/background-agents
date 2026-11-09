@@ -10,6 +10,7 @@ export type {
 } from "@background-agents/common"
 
 import type { ContentBlock } from "@background-agents/common"
+import type { ChatScheduledJobRun } from "@/lib/scheduled-jobs/types"
 
 // Re-export agent types
 export type { Agent, ModelOption, CustomEndpoint, CustomEndpointType } from "@background-agents/common"
@@ -206,7 +207,7 @@ export interface Chat {
    *  created directly by the user — those never get a ScheduledJobRun. Used
    *  to show the chat in the sidebar (job name + run time) since these chats
    *  never get a displayName. */
-  scheduledJobRun?: { startedAt: number; jobName: string } | null
+  scheduledJobRun?: ChatScheduledJobRun | null
 
   /** When this chat was branched from another chat, the parent's id. */
   parentChatId?: string

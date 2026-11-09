@@ -4,8 +4,6 @@ import { useCallback } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { NEW_REPOSITORY, type Agent } from "@/lib/types"
 import { localHourToUtc } from "@/components/scheduled-jobs/form-config"
-import { useSidebar } from "@/lib/contexts"
-import { ROUTES } from "@/lib/hooks/useUrlNavigation"
 import { queryKeys } from "@/lib/query/keys"
 import type { ScheduledJob } from "@/lib/scheduled-jobs/types"
 
@@ -49,7 +47,6 @@ function placeholderNameFromPrompt(prompt: string): string {
  * updated directly rather than waiting on the next natural refetch.
  */
 export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromComposerArgs) {
-  const sidebar = useSidebar()
   const queryClient = useQueryClient()
   const {
     prompt, repo, baseBranch, agent, model, triggerType,
@@ -125,16 +122,16 @@ export function useCreateScheduledJobFromComposer(args: CreateScheduledJobFromCo
       })
 
     onInputChange("")
-    // Same in-SPA navigation pattern as useUrlSync's "job" route case —
-    // set view state directly and pushState the URL, rather than
-    // router.push, which renders /jobs/[id] as a separate Next route and
-    // remounts the whole app shell.
-    sidebar.setActiveView({ type: "job", jobId: created.id, jobName: created.name })
-    window.history.pushState(null, "", ROUTES.job.build(created.id))
+    // There's no run (and thus no chat) yet for a job that was just
+    // created — the old standalone report view used to navigate here and
+    // show "No runs yet"; now that the report view is merged into the chat
+    // view, there's nothing run-specific to show yet, so just stay on the
+    // composer's current chat. The job shows up in the Triggers modal (and
+    // gets its own chat/header strip once it actually runs).
     return created
   }, [prompt, repo, baseBranch, agent, model, triggerType, effectiveIntervalMinutes,
     runAtHourLocal, runAtDay, autoPR, continueFromLastRun, incomingToken, isRepoLess,
-    onInputChange, sidebar, queryClient])
+    onInputChange, queryClient])
 
   return { createJob }
 }

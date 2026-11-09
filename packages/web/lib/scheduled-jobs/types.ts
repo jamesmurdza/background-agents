@@ -23,6 +23,27 @@ export interface ScheduledJobLastRun {
   prUrl: string | null
   prNumber: number | null
   error: string | null
+  /** Chat holding this run's full message history — used to navigate
+   *  straight to the run's chat (the "Triggers" modal row click/view action)
+   *  instead of a standalone report view. */
+  chatId: string | null
+}
+
+/**
+ * Shape of the `scheduledJobRun` field embedded on a Chat API response
+ * (see app/api/chats/route.ts). Carries just enough of the linked run (and
+ * its job) for the chat header strip to render a title, outcome summary, and
+ * the job actions menu without a second fetch. Null for ordinary chats.
+ */
+export interface ChatScheduledJobRun {
+  jobId: string
+  jobName: string
+  status: string
+  startedAt: number
+  completedAt: number | null
+  prUrl: string | null
+  prNumber: number | null
+  error: string | null
 }
 
 /**
@@ -102,6 +123,7 @@ function toLastRunResponse(run: PrismaScheduledJobRun): ScheduledJobLastRun {
     prUrl: run.prUrl,
     prNumber: run.prNumber,
     error: run.error,
+    chatId: run.chatId,
   }
 }
 

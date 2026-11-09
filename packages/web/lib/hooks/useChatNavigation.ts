@@ -58,7 +58,6 @@ interface UseChatNavigationResult {
    * otherwise selects the first chat in the filtered list).
    */
   handleRepoFilterChange: (filter: string) => void
-  handleNavigateToJob: (jobId: string | null, jobName?: string) => void
   handleNavigateChat: (direction: "up" | "down") => void
   handleRequestMergeChats: (sourceId: string, targetId?: string) => void
   handleRequestRebaseChat: (sourceId: string) => void
@@ -150,27 +149,6 @@ export function useChatNavigation({
     }
   }, [session, modals, sidebar, displayCurrentChat, repos, startNewChat])
 
-  // Handler for navigating to a job (updates URL and sidebar state). Jobs are
-  // now opened via the "Triggers" modal and the composer popover (both set
-  // sidebar state directly + pushState, same pattern as this handler), so in
-  // practice this is only called with `null` — e.g. after deleting a job
-  // from its detail page, to
-  // navigate back out to the home/chat view since there's no bare jobs list
-  // to fall back to.
-  const handleNavigateToJob = useCallback(
-    (jobId: string | null, jobName?: string) => {
-      if (jobId) {
-        // Use jobName if provided, otherwise use jobId as placeholder
-        sidebar.setActiveView({ type: "job", jobId, jobName: jobName ?? jobId })
-        window.history.pushState(null, "", ROUTES.job.build(jobId))
-      } else {
-        sidebar.setActiveView({ type: "chat" })
-        window.history.pushState(null, "", ROUTES.home.build())
-      }
-    },
-    [sidebar]
-  )
-
   // Build the full tree-ordered id list matching the sidebar (ignoring
   // collapsed state — so Alt+Up/Down can reach every chat, expanding
   // collapsed ancestors along the way).
@@ -243,7 +221,7 @@ export function useChatNavigation({
   useEffect(() => {
     const prevId = prevChatIdRef.current
     prevChatIdRef.current = currentChatId
-    if (!isHydrated || sidebar.viewMode !== "chat") return
+    if (!isHydrated) return
     if (
       currentChatId &&
       !isDraftChatId(currentChatId) &&
@@ -255,27 +233,25 @@ export function useChatNavigation({
         window.history.replaceState(null, "", target)
       }
     }
-  }, [isHydrated, currentChatId, isDraftChatId, sidebar.viewMode])
+  }, [isHydrated, currentChatId, isDraftChatId])
 
   // If the URL points at a chat that doesn't exist (bad/stale link), redirect to
   // a fresh draft on the home page. We only do this once the chat list has
   // finished loading — until then we can't tell "missing" from "not loaded yet".
   useEffect(() => {
     if (!isHydrated || isLoading) return
-    if (sidebar.viewMode !== "chat") return
     if (!currentChatId || isDraftChatId(currentChatId)) return
     if (chats.some((c) => c.id === currentChatId)) return
     // Unknown chat id — drop it and let the auto-draft effect enter draft mode.
     selectChat(null)
     window.history.replaceState(null, "", ROUTES.home.build())
-  }, [isHydrated, isLoading, currentChatId, chats, isDraftChatId, sidebar.viewMode, selectChat])
+  }, [isHydrated, isLoading, currentChatId, chats, isDraftChatId, selectChat])
 
   return {
     treeOrderedChatIds,
     handleNewChat,
     handleSelectChat,
     handleRepoFilterChange,
-    handleNavigateToJob,
     handleNavigateChat,
     handleRequestMergeChats,
     handleRequestRebaseChat,

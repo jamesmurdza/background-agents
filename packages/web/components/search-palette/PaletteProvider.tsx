@@ -223,6 +223,7 @@ export function PaletteProvider({
       <TriggersModal
         open={jobsSearchOpen}
         onOpenChange={setJobsSearchOpen}
+        onSelectChat={onSelectChat}
       />
       <SearchPalette
         open={searchOpen}

@@ -17,6 +17,7 @@ import {
 } from "@background-agents/common"
 import { getEffectiveCredentialFlags } from "@/lib/server/credential-flags"
 import { toQueuedMessage } from "@/lib/server/prompt-queue"
+import type { ChatScheduledJobRun } from "@/lib/scheduled-jobs/types"
 
 // =============================================================================
 // Types
@@ -55,7 +56,7 @@ interface ChatResponse {
    *  ordinary user-created chats. See startJobExecution in the agent-lifecycle
    *  cron — these chats never get a displayName, so the sidebar derives a
    *  title from the job name + run time instead. */
-  scheduledJobRun: { startedAt: number; jobName: string } | null
+  scheduledJobRun: ChatScheduledJobRun | null
 }
 
 // =============================================================================
@@ -95,7 +96,16 @@ export async function GET(req: NextRequest): Promise<Response> {
         // sidebar now too, but they never get a displayName — the sidebar
         // derives a title from the job name + run start time instead.
         scheduledJobRun: {
-          select: { startedAt: true, job: { select: { name: true } } },
+          select: {
+            jobId: true,
+            status: true,
+            startedAt: true,
+            completedAt: true,
+            prUrl: true,
+            prNumber: true,
+            error: true,
+            job: { select: { name: true } },
+          },
         },
       },
       orderBy: { lastActiveAt: "desc" },
@@ -131,7 +141,16 @@ export async function GET(req: NextRequest): Promise<Response> {
       queuedMessages: chat.queuedPrompts.map(toQueuedMessage),
       queuePaused: chat.queuePaused,
       scheduledJobRun: chat.scheduledJobRun
-        ? { startedAt: chat.scheduledJobRun.startedAt.getTime(), jobName: chat.scheduledJobRun.job.name }
+        ? {
+            jobId: chat.scheduledJobRun.jobId,
+            jobName: chat.scheduledJobRun.job.name,
+            status: chat.scheduledJobRun.status,
+            startedAt: chat.scheduledJobRun.startedAt.getTime(),
+            completedAt: chat.scheduledJobRun.completedAt?.getTime() ?? null,
+            prUrl: chat.scheduledJobRun.prUrl,
+            prNumber: chat.scheduledJobRun.prNumber,
+            error: chat.scheduledJobRun.error,
+          }
         : null,
     }))
 
