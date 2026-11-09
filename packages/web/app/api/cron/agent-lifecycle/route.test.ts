@@ -60,12 +60,27 @@ describe("interactive lifecycle recovery", () => {
     expect(result.timedOutInteractive).toBe(0)
     expect(result.completedInteractive).toBe(saved ? 1 : 0)
   })
-  it("retains an unreadable session rather than discarding it as a timeout", async () => {
+  it("does not act on an unreadable session that's still within its time budget", async () => {
+    const freshChat = { ...chat, messages: [{ id: "assistant", createdAt: new Date() }] }
+    mocks.findChats.mockResolvedValue([freshChat])
     mocks.monitor.mockResolvedValue(undefined)
     await GET(new Request("http://localhost/api/cron/agent-lifecycle"))
     expect(mocks.stop).not.toHaveBeenCalled()
     expect(mocks.stopInteractive).not.toHaveBeenCalled()
     expect(mocks.markError).not.toHaveBeenCalled()
+  })
+  it("closes out a session that's unreadable AND past its hard timeout, instead of retrying it forever", async () => {
+    // chat's assistant message is 60 minutes old (see fixture above), past the 25-minute default.
+    mocks.monitor.mockResolvedValue(undefined)
+    const result = await (await GET(new Request("http://localhost/api/cron/agent-lifecycle"))).json()
+    expect(mocks.stopInteractive).not.toHaveBeenCalled()
+    expect(mocks.markError).toHaveBeenCalledWith(
+      chat,
+      expect.stringContaining("minute limit"),
+      expect.anything(),
+      expect.objectContaining({ status: "error" })
+    )
+    expect(result.timedOutInteractive).toBe(1)
   })
   it("does not mark an active turn stopped if cancellation fails", async () => {
     mocks.monitor.mockResolvedValue({ ...snapshot, status: "running" })

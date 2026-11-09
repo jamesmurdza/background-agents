@@ -101,11 +101,14 @@ describe("cron finalization durability", () => {
     expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ snapshot: expect.objectContaining({ content: "output produced while stopping" }) }))
     expect(mocks.persist.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[1])
   })
-  it("does not confirm a stopped execution if cancellation fails", async () => {
+  it("falls back to the caller's snapshot and still closes the turn out if cancellation fails", async () => {
+    // The sandbox may be gone for good, not just transiently unreachable —
+    // refusing to ever close the turn out would leave it "running" forever.
     mocks.cancel.mockRejectedValue(new Error("Stop failed"))
-    await expect(markChatError(chat, "failure", daytona, snapshot)).rejects.toThrow("Stop failed")
-    expect(mocks.record).toHaveBeenCalledTimes(1)
+    expect(await markChatError(chat, "failure", daytona, snapshot)).toBe(true)
+    expect(mocks.record).toHaveBeenCalledTimes(2)
     expect(mocks.record.mock.calls[0][3]).toBe(false)
-    expect(mocks.release).not.toHaveBeenCalled()
+    expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ snapshot }))
+    expect(mocks.release).toHaveBeenCalledWith(expect.anything(), expect.anything(), "error", undefined)
   })
 })
