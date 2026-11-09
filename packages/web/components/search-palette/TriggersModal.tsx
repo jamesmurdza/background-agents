@@ -177,7 +177,7 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                         />
                       </div>
 
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 space-y-0.5">
                         <div className="truncate text-sm font-medium">{job.name}</div>
                         <div className="truncate text-xs">
                           <TriggerCell job={job} />
