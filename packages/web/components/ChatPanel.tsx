@@ -60,9 +60,13 @@ interface ChatPanelProps {
   isAdmin?: boolean
   /** Open the sandbox resize modal. Omitted when there's no sandbox to resize. */
   onOpenSandboxResize?: () => void
+  /** Opens a chat by id — same mechanism used by the sidebar/Triggers modal.
+   *  Threaded down to ChatHeader for the scheduled-job "previous runs"
+   *  dropdown. */
+  onSelectChat?: (chatId: string) => void
 }
 
-export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenChanges, onOpenEnvVars, onOpenSkills, isDraftChat = false, pendingMcpServers, onPendingMcpServersChange, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, isAdmin = false, onOpenSandboxResize }: ChatPanelProps) {
+export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, onSendMessage, onReload, onEnqueueMessage, onRemoveQueuedMessage, onResumeQueue, onStopAgent, onUpdateChat, onSlashCommand, onOpenFile, onOpenChanges, onOpenEnvVars, onOpenSkills, isDraftChat = false, pendingMcpServers, onPendingMcpServersChange, isMobile = false, isLoadingMessages = false, draft = "", onDraftChange, isSending = false, onOpenCommandPalette, isAuthenticated = false, isAdmin = false, onOpenSandboxResize, onSelectChat }: ChatPanelProps) {
   const [modelPickerRequest, setModelPickerRequest] = useState<{ chatId: string; sequence: number }>()
   const composer = useChatComposer({
     chat,
@@ -270,6 +274,7 @@ export function ChatPanel({ chat, settings, credentialFlags, showCreditDialog, o
           onOpenCommandPalette={onOpenCommandPalette}
           isAdmin={isAdmin}
           onOpenSandboxResize={onOpenSandboxResize}
+          onSelectChat={onSelectChat}
         />
       )}
 

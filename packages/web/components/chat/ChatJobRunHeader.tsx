@@ -2,112 +2,97 @@
 
 import { useState, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Clock, Check, GitPullRequest, RefreshCw } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Check, RefreshCw, Clock, History, ChevronDown } from "lucide-react"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { ScheduledJobActionsMenu } from "@/components/scheduled-jobs/ScheduledJobActionsMenu"
 import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { useScheduledJobQuery } from "@/lib/query/hooks/useScheduledJobQuery"
+import { useScheduledJobRunsQuery } from "@/lib/query/hooks/useScheduledJobRunsQuery"
 import { useScheduledJobActions } from "@/lib/hooks/useScheduledJobActions"
 import { queryKeys } from "@/lib/query/keys"
 import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
-import { formatDurationRange } from "@/lib/format"
 import type { ChatScheduledJobRun } from "@/lib/scheduled-jobs/types"
 
 interface ChatJobRunHeaderProps {
   /** The run linked to the chat currently open — see Chat.scheduledJobRun. */
   run: ChatScheduledJobRun
+  /** Current chat id, to highlight it in the "previous runs" dropdown. */
+  currentChatId: string
+  /** Opens a chat by id — same mechanism used by the sidebar/Triggers modal. */
+  onSelectChat: (chatId: string) => void
 }
 
 /**
- * Header strip shown above the chat for a chat linked to a ScheduledJobRun —
- * the merged replacement for the old standalone report view
- * (ScheduledJobDetailPanel/JobRunDetail). Shows the job's (editable) name,
- * this run's outcome summary, and the shared job actions menu. The chat
- * below this strip is the normal, fully-interactive ChatPanel — no separate
- * read-only message list anymore.
- *
- * Deliberately has no run-switcher: the sidebar already lists every run of
- * a job as its own chat row, so browsing between runs happens there.
+ * Compact job context added to the chat's existing title row for chats
+ * linked to a ScheduledJobRun — NOT a second header row. Shows a small
+ * status indicator, a "previous runs" dropdown (since a job can have many
+ * runs/chats and there's no other in-chat way to jump between them), and
+ * the shared job actions menu (enable/disable, run now, rotate token,
+ * edit, delete).
  */
-export function ChatJobRunHeader({ run }: ChatJobRunHeaderProps) {
+export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRunHeaderProps) {
   const queryClient = useQueryClient()
   // The chat response only embeds a subset of the job/run — fetch the full
   // job record (name may have changed since the run started, etc.) for the
-  // actions menu and rename, keyed off the shared React Query cache so a
-  // rename from here or from the Triggers modal stays in sync everywhere.
+  // actions menu/rename and for job-scoped actions.
   const { data: job } = useScheduledJobQuery(run.jobId)
-  const { runNow, rotateToken, setEnabled, rename, deleteJob } = useScheduledJobActions()
+  const { runNow, rotateToken, setEnabled, deleteJob } = useScheduledJobActions()
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [runsOpen, setRunsOpen] = useState(false)
+  const runsMenuRef = useRef<HTMLDivElement>(null)
+  useClickOutside(runsMenuRef, () => setRunsOpen(false), runsOpen)
 
-  // Title editing state — same inline-rename pattern as ChatHeader/JobRunDetail.
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [editTitleValue, setEditTitleValue] = useState("")
-  const titleInputRef = useRef<HTMLInputElement>(null)
-
-  if (!job) {
-    // Job query hasn't resolved yet (or the job was deleted and the cache
-    // entry was removed) — rather than flash a skeleton, just show nothing;
-    // the run summary below still renders from the chat's embedded data.
-    return (
-      <RunOutcomeSummary run={run} titleFallback={run.jobName} />
-    )
-  }
-
-  const startEditingTitle = () => {
-    setEditTitleValue(job.name)
-    setIsEditingTitle(true)
-    setTimeout(() => {
-      titleInputRef.current?.focus()
-      titleInputRef.current?.select()
-    }, 0)
-  }
-
-  const saveTitle = () => {
-    const trimmed = editTitleValue.trim()
-    if (trimmed && trimmed !== job.name) {
-      void rename(job, trimmed)
-    }
-    setIsEditingTitle(false)
-  }
-
-  const cancelEditingTitle = () => {
-    setIsEditingTitle(false)
-    setEditTitleValue("")
-  }
+  const { data: runs = [] } = useScheduledJobRunsQuery(run.jobId, runsOpen)
 
   return (
-    <div className="flex items-center justify-between pt-3 shrink-0" style={{ paddingLeft: "1.625rem", paddingRight: "1rem" }}>
-      <div className="flex items-center gap-2 min-w-0">
-        {isEditingTitle ? (
-          <Input
-            ref={titleInputRef}
-            type="text"
-            value={editTitleValue}
-            onChange={(e) => setEditTitleValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveTitle()
-              if (e.key === "Escape") cancelEditingTitle()
-            }}
-            onBlur={saveTitle}
-            className="w-56 font-medium"
-          />
-        ) : (
-          <button
-            onClick={startEditingTitle}
-            className="flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-md hover:bg-accent transition-colors cursor-pointer"
-            title="Click to rename"
-          >
-            <span className="truncate">{job.name}</span>
-          </button>
-        )}
+    <div className="flex items-center gap-1 shrink-0">
+      <RunStatusDot status={run.status} />
 
-        <RunOutcomeSummary run={run} compact />
+      <div className="relative" ref={runsMenuRef}>
+        <button
+          onClick={() => setRunsOpen((v) => !v)}
+          className="flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          title="Previous runs"
+        >
+          <History className="h-3 w-3" />
+          <ChevronDown className="h-3 w-3" />
+        </button>
+
+        {runsOpen && (
+          <div className="absolute left-0 top-full mt-1 min-w-[220px] max-h-72 overflow-y-auto rounded-md border border-border bg-popover shadow-md py-1 z-50">
+            {runs.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>
+            ) : (
+              runs.map((r) => (
+                <button
+                  key={r.id}
+                  disabled={!r.chatId}
+                  onClick={() => {
+                    if (r.chatId) onSelectChat(r.chatId)
+                    setRunsOpen(false)
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors",
+                    r.chatId ? "hover:bg-accent cursor-pointer" : "opacity-50 cursor-default",
+                    r.chatId === currentChatId && "bg-accent/60"
+                  )}
+                >
+                  <RunStatusDot status={r.status} />
+                  <span className="flex-1 truncate">{format(r.startedAt, "MMM d, h:mma").toLowerCase()}</span>
+                  {r.chatId === currentChatId && <Check className="h-3.5 w-3.5 shrink-0" />}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center gap-1.5">
+      {job && (
         <ScheduledJobActionsMenu
           job={job}
           onEdit={() => setEditOpen(true)}
@@ -115,86 +100,55 @@ export function ChatJobRunHeader({ run }: ChatJobRunHeaderProps) {
           onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
           onRotateToken={rotateToken}
           onRequestDelete={() => setDeleteConfirmOpen(true)}
+          editInMenu
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
         />
-      </div>
+      )}
 
-      <ScheduledJobForm
-        open={editOpen}
-        job={job}
-        onClose={() => setEditOpen(false)}
-        onSuccess={(updated) => {
-          setEditOpen(false)
-          queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(updated.id), updated)
-          queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) =>
-            old.map((j) => (j.id === updated.id ? updated : j))
-          )
-        }}
-      />
+      {job && (
+        <>
+          <ScheduledJobForm
+            open={editOpen}
+            job={job}
+            onClose={() => setEditOpen(false)}
+            onSuccess={(updated) => {
+              setEditOpen(false)
+              queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(updated.id), updated)
+              queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) =>
+                old.map((j) => (j.id === updated.id ? updated : j))
+              )
+            }}
+          />
 
-      <ConfirmDialog
-        open={deleteConfirmOpen}
-        title="Delete scheduled job?"
-        description={`This will permanently delete "${job.name}" and all its run history.`}
-        confirmLabel="Delete"
-        variant="destructive"
-        onConfirm={() => {
-          void deleteJob(job)
-          setDeleteConfirmOpen(false)
-        }}
-        onClose={() => setDeleteConfirmOpen(false)}
-      />
+          <ConfirmDialog
+            open={deleteConfirmOpen}
+            title="Delete scheduled job?"
+            description={`This will permanently delete "${job.name}" and all its run history.`}
+            confirmLabel="Delete"
+            variant="destructive"
+            onConfirm={() => {
+              void deleteJob(job)
+              setDeleteConfirmOpen(false)
+            }}
+            onClose={() => setDeleteConfirmOpen(false)}
+          />
+        </>
+      )}
     </div>
   )
 }
 
-/**
- * Run outcome summary — ported verbatim (just restyled for the header strip
- * instead of the old message-list footer) from JobRunDetail's completion/
- * error/PR messaging so the wording users already know stays the same.
- */
-function RunOutcomeSummary({ run, compact, titleFallback }: { run: ChatScheduledJobRun; compact?: boolean; titleFallback?: string }) {
-  return (
-    <div className={compact ? "flex items-center gap-3 text-xs text-muted-foreground min-w-0" : "px-2 text-sm text-muted-foreground"}>
-      {!compact && titleFallback && <span className="font-medium text-foreground mr-2">{titleFallback}</span>}
-
-      {run.status === "running" && (
-        <span className="flex items-center gap-1.5">
-          <RefreshCw className="h-3 w-3 animate-spin" />
-          Running…
-        </span>
-      )}
-
-      {run.status === "error" && run.error && (
-        <span className="flex items-center gap-1.5 text-destructive truncate" title={run.error}>
-          Run failed
-        </span>
-      )}
-
-      {run.status === "completed" && run.completedAt && (
-        <span className="flex items-center gap-1.5">
-          <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
-          Finished after {formatDurationRange(run.startedAt, run.completedAt)}
-        </span>
-      )}
-
-      {run.status === "completed" && run.prUrl && (
-        <a
-          href={run.prUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 hover:text-foreground transition-colors"
-        >
-          <GitPullRequest className="h-3 w-3 text-green-600 dark:text-green-400" />
-          Created PR #{run.prNumber}
-        </a>
-      )}
-
-      {run.status === "pending" && (
-        <span className="flex items-center gap-1.5">
-          <Clock className="h-3 w-3" />
-          Pending…
-        </span>
-      )}
-    </div>
-  )
+/** Small colored dot reflecting a run's status — deliberately no text label
+ *  (duration/PR details live in the Triggers modal, not repeated here). */
+function RunStatusDot({ status }: { status: string }) {
+  if (status === "running" || status === "pending") {
+    return <RefreshCw className="h-3 w-3 text-blue-500 animate-spin shrink-0" />
+  }
+  if (status === "error") {
+    return <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" title="Failed" />
+  }
+  if (status === "completed") {
+    return <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Completed" />
+  }
+  return <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
 }

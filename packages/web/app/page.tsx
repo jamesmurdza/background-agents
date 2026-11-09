@@ -740,6 +740,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   onOpenSandboxResize={
                     currentChat?.sandboxId ? () => modals.setSandboxResizeModalOpen(true) : undefined
                   }
+                  onSelectChat={handleSelectChat}
               />
             </div>
             {!isMobile && preview.previewOpen && (

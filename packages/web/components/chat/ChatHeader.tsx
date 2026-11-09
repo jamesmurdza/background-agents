@@ -13,6 +13,7 @@ import { ShareButton } from "./ShareButton"
 import { DeployButton } from "./DeployButton"
 import { CreditBalancePill } from "./CreditBalancePill"
 import { ChatJobRunHeader } from "./ChatJobRunHeader"
+import { getChatDisplayTitle } from "@/lib/chat-tree"
 import { isRealRepo, type Chat } from "@/lib/types"
 
 // =============================================================================
@@ -29,6 +30,10 @@ interface ChatHeaderProps {
   isAdmin?: boolean
   /** Open the sandbox resize modal. Omitted when there's no sandbox to resize. */
   onOpenSandboxResize?: () => void
+  /** Opens a chat by id — same mechanism used by the sidebar/Triggers modal.
+   *  Only needed for chats linked to a scheduled job run (its "previous
+   *  runs" dropdown uses this to jump between a job's past runs). */
+  onSelectChat?: (chatId: string) => void
 }
 
 export function ChatHeader({
@@ -39,6 +44,7 @@ export function ChatHeader({
   onOpenCommandPalette,
   isAdmin,
   onOpenSandboxResize,
+  onSelectChat,
 }: ChatHeaderProps) {
   const modals = useModals()
   const { isDesktopApp } = useElectron()
@@ -55,7 +61,7 @@ export function ChatHeader({
   // Close menus on outside click
   useClickOutside(titleMenuRef, () => setTitleMenuOpen(false), titleMenuOpen)
 
-  const chatTitle = chat.displayName || "Untitled"
+  const chatTitle = getChatDisplayTitle(chat)
   const isNewRepo = chat.repo === "__new__"
   const hasBranchOnGitHub = !isNewRepo && chat.branch && chat.sandboxId
   const githubBranchUrl = hasBranchOnGitHub
@@ -86,11 +92,6 @@ export function ChatHeader({
 
   return (
     <>
-      {/* Job run header strip — only for chats created by a scheduled job
-       *  run (see Chat.scheduledJobRun). Replaces the old standalone report
-       *  view (ScheduledJobDetailPanel/JobRunDetail): this chat IS the real,
-       *  interactive chat for that run, just with job context on top. */}
-      {chat.scheduledJobRun && <ChatJobRunHeader run={chat.scheduledJobRun} />}
       <div
       className="flex items-center justify-between pt-3"
       style={{
@@ -205,6 +206,15 @@ export function ChatHeader({
               </div>
             )}
           </div>
+        )}
+
+        {/* Scheduled-job context — only for chats created by a scheduled
+         *  job run (see Chat.scheduledJobRun). This chat IS the real,
+         *  interactive chat for that run; this just adds status + a
+         *  "previous runs" switcher + job actions inline next to the title,
+         *  instead of a separate standalone report view/row. */}
+        {chat.scheduledJobRun && onSelectChat && (
+          <ChatJobRunHeader run={chat.scheduledJobRun} currentChatId={chat.id} onSelectChat={onSelectChat} />
         )}
       </div>
       <div
