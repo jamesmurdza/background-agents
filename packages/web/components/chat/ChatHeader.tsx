@@ -256,11 +256,9 @@ export function ChatHeader({
         className="flex items-center gap-1"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
-        {/* Deploy/credit controls aren't relevant for a job-run chat and just
-         *  crowd out room for the job's Edit button — hide them there. */}
-        {!isJobChat && <CreditBalancePill />}
+        <CreditBalancePill />
         <FolderSyncButton repo={chat.repo} />
-        {!isJobChat && isRealRepo(chat.repo) && (
+        {isRealRepo(chat.repo) && (
           <DeployButton chatId={chat.id} repo={chat.repo} branch={chat.baseBranch} />
         )}
         <ShareButton key={chat.id} chatId={chat.id} initialShareId={chat.shareId} />
