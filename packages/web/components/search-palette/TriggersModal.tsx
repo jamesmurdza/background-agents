@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Clock, Webhook, Check, X, RefreshCw } from "lucide-react"
+import { Clock, Check, X, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
@@ -98,11 +98,6 @@ function describeTrigger(job: { triggerType: string; intervalMinutes: number; ne
 function TriggerCell({ job }: { job: { triggerType: string; intervalMinutes: number; nextRunAt: number } }) {
   return (
     <div className="flex items-center gap-1.5 text-muted-foreground">
-      {job.triggerType === "incoming" ? (
-        <Webhook className="h-3.5 w-3.5 shrink-0" />
-      ) : (
-        <Clock className="h-3.5 w-3.5 shrink-0" />
-      )}
       <span className="truncate">{describeTrigger(job)}</span>
     </div>
   )

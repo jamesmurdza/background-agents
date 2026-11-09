@@ -15,7 +15,14 @@ interface RepoFilterDropdownProps {
   repoDropdownOpen: boolean
   setRepoDropdownOpen: (open: boolean) => void
   uniqueRepos: string[]
-  repoCounts: { counts: Record<string, number>; total: number; noRepoCount: number; archivedCount: number }
+  repoCounts: {
+    counts: Record<string, number>
+    total: number
+    noRepoCount: number
+    archivedCount: number
+    activeCount: number
+    scheduledCount: number
+  }
   getRepoDisplayName: (repo: string) => string
   /** Mobile variant uses larger touch targets and rounded-lg styling. */
   variant: "mobile" | "desktop"
@@ -82,6 +89,7 @@ export function RepoFilterDropdown({
           >
             <Check className={cn(`${checkSize} flex-shrink-0`, chatVisibilityFilters.active ? "opacity-100" : "opacity-0")} />
             <span className="flex-1">Active chats</span>
+            <span className="text-muted-foreground">{repoCounts.activeCount}</span>
           </button>
           <button
             onClick={() => onToggleChatVisibilityFilter("scheduled")}
@@ -89,6 +97,7 @@ export function RepoFilterDropdown({
           >
             <Check className={cn(`${checkSize} flex-shrink-0`, chatVisibilityFilters.scheduled ? "opacity-100" : "opacity-0")} />
             <span className="flex-1">Scheduled chats</span>
+            <span className="text-muted-foreground">{repoCounts.scheduledCount}</span>
           </button>
           <button
             onClick={() => onToggleChatVisibilityFilter("archived")}
@@ -111,11 +120,6 @@ export function RepoFilterDropdown({
             <span className="flex-1">All repositories</span>
             <span className="text-muted-foreground">{repoCounts.total}</span>
           </button>
-
-          {/* Divider before the per-repo section */}
-          {uniqueRepos.length > 0 && (
-            <div className="my-1 border-t border-border" />
-          )}
 
           {/* Repository list — current user's repos first, then others (the
               parent already sorts uniqueRepos this way). */}

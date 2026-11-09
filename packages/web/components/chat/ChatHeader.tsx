@@ -154,6 +154,21 @@ export function ChatHeader({
             </button>
             {titleMenuOpen && (
               <div className="absolute left-0 top-full mt-1 min-w-[210px] rounded-md border border-border bg-popover shadow-md py-1 z-50">
+                {isJobChat && job && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setTitleMenuOpen(false)
+                        setJobEditOpen(true)
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit trigger
+                    </button>
+                    <div className="my-1 border-t border-border" />
+                  </>
+                )}
                 {!isJobChat && (
                   <button
                     onClick={() => {
@@ -249,16 +264,6 @@ export function ChatHeader({
           <DeployButton chatId={chat.id} repo={chat.repo} branch={chat.baseBranch} />
         )}
         <ShareButton key={chat.id} chatId={chat.id} initialShareId={chat.shareId} />
-        {isJobChat && job && (
-          <button
-            onClick={() => setJobEditOpen(true)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-            title="Edit job"
-            aria-label="Edit job"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
         {showCommandPaletteButton && onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
