@@ -2,11 +2,11 @@
 
 [Daytona secrets](https://www.daytona.io/docs/en/secrets/) let a sandbox use a credential without ever being able to read it — the sandbox only sees an opaque placeholder (`dtn_secret_…`), and Daytona's egress proxy swaps in the real value on requests to that secret's allowed hosts.
 
-This package simplifies secret handling by abstracting away the lifecycle of a Daytona secret. Main features:
+This package simplifies secret handling by abstracting away the lifecycle of a Daytona secret, including:
 - Create-or-reuse a secret for a value in one call, instead of checking if it exists yourself
 - Automatic naming by value and host, so a rotated credential never collides with the old one
 - Automatic "last used" tracking and expiry, instead of manually deleting secrets you're done with
-- Automatic handling of Daytona's boot-time proxy quirk, so a sandbox's secrets always actually work
+- Automatically keeping a secret attached so a sandbox's proxy stays on, instead of needing a reboot
 
 Instead of managing a secret's ID, name, staleness, and the sandbox's proxy state yourself, you only need to call `ensureSecret` when you need a credential and `deleteStaleSecrets` on a schedule.
 
