@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { ChevronDown, Github, Pencil, Trash2, Loader2, Command, FolderDown, HardDrive, HelpCircle, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
@@ -8,6 +9,10 @@ import { useElectron } from "@/lib/hooks/useElectron"
 import { useRepoFolderButton } from "@/lib/hooks/useLocalSync"
 import { useModals } from "@/lib/contexts"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
+import { useScheduledJobQuery } from "@/lib/query/hooks/useScheduledJobQuery"
+import { queryKeys } from "@/lib/query/keys"
+import { type ScheduledJob } from "@/lib/scheduled-jobs/types"
+import { ScheduledJobForm } from "@/components/scheduled-jobs/ScheduledJobForm"
 import { Input } from "../ui/input"
 import { ShareButton } from "./ShareButton"
 import { DeployButton } from "./DeployButton"
@@ -47,9 +52,17 @@ export function ChatHeader({
   onSelectChat,
 }: ChatHeaderProps) {
   const modals = useModals()
+  const queryClient = useQueryClient()
   const { isDesktopApp } = useElectron()
   const { data: settingsData } = useSettingsQuery()
   const showCommandPaletteButton = settingsData?.settings.showCommandPaletteButton ?? false
+
+  // Job edit modal — the only job-management action left on this page
+  // (run now / enable-disable / rotate token / delete stay in the Triggers
+  // modal). Fetches the full job record lazily only once the chat is
+  // confirmed to be job-linked.
+  const [jobEditOpen, setJobEditOpen] = useState(false)
+  const { data: job } = useScheduledJobQuery(chat.scheduledJobRun?.jobId ?? null)
 
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -231,12 +244,24 @@ export function ChatHeader({
         className="flex items-center gap-1"
         style={isDesktopApp ? { WebkitAppRegion: "no-drag" } as React.CSSProperties : undefined}
       >
-        <CreditBalancePill />
+        {/* Deploy/credit controls aren't relevant for a job-run chat and just
+         *  crowd out room for the job's Edit button — hide them there. */}
+        {!isJobChat && <CreditBalancePill />}
         <FolderSyncButton repo={chat.repo} />
-        {isRealRepo(chat.repo) && (
+        {!isJobChat && isRealRepo(chat.repo) && (
           <DeployButton chatId={chat.id} repo={chat.repo} branch={chat.baseBranch} />
         )}
         <ShareButton key={chat.id} chatId={chat.id} initialShareId={chat.shareId} />
+        {isJobChat && job && (
+          <button
+            onClick={() => setJobEditOpen(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+            title="Edit job"
+            aria-label="Edit job"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
         {showCommandPaletteButton && onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
@@ -257,6 +282,21 @@ export function ChatHeader({
         </button>
       </div>
       </div>
+
+      {isJobChat && job && (
+        <ScheduledJobForm
+          open={jobEditOpen}
+          job={job}
+          onClose={() => setJobEditOpen(false)}
+          onSuccess={(updated) => {
+            setJobEditOpen(false)
+            queryClient.setQueryData<ScheduledJob>(queryKeys.scheduledJobs.detail(updated.id), updated)
+            queryClient.setQueryData<ScheduledJob[]>(queryKeys.scheduledJobs.list(), (old = []) =>
+              old.map((j) => (j.id === updated.id ? updated : j))
+            )
+          }}
+        />
+      )}
     </>
   )
 }
