@@ -38,6 +38,9 @@ export interface ScheduledJobLastRun {
 export interface ChatScheduledJobRun {
   jobId: string
   jobName: string
+  /** Drives which icon the sidebar/header show for this run — a calendar for
+   *  interval-scheduled jobs, a webhook icon for incoming-webhook jobs. */
+  triggerType: "interval" | "incoming"
   status: string
   startedAt: number
   completedAt: number | null

@@ -104,7 +104,7 @@ export async function GET(req: NextRequest): Promise<Response> {
             prUrl: true,
             prNumber: true,
             error: true,
-            job: { select: { name: true } },
+            job: { select: { name: true, triggerType: true } },
           },
         },
       },
@@ -144,6 +144,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         ? {
             jobId: chat.scheduledJobRun.jobId,
             jobName: chat.scheduledJobRun.job.name,
+            triggerType: (chat.scheduledJobRun.job.triggerType as "interval" | "incoming") ?? "interval",
             status: chat.scheduledJobRun.status,
             startedAt: chat.scheduledJobRun.startedAt.getTime(),
             completedAt: chat.scheduledJobRun.completedAt?.getTime() ?? null,
