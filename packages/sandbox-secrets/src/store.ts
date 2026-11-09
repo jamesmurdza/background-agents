@@ -2,23 +2,23 @@ import { DaytonaConflictError, type Daytona } from "@daytonaio/sdk"
 
 import { secretName, SECRET_PREFIX } from "./names"
 
-/** Trailing `[used <ISO time>]` in a secret's description. */
-const USED_STAMP = /\[used ([^\]]+)\]/
-
-/** A description whose only content is the "last used" stamp set to `at`. */
+/**
+ * A description whose only content is the "last used" stamp set to `at`.
+ * Its content doesn't matter (see {@link secretLastUsedAt}) beyond being
+ * different on every call — a no-op `update()` doesn't bump the secret's
+ * `updatedAt`, so writing a fresh, always-different value here is what
+ * forces Daytona to actually refresh it.
+ */
 export function stampLastUsed(at: number): string {
-  return `[used ${new Date(at).toISOString()}]`
+  return `Last used: ${new Date(at).toISOString()}`
 }
 
 /**
- * When a secret was last used, from its description's stamp (see
- * {@link stampLastUsed}); its creation time when it has none.
+ * When a secret was last used: Daytona's own `updatedAt`, which every
+ * {@link stampLastUsed} write bumps by construction.
  */
-export function secretLastUsedAt(secret: { description?: string; createdAt: Date | string }): number {
-  const created = new Date(secret.createdAt).getTime()
-  const stamp = secret.description?.match(USED_STAMP)?.[1]
-  const used = stamp ? Date.parse(stamp) : NaN
-  return Number.isNaN(used) ? created : Math.max(used, created)
+export function secretLastUsedAt(secret: { updatedAt: Date | string }): number {
+  return new Date(secret.updatedAt).getTime()
 }
 
 async function findSecret(daytona: Daytona, name: string): Promise<{ id: string; placeholder: string } | undefined> {
