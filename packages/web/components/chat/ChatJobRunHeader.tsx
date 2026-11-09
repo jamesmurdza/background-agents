@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Check, RefreshCw, Clock, ChevronDown } from "lucide-react"
+import { Check, ChevronDown } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
@@ -50,12 +50,11 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
     <div className="relative shrink-0" ref={runsMenuRef}>
       <button
         onClick={() => setRunsOpen((v) => !v)}
-        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent transition-colors cursor-pointer"
         title="Previous runs"
       >
-        <RunStatusDot status={run.status} />
         <span className="truncate">{formatRunDate(run.startedAt)}</span>
-        <ChevronDown className="h-3 w-3" />
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
 
       {runsOpen && (
@@ -77,7 +76,6 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
                   r.chatId === currentChatId && "bg-accent/60"
                 )}
               >
-                <RunStatusDot status={r.status} />
                 <span className="flex-1 truncate">{formatRunDateLong(r.startedAt)}</span>
                 {r.chatId === currentChatId && <Check className="h-3.5 w-3.5 shrink-0" />}
               </button>
@@ -87,19 +85,4 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
       )}
     </div>
   )
-}
-
-/** Small colored dot reflecting a run's status — deliberately no text label
- *  (duration/PR details live in the Triggers modal, not repeated here). */
-function RunStatusDot({ status }: { status: string }) {
-  if (status === "running" || status === "pending") {
-    return <RefreshCw className="h-3 w-3 text-blue-500 animate-spin shrink-0" />
-  }
-  if (status === "error") {
-    return <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" title="Failed" />
-  }
-  if (status === "completed") {
-    return <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Completed" />
-  }
-  return <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
 }
