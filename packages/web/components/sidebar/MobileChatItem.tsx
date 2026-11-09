@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { MoreHorizontal, Pin, PinOff, GitBranch, Pencil, Trash2, Loader2, ChevronDown, ChevronRight, Archive, ArchiveRestore } from "lucide-react"
+import { MoreHorizontal, Pin, PinOff, GitBranch, Pencil, Trash2, Loader2, ChevronDown, ChevronRight, Archive, ArchiveRestore, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
 import type { Chat } from "@/lib/types"
@@ -80,6 +80,8 @@ export function MobileChatItem({ chat, isActive, isDeleting, isUnseen, depth = 0
         <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-muted-foreground/80" />
       ) : hasMergedSuccessfully(chat.messages) ? (
         <MergedChatCheckmark className="flex-shrink-0" />
+      ) : chat.scheduledJobRun ? (
+        <Clock className="h-3 w-3 flex-shrink-0 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
       ) : null}
 
       {/* Menu button */}

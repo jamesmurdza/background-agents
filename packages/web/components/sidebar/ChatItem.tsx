@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { MoreHorizontal, Pin, PinOff, Pencil, Trash2, ChevronDown, ChevronRight, Loader2, GitMerge, GitBranch, Archive, ArchiveRestore } from "lucide-react"
+import { MoreHorizontal, Pin, PinOff, Pencil, Trash2, ChevronDown, ChevronRight, Loader2, GitMerge, GitBranch, Archive, ArchiveRestore, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { NEW_REPOSITORY } from "@/lib/types"
 import type { Chat } from "@/lib/types"
@@ -181,6 +181,10 @@ export function ChatItem({ chat, isActive, collapsed, isDeleting, isUnseen, dept
             ) : hasMergedSuccessfully(chat.messages) ? (
               <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
                 <MergedChatCheckmark />
+              </div>
+            ) : chat.scheduledJobRun ? (
+              <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
+                <Clock className="h-3 w-3 text-sidebar-foreground/75 dark:text-zinc-300" strokeWidth={2.4} />
               </div>
             ) : null}
             <button
