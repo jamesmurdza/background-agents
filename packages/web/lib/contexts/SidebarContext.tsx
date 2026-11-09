@@ -1,6 +1,7 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
+import { readJSON, writeJSON } from "@/lib/storage"
 
 // =============================================================================
 // SidebarContext - Provides sidebar UI state to avoid prop drilling
@@ -86,6 +87,12 @@ export const MAX_WIDTH = 400
 export const COLLAPSED_WIDTH = 56
 export const COLLAPSE_THRESHOLD = 100
 
+// localStorage keys for the repo-filter dropdown's selections — persisted
+// client-side (device-specific, not synced to the server) so refreshing the
+// page doesn't silently reset "which chats show" back to the defaults.
+const REPO_FILTER_KEY = "sidebar-repo-filter"
+const CHAT_VISIBILITY_FILTERS_KEY = "sidebar-chat-visibility-filters"
+
 export function SidebarProvider({ children }: SidebarProviderProps) {
   // Sidebar collapse state
   const [collapsed, setCollapsed] = useState(false)
@@ -98,15 +105,33 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), [])
 
-  // Repository filter
-  const [repoFilter, setRepoFilter] = useState<string>(ALL_REPOSITORIES)
+  // Repository filter — persisted so it survives a page refresh. Starts at
+  // the default on every render (server and first client render) and is
+  // patched from localStorage in the effect below, matching the pattern
+  // used elsewhere in the app (e.g. useCreditWarning) to avoid an SSR
+  // hydration mismatch from reading localStorage during render.
+  const [repoFilter, setRepoFilterState] = useState<string>(ALL_REPOSITORIES)
+  useEffect(() => {
+    setRepoFilterState(readJSON(REPO_FILTER_KEY, ALL_REPOSITORIES, "repo filter"))
+  }, [])
+  const setRepoFilter = useCallback((filter: string) => {
+    setRepoFilterState(filter)
+    writeJSON(REPO_FILTER_KEY, filter, "repo filter")
+  }, [])
 
-  // Chat visibility filters (active / scheduled / archived)
+  // Chat visibility filters (active / scheduled / archived) — also persisted.
   const [chatVisibilityFilters, setChatVisibilityFilters] = useState<ChatVisibilityFilters>(
     DEFAULT_CHAT_VISIBILITY_FILTERS
   )
+  useEffect(() => {
+    setChatVisibilityFilters(readJSON(CHAT_VISIBILITY_FILTERS_KEY, DEFAULT_CHAT_VISIBILITY_FILTERS, "chat visibility filters"))
+  }, [])
   const toggleChatVisibilityFilter = useCallback((key: keyof ChatVisibilityFilters) => {
-    setChatVisibilityFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+    setChatVisibilityFilters((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      writeJSON(CHAT_VISIBILITY_FILTERS_KEY, next, "chat visibility filters")
+      return next
+    })
   }, [])
 
   // Chat tree collapse state
