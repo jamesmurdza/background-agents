@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Clock, Webhook } from "lucide-react"
+import { Clock, Webhook, Check, X, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
@@ -29,38 +29,29 @@ function lastRunLabel(job: { lastRun: { startedAt: number } | null }): string {
   return job.lastRun ? format(job.lastRun.startedAt, "MMM d, h:mm a") : ""
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  error: "bg-red-500/10 text-red-600 dark:text-red-400",
-  running: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  pending: "bg-muted text-muted-foreground",
+/** Small icon reflecting a run's status — scannable at a glance without
+ *  needing a text label for the common cases. */
+function StatusIcon({ status }: { status: string }) {
+  if (status === "completed") {
+    return <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+  }
+  if (status === "error") {
+    return <X className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+  }
+  if (status === "running" || status === "pending") {
+    return <RefreshCw className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+  }
+  return null
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: "Completed",
-  error: "Failed",
-  running: "Running",
-  pending: "Pending",
-}
-
-/** Compact colored pill for a run's status + when it last ran, so failures
- *  are scannable at a glance instead of being plain text indistinguishable
- *  from a success. */
+/** Status icon + when it last ran, or "Never run" if the job hasn't fired yet. */
 function LastRunBadge({ job }: { job: { lastRun: { status: string; startedAt: number } | null } }) {
   if (!job.lastRun) {
     return <span className="text-sm text-muted-foreground">Never run</span>
   }
-  const { status } = job.lastRun
   return (
     <div className="flex items-center gap-1.5">
-      <span
-        className={cn(
-          "px-1.5 py-0.5 rounded-full text-xs font-medium",
-          STATUS_STYLES[status] ?? "bg-muted text-muted-foreground"
-        )}
-      >
-        {STATUS_LABELS[status] ?? status}
-      </span>
+      <StatusIcon status={job.lastRun.status} />
       <span className="text-xs text-muted-foreground">{lastRunLabel(job)}</span>
     </div>
   )
@@ -177,7 +168,6 @@ export function TriggersModal({ open, onOpenChange, onSelectChat }: TriggersModa
                               onEdit={setEditingJob}
                               onRunNow={runNow}
                               onRotateToken={rotateToken}
-                              onToggleEnabled={(j, enabled) => setEnabled(j, enabled)}
                               onRequestDelete={setDeletingJob}
                               stopPropagation
                               editInMenu
