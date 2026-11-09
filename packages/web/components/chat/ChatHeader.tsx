@@ -111,7 +111,7 @@ export function ChatHeader({
   return (
     <>
       <div
-      className="flex items-center justify-between pt-3"
+      className="flex items-center justify-between pt-3 pb-1"
       style={{
         paddingLeft: "1.625rem",
         paddingRight: "1rem",
