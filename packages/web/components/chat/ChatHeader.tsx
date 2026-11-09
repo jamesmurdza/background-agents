@@ -61,7 +61,12 @@ export function ChatHeader({
   // Close menus on outside click
   useClickOutside(titleMenuRef, () => setTitleMenuOpen(false), titleMenuOpen)
 
-  const chatTitle = getChatDisplayTitle(chat)
+  // Job-linked chats show just the job name here (no date suffix — that
+  // lives in the separate run-date menu below) and can't be renamed inline;
+  // renaming a job goes through its edit modal (ScheduledJobActionsMenu →
+  // Edit), not a free-text chat title.
+  const isJobChat = !!chat.scheduledJobRun
+  const chatTitle = isJobChat ? chat.scheduledJobRun!.jobName : getChatDisplayTitle(chat)
   const isNewRepo = chat.repo === "__new__"
   const hasBranchOnGitHub = !isNewRepo && chat.branch && chat.sandboxId
   const githubBranchUrl = hasBranchOnGitHub
@@ -121,9 +126,12 @@ export function ChatHeader({
         ) : (
           <div className="group/title relative flex items-center gap-[2px] min-w-0" ref={titleMenuRef}>
             <button
-              onClick={startEditingTitle}
-              className="flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none hover:bg-accent group-hover/title:bg-accent transition-colors cursor-pointer"
-              title="Click to rename"
+              onClick={isJobChat ? undefined : startEditingTitle}
+              className={cn(
+                "flex h-7 items-center min-w-0 text-sm font-medium text-foreground px-2 rounded-l-md rounded-r-none transition-colors",
+                isJobChat ? "cursor-default" : "hover:bg-accent group-hover/title:bg-accent cursor-pointer"
+              )}
+              title={isJobChat ? undefined : "Click to rename"}
             >
               <span className="truncate">{chatTitle}</span>
             </button>
@@ -136,16 +144,18 @@ export function ChatHeader({
             </button>
             {titleMenuOpen && (
               <div className="absolute left-0 top-full mt-1 min-w-[210px] rounded-md border border-border bg-popover shadow-md py-1 z-50">
-                <button
-                  onClick={() => {
-                    setTitleMenuOpen(false)
-                    startEditingTitle()
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Rename
-                </button>
+                {!isJobChat && (
+                  <button
+                    onClick={() => {
+                      setTitleMenuOpen(false)
+                      startEditingTitle()
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Rename
+                  </button>
+                )}
                 {githubBranchUrl && (
                   <button
                     onClick={() => {

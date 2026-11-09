@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Check, RefreshCw, Clock, History, ChevronDown } from "lucide-react"
+import { Check, RefreshCw, Clock, ChevronDown } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
@@ -51,15 +51,17 @@ export function ChatJobRunHeader({ run, currentChatId, onSelectChat }: ChatJobRu
 
   return (
     <div className="flex items-center gap-1 shrink-0">
-      <RunStatusDot status={run.status} />
-
+      {/* Run-date menu — a second, separate title-style menu from the job
+       *  name above, so switching between runs isn't confused with renaming
+       *  the job. */}
       <div className="relative" ref={runsMenuRef}>
         <button
           onClick={() => setRunsOpen((v) => !v)}
-          className="flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          className="flex h-7 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Previous runs"
         >
-          <History className="h-3 w-3" />
+          <RunStatusDot status={run.status} />
+          <span className="truncate">{format(run.startedAt, "MMM d, h:mma").toLowerCase()}</span>
           <ChevronDown className="h-3 w-3" />
         </button>
 
