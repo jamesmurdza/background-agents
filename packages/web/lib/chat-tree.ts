@@ -12,14 +12,14 @@ import { ALL_REPOSITORIES, NO_REPOSITORY, DEFAULT_CHAT_VISIBILITY_FILTERS, type 
 /**
  * Display title for a chat's sidebar row. Scheduled-job-run chats never get a
  * displayName (startJobExecution doesn't set one), so for those we derive
- * "<job name> — <run date>" instead of falling back to "Untitled". Shared so
+ * "<job name> (<run date>)" instead of falling back to "Untitled". Shared so
  * every chat-title render site (ChatItem, chat switcher, etc.) stays in sync.
  */
 export function getChatDisplayTitle(chat: Chat): string {
   if (chat.displayName) return chat.displayName
   if (chat.scheduledJobRun) {
     const formatted = format(chat.scheduledJobRun.startedAt, "MMM d, h:mma").replace(/AM|PM/, (m) => m.toLowerCase())
-    return `${chat.scheduledJobRun.jobName} — ${formatted}`
+    return `${chat.scheduledJobRun.jobName} (${formatted})`
   }
   return "Untitled"
 }
