@@ -1,14 +1,15 @@
 # @background-agents/sandbox-secrets
 
-[Daytona secrets](https://www.daytona.io/docs/en/secrets/) let a sandbox use a credential without ever being able to read it — the sandbox only sees an opaque placeholder (`dtn_secret_…`), and Daytona's egress proxy swaps in the real value on requests to that secret's allowed hosts.
+[Daytona secrets](https://www.daytona.io/docs/en/secrets/) let a sandbox use a credential without ever being able to read it. The sandbox sees an opaque placeholder (`dtn_secret_…`), and an egress proxy swaps in the real value in HTTP requests limited to that secret's allowed hosts.
 
-This package simplifies secret handling by abstracting away the lifecycle of a Daytona secret, including:
-- Create-or-reuse a secret for a value in one call, instead of checking if it exists yourself
-- Automatic naming by value and host, so a rotated credential never collides with the old one
-- Automatic "last used" tracking and expiry, instead of manually deleting secrets you're done with
-- Automatically keeping a secret attached so a sandbox's proxy stays on, instead of needing a reboot
+This package makes the secrets management interface simpler and easier to use:
+1. A secrets only needs a value and a domain list. (No name is required.)
+2. Secrets are reused automatically if they already exist.
+3. Secrets update instantly when the value changes (instead of being cached by name).
+4. There is no need to delete secrets. They can be cleaned up when inactive.
+5. The secrets proxy is always available and ready to use. (There is no reboot required when the first secret is added.)
 
-In short: secrets are identified only by their value and list of allowed hosts — they're created automatically when you ask for them, and cleaned up on the schedule you choose to run.
+In summary, secrets are identified _only_ by their value and list of allowed hosts. They're created automatically when you ask for them, and cleaned up on a schedule that you set up.
 
 ## Prerequisites
 
