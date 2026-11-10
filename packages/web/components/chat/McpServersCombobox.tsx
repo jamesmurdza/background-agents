@@ -52,7 +52,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { pollUntilPopupCloses } from "@/lib/popup-poll"
+import { openOAuthPopup, pollUntilPopupCloses } from "@/lib/popup-poll"
 import { useToastStore } from "@/lib/stores/toast-store"
 import { cn } from "@/lib/utils"
 
@@ -409,12 +409,8 @@ export function McpServersCombobox({
       if (!status?.connected) {
         const popupUrl = status?.installUrl ?? status?.authUrl
         if (!popupUrl) throw new Error(`${server.name} is not configured on the server`)
-        const popup = window.open(
-          popupUrl,
-          server.popupName,
-          "width=600,height=700,scrollbars=yes"
-        )
-        if (!popup || popup.closed) return
+        const popup = openOAuthPopup(popupUrl, server.popupName)
+        if (!popup) return
         await waitForPopup(popup, server.popupName)
         status = (await loadAccountStatus())[server.slug]
         if (!status?.connected) return
@@ -561,12 +557,8 @@ export function McpServersCombobox({
       if (!popupUrl) {
         throw new Error("Server requires configuration but no setup URL provided")
       }
-      const popup = window.open(
-        popupUrl,
-        "smithery-oauth",
-        "width=600,height=700,scrollbars=yes"
-      )
-      if (!popup || popup.closed) {
+      const popup = openOAuthPopup(popupUrl, "smithery-oauth")
+      if (!popup) {
         setBusySlug(null)
         return
       }
