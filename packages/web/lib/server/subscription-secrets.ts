@@ -71,19 +71,6 @@ export function ensureClaudeSharedSecret(daytona: Daytona, token: string): Promi
 }
 
 /**
- * Make sure the Daytona secret for a Claude run's token exists, and return
- * its placeholder — or undefined when that kind isn't put behind one.
- */
-export function ensureClaudeRunSecret(
-  daytona: Daytona,
-  run: ClaudeRunToken
-): Promise<string> | undefined {
-  if (run.source === "shared") return subscriptionSecretsEnabled("CLAUDE_SHARED") ? ensureClaudeSharedSecret(daytona, run.token) : undefined
-  if (!subscriptionSecretsEnabled("CLAUDE_CODE_CREDENTIALS")) return undefined
-  return ensureSecret(daytona, () => run.token, CLAUDE_SECRET_HOSTS)
-}
-
-/**
  * Previously pruned a user's or the shared pool's old subscription-token
  * secrets eagerly on refresh (per-user/per-scope name prefixes made that
  * possible). Secrets are no longer named per user or scope — just per value
