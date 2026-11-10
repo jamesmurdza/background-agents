@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { ChatActionSlot } from "./ChatInput"
+import { ChatActionSlot } from "./ChatActionSlot"
 
 interface ActionSlotElementProps {
   "data-testid": string

@@ -1,7 +1,7 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useState, type ReactNode } from "react"
-import { AlertTriangle, ArrowUp, Square, ChevronDown, ListPlus, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Play, Clock } from "lucide-react"
+import { useRef, useEffect, useCallback, useState } from "react"
+import { AlertTriangle, ChevronDown, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
@@ -22,6 +22,8 @@ import { queuedSendNotice } from "@/lib/composer-queue"
 import { PendingFilesDisplay } from "./PendingFilesDisplay"
 import { PendingCommentsDisplay } from "./PendingCommentsDisplay"
 import { useChatCommentsStore } from "@/lib/stores/chat-comments-store"
+import { ChatActionSlot } from "./ChatActionSlot"
+import { ComposerGroupMeasure, type ComposerGroupItem } from "./ComposerGroupMeasure"
 import { DismissButton } from "./DismissButton"
 import { AgentModelSelector } from "./AgentModelSelector"
 import { ReasoningEffortSelector } from "./ReasoningEffortSelector"
@@ -113,144 +115,6 @@ interface ChatInputProps {
   onPendingMcpServersChange?: (servers: PendingMcpServer[]) => void
   // Mobile
   isMobile: boolean
-}
-
-interface ChatActionSlotProps {
-  canStop?: boolean
-  isRunning: boolean
-  /** True when the agent stopped with messages still waiting in the queue. */
-  isPaused?: boolean
-  /** Whether the composer textarea is currently empty. */
-  isInputEmpty?: boolean
-  canQueue: boolean
-  canSend: boolean
-  isMobile: boolean
-  showBranchAffordance: boolean
-  onSend: (e?: React.MouseEvent) => void
-  onStop: () => void
-}
-
-/**
- * Keeps the far-right composer action in a stable, fixed-size slot.
- *
- * The wrapper intentionally remains mounted while idle. Otherwise, when a run
- * finishes, the adjacent microphone control shifts into the Stop button's old
- * hit target and can receive a click that was intended to stop the agent.
- */
-export function ChatActionSlot({
-  canStop = true,
-  isRunning,
-  isPaused = false,
-  isInputEmpty = false,
-  canQueue,
-  canSend,
-  isMobile,
-  showBranchAffordance,
-  onSend,
-  onStop,
-}: ChatActionSlotProps) {
-  return (
-    <div
-      data-testid="chat-action-slot"
-      className={cn(
-        "shrink-0 flex items-center justify-center",
-        isMobile ? "h-9 w-9" : "h-7 w-7"
-      )}
-    >
-      {isRunning && canQueue ? (
-        <button
-          type="button"
-          onClick={onSend}
-          title="Queue message (sent after current response)"
-          aria-label="Queue message"
-          className={cn(
-            "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer",
-            isMobile ? "h-9 w-9" : "h-7 w-7"
-          )}
-        >
-          {/* ListPlus (not ArrowUp) so a queued send reads differently from an
-              immediate one at a glance, not just via the tooltip. */}
-          <ListPlus className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-        </button>
-      ) : isRunning ? (
-        <button
-          type="button"
-          onClick={onStop}
-          disabled={!canStop}
-          title={canStop ? "Stop agent" : "Agent is starting"}
-          aria-label="Stop agent"
-          className={cn(
-            "flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-wait",
-            isMobile ? "h-9 w-9" : "h-7 w-7"
-          )}
-        >
-          <Square className={cn(isMobile ? "h-3.5 w-3.5" : "h-3 w-3", "fill-current")} />
-        </button>
-      ) : canSend && isPaused && isInputEmpty ? (
-        <button
-          type="button"
-          onClick={onSend}
-          title="Resume queued prompts"
-          aria-label="Resume queued prompts"
-          className={cn(
-            "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer",
-            isMobile ? "h-9 w-9" : "h-7 w-7"
-          )}
-        >
-          <Play className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5", "fill-current")} />
-        </button>
-      ) : canSend ? (
-        <button
-          type="button"
-          onClick={onSend}
-          title={showBranchAffordance ? "Send to a new branch" : undefined}
-          aria-label={showBranchAffordance ? "Send to a new branch" : "Send message"}
-          className={cn(
-            "flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors cursor-pointer",
-            isMobile ? "h-9 w-9" : "h-7 w-7"
-          )}
-        >
-          {showBranchAffordance ? (
-            <GitBranch className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-          ) : (
-            <ArrowUp className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
-          )}
-        </button>
-      ) : null}
-    </div>
-  )
-}
-
-interface ComposerGroupItem {
-  icon: ReactNode
-  /** Omit entirely (not just empty string) to render this item icon-only. */
-  label?: string
-  chevron?: boolean
-}
-
-/**
- * Hidden, off-screen twin of one composer trigger group (left or right),
- * rendered at its full natural footprint — real icons and real label text,
- * but no interactivity or data fetching — purely so useTwoTierCollapse can
- * measure how much room the group would need without touching what's
- * actually on screen (see that hook for why).
- */
-function ComposerGroupMeasure({ groupRef, items }: { groupRef: React.Ref<HTMLDivElement>; items: ComposerGroupItem[] }) {
-  return (
-    <div
-      ref={groupRef}
-      aria-hidden="true"
-      className="pointer-events-none invisible fixed left-0 top-0 flex items-center gap-2"
-    >
-      {items.map((item, index) => (
-        <span key={index} className="flex items-center gap-1 whitespace-nowrap">
-          {item.icon}
-          {item.label !== undefined && <span>{item.label}</span>}
-          {item.chevron && <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 export function ChatInput({
