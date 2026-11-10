@@ -42,8 +42,14 @@ export async function getActiveSnapshotName(
         return name
       }
       // exists but not ready (building/removing/error) — skip it
-    } catch {
-      // doesn't exist, try next
+    } catch (error) {
+      // Only a genuine 404 proves the snapshot doesn't exist. Timeouts and
+      // transient Daytona service failures (502/500) do NOT prove that —
+      // rethrow those instead of silently falling through to the next name
+      // and ultimately reporting the misleading "no active snapshot" error
+      // below when the snapshot is actually fine and Daytona is just down.
+      if (error instanceof Error && "statusCode" in error && error.statusCode === 404) continue
+      throw error
     }
   }
   throw new Error(

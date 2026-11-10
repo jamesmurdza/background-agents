@@ -395,10 +395,18 @@ export async function ensureSandboxRunning(
         repoName: "project",
         createdSandbox: false,
       }
-    } catch {
-      // The recorded sandbox is gone (deleted out from under us, or Daytona
-      // auto-deleted it). Fall through and create a fresh one below,
-      // restoring the branch if we have one.
+    } catch (error) {
+      // Only a genuine 404 proves the sandbox is gone (deleted out from under
+      // us, or Daytona auto-deleted it). Timeouts and transient Daytona
+      // service failures (502/500) do NOT prove deletion — rethrow those so
+      // the caller can retry instead of abandoning a live sandbox and
+      // spinning up a new one underneath the chat. Mirrors the same check in
+      // getSandboxOrExpired (lib/sandbox-lifecycle.ts).
+      if (!(error instanceof Error && "statusCode" in error && error.statusCode === 404)) {
+        throw error
+      }
+      // Fall through and create a fresh one below, restoring the branch if
+      // we have one.
       console.log(`[sandbox] Sandbox ${chat.sandboxId} not found for chat ${chat.id}; creating a new one`)
     }
   }
