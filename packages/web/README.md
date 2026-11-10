@@ -93,6 +93,8 @@ Env:
 
 ```bash
 DATABASE_URL="postgresql://..."     # production database (may be a pooled connection)
+# `POSTGRES_URL` (the Vercel Postgres integration variable) is accepted as a
+# fallback if DATABASE_URL is unset.
 
 # Migrations must run over a direct/session connection (port 5432), NOT a
 # transaction pooler (port 6543). If DATABASE_URL points at a pooler (e.g.
@@ -157,6 +159,26 @@ To let users connect Netlify (Settings → API keys), create an OAuth applicatio
 ```bash
 NETLIFY_OAUTH_CLIENT_ID="..."
 NETLIFY_OAUTH_CLIENT_SECRET="..."
+```
+
+To offer free shared models to users without their own API key, set one or
+more comma-separated keys per pool (each shared run picks one at random):
+
+```bash
+OPENCODE_API_KEY="key-1,key-2"   # OpenCode-routed shared models
+GEMINI_API_KEY="key-1,key-2"     # Gemini shared models
+```
+
+Raw keys are kept out of sandboxes by default via Daytona secrets; see
+`DAYTONA_USER_KEY_SECRETS` in `.env.example` for the kill switch that puts a
+pool's keys back in the sandbox raw (by leaving its `OPENCODE_SHARED`/
+`GEMINI_SHARED` entry out of that var's value, or setting it to `"none"`).
+
+To let AI-generated chat names and PR titles/descriptions use a real model
+instead of their deterministic fallback strings, set:
+
+```bash
+OPENROUTER_API_KEY="..."   # optional — these features degrade gracefully without it
 ```
 
 To enable Stripe credit top-ups (optional — billing is only enabled when `BILLING_ENABLED="true"` and both Stripe secrets are set; otherwise checkout and the webhook return 404, the UI hides top-ups, and the rest of the app runs normally), set:
