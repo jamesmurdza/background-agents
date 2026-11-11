@@ -53,9 +53,11 @@ type PendingMcp = {
  * Apply MCP servers staged on a draft (see `DraftChatConfig.pendingMcpServers`
  * in lib/storage.ts, written by McpServersCombobox while a chat is still a
  * draft) against the now-real chat — best-effort, a failure here doesn't
- * block materialization. Mirrors the env var application below.
+ * block materialization. Mirrors the env var application below. Also used by
+ * the first send from a draft (useMessageDispatch), which materializes the
+ * draft itself.
  */
-async function applyPendingMcpServers(chatId: string, pendingMcp: PendingMcp): Promise<void> {
+export async function applyPendingMcpServers(chatId: string, pendingMcp: PendingMcp): Promise<void> {
   if (!pendingMcp.servers || pendingMcp.servers.length === 0) return
   try {
     await Promise.all(
