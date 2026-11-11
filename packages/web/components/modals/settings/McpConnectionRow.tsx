@@ -18,7 +18,9 @@ export interface McpConnectionRowConfig {
   slug: string
   name: string
   description: string
-  icon: ComponentType<{ className?: string }>
+  /** Bundled icon; vendor servers use their `iconUrl` instead. */
+  icon?: ComponentType<{ className?: string }>
+  iconUrl?: string
   /** GET -> { connected, authUrl? | installUrl? }. DELETE -> disconnect. */
   connectApi: string
   /** Popup window name, also the postMessage `source` the callback sends. */
@@ -34,7 +36,7 @@ export interface McpConnectionRowConfig {
  * not just one chat.
  */
 export function McpConnectionRow({ config }: { config: McpConnectionRowConfig }) {
-  const { name, description, icon: Icon, connectApi, popupName } = config
+  const { name, description, icon: Icon, iconUrl, connectApi, popupName } = config
   const [phase, setPhase] = useState<Phase>({ kind: "loading" })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const mountedRef = useRef(true)
@@ -133,7 +135,17 @@ export function McpConnectionRow({ config }: { config: McpConnectionRowConfig })
     <SettingsRow
       label={
         <span className="flex items-center gap-2">
-          <Icon className="h-4 w-4 flex-shrink-0" />
+          {Icon ? (
+            <Icon className="h-4 w-4 flex-shrink-0" />
+          ) : iconUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={iconUrl}
+              alt=""
+              className="h-4 w-4 flex-shrink-0"
+              onError={(e) => { e.currentTarget.style.visibility = "hidden" }}
+            />
+          ) : null}
           {name}
         </span>
       }
