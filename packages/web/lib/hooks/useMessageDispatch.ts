@@ -27,6 +27,7 @@ import { queryKeys, type SettingsData } from "@/lib/query"
 import { resolveAgentAndModel } from "@/lib/types"
 import { fetchChat } from "@/lib/sync/api"
 import { applyRecoveredChat } from "@/lib/chat-recovery"
+import { applyPendingMcpServers } from "@/lib/sandbox-client"
 import {
   sendMessageToApi,
   newBranchForSend,
@@ -128,6 +129,14 @@ export function useMessageDispatch({
         store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
         return
       }
+      // Attach MCP servers picked while this was a draft. Await them before the
+      // real chat is selected below (the picker reads its servers then) and
+      // before the first message (the server loads them when the turn starts).
+      const draftConfig = useChatSyncStore.getState().draftChatConfig
+      await applyPendingMcpServers(materializedChat.id, {
+        servers: draftConfig?.id === chatId ? draftConfig.pendingMcpServers : undefined,
+        clearPending: () => useChatSyncStore.getState().updateDraftChatConfig({ pendingMcpServers: undefined }),
+      })
       chatId = materializedChat.id
       chat = materializedChat
     } else {

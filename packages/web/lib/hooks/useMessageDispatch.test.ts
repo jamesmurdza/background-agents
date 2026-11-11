@@ -66,7 +66,7 @@ beforeEach(() => {
     key: (index: number) => [...stored.keys()][index] ?? null,
     get length() { return stored.size },
   })
-  useChatSyncStore.setState({ localChatState: { previewStates: {}, drafts: {}, queuedMessages: {} } })
+  useChatSyncStore.setState({ localChatState: { previewStates: {}, drafts: {}, queuedMessages: {} }, draftChatConfig: undefined })
 })
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -172,5 +172,33 @@ describe("direct-send failure ownership", () => {
       : { ok: true, data: { sandboxId: "sandbox-old", backgroundSessionId: "background-old", uploadedFiles: [], branch: null, previewUrlPattern: null } })
     await sending
     expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({ status: "running", activeAssistantMessageId: "assistant-new", pendingSend: true, pendingSendAssistantMessageId: "assistant-new" })
+  })
+})
+
+describe("first send from a draft", () => {
+  const ok = { ok: true, data: { sandboxId: "sandbox-1", backgroundSessionId: "background-1", uploadedFiles: [], branch: null, previewUrlPattern: null } }
+
+  function sendFromDraft(pendingMcpServers?: { slug: string; name: string; iconUrl: null; attachPath: string }[]) {
+    const calls: string[] = []
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`)
+      return new Response(null, { status: 201 })
+    }))
+    mocks.send.mockImplementation(async () => { calls.push("send message"); return ok })
+    useChatSyncStore.setState({ draftChatConfig: { id: "draft-1", repo: "__new__", baseBranch: "main", agent: null, model: null, pendingMcpServers } })
+    const { dispatch, chat } = setup({ currentChatId: "draft-1", materializeDraft: async () => chat })
+    return { calls, sending: dispatch.sendMessage("Use GitHub", "eliza", "eliza-classic-1.0") }
+  }
+
+  it("attaches MCP servers picked on the draft before sending the first message", async () => {
+    const { calls, sending } = sendFromDraft([{ slug: "github/github", name: "GitHub", iconUrl: null, attachPath: "github" }])
+    await sending
+    expect(calls).toEqual(["POST /api/chats/chat-1/mcp-servers/github", "send message"])
+  })
+
+  it("sends without extra requests when no MCP servers were picked", async () => {
+    const { calls, sending } = sendFromDraft()
+    await sending
+    expect(calls).toEqual(["send message"])
   })
 })
