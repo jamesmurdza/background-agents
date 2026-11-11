@@ -44,7 +44,7 @@ export function DeploymentsSection({ isMobile }: { isMobile: boolean }) {
         </div>
       ) : !data?.connected ? (
         <div className="rounded-md border border-dashed border-border/60 py-8 text-center text-sm text-muted-foreground">
-          Connect Netlify under API Keys to deploy a repository.
+          Connect Netlify under Integrations to deploy a repository.
         </div>
       ) : data.sites.length === 0 ? (
         <div className="rounded-md border border-dashed border-border/60 py-8 text-center text-sm text-muted-foreground">

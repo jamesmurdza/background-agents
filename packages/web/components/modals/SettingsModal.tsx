@@ -67,7 +67,7 @@ type SectionDef = { key: SectionKey; label: string; icon: typeof Bot }
 
 const baseSections: SectionDef[] = [
   { key: "general", label: "General", icon: SettingsIcon },
-  { key: "api-keys", label: "API Keys", icon: Key },
+  { key: "api-keys", label: "LLM Providers", icon: Key },
   { key: "custom-endpoints", label: "Custom endpoints", icon: Server },
   { key: "integrations", label: "Integrations", icon: LinkIcon },
   { key: "credits", label: "Credits", icon: CreditCard },
