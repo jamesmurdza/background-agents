@@ -23,8 +23,11 @@ import {
   gmailToolPolicySchema,
   PADDLE_MCP_QUALIFIED_NAME,
   PADDLE_MCP_URL,
+  findMcpVendor,
+  vendorQualifiedName,
 } from "@background-agents/mcp"
 import { getGmailMcpUrl } from "./gmail"
+import { isVendorConnected } from "./vendors"
 import {
   type McpOwner,
   ownerCreateData,
@@ -281,6 +284,27 @@ export async function attachPaddleResponse(
     qualifiedName: PADDLE_MCP_QUALIFIED_NAME,
     displayName: "Paddle",
     mcpUrl: PADDLE_MCP_URL,
+  })
+}
+
+/** Attach a vendor-hosted MCP server (see MCP_VENDORS) the user has linked. */
+export async function attachVendorResponse(
+  owner: McpOwner,
+  userId: string,
+  slug: string
+): Promise<Response> {
+  const vendor = findMcpVendor(slug)
+  if (!vendor) return notFound("Unknown MCP vendor")
+  if (!(await isVendorConnected(userId, vendor))) {
+    return Response.json(
+      { error: `${vendor.name} account not connected for this user` },
+      { status: 409 }
+    )
+  }
+  return attachSentinelResponse(owner, {
+    qualifiedName: vendorQualifiedName(vendor),
+    displayName: vendor.name,
+    mcpUrl: vendor.mcpUrl,
   })
 }
 

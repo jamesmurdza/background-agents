@@ -19,6 +19,10 @@
  *   authorization server to mint access tokens for Paddle's hosted MCP
  *   server (mcp.paddle.com/mcp).
  *
+ * - **Vendors**: The same OAuth flow, generalized: a list of vendors that host
+ *   their own MCP server (Linear, Notion, Sentry, ...) and plain functions to
+ *   discover their OAuth metadata, register a client, log in and refresh.
+ *
  * @example
  * ```typescript
  * import {
@@ -80,6 +84,30 @@ export {
   PADDLE_MCP_URL,
   PADDLE_MCP_QUALIFIED_NAME,
 } from "./paddle"
+
+// Vendor-hosted MCP servers over OAuth
+export {
+  MCP_VENDORS,
+  type McpVendor,
+  vendorQualifiedName,
+  findMcpVendor,
+  findMcpVendorByQualifiedName,
+  discoverOAuthMetadata,
+  pickClientAuthMethod,
+  registerOAuthClient,
+  createPkcePair,
+  buildAuthorizationUrl,
+  exchangeAuthorizationCode,
+  refreshAccessToken,
+  signOAuthState,
+  verifyOAuthState,
+  McpOAuthError,
+  type OAuthServerMetadata,
+  type ClientAuthMethod,
+  type OAuthClient,
+  type OAuthTokens,
+  type OAuthStateClaims,
+} from "./vendors"
 
 // Gmail provider
 export {

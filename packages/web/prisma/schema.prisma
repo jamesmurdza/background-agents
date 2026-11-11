@@ -85,6 +85,7 @@ model User {
   skills             Skill[]
   tokenUsages        TokenUsage[]
   creditTransactions CreditTransaction[]
+  mcpOAuthTokens     McpOAuthToken[]
 }
 
 // =============================================================================
@@ -298,6 +299,49 @@ model McpServerConnection {
   @@unique([scheduledJobId, qualifiedName])
   @@index([chatId])
   @@index([scheduledJobId])
+}
+
+// OAuth client this deployment registered with a vendor's authorization server
+// (dynamic client registration) for one vendor MCP server, e.g. Linear. One per
+// vendor + redirect URI, shared by every user: local, preview and production
+// callbacks differ, so each registers its own.
+model McpOAuthClient {
+  id                    String  @id @default(cuid())
+  vendor                String // slug from MCP_VENDORS, e.g. "linear"
+  redirectUri           String
+  clientId              String
+  clientSecretEncrypted String? @db.Text // only for servers that require one
+  authMethod            String // none | client_secret_post | client_secret_basic
+
+  createdAt DateTime @default(now())
+
+  tokens McpOAuthToken[]
+
+  @@unique([vendor, redirectUri])
+}
+
+// A user's login to a vendor MCP server. agent-servers.ts reuses the access
+// token until it expires, then refreshes and stores the rotated refresh token.
+// refreshLockedUntil stops two runs from refreshing at once: vendors rotate
+// refresh tokens, so a second refresh with the old one fails or revokes the
+// grant.
+model McpOAuthToken {
+  id                    String    @id @default(cuid())
+  userId                String
+  vendor                String
+  clientId              String // McpOAuthClient.id the grant was issued to
+  refreshTokenEncrypted String    @db.Text
+  accessTokenEncrypted  String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshLockedUntil    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client McpOAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vendor])
 }
 
 // =============================================================================

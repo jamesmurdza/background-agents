@@ -27,7 +27,7 @@ import {
   type GmailToolPolicy,
   parseGmailToolPolicy,
 } from "@background-agents/mcp/gmail/policy"
-import { PADDLE_MCP_QUALIFIED_NAME } from "@background-agents/mcp"
+import { MCP_VENDORS, PADDLE_MCP_QUALIFIED_NAME, vendorQualifiedName } from "@background-agents/mcp"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import type { PendingMcpServer } from "@/lib/storage"
 import {
@@ -84,7 +84,8 @@ const GITHUB_QUALIFIED_NAME = "github/github"
  * attaches a sentinel row via POST `${apiBase}/<id>/mcp-servers/<attachPath>`.
  */
 interface FirstPartyServer extends RegistryServer {
-  icon: ComponentType<{ className?: string }>
+  /** Bundled icon; vendor servers use their `iconUrl` instead. */
+  icon?: ComponentType<{ className?: string }>
   connectApi: string
   attachPath: string
   /** Popup window name, also the postMessage `source` the callback sends. */
@@ -138,6 +139,21 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
     attachPath: "paddle",
     popupName: "paddle-oauth",
   },
+  // Vendor-hosted servers we log in to over OAuth (Linear, Notion, ...).
+  ...MCP_VENDORS.map(
+    (vendor): FirstPartyServer => ({
+      slug: vendorQualifiedName(vendor),
+      name: vendor.name,
+      description: vendor.description,
+      iconUrl: vendor.iconUrl,
+      url: null,
+      verified: true,
+      useCount: 0,
+      connectApi: `/api/mcp/connect/${vendor.slug}`,
+      attachPath: `vendor/${vendor.slug}`,
+      popupName: `${vendor.slug}-oauth`,
+    })
+  ),
 ]
 
 const FIRST_PARTY_BY_SLUG = new Map(FIRST_PARTY_SERVERS.map((s) => [s.slug, s]))
@@ -680,6 +696,7 @@ export function McpServersCombobox({
             ) : (
               allServers.map((s) => {
                 const firstParty = FIRST_PARTY_BY_SLUG.get(s.slug)
+                const FirstPartyIcon = firstParty?.icon
                 const connectedServer = connectedByName.get(s.slug)
                 const isConn = isSlugConnected(s.slug)
                 const hasError = !isDraft && connectedServer?.status === "error"
@@ -710,7 +727,17 @@ export function McpServersCombobox({
                         className="h-6 w-6 rounded bg-muted shrink-0 flex items-center justify-center"
                         aria-hidden="true"
                       >
-                        <firstParty.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                        {FirstPartyIcon ? (
+                          <FirstPartyIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : s.iconUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={s.iconUrl}
+                            alt=""
+                            className="h-3.5 w-3.5"
+                            onError={(e) => { e.currentTarget.style.visibility = "hidden" }}
+                          />
+                        ) : null}
                       </div>
                     ) : s.iconUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element

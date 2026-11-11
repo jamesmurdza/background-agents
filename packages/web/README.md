@@ -154,6 +154,15 @@ PADDLE_CLIENT_ID="..."
 PADDLE_MCP_JWT_SECRET="..."
 ```
 
+To let users connect the vendor-hosted MCP servers in `MCP_VENDORS` (Linear,
+Notion, Sentry, ...), set a secret for signing the OAuth state. There's nothing
+to set up per vendor: the first connect registers our OAuth client with the
+vendor automatically.
+
+```bash
+MCP_OAUTH_STATE_SECRET="..."
+```
+
 To let users connect Netlify (Settings → API keys), create an OAuth application at [app.netlify.com/applications](https://app.netlify.com/applications) with the redirect URI `<NEXTAUTH_URL>/api/netlify/callback`, then set:
 
 ```bash

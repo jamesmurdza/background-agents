@@ -9,6 +9,8 @@
  *   - Gmail row      → sign a 1-hour connection token for our own Gmail MCP
  *                      server, which enforces the row's tool policy. The agent
  *                      never gets the Google credential.
+ *   - Vendor rows    → (Linear, Notion, ... see MCP_VENDORS) the user's stored
+ *                      access token, refreshed when it's about to expire.
  *
  * Chats and scheduled jobs share the same McpServerConnection table; the
  * loader takes an `McpOwner` and filters on the right FK column. On GitHub
@@ -24,12 +26,14 @@ import {
   GITHUB_MCP_QUALIFIED_NAME,
   GMAIL_MCP_QUALIFIED_NAME,
   PADDLE_MCP_QUALIFIED_NAME,
+  findMcpVendorByQualifiedName,
   safeServerName,
 } from "@background-agents/mcp"
 import type { AgentMcpServer } from "@background-agents/agent-configuration/mcp"
 import { type McpOwner, ownerWhere } from "./owner"
 import { getGmailMcpUrl, getGmailProvider } from "./gmail"
 import { getPaddleProvider } from "./paddle"
+import { getVendorAccessToken } from "./vendors"
 
 // Lazily-initialized GitHub provider
 let githubProvider: ReturnType<typeof createGitHubMcpProvider> | null = null
@@ -159,6 +163,28 @@ async function translateRow(
       const msg = err instanceof Error ? err.message : "Failed to mint token"
       console.error("[agent-servers] failed to mint Paddle access token:", err)
       await markRowError(row.id, `Paddle token mint failed: ${msg}`)
+      return null
+    }
+  }
+
+  const vendor = findMcpVendorByQualifiedName(row.qualifiedName)
+  if (vendor) {
+    if (!user) {
+      await markRowError(row.id, `${vendor.name} account not connected for this user`)
+      return null
+    }
+    try {
+      return {
+        name: safeServerName(row.qualifiedName),
+        // From the vendor list rather than the row, so a changed URL applies
+        // to existing connections.
+        url: vendor.mcpUrl,
+        bearerToken: await getVendorAccessToken(user.id, vendor),
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to get access token"
+      console.error(`[agent-servers] failed to get ${vendor.name} access token:`, msg)
+      await markRowError(row.id, msg)
       return null
     }
   }

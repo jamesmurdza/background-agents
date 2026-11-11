@@ -6,7 +6,9 @@ import { Github, Link as LinkIcon, Check, Loader2 } from "lucide-react"
 import {
   GITHUB_MCP_QUALIFIED_NAME,
   GMAIL_MCP_QUALIFIED_NAME,
+  MCP_VENDORS,
   PADDLE_MCP_QUALIFIED_NAME,
+  vendorQualifiedName,
 } from "@background-agents/mcp"
 import { cn } from "@/lib/utils"
 import { queryKeys } from "@/lib/query/keys"
@@ -51,6 +53,16 @@ const INTEGRATIONS: McpConnectionRowConfig[] = [
     connectApi: "/api/mcp/connect/paddle",
     popupName: "paddle-oauth",
   },
+  ...MCP_VENDORS.map(
+    (vendor): McpConnectionRowConfig => ({
+      slug: vendorQualifiedName(vendor),
+      name: vendor.name,
+      description: vendor.description,
+      iconUrl: vendor.iconUrl,
+      connectApi: `/api/mcp/connect/${vendor.slug}`,
+      popupName: `${vendor.slug}-oauth`,
+    })
+  ),
 ]
 
 /**
