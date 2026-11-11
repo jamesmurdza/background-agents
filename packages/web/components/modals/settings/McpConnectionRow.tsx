@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ComponentType } from "react"
 import { Check, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { pollUntilPopupCloses } from "@/lib/popup-poll"
+import { openOAuthPopup, pollUntilPopupCloses } from "@/lib/popup-poll"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import { SettingsRow } from "./shared"
 
@@ -87,8 +87,8 @@ export function McpConnectionRow({ config }: { config: McpConnectionRowConfig })
       setPhase({ kind: "disconnected", error: `${name} is not configured on the server` })
       return
     }
-    const popup = window.open(status.url, popupName, "width=600,height=700,scrollbars=yes")
-    if (!popup || popup.closed) {
+    const popup = openOAuthPopup(status.url, popupName)
+    if (!popup) {
       setPhase({ kind: "disconnected" })
       return
     }
