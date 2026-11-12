@@ -27,7 +27,7 @@ import { queryKeys, type SettingsData } from "@/lib/query"
 import { resolveAgentAndModel } from "@/lib/types"
 import { fetchChat } from "@/lib/sync/api"
 import { applyRecoveredChat } from "@/lib/chat-recovery"
-import { applyPendingMcpServers } from "@/lib/sandbox-client"
+import { applyPendingMcpServers, applyPendingEnvVars } from "@/lib/sandbox-client"
 import {
   sendMessageToApi,
   newBranchForSend,
@@ -129,13 +129,18 @@ export function useMessageDispatch({
         store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
         return
       }
-      // Attach MCP servers picked while this was a draft. Await them before the
-      // real chat is selected below (the picker reads its servers then) and
-      // before the first message (the server loads them when the turn starts).
+      // Attach MCP servers and env vars staged while this was a draft. Await
+      // them before the real chat is selected below (pickers read them then)
+      // and before the first message (the server loads them when the turn
+      // starts).
       const draftConfig = useChatSyncStore.getState().draftChatConfig
       await applyPendingMcpServers(materializedChat.id, {
         servers: draftConfig?.id === chatId ? draftConfig.pendingMcpServers : undefined,
         clearPending: () => useChatSyncStore.getState().updateDraftChatConfig({ pendingMcpServers: undefined }),
+      })
+      await applyPendingEnvVars(materializedChat.id, {
+        environmentVariables: draftConfig?.id === chatId ? draftConfig.pendingEnvironmentVariables : undefined,
+        clearPending: () => useChatSyncStore.getState().updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
       })
       chatId = materializedChat.id
       chat = materializedChat

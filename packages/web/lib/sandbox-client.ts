@@ -85,6 +85,30 @@ export async function applyPendingMcpServers(chatId: string, pendingMcp: Pending
 }
 
 /**
+ * Apply env vars staged on a draft (see
+ * `DraftChatConfig.pendingEnvironmentVariables` in lib/storage.ts, written by
+ * the Env Vars modal while a chat is still a draft) against the now-real
+ * chat — best-effort, a failure here doesn't block materialization. Mirrors
+ * `applyPendingMcpServers` above. Also used by the first send from a draft
+ * (useMessageDispatch), which materializes the draft itself.
+ */
+export async function applyPendingEnvVars(chatId: string, pendingEnv: PendingEnv): Promise<void> {
+  if (!pendingEnv.environmentVariables || Object.keys(pendingEnv.environmentVariables).length === 0) return
+  try {
+    await fetch(`/api/chats/${chatId}/env`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ environmentVariables: pendingEnv.environmentVariables }),
+    })
+    pendingEnv.clearPending()
+  } catch (err) {
+    // Best-effort: the chat still materializes even if this fails; the user
+    // can re-enter the env vars from the real chat.
+    console.error("[sandbox-client] Failed to apply staged draft env vars:", err)
+  }
+}
+
+/**
  * Materialize a draft chat (if `materializeDraft` resolves it) as status
  * "creating" — not "pending" — so every consumer reading `chat.status`
  * (e.g. the composer's `canSend`/`isCreating` gate in useChatComposer.ts)
@@ -114,19 +138,8 @@ export async function materializeDraftChat(
 
   const chatId = materialized.id
 
-  if (pendingEnv?.environmentVariables && Object.keys(pendingEnv.environmentVariables).length > 0) {
-    try {
-      await fetch(`/api/chats/${chatId}/env`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ environmentVariables: pendingEnv.environmentVariables }),
-      })
-      pendingEnv.clearPending()
-    } catch (err) {
-      // Best-effort: the chat still materializes and gets a sandbox even if
-      // this fails; the user can re-enter the env vars from the real chat.
-      console.error("[sandbox-client] Failed to apply staged draft env vars:", err)
-    }
+  if (pendingEnv) {
+    await applyPendingEnvVars(chatId, pendingEnv)
   }
 
   if (pendingMcp) {
