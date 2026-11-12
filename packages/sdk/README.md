@@ -66,7 +66,7 @@ await sandbox.delete()
 | Codex | `codex exec --json --skip-git-repo-check --yolo -- "prompt"` |
 | Command Code | `commandcode --output-format json --skip-onboarding --trust --no-auto-update --yolo --model <model> -p "prompt"` |
 | Copilot | `copilot -p "prompt" --output-format=json --silent --autopilot` |
-| Droid | `droid exec --output-format stream-json --auto high -m <model> "prompt"` |
+| Droid | `droid exec --output-format stream-json --auto high -m custom:byok-0 "prompt"` (BYOK model is written to `~/.factory/settings.json`; `-m` only carries a model id directly for `factory/<id>` models) |
 | Gemini | `gemini --output-format stream-json --skip-trust --yolo -p "prompt"` |
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | Kilo | `kilo run --format json --auto -- "prompt" 2>&1` |
