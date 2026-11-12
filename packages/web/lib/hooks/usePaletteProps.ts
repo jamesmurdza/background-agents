@@ -292,7 +292,10 @@ export function usePaletteProps({
     onOpenFileBrowser: sandboxId
       ? () => preview.openPreview({ type: "directory", dirPath: PATHS.SANDBOX_HOME })
       : undefined,
-    onOpenChanges: sandboxId && hasRepo ? () => preview.openPreview({ type: "changes" }) : undefined,
+    // Diffing only needs a git repo in the sandbox, not a GitHub remote —
+    // `inspectChanges` falls back to the local base branch when there's no
+    // `origin` (e.g. a chat with no repository attached yet).
+    onOpenChanges: sandboxId ? () => preview.openPreview({ type: "changes" }) : undefined,
     onToggleTerminal: sandboxId || isDraftChatId(displayCurrentChatId) ? toggleTerminal : undefined,
     servers: availableServers,
     onOpenServer: (port, url) => preview.openPreview({ type: "server", port, url }),

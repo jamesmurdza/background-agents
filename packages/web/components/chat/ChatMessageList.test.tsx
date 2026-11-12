@@ -73,8 +73,14 @@ describe("uncommitted file warning", () => {
     expect(html).toContain('data-testid="uncommitted-files-warning"')
     expect(html).toContain("Your changes will be lost unless you commit them.")
     expect(html).toContain('data-testid="uncommitted-files-create-repo"')
-    expect(html).toContain(">Create a repo</button> to save your work.")
+    expect(html).toContain(">Create a repo</button>")
     expect(html).not.toContain(">commit</button>")
+  })
+
+  it("also offers to review changes from the no-repo banner when onOpenChanges is provided", () => {
+    const html = renderWarning(2, true)
+    expect(html).toContain('data-testid="uncommitted-files-no-repo-review"')
+    expect(html).toContain(">review your changes</button>")
   })
 
   it("shows the no-repo banner for a single file too", () => {
