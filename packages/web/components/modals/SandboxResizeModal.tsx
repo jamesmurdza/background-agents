@@ -32,18 +32,14 @@ const GIB = 1024 ** 3
 
 interface UsageStat {
   usedGb: number
-  totalGb: number
 }
 
 function clamp(value: number, max: number, floor: number = MIN_GB): number {
   return Math.min(Math.max(value, floor), max)
 }
 
-function bytesToUsage(usedBytes: number, totalBytes: number): UsageStat {
-  return {
-    usedGb: Math.round((usedBytes / GIB) * 10) / 10,
-    totalGb: Math.round((totalBytes / GIB) * 10) / 10,
-  }
+function bytesToUsage(usedBytes: number): UsageStat {
+  return { usedGb: Math.round((usedBytes / GIB) * 10) / 10 }
 }
 
 function sliderClasses() {
@@ -101,8 +97,8 @@ function ResourceSlider({
   // 0-100% axis.
   const pct = (value: number) => Math.min(100, Math.max(0, ((value - MIN_GB) / scale) * 100))
   // `disabledPct` IS the allocation boundary — reused below for the used/
-  // allocated overlay split instead of recomputing it from usage.totalGb, so
-  // the two can't disagree about where the current allocation ends.
+  // allocated overlay split, so the two can't disagree about where the
+  // current allocation ends.
   const disabledPct = pct(effectiveFloor)
   const takenPct = usage ? pct(usage.usedGb) : null
 
@@ -256,11 +252,7 @@ export function SandboxResizeModal({
       setDisk(clamp(Math.round(data.disk), MAX_DISK_GB, floor))
     }
     const usage = data.usage
-    setDiskUsage(
-      usage && typeof usage.diskUsedBytes === "number" && typeof usage.diskTotalBytes === "number"
-        ? bytesToUsage(usage.diskUsedBytes, usage.diskTotalBytes)
-        : null
-    )
+    setDiskUsage(usage && typeof usage.diskUsedBytes === "number" ? bytesToUsage(usage.diskUsedBytes) : null)
   }
 
   // On open, load the real values rather than snapping the sliders to a

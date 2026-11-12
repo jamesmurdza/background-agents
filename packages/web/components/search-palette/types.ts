@@ -62,8 +62,8 @@ export interface PaletteCommandCallbacks {
   onOpenEnvVars?: () => void
   /** Open skills manager. Omitted when no sandbox exists. */
   onOpenSkills?: () => void
-  /** Whether the current user is an admin — gates the "Increase sandbox resources" command. */
+  /** Whether the current user is an admin — gates the "Sandbox resources" command. */
   isAdmin?: boolean
-  /** Open the sandbox resize modal. Omitted when not an admin or no sandbox exists. */
+  /** Open the sandbox resources modal. Omitted when not an admin, or no sandbox/draft chat exists. */
   onOpenSandboxResize?: () => void
 }

@@ -56,7 +56,7 @@ interface ChatPanelProps {
   onOpenCommandPalette?: () => void
   /** Whether the user is authenticated */
   isAuthenticated?: boolean
-  /** Whether the current user is an admin — gates the "Increase resources" item. */
+  /** Whether the current user is an admin — gates the "Sandbox resources" item. */
   isAdmin?: boolean
   /** Open the sandbox resize modal. Omitted when there's no sandbox to resize. */
   onOpenSandboxResize?: () => void
