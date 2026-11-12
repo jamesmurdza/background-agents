@@ -8,7 +8,7 @@
  */
 
 /** Detect macOS from the browser environment. Returns false outside the browser. */
-export function isMacPlatform(): boolean {
+function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false
   // `navigator.platform` is deprecated but still the most broadly supported
   // signal; fall back to userAgentData/userAgent where available.
