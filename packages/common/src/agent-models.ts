@@ -367,6 +367,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     //
     // ── BYOK: Anthropic (ids per the claude-api reference) ──
     { value: "claude-opus-5-5", label: "Claude Opus 5.5", requiresKey: "anthropic" },
+    // Fable is Anthropic's most capable tier (per code.claude.com/docs/en/model-config)
+    // and is a plain Anthropic API id like the rest of this block — sibling agents
+    // (opencode, pi) already offer it alongside Opus/Sonnet/Haiku for BYOK.
+    { value: "claude-fable-5-2", label: "Claude Fable 5.2", requiresKey: "anthropic" },
+    { value: "claude-fable-5-1", label: "Claude Fable 5.1", requiresKey: "anthropic" },
+    { value: "claude-fable-5", label: "Claude Fable 5", requiresKey: "anthropic" },
     { value: "claude-opus-5", label: "Claude Opus 5", requiresKey: "anthropic" },
     { value: "claude-opus-4-8", label: "Claude Opus 4.8", requiresKey: "anthropic" },
     { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", requiresKey: "anthropic" },
@@ -375,6 +381,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", requiresKey: "anthropic" },
     { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     // ── BYOK: OpenAI ──
+    // Astra is OpenAI's most capable model (API Access confirmed per
+    // learn.chatgpt.com/docs/models) — present for every other agent's OpenAI
+    // BYOK/direct list (codex, opencode, pi) but was missing here.
+    { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "gpt-5", label: "GPT-5", requiresKey: "openai" },
     { value: "gpt-5-mini", label: "GPT-5 Mini", requiresKey: "openai" },
