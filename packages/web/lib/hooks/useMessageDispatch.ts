@@ -27,7 +27,7 @@ import { queryKeys, type SettingsData } from "@/lib/query"
 import { resolveAgentAndModel } from "@/lib/types"
 import { fetchChat } from "@/lib/sync/api"
 import { applyRecoveredChat } from "@/lib/chat-recovery"
-import { applyPendingMcpServers } from "@/lib/sandbox-client"
+import { applyPendingMcpServers, applyPendingEnvVars } from "@/lib/sandbox-client"
 import {
   sendMessageToApi,
   newBranchForSend,
@@ -113,6 +113,9 @@ export function useMessageDispatch({
     let chat: Chat | undefined
 
     const draftIdToActivate = isDraftChatId(chatId) ? chatId : null
+    // Captured below (if this is a draft) and sent with the first message so
+    // a fresh sandbox is created with these — see MessagePayload.resources.
+    let pendingResources: { memory?: number; disk?: number } | undefined
 
     // If this is a draft chat, materialize it first. `activate: false` defers the
     // currentChatId switch until the optimistic messages are in the cache (below),
@@ -129,14 +132,24 @@ export function useMessageDispatch({
         store.setDraftText(chatId, newerDraft ? `${content}\n\n${newerDraft}` : content)
         return
       }
-      // Attach MCP servers picked while this was a draft. Await them before the
-      // real chat is selected below (the picker reads its servers then) and
-      // before the first message (the server loads them when the turn starts).
+      // Attach MCP servers and env vars staged while this was a draft. Await
+      // them before the real chat is selected below (pickers read them then)
+      // and before the first message (the server loads them when the turn
+      // starts).
       const draftConfig = useChatSyncStore.getState().draftChatConfig
       await applyPendingMcpServers(materializedChat.id, {
         servers: draftConfig?.id === chatId ? draftConfig.pendingMcpServers : undefined,
         clearPending: () => useChatSyncStore.getState().updateDraftChatConfig({ pendingMcpServers: undefined }),
       })
+      await applyPendingEnvVars(materializedChat.id, {
+        environmentVariables: draftConfig?.id === chatId ? draftConfig.pendingEnvironmentVariables : undefined,
+        clearPending: () => useChatSyncStore.getState().updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
+      })
+      // Resources (admin-only) have no API route of their own — they only
+      // matter once, at sandbox creation, so just carry them into the
+      // message payload below instead of applying them separately here.
+      pendingResources = draftConfig?.id === chatId ? draftConfig.pendingResources : undefined
+      useChatSyncStore.getState().updateDraftChatConfig({ pendingResources: undefined })
       chatId = materializedChat.id
       chat = materializedChat
     } else {
@@ -211,6 +224,7 @@ export function useMessageDispatch({
           newBranch: newBranchForSend(chat),
           planMode: planMode || undefined,
           reasoningEffort,
+          resources: pendingResources,
         }
 
         const result = await sendMessageToApi(chatId, payload, files)

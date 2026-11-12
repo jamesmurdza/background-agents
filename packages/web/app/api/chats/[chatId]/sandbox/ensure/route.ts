@@ -2,6 +2,7 @@ import { Daytona } from "@daytonaio/sdk"
 import { NEW_REPOSITORY } from "@/lib/types"
 import { prisma } from "@/lib/db/prisma"
 import { ensureSandboxRunning } from "@/lib/sandbox"
+import { sanitizeInitialResources } from "@/lib/sandbox-resources"
 import {
   requireAuth,
   isAuthError,
@@ -29,7 +30,10 @@ import {
  * two routes are behaviorally identical, `recreate` just gives the preview
  * panel a URL matching its "recreate" mental model.
  *
- * Body: {} (chatId comes from the route param)
+ * Body: {} or { resources?: { memory?: number; disk?: number } } (chatId
+ *   comes from the route param). `resources` only takes effect when a fresh
+ *   sandbox is actually being created (ignored when reusing an existing
+ *   one) and only for admins — see `sanitizeInitialResources`.
  * Responses:
  *   200 { sandboxId, previewUrlPattern, branch }
  *   404 — chat not found / not owned by caller
@@ -55,8 +59,11 @@ export async function POST(
   const isNewRepo = chat.repo === NEW_REPOSITORY || chat.repo === "__new__"
   const githubToken = isNewRepo ? null : await getGitHubToken(auth.userId)
 
+  const body = await req.json().catch(() => ({}))
+  const resources = await sanitizeInitialResources(auth.userId, body?.resources)
+
   try {
-    const ensured = await ensureSandboxRunning({ daytona, chat, userId: auth.userId, githubToken })
+    const ensured = await ensureSandboxRunning({ daytona, chat, userId: auth.userId, githubToken, resources })
     if (!ensured) {
       return Response.json(
         { error: "SANDBOX_NOT_FOUND", message: "Sandbox not found. GitHub re-authentication required to recreate." },

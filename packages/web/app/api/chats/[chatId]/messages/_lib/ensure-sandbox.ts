@@ -1,6 +1,7 @@
 import { Daytona } from "@daytonaio/sdk"
 import { prisma } from "@/lib/db/prisma"
 import { ensureSandboxRunning } from "@/lib/sandbox"
+import { sanitizeInitialResources } from "@/lib/sandbox-resources"
 import type { ReadyTurnSecret } from "@/lib/server/turn-secrets"
 import type { ChatRecord, MessagePayload } from "./types"
 
@@ -73,6 +74,10 @@ export async function ensureSandboxForChat(params: {
 }): Promise<EnsuredSandbox | Response> {
   const { daytona, chat, chatId, payload, githubToken, userId, state, turnSecrets } = params
 
+  // Admin-only, and only takes effect below if ensureSandboxRunning actually
+  // creates a fresh sandbox (ignored when reusing an existing one).
+  const resources = await sanitizeInitialResources(userId, payload.resources)
+
   // The reuse-or-create core (same checks, same order of operations) lives in
   // the shared `ensureSandboxRunning` — this wrapper only layers the
   // message-send-specific bookkeeping (SandboxState, in-memory sessionId,
@@ -92,6 +97,7 @@ export async function ensureSandboxForChat(params: {
     githubToken,
     turnSecrets,
     newBranchHint: payload.newBranch,
+    resources,
   })
 
   if (!result) {

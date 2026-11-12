@@ -2,6 +2,7 @@
 
 import { createContext, useContext, ReactNode } from "react"
 import type { Chat, Settings, Agent, Message, CredentialFlags, ChatStatus } from "@/lib/types"
+import type { DraftChatConfig } from "@/lib/storage"
 
 // =============================================================================
 // ChatContext - Provides shared chat state to avoid prop drilling
@@ -41,8 +42,8 @@ export interface ChatContextValue {
   updateDraft: (chatId: string, draft: string) => void
   clearDraft: (chatId: string) => void
   isDraftChatId: (chatId: string) => boolean
-  draftChatConfig: { id: string; repo: string; baseBranch: string; agent: string | null; model: string | null; planMode?: boolean } | null | undefined
-  updateDraftChatConfig: (updates: Partial<{ repo: string; baseBranch: string; agent: string | null; model: string | null; planMode?: boolean }>) => void
+  draftChatConfig: DraftChatConfig | null | undefined
+  updateDraftChatConfig: (updates: Partial<Omit<DraftChatConfig, "id">>) => void
 
   // Message operations
   refetchMessages: (chatId: string) => Promise<void>

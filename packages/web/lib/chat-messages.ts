@@ -28,6 +28,8 @@ export interface SendMessagePayload {
   newBranch?: string
   planMode?: boolean
   reasoningEffort?: string
+  /** Admin-only initial sandbox resources (GB) staged on a draft chat. See MessagePayload.resources on the API side. */
+  resources?: { memory?: number; disk?: number }
 }
 
 export interface SendMessageResponse {

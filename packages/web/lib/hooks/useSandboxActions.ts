@@ -221,6 +221,10 @@ export function useSandboxActions({
           {
             servers: draftChatConfig?.pendingMcpServers,
             clearPending: () => updateDraftChatConfig({ pendingMcpServers: undefined }),
+          },
+          {
+            resources: draftChatConfig?.pendingResources,
+            clearPending: () => updateDraftChatConfig({ pendingResources: undefined }),
           }
         )
         if (!ensured) return

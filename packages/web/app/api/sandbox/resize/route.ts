@@ -1,10 +1,8 @@
 import { Daytona } from "@daytonaio/sdk"
+import { SNAPSHOT_RESOURCES } from "@background-agents/sandbox-image"
 import { badRequest, requireAdmin, isAuthError, serverConfigError, internalError } from "@/lib/db/api-helpers"
 import { getSandboxOrExpired } from "@/lib/sandbox-lifecycle"
-
-/** Hard ceilings enforced server-side regardless of what the client sends. */
-const MAX_MEMORY_GB = 10
-const MAX_DISK_GB = 25
+import { MAX_MEMORY_GB, MAX_DISK_GB } from "@/lib/sandbox-resources"
 
 /**
  * Reads live disk usage from inside the sandbox via `df`, in bytes. Only
@@ -47,6 +45,13 @@ async function readUsage(
  * successful resize would show the sliders back at their starting position
  * even though the sandbox itself kept the new allocation. Also returns live
  * disk used/total usage (bytes) read from inside the sandbox, when running.
+ *
+ * GET /api/sandbox/resize (no sandboxId) — for a draft chat, which has no
+ * sandbox yet: returns the snapshot's own defaults (`SNAPSHOT_RESOURCES` in
+ * @background-agents/sandbox-image, the single source of truth for what a
+ * freshly created sandbox actually gets), so the modal can seed its sliders
+ * with the real values a new sandbox would start with instead of a second,
+ * easily-stale copy of the same numbers.
  */
 export async function GET(req: Request) {
   const auth = await requireAdmin()
@@ -54,7 +59,7 @@ export async function GET(req: Request) {
 
   const sandboxId = new URL(req.url).searchParams.get("sandboxId")
   if (!sandboxId) {
-    return badRequest("Missing sandboxId")
+    return Response.json({ memory: SNAPSHOT_RESOURCES.memory, disk: SNAPSHOT_RESOURCES.disk, usage: null })
   }
 
   const daytonaApiKey = process.env.DAYTONA_API_KEY
