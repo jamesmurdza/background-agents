@@ -15,7 +15,7 @@ interface MobileHeaderProps {
   onOpenEnvVars: () => void
   onOpenSkills?: () => void
   onOpenCommandPalette?: () => void
-  /** Whether the current user is an admin — gates the "Increase resources" item. */
+  /** Whether the current user is an admin — gates the "Sandbox resources" item. */
   isAdmin?: boolean
   /** Open the sandbox resize modal. Omitted when there's no sandbox to resize. */
   onOpenSandboxResize?: () => void
@@ -144,7 +144,7 @@ export function MobileHeader({
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left cursor-pointer"
                 >
                   <HardDrive className="h-4 w-4" />
-                  Increase resources
+                  Sandbox resources
                 </button>
               )}
 

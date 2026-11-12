@@ -230,9 +230,9 @@ export function CommandPalette({
             </CommandItem>
           )}
           {isAdmin && onOpenSandboxResize && (
-            <CommandItem value="increase sandbox resources ram disk admin" onSelect={() => run(onOpenSandboxResize)}>
+            <CommandItem value="sandbox resources ram disk admin" onSelect={() => run(onOpenSandboxResize)}>
               <HardDrive className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>Increase sandbox resources</span>
+              <span>Sandbox resources</span>
             </CommandItem>
           )}
           {onArchiveChat && (

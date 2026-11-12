@@ -96,17 +96,27 @@ function ResourceSlider({
 }) {
   const effectiveFloor = floor ?? MIN_GB
   const scale = max - MIN_GB
-  // Position on the slider's own MIN_GB-max scale, so the usage bar below
-  // lines up with it instead of running on its own 0-100% axis.
+  // Position on the slider's own MIN_GB-max scale, so the used/allocated
+  // overlays drawn on top of it line up instead of running on their own
+  // 0-100% axis.
   const pct = (value: number) => Math.min(100, Math.max(0, ((value - MIN_GB) / scale) * 100))
-  // `disabledPct` IS the allocation boundary — reused below for the usage
-  // bar's taken/available split instead of recomputing it from usage.totalGb,
-  // so the two bars can't disagree about where the current allocation ends.
+  // `disabledPct` IS the allocation boundary — reused below for the used/
+  // allocated overlay split instead of recomputing it from usage.totalGb, so
+  // the two can't disagree about where the current allocation ends.
   const disabledPct = pct(effectiveFloor)
   const takenPct = usage ? pct(usage.usedGb) : null
 
-  // While the real allocation/usage is in flight, show placeholder bars
-  // rather than the slider at some value that might not be true yet — the
+  // Left-hand caption below the slider: the short usage description for a
+  // resource that tracks it (disk), or just the scale's floor otherwise
+  // (RAM has no usage viewer — see the "remove the RAM available viewer" ask).
+  const leftCaption = !showUsage
+    ? `${MIN_GB} GB`
+    : usage
+      ? `${usage.usedGb} GB used`
+      : "Usage unavailable"
+
+  // While the real allocation/usage is in flight, show a placeholder rather
+  // than the slider at some value that might not be true yet — the
   // alternative (defaulting to e.g. 2 GB) would flash a wrong number before
   // snapping to the real one once the fetch resolves.
   if (loading) {
@@ -121,12 +131,6 @@ function ResourceSlider({
           <div className="h-2.5 w-8 rounded bg-muted animate-pulse" />
           <div className="h-2.5 w-8 rounded bg-muted animate-pulse" />
         </div>
-        {showUsage && (
-          <>
-            <div className="mt-2 h-1 w-full rounded-full bg-muted animate-pulse" />
-            <div className="mt-1 h-2.5 w-32 rounded bg-muted animate-pulse" />
-          </>
-        )}
       </div>
     )
   }
@@ -162,35 +166,22 @@ function ResourceSlider({
             style={{ width: `${disabledPct}%` }}
           />
         )}
+        {/* Live usage, read from inside the sandbox, drawn directly on the
+            track instead of a separate bar below — painted after (so on top
+            of) the grey allocation overlay above, leaving grey visible only
+            from here to `disabledPct` (allocated but unused). Not tracked for
+            every resource (e.g. RAM), so this is opt-in via `showUsage`. */}
+        {showUsage && takenPct != null && takenPct > 0 && (
+          <div
+            className="absolute left-0 h-1.5 rounded-l-full bg-green-500 pointer-events-none"
+            style={{ width: `${takenPct}%` }}
+          />
+        )}
       </div>
       <div className="mt-1 flex justify-between text-[11px] text-muted-foreground tabular-nums">
-        <span>{MIN_GB} GB</span>
+        <span>{leftCaption}</span>
         <span>{max} GB</span>
       </div>
-
-      {/* Live used/available, read from inside the sandbox — drawn on the
-          same MIN_GB-max scale as the slider above (blue stops where usage
-          ends, white runs to `disabledPct` — the same allocation boundary
-          the slider greys out — and the rest is unallocated headroom).
-          Not tracked for every resource (e.g. RAM), so this block is opt-in. */}
-      {showUsage && (
-        usage && takenPct != null ? (
-          <div className="mt-2">
-            <div className="h-1.5 flex rounded-full overflow-hidden border border-border">
-              <div className="bg-blue-500" style={{ width: `${takenPct}%` }} />
-              <div className="bg-white dark:bg-neutral-200" style={{ width: `${disabledPct - takenPct}%` }} />
-              <div className="bg-muted" style={{ width: `${100 - disabledPct}%` }} />
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-              {usage.usedGb} GB used of {usage.totalGb} GB allocated
-            </p>
-          </div>
-        ) : (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            {loading ? "Loading usage…" : "Usage unavailable (sandbox not running)"}
-          </p>
-        )
-      )}
     </div>
   )
 }
