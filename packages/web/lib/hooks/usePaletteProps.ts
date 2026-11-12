@@ -305,7 +305,11 @@ export function usePaletteProps({
     isDownloading,
     onCopyCloneCommand: hasRepo ? handleCopyCloneCommand : undefined,
     onCopyCheckoutCommand: currentChat?.branch ? handleCopyCheckoutCommand : undefined,
-    onOpenEnvVars: currentChat ? handleOpenEnvVars : undefined,
+    // Draft chats have no DB row yet, but handleOpenEnvVars already supports
+    // them — it stages vars on draftChatConfig.pendingEnvironmentVariables
+    // instead of hitting the API (see useSandboxActions.ts) — so gate on
+    // displayCurrentChatId (draft-aware), not currentChat (null for drafts).
+    onOpenEnvVars: displayCurrentChatId ? handleOpenEnvVars : undefined,
     onOpenSkills: hasRepo || isRealRepo(draftRepo) ? onToggleSkillsModal : undefined,
     isAdmin: !!session?.user?.isAdmin,
     onOpenSandboxResize:
