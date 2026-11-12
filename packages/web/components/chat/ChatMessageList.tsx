@@ -306,7 +306,20 @@ export function ChatMessageList({
                 ) : (
                   "Create a repo"
                 )}{" "}
-                to save your work.
+                to save your work{onOpenChanges ? ", or " : "."}
+                {onOpenChanges && (
+                  <>
+                    <button
+                      type="button"
+                      data-testid="uncommitted-files-no-repo-review"
+                      onClick={onOpenChanges}
+                      className="underline underline-offset-2 hover:no-underline cursor-pointer"
+                    >
+                      review your changes
+                    </button>
+                    {" "}first.
+                  </>
+                )}
               </span>
             </div>
           )}

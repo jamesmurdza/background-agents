@@ -117,4 +117,15 @@ describe("inspectChanges", () => {
     const f = sandboxFixture()
     await expect(inspectChanges(f.sandbox, f.repo, "develop")).rejects.toThrow("develop")
   })
+
+  it("diffs against the local base branch when there's no origin remote", async () => {
+    const f = sandboxFixture()
+    f.git("remote", "remove", "origin")
+    f.write("src/toast.tsx", "line 1\nline 2 changed\n")
+    f.git("commit", "-qam", "agent commit")
+    f.write("new file.ts", "export {}\n")
+
+    const { files } = await inspectChanges(f.sandbox, f.repo, "main")
+    expect(files.map((file) => file.path)).toEqual(["new file.ts", "src/toast.tsx"])
+  })
 })

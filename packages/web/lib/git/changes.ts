@@ -41,25 +41,36 @@ export async function inspectChanges(
   baseBranch: string,
   token?: string
 ): Promise<ChangesResult> {
-  // Merges happen on GitHub, so refresh the sandbox's copy of the base first.
-  // If that fails or stalls, compare with the copy it already has.
-  let timer: ReturnType<typeof setTimeout> | undefined
-  await Promise.race([
-    createSandboxGit(sandbox).fetchBranch(repoPath, baseBranch, token).catch(() => {}),
-    new Promise((resolve) => { timer = setTimeout(resolve, FETCH_TIMEOUT_MS) }),
-  ])
-  clearTimeout(timer)
+  // New-repo chats never get an `origin` remote (there's nothing to push to
+  // yet), so there's no `origin/<baseBranch>` to diff against. Fall back to
+  // the local branch in that case instead of failing outright.
+  const { exitCode: remoteExitCode } = await sandbox.process.executeCommand(
+    `cd ${esc(repoPath)} && git remote get-url origin`
+  )
+  const hasRemote = remoteExitCode === 0
+  const baseRef = hasRemote ? `origin/${baseBranch}` : baseBranch
+
+  if (hasRemote) {
+    // Merges happen on GitHub, so refresh the sandbox's copy of the base
+    // first. If that fails or stalls, compare with the copy it already has.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      createSandboxGit(sandbox).fetchBranch(repoPath, baseBranch, token).catch(() => {}),
+      new Promise((resolve) => { timer = setTimeout(resolve, FETCH_TIMEOUT_MS) }),
+    ])
+    clearTimeout(timer)
+  }
 
   const diff = "git -c core.quotePath=false diff --no-color --no-ext-diff"
   const command = [
     `cd ${esc(repoPath)} || exit 1`,
-    `base=$(git merge-base ${esc(`origin/${baseBranch}`)} HEAD 2>/dev/null) || exit 2`,
+    `base=$(git merge-base ${esc(baseRef)} HEAD 2>/dev/null) || exit 2`,
     // New files aren't in `git diff`; diff each against /dev/null instead.
     `{ ${diff} "$base"; git ls-files --others --exclude-standard -z | xargs -0 -r -n1 ${diff} --no-index -- /dev/null; } | head -c ${MAX_DIFF_BYTES + 1}`,
     `printf '${SEPARATOR}'`,
     UNCOMMITTED_STATUS_COMMAND,
     `printf '${SEPARATOR}'`,
-    `git diff --name-only --no-renames -z ${esc(`origin/${baseBranch}`)}`,
+    `git diff --name-only --no-renames -z ${esc(baseRef)}`,
   ].join("\n")
   const { result, exitCode } = await sandbox.process.executeCommand(command)
   if (exitCode === 2) throw new Error(`Couldn't find where this branch started from ${baseBranch}.`)
