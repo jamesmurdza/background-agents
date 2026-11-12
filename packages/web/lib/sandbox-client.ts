@@ -49,6 +49,11 @@ type PendingMcp = {
   clearPending: () => void
 }
 
+type PendingResources = {
+  resources: { memory?: number; disk?: number } | undefined
+  clearPending: () => void
+}
+
 /**
  * Apply MCP servers staged on a draft (see `DraftChatConfig.pendingMcpServers`
  * in lib/storage.ts, written by McpServersCombobox while a chat is still a
@@ -164,11 +169,20 @@ export async function materializeDraftChat(
  */
 export async function ensureSandboxForChat(
   chatId: string,
-  queryClient: QueryClient
+  queryClient: QueryClient,
+  pendingResources?: PendingResources
 ): Promise<EnsuredDraftSandbox | null> {
   try {
-    const res = await fetch(`/api/chats/${chatId}/sandbox/ensure`, { method: "POST" })
+    const res = await fetch(`/api/chats/${chatId}/sandbox/ensure`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resources: pendingResources?.resources }),
+    })
     const data = await res.json().catch(() => ({}))
+    // Best-effort — the request already carried the staged resources above
+    // regardless of outcome, so there's nothing to retry by keeping them
+    // staged (and a failed ensure already surfaces its own error toast).
+    pendingResources?.clearPending()
     if (!res.ok) {
       console.error("[sandbox-client] Failed to ensure sandbox for materialized draft:", data)
       patchChatCache(queryClient, chatId, { status: "error" })
@@ -218,12 +232,13 @@ export async function materializeAndEnsureSandbox(
   queryClient: QueryClient,
   pendingEnv?: PendingEnv,
   options?: { failureBody?: string },
-  pendingMcp?: PendingMcp
+  pendingMcp?: PendingMcp,
+  pendingResources?: PendingResources
 ): Promise<EnsuredDraftSandbox | null> {
   useToastStore.getState().addToast({ title: "Starting sandbox…", body: "This only takes a moment." })
 
   const chatId = await materializeDraftChat(draftId, materializeDraft, pendingEnv, pendingMcp)
-  const result = chatId ? await ensureSandboxForChat(chatId, queryClient) : null
+  const result = chatId ? await ensureSandboxForChat(chatId, queryClient, pendingResources) : null
 
   if (!result) {
     useToastStore.getState().addToast({

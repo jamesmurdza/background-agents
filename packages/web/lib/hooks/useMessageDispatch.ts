@@ -113,6 +113,9 @@ export function useMessageDispatch({
     let chat: Chat | undefined
 
     const draftIdToActivate = isDraftChatId(chatId) ? chatId : null
+    // Captured below (if this is a draft) and sent with the first message so
+    // a fresh sandbox is created with these — see MessagePayload.resources.
+    let pendingResources: { memory?: number; disk?: number } | undefined
 
     // If this is a draft chat, materialize it first. `activate: false` defers the
     // currentChatId switch until the optimistic messages are in the cache (below),
@@ -142,6 +145,11 @@ export function useMessageDispatch({
         environmentVariables: draftConfig?.id === chatId ? draftConfig.pendingEnvironmentVariables : undefined,
         clearPending: () => useChatSyncStore.getState().updateDraftChatConfig({ pendingEnvironmentVariables: undefined }),
       })
+      // Resources (admin-only) have no API route of their own — they only
+      // matter once, at sandbox creation, so just carry them into the
+      // message payload below instead of applying them separately here.
+      pendingResources = draftConfig?.id === chatId ? draftConfig.pendingResources : undefined
+      useChatSyncStore.getState().updateDraftChatConfig({ pendingResources: undefined })
       chatId = materializedChat.id
       chat = materializedChat
     } else {
@@ -216,6 +224,7 @@ export function useMessageDispatch({
           newBranch: newBranchForSend(chat),
           planMode: planMode || undefined,
           reasoningEffort,
+          resources: pendingResources,
         }
 
         const result = await sendMessageToApi(chatId, payload, files)

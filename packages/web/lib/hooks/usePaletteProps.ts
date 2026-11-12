@@ -312,8 +312,14 @@ export function usePaletteProps({
     onOpenEnvVars: displayCurrentChatId ? handleOpenEnvVars : undefined,
     onOpenSkills: hasRepo || isRealRepo(draftRepo) ? onToggleSkillsModal : undefined,
     isAdmin: !!session?.user?.isAdmin,
+    // Draft chats have no sandbox yet, but SandboxResizeModal already
+    // supports staging resources on draftChatConfig.pendingResources instead
+    // of hitting the resize API (see AppModals.tsx) — same draft-aware
+    // pattern as onOpenEnvVars above.
     onOpenSandboxResize:
-      sandboxId && session?.user?.isAdmin ? () => modals.setSandboxResizeModalOpen(true) : undefined,
+      (sandboxId || isDraftChatId(displayCurrentChatId)) && session?.user?.isAdmin
+        ? () => modals.setSandboxResizeModalOpen(true)
+        : undefined,
     chatIds: displayChats.map((c) => c.id),
     onNavigateChat: handleNavigateChat,
     currentChatId: displayCurrentChatId,

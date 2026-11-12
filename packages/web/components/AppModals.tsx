@@ -91,7 +91,11 @@ export function AppModals({
 }: AppModalsProps) {
   const modals = useModals()
   const gitDialogs = useGit()
-  const { currentChat, currentChatId, chats, settings, credentialFlags, renameChat, draftChatConfig } = useChat()
+  const {
+    currentChat, currentChatId, chats, settings, credentialFlags, renameChat,
+    draftChatConfig, isDraftChatId, updateDraftChatConfig,
+  } = useChat()
+  const isDraftCurrentChat = !!currentChatId && isDraftChatId(currentChatId) && draftChatConfig?.id === currentChatId
   // A new chat stays a draft until its first message, with its repo in the draft config.
   const skillsChat = currentChat ?? (draftChatConfig?.id === currentChatId ? draftChatConfig : null)
 
@@ -135,6 +139,9 @@ export function AppModals({
         onClose={() => modals.setSandboxResizeModalOpen(false)}
         sandboxId={currentChat?.sandboxId ?? null}
         isMobile={isMobile}
+        isDraft={isDraftCurrentChat}
+        pendingResources={isDraftCurrentChat ? draftChatConfig?.pendingResources : undefined}
+        onSaveDraftResources={(resources) => updateDraftChatConfig({ pendingResources: resources })}
       />
 
       <NetlifyDeployDialog

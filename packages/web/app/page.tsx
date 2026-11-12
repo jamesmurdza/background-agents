@@ -696,7 +696,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
             onOpenSkills={() => setSkillsModalOpen(true)}
             isAdmin={!!session?.user?.isAdmin}
             onOpenSandboxResize={
-              currentChat?.sandboxId ? () => modals.setSandboxResizeModalOpen(true) : undefined
+              currentChat?.sandboxId || (displayCurrentChatId && isDraftChatId(displayCurrentChatId)) ? () => modals.setSandboxResizeModalOpen(true) : undefined
             }
           />
         )}
@@ -738,7 +738,7 @@ function HomePageContent({ isMobile }: HomePageContentProps) {
                   isAuthenticated={!!session}
                   isAdmin={!!session?.user?.isAdmin}
                   onOpenSandboxResize={
-                    currentChat?.sandboxId ? () => modals.setSandboxResizeModalOpen(true) : undefined
+                    currentChat?.sandboxId || (displayCurrentChatId && isDraftChatId(displayCurrentChatId)) ? () => modals.setSandboxResizeModalOpen(true) : undefined
                   }
                   onSelectChat={handleSelectChat}
               />

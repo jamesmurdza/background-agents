@@ -9,17 +9,25 @@ import { ModalHeader, focusChatPrompt } from "@/components/ui/modal-header"
 interface SandboxResizeModalProps {
   open: boolean
   onClose: () => void
-  /** Sandbox to resize. Null (no active chat/sandbox) disables the submit button. */
+  /** Sandbox to resize. Null (no active chat/sandbox) disables the submit button, unless `isDraft`. */
   sandboxId: string | null
   isMobile?: boolean
+  /**
+   * True for a draft chat (no sandbox yet). Instead of resizing a live
+   * sandbox, the chosen RAM/disk are staged via `onSaveDraftResources` and
+   * applied once when the draft's sandbox actually gets created.
+   */
+  isDraft?: boolean
+  /** Resources already staged on the draft, if any — seeds the sliders instead of the snapshot defaults. */
+  pendingResources?: { memory?: number; disk?: number }
+  /** Stages the chosen resources on the draft. Only called when `isDraft`. */
+  onSaveDraftResources?: (resources: { memory: number; disk: number }) => void
 }
 
 const MIN_GB = 0
 /** Hard ceilings — must match MAX_MEMORY_GB/MAX_DISK_GB in the API route. */
 const MAX_MEMORY_GB = 10
 const MAX_DISK_GB = 25
-const DEFAULT_MEMORY_GB = 2
-const DEFAULT_DISK_GB = 5
 const GIB = 1024 ** 3
 
 interface UsageStat {
@@ -188,19 +196,38 @@ function ResourceSlider({
 }
 
 /**
- * Admin-only modal to bump a sandbox's RAM (up to MAX_MEMORY_GB) and disk
- * (up to MAX_DISK_GB) allocation. Opened from the chat title menu and the
- * Cmd/Ctrl+K command palette
- * (both gated on `session.user.isAdmin` by the caller — this component
- * doesn't re-check admin-ness, the API route does via `requireAdmin`).
+ * Admin-only modal to set a sandbox's RAM (up to MAX_MEMORY_GB) and disk (up
+ * to MAX_DISK_GB) allocation. Opened from the chat title menu and the
+ * Cmd/Ctrl+K command palette (both gated on `session.user.isAdmin` by the
+ * caller — this component doesn't re-check admin-ness, the API route does
+ * via `requireAdmin`).
+ *
+ * For a real chat (`isDraft` false), this resizes the live sandbox via
+ * `/api/sandbox/resize` — increase only, per the Daytona API. For a draft
+ * chat (no sandbox yet), it instead stages the chosen values via
+ * `onSaveDraftResources`, applied once when the draft's sandbox actually
+ * gets created — see `pendingResources` in lib/storage.ts.
  */
-export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false }: SandboxResizeModalProps) {
-  const [memory, setMemory] = useState(DEFAULT_MEMORY_GB)
-  const [disk, setDisk] = useState(DEFAULT_DISK_GB)
-  // Floors below which the sliders won't go — Daytona only supports growing
-  // memory/disk, never shrinking (hot resize can only increase CPU/memory,
-  // and disk resize throws on any decrease). Null until we've loaded the
-  // sandbox's actual current allocation.
+export function SandboxResizeModal({
+  open,
+  onClose,
+  sandboxId,
+  isMobile = false,
+  isDraft = false,
+  pendingResources,
+  onSaveDraftResources,
+}: SandboxResizeModalProps) {
+  const [memory, setMemory] = useState(0)
+  const [disk, setDisk] = useState(0)
+  // For a real sandbox, this is the floor the sliders won't go below —
+  // Daytona only supports growing memory/disk, never shrinking (hot resize
+  // can only increase CPU/memory, and disk resize throws on any decrease).
+  // For a draft (nothing provisioned yet, so no such limit), it's only used
+  // as the baseline "has the user changed anything from the seeded default"
+  // comparison for `hasChanges` below — the slider itself gets `floor={null}`
+  // in that case so the full range stays selectable.
+  // Null until we've loaded the real values (sandbox allocation, or — for a
+  // draft — the snapshot's defaults).
   const [memoryFloor, setMemoryFloor] = useState<number | null>(null)
   const [diskFloor, setDiskFloor] = useState<number | null>(null)
   // Live disk used/total, read from inside the sandbox. Null when loading,
@@ -245,32 +272,58 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
     )
   }
 
-  // On open, load what's actually provisioned right now rather than
-  // snapping the sliders back to a hardcoded default — otherwise a resize
-  // that already landed would look reverted the next time this opens. This
-  // also sets the floor the sliders can't be dragged below, since the
-  // Daytona API rejects any decrease.
+  // On open, load the real values rather than snapping the sliders to a
+  // hardcoded placeholder:
+  // - Real sandbox: what's actually provisioned right now — otherwise a
+  //   resize that already landed would look reverted the next time this
+  //   opens. Also sets the floor the sliders can't be dragged below, since
+  //   the Daytona API rejects any decrease.
+  // - Draft (no sandbox yet): whatever was already staged on the draft
+  //   (`pendingResources`), or if nothing's staged, the snapshot's own
+  //   defaults (`SNAPSHOT_RESOURCES`, fetched from the same API route so
+  //   there's one source of truth for "what does a new sandbox start with"
+  //   instead of a second hardcoded copy here).
   useEffect(() => {
     if (!open) return
     setError(null)
     setSuccess(false)
     setSubmitting(false)
 
-    if (!sandboxId) {
-      setMemory(DEFAULT_MEMORY_GB)
-      setDisk(DEFAULT_DISK_GB)
+    if (!sandboxId && !isDraft) {
       setMemoryFloor(null)
       setDiskFloor(null)
       setDiskUsage(null)
       return
     }
 
+    if (isDraft && pendingResources?.memory != null && pendingResources?.disk != null) {
+      // Already staged — no need to ask the server what the snapshot
+      // defaults are, this fully overrides them.
+      setMemory(pendingResources.memory)
+      setDisk(pendingResources.disk)
+      setMemoryFloor(pendingResources.memory)
+      setDiskFloor(pendingResources.disk)
+      setDiskUsage(null)
+      return
+    }
+
     let cancelled = false
     setLoading(true)
-    fetch(`/api/sandbox/resize?sandboxId=${encodeURIComponent(sandboxId)}`)
+    const url = sandboxId ? `/api/sandbox/resize?sandboxId=${encodeURIComponent(sandboxId)}` : "/api/sandbox/resize"
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) applyStatus(data)
+        if (cancelled) return
+        // A draft with one of the two already staged (e.g. memory set, disk
+        // not) still needs the other from the snapshot defaults.
+        if (isDraft) {
+          applyStatus({
+            memory: pendingResources?.memory ?? data.memory,
+            disk: pendingResources?.disk ?? data.disk,
+          })
+        } else {
+          applyStatus(data)
+        }
       })
       .catch((e) => {
         if (!cancelled) {
@@ -285,16 +338,33 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, sandboxId])
+  }, [open, sandboxId, isDraft, pendingResources?.memory, pendingResources?.disk])
 
-  // The floor is the loaded allocation itself (applyStatus clamps the initial
-  // slider value up to it), so comparing against it is exactly "has the user
-  // moved a slider away from what's currently provisioned" — no separate
-  // "initial value" state to keep in sync.
+  // The floor doubles as the baseline to compare against: for a real
+  // sandbox it's the loaded allocation (applyStatus clamps the initial
+  // slider value up to it); for a draft it's whatever was staged/defaulted
+  // above. Either way, comparing against it is exactly "has the user moved
+  // a slider away from where it started" — no separate "initial value"
+  // state to keep in sync.
   const hasChanges = memoryFloor != null && diskFloor != null && (memory !== memoryFloor || disk !== diskFloor)
 
   const submit = async () => {
-    if (!sandboxId || submitting) return
+    if (submitting) return
+    if (isDraft) {
+      setSubmitting(true)
+      setError(null)
+      try {
+        onSaveDraftResources?.({ memory, disk })
+        setMemoryFloor(memory)
+        setDiskFloor(disk)
+        setSuccess(true)
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
+
+    if (!sandboxId) return
     setSubmitting(true)
     setError(null)
     try {
@@ -346,8 +416,9 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
 
           <div className="px-4 pt-2 pb-4 space-y-5">
             <p className="text-xs text-muted-foreground">
-              Admin only. Resources can only be increased, not decreased.
-              Increasing disk requires briefly stopping the sandbox.
+              {isDraft
+                ? "Admin only. Sets the RAM/disk this chat's sandbox is created with."
+                : "Admin only. Resources can only be increased, not decreased. Increasing disk requires briefly stopping the sandbox."}
             </p>
 
             <ResourceSlider
@@ -355,7 +426,7 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
               label="RAM"
               value={memory}
               max={MAX_MEMORY_GB}
-              floor={memoryFloor}
+              floor={isDraft ? null : memoryFloor}
               usage={null}
               showUsage={false}
               loading={loading}
@@ -368,7 +439,7 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
               label="Disk space"
               value={disk}
               max={MAX_DISK_GB}
-              floor={diskFloor}
+              floor={isDraft ? null : diskFloor}
               usage={diskUsage}
               loading={loading}
               disabled={submitting || loading}
@@ -378,14 +449,14 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
             {error && <p className="text-xs text-destructive">{error}</p>}
             {success && !error && (
               <p className="text-xs text-green-600 dark:text-green-500">
-                Resize complete.
+                {isDraft ? "Saved — applied when the sandbox is created." : "Resize complete."}
               </p>
             )}
 
             <button
               type="button"
               onClick={submit}
-              disabled={!sandboxId || submitting || loading || !hasChanges}
+              disabled={(!sandboxId && !isDraft) || submitting || loading || !hasChanges}
               className={cn(
                 "flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground",
                 "transition-colors hover:bg-primary/90 cursor-pointer",
@@ -395,8 +466,8 @@ export function SandboxResizeModal({ open, onClose, sandboxId, isMobile = false 
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {submitting
-                ? "Resizing…"
-                : !sandboxId
+                ? isDraft ? "Saving…" : "Resizing…"
+                : !sandboxId && !isDraft
                   ? "No sandbox"
                   : !hasChanges
                     ? "No changes"
