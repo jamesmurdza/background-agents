@@ -65,6 +65,7 @@ export const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
   "gemini-3.1-pro-preview",
   "google/gemini-3.1-pro-preview",
   "google/gemini-4-argon",
+  "google/gemini-4-carbon",
 ])
 
 /**
@@ -418,9 +419,11 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Flagship per Factory's own "choosing your model" docs, alongside Astra/Sol above.
     { value: "factory/gpt-6-luna", label: "GPT-6 Luna (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
-    // Newest Gemini tier per Factory's docs — Factory-hosted only (the public
-    // Gemini API doesn't serve this model yet, so it's absent from the BYOK
-    // Gemini section above and from the gemini/pi agents).
+    // Gemini 4 Hydrogen is Factory's current flagship Google model — listed
+    // ahead of Carbon in Factory's own models table. Both are Factory-hosted
+    // only (the public Gemini API doesn't serve either model yet, so they're
+    // absent from the BYOK Gemini section above and from the gemini/pi agents).
+    { value: "factory/gemini-4-hydrogen", label: "Gemini 4 Hydrogen (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-4-carbon", label: "Gemini 4 Carbon (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.8-flash", label: "Gemini 3.8 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
@@ -449,9 +452,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "openai/gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "openai" },
-    // Google models — Flash also runs on the shared Gemini pool; Pro and Argon
-    // are BYOK-only.
+    // Google models — Flash also runs on the shared Gemini pool; Pro, Argon,
+    // and Carbon are BYOK-only.
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
+    { value: "google/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "gemini" },
     { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
     { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
     { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "gemini", priceUsdPerM: 0.75 },
