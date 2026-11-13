@@ -4,6 +4,7 @@
  * when the Paddle OAuth env vars aren't configured.
  */
 import { createPaddleMcpProvider, type PaddleMcpProvider } from "@background-agents/mcp"
+import { appBaseUrl } from "@/lib/server/app-url"
 
 let paddleProvider: PaddleMcpProvider | null = null
 
@@ -22,10 +23,6 @@ export function getPaddleProvider(): PaddleMcpProvider | null {
 
   paddleProvider = createPaddleMcpProvider({ clientId, jwtSecret })
   return paddleProvider
-}
-
-function appBaseUrl(): string {
-  return (process.env.NEXTAUTH_URL ?? "http://localhost:4000").replace(/\/$/, "")
 }
 
 /** Must match a redirect URI registered on the Paddle OAuth client. */
