@@ -8,7 +8,7 @@
  * each user's tokens wherever it likes (the web app uses Postgres).
  */
 
-import { SignJWT, jwtVerify } from "jose"
+import { EncryptJWT, jwtDecrypt } from "jose"
 import { createHash, randomBytes } from "crypto"
 
 export interface OAuthServerMetadata {
@@ -364,26 +364,35 @@ export interface OAuthStateClaims {
   codeVerifier: string
 }
 
+/** The state's AES-256 key, derived from the caller's secret. */
+function stateKey(secret: string): Uint8Array {
+  return new Uint8Array(createHash("sha256").update(secret).digest())
+}
+
 /**
- * Sign the OAuth `state`. It binds the callback to the user and vendor that
+ * Seal the OAuth `state`. It binds the callback to the user and vendor that
  * started the flow and carries the PKCE verifier, so no server-side session
- * store is needed.
+ * store is needed. It's encrypted, not just signed: the state comes back in
+ * the callback URL next to the authorization code, and a readable verifier
+ * would let anyone who sees that URL redeem the code.
  */
 export async function signOAuthState(secret: string, claims: OAuthStateClaims): Promise<string> {
-  return await new SignJWT({ vendor: claims.vendor, codeVerifier: claims.codeVerifier })
-    .setProtectedHeader({ alg: "HS256" })
+  return await new EncryptJWT({ vendor: claims.vendor, codeVerifier: claims.codeVerifier })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setSubject(claims.userId)
     .setAudience(STATE_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime(STATE_TTL)
-    .sign(new TextEncoder().encode(secret))
+    .encrypt(stateKey(secret))
 }
 
-/** The claims of a valid state, or null if it's invalid, expired or forged. */
+/** The claims of a valid state, or null if it's invalid, expired or tampered with. */
 export async function verifyOAuthState(secret: string, state: string): Promise<OAuthStateClaims | null> {
   try {
-    const { payload } = await jwtVerify(state, new TextEncoder().encode(secret), {
+    const { payload } = await jwtDecrypt(state, stateKey(secret), {
       audience: STATE_AUDIENCE,
+      keyManagementAlgorithms: ["dir"],
+      contentEncryptionAlgorithms: ["A256GCM"],
     })
     if (!payload.sub || typeof payload.vendor !== "string" || typeof payload.codeVerifier !== "string") {
       return null

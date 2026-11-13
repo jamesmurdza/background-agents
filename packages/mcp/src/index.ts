@@ -1,60 +1,23 @@
 /**
  * @background-agents/mcp
  *
- * MCP provider abstractions for GitHub, Smithery, Gmail, and Paddle.
+ * Gives a coding agent access to MCP servers on behalf of your users:
  *
- * This package provides framework-agnostic implementations for connecting to
- * MCP servers through different providers:
+ * - **Vendor servers**: Linear, Notion, Sentry and other vendors host their
+ *   own MCP server. `createVendorOAuth` logs the user in with OAuth (dynamic
+ *   client registration, PKCE) and refreshes their token.
  *
  * - **GitHub**: Uses GitHub App authentication to mint short-lived installation
  *   tokens for GitHub's hosted MCP server (api.githubcopilot.com/mcp/).
  *
- * - **Smithery**: Uses Smithery Connect to manage connections with per-server
- *   OAuth flows.
+ * - **Gmail**: An MCP server you host that enforces a per-connection tool
+ *   policy in front of the Gmail API.
  *
- * - **Gmail**: Our own MCP server (served by the web app) that enforces a
- *   per-connection tool policy in front of the Gmail API.
- *
- * - **Paddle**: Uses OAuth (authorization_code + PKCE) against Paddle's own
- *   authorization server to mint access tokens for Paddle's hosted MCP
- *   server (mcp.paddle.com/mcp).
- *
- * - **Vendors**: The same OAuth flow, generalized: a list of vendors that host
- *   their own MCP server (Linear, Notion, Sentry, ...) and plain functions to
- *   discover their OAuth metadata, register a client, log in and refresh.
- *
- * @example
- * ```typescript
- * import {
- *   createGitHubMcpProvider,
- *   createSmitheryProvider,
- * } from "@background-agents/mcp"
- *
- * // GitHub provider - mint installation tokens
- * const github = createGitHubMcpProvider({
- *   appId: process.env.GITHUB_APP_ID!,
- *   appSlug: process.env.GITHUB_APP_SLUG!,
- *   privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
- * })
- * const token = await github.getToken(installationId)
- *
- * // Smithery provider - manage connections
- * const smithery = createSmitheryProvider({
- *   apiKey: process.env.SMITHERY_API_KEY!,
- * })
- * const result = await smithery.createConnection(mcpUrl, connectionId, name)
- * ```
+ * Storage is left to the caller. See the README for examples.
  */
 
 // Types
-export type {
-  McpServerConfig,
-  IMcpProvider,
-  ITokenMintingProvider,
-  IConnectionProvider,
-  ConnectionResult,
-  ConnectionStatus,
-} from "./types"
+export type { McpServerConfig, IMcpProvider, ITokenMintingProvider } from "./types"
 export { safeServerName } from "./types"
 
 // GitHub provider
@@ -66,25 +29,6 @@ export {
   GITHUB_MCP_QUALIFIED_NAME,
 } from "./github"
 
-// Smithery provider
-export {
-  createSmitheryProvider,
-  SmitheryProvider,
-  getSmitheryConnectionId,
-  type SmitheryConfig,
-  SMITHERY_API_BASE,
-  isSmitheryServer,
-} from "./smithery"
-
-// Paddle provider
-export {
-  createPaddleMcpProvider,
-  PaddleMcpProvider,
-  type PaddleMcpConfig,
-  PADDLE_MCP_URL,
-  PADDLE_MCP_QUALIFIED_NAME,
-} from "./paddle"
-
 // Vendor-hosted MCP servers over OAuth
 export {
   MCP_VENDORS,
@@ -92,6 +36,9 @@ export {
   vendorQualifiedName,
   findMcpVendor,
   findMcpVendorByQualifiedName,
+  createVendorOAuth,
+  type VendorOAuth,
+  type VendorOAuthOptions,
   discoverOAuthMetadata,
   pickClientAuthMethod,
   registerOAuthClient,

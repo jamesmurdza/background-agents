@@ -19,7 +19,12 @@ import {
   internalError,
   serverConfigError,
 } from "@/lib/db/api-helpers"
-import { createGitHubMcpProvider } from "@background-agents/mcp"
+import { createGitHubMcpProvider, GITHUB_MCP_QUALIFIED_NAME } from "@background-agents/mcp"
+import {
+  deleteMcpCredential,
+  findMcpCredential,
+  GITHUB_CREDENTIAL,
+} from "@/lib/mcp/credentials"
 
 interface ConnectResponse {
   /** True iff the user has installed our GitHub App. */
@@ -52,12 +57,9 @@ function requireConfig(): Response | null {
 }
 
 async function getStatus(userId: string): Promise<ConnectResponse> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { githubAppInstallationId: true },
-  })
-  if (user?.githubAppInstallationId) {
-    return { connected: true, installationId: user.githubAppInstallationId }
+  const credential = await findMcpCredential(userId, GITHUB_CREDENTIAL)
+  if (credential?.installationId) {
+    return { connected: true, installationId: credential.installationId }
   }
 
   const config = getGitHubConfig()
@@ -89,33 +91,27 @@ export async function DELETE(_req: NextRequest): Promise<Response> {
   if (cfgErr) return cfgErr
 
   const { userId } = auth
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { githubAppInstallationId: true },
-  })
+  const credential = await findMcpCredential(userId, GITHUB_CREDENTIAL)
 
   // Drop the cached installation token before clearing the id; otherwise a
   // re-install with the same installation id could briefly hit the stale
   // cached token.
-  if (user?.githubAppInstallationId) {
+  if (credential?.installationId) {
     const config = getGitHubConfig()
     if (config) {
       const provider = createGitHubMcpProvider(config)
-      provider.invalidateToken(user.githubAppInstallationId)
+      provider.invalidateToken(credential.installationId)
     }
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { githubAppInstallationId: null },
-  })
+  await deleteMcpCredential(userId, GITHUB_CREDENTIAL)
 
   // Also drop any GitHub MCP rows that point at this user's resources (chats
   // or scheduled jobs), so the picker stops showing GitHub as connected and a
   // scheduled run days later doesn't try to use a dead installation id.
   await prisma.mcpServerConnection.deleteMany({
     where: {
-      qualifiedName: "github/github",
+      qualifiedName: GITHUB_MCP_QUALIFIED_NAME,
       OR: [
         { chat: { userId } },
         { scheduledJob: { userId } },

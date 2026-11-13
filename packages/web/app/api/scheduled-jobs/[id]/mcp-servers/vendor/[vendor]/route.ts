@@ -3,7 +3,7 @@
  *
  * Add a sentinel row pointing at a vendor-hosted MCP server (Linear, Notion,
  * ...). The runtime loader gets an access token from the user's stored
- * McpOAuthToken.
+ * McpCredential.
  */
 import { resolveMcpOwner } from "@/lib/mcp/owner"
 import { attachVendorResponse } from "@/lib/mcp/connections"

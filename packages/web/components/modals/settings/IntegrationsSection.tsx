@@ -7,7 +7,6 @@ import {
   GITHUB_MCP_QUALIFIED_NAME,
   GMAIL_MCP_QUALIFIED_NAME,
   MCP_VENDORS,
-  PADDLE_MCP_QUALIFIED_NAME,
   vendorQualifiedName,
 } from "@background-agents/mcp"
 import { cn } from "@/lib/utils"
@@ -15,7 +14,6 @@ import { queryKeys } from "@/lib/query/keys"
 import { useSettingsQuery } from "@/lib/query/hooks/useSettingsQuery"
 import { connectNetlify } from "@/lib/netlify-connect"
 import { GmailIcon } from "@/components/icons/gmail-icon"
-import { PaddleIcon } from "@/components/icons/paddle-icon"
 import { McpConnectionRow, type McpConnectionRowConfig } from "./McpConnectionRow"
 import { MobileSectionHeader, SettingsRow } from "./shared"
 
@@ -44,14 +42,6 @@ const INTEGRATIONS: McpConnectionRowConfig[] = [
     icon: GmailIcon,
     connectApi: "/api/mcp/connect/gmail",
     popupName: "gmail-oauth",
-  },
-  {
-    slug: PADDLE_MCP_QUALIFIED_NAME,
-    name: "Paddle",
-    description: "Billing, subscriptions and customers via Paddle",
-    icon: PaddleIcon,
-    connectApi: "/api/mcp/connect/paddle",
-    popupName: "paddle-oauth",
   },
   ...MCP_VENDORS.map(
     (vendor): McpConnectionRowConfig => ({

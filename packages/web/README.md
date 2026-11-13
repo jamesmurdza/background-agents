@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/d3a10c97-8a23-4171-a08f-c08179b419d6
 - **Git Integration**: conversations are tied to Git branches, with optional GitHub repository integration
 - **Model Selection**: choose different models for each agent based on your API keys
 - **Scheduled & Triggered Jobs**: run agents automatically on a recurring interval or via a generic incoming webhook (a token URL any external system — GitHub, Slack, Zapier, etc. — can POST to), with optional auto-PR creation. Managed from the `/jobs` page.
-- **MCP Servers**: attach Model Context Protocol servers to chats and scheduled jobs via the [Smithery](https://smithery.ai) registry and the GitHub MCP server
+- **MCP Servers**: attach Model Context Protocol servers to chats and scheduled jobs: GitHub, Gmail, and vendors' own hosted servers (Linear, Notion, Sentry, ...)
 - **Skills**: install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace
 - **Dark/Light Theme**: system-aware theming with manual override options
 
@@ -118,50 +118,8 @@ CRON_SECRET="<random-secret>"
 
 Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`scripts/prisma-deploy.mjs`) runs `npx prisma migrate deploy` during the Vercel build to apply migrations to the production database. It connects using the first of `DIRECT_URL`, `POSTGRES_URL_NON_POOLING`, or `DATABASE_URL` that is set, and refuses to run through a transaction pooler (port 6543) because `prisma migrate deploy` takes a session-level advisory lock that hangs behind PgBouncer.
 
-To enable remote MCP servers from the [Smithery](https://smithery.ai) registry, set:
-
-```bash
-SMITHERY_API_KEY="..."
-SMITHERY_NAMESPACE=""
-```
-
-To enable an authenticated GitHub MCP server, set:
-
-```bash
-GITHUB_APP_ID="..."
-GITHUB_APP_SLUG="..."
-GITHUB_APP_PRIVATE_KEY="..."
-```
-
-To enable the Gmail MCP server (our own, with per-connection tool scoping), set:
-
-```bash
-GOOGLE_CLIENT_ID="..."
-GOOGLE_CLIENT_SECRET="..."
-GMAIL_MCP_JWT_SECRET="..."
-GMAIL_MCP_BASE_URL=""   # optional, defaults to NEXTAUTH_URL
-```
-
-See [`mcp`](../mcp/README.md) for setup.
-
-To enable the Paddle MCP server (Paddle's own hosted server, OAuth with PKCE
-— no client secret), register a public OAuth client with Paddle (redirect URI
-`<NEXTAUTH_URL>/api/mcp/connect/paddle/callback`, scope `offline_access`),
-then set:
-
-```bash
-PADDLE_CLIENT_ID="..."
-PADDLE_MCP_JWT_SECRET="..."
-```
-
-To let users connect the vendor-hosted MCP servers in `MCP_VENDORS` (Linear,
-Notion, Sentry, ...), set a secret for signing the OAuth state. There's nothing
-to set up per vendor: the first connect registers our OAuth client with the
-vendor automatically.
-
-```bash
-MCP_OAUTH_STATE_SECRET="..."
-```
+To enable MCP servers (vendor-hosted ones like Linear and Notion, GitHub and
+Gmail), set the variables listed in the [`mcp` README](../mcp/README.md#in-backgrounder).
 
 To let users connect Netlify (Settings → API keys), create an OAuth application at [app.netlify.com/applications](https://app.netlify.com/applications) with the redirect URI `<NEXTAUTH_URL>/api/netlify/callback`, then set:
 

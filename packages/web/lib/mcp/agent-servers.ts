@@ -2,7 +2,6 @@
  * Load an owner's connected MCP servers in the shape `setupMcpForAgent` wants.
  *
  * Three kinds of rows:
- *   - Smithery rows  → decrypt the stored Smithery API key for the bearer.
  *   - GitHub row     → mint a fresh installation token via getInstallationToken
  *                      (tokens are 1-hour, so we re-mint on every turn instead
  *                      of trying to keep them in sync with the DB).
@@ -12,6 +11,8 @@
  *   - Vendor rows    → (Linear, Notion, ... see MCP_VENDORS) the user's stored
  *                      access token, refreshed when it's about to expire.
  *
+ * The user's logins come from McpCredential (see ./credentials).
+ *
  * Chats and scheduled jobs share the same McpServerConnection table; the
  * loader takes an `McpOwner` and filters on the right FK column. On GitHub
  * token mint failure (or a missing Google link) we update the row's
@@ -20,19 +21,17 @@
  * being configured.
  */
 import { prisma } from "@/lib/db/prisma"
-import { decrypt } from "@/lib/db/encryption"
 import {
   createGitHubMcpProvider,
   GITHUB_MCP_QUALIFIED_NAME,
   GMAIL_MCP_QUALIFIED_NAME,
-  PADDLE_MCP_QUALIFIED_NAME,
   findMcpVendorByQualifiedName,
   safeServerName,
 } from "@background-agents/mcp"
 import type { AgentMcpServer } from "@background-agents/agent-configuration/mcp"
 import { type McpOwner, ownerWhere } from "./owner"
+import { GITHUB_CREDENTIAL, GMAIL_CREDENTIAL } from "./credentials"
 import { getGmailMcpUrl, getGmailProvider } from "./gmail"
-import { getPaddleProvider } from "./paddle"
 import { getVendorAccessToken } from "./vendors"
 
 // Lazily-initialized GitHub provider
@@ -72,15 +71,12 @@ interface McpRow {
   id: string
   qualifiedName: string
   mcpUrl: string | null
-  encryptedApiKey: string | null
 }
 
-/** Per-user credentials the first-party (GitHub, Gmail, Paddle) rows depend on. */
+/** The owner's user, with the GitHub and Gmail logins those rows depend on. */
 interface OwnerUser {
   id: string
-  githubAppInstallationId: string | null
-  googleRefreshTokenEncrypted: string | null
-  paddleRefreshTokenEncrypted: string | null
+  mcpCredentials: { provider: string; installationId: string | null }[]
 }
 
 /**
@@ -99,7 +95,7 @@ async function translateRow(
       await markRowError(row.id, "Gmail not configured on server")
       return null
     }
-    if (!user?.googleRefreshTokenEncrypted) {
+    if (!user?.mcpCredentials.some((c) => c.provider === GMAIL_CREDENTIAL)) {
       await markRowError(row.id, "Google account not connected for this user")
       return null
     }
@@ -113,18 +109,19 @@ async function translateRow(
   }
 
   if (row.qualifiedName === GITHUB_MCP_QUALIFIED_NAME) {
-    const githubAppInstallationId = user?.githubAppInstallationId ?? null
+    const installationId =
+      user?.mcpCredentials.find((c) => c.provider === GITHUB_CREDENTIAL)?.installationId ?? null
     const github = getGitHubProvider()
     if (!github) {
       await markRowError(row.id, "GitHub App not configured on server")
       return null
     }
-    if (!githubAppInstallationId) {
+    if (!installationId) {
       await markRowError(row.id, "GitHub App not installed for this user")
       return null
     }
     try {
-      const token = await github.getToken(githubAppInstallationId)
+      const token = await github.getToken(installationId)
       return {
         name: safeServerName(row.qualifiedName),
         url: row.mcpUrl,
@@ -137,32 +134,6 @@ async function translateRow(
         err
       )
       await markRowError(row.id, `GitHub token mint failed: ${msg}`)
-      return null
-    }
-  }
-
-  if (row.qualifiedName === PADDLE_MCP_QUALIFIED_NAME) {
-    const paddle = getPaddleProvider()
-    if (!paddle) {
-      await markRowError(row.id, "Paddle not configured on server")
-      return null
-    }
-    if (!user?.paddleRefreshTokenEncrypted) {
-      await markRowError(row.id, "Paddle account not connected for this user")
-      return null
-    }
-    try {
-      const refreshToken = decrypt(user.paddleRefreshTokenEncrypted)
-      const token = await paddle.getToken(user.id, refreshToken)
-      return {
-        name: safeServerName(row.qualifiedName),
-        url: row.mcpUrl,
-        bearerToken: token,
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to mint token"
-      console.error("[agent-servers] failed to mint Paddle access token:", err)
-      await markRowError(row.id, `Paddle token mint failed: ${msg}`)
       return null
     }
   }
@@ -189,24 +160,20 @@ async function translateRow(
     }
   }
 
-  if (!row.encryptedApiKey) return null
-  return {
-    name: safeServerName(row.qualifiedName),
-    url: row.mcpUrl,
-    bearerToken: decrypt(row.encryptedApiKey),
-  }
+  return null
 }
 
 /**
  * Load the MCP servers attached to either a chat or a scheduled job. The
- * GitHub installation id and Google refresh token are read off the owner's
- * user relation regardless of the owner kind.
+ * user's GitHub and Gmail logins are read through the owner's user relation
+ * regardless of the owner kind.
  */
 const ownerUserSelect = {
   id: true,
-  githubAppInstallationId: true,
-  googleRefreshTokenEncrypted: true,
-  paddleRefreshTokenEncrypted: true,
+  mcpCredentials: {
+    where: { provider: { in: [GITHUB_CREDENTIAL, GMAIL_CREDENTIAL] as string[] } },
+    select: { provider: true, installationId: true },
+  },
 } as const
 
 export async function loadMcpConnections(
@@ -218,7 +185,6 @@ export async function loadMcpConnections(
       id: true,
       qualifiedName: true,
       mcpUrl: true,
-      encryptedApiKey: true,
       chat: { select: { user: { select: ownerUserSelect } } },
       scheduledJob: { select: { user: { select: ownerUserSelect } } },
     },

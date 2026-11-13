@@ -16,7 +16,7 @@ Each feature works standalone — read whichever one you need.
 |---------|--------------|------|
 | **Connect a repository** | Connect a GitHub repo to a chat and get an isolated working branch in the sandbox. | [Connect a repository](#/github) |
 | **Jobs** | Run agents unattended — on a schedule or via a webhook URL, with or without a repo. | [Jobs](#/jobs) |
-| **MCP servers** | Give agents extra tools (search, APIs, your own services) via the Smithery registry. | [MCP servers](#/mcp) |
+| **MCP servers** | Give agents extra tools from GitHub, Gmail and services like Linear, Notion and Sentry. | [MCP servers](#/mcp) |
 | **GitHub MCP** | The special, GitHub-authenticated MCP server for issue/PR/repo tools. | [GitHub MCP](#/github-mcp) |
 | **Skills** | Install repo-scoped agent skills from the [skills.sh](https://skills.sh) marketplace. | [Skills](#/skills) |
 | **Custom endpoints** | Point an agent at your own, self-hosted, or proxied model API. | [Custom endpoints](#/custom-endpoints) |

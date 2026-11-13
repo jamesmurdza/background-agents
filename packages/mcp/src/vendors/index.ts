@@ -10,6 +10,11 @@ export {
   findMcpVendorByQualifiedName,
 } from "./list"
 export {
+  createVendorOAuth,
+  type VendorOAuth,
+  type VendorOAuthOptions,
+} from "./vendor-oauth"
+export {
   discoverOAuthMetadata,
   pickClientAuthMethod,
   registerOAuthClient,

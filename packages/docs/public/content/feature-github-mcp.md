@@ -1,6 +1,6 @@
 # GitHub MCP
 
-The GitHub MCP server is a **special** MCP server. Unlike the [Smithery-hosted servers](#/mcp), it's GitHub's own hosted server, it's authenticated with **short-lived installation tokens**, and it needs a **GitHub App** rather than an OAuth marketplace flow. That's why it gets its own page.
+The GitHub MCP server is a **special** MCP server. Unlike the [other MCP servers](#/mcp), which you sign in to with OAuth, it's authenticated with **short-lived installation tokens** and needs a **GitHub App**. That's why it gets its own page.
 
 It gives an agent tools to read and write **issues, pull requests, and repository contents** through GitHub's API — so an agent can pull in the context around the code it's changing, not just the code itself.
 
@@ -10,11 +10,11 @@ The GitHub MCP server connected to a chat, exposing issue and PR tools to the ag
 
 ## Why it's different
 
-| | Smithery MCP servers | GitHub MCP |
-|--|----------------------|------------|
-| Source | Smithery marketplace | GitHub's own hosted server |
-| Auth | Per-server OAuth | Short-lived **installation tokens**, minted per request |
-| Setup | `SMITHERY_API_KEY` | A configured **GitHub App** |
+| | Vendor MCP servers | GitHub MCP |
+|--|--------------------|------------|
+| Source | The vendor's own hosted server | GitHub's own hosted server |
+| Auth | Your OAuth login, refreshed as needed | Short-lived **installation tokens**, minted per request |
+| Setup | `MCP_OAUTH_STATE_SECRET` | A configured **GitHub App** |
 | Scope | Whatever the server offers | Issues, PRs, repo contents on installed repos |
 
 Because tokens are minted per request and are short-lived, no long-lived GitHub credential ever sits in the sandbox.
@@ -50,5 +50,5 @@ The one-time App creation (permissions, making it public, generating the private
 
 ## Next
 
-- The general MCP flow and Smithery servers → [MCP servers](#/mcp)
+- The general MCP flow and the other servers → [MCP servers](#/mcp)
 - Connect a repository to a chat → [Connect a repository](#/github)
