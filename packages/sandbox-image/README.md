@@ -20,6 +20,8 @@ Pre-installed agents:
 - **Kimi** (shell-script installer from `code.kimi.com`)
 - **Droid** (Factory, shell-script installer from `app.factory.ai/cli`)
 
+Eliza is also a supported agent but isn't in this list — it's built into the SDK (`@background-agents/sdk`) rather than a CLI, so there's nothing for the image to install.
+
 The image also pre-installs [`tokscale`](https://www.npmjs.com/package/tokscale) (pinned via `TOKSCALE_VERSION`) for post-turn token/cost metering.
 
 The image is based on `node:22-bookworm` and runs as a non-root `daytona` user (Claude Code refuses to run as root).
