@@ -74,6 +74,8 @@ export interface MessageResponse {
 export interface ChatWithMessagesResponse extends ChatResponse {
   messages: MessageResponse[]
   messageCount: number
+  /** Server time of this read; send back as `changedSince` for a delta. Optional so an older deployment's response still parses. */
+  syncedAt?: number
 }
 
 export interface SettingsResponse {
@@ -210,10 +212,13 @@ export async function fetchChat(
   chatId: string,
   options?: {
     afterMessageId?: string
+    /** Only messages created or edited since this server time (a previous response's `syncedAt`). */
+    changedSince?: number
   }
 ): Promise<ChatWithMessagesResponse> {
   const params = new URLSearchParams()
   if (options?.afterMessageId) params.set("afterMessageId", options.afterMessageId)
+  if (options?.changedSince !== undefined) params.set("changedSince", String(options.changedSince))
   const query = params.toString()
   return fetchApi<ChatWithMessagesResponse>(`/api/chats/${chatId}${query ? `?${query}` : ""}`)
 }

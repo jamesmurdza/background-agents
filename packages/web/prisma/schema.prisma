@@ -333,11 +333,15 @@ model Message {
   metadata Json?
 
   createdAt DateTime @default(now())
+  // Bumped on every write (the running reply is rewritten in place every few
+  // seconds), so clients can fetch only what changed via ?changedSince=.
+  updatedAt DateTime @default(now()) @updatedAt
 
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([chatId, timestamp])
   @@index([chatId, id])
+  @@index([chatId, updatedAt])
 }
 
 // =============================================================================

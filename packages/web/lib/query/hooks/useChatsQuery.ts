@@ -32,7 +32,7 @@ export function useChatsQuery() {
         const chat = toChatType(serverChat)
         const prev = previousById.get(chat.id)
         try {
-          return { chat, detail: needsChatListMessages(prev, chat) ? await loadQueueMessages(chat.id) : undefined, detailFailed: false }
+          return { chat, detail: needsChatListMessages(prev, chat) ? await loadQueueMessages(chat.id, prev) : undefined, detailFailed: false }
         } catch (error) {
           // One deleted/stale chat or a transient detail failure must not hide
           // every other chat. Keep its previous snapshot and retry next poll.
@@ -49,7 +49,7 @@ export function useChatsQuery() {
         if (detailFailed) return latest
         if ((detail?.updatedAt ?? chat.updatedAt) < latest.updatedAt) return latest
         return applyQueueSnapshot({
-          ...chat, messages: latest.messages, pendingSend: latest.pendingSend, stopPending: latest.stopPending,
+          ...chat, messages: latest.messages, messagesSyncedAt: latest.messagesSyncedAt, pendingSend: latest.pendingSend, stopPending: latest.stopPending,
           pendingSendAssistantMessageId: latest.pendingSendAssistantMessageId,
           status: latest.pendingSend ? latest.status : chat.status,
           activeAssistantMessageId: latest.pendingSend ? latest.activeAssistantMessageId : chat.activeAssistantMessageId,

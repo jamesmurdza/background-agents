@@ -177,6 +177,8 @@ export interface Chat {
   /** Server-side message count (used when messages aren't loaded yet) */
   messageCount?: number
   lastMessageId?: string | null
+  /** Server time (`syncedAt`) of the last message read merged into `messages`; enables `changedSince` deltas. Client-only. */
+  messagesSyncedAt?: number
   createdAt: number
   updatedAt: number
   /** Timestamp of last activity: user message sent, agent content received, or agent completion. Used for sort order. */

@@ -75,6 +75,7 @@ export function useChatMessageSync({
             return {
               ...c,
               messages: mergeMessages(c.messages, incomingMessages),
+              messagesSyncedAt: chatData.syncedAt,
               messageCount: chatData.messageCount,
               uncommittedFilesCount: chatData.uncommittedFilesCount,
               hasCommits: chatData.hasCommits,
@@ -104,7 +105,7 @@ export function useChatMessageSync({
       updateChatsCache((old) =>
         old.map((c) =>
           c.id === chatId
-            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messageCount: chatData.messageCount, uncommittedFilesCount: chatData.uncommittedFilesCount, hasCommits: chatData.hasCommits }
+            ? { ...c, messages: mergeMessages(c.messages, incomingMessages), messagesSyncedAt: chatData.syncedAt ?? c.messagesSyncedAt, messageCount: chatData.messageCount, uncommittedFilesCount: chatData.uncommittedFilesCount, hasCommits: chatData.hasCommits }
             : c
         )
       )
