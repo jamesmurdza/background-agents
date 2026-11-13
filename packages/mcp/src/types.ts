@@ -22,10 +22,10 @@ export interface McpServerConfig {
  * The web app orchestrates between providers and the database.
  */
 export interface IMcpProvider {
-  /** Unique identifier for this provider (e.g., "github/github", "smithery"). */
+  /** Unique identifier for this provider (e.g., "github/github"). */
   readonly qualifiedName: string
 
-  /** Human-readable display name (e.g., "GitHub", "Smithery"). */
+  /** Human-readable display name (e.g., "GitHub"). */
   readonly displayName: string
 
   /** The MCP endpoint URL for this provider. */
@@ -47,57 +47,6 @@ export interface ITokenMintingProvider extends IMcpProvider {
    * Invalidate a cached token (e.g., after disconnect).
    */
   invalidateToken(installationId: string): void
-}
-
-/**
- * Provider that manages connections with their own OAuth flows.
- * Example: Smithery Connect (per-server OAuth, stored API keys).
- */
-export interface IConnectionProvider extends IMcpProvider {
-  /**
-   * Create or refresh a connection for the given MCP server URL.
-   */
-  createConnection(
-    mcpUrl: string,
-    connectionId: string,
-    name: string
-  ): Promise<ConnectionResult>
-
-  /**
-   * Check the status of an existing connection.
-   */
-  getConnectionStatus(connectionId: string): Promise<ConnectionStatus>
-
-  /**
-   * Delete a connection (best-effort cleanup).
-   */
-  deleteConnection(connectionId: string): Promise<void>
-
-  /**
-   * Get the MCP endpoint URL for a specific connection with explicit namespace.
-   */
-  getMcpEndpointWithNamespace(namespace: string, connectionId: string): string
-}
-
-/**
- * Result of creating a Smithery connection.
- */
-export interface ConnectionResult {
-  status: "connected" | "auth_required" | "error"
-  /** URL to open for OAuth if status is "auth_required". */
-  authorizationUrl?: string
-  connectionId: string
-  namespace: string
-  mcpEndpoint: string
-  error?: string
-}
-
-/**
- * Status of an existing connection.
- */
-export interface ConnectionStatus {
-  state: "connected" | "auth_required" | "error" | "pending"
-  error?: string
 }
 
 /** Sanitize slugs into a name acceptable to every agent CLI. */

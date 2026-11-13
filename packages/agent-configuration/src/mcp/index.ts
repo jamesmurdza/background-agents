@@ -6,8 +6,8 @@
  * from the web layer, write the right file in the right format inside the
  * sandbox so the agent picks them up on startup.
  *
- * Currently emits Streamable-HTTP configs for the URL provided. Smithery's
- * connect endpoint (api.smithery.ai/connect/<ns>/<id>/mcp) is Streamable-HTTP,
+ * Currently emits Streamable-HTTP configs for the URL provided. Every server
+ * we connect to (GitHub, Gmail, vendor-hosted servers) speaks Streamable HTTP,
  * so no per-server transport flag is needed.
  */
 

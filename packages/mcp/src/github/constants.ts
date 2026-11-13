@@ -9,7 +9,6 @@
 export const GITHUB_MCP_URL = "https://api.githubcopilot.com/mcp/"
 
 /**
- * Sentinel qualifiedName we use for the GitHub MCP row in ChatMcpServer.
- * This distinguishes GitHub rows from Smithery rows.
+ * Sentinel qualifiedName we use for the GitHub MCP row in McpServerConnection.
  */
 export const GITHUB_MCP_QUALIFIED_NAME = "github/github"

@@ -2,7 +2,7 @@
  * POST /api/scheduled-jobs/<id>/mcp-servers/github
  *
  * Add a sentinel row pointing at GitHub's hosted MCP. The runtime loader
- * mints fresh installation tokens from the user's githubAppInstallationId.
+ * mints fresh installation tokens from the user's GitHub McpCredential.
  */
 import { resolveMcpOwner } from "@/lib/mcp/owner"
 import { attachGithubResponse } from "@/lib/mcp/connections"

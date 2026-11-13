@@ -2,7 +2,7 @@
  * GET /api/mcp/connect/github/callback
  *
  * Where GitHub redirects after the user installs (or re-configures) our App.
- * We persist `installation_id` on the User and return a tiny HTML page that
+ * We store `installation_id` as the user's GitHub credential and return a tiny HTML page that
  * closes the popup. The parent window polls /api/mcp/connect/github so it
  * notices the connected state on its own.
  *
@@ -13,8 +13,8 @@
  */
 
 import { NextRequest } from "next/server"
-import { prisma } from "@/lib/db/prisma"
 import { requireAuth, isAuthError } from "@/lib/db/api-helpers"
+import { GITHUB_CREDENTIAL, saveMcpCredential } from "@/lib/mcp/credentials"
 import { popupClosingPage } from "@/lib/mcp/popup-page"
 
 function closingPage(opts: { ok: boolean; message: string }): Response {
@@ -40,10 +40,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   try {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { githubAppInstallationId: installationId },
-    })
+    await saveMcpCredential(userId, GITHUB_CREDENTIAL, { installationId })
     return closingPage({
       ok: true,
       message: "GitHub connected. You can return to the app.",
