@@ -6,8 +6,7 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import { encrypt } from "@/lib/db/encryption"
-import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
+import { decryptStoredEnvVars, encryptEnvVars } from "@/lib/server/stored-env-vars"
 
 // =============================================================================
 // Types
@@ -42,12 +41,7 @@ export async function GET(): Promise<Response> {
     const decrypted: Record<string, Record<string, string>> = {}
 
     for (const [repo, envVars] of Object.entries(encrypted)) {
-      decrypted[repo] = {}
-      for (const [key, value] of Object.entries(envVars)) {
-        if (value) {
-          decrypted[repo][key] = decryptStoredEnvVar(value)
-        }
-      }
+      decrypted[repo] = decryptStoredEnvVars(envVars)
     }
 
     const response: RepoEnvVarsResponse = {
@@ -89,12 +83,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     const allRepoEnvVars = (user?.repoEnvironmentVariables as Record<string, Record<string, string>>) || {}
 
     // Encrypt all values for this repo
-    const encrypted: Record<string, string> = {}
-    for (const [key, value] of Object.entries(body.environmentVariables)) {
-      if (typeof key === "string" && typeof value === "string" && key.trim()) {
-        encrypted[key.trim()] = encrypt(value)
-      }
-    }
+    const encrypted = encryptEnvVars(body.environmentVariables)
 
     // Update or remove the repo entry
     if (Object.keys(encrypted).length > 0) {

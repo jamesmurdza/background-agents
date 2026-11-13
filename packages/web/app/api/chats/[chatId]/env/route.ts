@@ -8,8 +8,7 @@ import {
   badRequest,
   internalError,
 } from "@/lib/db/api-helpers"
-import { encrypt } from "@/lib/db/encryption"
-import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
+import { decryptStoredEnvVars, encryptEnvVars } from "@/lib/server/stored-env-vars"
 
 // =============================================================================
 // Types
@@ -44,12 +43,7 @@ export async function GET(
 
     // Decrypt environment variables
     const encrypted = (chat.environmentVariables as Record<string, string>) || {}
-    const decrypted: Record<string, string> = {}
-    for (const [key, value] of Object.entries(encrypted)) {
-      if (value) {
-        decrypted[key] = decryptStoredEnvVar(value)
-      }
-    }
+    const decrypted = decryptStoredEnvVars(encrypted)
 
     const response: EnvVarsResponse = {
       environmentVariables: decrypted,
@@ -88,12 +82,7 @@ export async function PATCH(
     }
 
     // Encrypt all values
-    const encrypted: Record<string, string> = {}
-    for (const [key, value] of Object.entries(body.environmentVariables)) {
-      if (typeof key === "string" && typeof value === "string" && key.trim()) {
-        encrypted[key.trim()] = encrypt(value)
-      }
-    }
+    const encrypted = encryptEnvVars(body.environmentVariables)
 
     await prisma.chat.update({
       where: { id: chatId },
