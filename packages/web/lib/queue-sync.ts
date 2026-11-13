@@ -1,4 +1,4 @@
-import type { Chat, QueuedMessage } from "@/lib/types"
+import type { Chat, Message, QueuedMessage } from "@/lib/types"
 import { fetchChat, toMessageType, type PromptQueueResponse } from "@/lib/sync/api"
 import { mergeMessages } from "@/lib/merge-messages"
 
@@ -27,10 +27,43 @@ export function needsChatListMessages(previous: Chat | undefined, next: QueueSna
   return !!previous?.messages.length && needsQueueMessages(previous, next)
 }
 
-/** Fetch before changing queue visibility; failed reads leave the old UI intact. */
-export async function loadQueueMessages(chatId: string) {
+function toDetail(response: Awaited<ReturnType<typeof fetchChat>>, messages: Message[]) {
+  return { ...response, status: response.status as Chat["status"], messages }
+}
+
+/**
+ * A delta is only trusted if, merged into what we already have, it accounts
+ * for every message the server counts. Otherwise something was missed (a
+ * dropped local copy, an older sync point) and a full read repairs it.
+ */
+export function deltaCoversHistory(existing: Message[], delta: Message[], serverCount: number): boolean {
+  return mergeMessages(existing, delta).filter((message) => !message.inherited).length >= serverCount
+}
+
+/**
+ * Fetch before changing queue visibility; failed reads leave the old UI intact.
+ * When `previous` has already synced its history, only messages changed since
+ * then are downloaded; the full history is read only as a fallback.
+ */
+export async function loadQueueMessages(chatId: string, previous?: Chat) {
+  const since = previous?.messages.length ? previous.messagesSyncedAt : undefined
+  if (previous && since !== undefined) {
+    const delta = await fetchChat(chatId, { changedSince: since })
+    const messages = delta.messages.map(toMessageType)
+    if (delta.syncedAt !== undefined && deltaCoversHistory(previous.messages, messages, delta.messageCount)) {
+      return toDetail(delta, messages)
+    }
+  }
   const detail = await fetchChat(chatId)
-  return { ...detail, status: detail.status as Chat["status"], messages: detail.messages.map(toMessageType) }
+  return toDetail(detail, detail.messages.map(toMessageType))
+}
+
+/**
+ * For a poll that skipped the history read: apply queue/status, but keep the
+ * old message counters so the read still happens once it is no longer skipped.
+ */
+export function withoutMessageProgress(remote: PromptQueueResponse): PromptQueueResponse {
+  return { ...remote, messageCount: undefined, lastMessageId: undefined }
 }
 
 /** Error text is local, but must not disappear on a poll or leak to a new turn. */
@@ -81,6 +114,7 @@ export function applyQueueSnapshot(
     messages,
     messageCount: state.messageCount ?? chat.messageCount,
     lastMessageId: state.lastMessageId ?? chat.lastMessageId,
+    messagesSyncedAt: detail?.syncedAt ?? chat.messagesSyncedAt,
     uncommittedFilesCount: detail?.uncommittedFilesCount ?? chat.uncommittedFilesCount,
     hasCommits: detail?.hasCommits ?? chat.hasCommits,
     ...snapshotFailure(chat, state),

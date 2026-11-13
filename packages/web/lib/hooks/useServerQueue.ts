@@ -7,7 +7,8 @@ import { getDefaultModelForAgent, type Agent } from "@background-agents/common"
 import { queryKeys } from "@/lib/query"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import { useToastStore } from "@/lib/stores/toast-store"
-import { applyQueueSnapshot, loadQueueMessages, needsQueueMessages } from "@/lib/queue-sync"
+import { applyQueueSnapshot, loadQueueMessages, needsQueueMessages, withoutMessageProgress } from "@/lib/queue-sync"
+import { useStreamStore } from "@/lib/stores/stream-store"
 import {
   dispatchQueuedPromptApi,
   enqueuePromptApi,
@@ -27,6 +28,13 @@ function updateLocalQueue(chatId: string, update: (items: QueuedMessage[]) => Qu
     const items = update(prev.queuedMessages[chatId] ?? [])
     return { ...prev, queuedMessages: { ...prev.queuedMessages, [chatId]: items.length ? items : undefined } }
   })
+}
+
+/** SSE is already delivering this turn's reply, so the poll needn't read it from the DB. */
+function isStreamingTurn(chatId: string, remote: { status: Chat["status"]; activeAssistantMessageId: string | null }) {
+  const stream = useStreamStore.getState()
+  return remote.status === "running" && !!remote.activeAssistantMessageId && stream.isStreaming(chatId) &&
+    stream.getStream(chatId)?.connectionParams?.assistantMessageId === remote.activeAssistantMessageId
 }
 
 function localItem(chatId: string, id: string) {
@@ -58,9 +66,13 @@ export function useServerQueue({ isHydrated, isAuthenticated, currentChat }: Use
       const previous = queryClient.getQueryData<Chat[]>(queryKeys.chats.list())?.find((chat) => chat.id === chatId)
       const next = { ...remote, backgroundSessionId: remote.backgroundSessionId ?? undefined, activeAssistantMessageId: remote.activeAssistantMessageId ?? undefined }
       const local = useChatSyncStore.getState().localChatState.queuedMessages[chatId] ?? []
-      const detail = needsQueueMessages(previous, next, local) ? await loadQueueMessages(chatId) : undefined
+      // Skipped reads keep the old counters, so the first poll after the
+      // stream ends still fetches anything SSE doesn't carry (e.g. git messages).
+      const streaming = isStreamingTurn(chatId, remote)
+      const detail = !streaming && needsQueueMessages(previous, next, local) ? await loadQueueMessages(chatId, previous) : undefined
+      const snapshot = streaming ? withoutMessageProgress(remote) : remote
       queryClient.setQueryData<Chat[]>(queryKeys.chats.list(), (chats) =>
-        chats?.map((chat) => chat.id === chatId ? applyQueueSnapshot(chat, remote, detail) : chat)
+        chats?.map((chat) => chat.id === chatId ? applyQueueSnapshot(chat, snapshot, detail) : chat)
       )
       return detail ? { ...remote, ...detail } : remote
     })()
