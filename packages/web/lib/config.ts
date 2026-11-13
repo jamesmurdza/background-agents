@@ -2,7 +2,7 @@
  * Application configuration constants
  */
 
-export const APP_NAME = "Background Agents"
+const APP_NAME = "Background Agents"
 
 /**
  * Generate a page title with consistent formatting

@@ -6,7 +6,7 @@
 // is pure and unit-testable, independent of any React component.
 
 // Storage key for pending message (persists across OAuth redirect)
-export const PENDING_MESSAGE_KEY = "simple-chat-pending-message"
+const PENDING_MESSAGE_KEY = "simple-chat-pending-message"
 
 // Type for pending message data stored before sign-in
 export interface PendingMessage {
