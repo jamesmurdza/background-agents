@@ -86,9 +86,9 @@ export interface AgentSessionOptions {
    */
   skills?: SkillCatalogEntry[]
   /**
-   * MCP servers to expose to the agent. The web layer fetches these from
-   * `ChatMcpServer` and decrypts the per-row Smithery API key before passing
-   * them in — this module stays generic and doesn't touch the DB.
+   * MCP servers to expose to the agent. The web layer loads these from
+   * `McpServerConnection` and gets each one's token before passing them
+   * in — this module stays generic and doesn't touch the DB.
    */
   mcpServers?: AgentMcpServer[]
 }

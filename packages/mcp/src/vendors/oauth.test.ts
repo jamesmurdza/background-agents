@@ -197,4 +197,30 @@ describe("OAuth state", () => {
     await expect(verifyOAuthState("secret-a", state)).resolves.toEqual(claims)
     await expect(verifyOAuthState("secret-b", state)).resolves.toBeNull()
   })
+
+  it("keeps the PKCE verifier and user id unreadable", async () => {
+    const claims = { userId: "user-1", vendor: "linear", codeVerifier: "verifier-that-must-stay-secret" }
+    const state = await signOAuthState("secret", claims)
+    const decoded = state.split(".").map((part) => Buffer.from(part, "base64url").toString("latin1"))
+    for (const text of [state, ...decoded]) {
+      expect(text).not.toContain(claims.codeVerifier)
+      expect(text).not.toContain(claims.userId)
+    }
+  })
+
+  it("rejects a tampered or expired state", async () => {
+    const state = await signOAuthState("secret", { userId: "user-1", vendor: "linear", codeVerifier: "v" })
+    const parts = state.split(".")
+    const middle = Math.floor(parts[3].length / 2)
+    parts[3] = parts[3].slice(0, middle) + (parts[3][middle] === "A" ? "B" : "A") + parts[3].slice(middle + 1)
+    await expect(verifyOAuthState("secret", parts.join("."))).resolves.toBeNull()
+
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(Date.now() + 11 * 60 * 1000)
+      await expect(verifyOAuthState("secret", state)).resolves.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

@@ -19,7 +19,7 @@ Because no repository is attached, the agent runs in a no-clone sandbox and ther
 ## Prerequisites
 
 - A model credential for the agent you pick.
-- The **Gmail** and **Notion** MCP servers available to connect (from the Smithery registry) — see [MCP servers](#/mcp).
+- The **Gmail** and **Notion** MCP servers available to connect — see [MCP servers](#/mcp).
 - No repository required.
 
 ## Step 1 — Create a repo-less scheduled agent

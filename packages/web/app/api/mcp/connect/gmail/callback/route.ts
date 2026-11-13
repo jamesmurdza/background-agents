@@ -8,9 +8,9 @@
  */
 
 import { NextRequest } from "next/server"
-import { prisma } from "@/lib/db/prisma"
 import { encrypt } from "@/lib/db/encryption"
 import { requireAuth, isAuthError } from "@/lib/db/api-helpers"
+import { GMAIL_CREDENTIAL, saveMcpCredential } from "@/lib/mcp/credentials"
 import { getGmailProvider, getGmailRedirectUri } from "@/lib/mcp/gmail"
 import { popupClosingPage } from "@/lib/mcp/popup-page"
 
@@ -42,9 +42,8 @@ export async function GET(req: NextRequest): Promise<Response> {
     const refreshToken = await provider.exchangeCode(code, getGmailRedirectUri())
     // A fresh grant replaces any older one; drop the old cached access token.
     provider.invalidateAccessToken(auth.userId)
-    await prisma.user.update({
-      where: { id: auth.userId },
-      data: { googleRefreshTokenEncrypted: encrypt(refreshToken) },
+    await saveMcpCredential(auth.userId, GMAIL_CREDENTIAL, {
+      refreshTokenEncrypted: encrypt(refreshToken),
     })
     return closingPage({ ok: true, message: "Gmail connected. You can return to the app." })
   } catch (error) {

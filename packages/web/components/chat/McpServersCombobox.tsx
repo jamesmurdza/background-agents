@@ -4,10 +4,10 @@
  * McpServersCombobox — per-chat MCP server picker rendered as a popover.
  *
  * Replaces the old full-screen McpServersModal. Behaves like RepoCombobox:
- * a single button in the chat input opens a search dropdown over Smithery's
- * registry plus our first-party featured entries (GitHub App, Gmail). Clicking
- * a row toggles connect/disconnect; a checkmark marks rows currently attached
- * to this chat.
+ * a single button in the chat input opens a search dropdown over the servers
+ * we support (GitHub App, Gmail and the vendor-hosted servers in MCP_VENDORS).
+ * Clicking a row toggles connect/disconnect; a checkmark marks rows currently
+ * attached to this chat.
  */
 
 import {
@@ -21,13 +21,13 @@ import {
   Settings,
   Trash2,
 } from "lucide-react"
-import { type ComponentType, type ReactNode, type SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type ComponentType, type ReactNode, type SyntheticEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
   GMAIL_MCP_QUALIFIED_NAME,
   type GmailToolPolicy,
   parseGmailToolPolicy,
 } from "@background-agents/mcp/gmail/policy"
-import { MCP_VENDORS, PADDLE_MCP_QUALIFIED_NAME, vendorQualifiedName } from "@background-agents/mcp"
+import { MCP_VENDORS, vendorQualifiedName } from "@background-agents/mcp"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
 import type { PendingMcpServer } from "@/lib/storage"
 import {
@@ -38,7 +38,6 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { GmailIcon } from "@/components/icons/gmail-icon"
-import { PaddleIcon } from "@/components/icons/paddle-icon"
 import { ComboboxTriggerButton } from "./ComboboxTriggerButton"
 import { GmailSettingsDialog } from "./GmailSettingsDialog"
 import {
@@ -66,24 +65,18 @@ interface ConnectedServer {
   toolPolicy: unknown
 }
 
-interface RegistryServer {
+const GITHUB_QUALIFIED_NAME = "github/github"
+
+/**
+ * Servers users can attach. Each links a user-level account via a popup
+ * (`connectApi` GET → { connected, installUrl | authUrl }), then attaches a
+ * row via POST `${apiBase}/<id>/mcp-servers/<attachPath>`.
+ */
+interface FirstPartyServer {
   slug: string
   name: string
   description: string
   iconUrl: string | null
-  url: string | null
-  verified: boolean
-  useCount: number
-}
-
-const GITHUB_QUALIFIED_NAME = "github/github"
-
-/**
- * Servers we host or authenticate ourselves. Each links a user-level account
- * via a popup (`connectApi` GET → { connected, installUrl | authUrl }), then
- * attaches a sentinel row via POST `${apiBase}/<id>/mcp-servers/<attachPath>`.
- */
-interface FirstPartyServer extends RegistryServer {
   /** Bundled icon; vendor servers use their `iconUrl` instead. */
   icon?: ComponentType<{ className?: string }>
   connectApi: string
@@ -105,9 +98,6 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
     name: "GitHub",
     description: "Issues, PRs, code search via our GitHub App",
     iconUrl: null,
-    url: null,
-    verified: true,
-    useCount: 0,
     icon: Github,
     connectApi: "/api/mcp/connect/github",
     attachPath: "github",
@@ -118,26 +108,10 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
     name: "Gmail",
     description: "Search, read and draft email, scoped per chat",
     iconUrl: null,
-    url: null,
-    verified: true,
-    useCount: 0,
     icon: GmailIcon,
     connectApi: "/api/mcp/connect/gmail",
     attachPath: "gmail",
     popupName: "gmail-oauth",
-  },
-  {
-    slug: PADDLE_MCP_QUALIFIED_NAME,
-    name: "Paddle",
-    description: "Billing, subscriptions and customers via Paddle",
-    iconUrl: null,
-    url: null,
-    verified: true,
-    useCount: 0,
-    icon: PaddleIcon,
-    connectApi: "/api/mcp/connect/paddle",
-    attachPath: "paddle",
-    popupName: "paddle-oauth",
   },
   // Vendor-hosted servers we log in to over OAuth (Linear, Notion, ...).
   ...MCP_VENDORS.map(
@@ -146,9 +120,6 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
       name: vendor.name,
       description: vendor.description,
       iconUrl: vendor.iconUrl,
-      url: null,
-      verified: true,
-      useCount: 0,
       connectApi: `/api/mcp/connect/${vendor.slug}`,
       attachPath: `vendor/${vendor.slug}`,
       popupName: `${vendor.slug}-oauth`,
@@ -157,11 +128,6 @@ const FIRST_PARTY_SERVERS: FirstPartyServer[] = [
 ]
 
 const FIRST_PARTY_BY_SLUG = new Map(FIRST_PARTY_SERVERS.map((s) => [s.slug, s]))
-
-/** Smithery's Gmail servers are superseded by our own; hide them unless attached. */
-function isSupersededRegistryServer(s: RegistryServer): boolean {
-  return /gmail/i.test(s.slug) || /gmail/i.test(s.name)
-}
 
 /** Pending account unlink, confirmed through ConfirmDialog. */
 interface UnlinkRequest {
@@ -265,9 +231,6 @@ export function McpServersCombobox({
   )
 
   const [connected, setConnected] = useState<ConnectedServer[]>([])
-  const [registry, setRegistry] = useState<RegistryServer[]>([])
-  const [loadingRegistry, setLoadingRegistry] = useState(false)
-  const [hasLoadedRegistry, setHasLoadedRegistry] = useState(false)
   const [search, setSearch] = useState("")
   const [busySlug, setBusySlug] = useState<string | null>(null)
   // User-level account links per first-party slug, tracked separately from
@@ -279,8 +242,6 @@ export function McpServersCombobox({
   const [gmailSettingsOpen, setGmailSettingsOpen] = useState(false)
   const [unlinkRequest, setUnlinkRequest] = useState<UnlinkRequest | null>(null)
   const addToast = useToastStore((s) => s.addToast)
-
-  const popupTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const connectedByName = useMemo(() => {
     const m = new Map<string, ConnectedServer>()
@@ -334,24 +295,6 @@ export function McpServersCombobox({
     return next
   }, [])
 
-  const loadRegistry = useCallback(async (q: string) => {
-    setLoadingRegistry(true)
-    try {
-      const params = new URLSearchParams({ page: "1" })
-      if (q) params.set("search", q)
-      const res = await fetch(`/api/mcp-registry?${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        setRegistry(data.servers || [])
-      }
-    } catch (err) {
-      console.error("[McpServersCombobox] loadRegistry failed:", err)
-    } finally {
-      setLoadingRegistry(false)
-      setHasLoadedRegistry(true)
-    }
-  }, [])
-
   // Load connected list on mount (for the badge count) and when popover opens.
   useEffect(() => {
     loadConnected()
@@ -365,23 +308,10 @@ export function McpServersCombobox({
     }
   }, [open, loadConnected, loadAccountStatus])
 
-  // Debounced registry search while the popover is open.
-  useEffect(() => {
-    if (!open) return
-    const t = setTimeout(() => loadRegistry(search), 300)
-    return () => clearTimeout(t)
-  }, [open, search, loadRegistry])
-
   // Reset search when popover closes.
   useEffect(() => {
     if (!open) setSearch("")
   }, [open])
-
-  useEffect(() => {
-    return () => {
-      if (popupTimerRef.current) clearInterval(popupTimerRef.current)
-    }
-  }, [])
 
   // ---------- actions ----------
 
@@ -502,103 +432,6 @@ export function McpServersCombobox({
     setGmailSettingsOpen(true)
   }
 
-  async function handleToggleServer(server: RegistryServer) {
-    if (isDraft) {
-      if (pendingSlugs.has(server.slug)) {
-        updatePendingServers((prev) => prev.filter((p) => p.slug !== server.slug))
-        return
-      }
-    } else {
-      const existing = connectedByName.get(server.slug)
-      if (existing) {
-        setBusySlug(server.slug)
-        try {
-          await handleDisconnect(existing.id)
-        } finally {
-          setBusySlug(null)
-        }
-        return
-      }
-    }
-    if (busySlug) return
-    setBusySlug(server.slug)
-    try {
-      let url = server.url
-      if (!url) {
-        const detailRes = await fetch(`/api/mcp-registry/${server.slug}`)
-        if (!detailRes.ok) throw new Error("Failed to fetch server details")
-        const detail = await detailRes.json()
-        url = detail.url
-        if (!url) throw new Error("Server does not expose a remote URL")
-      }
-
-      // Connecting a brand-new remote server can require an OAuth/setup popup
-      // tied to a real per-chat connection row, which a draft doesn't have.
-      // Stage the simple case (no popup needed) locally; this covers the vast
-      // majority of registry servers. If the real connect flow below turns
-      // out to need a popup, the caller is already past materialization by
-      // then (non-draft), so that path is unaffected.
-      if (isDraft) {
-        updatePendingServers((prev) => [
-          ...prev,
-          { slug: server.slug, name: server.name, iconUrl: server.iconUrl, url },
-        ])
-        return
-      }
-
-      const id = effectiveId
-      const res = await fetch(`${apiBase}/${id}/mcp-servers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug: server.slug,
-          url,
-          name: server.name,
-          iconUrl: server.iconUrl,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok && data.state !== "input_required") {
-        throw new Error(data.error || "Connect failed")
-      }
-
-      if (data.connected) {
-        setBusySlug(null)
-        await loadConnectedFor(id)
-        return
-      }
-
-      // Setup or auth required: open the appropriate URL in a popup and poll for close.
-      const popupUrl = data.state === "input_required" ? data.setupUrl : data.authUrl
-      if (!popupUrl) {
-        throw new Error("Server requires configuration but no setup URL provided")
-      }
-      const popup = openOAuthPopup(popupUrl, "smithery-oauth")
-      if (!popup) {
-        setBusySlug(null)
-        return
-      }
-
-      if (popupTimerRef.current) clearInterval(popupTimerRef.current)
-      popupTimerRef.current = pollUntilPopupCloses(popup, async () => {
-        popupTimerRef.current = null
-        try {
-          await fetch(
-            `${apiBase}/${id}/mcp-servers/${data.serverId}/smithery-finalize`,
-            { method: "POST" }
-          )
-        } catch (err) {
-          console.error("[McpServersCombobox] finalize failed:", err)
-        }
-        setBusySlug(null)
-        await loadConnectedFor(id)
-      })
-    } catch (err) {
-      console.error("[McpServersCombobox] toggle failed:", err)
-      setBusySlug(null)
-    }
-  }
-
   // ---------- render ----------
 
   // Whether a slug counts as "attached" for display purposes — the staged
@@ -611,33 +444,24 @@ export function McpServersCombobox({
   const connectedCount = isDraft ? pendingSlugs.size : connected.length
   const triggerLabel = `MCP servers${connectedCount > 0 ? `, ${connectedCount} connected` : ""}`
 
-  // Combine first-party + registry, filter by search, sort connected to top
+  // Filter by search, sort connected to top
   const allServers = useMemo(() => {
     const searchLower = search.toLowerCase().trim()
-    const matches = (s: RegistryServer) =>
+    const matches = (s: FirstPartyServer) =>
       !searchLower ||
       s.name.toLowerCase().includes(searchLower) ||
       s.description.toLowerCase().includes(searchLower) ||
       s.slug.toLowerCase().includes(searchLower)
 
-    const combined = [
-      ...FIRST_PARTY_SERVERS.filter(matches),
-      ...registry.filter(
-        (s) =>
-          matches(s) &&
-          (isSlugConnected(s.slug) || !isSupersededRegistryServer(s))
-      ),
-    ]
-
     // Sort: connected servers first
-    return combined.sort((a, b) => {
+    return FIRST_PARTY_SERVERS.filter(matches).sort((a, b) => {
       const aConnected = isSlugConnected(a.slug)
       const bConnected = isSlugConnected(b.slug)
       if (aConnected && !bConnected) return -1
       if (!aConnected && bConnected) return 1
       return 0
     })
-  }, [search, registry, isSlugConnected])
+  }, [search, isSlugConnected])
 
   return (
     <>
@@ -671,40 +495,21 @@ export function McpServersCombobox({
             placeholder="Search MCP servers..."
             value={search}
             onValueChange={setSearch}
-            rightSlot={
-              hasLoadedRegistry && loadingRegistry ? (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-muted-foreground shrink-0"
-                  aria-label="Searching"
-                />
-              ) : null
-            }
           />
           <CommandList className="h-[min(252px,calc(var(--radix-popover-content-available-height)_-_48px))]">
-            {!hasLoadedRegistry ? (
-              <div
-                className="flex items-center justify-center h-[min(252px,calc(var(--radix-popover-content-available-height)_-_48px))]"
-                role="status"
-                aria-label="Loading MCP servers"
-              >
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : allServers.length === 0 && !loadingRegistry ? (
+            {allServers.length === 0 ? (
               <CommandEmpty className="flex items-center justify-center h-[min(252px,calc(var(--radix-popover-content-available-height)_-_48px))] py-0">
                 No servers found
               </CommandEmpty>
             ) : (
               allServers.map((s) => {
-                const firstParty = FIRST_PARTY_BY_SLUG.get(s.slug)
-                const FirstPartyIcon = firstParty?.icon
+                const FirstPartyIcon = s.icon
                 const connectedServer = connectedByName.get(s.slug)
                 const isConn = isSlugConnected(s.slug)
                 const hasError = !isDraft && connectedServer?.status === "error"
                 const isPending = !isDraft && connectedServer?.status === "pending"
                 const isBusy = busySlug === s.slug
-                const handleSelect = firstParty
-                  ? () => handleToggleFirstParty(firstParty)
-                  : () => handleToggleServer(s)
+                const handleSelect = () => handleToggleFirstParty(s)
 
                 // Build status label for screen readers
                 let statusLabel = ""
@@ -722,49 +527,31 @@ export function McpServersCombobox({
                     className="flex items-center gap-2 cursor-pointer"
                     aria-label={`${s.name}${statusLabel ? `, ${statusLabel}` : ""}`}
                   >
-                    {firstParty ? (
-                      <div
-                        className="h-6 w-6 rounded bg-muted shrink-0 flex items-center justify-center"
-                        aria-hidden="true"
-                      >
-                        {FirstPartyIcon ? (
-                          <FirstPartyIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                        ) : s.iconUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={s.iconUrl}
-                            alt=""
-                            className="h-3.5 w-3.5"
-                            onError={(e) => { e.currentTarget.style.visibility = "hidden" }}
-                          />
-                        ) : null}
-                      </div>
-                    ) : s.iconUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={s.iconUrl}
-                        alt={`${s.name} icon`}
-                        className="h-6 w-6 rounded shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className="h-6 w-6 rounded bg-muted shrink-0 flex items-center justify-center"
-                        aria-hidden="true"
-                      >
-                        <Plug className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    )}
+                    <div
+                      className="h-6 w-6 rounded bg-muted shrink-0 flex items-center justify-center"
+                      aria-hidden="true"
+                    >
+                      {FirstPartyIcon ? (
+                        <FirstPartyIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : s.iconUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.iconUrl}
+                          alt=""
+                          className="h-3.5 w-3.5"
+                          onError={(e) => { e.currentTarget.style.visibility = "hidden" }}
+                        />
+                      ) : null}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-medium truncate">
                           {s.name}
                         </span>
-                        {s.verified && (
-                          <BadgeCheck
-                            className="h-3 w-3 text-blue-500 shrink-0"
-                            aria-label="Verified"
-                          />
-                        )}
+                        <BadgeCheck
+                          className="h-3 w-3 text-blue-500 shrink-0"
+                          aria-label="Verified"
+                        />
                       </div>
                       <div className="text-xs text-muted-foreground line-clamp-1">
                         {hasError ? (
@@ -776,7 +563,7 @@ export function McpServersCombobox({
                         )}
                       </div>
                     </div>
-                    {firstParty?.slug === GITHUB_QUALIFIED_NAME && githubInstallationId && (
+                    {s.slug === GITHUB_QUALIFIED_NAME && githubInstallationId && (
                       <RowSettingsMenu label="GitHub settings" disabled={isBusy}>
                         <DropdownMenuItem asChild>
                           <a
@@ -793,7 +580,7 @@ export function McpServersCombobox({
                           label="Uninstall app entirely"
                           onSelect={() =>
                             setUnlinkRequest({
-                              server: firstParty,
+                              server: s,
                               title: "Uninstall GitHub App?",
                               description:
                                 "This uninstalls the GitHub App from your account and removes GitHub MCP from every chat and scheduled job.",
@@ -803,7 +590,7 @@ export function McpServersCombobox({
                         />
                       </RowSettingsMenu>
                     )}
-                    {firstParty?.slug === GMAIL_MCP_QUALIFIED_NAME &&
+                    {s.slug === GMAIL_MCP_QUALIFIED_NAME &&
                       (connectedServer || accountStatus[s.slug]?.connected) && (
                         <RowSettingsButton
                           label="Gmail settings"

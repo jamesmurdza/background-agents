@@ -92,6 +92,13 @@ export const MCP_VENDORS: readonly McpVendor[] = [
     iconUrl: "https://exa.ai/images/favicon-32x32.png",
   },
   {
+    slug: "paddle",
+    name: "Paddle",
+    description: "Billing, subscriptions and customers in Paddle",
+    mcpUrl: "https://mcp.paddle.com/mcp",
+    iconUrl: "https://www.paddle.com/favicon.ico",
+  },
+  {
     slug: "context7",
     name: "Context7",
     description: "Up-to-date library documentation",

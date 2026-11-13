@@ -3,7 +3,7 @@
  *
  * - One OAuth client per vendor + redirect URI, registered the first time
  *   anyone connects and shared by every user (McpOAuthClient).
- * - Each user's tokens in McpOAuthToken.
+ * - Each user's tokens in McpCredential, keyed by the vendor's slug.
  * - An access-token getter for agent runs that reuses the stored token while
  *   it's valid and lets only one run refresh at a time, because vendors
  *   rotate refresh tokens: a second refresh with the old one fails, and some
@@ -14,41 +14,30 @@
 import { prisma } from "@/lib/db/prisma"
 import { decrypt, encrypt } from "@/lib/db/encryption"
 import {
-  buildAuthorizationUrl,
-  createPkcePair,
-  discoverOAuthMetadata,
-  exchangeAuthorizationCode,
+  createVendorOAuth,
   McpOAuthError,
-  refreshAccessToken,
-  registerOAuthClient,
-  signOAuthState,
   vendorQualifiedName,
-  verifyOAuthState,
   type ClientAuthMethod,
   type McpVendor,
   type OAuthClient,
-  type OAuthServerMetadata,
+  type VendorOAuth,
 } from "@background-agents/mcp"
+import { deleteMcpCredential, findMcpCredential, saveMcpCredential } from "./credentials"
 
 /** For serverConfigError when the state secret isn't set. */
 export const MCP_OAUTH_CONFIG_VARS = "MCP_OAUTH_STATE_SECRET"
 
 /** Name shown on the vendor's consent screen. */
 const CLIENT_NAME = "Backgrounder"
-/** Matches the Paddle/GitHub providers: refresh 5 minutes before expiry. */
+/** Matches the GitHub provider: refresh 5 minutes before expiry. */
 const REFRESH_BEFORE_MS = 5 * 60 * 1000
 /** How long one run may hold the refresh; longer than a token request can take. */
 const REFRESH_LOCK_MS = 30_000
 const WAIT_STEP_MS = 500
 const MAX_WAIT_MS = 15_000
-const METADATA_TTL_MS = 60 * 60 * 1000
-
-function stateSecret(): string | null {
-  return process.env.MCP_OAUTH_STATE_SECRET || null
-}
 
 export function isVendorOAuthConfigured(): boolean {
-  return stateSecret() !== null
+  return !!process.env.MCP_OAUTH_STATE_SECRET
 }
 
 function appBaseUrl(): string {
@@ -59,16 +48,15 @@ export function vendorRedirectUri(vendor: McpVendor): string {
   return `${appBaseUrl()}/api/mcp/connect/${vendor.slug}/callback`
 }
 
-// OAuth metadata rarely changes, so keep it per process instead of fetching
-// it on every refresh.
-const metadataCache = new Map<string, { value: OAuthServerMetadata; fetchedAt: number }>()
+// One per process, so each vendor's OAuth metadata is looked up once an hour
+// rather than on every refresh.
+let vendorOAuth: VendorOAuth | null = null
 
-async function getMetadata(vendor: McpVendor): Promise<OAuthServerMetadata> {
-  const cached = metadataCache.get(vendor.slug)
-  if (cached && Date.now() - cached.fetchedAt < METADATA_TTL_MS) return cached.value
-  const value = await discoverOAuthMetadata(vendor.mcpUrl)
-  metadataCache.set(vendor.slug, { value, fetchedAt: Date.now() })
-  return value
+function getVendorOAuth(): VendorOAuth {
+  const stateSecret = process.env.MCP_OAUTH_STATE_SECRET
+  if (!stateSecret) throw new Error(`${MCP_OAUTH_CONFIG_VARS} is not set`)
+  vendorOAuth ??= createVendorOAuth({ clientName: CLIENT_NAME, clientUri: appBaseUrl(), stateSecret })
+  return vendorOAuth
 }
 
 interface ClientRow {
@@ -90,15 +78,11 @@ function clientWhere(vendor: McpVendor) {
   return { vendor_redirectUri: { vendor: vendor.slug, redirectUri: vendorRedirectUri(vendor) } }
 }
 
-async function getOrRegisterClient(vendor: McpVendor, metadata: OAuthServerMetadata): Promise<OAuthClient> {
+async function getOrRegisterClient(vendor: McpVendor): Promise<OAuthClient> {
   const existing = await prisma.mcpOAuthClient.findUnique({ where: clientWhere(vendor) })
   if (existing) return toOAuthClient(existing)
 
-  const client = await registerOAuthClient(metadata, {
-    clientName: CLIENT_NAME,
-    clientUri: appBaseUrl(),
-    redirectUri: vendorRedirectUri(vendor),
-  })
+  const client = await getVendorOAuth().registerClient(vendor, { redirectUri: vendorRedirectUri(vendor) })
   try {
     await prisma.mcpOAuthClient.create({
       data: {
@@ -120,7 +104,7 @@ async function getOrRegisterClient(vendor: McpVendor, metadata: OAuthServerMetad
 
 /**
  * The server no longer knows our client (e.g. the vendor deleted it). Drop it
- * so the next connect registers a new one. Its users' tokens go with it
+ * so the next connect registers a new one. Its users' credentials go with it
  * (cascade): those grants were issued to the dead client and can't be used.
  */
 async function forgetRejectedClient(error: unknown, clientRowId: string): Promise<void> {
@@ -130,31 +114,21 @@ async function forgetRejectedClient(error: unknown, clientRowId: string): Promis
 }
 
 export async function isVendorConnected(userId: string, vendor: McpVendor): Promise<boolean> {
-  const row = await prisma.mcpOAuthToken.findUnique({
-    where: { userId_vendor: { userId, vendor: vendor.slug } },
-    select: { id: true },
-  })
-  return !!row
+  return !!(await findMcpCredential(userId, vendor.slug))
 }
 
 /** The vendor's consent URL for this user. Registers our client if needed. */
 export async function startVendorConnect(userId: string, vendor: McpVendor): Promise<string> {
-  const secret = stateSecret()
-  if (!secret) throw new Error(`${MCP_OAUTH_CONFIG_VARS} is not set`)
-  const metadata = await getMetadata(vendor)
-  const client = await getOrRegisterClient(vendor, metadata)
-  const { codeVerifier, codeChallenge } = createPkcePair()
-  const state = await signOAuthState(secret, { userId, vendor: vendor.slug, codeVerifier })
-  return buildAuthorizationUrl(metadata, client, {
+  const client = await getOrRegisterClient(vendor)
+  return getVendorOAuth().authorizationUrl(vendor, client, {
     redirectUri: vendorRedirectUri(vendor),
-    state,
-    codeChallenge,
+    userId,
   })
 }
 
 /**
- * Finish the callback: check the state was issued to this user for this
- * vendor, exchange the code and store the tokens. Returns false for a bad or
+ * Finish the callback: exchange the code and store the tokens, if the state
+ * was issued to this user for this vendor. Returns false for a bad or
  * expired state.
  */
 export async function finishVendorConnect(
@@ -162,38 +136,31 @@ export async function finishVendorConnect(
   vendor: McpVendor,
   { code, state }: { code: string; state: string }
 ): Promise<boolean> {
-  const secret = stateSecret()
-  if (!secret) throw new Error(`${MCP_OAUTH_CONFIG_VARS} is not set`)
-  const claims = await verifyOAuthState(secret, state)
-  if (!claims || claims.userId !== userId || claims.vendor !== vendor.slug) return false
-
   const clientRow = await prisma.mcpOAuthClient.findUnique({ where: clientWhere(vendor) })
   if (!clientRow) throw new Error(`No ${vendor.name} OAuth client is registered`)
-  const metadata = await getMetadata(vendor)
 
-  let tokens
+  let result
   try {
-    tokens = await exchangeAuthorizationCode(metadata, toOAuthClient(clientRow), {
-      code,
+    result = await getVendorOAuth().handleCallback(vendor, toOAuthClient(clientRow), {
       redirectUri: vendorRedirectUri(vendor),
-      codeVerifier: claims.codeVerifier,
+      code,
+      state,
     })
   } catch (error) {
+    if (error instanceof McpOAuthError && error.code === "invalid_state") return false
     await forgetRejectedClient(error, clientRow.id)
     throw error
   }
+  // A login started by someone else (e.g. a link they sent): don't store it.
+  if (result.userId !== userId) return false
 
-  const data = {
+  const { tokens } = result
+  await saveMcpCredential(userId, vendor.slug, {
     clientId: clientRow.id,
     refreshTokenEncrypted: encrypt(tokens.refreshToken),
     accessTokenEncrypted: encrypt(tokens.accessToken),
     accessTokenExpiresAt: new Date(tokens.expiresAt),
     refreshLockedUntil: null,
-  }
-  await prisma.mcpOAuthToken.upsert({
-    where: { userId_vendor: { userId, vendor: vendor.slug } },
-    create: { userId, vendor: vendor.slug, ...data },
-    update: data,
   })
   // Reconnecting after access was revoked: bring back the chats and jobs
   // that were marked as failing, so the user doesn't have to re-attach each.
@@ -210,11 +177,11 @@ export async function finishVendorConnect(
 
 /**
  * Forget the user's tokens and detach the vendor from all of their chats and
- * jobs. Like Paddle, we don't call the vendor: dropping our copy is what cuts
- * off access, and the user can revoke the app on the vendor's side too.
+ * jobs. We don't call the vendor: dropping our copy is what cuts off access,
+ * and the user can revoke the app on the vendor's side too.
  */
 export async function disconnectVendor(userId: string, vendor: McpVendor): Promise<void> {
-  await prisma.mcpOAuthToken.deleteMany({ where: { userId, vendor: vendor.slug } })
+  await deleteMcpCredential(userId, vendor.slug)
   await prisma.mcpServerConnection.deleteMany({
     where: {
       qualifiedName: vendorQualifiedName(vendor),
@@ -232,11 +199,13 @@ export async function disconnectVendor(userId: string, vendor: McpVendor): Promi
 export async function getVendorAccessToken(userId: string, vendor: McpVendor): Promise<string> {
   const deadline = Date.now() + MAX_WAIT_MS
   for (;;) {
-    const row = await prisma.mcpOAuthToken.findUnique({
-      where: { userId_vendor: { userId, vendor: vendor.slug } },
+    const row = await prisma.mcpCredential.findUnique({
+      where: { userId_provider: { userId, provider: vendor.slug } },
       include: { client: true },
     })
-    if (!row) throw new Error(`${vendor.name} account not connected for this user`)
+    if (!row?.refreshTokenEncrypted || !row.client) {
+      throw new Error(`${vendor.name} account not connected for this user`)
+    }
 
     if (
       row.accessTokenEncrypted &&
@@ -250,7 +219,7 @@ export async function getVendorAccessToken(userId: string, vendor: McpVendor): P
     // read: if another run refreshed in between, its refresh token differs
     // and we loop round to use the access token it stored.
     const now = new Date()
-    const claimed = await prisma.mcpOAuthToken.updateMany({
+    const claimed = await prisma.mcpCredential.updateMany({
       where: {
         id: row.id,
         refreshTokenEncrypted: row.refreshTokenEncrypted,
@@ -258,7 +227,12 @@ export async function getVendorAccessToken(userId: string, vendor: McpVendor): P
       },
       data: { refreshLockedUntil: new Date(now.getTime() + REFRESH_LOCK_MS) },
     })
-    if (claimed.count === 1) return await refreshClaimedToken(row, vendor)
+    if (claimed.count === 1) {
+      return await refreshClaimedToken(
+        { id: row.id, refreshTokenEncrypted: row.refreshTokenEncrypted, client: row.client },
+        vendor
+      )
+    }
 
     if (Date.now() > deadline) {
       throw new Error(`Timed out waiting for another ${vendor.name} token refresh`)
@@ -272,13 +246,12 @@ async function refreshClaimedToken(
   vendor: McpVendor
 ): Promise<string> {
   try {
-    const metadata = await getMetadata(vendor)
-    const tokens = await refreshAccessToken(
-      metadata,
+    const tokens = await getVendorOAuth().refresh(
+      vendor,
       toOAuthClient(row.client),
       decrypt(row.refreshTokenEncrypted)
     )
-    await prisma.mcpOAuthToken.update({
+    await prisma.mcpCredential.update({
       where: { id: row.id },
       data: {
         refreshTokenEncrypted: encrypt(tokens.refreshToken),
@@ -293,10 +266,10 @@ async function refreshClaimedToken(
       // The user revoked access on the vendor's side, or the grant expired.
       // The refresh token is dead, so forget it: the vendor then shows as not
       // connected, and reconnecting brings the failed rows back.
-      await prisma.mcpOAuthToken.deleteMany({ where: { id: row.id } })
+      await prisma.mcpCredential.deleteMany({ where: { id: row.id } })
       throw new Error(`${vendor.name} access was revoked or expired. Reconnect it in Settings → Integrations.`)
     }
-    await prisma.mcpOAuthToken
+    await prisma.mcpCredential
       .updateMany({ where: { id: row.id }, data: { refreshLockedUntil: null } })
       .catch(() => {})
     await forgetRejectedClient(error, row.client.id)

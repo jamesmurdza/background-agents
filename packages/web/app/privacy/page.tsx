@@ -102,7 +102,7 @@ export default function PrivacyPolicyPage() {
               <li><strong>AI model providers</strong> (e.g. Anthropic, OpenAI, Google, and providers reachable through OpenCode or custom endpoints you configure) — receive your prompts and the code/context the agent sends in order to generate responses. Their handling of that data is governed by their own terms and privacy policies.</li>
               <li><strong>Stripe</strong> — payment processing for credit purchases.</li>
               <li><strong>Vercel</strong> and our managed <strong>PostgreSQL</strong> database provider — application hosting and data storage.</li>
-              <li><strong>Optional integrations you enable</strong>, such as Smithery-hosted MCP servers or Netlify deployments — receive the data needed for that integration.</li>
+              <li><strong>Optional integrations you enable</strong>, such as MCP servers you connect (for example Linear or Notion) or Netlify deployments — receive the data needed for that integration.</li>
             </ul>
             <p>
               <strong>Shared chats.</strong> If you create a share link for a chat, anyone with that link can view the chat&apos;s messages. You can stop sharing at any time.

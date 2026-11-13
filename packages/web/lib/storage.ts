@@ -40,7 +40,7 @@ export interface DraftChatConfig {
   pendingEnvironmentVariables?: Record<string, string>
   /**
    * MCP servers staged while the chat is still a draft (no DB row to attach
-   * them to yet). Applied via POST `/api/chats/[chatId]/mcp-servers[/attachPath]`
+   * them to yet). Applied via POST `/api/chats/[chatId]/mcp-servers/[attachPath]`
    * right after the draft materializes into a real chat — see
    * `applyPendingMcpServers` in lib/sandbox-client.ts — then cleared. Mirrors
    * `pendingEnvironmentVariables` above.
@@ -50,17 +50,14 @@ export interface DraftChatConfig {
 
 /**
  * A single MCP server staged on a draft chat, pending materialization.
- * - First-party servers (GitHub, Gmail) set `attachPath`; applying them is a
- *   bare POST to `/mcp-servers/{attachPath}` on the real chat.
- * - Registry servers set `url` instead; applying them POSTs
- *   `{ slug, url, name, iconUrl }` to `/mcp-servers`.
+ * Applying it is a bare POST to `/mcp-servers/{attachPath}` on the real chat
+ * (e.g. "github", "gmail", "vendor/linear").
  */
 export interface PendingMcpServer {
   slug: string
   name: string
   iconUrl: string | null
-  url?: string | null
-  attachPath?: string
+  attachPath: string
 }
 
 /** Preview state for a chat */

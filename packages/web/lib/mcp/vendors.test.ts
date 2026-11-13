@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 /**
- * An in-memory McpOAuthToken table that honours the same where-clauses
+ * An in-memory McpCredential table that honours the same where-clauses
  * getVendorAccessToken relies on, so the refresh lock can be tested with two
  * runs racing for real.
  */
 interface TokenRow {
   id: string
   userId: string
-  vendor: string
+  provider: string
   refreshTokenEncrypted: string
   accessTokenEncrypted: string | null
   accessTokenExpiresAt: Date | null
@@ -19,7 +19,6 @@ interface TokenRow {
 const mocks = vi.hoisted(() => ({
   rows: [] as TokenRow[],
   refresh: vi.fn(),
-  discover: vi.fn(),
   deleteClients: vi.fn(),
 }))
 
@@ -29,11 +28,11 @@ vi.mock("@/lib/db/encryption", () => ({
 }))
 
 vi.mock("@/lib/db/prisma", () => {
-  const find = (where: { userId_vendor: { userId: string; vendor: string } }) =>
-    mocks.rows.find((r) => r.userId === where.userId_vendor.userId && r.vendor === where.userId_vendor.vendor)
+  const find = (where: { userId_provider: { userId: string; provider: string } }) =>
+    mocks.rows.find((r) => r.userId === where.userId_provider.userId && r.provider === where.userId_provider.provider)
   return {
     prisma: {
-      mcpOAuthToken: {
+      mcpCredential: {
         findUnique: vi.fn(async ({ where }) => {
           const row = find(where)
           return row ? { ...row, client: { ...row.client } } : null
@@ -68,8 +67,7 @@ vi.mock("@/lib/db/prisma", () => {
 
 vi.mock("@background-agents/mcp", async (original) => ({
   ...(await original<typeof import("@background-agents/mcp")>()),
-  discoverOAuthMetadata: mocks.discover,
-  refreshAccessToken: mocks.refresh,
+  createVendorOAuth: () => ({ refresh: mocks.refresh }),
 }))
 
 import { findMcpVendor, McpOAuthError } from "@background-agents/mcp"
@@ -82,7 +80,7 @@ function seed(overrides: Partial<TokenRow> = {}): TokenRow {
   const row: TokenRow = {
     id: "token-1",
     userId: "user-1",
-    vendor: "linear",
+    provider: "linear",
     refreshTokenEncrypted: "enc:refresh-1",
     accessTokenEncrypted: "enc:access-1",
     accessTokenExpiresAt: new Date(Date.now() + HOUR),
@@ -97,7 +95,7 @@ function seed(overrides: Partial<TokenRow> = {}): TokenRow {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
-  mocks.discover.mockResolvedValue({ tokenEndpoint: "https://auth.example.com/token", resource: linear.mcpUrl })
+  vi.stubEnv("MCP_OAUTH_STATE_SECRET", "test-secret")
 })
 
 describe("getVendorAccessToken", () => {

@@ -29,7 +29,7 @@ export interface McpConnectionRowConfig {
 
 /**
  * Account-level connect/disconnect row for a first-party MCP integration
- * (Gmail, GitHub, Paddle). Mirrors the popup-based connect flow already used
+ * (GitHub, Gmail, vendor-hosted servers). Mirrors the popup-based connect flow already used
  * per-chat in McpServersCombobox.tsx, but scoped to the account as a whole —
  * disconnecting here removes the credential and every attached
  * McpServerConnection row across all of the user's chats and scheduled jobs,

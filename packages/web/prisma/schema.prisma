@@ -61,22 +61,6 @@ model User {
   // until a top-up brings it back above zero.
   creditBalanceMicroUsd BigInt @default(0)
 
-  // GitHub App installation id, captured in the install callback. Null until
-  // the user installs our GitHub App. Used to mint short-lived installation
-  // access tokens at agent-run time so the agent can call GitHub's MCP server
-  // with properly-scoped credentials.
-  githubAppInstallationId String?
-
-  // Encrypted Google OAuth refresh token, captured in the Gmail connect
-  // callback. Only our Gmail MCP server uses it — agents get a connection token
-  // scoped by McpServerConnection.toolPolicy, never this credential.
-  googleRefreshTokenEncrypted String? @db.Text
-
-  // Encrypted Paddle OAuth refresh token, captured in the Paddle connect
-  // callback. agent-servers.ts exchanges it for a short-lived access token
-  // per turn; the agent never sees this credential.
-  paddleRefreshTokenEncrypted String? @db.Text
-
   chats              Chat[]
   accounts           Account[]
   sessions           Session[]
@@ -85,7 +69,7 @@ model User {
   skills             Skill[]
   tokenUsages        TokenUsage[]
   creditTransactions CreditTransaction[]
-  mcpOAuthTokens     McpOAuthToken[]
+  mcpCredentials     McpCredential[]
 }
 
 // =============================================================================
@@ -254,7 +238,7 @@ model QueuedPrompt {
 }
 
 // =============================================================================
-// McpServerConnection - per-owner MCP connections (via Smithery Connect)
+// McpServerConnection - MCP servers attached to a chat or scheduled job
 // =============================================================================
 // One row per attached MCP server. Owners are either Chat or ScheduledJob —
 // modelled as two nullable FKs so each side keeps its own CASCADE on delete.
@@ -266,20 +250,12 @@ model McpServerConnection {
   chatId         String?
   scheduledJobId String?
 
-  // Identity from Smithery's registry
-  qualifiedName String // e.g. "exa/exa-search" — stable handle
+  // Which server: "github/github", "google/gmail" or a vendor's "<slug>/<slug>".
+  // The user's login for it lives in McpCredential.
+  qualifiedName String
   displayName   String
   iconUrl       String?
-
-  // Smithery Connect connection details. Null for non-Smithery rows (e.g. the
-  // GitHub MCP row, which goes directly to api.githubcopilot.com).
-  smitheryConnectionId String?
-  smitheryNamespace    String?
-  mcpUrl               String // remote MCP endpoint the agent will call
-
-  // Encrypted Smithery API key used to call mcpUrl. Stored per-row so that
-  // rotating the global key doesn't silently break existing connections.
-  encryptedApiKey String? @db.Text
+  mcpUrl        String // remote MCP endpoint the agent will call
 
   // Tool/argument policy for first-party servers (Gmail). Parsed by
   // parseGmailToolPolicy; null means the read-only default.
@@ -315,33 +291,36 @@ model McpOAuthClient {
 
   createdAt DateTime @default(now())
 
-  tokens McpOAuthToken[]
+  credentials McpCredential[]
 
   @@unique([vendor, redirectUri])
 }
 
-// A user's login to a vendor MCP server. agent-servers.ts reuses the access
-// token until it expires, then refreshes and stores the rotated refresh token.
-// refreshLockedUntil stops two runs from refreshing at once: vendors rotate
-// refresh tokens, so a second refresh with the old one fails or revokes the
-// grant.
-model McpOAuthToken {
-  id                    String    @id @default(cuid())
-  userId                String
-  vendor                String
-  clientId              String // McpOAuthClient.id the grant was issued to
-  refreshTokenEncrypted String    @db.Text
-  accessTokenEncrypted  String?   @db.Text
+// A user's link to one MCP integration: "github" (GitHub App installation),
+// "gmail" (Google refresh token) or a vendor slug from MCP_VENDORS (OAuth
+// tokens). Secrets are encrypted. For vendors, agent-servers.ts reuses the
+// access token until it expires, then refreshes and stores the rotated refresh
+// token; refreshLockedUntil stops two runs from refreshing at once, because a
+// second refresh with the old token fails or revokes the login.
+model McpCredential {
+  id       String @id @default(cuid())
+  userId   String
+  provider String // "github" | "gmail" | vendor slug, e.g. "linear"
+
+  installationId        String? // github
+  refreshTokenEncrypted String?   @db.Text // gmail, vendors
+  accessTokenEncrypted  String?   @db.Text // vendors
   accessTokenExpiresAt  DateTime?
   refreshLockedUntil    DateTime?
+  clientId              String? // vendors: the McpOAuthClient the login was issued to
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client McpOAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client McpOAuthClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, vendor])
+  @@unique([userId, provider])
 }
 
 // =============================================================================
