@@ -11,26 +11,44 @@
  * tokscale's cost only for models we don't recognise.
  *
  * Rates: https://platform.claude.com/docs/en/about-claude/pricing (checked
- * 2026-08-30). Only base input and output are listed per model — the cache
- * rates are fixed multipliers of base input, per the same page:
+ * 2026-11-13). Only base input and output are listed per model. Cache writes
+ * are a fixed multiple of base input on every model:
  *   5-minute cache write  1.25× input
  *   1-hour cache write    2×    input
- *   cache read (hit)      0.1×  input
+ * Cache reads (hits) are 0.1× input on most models, but the 5.x-generation
+ * models use a lower multiplier instead — see `cacheReadMultiplier` below.
  *
  * Not modelled (none of it applies to a Claude Code turn on the shared pool):
  * batch discounts, the `inference_geo: "us"` 1.1× multiplier, fast mode, and
  * server-side tool surcharges such as web search.
  */
 
-/** USD per million tokens, base rates. Cache rates derive from `input`. */
+/** USD per million tokens, base rates. Cache write rates derive from `input`. */
 interface ClaudeRate {
   input: number
   output: number
+  /**
+   * Cache-read (hit) price as a multiple of base `input`. Defaults to
+   * {@link CACHE_READ_MULTIPLIER} (0.1) when unset — only the 5.x-generation
+   * models publish a different multiplier.
+   */
+  cacheReadMultiplier?: number
+  /**
+   * Haiku 5.5 only: once a request's prompt (input + cache-read +
+   * cache-write tokens) exceeds `threshold`, the whole request — input,
+   * output, and the cache multiplier above applies to this tier's `input`
+   * too — is billed at this rate instead of the base one.
+   */
+  longContext?: {
+    threshold: number
+    input: number
+    output: number
+  }
 }
 
 /** Cache-write price as a multiple of base input (5-minute TTL). */
 const CACHE_WRITE_5M_MULTIPLIER = 1.25
-/** Cache-read (hit) price as a multiple of base input. */
+/** Default cache-read (hit) price as a multiple of base input. */
 const CACHE_READ_MULTIPLIER = 0.1
 
 /**
@@ -39,8 +57,13 @@ const CACHE_READ_MULTIPLIER = 0.1
  * can still be metered against them.
  */
 const CLAUDE_RATES: Record<string, ClaudeRate> = {
+  "fable-5.2": { input: 8, output: 40, cacheReadMultiplier: 0.025 },
+  "mythos-5.2": { input: 8, output: 40, cacheReadMultiplier: 0.025 },
+  "fable-5.1": { input: 10, output: 50, cacheReadMultiplier: 0.025 },
+  "mythos-5.1": { input: 10, output: 50, cacheReadMultiplier: 0.025 },
   "fable-5": { input: 10, output: 50 },
   "mythos-5": { input: 10, output: 50 },
+  "opus-5.5": { input: 4, output: 20, cacheReadMultiplier: 0.05 },
   "opus-5": { input: 5, output: 25 },
   "opus-4.8": { input: 5, output: 25 },
   "opus-4.7": { input: 5, output: 25 },
@@ -48,10 +71,16 @@ const CLAUDE_RATES: Record<string, ClaudeRate> = {
   "opus-4.5": { input: 5, output: 25 },
   "opus-4.1": { input: 15, output: 75 },
   "opus-4": { input: 15, output: 75 },
+  "sonnet-5.5": { input: 2, output: 10, cacheReadMultiplier: 0.05 },
   "sonnet-5": { input: 2, output: 10 },
   "sonnet-4.6": { input: 3, output: 15 },
   "sonnet-4.5": { input: 3, output: 15 },
   "sonnet-4": { input: 3, output: 15 },
+  "haiku-5.5": {
+    input: 0.1,
+    output: 0.5,
+    longContext: { threshold: 100_000, input: 0.5, output: 2.5 },
+  },
   "haiku-4.5": { input: 1, output: 5 },
   "haiku-3.5": { input: 0.8, output: 4 },
 }
@@ -120,6 +149,11 @@ export interface ClaudeTokenCounts {
  * thinking as output. Claude Code folds thinking into `output_tokens` and
  * reports no separate reasoning count, so this term is 0 for the shared pool;
  * it exists for clients that do split the two.
+ *
+ * Haiku 5.5 prices by prompt length (input + cache-read + cache-write
+ * tokens): a request whose prompt exceeds the `longContext` threshold is
+ * billed entirely at the higher tier, including its cache rates. Every other
+ * model ignores `longContext` and uses its base rate regardless of size.
  */
 export function priceClaudeTurn(
   model: string | null | undefined,
@@ -130,14 +164,19 @@ export function priceClaudeTurn(
   const rate = CLAUDE_RATES[key]
   if (!rate) return null
 
+  const promptTokens = tokens.inputTokens + tokens.cacheReadTokens + tokens.cacheWriteTokens
+  const tier =
+    rate.longContext && promptTokens > rate.longContext.threshold ? rate.longContext : rate
+  const cacheReadMultiplier = rate.cacheReadMultiplier ?? CACHE_READ_MULTIPLIER
+
   const perToken = (usdPerMillion: number, count: number) =>
     (usdPerMillion * count) / 1_000_000
 
   return (
-    perToken(rate.input, tokens.inputTokens) +
-    perToken(rate.output, tokens.outputTokens) +
-    perToken(rate.output, tokens.reasoningTokens) +
-    perToken(rate.input * CACHE_READ_MULTIPLIER, tokens.cacheReadTokens) +
-    perToken(rate.input * CACHE_WRITE_5M_MULTIPLIER, tokens.cacheWriteTokens)
+    perToken(tier.input, tokens.inputTokens) +
+    perToken(tier.output, tokens.outputTokens) +
+    perToken(tier.output, tokens.reasoningTokens) +
+    perToken(tier.input * cacheReadMultiplier, tokens.cacheReadTokens) +
+    perToken(tier.input * CACHE_WRITE_5M_MULTIPLIER, tokens.cacheWriteTokens)
   )
 }

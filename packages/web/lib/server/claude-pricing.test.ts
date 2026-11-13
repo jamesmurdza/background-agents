@@ -103,4 +103,57 @@ describe("priceClaudeTurn", () => {
     ).toBeNull()
     expect(priceClaudeTurn(null, NO_TOKENS)).toBeNull()
   })
+
+  it("prices the 5.x-generation models at their published rates", () => {
+    const tokens = { ...NO_TOKENS, inputTokens: 1_000_000, outputTokens: 1_000_000 }
+    // Opus 5.5: $4/MTok in, $20/MTok out.
+    expect(priceClaudeTurn("claude-opus-5-5", tokens)).toBeCloseTo(24, 10)
+    // Sonnet 5.5: $2/MTok in, $10/MTok out.
+    expect(priceClaudeTurn("claude-sonnet-5-5", tokens)).toBeCloseTo(12, 10)
+    // Fable 5.1 / Mythos 5.1: $10/MTok in, $50/MTok out.
+    expect(priceClaudeTurn("claude-fable-5-1", tokens)).toBeCloseTo(60, 10)
+    expect(priceClaudeTurn("claude-mythos-5-1", tokens)).toBeCloseTo(60, 10)
+    // Fable 5.2 / Mythos 5.2: $8/MTok in, $40/MTok out.
+    expect(priceClaudeTurn("claude-fable-5-2", tokens)).toBeCloseTo(48, 10)
+    expect(priceClaudeTurn("claude-mythos-5-2", tokens)).toBeCloseTo(48, 10)
+  })
+
+  it("applies the lower cache-read multiplier on 5.x-generation models", () => {
+    // Opus 5.5: cache reads are 0.05x input (not the standard 0.1x), input $4/MTok.
+    const opus = priceClaudeTurn("claude-opus-5-5", { ...NO_TOKENS, cacheReadTokens: 1_000_000 })
+    expect(opus).toBeCloseTo(4 * 0.05, 10)
+
+    // Fable 5.2: cache reads are 0.025x input, input $8/MTok.
+    const fable = priceClaudeTurn("claude-fable-5-2", {
+      ...NO_TOKENS,
+      cacheReadTokens: 1_000_000,
+    })
+    expect(fable).toBeCloseTo(8 * 0.025, 10)
+  })
+
+  it("switches Haiku 5.5 to the long-context tier once the prompt exceeds 100k tokens", () => {
+    // At or under the threshold: base rate, $0.10/MTok in, $0.50/MTok out.
+    const underThreshold = priceClaudeTurn("claude-haiku-5-5", {
+      ...NO_TOKENS,
+      inputTokens: 100_000,
+      outputTokens: 1_000_000,
+    })
+    expect(underThreshold).toBeCloseTo(100_000 * 0.1 / 1_000_000 + 0.5, 10)
+
+    // One token over: long-context rate, $0.50/MTok in, $2.50/MTok out, for the whole request.
+    const overThreshold = priceClaudeTurn("claude-haiku-5-5", {
+      ...NO_TOKENS,
+      inputTokens: 100_001,
+      outputTokens: 1_000_000,
+    })
+    expect(overThreshold).toBeCloseTo((100_001 * 0.5) / 1_000_000 + 2.5, 10)
+
+    // Cache reads count toward the prompt-length threshold too.
+    const cacheTipsOver = priceClaudeTurn("claude-haiku-5-5", {
+      ...NO_TOKENS,
+      inputTokens: 1,
+      cacheReadTokens: 100_000,
+    })
+    expect(cacheTipsOver).toBeCloseTo((1 * 0.5) / 1_000_000 + (100_000 * 0.5 * 0.1) / 1_000_000, 10)
+  })
 })
