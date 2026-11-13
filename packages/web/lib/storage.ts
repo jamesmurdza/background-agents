@@ -46,6 +46,15 @@ export interface DraftChatConfig {
    * `pendingEnvironmentVariables` above.
    */
   pendingMcpServers?: PendingMcpServer[]
+  /**
+   * Admin-only initial sandbox resources (RAM/disk, in GB) staged while the
+   * chat is still a draft (no sandbox to resize yet). Applied as part of the
+   * sandbox-creation request once the draft materializes — see
+   * `ensureSandboxForChat` in lib/sandbox-client.ts — then cleared. Mirrors
+   * `pendingEnvironmentVariables` above, but has no API route of its own:
+   * unlike env vars, resources only matter once, at creation time.
+   */
+  pendingResources?: { memory?: number; disk?: number }
 }
 
 /**

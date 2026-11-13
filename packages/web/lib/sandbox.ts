@@ -150,6 +150,14 @@ export interface CreateSandboxOptions {
    * secrets would need later.
    */
   turnSecrets?: ReadyTurnSecret[]
+  /**
+   * Admin-only initial resources (GB), overriding the snapshot's own
+   * defaults (`SNAPSHOT_RESOURCES` in @background-agents/sandbox-image).
+   * Caller must have already validated/sanitized these — see
+   * `sanitizeInitialResources` in lib/sandbox-resources.ts.
+   */
+  memory?: number
+  disk?: number
 }
 
 export interface CreatedSandbox {
@@ -180,7 +188,7 @@ function generateSandboxName(userId?: string): string {
 export async function createSandboxForChat(
   options: CreateSandboxOptions
 ): Promise<CreatedSandbox> {
-  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch, turnSecrets } = options
+  const { daytona, repo, baseBranch, newBranch, githubToken, userId, restoreExistingBranch, turnSecrets, memory, disk } = options
   const isNewRepo = repo === NEW_REPOSITORY || repo === "__new__"
   const repoName = "project"
   let branchRestored: boolean | undefined
@@ -212,6 +220,10 @@ export async function createSandboxForChat(
         repo: isNewRepo ? NEW_REPOSITORY : `${owner}/${repoApiName}`,
         branch: newBranch,
       },
+      // Omitted entirely (not just `undefined`) when not overriding, so the
+      // sandbox falls back to the snapshot's own defaults (SNAPSHOT_RESOURCES).
+      ...(memory != null ? { memory } : {}),
+      ...(disk != null ? { disk } : {}),
     },
     turnSecretsCreateParams(turnSecrets ?? [])
   )
@@ -351,6 +363,14 @@ export interface EnsureSandboxRunningOptions {
    * has a branch to restore. Falls back to a random `agent/<id>` name.
    */
   newBranchHint?: string
+  /**
+   * Admin-only initial resources (GB) for a freshly created sandbox. Ignored
+   * when reusing an existing sandbox (use the admin resize API for that).
+   * Caller must have already validated/sanitized these (see
+   * `sanitizeInitialResources` in lib/sandbox-resources.ts) — this layer
+   * trusts whatever it's given.
+   */
+  resources?: { memory?: number; disk?: number }
 }
 
 export interface EnsuredSandboxRunning extends CreatedSandbox {
@@ -380,7 +400,7 @@ export interface EnsuredSandboxRunning extends CreatedSandbox {
 export async function ensureSandboxRunning(
   options: EnsureSandboxRunningOptions
 ): Promise<EnsuredSandboxRunning | null> {
-  const { daytona, chat, userId, githubToken, turnSecrets, newBranchHint } = options
+  const { daytona, chat, userId, githubToken, turnSecrets, newBranchHint, resources } = options
 
   // Reuse the chat's existing sandbox if it's still there.
   if (chat.sandboxId) {
@@ -427,6 +447,8 @@ export async function ensureSandboxRunning(
     userId,
     restoreExistingBranch,
     turnSecrets,
+    memory: resources?.memory,
+    disk: resources?.disk,
   })
 
   // Freshly created sandbox: no agent conversation history on disk, so any

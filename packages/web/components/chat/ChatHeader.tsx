@@ -31,7 +31,7 @@ interface ChatHeaderProps {
   onOpenEnvVars?: () => void
   onOpenSkills?: () => void
   onOpenCommandPalette?: () => void
-  /** Whether the current user is an admin — gates the "Increase resources" item. */
+  /** Whether the current user is an admin — gates the "Sandbox resources" item. */
   isAdmin?: boolean
   /** Open the sandbox resize modal. Omitted when there's no sandbox to resize. */
   onOpenSandboxResize?: () => void
@@ -224,7 +224,7 @@ export function ChatHeader({
                     className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent text-left cursor-pointer"
                   >
                     <HardDrive className="h-3.5 w-3.5" />
-                    Increase resources
+                    Sandbox resources
                   </button>
                 )}
                 <div className="my-1 border-t border-border" />

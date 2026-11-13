@@ -20,6 +20,14 @@ export interface MessagePayload {
   /** When true, agent should plan before acting */
   planMode?: boolean
   reasoningEffort?: string
+  /**
+   * Admin-only initial sandbox resources (GB) staged on a draft chat before
+   * its first message — see `pendingResources` in lib/storage.ts. Only takes
+   * effect when this request actually creates a fresh sandbox (not when
+   * reusing an existing one) and only for admins — re-validated server-side
+   * via `sanitizeInitialResources`, never trusted as-is.
+   */
+  resources?: { memory?: number; disk?: number }
 }
 
 /** Success body returned by POST once the agent turn has been kicked off. */
