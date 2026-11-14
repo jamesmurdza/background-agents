@@ -40,7 +40,6 @@ export {
   // Functions
   getDefaultAgent,
   resolveAgentSlug,
-  hasOwnAnthropicCredentials,
   sharedClaudePoolEligible,
   agentUsesSharedPool,
   sharedPoolProviderForModel,
@@ -60,7 +59,6 @@ export {
   getModelLabel,
   getEnvForModel,
   findEndpoint,
-  buildEndpointEnv,
   buildCustomModelEnv,
   buildCodexCustomEnv,
   buildOpencodeCustomEnv,

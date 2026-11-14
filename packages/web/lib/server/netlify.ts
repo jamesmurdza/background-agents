@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db/prisma"
 import { encrypt, decrypt } from "@/lib/db/encryption"
 import { normalizeStoredCredentials } from "@/lib/credentials"
 import { escapeHtml } from "@/lib/html"
+import { appBaseUrl } from "./app-url"
 import { withUserLock } from "./codex-credentials"
 
 const CREDENTIAL_KEY: CredentialId = "NETLIFY_OAUTH_TOKEN"
@@ -20,8 +21,7 @@ export const NETLIFY_STATE_COOKIE = "netlify_oauth_state"
 
 /** Must match the redirect URI registered on the Netlify OAuth application. */
 export function netlifyRedirectUri(): string {
-  const base = (process.env.NEXTAUTH_URL ?? "http://localhost:4000").replace(/\/$/, "")
-  return `${base}/api/netlify/callback`
+  return `${appBaseUrl()}/api/netlify/callback`
 }
 
 /**

@@ -246,7 +246,7 @@ export function resolveAgentSlug(slug: string | null | undefined): Agent | null 
 }
 
 /** Whether the user has their own Anthropic credentials (API key or subscription token). */
-export function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undefined): boolean {
+function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undefined): boolean {
   return !!flags?.ANTHROPIC_API_KEY || !!flags?.CLAUDE_CODE_CREDENTIALS
 }
 
@@ -712,7 +712,7 @@ export function parseCustomHeaders(raw: string): ParsedCustomHeaders {
 }
 
 /** Build the env vars for a selected custom endpoint, dispatching on its type. */
-export function buildEndpointEnv(endpoint: CustomEndpoint): Record<string, string> {
+function buildEndpointEnv(endpoint: CustomEndpoint): Record<string, string> {
   switch (endpoint.type) {
     case "anthropic":
       return buildCustomModelEnv(endpoint)

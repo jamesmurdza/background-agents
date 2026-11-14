@@ -384,24 +384,35 @@ export function McpServersCombobox({
     }
   }
 
-  async function handleToggleFirstParty(server: FirstPartyServer) {
+  /**
+   * Shared "toggle off" half of connecting/disconnecting a server: if it's
+   * already connected (or staged as pending on a draft), undo that and
+   * return true so the caller bails out. Returns false when the server
+   * isn't connected yet, meaning the caller should proceed to connect it.
+   */
+  async function tryToggleOff(slug: string): Promise<boolean> {
     if (isDraft) {
-      if (pendingSlugs.has(server.slug)) {
-        updatePendingServers((prev) => prev.filter((p) => p.slug !== server.slug))
-        return
+      if (pendingSlugs.has(slug)) {
+        updatePendingServers((prev) => prev.filter((p) => p.slug !== slug))
+        return true
       }
-    } else {
-      const existing = connectedByName.get(server.slug)
-      if (existing) {
-        setBusySlug(server.slug)
-        try {
-          await handleDisconnect(existing.id)
-        } finally {
-          setBusySlug(null)
-        }
-        return
-      }
+      return false
     }
+    const existing = connectedByName.get(slug)
+    if (existing) {
+      setBusySlug(slug)
+      try {
+        await handleDisconnect(existing.id)
+      } finally {
+        setBusySlug(null)
+      }
+      return true
+    }
+    return false
+  }
+
+  async function handleToggleFirstParty(server: FirstPartyServer) {
+    if (await tryToggleOff(server.slug)) return
     if (busySlug) return
     setBusySlug(server.slug)
     try {
@@ -487,23 +498,7 @@ export function McpServersCombobox({
   }
 
   async function handleToggleServer(server: RegistryServer) {
-    if (isDraft) {
-      if (pendingSlugs.has(server.slug)) {
-        updatePendingServers((prev) => prev.filter((p) => p.slug !== server.slug))
-        return
-      }
-    } else {
-      const existing = connectedByName.get(server.slug)
-      if (existing) {
-        setBusySlug(server.slug)
-        try {
-          await handleDisconnect(existing.id)
-        } finally {
-          setBusySlug(null)
-        }
-        return
-      }
-    }
+    if (await tryToggleOff(server.slug)) return
     if (busySlug) return
     setBusySlug(server.slug)
     try {

@@ -168,7 +168,4 @@ export async function getCreditPack(packId: string): Promise<CreditPack | null> 
 }
 
 /** Absolute URL for a path on this deployment, for Checkout's redirect URLs. */
-export function appUrl(path: string): string {
-  const base = (process.env.NEXTAUTH_URL ?? "http://localhost:4000").replace(/\/$/, "")
-  return `${base}${path}`
-}
+export { appUrl } from "./app-url"

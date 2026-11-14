@@ -4,6 +4,7 @@
  * Google OAuth env vars aren't configured.
  */
 import { createGmailMcpProvider, type GmailMcpProvider } from "@background-agents/mcp"
+import { appBaseUrl } from "@/lib/server/app-url"
 
 let gmailProvider: GmailMcpProvider | null = null
 
@@ -23,10 +24,6 @@ export function getGmailProvider(): GmailMcpProvider | null {
 
   gmailProvider = createGmailMcpProvider({ clientId, clientSecret, jwtSecret })
   return gmailProvider
-}
-
-function appBaseUrl(): string {
-  return (process.env.NEXTAUTH_URL ?? "http://localhost:4000").replace(/\/$/, "")
 }
 
 /** Must match an authorized redirect URI on the Google OAuth client. */
