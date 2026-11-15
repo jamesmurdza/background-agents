@@ -15,6 +15,11 @@ import { decrypt } from "@/lib/db/encryption"
 import { requireAuth, isAuthError, internalError, serverConfigError } from "@/lib/db/api-helpers"
 import { GMAIL_CONFIG_VARS, getGmailProvider, getGmailRedirectUri } from "@/lib/mcp/gmail"
 import { GMAIL_MCP_QUALIFIED_NAME } from "@background-agents/mcp"
+import {
+  deleteMcpCredential,
+  findMcpCredential,
+  GMAIL_CREDENTIAL,
+} from "@/lib/mcp/credentials"
 
 export async function GET(): Promise<Response> {
   const auth = await requireAuth()
@@ -23,11 +28,7 @@ export async function GET(): Promise<Response> {
   if (!provider) return serverConfigError(GMAIL_CONFIG_VARS)
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: auth.userId },
-      select: { googleRefreshTokenEncrypted: true },
-    })
-    if (user?.googleRefreshTokenEncrypted) {
+    if (await findMcpCredential(auth.userId, GMAIL_CREDENTIAL)) {
       return Response.json({ connected: true })
     }
     const state = await provider.signOAuthState(auth.userId)
@@ -48,13 +49,10 @@ export async function DELETE(): Promise<Response> {
 
   const { userId } = auth
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { googleRefreshTokenEncrypted: true },
-    })
-    if (user?.googleRefreshTokenEncrypted) {
+    const credential = await findMcpCredential(userId, GMAIL_CREDENTIAL)
+    if (credential?.refreshTokenEncrypted) {
       try {
-        await provider.revokeToken(decrypt(user.googleRefreshTokenEncrypted))
+        await provider.revokeToken(decrypt(credential.refreshTokenEncrypted))
       } catch (err) {
         // The grant may already be revoked on Google's side; clearing our copy
         // below still cuts off access, so continue.
@@ -63,10 +61,7 @@ export async function DELETE(): Promise<Response> {
       provider.invalidateAccessToken(userId)
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { googleRefreshTokenEncrypted: null },
-    })
+    await deleteMcpCredential(userId, GMAIL_CREDENTIAL)
     await prisma.mcpServerConnection.deleteMany({
       where: {
         qualifiedName: GMAIL_MCP_QUALIFIED_NAME,

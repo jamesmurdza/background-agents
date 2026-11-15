@@ -1,7 +1,7 @@
 {
   "name": "@background-agents/mcp",
   "version": "0.1.0",
-  "description": "MCP provider abstractions for GitHub, Smithery, and Gmail",
+  "description": "MCP connections for coding agents: vendor-hosted servers over OAuth, GitHub, and Gmail",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -47,25 +47,16 @@
         "default": "./dist/gmail/policy.cjs"
       }
     },
-    "./smithery": {
-      "import": {
-        "types": "./dist/smithery/index.d.ts",
-        "default": "./dist/smithery/index.js"
-      },
-      "require": {
-        "types": "./dist/smithery/index.d.cts",
-        "default": "./dist/smithery/index.cjs"
-      }
-    },
     "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts src/github/index.ts src/smithery/index.ts src/gmail/index.ts src/gmail/policy.ts --format esm,cjs --dts --clean --sourcemap",
+    "build": "tsup src/index.ts src/github/index.ts src/gmail/index.ts src/gmail/policy.ts --format esm,cjs --dts --clean --sourcemap",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "prepare": "npm run build"
   },
   "dependencies": {
@@ -76,7 +67,8 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
   },
   "publishConfig": {
     "access": "public"

@@ -10,7 +10,6 @@ import {
 } from "@/lib/db/api-helpers"
 import { addMinutes, addYears } from "date-fns"
 import { toScheduledJobResponse, UUID_RE } from "@/lib/scheduled-jobs/types"
-import { cleanupSmitheryConnections } from "@/lib/mcp/connections"
 
 // =============================================================================
 // Helper: Get job with auth check
@@ -244,11 +243,6 @@ export async function DELETE(
     if (!job || job.userId !== userId) {
       return notFound("Scheduled job not found")
     }
-
-    // Best-effort Smithery cleanup before we drop the DB rows. The MCP rows
-    // themselves cascade with the job; Smithery's side has to be told
-    // explicitly or the connection lingers and counts against quota.
-    await cleanupSmitheryConnections({ kind: "job", id })
 
     // Delete job (cascades to runs and mcpServers, but runs' chats need
     // manual cleanup).

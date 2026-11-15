@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db/prisma"
 import { decrypt } from "@/lib/db/encryption"
 import { serverConfigError, unauthorized } from "@/lib/db/api-helpers"
 import { GMAIL_CONFIG_VARS, getGmailProvider } from "@/lib/mcp/gmail"
+import { GMAIL_CREDENTIAL } from "@/lib/mcp/credentials"
 import {
   GMAIL_MCP_QUALIFIED_NAME,
   parseGmailToolPolicy,
@@ -18,7 +19,17 @@ import {
 } from "@background-agents/mcp"
 
 const ownerUserSelect = {
-  select: { user: { select: { id: true, googleRefreshTokenEncrypted: true } } },
+  select: {
+    user: {
+      select: {
+        id: true,
+        mcpCredentials: {
+          where: { provider: GMAIL_CREDENTIAL },
+          select: { refreshTokenEncrypted: true },
+        },
+      },
+    },
+  },
 }
 
 async function handle(req: Request): Promise<Response> {
@@ -49,7 +60,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   const user = row.chat?.user ?? row.scheduledJob?.user
-  const encryptedRefreshToken = user?.googleRefreshTokenEncrypted
+  const encryptedRefreshToken = user?.mcpCredentials[0]?.refreshTokenEncrypted
   if (!user || !encryptedRefreshToken) {
     return Response.json(
       { error: "Gmail not connected for this user" },

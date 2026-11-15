@@ -60,7 +60,7 @@ DOCS_MEDIA_BASE=https://pub-<hash>.r2.dev
 Media slots use a small directive instead of raw `<img>`/`<video>`:
 
 ```
-:::media type="gif" file="Smithry-Mcp-connect.gif" duration="~12s"
+:::media type="gif" file="connect-repo.gif" duration="~12s"
 Caption describing what the clip shows.
 :::
 ```
@@ -93,7 +93,6 @@ Screenshots below are committed under `media/`; videos and GIFs are hosted on R2
 |------|------|-------|
 | `share-link.gif` | Overview | Create a share link → open the read-only public view |
 | `connect-repo.gif` | Connect a repository | Connect a repo → new working branch |
-| `Smithry-Mcp-connect.gif` | MCP servers | Search Smithery → connect → OAuth → tool available |
 | `github-mcp-connect.gif` | GitHub MCP | Connect the GitHub MCP server → agent uses an issue/PR tool |
 | `skill-install.gif` | Skills | Search skills.sh → install → skill available |
 | `add-custom-endpoint.gif` | Custom endpoints | Add endpoint → fill fields → appears in model dropdown |
