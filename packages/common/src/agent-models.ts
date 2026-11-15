@@ -273,6 +273,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "github" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "github" },
     { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "github" },
+    // Current-gen Google flagship per GitHub's own supported-models docs,
+    // alongside Carbon/Argon below — was missing here.
+    { value: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "github" },
     { value: "gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "github" },
     { value: "gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "github" },
     { value: "mai-code-1.1-flash", label: "MAI-Code 1.1 Flash", requiresKey: "github" },
@@ -416,6 +419,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "factory/claude-haiku-5-5", label: "Claude Haiku 5.5 (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-6-astra", label: "GPT-6 Astra (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-6.1-sol", label: "GPT-6.1 Sol (Factory)", requiresKey: "factory" },
+    // Terra is the GPT-6.1 tier's other sibling alongside Sol (same generation,
+    // optimized for writing/vision/computer-use) — listed in Factory's own
+    // model table but was missing here.
+    { value: "factory/gpt-6.1-terra", label: "GPT-6.1 Terra (Factory)", requiresKey: "factory" },
     // Flagship per Factory's own "choosing your model" docs, alongside Astra/Sol above.
     { value: "factory/gpt-6-luna", label: "GPT-6 Luna (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
