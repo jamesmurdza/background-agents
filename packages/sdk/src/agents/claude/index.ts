@@ -45,11 +45,11 @@ const CLAUDE_CODE_CREDENTIALS_ENV = "CLAUDE_CODE_CREDENTIALS"
  * CLAUDE_CODE_ENTRYPOINT=local-agent, which turns the scrub on by default,
  * and the scrub drops any var whose value looks like a credential (e.g. a
  * DATABASE_URL with a password). Turning it off doesn't expose the runner's
- * credentials: the runner deletes ANTHROPIC_* and its token vars before
- * starting the CLI, and the CLI keeps CLAUDE_CODE_OAUTH_TOKEN out of
- * subprocesses either way. Non-runner runs never had the scrub on, so they
- * are unchanged (an ANTHROPIC_API_KEY passed in env was visible to Bash
- * before and still is).
+ * credentials: the runner deletes ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN,
+ * ANTHROPIC_CUSTOM_HEADERS and its token vars before starting the CLI, and
+ * the CLI keeps CLAUDE_CODE_OAUTH_TOKEN out of subprocesses either way.
+ * Non-runner runs never had the scrub on, so they are unchanged (an
+ * ANTHROPIC_API_KEY passed in env was visible to Bash before and still is).
  *
  * Callers can override any of these via RunOptions.env.
  */
