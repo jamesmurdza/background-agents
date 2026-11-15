@@ -32,7 +32,7 @@ const name = secretName(process.env.OPENAI_API_KEY!, ["api.openai.com"])
 // Create a sandbox with secrets mounted from the start...
 const sandbox = await createSandbox(daytona, { snapshot: "..." }, { OPENAI_KEY: name })
 
-// ...or set the mounted set on an existing one. Pass `{}` to detach everything.
+// ...or set the mounted set on an existing one. Pass `{}` to detach everything but the internal keepalive secret.
 await setSecrets(daytona, sandbox, { OPENAI_KEY: name })
 ```
 

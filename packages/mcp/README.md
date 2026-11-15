@@ -250,9 +250,11 @@ Pre-defined URLs and identifiers for known MCP servers. Use these instead of har
 
 ```typescript
 import {
-  GITHUB_MCP_URL,           // "https://api.githubcopilot.com/mcp/"
-  GITHUB_MCP_QUALIFIED_NAME, // "github/github"
-  GMAIL_MCP_QUALIFIED_NAME, // "google/gmail"
-  SMITHERY_API_BASE,        // "https://api.smithery.ai"
+  GITHUB_MCP_URL,             // "https://api.githubcopilot.com/mcp/"
+  GITHUB_MCP_QUALIFIED_NAME,  // "github/github"
+  GMAIL_MCP_QUALIFIED_NAME,   // "google/gmail"
+  PADDLE_MCP_URL,             // "https://mcp.paddle.com/mcp"
+  PADDLE_MCP_QUALIFIED_NAME,  // "paddle/paddle"
+  SMITHERY_API_BASE,          // "https://api.smithery.ai"
 } from "@background-agents/mcp"
 ```

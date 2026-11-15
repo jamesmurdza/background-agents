@@ -74,7 +74,7 @@ const sandbox = await daytona.create({
 ```typescript
 import {
   getAgentSandboxImage, // Builds the Daytona Image spec
-  AGENT_PACKAGES,       // Map of agent name -> npm package
+  AGENT_PACKAGES,       // Map of agent name -> npm package (Goose and Droid aren't npm-installed, so they have no entry)
   TOKSCALE_VERSION,     // Pinned tokscale (token/cost metering) CLI version
   SNAPSHOT_NAME,        // Canonical snapshot name ("background-agents")
   SNAPSHOT_NAME_TEMP,   // Transient scratch name used only during a rebuild
