@@ -17,19 +17,8 @@ vi.mock("@daytonaio/sdk", async (importOriginal) => ({
   },
 }))
 
-import { secretName } from "@background-agents/sandbox-secrets"
 import { buildCodexAuthJson, type CodexStoredCredential } from "@/lib/codex-credentials"
-import {
-  CLAUDE_SECRET_HOSTS,
-  CODEX_SECRET_HOSTS,
-  codexAccessToken,
-  ensureClaudeSharedSecret,
-  ensureCodexSecret,
-  pruneClaudeSharedSecrets,
-  pruneCodexSecrets,
-  subscriptionSecretsEnabled,
-} from "./subscription-secrets"
-import { Daytona } from "@daytonaio/sdk"
+import { codexAccessToken, pruneClaudeSharedSecrets, pruneCodexSecrets, subscriptionSecretsEnabled } from "./subscription-secrets"
 
 const codexCred: CodexStoredCredential = {
   refresh_token: "rt-real",
@@ -78,22 +67,6 @@ describe("codexAccessToken", () => {
   it("is undefined for anything else", () => {
     expect(codexAccessToken("not json")).toBeUndefined()
     expect(codexAccessToken(JSON.stringify({ OPENAI_API_KEY: "sk" }))).toBeUndefined()
-  })
-})
-
-describe("ensureCodexSecret / ensureClaudeSharedSecret", () => {
-  it("names each token's secret after a hash of it, on its provider's hosts", async () => {
-    const daytona = new Daytona({ apiKey: "dtn-test" })
-    await ensureCodexSecret(daytona, "eyJ.access.token")
-    expect(daytonaSecret.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: secretName("eyJ.access.token", CODEX_SECRET_HOSTS), hosts: CODEX_SECRET_HOSTS })
-    )
-    expect(daytonaSecret.create.mock.calls[0][0].name).not.toContain("access")
-
-    await ensureClaudeSharedSecret(daytona, "sk-ant-oat01-x")
-    expect(daytonaSecret.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: secretName("sk-ant-oat01-x", CLAUDE_SECRET_HOSTS), hosts: CLAUDE_SECRET_HOSTS })
-    )
   })
 })
 

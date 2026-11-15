@@ -20,9 +20,6 @@
  * CLAUDE_SHARED, CLAUDE_CODE_CREDENTIALS; see userSecretsFlag).
  */
 
-import type { Daytona } from "@daytonaio/sdk"
-import { ensureSecret } from "@background-agents/sandbox-secrets"
-
 import { userSecretsFlag } from "@/lib/server/user-key-secrets"
 
 export type SubscriptionSecret = "CODEX_CREDENTIALS" | "CLAUDE_SHARED" | "CLAUDE_CODE_CREDENTIALS"
@@ -58,16 +55,6 @@ export function codexAccessToken(authJson: string): string | undefined {
     // Parser errors can quote the token.
     return undefined
   }
-}
-
-/** Make sure the Daytona secret for a Codex access token `token` exists, and return its placeholder. */
-export function ensureCodexSecret(daytona: Daytona, token: string): Promise<string> {
-  return ensureSecret(daytona, () => token, CODEX_SECRET_HOSTS)
-}
-
-/** Make sure the Daytona secret for the shared Claude access token `token` exists, and return its placeholder. */
-export function ensureClaudeSharedSecret(daytona: Daytona, token: string): Promise<string> {
-  return ensureSecret(daytona, () => token, CLAUDE_SECRET_HOSTS)
 }
 
 /**
