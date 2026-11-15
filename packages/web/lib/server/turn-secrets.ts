@@ -27,6 +27,7 @@ import { isSharedKey, sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SECRET_HOSTS,
   CLAUDE_SHARED_MOUNT_ENV,
+  CODEX_SECRET_HOSTS,
   codexAccessToken,
   subscriptionSecretsEnabled,
   type ClaudeRunToken,
@@ -137,7 +138,7 @@ function planKeySecrets(params: {
       secrets.push({
         kind: "user",
         value: token,
-        hosts: ["chatgpt.com", "*.chatgpt.com"],
+        hosts: CODEX_SECRET_HOSTS,
         mountEnv: userKeyMountEnv(credential),
         envKeys: carrying(token),
       })
