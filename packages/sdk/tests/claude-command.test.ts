@@ -120,6 +120,11 @@ describe("claudeAgent.buildCommand", () => {
     expect(env?.MCP_DISCOVERY_CACHE).toBe("false")
   })
 
+  it("keeps caller env vars visible to subprocesses by default", () => {
+    const { env } = claudeAgent.buildCommand({ prompt: "hello" })
+    expect(env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("0")
+  })
+
   it("merges caller-provided env with the background-task default", () => {
     const { env } = claudeAgent.buildCommand({ prompt: "hello", env: { FOO: "bar" } })
     expect(env?.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe("1")

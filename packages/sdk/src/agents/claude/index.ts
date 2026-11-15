@@ -40,6 +40,13 @@ const CLAUDE_CODE_CREDENTIALS_ENV = "CLAUDE_CODE_CREDENTIALS"
  * listing can change between runs (e.g. Gmail tools follow the connection's
  * tool policy), so a cached listing would hide newly allowed tools.
  *
+ * CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0 keeps the caller's env vars visible to
+ * the agent's Bash commands. The OAuth runner launches the CLI with
+ * CLAUDE_CODE_ENTRYPOINT=local-agent, which turns the scrub on by default,
+ * and the scrub drops any var whose value looks like a credential (e.g. a
+ * DATABASE_URL with a password). The CLI still strips its own auth from
+ * subprocesses with the scrub off.
+ *
  * Callers can override any of these via RunOptions.env.
  */
 const CLAUDE_DEFAULT_ENV: Record<string, string> = {
@@ -47,6 +54,7 @@ const CLAUDE_DEFAULT_ENV: Record<string, string> = {
   ENABLE_CLAUDEAI_MCP_SERVERS: "false",
   MCP_CONNECTION_NONBLOCKING: "false",
   MCP_DISCOVERY_CACHE: "false",
+  CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "0",
 }
 
 /**
