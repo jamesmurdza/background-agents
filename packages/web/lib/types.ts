@@ -352,7 +352,8 @@ export interface PendingFile {
 // SSE Event Types
 // =============================================================================
 
-export type TurnPhase = "finishing" | "pushing"
+/** Finalization steps the stream reports after the agent's last output. */
+export type TurnPhase = "cleaning" | "usage" | "pushing" | "checking"
 
 export interface SSEUpdateEvent {
   status: "running" | "completed" | "error"

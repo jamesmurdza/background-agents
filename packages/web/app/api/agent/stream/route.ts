@@ -203,10 +203,11 @@ export async function GET(req: Request) {
           }
 
           if (lastSnap.status === "completed" || lastSnap.status === "error") {
-            // The agent is done; the rest is bookkeeping. Say so, so the chat doesn't
-            // look like the agent is still running. Sent before the claim: another
-            // finalizer owning this turn is finishing it up all the same.
-            sendEvent("phase", { phase: "finishing" })
+            // The agent is done; the rest is bookkeeping. Say which step is running
+            // ("phase"), so the chat doesn't look like the agent is still running and
+            // a step that hangs is visible. Sent before the claim: another finalizer
+            // owning this turn is cleaning it up all the same.
+            sendEvent("phase", { phase: "cleaning" })
             const finalizationClaimId = await claimTurnFinalization(turn)
             if (!finalizationClaimId) {
               // A concurrent stream/cron (or a newer turn) already owns it.
@@ -279,6 +280,7 @@ export async function GET(req: Request) {
             // agent-lifecycle cron only meters turns that finish without a
             // connected stream. Attribution comes from the assistant message
             // stamped at send time.
+            sendEvent("phase", { phase: "usage" })
             if (chatId && assistantMessageId && lastSnap.sessionId) {
               try {
                 const [chatRow, asstMsg] = await Promise.all([
@@ -329,13 +331,13 @@ export async function GET(req: Request) {
                     userId: chat.userId,
                     branch: chat.branch,
                   })) ?? undefined
-                sendEvent("phase", { phase: "finishing" })
               }
 
               // Independent of auto-push: a new-repo chat has no remote to
               // push to, but the uncommitted-files banner still needs this
               // count so it can nudge the user to create a repo.
               if (chat) {
+                sendEvent("phase", { phase: "checking" })
                 const warning = await refreshUncommittedFilesWarning({
                   sandbox,
                   repoPath: sessionOpts.repoPath,
@@ -368,6 +370,7 @@ export async function GET(req: Request) {
             // Check conflict state to include in complete event
             // This allows the frontend to update the warning icon after agent resolves conflicts
             let conflictState: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] } | undefined
+            sendEvent("phase", { phase: "checking" })
             try {
               const rebaseCheck = await sandbox.process.executeCommand(
                 `test -d ${sessionOpts.repoPath}/.git/rebase-merge -o -d ${sessionOpts.repoPath}/.git/rebase-apply && echo "yes" || echo "no"`

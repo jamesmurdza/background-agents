@@ -15,7 +15,7 @@ import {
 interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
-  /** Replaces the streaming dots, e.g. "Finishing up..." */
+  /** Replaces the streaming dots, e.g. "Pushing to GitHub..." */
   status?: string
   isMobile?: boolean
   repo?: string
