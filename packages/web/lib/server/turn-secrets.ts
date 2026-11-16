@@ -216,8 +216,10 @@ export async function mountTurnSecrets(daytona: Daytona, sandbox: DaytonaSandbox
  * not.
  *
  * A value the user set themselves (via chat/repo env vars) isn't one of
- * these, so it is kept and wins as before. A user's own key also stays as is
- * when the env points its provider at another server (see `bypassEnv`).
+ * these, so it is kept. Under a name the agent CLI reads for itself it
+ * arrives renamed to `NAME_` (see hideHarnessEnvKeys), so it never displaces
+ * the value here. A user's own key also stays as is when the env points its
+ * provider at another server (see `bypassEnv`).
  */
 export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: ReadyTurnSecret[]): void {
   for (const secret of secrets) {

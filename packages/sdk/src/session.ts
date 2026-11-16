@@ -19,6 +19,7 @@ import {
   type BackgroundSession,
 } from "./background/index"
 import { adaptSandbox } from "./sandbox/index"
+import { installAppEnvHook, wantsAppEnvHook } from "./utils/app-env"
 import type { CodeAgentSandbox, ProviderName } from "./types/provider"
 
 const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
@@ -174,6 +175,12 @@ async function createSessionWithId(
   // Run agent-specific setup (e.g., Codex login)
   if (agent.capabilities?.setup) {
     await agent.capabilities.setup(sandbox, options.env ?? {})
+  }
+
+  // The caller renamed env vars the user's app shares with the CLI; install
+  // the hook that maps them back for the agent's shell commands.
+  if (wantsAppEnvHook(options.env)) {
+    await installAppEnvHook(sandbox)
   }
 
   // Create the background session

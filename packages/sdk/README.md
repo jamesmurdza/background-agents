@@ -209,6 +209,22 @@ await session.start("Investigate this failure", { reasoningEffort: "high" })
 
 The value is passed to the agent's own flag (for example `--effort` for Claude and `model_reasoning_effort` for Codex). `"default"` sends no flag, so the CLI keeps its own setting. `getReasoningEffortCapability(agent, model).levels` lists the levels offered for a model. Values aren't validated: like an unknown model, an unsupported level is left to the CLI.
 
+### App env vars that share a name with the CLI's
+
+Sometimes the code the agent works on needs a variable the agent CLI also reads, such as an app that calls the Anthropic API with its own `ANTHROPIC_API_KEY`. Passing it as is would make the CLI use (and bill) the app's key.
+
+Pass the app's value with a trailing underscore instead, and list the original names, space-separated, in `BG_APP_ENV_REMAP` (exported as `APP_ENV_REMAP_ENV`):
+
+```typescript
+env: {
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!, // the agent's key
+  ANTHROPIC_API_KEY_: appAnthropicKey,               // the app's key
+  BG_APP_ENV_REMAP: "ANTHROPIC_API_KEY",
+}
+```
+
+The CLI keeps using `ANTHROPIC_API_KEY`. In the shell commands the agent runs, `ANTHROPIC_API_KEY` is the app's key, so `npm run dev` finds it. The SDK writes a small script that maps the names back (it holds no values) to `/home/daytona/.backgrounder-app-env.sh`, and sources it from `~/.profile`. The script only runs in the agent's shells: through `BASH_ENV` for `bash -c` commands and `~/.profile` for login shells. It never runs for the CLI process itself, including agents started through a `bash -c` wrapper. `hideHarnessEnvKeys` in `@background-agents/common` builds this env for you from the user's vars.
+
 ### `session.getEvents()`
 
 Polls for new events since last call.

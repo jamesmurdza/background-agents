@@ -37,6 +37,8 @@ export {
   agentSupportsPlanMode,
   ENDPOINT_TYPE_TO_AGENT,
   ENDPOINT_MODEL_PREFIX,
+  HARNESS_ENV_KEYS,
+  APP_ENV_REMAP_ENV,
   // Functions
   getDefaultAgent,
   resolveAgentSlug,
@@ -59,6 +61,7 @@ export {
   getAgentModels,
   getModelLabel,
   getEnvForModel,
+  hideHarnessEnvKeys,
   findEndpoint,
   buildEndpointEnv,
   buildCustomModelEnv,

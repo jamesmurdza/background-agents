@@ -657,6 +657,62 @@ export function getEnvForModel(
   return env
 }
 
+/**
+ * Env vars each agent CLI reads for its own auth/billing or endpoint. A user
+ * env var (repo/chat level) with one of these names is meant for the user's
+ * app, not the agent, so {@link hideHarnessEnvKeys} renames it before it
+ * reaches the CLI: otherwise the CLI would bill the user's app key instead of
+ * the harness credential, or send the harness key to the app's server.
+ * Per agent, so a name a CLI never reads (ANTHROPIC_API_KEY for Codex) keeps
+ * reaching the app untouched.
+ */
+export const HARNESS_ENV_KEYS: Record<Agent, readonly string[]> = {
+  "claude-code": [
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS",
+    "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+  ],
+  "codex": ["OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY"],
+  "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_BASE_URL", "GOOGLE_GENAI_USE_VERTEXAI"],
+  "opencode": ["OPENCODE_API_KEY"],
+  "kilo": ["KILO_API_KEY"],
+  "kimi": ["KIMI_API_KEY"],
+  "command-code": ["COMMAND_CODE_API_KEY"],
+  "copilot": ["COPILOT_GITHUB_TOKEN"],
+  "droid": ["FACTORY_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  "goose": ["OPENAI_API_KEY", "OPENAI_HOST", "ANTHROPIC_API_KEY", "ANTHROPIC_HOST"],
+  "pi": ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  "eliza": [],
+}
+
+/**
+ * Env var listing (space-separated) the names {@link hideHarnessEnvKeys}
+ * renamed. The SDK maps each `NAME_` back to `NAME` inside the agent's shell
+ * commands only, so the user's app still finds its own value. Must match
+ * APP_ENV_REMAP_ENV in @background-agents/sdk.
+ */
+export const APP_ENV_REMAP_ENV = "BG_APP_ENV_REMAP"
+
+/**
+ * Rename user env vars that collide with {@link HARNESS_ENV_KEYS} for `agent`
+ * to `NAME_`, and list the renamed names in {@link APP_ENV_REMAP_ENV}. A
+ * `NAME_` the user set themselves wins over the renamed `NAME`.
+ */
+export function hideHarnessEnvKeys(userEnv: Record<string, string>, agent: Agent): Record<string, string> {
+  const reserved = new Set(HARNESS_ENV_KEYS[agent] ?? [])
+  const env: Record<string, string> = {}
+  const renamed: string[] = []
+  for (const [key, value] of Object.entries(userEnv)) {
+    if (!reserved.has(key)) {
+      env[key] = value
+      continue
+    }
+    renamed.push(key)
+    if (!(`${key}_` in userEnv)) env[`${key}_`] = value
+  }
+  if (renamed.length > 0) env[APP_ENV_REMAP_ENV] = renamed.join(" ")
+  return env
+}
+
 export interface ParsedCustomHeaders {
   /** Value of an `x-api-key:` line, mapped to ANTHROPIC_API_KEY. */
   apiKey?: string
