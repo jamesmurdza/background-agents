@@ -43,7 +43,8 @@ describe("stream finalization durability", () => {
     expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ turn, finalizationClaimId: "claim" }))
     expect(mocks.release).toHaveBeenCalledWith(turn, "claim", "ready", undefined)
     expect(frames).toContain("event: complete")
-    expect(frames.indexOf('"phase":"finishing"')).toBeLessThan(frames.indexOf("event: complete"))
+    const order = ['"phase":"cleaning"', '"phase":"usage"', '"phase":"checking"', "event: complete"].map((frame) => frames.indexOf(frame))
+    expect(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1]))).toBe(true)
     expect(mocks.persist.mock.invocationCallOrder[0]).toBeLessThan(mocks.finalize.mock.invocationCallOrder[0])
   })
   it("recovers a cancelled timeout as an error even when the SDK reports completed", async () => {
