@@ -4,6 +4,7 @@ import { useRef, useEffect, useCallback, useState } from "react"
 import { AlertTriangle, ChevronDown, Github, Paperclip, Pencil, ListChecks, Mic, GitBranch, Cpu, Brain, Plug, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModals } from "@/lib/contexts"
+import { useTurnPhaseLabel } from "@/lib/hooks/useTurnPhaseLabel"
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition"
 import { useCreditWarning } from "@/lib/hooks/useCreditWarning"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
@@ -187,6 +188,7 @@ export function ChatInput({
   isMobile,
 }: ChatInputProps) {
   const modals = useModals()
+  const turnStatus = useTurnPhaseLabel(chat)
   // Comments in the input are sent as text, so they count as typed.
   const hasComments = useChatCommentsStore((state) => !!state.byChat[chat.id]?.length)
   const hasText = !!input.trim() || hasComments
@@ -525,7 +527,7 @@ export function ChatInput({
                 isCreating
                   ? (chat.sandboxId ? "Starting agent..." : "Creating sandbox...")
                   : isRunning
-                  ? "Agent is working..."
+                  ? (turnStatus ?? "Agent is working...")
                   : isNewChat
                   ? "Message..."
                   : "Enter prompt or /merge..."

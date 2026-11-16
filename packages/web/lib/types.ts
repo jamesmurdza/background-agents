@@ -166,6 +166,8 @@ export interface Chat {
   backgroundSessionId?: string  // Set when agent starts, cleared on completion
   activeAssistantMessageId?: string  // Message owned by the active execution
   stopPending?: boolean // Local Stop confirmation is still in progress
+  /** Client-only: what the server is doing after this turn's last output, until it releases the turn. */
+  turnPhase?: { assistantMessageId: string; phase: TurnPhase }
 
   // Agent config (per-chat, can be changed)
   agent?: string        // "claude-code" | "opencode" | "codex" | etc.
@@ -349,6 +351,8 @@ export interface PendingFile {
 // =============================================================================
 // SSE Event Types
 // =============================================================================
+
+export type TurnPhase = "finishing" | "pushing"
 
 export interface SSEUpdateEvent {
   status: "running" | "completed" | "error"

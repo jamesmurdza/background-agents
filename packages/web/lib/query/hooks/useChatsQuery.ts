@@ -49,7 +49,7 @@ export function useChatsQuery() {
         if (detailFailed) return latest
         if ((detail?.updatedAt ?? chat.updatedAt) < latest.updatedAt) return latest
         return applyQueueSnapshot({
-          ...chat, messages: latest.messages, pendingSend: latest.pendingSend, stopPending: latest.stopPending,
+          ...chat, messages: latest.messages, pendingSend: latest.pendingSend, stopPending: latest.stopPending, turnPhase: latest.turnPhase,
           pendingSendAssistantMessageId: latest.pendingSendAssistantMessageId,
           status: latest.pendingSend ? latest.status : chat.status,
           activeAssistantMessageId: latest.pendingSend ? latest.activeAssistantMessageId : chat.activeAssistantMessageId,
