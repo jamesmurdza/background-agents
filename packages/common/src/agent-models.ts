@@ -426,12 +426,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Flagship per Factory's own "choosing your model" docs, alongside Astra/Sol above.
     { value: "factory/gpt-6-luna", label: "GPT-6 Luna (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
-    // Gemini 4 Hydrogen is Factory's current flagship Google model — listed
-    // ahead of Carbon in Factory's own models table. Both are Factory-hosted
-    // only (the public Gemini API doesn't serve either model yet, so they're
-    // absent from the BYOK Gemini section above and from the gemini/pi agents).
-    { value: "factory/gemini-4-hydrogen", label: "Gemini 4 Hydrogen (Factory)", requiresKey: "factory" },
-    { value: "factory/gemini-4-carbon", label: "Gemini 4 Carbon (Factory)", requiresKey: "factory" },
+    // Gemini 4 (Hydrogen/Carbon/Argon) isn't in Factory's own "choosing your
+    // model" catalog — the Google section there tops out at Gemini 3.1 Pro
+    // (factory/gemini-3.1-pro-preview below). Don't add Gemini 4 Factory
+    // entries without the catalog listing them.
     { value: "factory/gemini-3.8-flash", label: "Gemini 3.8 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Factory)", requiresKey: "factory" },
