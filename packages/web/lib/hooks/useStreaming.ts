@@ -184,6 +184,14 @@ export function useStreaming(options: UseStreamingOptions = {}) {
         }
       })
 
+      eventSource.addEventListener("phase", (event) => {
+        if (abortSignal?.aborted || !isCurrentConnection()) return
+        try {
+          const { phase } = JSON.parse(event.data)
+          updateChatsCache((old) => old.map((c) => c.id === chatId ? { ...c, turnPhase: { assistantMessageId, phase } } : c))
+        } catch {}
+      })
+
       eventSource.addEventListener("complete", async (event) => {
         if (abortSignal?.aborted || !isCurrentConnection()) return
         try {

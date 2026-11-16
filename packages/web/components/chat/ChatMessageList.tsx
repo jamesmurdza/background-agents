@@ -7,6 +7,7 @@ import { ErrorBanner } from "./ErrorBanner"
 import { BranchDivider } from "./BranchDivider"
 import { MessageBubble } from "../MessageBubble"
 import { getPendingSubmission } from "@/lib/chat-state"
+import { useTurnPhaseLabel } from "@/lib/hooks/useTurnPhaseLabel"
 import { latestFailedAssistant, persistedProviderFailure, unsupportedModelFailure } from "@/lib/turn-error-presentation"
 import {
   DropdownMenu,
@@ -85,6 +86,7 @@ export function ChatMessageList({
   const activeMessage = chat.messages.find((message) => message.id === chat.activeAssistantMessageId && message.role === "assistant")
   const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
   const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
+  const turnStatus = useTurnPhaseLabel(chat)
 
   // A push failure with a force-push recovery is surfaced as a standalone
   // banner (below) instead of inline in the conversation — it's an
@@ -163,6 +165,7 @@ export function ChatMessageList({
                     <MessageBubble
                       message={message}
                       isStreaming={isLastAssistant}
+                      status={isLastAssistant ? turnStatus : undefined}
                       isMobile={isMobile}
                       repo={isNewRepo ? undefined : chat.repo}
                       onOpenFile={onOpenFile}

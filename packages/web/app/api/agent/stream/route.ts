@@ -203,6 +203,10 @@ export async function GET(req: Request) {
           }
 
           if (lastSnap.status === "completed" || lastSnap.status === "error") {
+            // The agent is done; the rest is bookkeeping. Say so, so the chat doesn't
+            // look like the agent is still running. Sent before the claim: another
+            // finalizer owning this turn is finishing it up all the same.
+            sendEvent("phase", { phase: "finishing" })
             const finalizationClaimId = await claimTurnFinalization(turn)
             if (!finalizationClaimId) {
               // A concurrent stream/cron (or a newer turn) already owns it.
@@ -316,6 +320,7 @@ export async function GET(req: Request) {
               })
 
               if (chat?.branch && chat.repo && chat.repo !== "__new__") {
+                sendEvent("phase", { phase: "pushing" })
                 pushInfo =
                   (await autoPushChat({
                     sandbox,
@@ -324,6 +329,7 @@ export async function GET(req: Request) {
                     userId: chat.userId,
                     branch: chat.branch,
                   })) ?? undefined
+                sendEvent("phase", { phase: "finishing" })
               }
 
               // Independent of auto-push: a new-repo chat has no remote to
