@@ -26,6 +26,7 @@ import type { AgentDefinition, CommandSpec, ParseContext, RunOptions } from "../
 import type { AgentCrashedEvent, Event } from "../types/events"
 import type { CodeAgentSandbox } from "../types/provider"
 import { quote } from "../utils/shell"
+import { applyAppEnvHook } from "../utils/app-env"
 import type {
   BackgroundRunPhase,
   HistoryMessage,
@@ -161,7 +162,8 @@ class BackgroundSessionImpl implements BackgroundSession {
 
     // The native session can come from persisted metadata after reconnect, not
     // only from this call's options. Pass the same identity we track to the CLI.
-    const spec = this.agent.buildCommand({ ...opts, sessionId: sessionId ?? undefined })
+    // Arm the app env hook (if the caller renamed any vars) for the CLI only.
+    const spec = applyAppEnvHook(this.agent.buildCommand({ ...opts, sessionId: sessionId ?? undefined }), opts.env)
     if (opts.cwd && !spec.cwd) spec.cwd = opts.cwd
 
     if (prior?.cancelled || (prior?.launchProtocol === 1 && prior.jobId &&

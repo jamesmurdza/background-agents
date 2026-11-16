@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma"
 import { decryptStoredEnvVar } from "@/lib/server/stored-env-vars"
 import { NEW_REPOSITORY } from "@/lib/types"
-import { getEnvForModel, type CustomEndpoint } from "@background-agents/common"
+import { getEnvForModel, hideHarnessEnvKeys, type CustomEndpoint } from "@background-agents/common"
 import type { Agent } from "@/lib/agent-session"
 import type { Credentials } from "@/lib/credentials"
 import type { ChatRecord, MessagePayload } from "./types"
@@ -9,7 +9,13 @@ import type { ChatRecord, MessagePayload } from "./types"
 /**
  * Build the environment passed to the agent process: the model/agent system env
  * merged with the user's decrypted env vars (repo-level first, then chat-level
- * overriding). User vars take precedence over system vars.
+ * overriding).
+ *
+ * User vars take precedence over system vars, except names the agent CLI reads
+ * for its own auth/endpoint (HARNESS_ENV_KEYS): those are meant for the user's
+ * app, so they arrive renamed to `NAME_` and the CLI keeps the harness value.
+ * The SDK maps them back to `NAME` inside the agent's shell commands, where the
+ * app runs.
  */
 export async function buildAgentEnv(params: {
   chat: ChatRecord
@@ -51,6 +57,7 @@ export async function buildAgentEnv(params: {
     }
   }
 
-  // Merge: system env vars first, then user env vars (user takes precedence)
-  return { ...systemEnv, ...userEnv }
+  // Merge: system env vars first, then user env vars (user takes precedence
+  // for every name the agent CLI doesn't read for itself).
+  return { ...systemEnv, ...hideHarnessEnvKeys(userEnv, payload.agent as Agent) }
 }

@@ -154,6 +154,7 @@ export {
 } from "./utils/index"
 export type { AgentErrorCategory, ClassifiedError } from "./utils/index"
 export { escapeShell, quote } from "./utils/shell"
+export { APP_ENV_REMAP_ENV } from "./utils/app-env"
 
 // Debug (enable with CODING_AGENTS_DEBUG=1)
 export { debugLog } from "./debug"
