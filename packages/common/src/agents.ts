@@ -177,7 +177,7 @@ export interface CustomEndpoint {
 }
 
 /** Maps an endpoint type to the agent that runs it. */
-export const ENDPOINT_TYPE_TO_AGENT: Record<CustomEndpointType, Agent> = {
+const ENDPOINT_TYPE_TO_AGENT: Record<CustomEndpointType, Agent> = {
   anthropic: "claude-code",
   codex: "codex",
   opencode: "opencode",
@@ -229,7 +229,7 @@ export function getDefaultAgent(): Agent {
  * (e.g. `factory` → `droid`, `claude` → `claude-code`). Lookups via
  * `resolveAgentSlug` are case-insensitive.
  */
-export const agentSlugs: Record<string, Agent> = {
+const agentSlugs: Record<string, Agent> = {
   // Canonical ids (each id is a valid slug)
   "claude-code": "claude-code",
   "opencode": "opencode",
@@ -260,7 +260,7 @@ export function resolveAgentSlug(slug: string | null | undefined): Agent | null 
 }
 
 /** Whether the user has their own Anthropic credentials (API key or subscription token). */
-export function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undefined): boolean {
+function hasOwnAnthropicCredentials(flags: CredentialFlags | null | undefined): boolean {
   return !!flags?.ANTHROPIC_API_KEY || !!flags?.CLAUDE_CODE_CREDENTIALS
 }
 
