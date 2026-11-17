@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { X } from "lucide-react"
 import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock"
 
 interface MobileBottomSheetProps {
   open: boolean
@@ -37,16 +38,7 @@ export function MobileBottomSheet({
     : { height: `${height}vh` }
 
   // Prevent body scroll when open
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden"
-    } else {
-      document.body.style.overflow = ""
-    }
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [open])
+  useBodyScrollLock(open)
 
   if (!open) return null
 
@@ -231,16 +223,7 @@ export function MobileRenameModal({
   }, [open, initialValue])
 
   // Prevent body scroll when open
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden"
-    } else {
-      document.body.style.overflow = ""
-    }
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [open])
+  useBodyScrollLock(open)
 
   const handleSave = () => {
     const trimmed = value.trim()
