@@ -261,7 +261,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
     { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
     { value: "claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "github" },
-    { value: "claude-opus-5", label: "Claude Opus 5", requiresKey: "github" },
+    // Claude Opus 5 (bare) retired from Copilot 2026-11-16 with no annual-plan
+    // exception (unlike Opus 4.8 below) — see "Model retirement history" on
+    // GitHub's supported-models docs. Don't re-add without that table listing it.
     { value: "claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "github" },
     { value: "claude-haiku-5.5", label: "Claude Haiku 5.5", requiresKey: "github" },
     { value: "claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "github" },
@@ -271,7 +273,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gpt-6-sol", label: "GPT-6 Sol", requiresKey: "github" },
     { value: "gpt-6-luna", label: "GPT-6 Luna", requiresKey: "github" },
     { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", requiresKey: "github" },
-    { value: "gpt-5.6-terra", label: "GPT-5.6 Terra", requiresKey: "github" },
+    // GPT-5.6 Terra retired from Copilot 2026-11-16 (no annual-plan exception,
+    // unlike Sonnet 4.6/Opus 4.8) — no longer in the supported-models GA table.
     { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "github" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "github" },
     { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "github" },
@@ -428,10 +431,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Flagship per Factory's own "choosing your model" docs, alongside Astra/Sol above.
     { value: "factory/gpt-6-luna", label: "GPT-6 Luna (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
-    // Gemini 4 (Hydrogen/Carbon/Argon) isn't in Factory's own "choosing your
-    // model" catalog — the Google section there tops out at Gemini 3.1 Pro
-    // (factory/gemini-3.1-pro-preview below). Don't add Gemini 4 Factory
-    // entries without the catalog listing them.
+    // Gemini 4 Hydrogen is the Google section's current flagship in Factory's
+    // own model catalog (lowest multiplier, default reasoning tier), alongside
+    // Carbon/Argon — all three were missing here.
+    { value: "factory/gemini-4-hydrogen", label: "Gemini 4 Hydrogen (Factory)", requiresKey: "factory" },
+    { value: "factory/gemini-4-carbon", label: "Gemini 4 Carbon (Factory)", requiresKey: "factory" },
+    { value: "factory/gemini-4-argon", label: "Gemini 4 Argon (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.8-flash", label: "Gemini 3.8 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Factory)", requiresKey: "factory" },
@@ -460,7 +465,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "openai/gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "openai" },
     // Google models — Flash also runs on the shared Gemini pool; Pro, Argon,
-    // and Carbon are BYOK-only.
+    // and Carbon are BYOK-only. Hydrogen is the new Flash-class flagship
+    // (replaces 3.8 Flash per Google's announcement) — was missing here.
+    { value: "google/gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "gemini", priceUsdPerM: 1.5 },
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
     { value: "google/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "gemini" },
     { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
