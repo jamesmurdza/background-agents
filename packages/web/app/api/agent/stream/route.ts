@@ -22,6 +22,12 @@ import { readTurnFailure, recordTurnFailure } from "@/lib/server/turn-failure"
 // maxDuration configures the timeout for this Vercel function. Allow longer
 // streaming connections (5 minutes max).
 export const maxDuration = 300
+// While the agent is still running, close the stream ourselves this long after
+// it opened; the client reconnects. If the platform kills the function at
+// maxDuration in the middle of finalization (claim → release, usually a few
+// seconds), the turn stays claimed and the chat is locked for minutes. Closing
+// here means finalization only starts with at least 60 s left.
+const STREAM_SELF_CLOSE_MS = (maxDuration - 60) * 1000
 
 const BACKEND_POLL_INTERVAL = 500
 const HEARTBEAT_INTERVAL = 15000
@@ -40,6 +46,7 @@ const jsonResponse = (status: number, body: object) =>
   })
 
 export async function GET(req: Request) {
+  const streamStartedAt = Date.now()
   const url = new URL(req.url)
   const cursorParam = url.searchParams.get("cursor")
   const chatId = url.searchParams.get("chatId")
@@ -415,6 +422,12 @@ export async function GET(req: Request) {
           }
 
           if (isStreamClosed) break
+          // Still running: hand over to a fresh connection (see STREAM_SELF_CLOSE_MS).
+          // No "complete" event, so the client just reconnects.
+          if (Date.now() - streamStartedAt >= STREAM_SELF_CLOSE_MS) {
+            closeStream()
+            break
+          }
 
           await new Promise((resolve) =>
             setTimeout(resolve, BACKEND_POLL_INTERVAL)
