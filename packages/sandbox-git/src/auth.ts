@@ -32,3 +32,14 @@ export function withAuth(token: string, gitCmd: string): string {
   const creds = base64Encode(`x-access-token:${token}`)
   return `git -c http.extraHeader=${esc(`Authorization: Basic ${creds}`)} ${gitCmd}`
 }
+
+/**
+ * Replace `token`, raw and as encoded by {@link withAuth}, with `***`, so the
+ * text can be logged. Does nothing without a token.
+ */
+export function redactToken(text: string, token?: string): string {
+  if (!token) return text
+  return text
+    .replaceAll(base64Encode(`x-access-token:${token}`), "***")
+    .replaceAll(token, "***")
+}
