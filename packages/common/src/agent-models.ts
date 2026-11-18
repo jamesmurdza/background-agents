@@ -217,6 +217,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "moonshotai/Kimi-K3", label: "Kimi K3", requiresKey: "commandcode" },
     { value: "moonshotai/Kimi-K2.7-Code", label: "Kimi K2.7 Code", requiresKey: "commandcode" },
     { value: "MiniMaxAI/MiniMax-M3", label: "MiniMax M3", requiresKey: "commandcode" },
+    // Current Qwen flagship (per Command Code's own model catalog).
+    { value: "Qwen/Qwen4-Max", label: "Qwen 4 Max", requiresKey: "commandcode" },
     { value: "Qwen/Qwen3.8-Max", label: "Qwen 3.8 Max", requiresKey: "commandcode" },
     { value: "Qwen/Qwen3.8-Flash", label: "Qwen 3.8 Flash", requiresKey: "commandcode" },
     { value: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra", requiresKey: "commandcode" },
@@ -229,6 +231,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", requiresKey: "commandcode" },
     { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", requiresKey: "commandcode" },
     // ── OpenAI (Pro plan and above) ──
+    // Current OpenAI flagships per the catalog (Astra marked flagship).
+    { value: "gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "commandcode" },
+    { value: "gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "commandcode" },
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "commandcode" },
     { value: "gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "commandcode" },
     { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "commandcode" },
@@ -243,9 +248,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
   ],
   "codex": [
     // GPT-5.5 retired from Codex/ChatGPT sign-in (Oct 14, 2026) — see
-    // https://developers.openai.com/codex/models. GPT-6 Astra/Luna and
-    // GPT-6.1 Sol/Terra are the current generation. There is no "GPT-6 Sol" —
-    // the Sol tier only ships as 6.1.
+    // https://learn.chatgpt.com/docs/models. GPT-6.2 Astra/Sol are the
+    // current generation (Astra for demanding projects, Sol for everyday
+    // tasks); GPT-6.1 Sol/Terra and GPT-6 Astra/Luna are still offered.
+    // There is no "GPT-6 Sol" — the Sol tier only ships as 6.1+.
+    { value: "gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "openai" },
+    { value: "gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "openai" },
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "openai" },
     { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
@@ -261,17 +269,23 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "github" },
     { value: "claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "github" },
     { value: "claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "github" },
-    { value: "claude-opus-5", label: "Claude Opus 5", requiresKey: "github" },
+    // Claude Opus 5 (bare) retired from Copilot 2026-11-16 with no annual-plan
+    // exception (unlike Opus 4.8 below) — see "Model retirement history" on
+    // GitHub's supported-models docs. Don't re-add without that table listing it.
     { value: "claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "github" },
     { value: "claude-haiku-5.5", label: "Claude Haiku 5.5", requiresKey: "github" },
     { value: "claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "github" },
+    // Current OpenAI flagships per GitHub's own supported-models docs.
+    { value: "gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "github" },
+    { value: "gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "github" },
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "github" },
     { value: "gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "github" },
     { value: "gpt-6-astra", label: "GPT-6 Astra", requiresKey: "github" },
     { value: "gpt-6-sol", label: "GPT-6 Sol", requiresKey: "github" },
     { value: "gpt-6-luna", label: "GPT-6 Luna", requiresKey: "github" },
     { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", requiresKey: "github" },
-    { value: "gpt-5.6-terra", label: "GPT-5.6 Terra", requiresKey: "github" },
+    // GPT-5.6 Terra retired from Copilot 2026-11-16 (no annual-plan exception,
+    // unlike Sonnet 4.6/Opus 4.8) — no longer in the supported-models GA table.
     { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "github" },
     { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", requiresKey: "github" },
     { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "github" },
@@ -428,10 +442,12 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // Flagship per Factory's own "choosing your model" docs, alongside Astra/Sol above.
     { value: "factory/gpt-6-luna", label: "GPT-6 Luna (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-5.6-sol", label: "GPT-5.6 Sol (Factory)", requiresKey: "factory" },
-    // Gemini 4 (Hydrogen/Carbon/Argon) isn't in Factory's own "choosing your
-    // model" catalog — the Google section there tops out at Gemini 3.1 Pro
-    // (factory/gemini-3.1-pro-preview below). Don't add Gemini 4 Factory
-    // entries without the catalog listing them.
+    // Gemini 4 Hydrogen is the Google section's current flagship in Factory's
+    // own model catalog (lowest multiplier, default reasoning tier), alongside
+    // Carbon/Argon — all three were missing here.
+    { value: "factory/gemini-4-hydrogen", label: "Gemini 4 Hydrogen (Factory)", requiresKey: "factory" },
+    { value: "factory/gemini-4-carbon", label: "Gemini 4 Carbon (Factory)", requiresKey: "factory" },
+    { value: "factory/gemini-4-argon", label: "Gemini 4 Argon (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.8-flash", label: "Gemini 3.8 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.5-flash", label: "Gemini 3.5 Flash (Factory)", requiresKey: "factory" },
     { value: "factory/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Factory)", requiresKey: "factory" },
@@ -456,11 +472,16 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/o3", label: "o3", requiresKey: "openai" },
     { value: "openai/o3-mini", label: "o3 Mini", requiresKey: "openai" },
     { value: "openai/gpt-5", label: "GPT-5", requiresKey: "openai" },
+    // Current flagships per Pi's own model catalog.
+    { value: "openai/gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "openai" },
+    { value: "openai/gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "openai" },
     { value: "openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
     { value: "openai/gpt-6.1-terra", label: "GPT-6.1 Terra", requiresKey: "openai" },
     // Google models — Flash also runs on the shared Gemini pool; Pro, Argon,
-    // and Carbon are BYOK-only.
+    // and Carbon are BYOK-only. Hydrogen is the new Flash-class flagship
+    // (replaces 3.8 Flash per Google's announcement) — was missing here.
+    { value: "google/gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "gemini", priceUsdPerM: 1.5 },
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
     { value: "google/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "gemini" },
     { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
@@ -475,7 +496,7 @@ export const defaultAgentModel: Record<Agent, string> = {
   "opencode": "opencode-go/mimo-v2.6-pro",
   "codex": "gpt-6.1-sol", // GPT-5.5 retired Oct 14, 2026; near-Astra quality at lower cost
   "command-code": "xiaomi/mimo-v2.6-pro", // widest plan availability of the catalog tiers
-  "copilot": "gpt-5.6-terra", // GPT-5 Mini no longer offered; Terra is GitHub's recommended everyday model
+  "copilot": "gpt-6.1-terra", // gpt-5.6-terra retired from Copilot 2026-11-16; 6.1 Terra is the current everyday-writing tier
   "droid": "claude-sonnet-4-5-20250929", // BYOK default (user's ANTHROPIC_API_KEY)
   "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
   "gemini": "gemini-3.5-flash-lite", // fast/cheap Flash Lite; free-tier available & reliable
