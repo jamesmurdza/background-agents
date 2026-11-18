@@ -6,6 +6,7 @@ import { PATHS } from "@background-agents/common"
 import type { PanelPlugin, PanelProps, PreviewItem } from "../types"
 import { PanelState } from "./PanelState"
 import { useSandboxResource, assertSandboxOk } from "@/lib/hooks/useSandboxResource"
+import { formatFileSize } from "@/lib/format"
 
 interface DirEntry {
   name: string
@@ -38,18 +39,6 @@ async function loadDir(args: {
     path: typeof data.path === "string" ? data.path : dirPath,
     entries: Array.isArray(data.entries) ? (data.entries as DirEntry[]) : [],
   }
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const units = ["KB", "MB", "GB", "TB"]
-  let size = bytes / 1024
-  let i = 0
-  while (size >= 1024 && i < units.length - 1) {
-    size /= 1024
-    i++
-  }
-  return `${size.toFixed(1)} ${units[i]}`
 }
 
 function FileBrowserComponent({ item, sandboxId, explicitStart, onRefresh, onOpenItem }: PanelProps) {
@@ -124,7 +113,7 @@ function FileBrowserComponent({ item, sandboxId, explicitStart, onRefresh, onOpe
             <span className="flex-1 truncate">{entry.name}</span>
             {!entry.isDirectory && (
               <span className="flex-shrink-0 text-xs text-muted-foreground">
-                {formatSize(entry.size)}
+                {formatFileSize(entry.size)}
               </span>
             )}
           </button>

@@ -91,12 +91,3 @@ export const TEXT_EXTENSIONS = [
   'txt', 'log', 'csv', 'tsv', 'rtf',
   'gitignore', 'dockerignore', 'editorconfig', 'eslintrc', 'prettierrc', 'babelrc', 'npmrc', 'nvmrc',
 ]
-
-/**
- * Format file size in human-readable format (B, KB, MB)
- */
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
-}
