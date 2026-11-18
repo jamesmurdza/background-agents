@@ -372,12 +372,13 @@ export function useChatComposer({
   // the message to it in the background. Triggered by Cmd/Alt/Ctrl+Enter or by
   // holding one of those modifiers while clicking the send button.
   const handleBranchSend = () => {
-    if (git.canBranch && outgoing) {
+    if (git.canBranch && hasContent) {
       if (blockedProvider) {
         showCreditDialog(blockedProvider, balanceUsd)
         return
       }
-      git.handleBranchWithMessage(outgoing, currentAgent, currentModel, reasoningEffort)
+      const files = pendingFiles.length > 0 ? pendingFiles.map(pf => pf.file) : undefined
+      git.handleBranchWithMessage(outgoing, currentAgent, currentModel, reasoningEffort, files)
       clearSentInput()
       clearFiles()
       textareaRef.current?.focus()

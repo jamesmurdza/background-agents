@@ -153,6 +153,7 @@ export function useSendMessage({
               role: "user",
               content: message,
               timestamp: Date.now(),
+              uploadedFiles: files?.length ? files.map((file) => file.name) : undefined,
             },
           ],
         })

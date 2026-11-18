@@ -202,3 +202,21 @@ describe("first send from a draft", () => {
     expect(calls).toEqual(["send message"])
   })
 })
+
+describe("file-only send", () => {
+  it("shows the files while sending, then their saved paths, and names the chat after them", async () => {
+    const { promise, resolve: release } = deferred<unknown>()
+    mocks.send.mockReturnValue(promise)
+    const mutate = vi.fn()
+    const { dispatch, client } = setup({ suggestNameMutation: { mutate } as unknown as Parameters<typeof useMessageDispatch>[0]["suggestNameMutation"] })
+    const file = new File(["png"], "shot.png", { type: "image/png" })
+    const sending = dispatch.sendMessage("", "eliza", "eliza-classic-1.0", [file])
+    const userMessage = () => client.getQueryData<Chat[]>(queryKeys.chats.list())![0].messages[0]
+    expect(userMessage()).toMatchObject({ content: "", uploadedFiles: ["shot.png"] })
+
+    release({ ok: true, data: { sandboxId: "sandbox-1", backgroundSessionId: "background-1", uploadedFiles: ["/home/daytona/uploads/shot.png"], branch: null, previewUrlPattern: null } })
+    await sending
+    expect(userMessage().uploadedFiles).toEqual(["/home/daytona/uploads/shot.png"])
+    expect(mutate).toHaveBeenCalledWith({ chatId: "chat-1", prompt: "shot.png" })
+  })
+})

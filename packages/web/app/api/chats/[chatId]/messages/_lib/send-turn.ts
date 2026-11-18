@@ -142,13 +142,19 @@ export async function sendChatTurn({
         console.error("[chats/messages] file upload failed:", error)
       }
     }
+    // With text, the turn still runs without the files. A file-only message
+    // would leave the agent an empty prompt, so stop before saving the turn.
+    if (!payload.message && uploadedFilePaths.length === 0) {
+      return Response.json({ error: "Couldn't upload the attached files. Try sending them again." }, { status: 500 })
+    }
     // The agent needs the merge-conflict note and uploaded file paths to act on
     // this turn, but neither should appear in the persisted/displayed message:
     // the conflict note is plumbing the user never asked to see, and the
     // uploaded files are already shown as file chips (see MessageBubble).
     let agentPrompt = pullConflictNote + payload.message
     if (uploadedFilePaths.length > 0) {
-      agentPrompt += "\n\n---\nUploaded files:\n" + uploadedFilePaths.map((path) => `- ${path}`).join("\n")
+      if (payload.message) agentPrompt += "\n\n---\n"
+      agentPrompt += "Uploaded files:\n" + uploadedFilePaths.map((path) => `- ${path}`).join("\n")
     }
 
     const { history, isAgentSwitch } = await buildAgentHistory(chatId, chat, payload)
