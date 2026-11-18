@@ -46,6 +46,16 @@ function bytesToUsage(usedBytes: number, totalBytes: number): UsageStat {
   }
 }
 
+/** Usage-bar color scales with how full the disk is, not a fixed green. */
+function usageColorClass(usedGb: number, totalGb: number): string {
+  if (totalGb <= 0) return "bg-green-500"
+  const ratio = usedGb / totalGb
+  if (ratio >= 0.9) return "bg-red-500"
+  if (ratio >= 0.75) return "bg-orange-500"
+  if (ratio >= 0.5) return "bg-yellow-500"
+  return "bg-green-500"
+}
+
 function sliderClasses() {
   return cn(
     "relative w-full h-1.5 appearance-none rounded-full bg-muted cursor-pointer accent-primary",
@@ -173,7 +183,10 @@ function ResourceSlider({
             every resource (e.g. RAM), so this is opt-in via `showUsage`. */}
         {showUsage && takenPct != null && takenPct > 0 && (
           <div
-            className="absolute left-0 h-1.5 rounded-l-full bg-green-500 pointer-events-none"
+            className={cn(
+              "absolute left-0 h-1.5 rounded-l-full pointer-events-none",
+              usageColorClass(usage!.usedGb, usage!.totalGb)
+            )}
             style={{ width: `${takenPct}%` }}
           />
         )}
