@@ -35,11 +35,14 @@ async function proxyWired(sandbox: Sandbox): Promise<boolean> {
   }
 }
 
-/** `secrets` plus the keepalive, each stamped as used (see {@link touchSecret}). */
+/**
+ * `secrets` plus the keepalive, each stamped as used once (see
+ * {@link touchSecret}). Ensuring the keepalive already stamps it.
+ */
 async function withKeepalive(daytona: Daytona, secrets: Record<string, string>): Promise<Record<string, string>> {
-  const all = { ...secrets, [KEEPALIVE_ENV]: await ensureKeepaliveSecret(daytona) }
-  await Promise.all(Object.values(all).map((name) => touchSecret(daytona, name)))
-  return all
+  const keepalive = await ensureKeepaliveSecret(daytona)
+  await Promise.all(Object.values(secrets).map((name) => touchSecret(daytona, name)))
+  return { ...secrets, [KEEPALIVE_ENV]: keepalive }
 }
 
 /**
