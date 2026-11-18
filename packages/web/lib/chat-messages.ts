@@ -195,8 +195,11 @@ export function applySendSuccess(
     model,
     status: "running",
     pendingSend: false,
+    // The saved paths replace the names shown while sending (none if the upload failed).
     messages: chat.messages.map((m) =>
-      m.id === userMessageId && data.uploadedFiles.length > 0 ? { ...m, uploadedFiles: data.uploadedFiles } : m
+      m.id === userMessageId && (m.uploadedFiles || data.uploadedFiles.length > 0)
+        ? { ...m, uploadedFiles: data.uploadedFiles.length > 0 ? data.uploadedFiles : undefined }
+        : m
     ),
   }
 }

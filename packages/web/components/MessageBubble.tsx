@@ -28,6 +28,8 @@ interface MessageBubbleProps {
 export const MessageBubble = memo(function MessageBubble({ message, isStreaming, status, isMobile = false, repo, onOpenFile }: MessageBubbleProps) {
   const isUser = message.role === "user"
   const hasUploadedFiles = isUser && message.uploadedFiles && message.uploadedFiles.length > 0
+  // A message can be just attachments; then only the file list shows.
+  const hasText = message.content.trim().length > 0
 
   return (
     <div
@@ -43,12 +45,14 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
       )}>
         {isUser ? (
           <div className="min-w-0">
-            <div className={cn(
-              "inline-block rounded-lg bg-muted text-foreground text-left max-w-full min-w-0",
-              isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
-            )}>
-              <MarkdownContent text={message.content} isMobile={isMobile} constrainWidth={false} />
-            </div>
+            {hasText && (
+              <div className={cn(
+                "inline-block rounded-lg bg-muted text-foreground text-left max-w-full min-w-0",
+                isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
+              )}>
+                <MarkdownContent text={message.content} isMobile={isMobile} constrainWidth={false} />
+              </div>
+            )}
             {/* Uploaded files display */}
             {hasUploadedFiles && (
               <div className={cn(
@@ -79,6 +83,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.content === nextProps.message.content &&
+    prevProps.message.uploadedFiles === nextProps.message.uploadedFiles &&
     prevProps.message.toolCalls === nextProps.message.toolCalls &&
     prevProps.message.contentBlocks === nextProps.message.contentBlocks &&
     prevProps.isStreaming === nextProps.isStreaming &&
