@@ -51,6 +51,28 @@ describe("setSecrets", () => {
     expect(sandbox.stop).not.toHaveBeenCalled()
   })
 
+  it("stamps each secret, the keepalive included, exactly once", async () => {
+    const { daytona, secret } = fakeDaytona(["bg_abc"])
+    const sandbox = fakeSandbox()
+    await setSecrets(daytona, sandbox, {}) // creates the keepalive
+    secret.update.mockClear()
+
+    await setSecrets(daytona, sandbox, { MY_KEY: "bg_abc" })
+    const keepalive = (sandbox.updateSecrets.mock.calls[1][0] as Record<string, string>).SESSION_RELAY_TOKEN_KEEPALIVE
+    expect(secret.update.mock.calls.map(([id]) => id).sort()).toEqual([`id_${keepalive}`, "id_bg_abc"].sort())
+  })
+
+  it("stamps the keepalive once when detaching everything", async () => {
+    const { daytona, secret } = fakeDaytona()
+    const sandbox = fakeSandbox()
+    await setSecrets(daytona, sandbox, {}) // creates the keepalive
+    secret.update.mockClear()
+
+    await setSecrets(daytona, sandbox, {})
+    const keepalive = (sandbox.updateSecrets.mock.calls[1][0] as Record<string, string>).SESSION_RELAY_TOKEN_KEEPALIVE
+    expect(secret.update.mock.calls.map(([id]) => id)).toEqual([`id_${keepalive}`])
+  })
+
   it("detaches everything but the keepalive when given an empty set", async () => {
     const { daytona } = fakeDaytona()
     const sandbox = fakeSandbox()
