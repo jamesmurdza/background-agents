@@ -9,22 +9,24 @@
  */
 
 import type { SandboxProcess, GitStatus, PushResult } from "./types"
-import { withAuth } from "./auth"
+import { redactToken, withAuth } from "./auth"
 import { createGitError } from "./errors"
 import { parseGitStatus } from "./parsers"
 import { esc } from "./shell"
 
 /**
- * Execute a command in the sandbox and throw on failure
+ * Execute a command in the sandbox and throw on failure. Pass the `token` an
+ * authenticated command carries, so the error never holds it.
  */
 async function exec(
   process: SandboxProcess,
   command: string,
-  allowFailure = false
+  allowFailure = false,
+  token?: string
 ): Promise<string> {
   const result = await process.executeCommand(command)
   if (result.exitCode !== 0 && !allowFailure) {
-    throw createGitError(command, result.exitCode, result.result)
+    throw createGitError(redactToken(command, token), result.exitCode, redactToken(result.result, token))
   }
   return result.result
 }
@@ -50,7 +52,7 @@ export async function clone(
   const cloneCmd = `clone --single-branch ${branchFlag} ${esc(url)} ${esc(path)} 2>&1`
 
   if (token) {
-    await exec(process, withAuth(token, cloneCmd))
+    await exec(process, withAuth(token, cloneCmd), false, token)
   } else {
     await exec(process, `git ${cloneCmd}`)
   }
@@ -115,7 +117,7 @@ export async function fetch(
   const ref = refspec ?? ""
   const fetchCmd = `fetch origin ${ref} 2>&1`
   if (token) {
-    await exec(process, `cd ${esc(path)} && ${withAuth(token, fetchCmd)}`)
+    await exec(process, `cd ${esc(path)} && ${withAuth(token, fetchCmd)}`, false, token)
   } else {
     await exec(process, `cd ${esc(path)} && git ${fetchCmd}`)
   }
@@ -135,7 +137,7 @@ export async function fetchBranch(
   const refspec = `+refs/heads/${branch}:refs/remotes/origin/${branch}`
   const fetchCmd = `fetch origin ${refspec} 2>&1`
   if (token) {
-    await exec(process, `cd ${esc(path)} && ${withAuth(token, fetchCmd)}`)
+    await exec(process, `cd ${esc(path)} && ${withAuth(token, fetchCmd)}`, false, token)
   } else {
     await exec(process, `cd ${esc(path)} && git ${fetchCmd}`)
   }
@@ -151,7 +153,7 @@ export async function pull(
 ): Promise<void> {
   const pullCmd = `pull 2>&1`
   if (token) {
-    await exec(process, `cd ${esc(path)} && ${withAuth(token, pullCmd)}`)
+    await exec(process, `cd ${esc(path)} && ${withAuth(token, pullCmd)}`, false, token)
   } else {
     await exec(process, `cd ${esc(path)} && git ${pullCmd}`)
   }
@@ -212,7 +214,7 @@ export async function push(
   const noVerifyFlag = noVerify ? " --no-verify" : ""
   const pushCmd = `push --porcelain -u origin HEAD${noVerifyFlag} 2>&1`
   const output = token
-    ? await exec(process, `cd ${esc(path)} && ${withAuth(token, pushCmd)}`)
+    ? await exec(process, `cd ${esc(path)} && ${withAuth(token, pushCmd)}`, false, token)
     : await exec(process, `cd ${esc(path)} && git ${pushCmd}`)
   return parsePushOutput(output)
 }
