@@ -9,6 +9,7 @@ import {
   internalError,
   serverConfigError,
   getGitHubToken,
+  getChatWithAuth,
 } from "@/lib/db/api-helpers"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -41,12 +42,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     // Verify chat ownership and get sandbox info
-    const chat = await prisma.chat.findUnique({
-      where: { id: body.chatId },
-      select: { id: true, userId: true, sandboxId: true, repo: true, baseBranch: true, branch: true },
-    })
+    const chat = await getChatWithAuth(body.chatId, userId)
 
-    if (!chat || chat.userId !== userId) {
+    if (!chat) {
       return notFound("Chat not found")
     }
 

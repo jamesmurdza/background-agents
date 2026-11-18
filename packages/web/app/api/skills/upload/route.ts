@@ -9,6 +9,7 @@ import {
   internalError,
   serverConfigError,
   getGitHubToken,
+  getChatWithAuth,
 } from "@/lib/db/api-helpers"
 import { PATHS } from "@/lib/constants"
 import { NEW_REPOSITORY } from "@/lib/types"
@@ -50,12 +51,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       return badRequest("The zip must be under 4 MB")
     }
 
-    const chat = await prisma.chat.findUnique({
-      where: { id: chatId },
-      select: { id: true, userId: true, sandboxId: true, repo: true, baseBranch: true, branch: true },
-    })
+    const chat = await getChatWithAuth(chatId, userId)
 
-    if (!chat || chat.userId !== userId) {
+    if (!chat) {
       return notFound("Chat not found")
     }
     if (!chat.sandboxId) {
