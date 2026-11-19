@@ -52,6 +52,19 @@ export function fmtCreditAmount(n: number): string {
   return `$${Math.abs(n).toFixed(4)}`
 }
 
+/** Human-readable file size: "512B", "12KB", "4.2MB", "1.1GB", "2.0TB". */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  const units = ["KB", "MB", "GB", "TB"]
+  let size = bytes / 1024
+  let i = 0
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024
+    i++
+  }
+  return i === 0 ? `${Math.round(size)}${units[i]}` : `${size.toFixed(1)}${units[i]}`
+}
+
 /** Human-friendly duration from a millisecond count: "820 ms", "4.2 s", or "2 m 5 s". */
 export function formatDurationMs(ms: number): string {
   if (ms < 1000) return `${ms} ms`

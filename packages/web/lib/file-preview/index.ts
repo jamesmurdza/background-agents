@@ -6,7 +6,7 @@
  */
 
 // Types and utilities
-export { formatFileSize } from './types'
+export { formatFileSize } from '../format'
 
 // Detection utilities
 export {
