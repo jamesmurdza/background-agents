@@ -59,7 +59,7 @@ export function ownerCreateData(
  * Verify the caller owns the underlying chat or scheduled job. Returns true
  * on success, false if the entity doesn't exist or belongs to someone else.
  */
-export async function requireMcpOwnerAuth(
+async function requireMcpOwnerAuth(
   owner: McpOwner,
   userId: string
 ): Promise<boolean> {

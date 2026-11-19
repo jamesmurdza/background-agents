@@ -29,7 +29,7 @@ import { fingerprintKey } from "@/lib/server/shared-key-pools"
 export const SHARED_POOL_AGENTS = ["claude-code", "gemini", "opencode"] as const
 
 /** Internal provider id for an agent (stored as TokenUsage.provider). */
-export function providerForAgent(agent: Agent): ProviderName {
+function providerForAgent(agent: Agent): ProviderName {
   return agentToProvider[agent]
 }
 
