@@ -17,6 +17,14 @@ import { toQueuedMessage } from "@/lib/server/prompt-queue"
 // =============================================================================
 
 /**
+ * `?changedSince=` re-reads this much extra history. `updatedAt` is stamped by
+ * whichever server instance wrote the row (clocks can drift a little), and a
+ * write stamped just before a read can commit just after it. Re-sending a few
+ * seconds of messages is cheap; the client merges duplicates by id.
+ */
+const CHANGED_SINCE_OVERLAP_MS = 10_000
+
+/**
  * Collect a chat and all of its descendant chat ids (breadth-first over the
  * parentChatId tree), scoped to the owner. Shared by DELETE (cascade removal)
  * and PATCH (cascade archive) so the subtree definition stays in one place.
@@ -89,6 +97,8 @@ interface ChatWithMessagesResponse {
   lastActiveAt: number
   messages: MessageResponse[]
   messageCount: number
+  /** Server time this read started; pass back as `changedSince` next time. */
+  syncedAt: number
   queuedMessages: ReturnType<typeof toQueuedMessage>[]
   queuePaused: boolean
 }
@@ -110,6 +120,11 @@ export async function GET(
     const { searchParams } = new URL(req.url)
     const afterMessageId = searchParams.get("afterMessageId")
     const statusOnly = searchParams.get("statusOnly") === "true"
+    const changedSinceParam = searchParams.get("changedSince")
+    const changedSince = changedSinceParam === null ? null : Number(changedSinceParam)
+    if (changedSince !== null && (!Number.isSafeInteger(changedSince) || changedSince < 0)) {
+      return badRequest("changedSince must be a millisecond timestamp")
+    }
 
     const chat = await getChatWithAuth(chatId, userId)
     if (!chat) {
@@ -128,6 +143,10 @@ export async function GET(
         hasCommits: chat.hasCommits,
       })
     }
+
+    // Taken before any message read, so anything written after this point is
+    // returned by the next `changedSince` request.
+    const syncedAt = Date.now()
 
     // Get total message count
     const messageCount = await prisma.message.count({ where: { chatId } })
@@ -155,6 +174,12 @@ export async function GET(
         ...(afterCreatedAt && {
           createdAt: { gt: afterCreatedAt },
         }),
+        // Delta sync including in-place edits (e.g. the running reply). The
+        // client checks messageCount and falls back to a full read if the
+        // delta left a gap.
+        ...(changedSince !== null && {
+          updatedAt: { gte: new Date(changedSince - CHANGED_SINCE_OVERLAP_MS) },
+        }),
       },
       orderBy: { timestamp: "asc" },
     })
@@ -164,9 +189,10 @@ export async function GET(
     // it in the UI too by prepending the parent's user/assistant messages *as
     // they stood at the branch point* (see getInheritedMessages), flagged
     // `inherited` so the client renders them read-only. Only on a full fetch
-    // (delta sync via afterMessageId is for this chat's own new messages).
+    // (delta sync via afterMessageId/changedSince is for this chat's own
+    // messages; the parent's history is frozen at the branch point).
     let inheritedMessages: MessageResponse[] = []
-    if (chat.parentChatId && !afterMessageId) {
+    if (chat.parentChatId && !afterMessageId && changedSince === null) {
       const parentMessages = await getInheritedMessages({
         parentChatId: chat.parentChatId,
         createdAt: chat.createdAt,
@@ -216,6 +242,7 @@ export async function GET(
       updatedAt: chat.updatedAt.getTime(),
       lastActiveAt: chat.lastActiveAt.getTime(),
       messageCount,
+      syncedAt,
       queuedMessages: queuedPrompts.map(toQueuedMessage),
       queuePaused: chat.queuePaused,
       messages: [
