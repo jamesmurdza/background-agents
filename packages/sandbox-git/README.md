@@ -59,7 +59,7 @@ Git operations throw on failure. `@background-agents/sandbox-git` exports:
 
 | Export | Description |
 |--------|-------------|
-| `GitError` | Base error — `message`, `command`, `exitCode`, `output` |
+| `GitError` | Base error — `message`, `command`, `exitCode`, `output`. None of these contain the token (raw or encoded), so errors are safe to log |
 | `GitAuthError` | Thrown when auth fails (invalid/expired token, no access) |
 | `GitNotFoundError` | Thrown when the repository doesn't exist or isn't accessible |
 | `isAuthError(output)` | Heuristic check for auth failures in raw command output |
