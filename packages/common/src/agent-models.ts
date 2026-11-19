@@ -40,13 +40,12 @@ export interface ModelOption {
 export const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/glm-5.2",
   "opencode-go/glm-5.3",
-  "opencode-go/kimi-k2.6",
   "opencode-go/kimi-k2.7-code",
   "opencode-go/mimo-v2.5",
   "opencode-go/mimo-v2.5-pro",
   "opencode-go/minimax-m2.7",
   "opencode-go/minimax-m3",
-  "opencode-go/qwen3.6-plus",
+  "opencode-go/qwen4-max",
   "opencode-go/qwen3.7-plus",
   "opencode-go/deepseek-v4-pro",
   "opencode-go/deepseek-v4.1-flash",
@@ -63,9 +62,16 @@ export const SHARED_OPENCODE_ALLOWED = new Set<string>([
 export const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
   "gemini-3-pro-preview",
   "gemini-3.1-pro-preview",
+  "gemini-2.5-pro",
   "google/gemini-3.1-pro-preview",
   "google/gemini-4-argon",
   "google/gemini-4-carbon",
+  // Bare (non "google/"-prefixed) ids — Droid's BYOK Gemini list uses these
+  // directly. Hydrogen is excluded from this set deliberately: it's the
+  // Flash-class tier (see the pi catalog's "google/gemini-4-hydrogen" comment),
+  // not Pro, so it stays shared-pool eligible like every other Flash model.
+  "gemini-4-argon",
+  "gemini-4-carbon",
 ])
 
 /**
@@ -106,13 +112,14 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode-go/glm-5.3", label: "GLM-5.3", requiresKey: "opencode", priceUsdPerM: 1.4 },
     { value: "opencode-go/kimi-k3.1-pro", label: "Kimi K3.1 Pro", requiresKey: "opencode", priceUsdPerM: 3 },
     { value: "opencode-go/kimi-k3", label: "Kimi K3", requiresKey: "opencode", priceUsdPerM: 3 },
-    { value: "opencode-go/kimi-k2.6", label: "Kimi K2.6", requiresKey: "opencode", priceUsdPerM: 0.95 },
     { value: "opencode-go/kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "opencode", priceUsdPerM: 0.95 },
     { value: "opencode-go/mimo-v2.5", label: "MiMo v2.5", requiresKey: "opencode", priceUsdPerM: 0.14 },
     { value: "opencode-go/mimo-v2.5-pro", label: "MiMo v2.5 Pro", requiresKey: "opencode", priceUsdPerM: 0.44 },
     { value: "opencode-go/minimax-m2.7", label: "MiniMax M2.7", requiresKey: "opencode", priceUsdPerM: 0.3 },
     { value: "opencode-go/minimax-m3", label: "MiniMax M3", requiresKey: "opencode", priceUsdPerM: 0.3 },
-    { value: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode", priceUsdPerM: 0.5 },
+    // Qwen4 Max is the current flagship Qwen tier on OpenCode Go — Qwen3.6 Plus
+    // doesn't exist in Go's catalog (jumps 3.7 Plus -> 3.8 Max -> 4 Max).
+    { value: "opencode-go/qwen4-max", label: "Qwen4 Max", requiresKey: "opencode", priceUsdPerM: 2 },
     { value: "opencode-go/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "opencode", priceUsdPerM: 2 },
     { value: "opencode-go/qwen3.7-plus", label: "Qwen3.7 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
     { value: "opencode-go/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode", priceUsdPerM: 0.66 },
@@ -145,11 +152,18 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-5.6-luna", label: "GPT-5.6 Luna", requiresKey: "opencode" },
     { value: "opencode/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "opencode" },
     { value: "opencode/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "opencode" },
+    // Current OpenAI flagship tier (per opencode.ai's own models catalog) — was missing here.
+    { value: "opencode/gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "opencode" },
+    { value: "opencode/gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "opencode" },
     { value: "opencode/gemini-3-flash", label: "Gemini 3 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro", requiresKey: "opencode" },
     { value: "opencode/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "opencode" },
+    // Current Gemini 4 tiers (per opencode.ai's own models catalog) — carbon/hydrogen/neon were missing here.
+    { value: "opencode/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "opencode" },
+    { value: "opencode/gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "opencode" },
+    { value: "opencode/gemini-4-neon", label: "Gemini 4 Neon", requiresKey: "opencode" },
     // Anthropic direct models — route to Anthropic on the user's own Anthropic key
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", requiresKey: "anthropic" },
@@ -183,6 +197,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "openai/gpt-5.2", label: "GPT-5.2", requiresKey: "openai" },
     { value: "openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "openai" },
     { value: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "openai" },
+    // Current OpenAI flagship tier (per learn.chatgpt.com/docs/models) — was missing here.
+    { value: "openai/gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "openai" },
+    { value: "openai/gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "openai" },
     { value: "openai/o1", label: "o1", requiresKey: "openai" },
     { value: "openai/o1-pro", label: "o1 Pro", requiresKey: "openai" },
     { value: "openai/o3", label: "o3", requiresKey: "openai" },
@@ -241,6 +258,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── Google (Pro plan and above) ──
     { value: "google/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "commandcode" },
     { value: "google/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "commandcode" },
+    // Third Gemini 4 tier in Command Code's own catalog, alongside Carbon/Argon above — was missing here.
+    { value: "google/gemini-4-neon", label: "Gemini 4 Neon", requiresKey: "commandcode" },
     { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "commandcode" },
     { value: "google/gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite", requiresKey: "commandcode" },
   ],
@@ -292,6 +311,13 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "github" },
     { value: "gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "github" },
     { value: "gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "github" },
+    // Fourth Gemini 4 tier in GitHub's own supported-models table, alongside
+    // Hydrogen/Carbon/Argon above — was missing here.
+    { value: "gemini-4-neon", label: "Gemini 4 Neon", requiresKey: "github" },
+    // Current MAI flagship tier (per GitHub's own supported-models table),
+    // alongside the older 1.1 Flash below — was missing here.
+    { value: "mai-code-2", label: "MAI-Code 2", requiresKey: "github" },
+    { value: "mai-code-2-flash", label: "MAI-Code 2 Flash", requiresKey: "github" },
     { value: "mai-code-1.1-flash", label: "MAI-Code 1.1 Flash", requiresKey: "github" },
     { value: "kimi-k3", label: "Kimi K3", requiresKey: "github" },
     { value: "grok-4.7", label: "Grok 4.7", requiresKey: "github" },
@@ -310,6 +336,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
     { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
     { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
+    // The CLI's own /model selector also offers the previous-gen Pro tier
+    // (per geminicli.com/docs/cli/model's "Auto (Gemini 2.5)" group) — was missing here.
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
   ],
   "goose": [
     { value: "gpt-4o", label: "GPT-4o", requiresKey: "openai" },
@@ -339,6 +368,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5", requiresKey: "kilo" },
     // OpenAI via Kilo gateway
+    // Current OpenAI flagship tier (confirmed in Kilo's own gateway catalog,
+    // "GPT-6.2 Sol (new)") — was missing here.
+    { value: "kilo/openai/gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "kilo" },
+    { value: "kilo/openai/gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "kilo" },
     { value: "kilo/openai/gpt-6-astra", label: "GPT-6 Astra", requiresKey: "kilo" },
     { value: "kilo/openai/gpt-6.1-sol", label: "GPT-6.1 Sol", requiresKey: "kilo" },
     // gpt-5.4 retired platform-wide Aug 31, 2026 (replaced by gpt-6.1-sol) — unlike
@@ -363,6 +396,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // https://api.moonshot.ai/v1. Each value must match a [models."<id>"] entry
     // declared in the generated ~/.kimi-code/config.toml (see the kimi agent).
     { value: "kimi-k3.1-pro", label: "Kimi K3.1 Pro", requiresKey: "kimi" },
+    // Same intelligence as K3.1 Pro at 2-3x speed (per code.kimi.com) — was missing here.
+    { value: "kimi-k3.1-pro-highspeed", label: "Kimi K3.1 Pro Highspeed", requiresKey: "kimi" },
     { value: "kimi-k3", label: "Kimi K3", requiresKey: "kimi" },
     { value: "kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "kimi" },
     { value: "kimi-k2.7-code-highspeed", label: "Kimi K2.7 Code Highspeed", requiresKey: "kimi" },
@@ -399,6 +434,11 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", requiresKey: "anthropic" },
     { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", requiresKey: "anthropic" },
     // ── BYOK: OpenAI ──
+    // Current OpenAI flagship tier (per learn.chatgpt.com/docs/models) — present
+    // for every other agent's OpenAI BYOK/direct list (codex, opencode, pi) but
+    // was missing here.
+    { value: "gpt-6.2-astra", label: "GPT-6.2 Astra", requiresKey: "openai" },
+    { value: "gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "openai" },
     // Astra is OpenAI's most capable model (API Access confirmed per
     // learn.chatgpt.com/docs/models) — present for every other agent's OpenAI
     // BYOK/direct list (codex, opencode, pi) but was missing here.
@@ -413,6 +453,13 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── BYOK: Gemini (Google's OpenAI-compatible endpoint) ──
     // Flash tier also runs on the shared Gemini pool (see
     // SHARED_GEMINI_POOL_PRO_MODELS), hence the priceUsdPerM; Pro is BYOK-only.
+    // Gemini 4 tier — same real Google ids the Factory-hosted catalog below
+    // already exposes — was missing from the BYOK path here. Hydrogen is the
+    // Flash-class tier (see pi's "google/gemini-4-hydrogen" comment), hence the
+    // priceUsdPerM; Argon/Carbon are Pro, BYOK-only (see SHARED_GEMINI_POOL_PRO_MODELS).
+    { value: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "gemini", priceUsdPerM: 1.5 },
+    { value: "gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "gemini" },
+    { value: "gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "gemini" },
     { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
     { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
@@ -431,6 +478,10 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "factory/claude-sonnet-5-5", label: "Claude Sonnet 5.5 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Factory)", requiresKey: "factory" },
     { value: "factory/claude-haiku-5-5", label: "Claude Haiku 5.5 (Factory)", requiresKey: "factory" },
+    // Current OpenAI flagship tier (per Factory's own hosted model catalog) —
+    // was missing here.
+    { value: "factory/gpt-6.2-astra", label: "GPT-6.2 Astra (Factory)", requiresKey: "factory" },
+    { value: "factory/gpt-6.2-sol", label: "GPT-6.2 Sol (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-6-astra", label: "GPT-6 Astra (Factory)", requiresKey: "factory" },
     { value: "factory/gpt-6.1-sol", label: "GPT-6.1 Sol (Factory)", requiresKey: "factory" },
     // Terra is the GPT-6.1 tier's other sibling alongside Sol (same generation,
