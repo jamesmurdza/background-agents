@@ -44,7 +44,7 @@ function appBaseUrl(): string {
   return (process.env.NEXTAUTH_URL ?? "http://localhost:4000").replace(/\/$/, "")
 }
 
-export function vendorRedirectUri(vendor: McpVendor): string {
+function vendorRedirectUri(vendor: McpVendor): string {
   return `${appBaseUrl()}/api/mcp/connect/${vendor.slug}/callback`
 }
 

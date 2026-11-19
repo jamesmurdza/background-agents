@@ -114,7 +114,7 @@ export function sharedKeyForSecret(name: string): string | undefined {
 }
 
 /** Whether the pool's keys go into sandboxes behind Daytona secrets. */
-export function sharedPoolSecretsEnabled(pool: SharedKeyPool): boolean {
+function sharedPoolSecretsEnabled(pool: SharedKeyPool): boolean {
   return userSecretsFlag(pool.secretFlag)
 }
 
