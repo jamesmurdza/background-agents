@@ -121,7 +121,7 @@ Deploys to Vercel via `packages/web/vercel.json`. The `prebuild` script (`script
 To enable MCP servers (vendor-hosted ones like Linear and Notion, GitHub and
 Gmail), set the variables listed in the [`mcp` README](../mcp/README.md#in-backgrounder).
 
-To let users connect Netlify (Settings → API keys), create an OAuth application at [app.netlify.com/applications](https://app.netlify.com/applications) with the redirect URI `<NEXTAUTH_URL>/api/netlify/callback`, then set:
+To let users connect Netlify (Settings → Integrations), create an OAuth application at [app.netlify.com/applications](https://app.netlify.com/applications) with the redirect URI `<NEXTAUTH_URL>/api/netlify/callback`, then set:
 
 ```bash
 NETLIFY_OAUTH_CLIENT_ID="..."
