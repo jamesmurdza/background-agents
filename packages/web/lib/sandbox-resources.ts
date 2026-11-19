@@ -9,7 +9,7 @@
 import { prisma } from "@/lib/db/prisma"
 
 /** Hard ceilings — must match app/api/sandbox/resize/route.ts. */
-export const MAX_MEMORY_GB = 10
+export const MAX_MEMORY_GB = 8
 export const MAX_DISK_GB = 25
 
 export interface RequestedResources {
