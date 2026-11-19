@@ -1,16 +1,9 @@
 /**
- * GET  /api/chats/<chatId>/mcp-servers     list connections on this chat
- * POST /api/chats/<chatId>/mcp-servers     start a new connection via Smithery
- *
- * Thin wrappers around the owner-parameterized handlers in lib/mcp/connections.
+ * GET /api/chats/<chatId>/mcp-servers: list the MCP servers on this chat.
+ * Thin wrapper around the owner-parameterized handler in lib/mcp/connections.
  */
-import { badRequest } from "@/lib/db/api-helpers"
 import { resolveMcpOwner } from "@/lib/mcp/owner"
-import {
-  connectSmitheryResponse,
-  listConnectionsResponse,
-  type ConnectSmitheryBody,
-} from "@/lib/mcp/connections"
+import { listConnectionsResponse } from "@/lib/mcp/connections"
 
 export async function GET(
   _req: Request,
@@ -21,22 +14,4 @@ export async function GET(
   const resolved = await resolveMcpOwner({ kind: "chat", id: chatId })
   if (!resolved.ok) return resolved.response
   return listConnectionsResponse(resolved.owner)
-}
-
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ chatId: string }> }
-): Promise<Response> {
-  const { chatId } = await params
-
-  const resolved = await resolveMcpOwner({ kind: "chat", id: chatId })
-  if (!resolved.ok) return resolved.response
-
-  let body: ConnectSmitheryBody
-  try {
-    body = await req.json()
-  } catch {
-    return badRequest("Invalid JSON body")
-  }
-  return connectSmitheryResponse(resolved.owner, body)
 }

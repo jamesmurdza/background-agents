@@ -80,7 +80,7 @@ interface UseBranchingResult {
    * dispatch the message to it in the background, and stay on the current chat.
    * If the user isn't signed in, the message is staged for replay after OAuth.
    */
-  handleBranchWithMessage: (message: string, agent: string, model: string, reasoningEffort?: string) => Promise<void>
+  handleBranchWithMessage: (message: string, agent: string, model: string, reasoningEffort?: string, files?: File[]) => Promise<void>
   /**
    * Branch a *queued* message into a new background chat. Removes the queued
    * message first so it doesn't fire twice (once on the current chat when the
@@ -135,6 +135,8 @@ export function useBranching({
       agent?: string
       model?: string
       reasoningEffort?: string
+      /** Attachments sent with the message. */
+      files?: File[]
       /** Chat to branch off. Defaults to the current chat. */
       sourceChat?: Chat | null
       /** If true, save the message for retry after sign-in */
@@ -166,7 +168,8 @@ export function useBranching({
       }
 
       // When no message is provided, navigate to the new chat
-      const navigateToChat = !options?.message
+      const hasMessage = !!options?.message || !!options?.files?.length
+      const navigateToChat = !hasMessage
       // Use provided agent/model or inherit from the source chat
       const agentToUse = options?.agent ?? source.agent
       const modelToUse = options?.model ?? source.model
@@ -182,8 +185,8 @@ export function useBranching({
       )
       if (!chatId) return false
       // Send message to the new chat if provided (it runs in background)
-      if (options?.message) {
-        sendMessage(options.message, options.agent, options.model, undefined, chatId, undefined, options.reasoningEffort)
+      if (hasMessage) {
+        sendMessage(options?.message ?? "", options?.agent, options?.model, options?.files, chatId, undefined, options?.reasoningEffort)
       }
       return true
     },
@@ -203,8 +206,8 @@ export function useBranching({
   )
 
   const handleBranchWithMessage = useCallback(
-    async (message: string, agent: string, model: string, reasoningEffort?: string) => {
-      await createBranchAndSend({ message, agent, model, reasoningEffort, savePendingOnAuth: true })
+    async (message: string, agent: string, model: string, reasoningEffort?: string, files?: File[]) => {
+      await createBranchAndSend({ message, agent, model, reasoningEffort, files, savePendingOnAuth: true })
     },
     [createBranchAndSend]
   )

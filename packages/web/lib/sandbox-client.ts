@@ -67,18 +67,7 @@ export async function applyPendingMcpServers(chatId: string, pendingMcp: Pending
   try {
     await Promise.all(
       pendingMcp.servers.map((server) =>
-        server.attachPath
-          ? fetch(`/api/chats/${chatId}/mcp-servers/${server.attachPath}`, { method: "POST" })
-          : fetch(`/api/chats/${chatId}/mcp-servers`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                slug: server.slug,
-                url: server.url,
-                name: server.name,
-                iconUrl: server.iconUrl,
-              }),
-            })
+        fetch(`/api/chats/${chatId}/mcp-servers/${server.attachPath}`, { method: "POST" })
       )
     )
     pendingMcp.clearPending()

@@ -229,3 +229,14 @@ describe("queued prompts preserve unsupported options", () => {
     expect(mocks.draftChanged).toHaveBeenCalledWith("")
   })
 })
+
+describe("composer branch-and-send", () => {
+  it.each([["text and a file", "Read this"], ["a file alone", ""]])("sends %s to the new branch chat", (_, draft) => {
+    const file = new File(["png"], "shot.png", { type: "image/png" })
+    mocks.pendingFiles = [{ id: "file-1", file, name: file.name, size: file.size }]
+    const composer = renderComposer({}, draft)
+    composer.handleBranchSend()
+    expect(mocks.branch).toHaveBeenCalledWith(draft, composer.currentAgent, composer.currentModel, "default", [file])
+    expect(mocks.clearFiles).toHaveBeenCalledTimes(1)
+  })
+})

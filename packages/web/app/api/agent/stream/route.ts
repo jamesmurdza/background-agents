@@ -22,6 +22,12 @@ import { readTurnFailure, recordTurnFailure } from "@/lib/server/turn-failure"
 // maxDuration configures the timeout for this Vercel function. Allow longer
 // streaming connections (5 minutes max).
 export const maxDuration = 300
+// While the agent is still running, close the stream ourselves this long after
+// it opened; the client reconnects. If the platform kills the function at
+// maxDuration in the middle of finalization (claim → release, usually a few
+// seconds), the turn stays claimed and the chat is locked for minutes. Closing
+// here means finalization only starts with at least 60 s left.
+const STREAM_SELF_CLOSE_MS = (maxDuration - 60) * 1000
 
 const BACKEND_POLL_INTERVAL = 500
 const HEARTBEAT_INTERVAL = 15000
@@ -40,6 +46,7 @@ const jsonResponse = (status: number, body: object) =>
   })
 
 export async function GET(req: Request) {
+  const streamStartedAt = Date.now()
   const url = new URL(req.url)
   const cursorParam = url.searchParams.get("cursor")
   const chatId = url.searchParams.get("chatId")
@@ -203,6 +210,11 @@ export async function GET(req: Request) {
           }
 
           if (lastSnap.status === "completed" || lastSnap.status === "error") {
+            // The agent is done; the rest is bookkeeping. Say which step is running
+            // ("phase"), so the chat doesn't look like the agent is still running and
+            // a step that hangs is visible. Sent before the claim: another finalizer
+            // owning this turn is cleaning it up all the same.
+            sendEvent("phase", { phase: "cleaning" })
             const finalizationClaimId = await claimTurnFinalization(turn)
             if (!finalizationClaimId) {
               // A concurrent stream/cron (or a newer turn) already owns it.
@@ -275,6 +287,7 @@ export async function GET(req: Request) {
             // agent-lifecycle cron only meters turns that finish without a
             // connected stream. Attribution comes from the assistant message
             // stamped at send time.
+            sendEvent("phase", { phase: "usage" })
             if (chatId && assistantMessageId && lastSnap.sessionId) {
               try {
                 const [chatRow, asstMsg] = await Promise.all([
@@ -316,6 +329,7 @@ export async function GET(req: Request) {
               })
 
               if (chat?.branch && chat.repo && chat.repo !== "__new__") {
+                sendEvent("phase", { phase: "pushing" })
                 pushInfo =
                   (await autoPushChat({
                     sandbox,
@@ -330,6 +344,7 @@ export async function GET(req: Request) {
               // push to, but the uncommitted-files banner still needs this
               // count so it can nudge the user to create a repo.
               if (chat) {
+                sendEvent("phase", { phase: "checking" })
                 const warning = await refreshUncommittedFilesWarning({
                   sandbox,
                   repoPath: sessionOpts.repoPath,
@@ -362,6 +377,7 @@ export async function GET(req: Request) {
             // Check conflict state to include in complete event
             // This allows the frontend to update the warning icon after agent resolves conflicts
             let conflictState: { inRebase: boolean; inMerge: boolean; conflictedFiles: string[] } | undefined
+            sendEvent("phase", { phase: "checking" })
             try {
               const rebaseCheck = await sandbox.process.executeCommand(
                 `test -d ${sessionOpts.repoPath}/.git/rebase-merge -o -d ${sessionOpts.repoPath}/.git/rebase-apply && echo "yes" || echo "no"`
@@ -406,6 +422,12 @@ export async function GET(req: Request) {
           }
 
           if (isStreamClosed) break
+          // Still running: hand over to a fresh connection (see STREAM_SELF_CLOSE_MS).
+          // No "complete" event, so the client just reconnects.
+          if (Date.now() - streamStartedAt >= STREAM_SELF_CLOSE_MS) {
+            closeStream()
+            break
+          }
 
           await new Promise((resolve) =>
             setTimeout(resolve, BACKEND_POLL_INTERVAL)

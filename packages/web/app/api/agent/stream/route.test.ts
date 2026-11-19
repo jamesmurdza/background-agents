@@ -43,6 +43,8 @@ describe("stream finalization durability", () => {
     expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ turn, finalizationClaimId: "claim" }))
     expect(mocks.release).toHaveBeenCalledWith(turn, "claim", "ready", undefined)
     expect(frames).toContain("event: complete")
+    const order = ['"phase":"cleaning"', '"phase":"usage"', '"phase":"checking"', "event: complete"].map((frame) => frames.indexOf(frame))
+    expect(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1]))).toBe(true)
     expect(mocks.persist.mock.invocationCallOrder[0]).toBeLessThan(mocks.finalize.mock.invocationCallOrder[0])
   })
   it("recovers a cancelled timeout as an error even when the SDK reports completed", async () => {
@@ -79,5 +81,36 @@ describe("stream finalization durability", () => {
     expect(mocks.release).not.toHaveBeenCalled()
     expect(frames).toContain("event: error")
     expect(frames).not.toContain("event: complete")
+  })
+})
+
+describe("stream self-close before the function time limit", () => {
+  const running = { status: "running", content: "partial", toolCalls: [], contentBlocks: [] }
+  it("closes without a complete event while the agent is still running, so the client reconnects", async () => {
+    vi.useFakeTimers()
+    mocks.snapshot.mockResolvedValue(running)
+    let ended = false
+    const reading = stream().then((frames) => { ended = true; return frames })
+    await vi.advanceTimersByTimeAsync(239_000)
+    expect(ended).toBe(false)
+    await vi.advanceTimersByTimeAsync(1_500)
+    expect(ended).toBe(true)
+    const frames = await reading
+    expect(frames).toContain('"content":"partial"')
+    expect(frames).not.toContain("event: complete")
+    expect(frames).not.toContain("event: error")
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(mocks.persist).toHaveBeenLastCalledWith(expect.objectContaining({ turn, finalizationClaimId: undefined }))
+  })
+  it("does not cut a finalization that started before the self-close point", async () => {
+    vi.useFakeTimers()
+    mocks.snapshot.mockImplementation(async () => Date.now() < 239_000 ? running : { ...running, status: "completed", content: "complete answer" })
+    mocks.finalize.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 30_000)))
+    vi.setSystemTime(0)
+    const reading = stream()
+    await vi.advanceTimersByTimeAsync(300_000)
+    const frames = await reading
+    expect(mocks.release).toHaveBeenCalledWith(turn, "claim", "ready", undefined)
+    expect(frames).toContain("event: complete")
   })
 })

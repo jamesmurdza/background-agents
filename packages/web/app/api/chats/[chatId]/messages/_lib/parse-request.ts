@@ -34,8 +34,10 @@ export async function parseMessageRequest(
     payload = (await req.json()) as MessagePayload
   }
 
+  // An attachment alone is a message: the composer can send just a file.
+  const hasPrompt = typeof payload.message === "string" && (payload.message !== "" || files.length > 0)
   if (
-    !payload.message ||
+    !hasPrompt ||
     !payload.agent ||
     !payload.model ||
     !payload.userMessageId ||

@@ -32,8 +32,9 @@ mechanism is needed.
 ## Adding a new predefined skill
 
 1. Create a new folder here, e.g. `packages/predefined-skills/my-skill/`.
-2. Add a `SKILL.md` with YAML frontmatter (`name`, `description` are
-   required — skills without a `description` are skipped by discovery).
+2. Add a `SKILL.md` with YAML frontmatter (`description` is required —
+   skills without a `description` are skipped by discovery; `name` is
+   optional and falls back to the directory name).
 3. Add whatever scripts the skill needs alongside it.
 4. If the skill needs new npm dependencies, add them to this package's
    `package.json` (`dependencies`), not a per-skill one, unless the skill

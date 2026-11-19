@@ -66,7 +66,7 @@ await sandbox.delete()
 | Codex | `codex exec --json --skip-git-repo-check --yolo -- "prompt"` |
 | Command Code | `commandcode --output-format json --skip-onboarding --trust --no-auto-update --yolo --model <model> -p "prompt"` |
 | Copilot | `copilot -p "prompt" --output-format=json --silent --autopilot` |
-| Droid | `droid exec --output-format stream-json --auto high -m <model> "prompt"` |
+| Droid | `droid exec --output-format stream-json --auto high -m custom:byok-0 "prompt"` (BYOK model is written to `~/.factory/settings.json`; `-m` only carries a model id directly for `factory/<id>` models) |
 | Gemini | `gemini --output-format stream-json --skip-trust --yolo -p "prompt"` |
 | Goose | `goose run --output-format stream-json --text "prompt"` |
 | Kilo | `kilo run --format json --auto -- "prompt" 2>&1` |
@@ -278,7 +278,7 @@ type Event =
 | **Claude** | `model: "sonnet"`, `model: "opus"`, `model: "haiku"` | [Claude Code](https://code.claude.com/docs/en/model-config#model-aliases) |
 | **Codex** | `model: "gpt-6.1-sol"` (Backgrounder default), `model: "gpt-6-astra"`, `model: "gpt-6-luna"`, `model: "gpt-5.5"`; `gpt-5.5` was retired from ChatGPT subscription sign-in, but is still available via `OPENAI_API_KEY` | [Codex CLI models](https://learn.chatgpt.com/docs/models) |
 | **Command Code** | `model: "xiaomi/mimo-v2.6-pro"`, `model: "claude-sonnet-5"`, `model: "deepseek/deepseek-v4-flash"` | [Command Code models](https://commandcode.ai/docs/reference/cli/models) |
-| **Copilot** | `model: "claude-sonnet-5"`, `model: "gpt-6.1-sol"`, `model: "gpt-5.6-terra"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
+| **Copilot** | `model: "claude-sonnet-5"`, `model: "gpt-6.1-sol"`, `model: "gpt-6.1-terra"` | [GitHub Copilot](https://docs.github.com/en/copilot) |
 | **Droid** | `model: "claude-sonnet-4-5-20250929"` (BYOK), `model: "gpt-5"`, `model: "factory/<id>"` (Factory-hosted) | [Factory Droid](https://docs.factory.ai/cli/) |
 | **Gemini** | `model: "gemini-3.5-flash-lite"`, `model: "gemini-3.8-flash"`, `model: "gemini-3.1-pro-preview"` | [Gemini CLI model](https://geminicli.com/docs/cli/model) |
 | **Goose** | `model: "gpt-4o"`, `model: "claude-sonnet-4-5"`, `model: "claude-opus-4-7"` | [Goose providers](https://goose-docs.ai/docs/getting-started/providers/) |
@@ -343,6 +343,8 @@ Pass the output as `CLAUDE_CODE_CREDENTIALS`. The SDK automatically writes it to
 The SDK sets `ENABLE_CLAUDEAI_MCP_SERVERS=false` by default, so connectors on that claude.ai account (Gmail, Drive, ...) aren't loaded into the session, and the agent only gets the MCP servers you configure. Pass `ENABLE_CLAUDEAI_MCP_SERVERS: "true"` in `env` to opt back in.
 
 It also sets `MCP_CONNECTION_NONBLOCKING=false`, so each run waits (up to `MCP_TIMEOUT`) for configured MCP servers to connect before the first model call, and `MCP_DISCOVERY_CACHE=false`, so a server's tool list is fetched fresh every run. Override either through `env`.
+
+It also sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0`, so every var you pass in `env` reaches the agent's Bash commands. Without it, runs using `CLAUDE_CODE_TOKEN_URL` would drop any var whose value looks like a credential, such as a `DATABASE_URL` with a password. Those runs start the CLI as a `local-agent`, which turns Claude Code's credential scrub on by default. Pass `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"` to turn the scrub back on. The CLI then also needs `bubblewrap` installed in the sandbox.
 
 ### Shared hosts: token recovery instead of a static credential
 

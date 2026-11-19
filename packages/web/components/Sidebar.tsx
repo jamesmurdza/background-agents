@@ -8,6 +8,7 @@ import Image from "next/image"
 import { usePalette } from "@/components/search-palette/PaletteProvider"
 import { cn } from "@/lib/utils"
 import { useClickOutside } from "@/lib/hooks/useClickOutside"
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock"
 import { useElectron } from "@/lib/hooks/useElectron"
 import { useGitHubUserQuery } from "@/lib/query"
 import { useModals, ALL_REPOSITORIES, NO_REPOSITORY, DEFAULT_CHAT_VISIBILITY_FILTERS, MIN_WIDTH, MAX_WIDTH, COLLAPSED_WIDTH, COLLAPSE_THRESHOLD, type ChatVisibilityFilters } from "@/lib/contexts"
@@ -312,16 +313,7 @@ export function Sidebar({
   }
 
   // Prevent body scroll when drawer is open
-  useEffect(() => {
-    if (isMobile && mobileOpen) {
-      document.body.style.overflow = "hidden"
-    } else {
-      document.body.style.overflow = ""
-    }
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [isMobile, mobileOpen])
+  useBodyScrollLock(isMobile && mobileOpen)
 
   // Mobile drawer rendering
   if (isMobile) {

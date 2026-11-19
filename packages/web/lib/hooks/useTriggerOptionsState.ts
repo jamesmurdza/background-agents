@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 import {
   UNIT_MINUTES,
   inferIntervalMode,
@@ -38,7 +39,7 @@ export function useTriggerOptionsState({ isRepoLess, open }: UseTriggerOptionsSt
   const [fieldErrors, setFieldErrors] = useState<ScheduledJobFormErrors>({})
 
   const [incomingToken, setIncomingToken] = useState<string | null>(null)
-  const [copiedUrl, setCopiedUrl] = useState(false)
+  const { copied: copiedUrl, copy: copyUrl } = useCopyToClipboard(1500)
   const [rotating] = useState(false)
 
   const timezoneName = useMemo(() => getTimezoneName(), [])
@@ -68,7 +69,6 @@ export function useTriggerOptionsState({ isRepoLess, open }: UseTriggerOptionsSt
     setContinueFromLastRun(false)
     setFieldErrors({})
     setIncomingToken(null)
-    setCopiedUrl(false)
   }, [open])
 
   // Mint the incoming token lazily, only once the trigger flips to
@@ -87,12 +87,7 @@ export function useTriggerOptionsState({ isRepoLess, open }: UseTriggerOptionsSt
 
   const handleCopyUrl = () => {
     if (!incomingWebhookUrl) return
-    navigator.clipboard.writeText(incomingWebhookUrl).then(() => {
-      setCopiedUrl(true)
-      setTimeout(() => setCopiedUrl(false), 1500)
-    }).catch((err) => {
-      console.error("[useTriggerOptionsState] copy failed:", err)
-    })
+    void copyUrl(incomingWebhookUrl)
   }
 
   // No server-side URL exists yet pre-save, so "rotate" here is just minting

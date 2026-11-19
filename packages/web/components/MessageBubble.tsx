@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, memo } from "react"
-import { GitMerge, FileText, AlertTriangle } from "lucide-react"
+import { GitMerge, FileText, AlertTriangle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Message } from "@/lib/types"
 import { basename } from "@/lib/format"
@@ -15,6 +15,8 @@ import {
 interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
+  /** Replaces the streaming dots, e.g. "Pushing to GitHub..." */
+  status?: string
   isMobile?: boolean
   repo?: string
   /** Called when the user clicks a tool-call row that references a file. */
@@ -23,9 +25,11 @@ interface MessageBubbleProps {
 
 // Memoized MessageBubble to prevent re-renders when parent (ChatPanel) re-renders
 // due to input changes. Only re-render when message content actually changes.
-export const MessageBubble = memo(function MessageBubble({ message, isStreaming, isMobile = false, repo, onOpenFile }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ message, isStreaming, status, isMobile = false, repo, onOpenFile }: MessageBubbleProps) {
   const isUser = message.role === "user"
   const hasUploadedFiles = isUser && message.uploadedFiles && message.uploadedFiles.length > 0
+  // A message can be just attachments; then only the file list shows.
+  const hasText = message.content.trim().length > 0
 
   return (
     <div
@@ -41,12 +45,14 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
       )}>
         {isUser ? (
           <div className="min-w-0">
-            <div className={cn(
-              "inline-block rounded-lg bg-muted text-foreground text-left max-w-full min-w-0",
-              isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
-            )}>
-              <MarkdownContent text={message.content} isMobile={isMobile} constrainWidth={false} />
-            </div>
+            {hasText && (
+              <div className={cn(
+                "inline-block rounded-lg bg-muted text-foreground text-left max-w-full min-w-0",
+                isMobile ? "px-3 py-2 text-base" : "px-4 py-2 text-[15px]"
+              )}>
+                <MarkdownContent text={message.content} isMobile={isMobile} constrainWidth={false} />
+              </div>
+            )}
             {/* Uploaded files display */}
             {hasUploadedFiles && (
               <div className={cn(
@@ -66,7 +72,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
             )}
           </div>
         ) : (
-          <AssistantContent message={message} isStreaming={isStreaming} isMobile={isMobile} repo={repo} onOpenFile={onOpenFile} />
+          <AssistantContent message={message} isStreaming={isStreaming} status={status} isMobile={isMobile} repo={repo} onOpenFile={onOpenFile} />
         )}
       </div>
     </div>
@@ -77,9 +83,11 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.content === nextProps.message.content &&
+    prevProps.message.uploadedFiles === nextProps.message.uploadedFiles &&
     prevProps.message.toolCalls === nextProps.message.toolCalls &&
     prevProps.message.contentBlocks === nextProps.message.contentBlocks &&
     prevProps.isStreaming === nextProps.isStreaming &&
+    prevProps.status === nextProps.status &&
     prevProps.isMobile === nextProps.isMobile &&
     prevProps.repo === nextProps.repo
     // Note: onOpenFile is a stable callback from parent
@@ -91,7 +99,7 @@ export const MessageBubble = memo(function MessageBubble({ message, isStreaming,
 // Assistant Content (with tool calls)
 // =============================================================================
 
-function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpenFile }: { message: Message; isStreaming?: boolean; isMobile?: boolean; repo?: string; onOpenFile?: (filePath: string) => void }) {
+function AssistantContent({ message, isStreaming, status, isMobile = false, repo, onOpenFile }: { message: Message; isStreaming?: boolean; status?: string; isMobile?: boolean; repo?: string; onOpenFile?: (filePath: string) => void }) {
   const hasContent = message.content && message.content.trim().length > 0
   const hasToolCalls = message.toolCalls && message.toolCalls.length > 0
   const hasBlocks = message.contentBlocks && message.contentBlocks.length > 0
@@ -183,12 +191,16 @@ function AssistantContent({ message, isStreaming, isMobile = false, repo, onOpen
         </>
       )}
 
-      {/* Streaming indicator */}
-      {isStreaming && (
+      {/* Streaming indicator, or what the server is doing once the agent is done */}
+      {isStreaming && (status ? (
+        <div data-testid="turn-status" className="animate-pulse">
+          <SystemMessage icon={Loader2} content={status} isMobile={isMobile} />
+        </div>
+      ) : (
         <div className="text-2xl text-muted-foreground animate-pulse">
           ...
         </div>
-      )}
+      ))}
     </div>
   )
 }

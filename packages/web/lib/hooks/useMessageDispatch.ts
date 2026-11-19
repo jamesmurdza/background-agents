@@ -188,7 +188,9 @@ export function useMessageDispatch({
       )
 
       const now = Date.now()
-      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now, metadata: { reasoningEffort: reasoningEffort ?? "default" } }
+      // Show the attachments' names until the server reports where it saved them.
+      const fileNames = files?.length ? files.map((file) => file.name) : undefined
+      const userMessage: Message = { id: nanoid(), role: "user", content, timestamp: now, uploadedFiles: fileNames, metadata: { reasoningEffort: reasoningEffort ?? "default" } }
       const assistantMessage: Message = { id: nanoid(), role: "assistant", content: "", timestamp: now + 1, toolCalls: [], contentBlocks: [] }
 
       // Optimistic update. Retry resends a prompt that just failed, so it
@@ -301,8 +303,10 @@ export function useMessageDispatch({
 
         startStreaming(chatId, data.sandboxId, "project", data.backgroundSessionId, assistantMessage.id, data.previewUrlPattern ?? undefined, data.branch, undefined, planMode)
 
-        if (isFirstMessage) {
-          suggestNameMutation.mutate({ chatId, prompt: content })
+        // A file-only first message is named after its files.
+        const titlePrompt = content || fileNames?.join(", ")
+        if (isFirstMessage && titlePrompt) {
+          suggestNameMutation.mutate({ chatId, prompt: titlePrompt })
         }
       } catch (error) {
         settlePendingSend()
