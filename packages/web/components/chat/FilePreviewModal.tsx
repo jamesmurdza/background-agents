@@ -12,6 +12,7 @@ import {
 } from "@/lib/file-preview"
 import type { PendingFile } from "@/lib/types"
 import { DismissButton } from "./DismissButton"
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock"
 
 interface FilePreviewModalProps {
   file: PendingFile
@@ -46,12 +47,7 @@ export function FilePreviewModal({ file, fileContent, onClose, onRemove, isMobil
   }, [onClose])
 
   // Prevent body scroll when modal is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
+  useBodyScrollLock(true)
 
   return (
     <div
