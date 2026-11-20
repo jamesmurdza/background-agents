@@ -8,6 +8,7 @@ import {
   getRangeDays,
   getRangeInterval,
   parseTimeRange,
+  windowFromEarliestDate,
 } from "@/lib/db/time-range"
 import { MICRO_PER_USD } from "@/lib/server/credits"
 
@@ -20,13 +21,7 @@ async function getAllTimeWindow(): Promise<{ interval: string; days: number }> {
   const earliest = await prisma.$queryRaw<Array<{ min: Date | null }>>`
     SELECT MIN("createdAt") as min FROM "CreditTransaction" WHERE type = 'purchase'
   `
-  const minDate = earliest[0]?.min
-  if (!minDate) {
-    return { interval: "1 day", days: 1 }
-  }
-  const diffMs = Date.now() - new Date(minDate).getTime()
-  const days = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
-  return { interval: `${days} days`, days }
+  return windowFromEarliestDate(earliest[0]?.min ?? null)
 }
 
 /**
