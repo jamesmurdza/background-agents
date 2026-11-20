@@ -6,6 +6,8 @@ import type { Chat } from "@/lib/types"
 import { DEFAULT_SETTINGS } from "@/lib/storage"
 import { useChatSyncStore } from "@/lib/stores/chat-sync-store"
 import { queryKeys } from "@/lib/query"
+import { applyQueueSnapshot } from "@/lib/queue-sync"
+import type { PromptQueueResponse } from "@/lib/sync/api"
 
 const mocks = vi.hoisted(() => ({ send: vi.fn(), fetchChat: vi.fn() }))
 vi.mock("./useServerQueue", () => ({ useServerQueue: () => ({ enqueueMessage: vi.fn(), removeQueuedMessage: vi.fn(), resumeQueue: vi.fn() }) }))
@@ -136,6 +138,21 @@ describe("direct-send failure ownership", () => {
     await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
     const retried = client.getQueryData<Chat[]>(queryKeys.chats.list())![0]
     expect(retried.messages.map((message) => message.content)).toEqual(["Original text"])
+  })
+
+  it("keeps a failed send's error through a queue poll until the next send", async () => {
+    mocks.send.mockRejectedValueOnce(new Error("Gateway error"))
+    mocks.fetchChat.mockRejectedValue(new Error("Still offline"))
+    const { dispatch, client } = setup()
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    // The server never saw the send, so it still reports the chat as ready.
+    const poll: PromptQueueResponse = { status: "ready", queuePaused: false, queuedMessages: [], sandboxId: null, backgroundSessionId: null, activeAssistantMessageId: null, updatedAt: 0 }
+    client.setQueryData<Chat[]>(queryKeys.chats.list(), (chats) => chats!.map((c) => applyQueueSnapshot(c, poll)))
+    expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({ status: "error", errorMessage: "Gateway error" })
+
+    mocks.send.mockResolvedValueOnce({ ok: true, data: { sandboxId: "sandbox-1", backgroundSessionId: "background-1", uploadedFiles: [], branch: null, previewUrlPattern: null } })
+    await dispatch.sendMessage("Next text", "eliza", "eliza-classic-1.0")
+    expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({ status: "running", errorMessage: undefined, failedSendMessageId: undefined })
   })
 
   it.each([
