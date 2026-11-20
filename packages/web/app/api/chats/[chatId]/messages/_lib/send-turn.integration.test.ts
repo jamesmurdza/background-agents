@@ -42,11 +42,23 @@ it.skipIf(!process.env.DATABASE_URL)("retains the saved turn through an uncertai
   const chat = await prisma.chat.create({ data: { userId, repo: "__new__", status: "ready", sandboxId: "isolated-test" } })
   const first = payload("First")
   launch.nextId = randomUUID()
-  launch.start.mockRejectedValueOnce(new Error("launch response lost after execution may have started"))
-  expect((await sendChatTurn({ userId, chatId: chat.id, payload: first, files: [] })).status).toBe(500)
+  const reason = "Could not start sandbox job: Launch response lost after execution may have started"
+  launch.start.mockRejectedValueOnce(new Error(reason))
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+  try {
+    const response = await sendChatTurn({ userId, chatId: chat.id, payload: first, files: [] })
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: reason })
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining(reason))
+  } finally {
+    logged.mockRestore()
+  }
   const saved = await prisma.chat.findUniqueOrThrow({ where: { id: chat.id } })
   expect(saved).toMatchObject({ status: "running", backgroundSessionId: launch.nextId, activeAssistantMessageId: first.assistantMessageId, sandboxId: "isolated-test" })
   expect(await prisma.message.count({ where: { chatId: chat.id } })).toBe(2)
+  expect(await prisma.message.findUniqueOrThrow({ where: { id: first.assistantMessageId } })).toMatchObject({
+    metadata: { launchError: reason },
+  })
   expect((await sendChatTurn({ userId, chatId: chat.id, payload: payload("Second"), files: [] })).status).toBe(409)
   expect(launch.start).toHaveBeenCalledTimes(1)
 })

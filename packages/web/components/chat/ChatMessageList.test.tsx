@@ -181,6 +181,15 @@ describe("rebase-suggestion banner", () => {
 })
 
 describe("chat execution presentation", () => {
+  it.each(["", "Agent reply"])("shows a launch error while the active turn has no output (%j)", content => {
+    const launchError = "Could not start sandbox job (exit code 1): Read-only file system"
+    const html = renderWarning(0, false, { status: "running", activeAssistantMessageId: "reply", messages: [
+      { id: "reply", role: "assistant", content, timestamp: 2, metadata: { launchError } },
+    ] })
+    expect(html.includes(launchError)).toBe(!content)
+    expect(html).not.toContain('data-testid="chat-error-retry"')
+  })
+
   it.each([false, true])("offers model selection without replaying an unsupported turn (persisted=%s)", persisted => {
     const reason = "400 invalid_request_error: The model is not supported. private-provider-detail"
     const html = renderWarning(0, false, { status: "error", errorMessage: persisted ? undefined : reason,
