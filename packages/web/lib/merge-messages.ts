@@ -22,9 +22,10 @@ export function mergeMessages(existing: Message[], incoming: Message[]): Message
     const incomingFailure = message.role === "assistant"
       ? readFailureMarker(message.metadata?.turnFinalization, message.id) : undefined
     const failure = selected.role === "assistant" ? mergeFailureMarkers(previousFailure, incomingFailure) : undefined
-    messages.set(message.id, failure ? {
+    const launchError = selected.role === "assistant" ? message.metadata?.launchError ?? previous.metadata?.launchError : undefined
+    messages.set(message.id, failure || launchError ? {
       ...selected,
-      metadata: { ...selected.metadata, turnFinalization: failure },
+      metadata: { ...selected.metadata, ...(failure && { turnFinalization: failure }), ...(launchError && { launchError }) },
     } : selected)
   }
   return Array.from(messages.values()).sort((a, b) => a.timestamp - b.timestamp)

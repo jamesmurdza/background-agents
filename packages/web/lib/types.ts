@@ -67,6 +67,8 @@ export type MessageAction = "force-push" | "view-pr" | "view-branch" | "rebase"
 /** Metadata for git-operation messages */
 export interface MessageMetadata {
   reasoningEffort?: string
+  /** Diagnostic from start() while execution is still unconfirmed. */
+  launchError?: string
   /** Confirmed execution outcome, persisted by the server finalizer. */
   turnFinalization?: {
     state: string

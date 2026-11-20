@@ -11,6 +11,7 @@ import { creditBudgetExhausted, CREDIT_GUARD_STOP_REASON } from "./_lib/credit-g
 import { monitorAgent, stopAgent } from "./_lib/monitor"
 import { startJobExecution, finalizeScheduledRun, failScheduledRun } from "./_lib/scheduled"
 import { finalizeInteractiveChat, markChatError, stopInteractiveChat } from "./_lib/interactive"
+import { TURN_STARTUP_TIMEOUT_REASON } from "@/lib/turn-failure-marker"
 
 // maxDuration configures the timeout for this Vercel function. Vercel Pro
 // plan allows up to 5 minutes for cron jobs.
@@ -223,7 +224,7 @@ export async function GET(req: Request) {
           const preparedAt = snapshot.startupPreparedAt
           if (typeof preparedAt === "number" && Number.isFinite(preparedAt) &&
               now.getTime() - preparedAt >= PREPARED_LAUNCH_TIMEOUT_MS) {
-            if (await stopInteractiveChat(chat, "Agent startup timed out. Please send your prompt again.", daytona, { onlyIfStartupPending: true })) {
+            if (await stopInteractiveChat(chat, TURN_STARTUP_TIMEOUT_REASON, daytona, { onlyIfStartupPending: true })) {
               results.timedOutInteractive++
             }
           }

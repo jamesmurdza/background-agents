@@ -71,6 +71,11 @@ type MessageRow = Awaited<ReturnType<typeof prisma.message.findFirst>>
 
 /** Map + sanitize a DB message row into a public SharedMessage. */
 function toSharedMessage(m: NonNullable<MessageRow>, inherited = false): SharedMessage {
+  let metadata = m.metadata
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata) && "launchError" in metadata) {
+    const { launchError: _launchError, ...publicMetadata } = metadata
+    metadata = publicMetadata
+  }
   return {
     id: inherited ? `inherited-${m.id}` : m.id,
     role: m.role,
@@ -82,7 +87,7 @@ function toSharedMessage(m: NonNullable<MessageRow>, inherited = false): SharedM
     contentBlocks: sanitizeContentBlocks(m.contentBlocks),
     uploadedFiles: m.uploadedFiles,
     linkBranch: m.linkBranch,
-    metadata: m.metadata,
+    metadata,
     agent: m.agent,
     model: m.model,
     ...(inherited && { inherited: true }),

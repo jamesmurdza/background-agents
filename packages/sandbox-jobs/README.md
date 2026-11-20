@@ -146,6 +146,10 @@ returns `null` only for an absent record; corrupt records and failed reads
 throw. Custom `SandboxJobs` implementations must provide `abort()` and
 `isAborted()` with the same launch-fencing guarantees.
 
+Failed sandbox operations report the operation, the shell exit code when
+available, and sandbox diagnostics with credential redaction. A failed launch
+acknowledgement still leaves the attempt's execution state uncertain.
+
 ## Tests
 
 ```bash

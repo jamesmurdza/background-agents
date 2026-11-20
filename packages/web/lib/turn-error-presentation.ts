@@ -1,5 +1,5 @@
 import type { Chat } from "./types"
-import { readFailureMarker } from "./turn-failure-marker"
+import { readFailureMarker, TURN_STARTUP_TIMEOUT_REASON } from "./turn-failure-marker"
 
 export function unsupportedModelFailure(reason: string | undefined): string | undefined {
   if (reason && /\bmodel\b(?:\s+['"]?[\w./:-]+['"]?)?\s+(?:is\s+)?not\s+supported\b|unsupported\s+model/i.test(reason)) {
@@ -30,6 +30,9 @@ export function persistedProviderFailure(chat: Chat): string | undefined {
   const message = latestFailedAssistant(chat)
   const marker = message?.metadata?.turnFinalization
   if (!marker) return
+  if (marker.reason === TURN_STARTUP_TIMEOUT_REASON && message.metadata?.launchError) {
+    return message.metadata.launchError
+  }
   if (/ProviderHeaderTimeoutError|provider response headers timed out/i.test(marker.reason)) {
     return "The model provider did not respond in time. Try again, or choose another model before retrying."
   }
