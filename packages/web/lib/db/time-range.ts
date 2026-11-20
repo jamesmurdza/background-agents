@@ -73,3 +73,18 @@ export function getBucketStep(bucket: Bucket): string {
       return "1 day"
   }
 }
+
+/**
+ * For the "all" range there is no fixed window, so derive the interval/days
+ * dynamically from the earliest relevant row (e.g. the earliest ActivityLog
+ * entry, or the earliest purchase). Falls back to 1 day when `minDate` is
+ * null (no rows yet).
+ */
+export function windowFromEarliestDate(minDate: Date | null): { interval: string; days: number } {
+  if (!minDate) {
+    return { interval: "1 day", days: 1 }
+  }
+  const diffMs = Date.now() - new Date(minDate).getTime()
+  const days = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
+  return { interval: `${days} days`, days }
+}
