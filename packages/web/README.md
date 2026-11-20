@@ -47,10 +47,6 @@ key as admin grants to prevent repeat or concurrent claims.
 
 ## Usage
 
-If a sandbox command fails while launching an agent, the chat and server logs
-show the sandbox diagnostic when available. While launch is unconfirmed, the
-chat retains the turn so it can be recovered or stopped safely.
-
 ### Development
 
 Run the web app locally against a local Postgres database. Set the following in `.env.local` **at the repo root** (the `npm` scripts below are root scripts that load it):
