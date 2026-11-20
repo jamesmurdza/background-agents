@@ -161,6 +161,7 @@ export function applyOptimisticSend(
     lastActiveAt: now,
     errorMessage: undefined,
     errorKind: undefined,
+    failedSendMessageId: undefined,
   }
 }
 

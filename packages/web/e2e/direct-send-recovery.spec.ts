@@ -8,7 +8,8 @@ test.use({ navigationTimeout: 60_000 })
 
 // Controlled HTTP outcomes with the real UI and database. No sandbox/model is
 // started; these checks do not stand in for a live provider failure reproduction.
-test("a first send rejected by the server stays on screen with Retry and is not resent", async ({ page, context }) => {
+// The server either records the failed turn or never sees the send (e.g. a 400 or a lost request).
+for (const serverRecordsFailure of [true, false]) test(`a first send rejected by the server stays on screen with Retry and is not resent (${serverRecordsFailure ? "server records the failure" : "server never saw it"})`, async ({ page, context }) => {
   await setupTestAuth(page, context)
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) })
   let chatId: string | undefined
@@ -20,7 +21,7 @@ test("a first send rejected by the server stays on screen with Retry and is not 
     await page.route(`**/api/chats/${chatId}/messages`, async (route) => {
       if (route.request().method() !== "POST") return route.continue()
       sends++
-      await db.chat.update({ where: { id: chatId! }, data: { status: "error" } })
+      if (serverRecordsFailure) await db.chat.update({ where: { id: chatId! }, data: { status: "error" } })
       await route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"Sandbox quota exceeded"}' })
     })
     await page.goto(`/chat/${chatId}`)
@@ -32,6 +33,8 @@ test("a first send rejected by the server stays on screen with Retry and is not 
     // Still there after the next queue poll, and never sent again on its own.
     await page.waitForTimeout(6_000)
     await expect(page.getByText("Original first prompt 11901", { exact: true })).toBeVisible()
+    await expect(page.getByText("Sandbox quota exceeded")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible()
     expect(sends).toBe(1)
     expect(await db.message.count({ where: { chatId } })).toBe(0)
   } finally {

@@ -66,6 +66,21 @@ export function withoutMessageProgress(remote: PromptQueueResponse): PromptQueue
   return { ...remote, messageCount: undefined, lastMessageId: undefined }
 }
 
+/**
+ * A direct send that failed before the server saved it exists only in this
+ * browser, so the server still reports the chat as it was. Keep its error
+ * until the next send, or until the server starts or saves a newer turn.
+ */
+export function keepsFailedSend(chat: Chat, next: {
+  status: Chat["status"]
+  activeAssistantMessageId?: string | null
+  lastMessageId?: string | null
+}): boolean {
+  return !!chat.failedSendMessageId && !next.activeAssistantMessageId &&
+    (next.status === "ready" || next.status === "pending" || next.status === "error") &&
+    (next.lastMessageId ?? chat.lastMessageId) === chat.lastMessageId
+}
+
 /** Error text is local, but must not disappear on a poll or leak to a new turn. */
 export function snapshotFailure(chat: Chat, next: {
   status: Chat["status"]
@@ -73,6 +88,9 @@ export function snapshotFailure(chat: Chat, next: {
   lastMessageId?: string | null
   backgroundSessionId?: string | null
 }) {
+  if (keepsFailedSend(chat, next)) {
+    return { errorMessage: chat.errorMessage, errorKind: chat.errorKind, failedSendMessageId: chat.failedSendMessageId }
+  }
   const previousOwner = chat.activeAssistantMessageId || chat.lastMessageId || chat.messages.at(-1)?.id
   const nextOwner = next.activeAssistantMessageId || next.lastMessageId
   const sameTurn = nextOwner ? nextOwner === previousOwner :
@@ -80,7 +98,7 @@ export function snapshotFailure(chat: Chat, next: {
   const keep = !chat.pendingSend && sameTurn &&
     (chat.status === "error" || chat.status === "disconnected") &&
     (next.status === "error" || next.status === "disconnected")
-  return { errorMessage: keep ? chat.errorMessage : undefined, errorKind: keep ? chat.errorKind : undefined }
+  return { errorMessage: keep ? chat.errorMessage : undefined, errorKind: keep ? chat.errorKind : undefined, failedSendMessageId: undefined }
 }
 
 export function applyQueueSnapshot(
@@ -105,7 +123,7 @@ export function applyQueueSnapshot(
   return {
     ...chat,
     updatedAt: state.updatedAt ?? chat.updatedAt,
-    status: awaitingSend ? chat.status : state.status,
+    status: awaitingSend || keepsFailedSend(chat, state) ? chat.status : state.status,
     queuePaused: state.queuePaused,
     queuedMessages: (state.queuedMessages ?? []).filter((item) => !item.userMessageId || !ids.has(item.userMessageId)),
     sandboxId: state.sandboxId,

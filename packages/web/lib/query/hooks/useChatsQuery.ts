@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { queryKeys } from "../keys"
 import { fetchChats, toChatType } from "@/lib/sync/api"
 import type { Chat } from "@/lib/types"
-import { applyQueueSnapshot, loadQueueMessages, needsChatListMessages, snapshotFailure } from "@/lib/queue-sync"
+import { applyQueueSnapshot, keepsFailedSend, loadQueueMessages, needsChatListMessages, snapshotFailure } from "@/lib/queue-sync"
 
 /**
  * Fetches the list of all chats for the current user.
@@ -51,7 +51,7 @@ export function useChatsQuery() {
         return applyQueueSnapshot({
           ...chat, messages: latest.messages, messagesSyncedAt: latest.messagesSyncedAt, pendingSend: latest.pendingSend, stopPending: latest.stopPending, turnPhase: latest.turnPhase,
           pendingSendAssistantMessageId: latest.pendingSendAssistantMessageId,
-          status: latest.pendingSend ? latest.status : chat.status,
+          status: latest.pendingSend || keepsFailedSend(latest, detail ?? chat) ? latest.status : chat.status,
           activeAssistantMessageId: latest.pendingSend ? latest.activeAssistantMessageId : chat.activeAssistantMessageId,
           ...snapshotFailure(latest, detail ?? chat),
           recoverableAssistantMessageId: (detail?.updatedAt ?? chat.updatedAt) === latest.updatedAt ? latest.recoverableAssistantMessageId : undefined,
