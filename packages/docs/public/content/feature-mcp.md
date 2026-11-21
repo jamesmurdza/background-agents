@@ -4,7 +4,7 @@ Model Context Protocol (MCP) servers give agents **extra tools** beyond editing 
 
 You can attach:
 
-- **Vendors' own hosted servers**: Linear, Notion, Sentry, Atlassian (Jira and Confluence), Supabase, Neon, Cloudflare, Hugging Face, monday.com, Exa, Paddle and Context7. You sign in to each one with that vendor's own login.
+- **Vendors' own hosted servers**: Linear, Notion, Sentry, Atlassian (Jira and Confluence), Supabase, Neon, Cloudflare, Hugging Face, monday.com, Exa, Paddle, Context7 and Vercel. You sign in to each one with that vendor's own login.
 - **Gmail**, through our own server, which limits what the agent can do with your mail.
 - **GitHub**, through our GitHub App.
 
@@ -33,7 +33,7 @@ MCP isn't just for interactive chats. Attach a server to a [scheduled or trigger
 
 ## Setup
 
-Vendor servers need one secret on the deployment, `MCP_OAUTH_STATE_SECRET`; there's nothing to register per vendor. GitHub and Gmail have their own setup. See the [mcp package README](https://github.com/jamesmurdza/background-agents/tree/main/packages/mcp) for details.
+Vendor servers need `MCP_OAUTH_STATE_SECRET` on the deployment. For Vercel, set `NEXTAUTH_URL` to your public HTTPS app URL so Vercel can fetch its OAuth client metadata. GitHub and Gmail have their own setup. See the [mcp package README](https://github.com/jamesmurdza/background-agents/tree/main/packages/mcp) for details.
 
 ## Next
 

@@ -15,10 +15,9 @@
 import { requireAuth, isAuthError, internalError, notFound, serverConfigError } from "@/lib/db/api-helpers"
 import { findMcpVendor } from "@background-agents/mcp"
 import {
-  MCP_OAUTH_CONFIG_VARS,
   disconnectVendor,
   isVendorConnected,
-  isVendorOAuthConfigured,
+  missingVendorOAuthConfig,
 } from "@/lib/mcp/vendors"
 
 type Params = { params: Promise<{ vendor: string }> }
@@ -29,7 +28,8 @@ export async function GET(_req: Request, { params }: Params): Promise<Response> 
   const { vendor: slug } = await params
   const vendor = findMcpVendor(slug)
   if (!vendor) return notFound("Unknown MCP vendor")
-  if (!isVendorOAuthConfigured()) return serverConfigError(MCP_OAUTH_CONFIG_VARS)
+  const missingConfig = missingVendorOAuthConfig(vendor)
+  if (missingConfig) return serverConfigError(missingConfig)
 
   try {
     if (await isVendorConnected(auth.userId, vendor)) {

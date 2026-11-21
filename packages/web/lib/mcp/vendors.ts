@@ -1,7 +1,7 @@
 /**
  * Vendor-hosted MCP servers (Linear, Notion, Sentry, ...) for the web app.
  *
- * - One OAuth client per vendor + redirect URI, registered the first time
+ * - One OAuth client per vendor + redirect URI, saved the first time
  *   anyone connects and shared by every user (McpOAuthClient).
  * - Each user's tokens in McpCredential, keyed by the vendor's slug.
  * - An access-token getter for agent runs that reuses the stored token while
@@ -23,9 +23,9 @@ import {
   type VendorOAuth,
 } from "@background-agents/mcp"
 import { deleteMcpCredential, findMcpCredential, saveMcpCredential } from "./credentials"
+import { vercelClientMetadata } from "@/app/api/mcp/vercel/client-metadata.json/client-metadata"
 
-/** For serverConfigError when the state secret isn't set. */
-export const MCP_OAUTH_CONFIG_VARS = "MCP_OAUTH_STATE_SECRET"
+const MCP_OAUTH_CONFIG_VARS = "MCP_OAUTH_STATE_SECRET"
 
 /** Name shown on the vendor's consent screen. */
 const CLIENT_NAME = "Backgrounder"
@@ -36,8 +36,10 @@ const REFRESH_LOCK_MS = 30_000
 const WAIT_STEP_MS = 500
 const MAX_WAIT_MS = 15_000
 
-export function isVendorOAuthConfigured(): boolean {
-  return !!process.env.MCP_OAUTH_STATE_SECRET
+export function missingVendorOAuthConfig(vendor: McpVendor): string | null {
+  if (!process.env.MCP_OAUTH_STATE_SECRET) return MCP_OAUTH_CONFIG_VARS
+  if (vendor.slug === "vercel" && !vercelClientMetadata()) return "NEXTAUTH_URL (public HTTPS URL)"
+  return null
 }
 
 function appBaseUrl(): string {
@@ -78,11 +80,18 @@ function clientWhere(vendor: McpVendor) {
   return { vendor_redirectUri: { vendor: vendor.slug, redirectUri: vendorRedirectUri(vendor) } }
 }
 
-async function getOrRegisterClient(vendor: McpVendor): Promise<OAuthClient> {
+async function getOrCreateClient(vendor: McpVendor): Promise<OAuthClient> {
   const existing = await prisma.mcpOAuthClient.findUnique({ where: clientWhere(vendor) })
   if (existing) return toOAuthClient(existing)
 
-  const client = await getVendorOAuth().registerClient(vendor, { redirectUri: vendorRedirectUri(vendor) })
+  let client: OAuthClient
+  if (vendor.slug === "vercel") {
+    const metadata = vercelClientMetadata()
+    if (!metadata) throw new Error("Vercel MCP requires a public HTTPS NEXTAUTH_URL")
+    client = { clientId: metadata.client_id, clientSecret: null, authMethod: metadata.token_endpoint_auth_method }
+  } else {
+    client = await getVendorOAuth().registerClient(vendor, { redirectUri: vendorRedirectUri(vendor) })
+  }
   try {
     await prisma.mcpOAuthClient.create({
       data: {
@@ -95,7 +104,7 @@ async function getOrRegisterClient(vendor: McpVendor): Promise<OAuthClient> {
     })
     return client
   } catch (error) {
-    // Someone else registered at the same moment; use theirs.
+    // Another request saved a client at the same moment; use that one.
     const raced = await prisma.mcpOAuthClient.findUnique({ where: clientWhere(vendor) })
     if (raced) return toOAuthClient(raced)
     throw error
@@ -104,7 +113,7 @@ async function getOrRegisterClient(vendor: McpVendor): Promise<OAuthClient> {
 
 /**
  * The server no longer knows our client (e.g. the vendor deleted it). Drop it
- * so the next connect registers a new one. Its users' credentials go with it
+ * so the next connect sets up the client again. Its users' credentials go with it
  * (cascade): those grants were issued to the dead client and can't be used.
  */
 async function forgetRejectedClient(error: unknown, clientRowId: string): Promise<void> {
@@ -117,9 +126,11 @@ export async function isVendorConnected(userId: string, vendor: McpVendor): Prom
   return !!(await findMcpCredential(userId, vendor.slug))
 }
 
-/** The vendor's consent URL for this user. Registers our client if needed. */
+/** The vendor's consent URL for this user. Sets up our client if needed. */
 export async function startVendorConnect(userId: string, vendor: McpVendor): Promise<string> {
-  const client = await getOrRegisterClient(vendor)
+  const missingConfig = missingVendorOAuthConfig(vendor)
+  if (missingConfig) throw new Error(`Missing ${missingConfig}`)
+  const client = await getOrCreateClient(vendor)
   return getVendorOAuth().authorizationUrl(vendor, client, {
     redirectUri: vendorRedirectUri(vendor),
     userId,

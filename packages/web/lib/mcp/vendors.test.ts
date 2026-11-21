@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   rows: [] as TokenRow[],
   refresh: vi.fn(),
   deleteClients: vi.fn(),
+  createClient: vi.fn(),
+  registerClient: vi.fn(),
+  authorizationUrl: vi.fn(),
 }))
 
 vi.mock("@/lib/db/encryption", () => ({
@@ -60,18 +63,27 @@ vi.mock("@/lib/db/prisma", () => {
           return { count: before - mocks.rows.length }
         }),
       },
-      mcpOAuthClient: { deleteMany: mocks.deleteClients },
+      mcpOAuthClient: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: mocks.createClient,
+        deleteMany: mocks.deleteClients,
+      },
     },
   }
 })
 
 vi.mock("@background-agents/mcp", async (original) => ({
   ...(await original<typeof import("@background-agents/mcp")>()),
-  createVendorOAuth: () => ({ refresh: mocks.refresh }),
+  createVendorOAuth: () => ({
+    refresh: mocks.refresh,
+    registerClient: mocks.registerClient,
+    authorizationUrl: mocks.authorizationUrl,
+  }),
 }))
 
 import { findMcpVendor, McpOAuthError } from "@background-agents/mcp"
-import { getVendorAccessToken } from "./vendors"
+import { GET as getVercelClientMetadata } from "@/app/api/mcp/vercel/client-metadata.json/route"
+import { getVendorAccessToken, startVendorConnect } from "./vendors"
 
 const linear = findMcpVendor("linear")!
 const HOUR = 60 * 60 * 1000
@@ -96,6 +108,37 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, "error").mockImplementation(() => {})
   vi.stubEnv("MCP_OAUTH_STATE_SECRET", "test-secret")
+})
+
+describe("startVendorConnect", () => {
+  it("uses the public Vercel metadata URL as the client ID and advertises the exact callback URI", async () => {
+    const vendor = findMcpVendor("vercel")!
+    vi.stubEnv("NEXTAUTH_URL", "https://agents.example.com/")
+    try {
+      const response = getVercelClientMetadata()
+      expect(response.status).toBe(200)
+      const clientId = "https://agents.example.com/api/mcp/vercel/client-metadata.json"
+      const redirectUri = "https://agents.example.com/api/mcp/connect/vercel/callback"
+      expect(await response.json()).toMatchObject({
+        client_id: clientId,
+        redirect_uris: [redirectUri],
+        token_endpoint_auth_method: "none",
+      })
+
+      await startVendorConnect("user-1", vendor)
+      expect(mocks.registerClient).not.toHaveBeenCalled()
+      expect(mocks.createClient).toHaveBeenCalledWith({
+        data: { vendor: "vercel", redirectUri, clientId, clientSecretEncrypted: null, authMethod: "none" },
+      })
+      expect(mocks.authorizationUrl).toHaveBeenCalledWith(
+        vendor,
+        { clientId, clientSecret: null, authMethod: "none" },
+        { redirectUri, userId: "user-1" }
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })
 
 describe("getVendorAccessToken", () => {
