@@ -239,6 +239,9 @@ export interface Chat {
   pendingSend?: boolean
   /** Assistant identity owning this browser's outstanding direct-send POST. */
   pendingSendAssistantMessageId?: string
+  /** Client-only: this browser's direct send that failed before the server
+   *  saved it. Its error stays until the next send or until the server moves on. */
+  failedSendMessageId?: string
 
   /** Server-confirmed terminal failure eligible for explicit queue continuation. */
   recoverableAssistantMessageId?: string

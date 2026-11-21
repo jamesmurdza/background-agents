@@ -28,6 +28,18 @@ describe("queue presentation across server transitions", () => {
     expect(applyQueueSnapshot(failed, { ...snapshot, lastMessageId: "another-reply" }).errorMessage).toBeUndefined()
     expect(applyQueueSnapshot(failed, { ...remote, lastMessageId: "new-reply" }).errorKind).toBeUndefined()
   })
+  it("keeps an unsaved failed send's error through polls until the server moves on", () => {
+    const failed = { ...chat, status: "error", backgroundSessionId: undefined, activeAssistantMessageId: "never-saved",
+      lastMessageId: "previous-reply", errorMessage: "Failed to send message (HTTP 500)", failedSendMessageId: "unsaved" } as Chat
+    const unchanged = { ...remote, status: "ready", backgroundSessionId: null,
+      activeAssistantMessageId: null, lastMessageId: "previous-reply" } as PromptQueueResponse
+    expect(applyQueueSnapshot(failed, unchanged)).toMatchObject({ status: "error", errorMessage: "Failed to send message (HTTP 500)", failedSendMessageId: "unsaved" })
+    // A poll that skipped the history read carries no last message id.
+    expect(applyQueueSnapshot(failed, { ...unchanged, lastMessageId: undefined }).status).toBe("error")
+    for (const moved of [remote, { ...unchanged, lastMessageId: "newer-reply" }]) {
+      expect(applyQueueSnapshot(failed, moved)).toMatchObject({ status: moved.status, errorMessage: undefined, failedSendMessageId: undefined })
+    }
+  })
   it("loads messages before dropping a queue item or adopting a new active turn", () => {
     expect(needsQueueMessages(chat, { ...remote, backgroundSessionId: "turn", activeAssistantMessageId: "assistant-1" })).toBe(true)
     expect(needsQueueMessages({ ...chat, backgroundSessionId: "old" }, { queuedMessages: [], backgroundSessionId: undefined })).toBe(true)

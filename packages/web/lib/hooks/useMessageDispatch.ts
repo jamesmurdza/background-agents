@@ -317,7 +317,7 @@ export function useMessageDispatch({
           if (c.id !== chatId || (c.activeAssistantMessageId && c.activeAssistantMessageId !== assistantMessage.id)) return c
           const reply = c.messages.find((message) => message.id === assistantMessage.id)
           if (reply?.content || reply?.toolCalls?.length) return c
-          return { ...c, status: "error", pendingSend: false, errorMessage,
+          return { ...c, status: "error", pendingSend: false, errorMessage, failedSendMessageId: userMessage.id,
             messages: c.messages.filter((message) => message.id !== assistantMessage.id) }
         }))
         // The response may have been lost after the server saved the turn. If it
