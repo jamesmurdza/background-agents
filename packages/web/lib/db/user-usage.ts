@@ -147,7 +147,7 @@ function dayKey(date: Date): string {
  * Every calendar day in the window, oldest first, so quiet days render as gaps
  * in the chart rather than disappearing and compressing the time axis.
  */
-function denseDays(days: number): string[] {
+export function denseDays(days: number): string[] {
   const out: string[] = []
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)

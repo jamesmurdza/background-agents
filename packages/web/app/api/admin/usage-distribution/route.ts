@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db/prisma"
 import { requireAdmin, isAuthError } from "@/lib/db/api-helpers"
 import { getRangeInterval, parseFiniteTimeRange } from "@/lib/db/time-range"
+import { denseDays } from "@/lib/db/user-usage"
 
 // Providers backed by a shared credential pool. Fixed whitelist — the value is
 // bound as a query parameter, never interpolated.
@@ -240,17 +241,7 @@ export async function GET(request: NextRequest) {
   // longer ranges use one slot per day, as before.
   const timeKeys: string[] = isHourly
     ? Array.from({ length: 24 }, (_, h) => String(h))
-    : (() => {
-        const dayCount = range === "7d" ? 7 : 30
-        const today = new Date()
-        const out: string[] = []
-        for (let i = dayCount - 1; i >= 0; i--) {
-          const d = new Date(today)
-          d.setUTCDate(d.getUTCDate() - i)
-          out.push(d.toISOString().split("T")[0])
-        }
-        return out
-      })()
+    : denseDays(range === "7d" ? 7 : 30)
 
   // --- poolSplit: one row per time slot per metric ---------------------------
   const makeSplit = (metric: "tokens" | "cost") => {
