@@ -42,11 +42,8 @@ export async function POST(req: Request) {
 
     await ensureSandboxStarted(sandbox)
 
-    // Sandboxes created before zip was added to the image don't have it, so
-    // install it the first time (a few seconds).
-    const ensureZip = "command -v zip >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends zip)"
     // Create zip file in /tmp, excluding .git and node_modules
-    const zipCmd = `${ensureZip} && cd "${PATHS.PROJECT_DIR}" && zip -r "${tempZipPath}" . -x ".git/*" -x "node_modules/*" -x ".git" -x "node_modules"`
+    const zipCmd = `cd "${PATHS.PROJECT_DIR}" && zip -r "${tempZipPath}" . -x ".git/*" -x "node_modules/*" -x ".git" -x "node_modules"`
     const zipResult = await sandbox.process.executeCommand(zipCmd, undefined, undefined, 120)
 
     if (zipResult.exitCode !== 0) {
