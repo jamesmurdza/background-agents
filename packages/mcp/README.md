@@ -22,7 +22,7 @@ npm install @background-agents/mcp
 
 ## Vendor servers
 
-These vendors host their own MCP server and let a new app register itself as an OAuth client, so you don't set anything up with them first:
+These vendors host their own MCP servers and support OAuth clients without manual registration:
 
 | Vendor | Slug | The agent can |
 |--|--|--|
@@ -38,8 +38,9 @@ These vendors host their own MCP server and let a new app register itself as an 
 | Exa | `exa` | Search the web and fetch pages |
 | Context7 | `context7` | Look up current library documentation |
 | Paddle | `paddle` | Work with billing, subscriptions and customers |
+| Vercel | `vercel` | Inspect projects, deployments and logs |
 
-Each one was tested with a real login. Not listed: Figma, Intercom, Vercel and Canva only accept clients or redirect URIs they've approved, and Slack, Asana, HubSpot and Google need an app registered with them by hand.
+The vendors other than Vercel use dynamic client registration via `oauth.registerClient`. For [Vercel](https://vercel.com/docs/agent-resources/vercel-mcp#client-identification-with-cimd), serve a public HTTPS Client ID Metadata Document containing your redirect URI. Pass `{ clientId: metadataUrl, clientSecret: null, authMethod: "none" }` to the OAuth methods below. Backgrounder serves this document automatically at `<NEXTAUTH_URL>/api/mcp/vercel/client-metadata.json` when `NEXTAUTH_URL` is HTTPS.
 
 ### Connect a user
 

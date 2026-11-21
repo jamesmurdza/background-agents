@@ -1,12 +1,8 @@
 /**
  * Vendors whose own hosted MCP server we connect to directly over OAuth.
  *
- * Each one was checked with a real login: its authorization server lets a
- * new client register itself (dynamic client registration), so connecting
- * needs no OAuth app set up by hand. Vendors that only accept approved
- * clients or redirect URIs (Figma, Intercom, and Vercel and Canva, which only
- * allow localhost without approval) or need an app registered with them
- * (e.g. Slack) aren't listed.
+ * Most vendors use dynamic client registration. Vercel uses a public
+ * OAuth Client ID Metadata Document.
  */
 
 export interface McpVendor {
@@ -16,7 +12,7 @@ export interface McpVendor {
   description: string
   /** The vendor's hosted MCP endpoint. */
   mcpUrl: string
-  /** The vendor's own favicon. */
+  /** An icon hosted by the vendor. */
   iconUrl: string
 }
 
@@ -104,6 +100,13 @@ export const MCP_VENDORS: readonly McpVendor[] = [
     description: "Up-to-date library documentation",
     mcpUrl: "https://mcp.context7.com/mcp",
     iconUrl: "https://context7.com/favicon.ico",
+  },
+  {
+    slug: "vercel",
+    name: "Vercel",
+    description: "Projects, deployments and logs in Vercel",
+    mcpUrl: "https://mcp.vercel.com",
+    iconUrl: "https://mcp.vercel.com/icons/vercel-light.svg",
   },
 ]
 
