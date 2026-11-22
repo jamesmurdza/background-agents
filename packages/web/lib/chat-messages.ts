@@ -8,6 +8,7 @@
 
 import type { Chat, Message } from "@/lib/types"
 import { generateBranchName } from "@/lib/utils"
+import { SECRETS_UNAVAILABLE_CODE } from "@/lib/secrets-failure"
 
 // =============================================================================
 // API contract
@@ -31,13 +32,6 @@ export interface SendMessagePayload {
   /** Admin-only initial sandbox resources (GB) staged on a draft chat. See MessagePayload.resources on the API side. */
   resources?: { memory?: number; disk?: number }
 }
-
-/**
- * `code` of the 503 a send gets when its Daytona secrets couldn't be set up
- * (see lib/server/turn-secrets): the turn refused to run rather than hand the
- * sandbox a raw key.
- */
-export const SECRETS_UNAVAILABLE_CODE = "SECRETS_UNAVAILABLE"
 
 export interface SendMessageResponse {
   sandboxId: string
@@ -172,6 +166,9 @@ export function applyOptimisticSend(
     errorMessage: undefined,
     errorKind: undefined,
     failedSendMessageId: undefined,
+    failedSendFiles: undefined,
+    secretsFailureCount: chat.errorKind === "secrets" ? chat.secretsFailureCount : undefined,
+    secretsRetryAssistantMessageId: chat.errorKind === "secrets" ? assistantMessage.id : undefined,
   }
 }
 
@@ -206,7 +203,8 @@ export function applySendSuccess(
     model,
     status: "running",
     pendingSend: false,
-    secretsFailureCount: undefined,
+    // Claude may still fail proxy setup when it fetches its token.
+    secretsFailureCount: chat.secretsRetryAssistantMessageId ? chat.secretsFailureCount : undefined,
     // The saved paths replace the names shown while sending (none if the upload failed).
     messages: chat.messages.map((m) =>
       m.id === userMessageId && (m.uploadedFiles || data.uploadedFiles.length > 0)

@@ -89,7 +89,13 @@ export function snapshotFailure(chat: Chat, next: {
   backgroundSessionId?: string | null
 }) {
   if (keepsFailedSend(chat, next)) {
-    return { errorMessage: chat.errorMessage, errorKind: chat.errorKind, failedSendMessageId: chat.failedSendMessageId }
+    return {
+      errorMessage: chat.errorMessage,
+      errorKind: chat.errorKind,
+      failedSendMessageId: chat.failedSendMessageId,
+      failedSendFiles: chat.failedSendFiles,
+      secretsFailureCount: chat.secretsFailureCount,
+    }
   }
   const previousOwner = chat.activeAssistantMessageId || chat.lastMessageId || chat.messages.at(-1)?.id
   const nextOwner = next.activeAssistantMessageId || next.lastMessageId
@@ -98,7 +104,17 @@ export function snapshotFailure(chat: Chat, next: {
   const keep = !chat.pendingSend && sameTurn &&
     (chat.status === "error" || chat.status === "disconnected") &&
     (next.status === "error" || next.status === "disconnected")
-  return { errorMessage: keep ? chat.errorMessage : undefined, errorKind: keep ? chat.errorKind : undefined, failedSendMessageId: undefined }
+  const retryId = chat.secretsRetryAssistantMessageId
+  const keepsSecretsRetry = retryId && (chat.pendingSend || next.activeAssistantMessageId === retryId ||
+    (next.status === "error" && (next.lastMessageId === retryId || next.lastMessageId === `${retryId}:error`)))
+  return {
+    errorMessage: keep ? chat.errorMessage : undefined,
+    errorKind: keep ? chat.errorKind : undefined,
+    failedSendMessageId: undefined,
+    failedSendFiles: undefined,
+    secretsFailureCount: keepsSecretsRetry ? chat.secretsFailureCount : undefined,
+    secretsRetryAssistantMessageId: keepsSecretsRetry ? retryId : undefined,
+  }
 }
 
 export function applyQueueSnapshot(

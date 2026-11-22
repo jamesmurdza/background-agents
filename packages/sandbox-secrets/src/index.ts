@@ -10,4 +10,4 @@
 export { secretName, SECRET_NAME_PATTERN, SECRET_PREFIX } from "./names"
 export { parseSecretMarker, toSecretMarker } from "./marker"
 export { deleteStaleSecrets, ensureSecret, secretLastUsedAt, stampLastUsed } from "./store"
-export { createSandbox, setSecrets } from "./secrets"
+export { createSandbox, SandboxSecretsPreparationError, setSecrets } from "./secrets"

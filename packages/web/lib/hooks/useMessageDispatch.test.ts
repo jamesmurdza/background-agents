@@ -161,6 +161,24 @@ describe("direct-send failure ownership", () => {
     expect(other.secretsFailureCount).toBeUndefined()
   })
 
+  it("preserves a refused file-only prompt's original file through a queue poll and retry", async () => {
+    const file = new File(["contents"], "prompt.txt", { type: "text/plain" })
+    mocks.send.mockResolvedValue({ ok: false, error: "Proxy unavailable", isDailyLimit: false, isSecretsUnavailable: true })
+    mocks.fetchChat.mockResolvedValue({ messages: [] })
+    const { dispatch, client } = setup()
+    await dispatch.sendMessage("", "eliza", "eliza-classic-1.0", [file])
+    const poll: PromptQueueResponse = {
+      status: "error", queuePaused: false, queuedMessages: [], sandboxId: null,
+      backgroundSessionId: null, activeAssistantMessageId: null, updatedAt: 1,
+    }
+    client.setQueryData<Chat[]>(queryKeys.chats.list(), (chats) => chats!.map((chat) => applyQueueSnapshot(chat, poll)))
+    const failed = client.getQueryData<Chat[]>(queryKeys.chats.list())![0]
+    expect(failed.failedSendFiles?.[0]).toBe(file)
+    expect(failed.secretsFailureCount).toBe(1)
+    await dispatch.sendMessage("", "eliza", "eliza-classic-1.0", failed.failedSendFiles)
+    expect(mocks.send).toHaveBeenLastCalledWith(failed.id, expect.objectContaining({ message: "" }), [file])
+  })
+
   it("keeps a failed send's error through a queue poll until the next send", async () => {
     mocks.send.mockRejectedValueOnce(new Error("Gateway error"))
     mocks.fetchChat.mockRejectedValue(new Error("Still offline"))

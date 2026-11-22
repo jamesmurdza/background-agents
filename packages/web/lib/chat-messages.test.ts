@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { applyOptimisticSend, applySendSuccess, removeOptimisticMessages, SECRETS_UNAVAILABLE_CODE, sendMessageToApi } from "./chat-messages"
+import { applyOptimisticSend, applySendSuccess, removeOptimisticMessages, sendMessageToApi } from "./chat-messages"
+import { SECRETS_UNAVAILABLE_CODE } from "./secrets-failure"
 import type { Chat, Message } from "./types"
 
 describe("optimistic turn identity", () => {

@@ -3,6 +3,14 @@ import type { CreateSandboxFromSnapshotParams, Daytona, Sandbox } from "@daytona
 import { secretName } from "./names"
 import { ensureSecret, touchSecret } from "./store"
 
+/** Preparing the sandbox's secrets failed before the create request. */
+export class SandboxSecretsPreparationError extends Error {
+  constructor() {
+    super("Could not prepare secrets for sandbox creation")
+    this.name = "SandboxSecretsPreparationError"
+  }
+}
+
 /**
  * A secret attached to every sandbox {@link setSecrets} touches, and never
  * detached. Daytona wires a sandbox's secrets proxy at boot only when some
@@ -29,8 +37,9 @@ async function proxyWired(sandbox: Sandbox): Promise<boolean> {
   try {
     const { result } = await sandbox.process.executeCommand("printenv HTTPS_PROXY", undefined, undefined, 15)
     return result.trim() !== ""
-  } catch (err) {
-    console.error(`[sandbox-secrets] couldn't check the secrets proxy of sandbox ${sandbox.id}:`, err)
+  } catch {
+    // The sandbox can still use its mounted secrets if the probe was transient.
+    console.error(`[sandbox-secrets] couldn't check the secrets proxy of sandbox ${sandbox.id}`)
     return true
   }
 }
@@ -79,5 +88,12 @@ export async function createSandbox(
   opts: CreateSandboxFromSnapshotParams,
   secrets: Record<string, string> = {}
 ): Promise<Sandbox> {
-  return daytona.create({ ...opts, secrets: await withKeepalive(daytona, secrets) })
+  let mounts: Record<string, string>
+  try {
+    mounts = await withKeepalive(daytona, secrets)
+  } catch {
+    console.error("[sandbox-secrets] could not prepare secrets for sandbox creation")
+    throw new SandboxSecretsPreparationError()
+  }
+  return daytona.create({ ...opts, secrets: mounts })
 }

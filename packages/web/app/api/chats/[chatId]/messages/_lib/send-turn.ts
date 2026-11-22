@@ -11,7 +11,7 @@ import {
   serverConfigError,
 } from "@/lib/db/api-helpers"
 import { buildUsageMeta } from "@/lib/server/shared-pool"
-import { toSecretMarker } from "@background-agents/sandbox-secrets"
+import { SandboxSecretsPreparationError, toSecretMarker } from "@background-agents/sandbox-secrets"
 import {
   applyTurnSecretsToEnv,
   ensureTurnSecrets,
@@ -33,7 +33,7 @@ import {
   uploadFilesToSandbox,
 } from "@/lib/sandbox"
 import type { MessagePayload, SuccessResponse } from "./types"
-import { SECRETS_UNAVAILABLE_CODE } from "@/lib/chat-messages"
+import { SECRETS_UNAVAILABLE_CODE } from "@/lib/secrets-failure"
 import { resolveSendCredentials } from "./resolve-credentials"
 import { ensureSandboxForChat, type SandboxState } from "./ensure-sandbox"
 import { runPreRunPull } from "./pre-run-pull"
@@ -228,11 +228,12 @@ export async function sendChatTurn({
     }
     return Response.json(response)
   } catch (error) {
-    console.error("[chats/messages] Error:", error)
+    const failure = error instanceof SandboxSecretsPreparationError ? new TurnSecretsUnavailableError() : error
+    if (!(failure instanceof TurnSecretsUnavailableError)) console.error("[chats/messages] Error:", failure)
     // Once persisted, a failed start response does not prove the process
     // failed to launch. Keep its durable identity and sandbox so Stop/cron
     // can recover or fence the same attempt before another one is admitted.
-    if (turnPersisted) return internalError(error)
+    if (turnPersisted) return internalError(failure)
     try {
       const changed = await prisma.chat.updateMany({
         where: { id: chatId, status: "creating", queueDispatchId: claimedPromptId ?? null },
@@ -248,10 +249,10 @@ export async function sendChatTurn({
     } catch { /* best effort; cron can recover a persisted turn */ }
     // The turn refused to run without its secrets (see lib/server/turn-secrets).
     // A distinct code lets the client offer Retry, then Report.
-    if (error instanceof TurnSecretsUnavailableError) {
-      return Response.json({ error: error.message, code: SECRETS_UNAVAILABLE_CODE }, { status: 503 })
+    if (failure instanceof TurnSecretsUnavailableError) {
+      return Response.json({ error: failure.message, code: SECRETS_UNAVAILABLE_CODE }, { status: 503 })
     }
-    return internalError(error)
+    return internalError(failure)
   } finally {
     // The turn never started, so nothing else will detach the secret. A
     // persisted turn keeps it: Stop/cron finalize detach it with the turn.

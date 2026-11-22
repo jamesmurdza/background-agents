@@ -18,15 +18,17 @@
  * the agent's env carries the placeholders ({@link applyTurnSecretsToEnv}).
  */
 
-import type { Daytona, Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
+import { DaytonaError, type Daytona, type Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 import { findEndpoint, getEnvForModel, type Agent, type CustomEndpoint } from "@background-agents/common"
 import { ensureSecret, parseSecretMarker, secretName, setSecrets } from "@background-agents/sandbox-secrets"
 
 import type { Credentials } from "@/lib/credentials"
+import { TURN_SECRETS_UNAVAILABLE_MESSAGE } from "@/lib/secrets-failure"
 import { isSharedKey, sharedPoolForSecret } from "@/lib/server/shared-key-pools"
 import {
   CLAUDE_SECRET_HOSTS,
   CLAUDE_SHARED_MOUNT_ENV,
+  claudeSubscriptionSecretEnabled,
   codexAccessToken,
   subscriptionSecretsEnabled,
   type ClaudeRunToken,
@@ -39,22 +41,21 @@ import {
   type UserKeyProvider,
 } from "@/lib/server/user-key-secrets"
 
-/** Shown to the user when a turn's secrets can't be set up. */
-export const TURN_SECRETS_UNAVAILABLE_MESSAGE =
-  "Couldn't set up the secure key proxy for this sandbox. This is usually temporary — try again in a few minutes."
-
 /**
- * A secret that is on couldn't be created or mounted, so the turn can't run:
- * the key must not reach the sandbox raw instead. Often transient (a Daytona
- * network hiccup); if retrying doesn't help, the Daytona API key likely can't
- * manage secrets. The message never carries a secret value; `cause` is the
- * underlying error, for server-side logs only.
+ * A protected credential couldn't be prepared or mounted. Keep upstream
+ * errors out of the cause chain as well as the user-facing message.
  */
 export class TurnSecretsUnavailableError extends Error {
-  constructor(cause: unknown) {
-    super(TURN_SECRETS_UNAVAILABLE_MESSAGE, { cause })
+  constructor() {
+    super(TURN_SECRETS_UNAVAILABLE_MESSAGE)
     this.name = "TurnSecretsUnavailableError"
   }
+}
+
+function logSecretFailure(operation: string, error: unknown) {
+  // Daytona errors can include raw upstream messages and response headers.
+  const status = error instanceof DaytonaError ? error.statusCode : undefined
+  console.error(`[turn-secrets] ${operation}${status ? ` (HTTP ${status})` : ""}`)
 }
 
 /** A secret a turn mounts, and the agent env value it stands in for. */
@@ -114,9 +115,7 @@ export function planTurnSecrets(params: {
   const { claudeToken } = params
   const secrets = planKeySecrets(params)
   if (claudeToken) {
-    const claudeSecretEnabled =
-      claudeToken.source === "shared" ? subscriptionSecretsEnabled("CLAUDE_SHARED") : subscriptionSecretsEnabled("CLAUDE_CODE_CREDENTIALS")
-    if (claudeSecretEnabled) {
+    if (claudeSubscriptionSecretEnabled(claudeToken.source)) {
       secrets.push({ kind: "claude", value: claudeToken.token, hosts: CLAUDE_SECRET_HOSTS, mountEnv: CLAUDE_SHARED_MOUNT_ENV, envKeys: [] })
     }
   }
@@ -196,8 +195,8 @@ export async function ensureTurnSecrets(daytona: Daytona, secrets: TurnSecret[])
       const placeholder = await ensureSecret(daytona, () => secret.value, secret.hosts)
       ready.push({ ...secret, name, placeholder })
     } catch (err) {
-      console.error(`[turn-secrets] secret for ${secret.envKeys.join(", ") || secret.mountEnv} failed; refusing to pass it unprotected:`, err)
-      throw new TurnSecretsUnavailableError(err)
+      logSecretFailure(`could not prepare the ${secret.kind} secret`, err)
+      throw new TurnSecretsUnavailableError()
     }
   }
   return ready
@@ -224,8 +223,8 @@ export async function mountTurnSecrets(daytona: Daytona, sandbox: DaytonaSandbox
   try {
     await setSecrets(daytona, sandbox, mountsOf(secrets))
   } catch (err) {
-    console.error(`[turn-secrets] failed to mount secrets on sandbox ${sandbox.id}:`, err)
-    throw new TurnSecretsUnavailableError(err)
+    logSecretFailure(`failed to mount secrets on sandbox ${sandbox.id}`, err)
+    throw new TurnSecretsUnavailableError()
   }
 }
 
@@ -269,8 +268,7 @@ export async function mountClaudeSecret(
   run: ClaudeRunToken,
   knownSecrets: Record<string, string> = {}
 ): Promise<string | undefined> {
-  const enabled = run.source === "shared" ? subscriptionSecretsEnabled("CLAUDE_SHARED") : subscriptionSecretsEnabled("CLAUDE_CODE_CREDENTIALS")
-  if (!enabled) return undefined
+  if (!claudeSubscriptionSecretEnabled(run.source)) return undefined
   try {
     const name = secretName(run.token, CLAUDE_SECRET_HOSTS)
     const placeholder = await ensureSecret(daytona, () => run.token, CLAUDE_SECRET_HOSTS)
@@ -278,8 +276,8 @@ export async function mountClaudeSecret(
     await setSecrets(daytona, sandbox, { ...knownSecrets, [CLAUDE_SHARED_MOUNT_ENV]: name })
     return placeholder
   } catch (err) {
-    console.error(`[turn-secrets] the ${run.source} Claude token's secret failed; refusing to pass it unprotected:`, err)
-    throw new TurnSecretsUnavailableError(err)
+    logSecretFailure(`could not mount the ${run.source} Claude token's secret`, err)
+    throw new TurnSecretsUnavailableError()
   }
 }
 
@@ -299,6 +297,7 @@ export async function releaseTurnSecrets(daytona: Daytona, sandbox: DaytonaSandb
   try {
     await setSecrets(daytona, sandbox, {})
   } catch (err) {
-    console.error(`[turn-secrets] failed to detach secrets from sandbox ${sandbox.id}:`, err)
+    // Cleanup can be retried by the lifecycle worker or the next mount.
+    logSecretFailure(`failed to detach secrets from sandbox ${sandbox.id}`, err)
   }
 }

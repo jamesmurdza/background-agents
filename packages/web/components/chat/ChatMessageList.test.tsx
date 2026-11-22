@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
+import { TURN_SECRETS_UNAVAILABLE_MESSAGE } from "@/lib/secrets-failure"
 import { ChatMessageList } from "./ChatMessageList"
 
 function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrides: Partial<Chat> = {}, git: Partial<GitContextValue> = {}) {
@@ -211,6 +212,23 @@ describe("chat execution presentation", () => {
     expect(html).toContain(">Retry</button>")
     expect(html.includes('data-testid="chat-error-report"')).toBe(report)
     if (report) expect(html).toContain("/issues/new?template=bug_report.md")
+  })
+  it("offers a report for repeated Claude proxy failures after reloading the chat", () => {
+    const messages = [1, 2].flatMap((attempt) => {
+      const assistantMessageId = `assistant-${attempt}`
+      return [
+        { id: `user-${attempt}`, role: "user" as const, content: "Please reply", timestamp: attempt * 2 },
+        { id: assistantMessageId, role: "assistant" as const, content: "", timestamp: attempt * 2 + 1, metadata: {
+          turnFinalization: {
+            state: "error" as const, executionStopped: true, assistantMessageId,
+            backgroundSessionId: `session-${attempt}`, reason: TURN_SECRETS_UNAVAILABLE_MESSAGE,
+          },
+        } },
+      ]
+    })
+    const html = renderWarning(0, false, { status: "error", messages })
+    expect(html).toContain(">Retry</button>")
+    expect(html).toContain('data-testid="chat-error-report"')
   })
   it("explains a confirmed provider timeout after refresh without exposing raw logs", () => {
     const html = renderWarning(0, false, { status: "error", messages: [

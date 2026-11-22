@@ -350,6 +350,8 @@ It also sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0`, so every var you pass in `env
 
 Instead of `CLAUDE_CODE_CREDENTIALS`, a host running sessions for many users can set `CLAUDE_CODE_TOKEN_URL` (an HTTPS endpoint returning `{ "accessToken": "..." }`) and `CLAUDE_CODE_TOKEN_AUTH` (the endpoint's bearer capability) in the session environment. The SDK fetches an access token at startup and refreshes it automatically if a request is rejected, so there's no refresh token or `CLAUDE_CODE_CREDENTIALS` blob to manage per session. This requires Node 20.3+ (for `AbortSignal.any`/`AbortSignal.timeout`). Access tokens stay in memory; the endpoint capability is kept out of the child CLI's environment.
 
+When the host cannot set up its credential proxy, it can return HTTP 503 with `{ "code": "SECRETS_UNAVAILABLE" }`. The SDK reports that code as the terminal error if the failure prevents Claude from starting or recovering its token.
+
 The credential endpoint should authenticate and authorize every read, disable caching, return only a valid access token, and keep refresh tokens on the host.
 
 ---

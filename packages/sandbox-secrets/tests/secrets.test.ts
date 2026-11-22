@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest"
 import type { Daytona, Sandbox } from "@daytonaio/sdk"
 
-import { createSandbox, setSecrets } from "../src/index"
+import { createSandbox, SandboxSecretsPreparationError, setSecrets } from "../src/index"
 
 function fakeDaytona(existingSecretNames: string[] = []) {
   const known = new Set(existingSecretNames)
@@ -106,6 +106,15 @@ describe("setSecrets", () => {
 })
 
 describe("createSandbox", () => {
+  it("reports keepalive preparation separately from sandbox creation", async () => {
+    const { daytona, create, secret } = fakeDaytona()
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    secret.list.mockRejectedValue(new Error("upstream details"))
+    await expect(createSandbox(daytona, { name: "s" })).rejects.toBeInstanceOf(SandboxSecretsPreparationError)
+    expect(create).not.toHaveBeenCalled()
+    expect(log.mock.calls).toEqual([["[sandbox-secrets] could not prepare secrets for sandbox creation"]])
+  })
+
   it("creates the sandbox with its secrets and the keepalive attached, so it never restarts", async () => {
     const { daytona, create } = fakeDaytona(["bg_abc"])
     const sandbox = fakeSandbox()

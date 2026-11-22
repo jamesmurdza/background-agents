@@ -141,6 +141,8 @@ Raw keys are kept out of sandboxes by default via Daytona secrets; see
 pool's keys back in the sandbox raw (by leaving its `OPENCODE_SHARED`/
 `GEMINI_SHARED` entry out of that var's value, or setting it to `"none"`).
 
+If Daytona cannot set up the proxy for a protected credential, the chat offers Retry and shows Report issue after repeated proxy failures. Retry resends the prompt with its attachments.
+
 To let AI-generated chat names and PR titles/descriptions use a real model
 instead of their deterministic fallback strings, set:
 

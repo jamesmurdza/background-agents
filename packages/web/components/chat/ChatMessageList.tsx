@@ -8,7 +8,9 @@ import { BranchDivider } from "./BranchDivider"
 import { MessageBubble } from "../MessageBubble"
 import { getPendingSubmission } from "@/lib/chat-state"
 import { useTurnPhaseLabel } from "@/lib/hooks/useTurnPhaseLabel"
-import { latestFailedAssistant, persistedProviderFailure, secretsReportUrl, unsupportedModelFailure } from "@/lib/turn-error-presentation"
+import { latestFailedAssistant, persistedProviderFailure, persistedSecretsFailureCount, secretsReportUrl, unsupportedModelFailure } from "@/lib/turn-error-presentation"
+import { TURN_SECRETS_UNAVAILABLE_MESSAGE } from "@/lib/secrets-failure"
+import { useToastStore } from "@/lib/stores/toast-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -391,27 +393,56 @@ export function ChatMessageList({
             const unsupportedModel = !!unsupportedModelFailure(failureMessage)
             const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
             const resend = lastUserMessage
-              ? () => onSendMessage(
+              ? (files?: File[]) => onSendMessage(
                   lastUserMessage.content,
                   currentAgent,
                   currentModel,
-                  undefined,
+                  files,
                   planModeEnabled,
                   currentReasoningEffort,
                 )
               : undefined
 
-            // The send was refused because its secrets couldn't be set up. A
-            // Daytona hiccup clears on Retry; once a retry has failed too, it's
-            // likely the API key can't manage secrets, so offer a report.
-            if (chat.errorKind === "secrets") {
+            const refused = chat.errorKind === "secrets" && !!lastUserMessage && lastUserMessage.id === chat.failedSendMessageId
+            if (refused || providerFailure === TURN_SECRETS_UNAVAILABLE_MESSAGE) {
+              const paths = lastUserMessage?.uploadedFiles ?? []
+              const sandboxId = chat.sandboxId
+              const canRetry = paths.length === 0 || (refused ? !!chat.failedSendFiles?.length : !!sandboxId)
+              const retry = resend && canRetry ? async () => {
+                if (refused || !paths.length) {
+                  resend(chat.failedSendFiles)
+                  return
+                }
+                try {
+                  const files = await Promise.all(paths.map(async (filePath) => {
+                    const response = await fetch("/api/sandbox/files", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "read-file-binary", sandboxId, filePath, autoStart: true }),
+                    })
+                    if (!response.ok) throw new Error("Attachment download failed")
+                    const blob = await response.blob()
+                    return new File([blob], filePath.slice(filePath.lastIndexOf("/") + 1), { type: blob.type })
+                  }))
+                  resend(files)
+                } catch {
+                  // Keep the failed turn visible when its attachments cannot be recovered.
+                  console.warn("[chat] Could not retrieve attachments for retry")
+                  useToastStore.getState().addToast({
+                    title: "Couldn't retrieve the attachments",
+                    body: "Attach the original files again before sending the prompt.",
+                    chatId: chat.id,
+                  })
+                }
+              } : undefined
+              const message = (refused ? chat.errorMessage : providerFailure) || TURN_SECRETS_UNAVAILABLE_MESSAGE
               return (
                 <ErrorBanner
                   key={chat.id}
-                  message={chat.errorMessage || "Couldn't set up the secure key proxy for this sandbox."}
+                  message={canRetry ? message : `${message} Attach the original files again before sending the prompt.`}
                   isMobile={isMobile}
-                  onRetry={resend}
-                  reportHref={(chat.secretsFailureCount ?? 0) >= 2 ? secretsReportUrl(chat.id) : undefined}
+                  onRetry={retry}
+                  reportHref={(chat.secretsFailureCount ?? 0) + persistedSecretsFailureCount(chat) >= 2 ? secretsReportUrl(chat.id) : undefined}
                 />
               )
             }

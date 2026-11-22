@@ -36,6 +36,8 @@ const sandbox = await createSandbox(daytona, { snapshot: "..." }, { OPENAI_KEY: 
 await setSecrets(daytona, sandbox, { OPENAI_KEY: name })
 ```
 
+`createSandbox` throws `SandboxSecretsPreparationError` if it cannot prepare the proxy keepalive or look up the supplied secrets before sending the sandbox creation request.
+
 Secrets this package creates don't need manual cleanup either — run `deleteStaleSecrets` on a schedule (e.g. a daily cron) and anything nothing has used recently is removed automatically.
 
 ```typescript

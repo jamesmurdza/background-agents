@@ -1,6 +1,7 @@
 import type { Chat } from "./types"
 import { readFailureMarker } from "./turn-failure-marker"
 import { GITHUB_REPO_URL } from "./bonus-credits"
+import { TURN_SECRETS_UNAVAILABLE_MESSAGE } from "./secrets-failure"
 
 export function unsupportedModelFailure(reason: string | undefined): string | undefined {
   if (reason && /\bmodel\b(?:\s+['"]?[\w./:-]+['"]?)?\s+(?:is\s+)?not\s+supported\b|unsupported\s+model/i.test(reason)) {
@@ -42,6 +43,21 @@ export function persistedProviderFailure(chat: Chat): string | undefined {
   // The SDK already wrote a user-facing message; a crash appends its process
   // output after a blank line.
   return marker.reason.split("\n\n")[0]
+}
+
+/** Count consecutive persisted secure-proxy failures, ignoring separate notices. */
+export function persistedSecretsFailureCount(chat: Chat): number {
+  let count = 0
+  for (let index = chat.messages.length - 1; index >= 0; index--) {
+    const message = chat.messages[index]
+    if (message.inherited) break
+    if (message.role !== "assistant" || message.isError ||
+        message.messageType === "error" || message.messageType === "git-operation") continue
+    const failure = readFailureMarker(message.metadata?.turnFinalization, message.id)
+    if (!failure?.executionStopped || failure.reason !== TURN_SECRETS_UNAVAILABLE_MESSAGE) break
+    count++
+  }
+  return count
 }
 
 /**

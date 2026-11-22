@@ -323,8 +323,10 @@ export function useMessageDispatch({
           if (reply?.content || reply?.toolCalls?.length) return c
           const secretsFailed = error instanceof SecretsUnavailableSendError
           return { ...c, status: "error", pendingSend: false, errorMessage, failedSendMessageId: userMessage.id,
+            failedSendFiles: secretsFailed ? files : undefined,
             errorKind: secretsFailed ? "secrets" : undefined,
             secretsFailureCount: secretsFailed ? (c.secretsFailureCount ?? 0) + 1 : undefined,
+            secretsRetryAssistantMessageId: undefined,
             messages: c.messages.filter((message) => message.id !== assistantMessage.id) }
         }))
         // The response may have been lost after the server saved the turn. If it

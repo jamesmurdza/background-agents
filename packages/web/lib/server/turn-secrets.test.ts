@@ -104,7 +104,7 @@ describe("planTurnSecrets", () => {
       planTurnSecrets({
         userId: USER,
         agent: "opencode",
-        model: "opencode-go/mimo-v2.5-pro",
+        model: "opencode-go/mimo-v2.6-pro",
         credentials: { OPENCODE_API_KEY: marker },
       })
     ).toEqual([
@@ -117,11 +117,11 @@ describe("planTurnSecrets", () => {
     process.env.DAYTONA_USER_KEY_SECRETS = "OPENCODE_API_KEY"
     try {
       expect(planTurnSecrets({
-        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.5-pro", credentials: { OPENCODE_API_KEY: "oc-pool-raw" },
+        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.6-pro", credentials: { OPENCODE_API_KEY: "oc-pool-raw" },
       })).toEqual([])
       // The user's own key still is.
       expect(planTurnSecrets({
-        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.5-pro", credentials: { OPENCODE_API_KEY: "oc-own" },
+        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.6-pro", credentials: { OPENCODE_API_KEY: "oc-own" },
       })).toMatchObject([{ kind: "user", value: "oc-own" }])
     } finally {
       delete process.env.OPENCODE_API_KEY
@@ -351,16 +351,15 @@ describe("ensureTurnSecrets", () => {
   })
 
   it("fails the turn when a user secret fails: the user's key never falls back", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
     const { secret, daytona } = fakeDaytona()
-    const cause = new Error("403")
-    secret.list.mockRejectedValue(cause)
     const planned: TurnSecret = { kind: "user", value: `sk-${counter++}`, mountEnv: "USER_KEY_OPENAI_API_KEY", envKeys: ["OPENAI_API_KEY"] }
+    secret.create.mockRejectedValue(new Error(`403: ${planned.value}`))
     const error = await ensureTurnSecrets(daytona, [planned]).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(TurnSecretsUnavailableError)
-    expect((error as Error).cause).toBe(cause)
-    // The user-facing message never quotes the key.
+    expect((error as Error).cause).toBeUndefined()
     expect((error as Error).message).not.toContain(planned.value)
+    expect(log.mock.calls).toEqual([["[turn-secrets] could not prepare the user secret"]])
   })
 
   it("fails the turn when a pool secret fails: the shared key never falls back", async () => {
