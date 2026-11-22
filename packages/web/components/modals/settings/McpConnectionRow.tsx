@@ -1,11 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState, type ComponentType } from "react"
-import { Check, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Loader2 } from "lucide-react"
 import { openOAuthPopup, pollUntilPopupCloses } from "@/lib/popup-poll"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
-import { SettingsRow } from "./shared"
+import { clearIntervalRef, ConnectionStatusBadge, SettingsRow } from "./shared"
 
 type Phase =
   | { kind: "loading" }
@@ -43,10 +42,7 @@ export function McpConnectionRow({ config }: { config: McpConnectionRowConfig })
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function clearPoll() {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
+    clearIntervalRef(pollRef)
   }
 
   async function refreshStatus(): Promise<{ connected: boolean; url?: string } | null> {
@@ -154,17 +150,7 @@ export function McpConnectionRow({ config }: { config: McpConnectionRowConfig })
     >
       <div className="flex items-center justify-between gap-4">
         <div className="text-xs">
-          {phase.kind === "connected" && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium",
-                "border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400"
-              )}
-            >
-              <Check className="h-3 w-3" />
-              Connected
-            </span>
-          )}
+          {phase.kind === "connected" && <ConnectionStatusBadge variant="connected" />}
           {phase.kind === "disconnected" && (
             <span className="text-muted-foreground">Not connected</span>
           )}

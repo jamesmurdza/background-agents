@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Check, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Loader2 } from "lucide-react"
 import { queryKeys } from "@/lib/query/keys"
-import { SettingsRow } from "./shared"
+import { clearIntervalRef, ConnectionStatusBadge, SettingsRow } from "./shared"
 
 type Phase =
   // `context: "connect"` marks the wait that follows a Connect click, which is
@@ -112,10 +111,7 @@ export function CodexConnectionRow({
   }
 
   function clearPoll() {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
+    clearIntervalRef(pollRef)
   }
 
   function clearSlowTimer() {
@@ -256,21 +252,7 @@ export function CodexConnectionRow({
       <div className="flex items-center justify-between gap-4">
         <div className="text-xs">
           {phase.kind === "connected" && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium",
-                needsReconnect
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                  : "border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400"
-              )}
-            >
-              {needsReconnect ? (
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              ) : (
-                <Check className="h-3 w-3" />
-              )}
-              {needsReconnect ? "Expired" : "Connected"}
-            </span>
+            <ConnectionStatusBadge variant={needsReconnect ? "expired" : "connected"} />
           )}
           {phase.kind === "disconnected" && (
             <span className="text-muted-foreground">Not connected</span>

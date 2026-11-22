@@ -183,6 +183,40 @@ export function ToggleSwitch({
   )
 }
 
+/** Clears an interval ref (used by polling connect flows) and resets it to null. */
+export function clearIntervalRef(ref: { current: ReturnType<typeof setInterval> | null }) {
+  if (ref.current) {
+    clearInterval(ref.current)
+    ref.current = null
+  }
+}
+
+/**
+ * Connected/expired status chip shown in account-connection rows (Codex
+ * device login, MCP account links). "expired" additionally needs
+ * reconnecting; both otherwise share the same shape.
+ */
+export function ConnectionStatusBadge({ variant }: { variant: "connected" | "expired" }) {
+  const expired = variant === "expired"
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium",
+        expired
+          ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          : "border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400"
+      )}
+    >
+      {expired ? (
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+      ) : (
+        <Check className="h-3 w-3" />
+      )}
+      {expired ? "Expired" : "Connected"}
+    </span>
+  )
+}
+
 /** Mobile-only section header shown above each section when stacked vertically. */
 export function MobileSectionHeader({
   icon: Icon,
