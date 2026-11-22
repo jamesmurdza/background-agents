@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Loader2, FileText } from "lucide-react"
+import { FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CanvasThumbnailBody } from "./CanvasThumbnailBody"
 
 interface PdfThumbnailProps {
   /** The PDF File object to render */
@@ -101,15 +102,7 @@ export function PdfThumbnail({ file, size = 108, className }: PdfThumbnailProps)
 
   return (
     <div className={cn("w-full h-full flex items-center justify-center bg-white overflow-hidden", className)}>
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        </div>
-      )}
-      <canvas
-        ref={canvasRef}
-        className={cn(loading && "opacity-0")}
-      />
+      <CanvasThumbnailBody canvasRef={canvasRef} loading={loading} />
     </div>
   )
 }
