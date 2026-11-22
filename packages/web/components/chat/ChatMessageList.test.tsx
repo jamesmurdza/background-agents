@@ -201,6 +201,17 @@ describe("chat execution presentation", () => {
     expect(html).not.toContain(">Retry</button>")
     expect(html).not.toContain(">Continue queued prompts</button>")
   })
+  it.each([[1, false], [2, true]])("offers Retry for a send refused for its secrets, and Report after %i failures: %s", (count, report) => {
+    const html = renderWarning(0, false, {
+      status: "error", errorKind: "secrets", secretsFailureCount: count, failedSendMessageId: "user",
+      errorMessage: "Couldn't set up the secure key proxy for this sandbox.",
+      messages: [{ id: "user", role: "user", content: "Please reply", timestamp: 1 }],
+    })
+    expect(html).toContain("Couldn&#x27;t set up the secure key proxy for this sandbox.")
+    expect(html).toContain(">Retry</button>")
+    expect(html.includes('data-testid="chat-error-report"')).toBe(report)
+    if (report) expect(html).toContain("/issues/new?template=bug_report.md")
+  })
   it("explains a confirmed provider timeout after refresh without exposing raw logs", () => {
     const html = renderWarning(0, false, { status: "error", messages: [
       { id: "user", role: "user", content: "Please reply", timestamp: 1 },

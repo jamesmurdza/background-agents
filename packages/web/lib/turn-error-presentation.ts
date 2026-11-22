@@ -1,5 +1,6 @@
 import type { Chat } from "./types"
 import { readFailureMarker } from "./turn-failure-marker"
+import { GITHUB_REPO_URL } from "./bonus-credits"
 
 export function unsupportedModelFailure(reason: string | undefined): string | undefined {
   if (reason && /\bmodel\b(?:\s+['"]?[\w./:-]+['"]?)?\s+(?:is\s+)?not\s+supported\b|unsupported\s+model/i.test(reason)) {
@@ -41,4 +42,24 @@ export function persistedProviderFailure(chat: Chat): string | undefined {
   // The SDK already wrote a user-facing message; a crash appends its process
   // output after a blank line.
   return marker.reason.split("\n\n")[0]
+}
+
+/**
+ * A prefilled GitHub issue for a send refused because its secrets couldn't be
+ * set up and a retry didn't help — usually a Daytona API key that can't
+ * manage secrets. Issues are public, so it carries only the chat id and time.
+ */
+export function secretsReportUrl(chatId: string, now: Date = new Date()): string {
+  const params = new URLSearchParams({
+    template: "bug_report.md",
+    title: "[Chat] Secure key proxy setup keeps failing",
+    body: [
+      "**Describe the bug**",
+      "Sending a message fails with \"Couldn't set up the secure key proxy for this sandbox\", and retrying didn't fix it.",
+      "",
+      `Chat ID: ${chatId}`,
+      `Time: ${now.toISOString()}`,
+    ].join("\n"),
+  })
+  return `${GITHUB_REPO_URL}/issues/new?${params.toString()}`
 }

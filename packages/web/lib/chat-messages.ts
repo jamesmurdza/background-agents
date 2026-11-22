@@ -32,6 +32,13 @@ export interface SendMessagePayload {
   resources?: { memory?: number; disk?: number }
 }
 
+/**
+ * `code` of the 503 a send gets when its Daytona secrets couldn't be set up
+ * (see lib/server/turn-secrets): the turn refused to run rather than hand the
+ * sandbox a raw key.
+ */
+export const SECRETS_UNAVAILABLE_CODE = "SECRETS_UNAVAILABLE"
+
 export interface SendMessageResponse {
   sandboxId: string
   branch: string | null
@@ -48,6 +55,8 @@ export type SendMessageResult =
       isDailyLimit: boolean
       /** The server did not accept or persist this turn because another turn won the claim. */
       isChatBusy?: boolean
+      /** The turn's secrets couldn't be set up, so it didn't run (see {@link SECRETS_UNAVAILABLE_CODE}). */
+      isSecretsUnavailable?: boolean
       /** Shared-pool provider that hit its limit (claude | gemini | opencode). */
       provider?: string
       /**
@@ -122,6 +131,7 @@ export async function sendMessageToApi(
       error: err.error || `Failed to send message (HTTP ${response.status})`,
       isDailyLimit: err.error === "DAILY_LIMIT_EXCEEDED",
       isChatBusy: response.status === 409 && err.error === "Chat is busy",
+      isSecretsUnavailable: err.code === SECRETS_UNAVAILABLE_CODE,
       provider: err.provider,
       creditBalance: typeof err.creditBalance === "number" ? err.creditBalance : undefined,
     }
@@ -196,6 +206,7 @@ export function applySendSuccess(
     model,
     status: "running",
     pendingSend: false,
+    secretsFailureCount: undefined,
     // The saved paths replace the names shown while sending (none if the upload failed).
     messages: chat.messages.map((m) =>
       m.id === userMessageId && (m.uploadedFiles || data.uploadedFiles.length > 0)

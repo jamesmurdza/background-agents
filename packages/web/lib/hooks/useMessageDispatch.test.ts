@@ -140,6 +140,27 @@ describe("direct-send failure ownership", () => {
     expect(retried.messages.map((message) => message.content)).toEqual(["Original text"])
   })
 
+  it("counts sends refused for their secrets, so the UI can offer a report after a failed retry", async () => {
+    const refused = { ok: false, error: "Couldn't set up the secure key proxy", isDailyLimit: false, isSecretsUnavailable: true }
+    mocks.send.mockResolvedValue(refused)
+    mocks.fetchChat.mockRejectedValue(new Error("Still offline"))
+    const { dispatch, client } = setup()
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({
+      status: "error", errorKind: "secrets", secretsFailureCount: 1, errorMessage: refused.error,
+    })
+
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({ errorKind: "secrets", secretsFailureCount: 2 })
+
+    // Any other failure isn't a secrets one.
+    mocks.send.mockRejectedValueOnce(new Error("Gateway error"))
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    const other = client.getQueryData<Chat[]>(queryKeys.chats.list())![0]
+    expect(other.errorKind).toBeUndefined()
+    expect(other.secretsFailureCount).toBeUndefined()
+  })
+
   it("keeps a failed send's error through a queue poll until the next send", async () => {
     mocks.send.mockRejectedValueOnce(new Error("Gateway error"))
     mocks.fetchChat.mockRejectedValue(new Error("Still offline"))

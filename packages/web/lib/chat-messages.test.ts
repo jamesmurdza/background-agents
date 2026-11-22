@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { applyOptimisticSend, removeOptimisticMessages, sendMessageToApi } from "./chat-messages"
+import { applyOptimisticSend, applySendSuccess, removeOptimisticMessages, SECRETS_UNAVAILABLE_CODE, sendMessageToApi } from "./chat-messages"
 import type { Chat, Message } from "./types"
 
 describe("optimistic turn identity", () => {
@@ -41,6 +41,30 @@ describe("sendMessageToApi", () => {
       provider: "gemini",
       creditBalance: -1.5,
     })
+  })
+
+  it("flags a send refused because its secrets couldn't be set up", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      Response.json({ error: "Couldn't set up the secure key proxy", code: SECRETS_UNAVAILABLE_CODE }, { status: 503 })
+    ))
+
+    const result = await sendMessageToApi("chat-1", {
+      message: "Continue",
+      agent: "opencode",
+      model: "opencode/big-pickle",
+      userMessageId: "user-1",
+      assistantMessageId: "assistant-1",
+    })
+
+    expect(result).toMatchObject({ ok: false, isSecretsUnavailable: true, error: "Couldn't set up the secure key proxy" })
+  })
+
+  it("resets the secrets failure count once a send succeeds", () => {
+    const chat = { id: "chat-1", messages: [], status: "running", secretsFailureCount: 2 } as unknown as Chat
+    const next = applySendSuccess(chat, {
+      sandboxId: "sb-1", branch: null, previewUrlPattern: null, backgroundSessionId: "bg-1", uploadedFiles: [],
+    }, "opencode", "opencode/big-pickle", "user-1")
+    expect(next.secretsFailureCount).toBeUndefined()
   })
 
   it("ignores a non-numeric creditBalance rather than passing it through", async () => {

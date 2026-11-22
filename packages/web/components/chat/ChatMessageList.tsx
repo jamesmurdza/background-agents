@@ -8,7 +8,7 @@ import { BranchDivider } from "./BranchDivider"
 import { MessageBubble } from "../MessageBubble"
 import { getPendingSubmission } from "@/lib/chat-state"
 import { useTurnPhaseLabel } from "@/lib/hooks/useTurnPhaseLabel"
-import { latestFailedAssistant, persistedProviderFailure, unsupportedModelFailure } from "@/lib/turn-error-presentation"
+import { latestFailedAssistant, persistedProviderFailure, secretsReportUrl, unsupportedModelFailure } from "@/lib/turn-error-presentation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -400,6 +400,21 @@ export function ChatMessageList({
                   currentReasoningEffort,
                 )
               : undefined
+
+            // The send was refused because its secrets couldn't be set up. A
+            // Daytona hiccup clears on Retry; once a retry has failed too, it's
+            // likely the API key can't manage secrets, so offer a report.
+            if (chat.errorKind === "secrets") {
+              return (
+                <ErrorBanner
+                  key={chat.id}
+                  message={chat.errorMessage || "Couldn't set up the secure key proxy for this sandbox."}
+                  isMobile={isMobile}
+                  onRetry={resend}
+                  reportHref={(chat.secretsFailureCount ?? 0) >= 2 ? secretsReportUrl(chat.id) : undefined}
+                />
+              )
+            }
 
             // A generic process crash is often transient. If the failed turn
             // already streamed some output, the fuller copy is likely persisted

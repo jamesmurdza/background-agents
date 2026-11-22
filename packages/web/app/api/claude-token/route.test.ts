@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const state = vi.hoisted(() => ({ run: vi.fn(), credentials: vi.fn(), mount: vi.fn(), own: vi.fn() }))
-vi.mock("@/lib/server/turn-secrets", () => ({ mountClaudeSecret: state.mount }))
+vi.mock("@/lib/server/turn-secrets", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/turn-secrets")>()),
+  mountClaudeSecret: state.mount,
+}))
 vi.mock("@/lib/server/user-claude-credentials", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/server/user-claude-credentials")>()),
   getUserClaudeAccessToken: state.own,
@@ -11,6 +14,7 @@ vi.mock("@/lib/db/prisma", () => ({ prisma: {
 import { GET } from "./route"
 import { createClaudeTokenCapability } from "@/lib/server/claude-token-auth"
 import { OwnClaudeCredentialsExpiredError } from "@/lib/server/user-claude-credentials"
+import { TurnSecretsUnavailableError } from "@/lib/server/turn-secrets"
 
 const scope = { userId: "user-test", chatId: "chat-test", backgroundSessionId: "run-test", source: "shared" as const }
 function grant(accessToken: string, expiresAt = Date.now() + 3600000) {
@@ -46,8 +50,17 @@ describe("Claude host token reads", () => {
     state.mount.mockResolvedValueOnce("dtn_secret_test")
     expect(await (await GET(request())).json()).toEqual({ accessToken: "dtn_secret_test" })
     expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", scope.userId, { source: "shared", token: "access-test" })
-    // No placeholder (feature off, secret failed): the token, as before.
+    // No placeholder (feature off): the token, as before.
     expect(await (await GET(request())).json()).toEqual({ accessToken: "access-test" })
+  })
+
+  it("answers 503, never the raw token, when the token's secret fails", async () => {
+    vi.stubEnv("DAYTONA_API_KEY", "dtn-test")
+    state.run.mockResolvedValue({ id: scope.chatId, sandboxId: "sb-test" })
+    state.mount.mockRejectedValueOnce(new TurnSecretsUnavailableError(new Error("403")))
+    const response = await GET(request())
+    expect(response.status).toBe(503)
+    expect(JSON.stringify(await response.json())).not.toContain("access-test")
   })
 
   it("serves a run on the user's own subscription their (refreshed) token, never the shared one", async () => {

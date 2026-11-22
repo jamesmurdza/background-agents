@@ -19,6 +19,7 @@ import {
   planTurnSecrets,
   poolSecretOf,
   releaseTurnSecrets,
+  TurnSecretsUnavailableError,
 } from "@/lib/server/turn-secrets"
 import { logActivityAsync } from "@/lib/db/activity-log"
 import { createBackgroundAgentSession, type Agent } from "@/lib/agent-session"
@@ -32,6 +33,7 @@ import {
   uploadFilesToSandbox,
 } from "@/lib/sandbox"
 import type { MessagePayload, SuccessResponse } from "./types"
+import { SECRETS_UNAVAILABLE_CODE } from "@/lib/chat-messages"
 import { resolveSendCredentials } from "./resolve-credentials"
 import { ensureSandboxForChat, type SandboxState } from "./ensure-sandbox"
 import { runPreRunPull } from "./pre-run-pull"
@@ -244,6 +246,11 @@ export async function sendChatTurn({
         await deleteSandboxQuietly(daytona, state.sandboxId)
       }
     } catch { /* best effort; cron can recover a persisted turn */ }
+    // The turn refused to run without its secrets (see lib/server/turn-secrets).
+    // A distinct code lets the client offer Retry, then Report.
+    if (error instanceof TurnSecretsUnavailableError) {
+      return Response.json({ error: error.message, code: SECRETS_UNAVAILABLE_CODE }, { status: 503 })
+    }
     return internalError(error)
   } finally {
     // The turn never started, so nothing else will detach the secret. A

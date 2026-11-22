@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma"
 import { getSharedClaudeAccessToken, SharedClaudeCredentialsUnavailableError } from "@/lib/claude-credentials"
 import { verifyClaudeTokenCapability } from "@/lib/server/claude-token-auth"
-import { mountClaudeSecret } from "@/lib/server/turn-secrets"
+import { mountClaudeSecret, TurnSecretsUnavailableError } from "@/lib/server/turn-secrets"
 import {
   OwnClaudeCredentialsExpiredError,
   OwnClaudeCredentialsUnavailableError,
@@ -30,7 +30,9 @@ export async function GET(request: Request): Promise<Response> {
       ? await getUserClaudeAccessToken(scope.userId)
       : await getSharedClaudeAccessToken()
     // Behind a Daytona secret, the run gets its placeholder instead (see
-    // lib/server/subscription-secrets); otherwise, or if that fails, the token.
+    // lib/server/subscription-secrets); with the secret off, the token. If the
+    // secret fails, mountClaudeSecret throws and the run gets a 503 below —
+    // never the raw token.
     const daytonaApiKey = process.env.DAYTONA_API_KEY
     // The turn's other mounted secrets (pool/user keys) aren't known here —
     // this route only refreshes the Claude token mid-turn, it doesn't have
@@ -47,7 +49,9 @@ export async function GET(request: Request): Promise<Response> {
     if (
       !(error instanceof SharedClaudeCredentialsUnavailableError) &&
       !(error instanceof OwnClaudeCredentialsExpiredError) &&
-      !(error instanceof OwnClaudeCredentialsUnavailableError)
+      !(error instanceof OwnClaudeCredentialsUnavailableError) &&
+      // Already logged with its cause by mountClaudeSecret.
+      !(error instanceof TurnSecretsUnavailableError)
     ) {
       // Fetch/DB errors can contain secrets. Log the operation and class only.
       console.error("[claude-token] Credential read failed:", error instanceof Error ? error.name : "Unknown error")

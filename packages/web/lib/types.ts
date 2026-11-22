@@ -256,8 +256,15 @@ export interface Chat {
    *  Reload (when partial output streamed) instead of Retry. "incomplete" = the
    *  turn ended with no terminal event and no output; the agent may still be
    *  running in the background, so the UI offers Reload instead of Retry.
+   *  "secrets" = client-only: the send was refused because its Daytona secrets
+   *  couldn't be set up (the key is never passed raw instead); the UI offers
+   *  Retry, and Report once a retry has failed too.
    *  Cleared on the next send. */
-  errorKind?: "crash" | "incomplete"
+  errorKind?: "crash" | "incomplete" | "secrets"
+
+  /** Client-only: consecutive sends of this chat refused with errorKind
+   *  "secrets". Kept across retries, reset by a successful send. */
+  secretsFailureCount?: number
 
   /** Set when a merge targets this branch but sandbox was stopped. Triggers pull on next execute. */
   needsSync?: boolean

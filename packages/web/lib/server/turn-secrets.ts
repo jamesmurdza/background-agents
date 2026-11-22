@@ -39,6 +39,24 @@ import {
   type UserKeyProvider,
 } from "@/lib/server/user-key-secrets"
 
+/** Shown to the user when a turn's secrets can't be set up. */
+export const TURN_SECRETS_UNAVAILABLE_MESSAGE =
+  "Couldn't set up the secure key proxy for this sandbox. This is usually temporary — try again in a few minutes."
+
+/**
+ * A secret that is on couldn't be created or mounted, so the turn can't run:
+ * the key must not reach the sandbox raw instead. Often transient (a Daytona
+ * network hiccup); if retrying doesn't help, the Daytona API key likely can't
+ * manage secrets. The message never carries a secret value; `cause` is the
+ * underlying error, for server-side logs only.
+ */
+export class TurnSecretsUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super(TURN_SECRETS_UNAVAILABLE_MESSAGE, { cause })
+    this.name = "TurnSecretsUnavailableError"
+  }
+}
+
 /** A secret a turn mounts, and the agent env value it stands in for. */
 export interface TurnSecret {
   /**
@@ -161,26 +179,25 @@ function planKeySecrets(params: {
 /**
  * Make sure every planned secret exists, creating it if not, and resolve its
  * name and placeholder. Call before creating a sandbox with them or mounting
- * them. A pool secret that can't be ensured fails the turn: the shared key
- * must never fall back to the sandbox. A user's own secret that can't is
- * left out, so the agent gets the value itself, as it did before secrets.
+ * them. Any secret that can't be ensured fails the turn with a
+ * {@link TurnSecretsUnavailableError}: a key whose secret is on must never
+ * fall back to the sandbox raw, or the secret protects nothing.
  */
 export async function ensureTurnSecrets(daytona: Daytona, secrets: TurnSecret[]): Promise<ReadyTurnSecret[]> {
   const ready: ReadyTurnSecret[] = []
   for (const secret of secrets) {
-    // A pool secret's failure is never swallowed: the shared key must never
-    // fall back to the sandbox raw.
-    if (secret.kind === "pool" && secret.poolSecretName) {
-      const placeholder = await ensureSharedPoolSecret(daytona, secret.poolSecretName)
-      ready.push({ ...secret, name: secret.poolSecretName, placeholder })
-      continue
-    }
     try {
+      if (secret.kind === "pool" && secret.poolSecretName) {
+        const placeholder = await ensureSharedPoolSecret(daytona, secret.poolSecretName)
+        ready.push({ ...secret, name: secret.poolSecretName, placeholder })
+        continue
+      }
       const name = secretName(secret.value, secret.hosts ?? [])
       const placeholder = await ensureSecret(daytona, () => secret.value, secret.hosts)
       ready.push({ ...secret, name, placeholder })
     } catch (err) {
-      console.error(`[turn-secrets] passing ${secret.envKeys.join(", ") || secret.mountEnv} unprotected; its secret failed:`, err)
+      console.error(`[turn-secrets] secret for ${secret.envKeys.join(", ") || secret.mountEnv} failed; refusing to pass it unprotected:`, err)
+      throw new TurnSecretsUnavailableError(err)
     }
   }
   return ready
@@ -204,7 +221,12 @@ export function turnSecretsCreateParams(secrets: ReadyTurnSecret[]): Record<stri
  * previous turn. Call as early in the send as possible.
  */
 export async function mountTurnSecrets(daytona: Daytona, sandbox: DaytonaSandbox, secrets: ReadyTurnSecret[]): Promise<void> {
-  await setSecrets(daytona, sandbox, mountsOf(secrets))
+  try {
+    await setSecrets(daytona, sandbox, mountsOf(secrets))
+  } catch (err) {
+    console.error(`[turn-secrets] failed to mount secrets on sandbox ${sandbox.id}:`, err)
+    throw new TurnSecretsUnavailableError(err)
+  }
 }
 
 /**
@@ -236,8 +258,9 @@ export function applyTurnSecretsToEnv(env: Record<string, string>, secrets: Read
  * their own), mounting its secret on the run's sandbox alongside the rest of
  * the turn's `knownSecrets` (env var → Daytona secret name — the caller's own
  * record of what else is mounted, since nothing is read back from the
- * sandbox any more). Undefined when the run should get the token itself:
- * the feature is off or the secret failed. Never throws.
+ * sandbox any more). Undefined only when the feature is off and the run
+ * should get the token itself. Throws {@link TurnSecretsUnavailableError}
+ * when the secret fails: the token must never fall back to the sandbox raw.
  */
 export async function mountClaudeSecret(
   daytona: Daytona,
@@ -255,8 +278,8 @@ export async function mountClaudeSecret(
     await setSecrets(daytona, sandbox, { ...knownSecrets, [CLAUDE_SHARED_MOUNT_ENV]: name })
     return placeholder
   } catch (err) {
-    console.error(`[turn-secrets] passing the ${run.source} Claude token unprotected; its secret failed:`, err)
-    return undefined
+    console.error(`[turn-secrets] the ${run.source} Claude token's secret failed; refusing to pass it unprotected:`, err)
+    throw new TurnSecretsUnavailableError(err)
   }
 }
 
