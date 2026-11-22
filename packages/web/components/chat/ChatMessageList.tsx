@@ -85,6 +85,7 @@ export function ChatMessageList({
     !item.userMessageId || !chat.messages.some((message) => message.id === item.userMessageId))
   const pending = getPendingSubmission({ ...chat, queuedMessages: visibleQueue })
   const waiting = visibleQueue.filter((item) => item !== pending)
+  const hasQueueError = waiting.some((item) => !!item.lastError)
   const activeMessage = chat.messages.find((message) => message.id === chat.activeAssistantMessageId && message.role === "assistant")
   const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
   const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
@@ -485,7 +486,8 @@ export function ChatMessageList({
               scrolls out of view with the conversation. */}
           {waiting.length > 0 && (
             <div data-testid="prompt-queue" className={cn(
-              "border border-b-0 border-border bg-card rounded-t-md -mb-4",
+              "border border-border bg-card",
+              hasQueueError ? "rounded-md" : "border-b-0 rounded-t-md -mb-4",
               isMobile ? "mx-4" : "mx-6"
             )}>
               {waiting.map((m) => (
@@ -495,7 +497,7 @@ export function ChatMessageList({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm text-foreground/80">{m.content}</div>
-                    {m.lastError && <div className="text-xs text-destructive">Paused: {m.lastError}</div>}
+                    {m.lastError && <div className="break-words text-xs text-destructive">Paused: {m.lastError}</div>}
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

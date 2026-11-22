@@ -296,6 +296,16 @@ describe("chat execution presentation", () => {
     expect(html).not.toContain("Starting")
     expect(html).not.toContain("animate-pulse")
   })
+  it("keeps the error in its queue row with room to scroll past it", () => {
+    const html = renderWarning(0, false, { queuePaused: true,
+      queuedMessages: [{ id: "failed", content: "Queued prompt", lastError: TURN_SECRETS_UNAVAILABLE_MESSAGE }],
+    })
+    const queue = html.slice(html.indexOf('data-testid="prompt-queue"'))
+    expect(queue).toContain("Queued prompt")
+    expect(queue).toContain("Paused: Couldn&#x27;t set up the secure key proxy")
+    expect(queue).not.toContain("-mb-4")
+    expect(html).not.toContain('data-testid="chat-error-banner"')
+  })
   it("shows one loader during startup without marking an old reply as streaming", () => {
     const html = renderWarning(0, false, {
       status: "creating",
