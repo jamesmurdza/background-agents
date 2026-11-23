@@ -287,5 +287,3 @@ export function WebSocketTerminal({
     />
   );
 }
-
-export default WebSocketTerminal;
