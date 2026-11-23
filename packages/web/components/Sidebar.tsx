@@ -25,9 +25,6 @@ import {
   stripOwnerPrefix,
 } from "./sidebar/index"
 
-// Re-export from context for backward compatibility
-export { ALL_REPOSITORIES, NO_REPOSITORY } from "@/lib/contexts"
-
 interface SidebarProps {
   chats: Chat[]
   currentChatId: string | null
