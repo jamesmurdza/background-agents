@@ -18,10 +18,8 @@ import {
   Github,
   Loader2,
   Plug,
-  Settings,
-  Trash2,
 } from "lucide-react"
-import { type ComponentType, type ReactNode, type SyntheticEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { type ComponentType, useCallback, useEffect, useMemo, useState } from "react"
 import {
   GMAIL_MCP_QUALIFIED_NAME,
   type GmailToolPolicy,
@@ -40,12 +38,8 @@ import {
 import { GmailIcon } from "@/components/icons/gmail-icon"
 import { ComboboxTriggerButton } from "./ComboboxTriggerButton"
 import { GmailSettingsDialog } from "./GmailSettingsDialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { RowSettingsButton, RowSettingsMenu, UnlinkMenuItem } from "./McpServerRowControls"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import {
   Popover,
   PopoverContent,
@@ -665,94 +659,3 @@ export function McpServersCombobox({
   )
 }
 
-const ROW_SETTINGS_BUTTON =
-  "p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-50"
-
-/**
- * Keeps events inside a row control from reaching the enclosing CommandItem.
- * React bubbles events through portals along the component tree, so without
- * this a click (or Enter) inside a portaled menu also fires cmdk's row
- * select, which toggles the server off.
- */
-function RowControl({ children }: { children: ReactNode }) {
-  const stop = (e: SyntheticEvent) => e.stopPropagation()
-  return (
-    <div
-      className="contents"
-      onClick={stop}
-      onPointerDown={stop}
-      onPointerUp={stop}
-      onKeyDown={stop}
-    >
-      {children}
-    </div>
-  )
-}
-
-/** Gear button that opens a settings dialog for a first-party row. */
-function RowSettingsButton({
-  label,
-  disabled,
-  onClick,
-}: {
-  label: string
-  disabled: boolean
-  onClick: () => void
-}) {
-  return (
-    <RowControl>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        className={ROW_SETTINGS_BUTTON}
-        aria-label={label}
-        title={label}
-      >
-        <Settings className="h-3.5 w-3.5" />
-      </button>
-    </RowControl>
-  )
-}
-
-/** Gear button + dropdown on a first-party row. */
-function RowSettingsMenu({
-  label,
-  disabled,
-  children,
-}: {
-  label: string
-  disabled: boolean
-  children: ReactNode
-}) {
-  return (
-    <RowControl>
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            disabled={disabled}
-            className={ROW_SETTINGS_BUTTON}
-            aria-label={label}
-            title={label}
-          >
-            <Settings className="h-3.5 w-3.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">{children}</DropdownMenuContent>
-      </DropdownMenu>
-    </RowControl>
-  )
-}
-
-function UnlinkMenuItem({ label, onSelect }: { label: string; onSelect: () => void }) {
-  return (
-    <DropdownMenuItem
-      onSelect={onSelect}
-      className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer rounded-sm text-destructive focus:bg-destructive/10 focus:text-destructive"
-    >
-      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-      {label}
-    </DropdownMenuItem>
-  )
-}

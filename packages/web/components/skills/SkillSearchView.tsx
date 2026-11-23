@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, type ChangeEvent } from "react"
+import { useState, useEffect, useCallback, useRef, type ChangeEvent, type ReactNode } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Search, X, Check, Loader2, Zap, Trash2, ExternalLink, Upload, Sparkles } from "lucide-react"
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog"
@@ -8,6 +8,74 @@ import { cn, MODAL_OVERLAY_CLASS } from "@/lib/utils"
 import { focusChatPrompt } from "@/components/ui/modal-header"
 import { useDragToClose } from "@/lib/hooks/useDragToClose"
 import type { Skill, SkillSearchResult } from "@/lib/types"
+
+// Shared row for a skill search result that isn't installed yet — used for both
+// featured/predefined results and registry search results, which differ only in
+// their title field and trailing badge.
+function SkillResultRow({
+  fullHandle,
+  title,
+  description,
+  url,
+  selected,
+  disabled,
+  badge,
+  onToggle,
+}: {
+  fullHandle: string
+  title: string
+  description?: string
+  url?: string
+  selected: boolean
+  disabled: boolean
+  badge?: ReactNode
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      className={cn(
+        "flex items-start gap-3 w-full px-1 py-3 text-left transition-colors rounded-md",
+        selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
+      )}
+    >
+      {/* Checkbox */}
+      <div
+        className={cn(
+          "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
+          selected ? "border-primary bg-primary" : "border-border"
+        )}
+      >
+        {selected && <Check className="h-4 w-4 text-primary-foreground" />}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground truncate">{title}</span>
+          {badge}
+        </div>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{description}</p>
+        )}
+      </div>
+
+      {/* External link */}
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </button>
+  )
+}
 
 interface SkillSearchViewProps {
   open: boolean
@@ -365,119 +433,45 @@ export function SkillSearchView({ open, onOpenChange, chatId, repo, hasSandbox, 
       ))}
 
       {/* Featured/predefined (built-in) skill rows */}
-      {newPredefined.map((result) => {
-        const selected = selectedHandles.has(result.fullHandle)
-        return (
-          <button
-            key={result.fullHandle}
-            onClick={() => toggleSelection(result.fullHandle)}
-            disabled={isInstalling}
-            className={cn(
-              "flex items-start gap-3 w-full px-1 py-3 text-left transition-colors rounded-md",
-              selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
-            )}
-          >
-            {/* Checkbox */}
-            <div
-              className={cn(
-                "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
-                selected ? "border-primary bg-primary" : "border-border"
-              )}
-            >
-              {selected && <Check className="h-4 w-4 text-primary-foreground" />}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground truncate">
-                  {result.name}
-                </span>
-                <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Sparkles className="h-3 w-3" />
-                  Featured
-                </span>
-              </div>
-              {result.description && (
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                  {result.description}
-                </p>
-              )}
-            </div>
-
-            {/* External link */}
-            {result.url && (
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </button>
-        )
-      })}
+      {newPredefined.map((result) => (
+        <SkillResultRow
+          key={result.fullHandle}
+          fullHandle={result.fullHandle}
+          title={result.name}
+          description={result.description}
+          url={result.url}
+          selected={selectedHandles.has(result.fullHandle)}
+          disabled={isInstalling}
+          onToggle={() => toggleSelection(result.fullHandle)}
+          badge={
+            <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Sparkles className="h-3 w-3" />
+              Featured
+            </span>
+          }
+        />
+      ))}
 
       {/* New (not-yet-installed) search result rows */}
-      {newResults.map((result) => {
-        const selected = selectedHandles.has(result.fullHandle)
-        return (
-          <button
-            key={result.fullHandle}
-            onClick={() => toggleSelection(result.fullHandle)}
-            disabled={isInstalling}
-            className={cn(
-              "flex items-start gap-3 w-full px-1 py-3 text-left transition-colors rounded-md",
-              selected ? "bg-primary/5" : "hover:bg-accent/50 cursor-pointer"
-            )}
-          >
-            {/* Checkbox */}
-            <div
-              className={cn(
-                "mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors",
-                selected ? "border-primary bg-primary" : "border-border"
-              )}
-            >
-              {selected && <Check className="h-4 w-4 text-primary-foreground" />}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground truncate">
-                  {result.fullHandle}
-                </span>
-                {result.installs != null && result.installs > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {result.installs.toLocaleString()} installs
-                  </span>
-                )}
-              </div>
-              {result.description && (
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                  {result.description}
-                </p>
-              )}
-            </div>
-
-            {/* External link */}
-            {result.url && (
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="mt-0.5 flex-shrink-0 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </button>
-        )
-      })}
+      {newResults.map((result) => (
+        <SkillResultRow
+          key={result.fullHandle}
+          fullHandle={result.fullHandle}
+          title={result.fullHandle}
+          description={result.description}
+          url={result.url}
+          selected={selectedHandles.has(result.fullHandle)}
+          disabled={isInstalling}
+          onToggle={() => toggleSelection(result.fullHandle)}
+          badge={
+            result.installs != null && result.installs > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                {result.installs.toLocaleString()} installs
+              </span>
+            ) : undefined
+          }
+        />
+      ))}
     </>
   )
 
