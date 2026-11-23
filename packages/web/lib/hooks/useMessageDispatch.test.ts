@@ -140,6 +140,45 @@ describe("direct-send failure ownership", () => {
     expect(retried.messages.map((message) => message.content)).toEqual(["Original text"])
   })
 
+  it("counts sends refused for their secrets, so the UI can offer a report after a failed retry", async () => {
+    const refused = { ok: false, error: "Couldn't set up the secure key proxy", isDailyLimit: false, isSecretsUnavailable: true }
+    mocks.send.mockResolvedValue(refused)
+    mocks.fetchChat.mockRejectedValue(new Error("Still offline"))
+    const { dispatch, client } = setup()
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({
+      status: "error", errorKind: "secrets", secretsFailureCount: 1, errorMessage: refused.error,
+    })
+
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    expect(client.getQueryData<Chat[]>(queryKeys.chats.list())![0]).toMatchObject({ errorKind: "secrets", secretsFailureCount: 2 })
+
+    // Any other failure isn't a secrets one.
+    mocks.send.mockRejectedValueOnce(new Error("Gateway error"))
+    await dispatch.sendMessage("Original text", "eliza", "eliza-classic-1.0")
+    const other = client.getQueryData<Chat[]>(queryKeys.chats.list())![0]
+    expect(other.errorKind).toBeUndefined()
+    expect(other.secretsFailureCount).toBeUndefined()
+  })
+
+  it("preserves a refused file-only prompt's original file through a queue poll and retry", async () => {
+    const file = new File(["contents"], "prompt.txt", { type: "text/plain" })
+    mocks.send.mockResolvedValue({ ok: false, error: "Proxy unavailable", isDailyLimit: false, isSecretsUnavailable: true })
+    mocks.fetchChat.mockResolvedValue({ messages: [] })
+    const { dispatch, client } = setup()
+    await dispatch.sendMessage("", "eliza", "eliza-classic-1.0", [file])
+    const poll: PromptQueueResponse = {
+      status: "error", queuePaused: false, queuedMessages: [], sandboxId: null,
+      backgroundSessionId: null, activeAssistantMessageId: null, updatedAt: 1,
+    }
+    client.setQueryData<Chat[]>(queryKeys.chats.list(), (chats) => chats!.map((chat) => applyQueueSnapshot(chat, poll)))
+    const failed = client.getQueryData<Chat[]>(queryKeys.chats.list())![0]
+    expect(failed.failedSendFiles?.[0]).toBe(file)
+    expect(failed.secretsFailureCount).toBe(1)
+    await dispatch.sendMessage("", "eliza", "eliza-classic-1.0", failed.failedSendFiles)
+    expect(mocks.send).toHaveBeenLastCalledWith(failed.id, expect.objectContaining({ message: "" }), [file])
+  })
+
   it("keeps a failed send's error through a queue poll until the next send", async () => {
     mocks.send.mockRejectedValueOnce(new Error("Gateway error"))
     mocks.fetchChat.mockRejectedValue(new Error("Still offline"))

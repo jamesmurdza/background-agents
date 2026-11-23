@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { persistedProviderFailure } from "./turn-error-presentation"
+import { persistedProviderFailure, secretsReportUrl } from "./turn-error-presentation"
 import type { Chat } from "./types"
 
 function failed(reason = "ProviderHeaderTimeoutError: Provider response headers timed out after 300000ms"): Chat {
@@ -76,5 +76,15 @@ describe("persisted provider failure presentation", () => {
       { id: "reply:error", role: "assistant", content: "Agent stopped", timestamp: 5, isError: true },
     )
     expect(persistedProviderFailure(chat)).toBeUndefined()
+  })
+})
+
+describe("secretsReportUrl", () => {
+  it("prefills a bug report with only the chat id and time", () => {
+    const url = new URL(secretsReportUrl("chat-123", new Date("2026-11-22T00:00:00Z")))
+    expect(url.pathname).toBe("/jamesmurdza/background-agents/issues/new")
+    expect(url.searchParams.get("template")).toBe("bug_report.md")
+    expect(url.searchParams.get("body")).toContain("Chat ID: chat-123")
+    expect(url.searchParams.get("body")).toContain("2026-11-22T00:00:00.000Z")
   })
 })

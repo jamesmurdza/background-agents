@@ -37,6 +37,9 @@ import {
   type SendMessagePayload,
 } from "@/lib/chat-messages"
 
+/** A send the server refused because its secrets couldn't be set up. */
+class SecretsUnavailableSendError extends Error {}
+
 type StartStreaming = ReturnType<typeof useStreaming>["startStreaming"]
 type SuggestNameMutation = ReturnType<typeof useSuggestNameMutation>
 type ConflictStateChange = (state: {
@@ -289,6 +292,7 @@ export function useMessageDispatch({
             return
           }
 
+          if (result.isSecretsUnavailable) throw new SecretsUnavailableSendError(result.error)
           throw new Error(result.error)
         }
 
@@ -317,7 +321,12 @@ export function useMessageDispatch({
           if (c.id !== chatId || (c.activeAssistantMessageId && c.activeAssistantMessageId !== assistantMessage.id)) return c
           const reply = c.messages.find((message) => message.id === assistantMessage.id)
           if (reply?.content || reply?.toolCalls?.length) return c
+          const secretsFailed = error instanceof SecretsUnavailableSendError
           return { ...c, status: "error", pendingSend: false, errorMessage, failedSendMessageId: userMessage.id,
+            failedSendFiles: secretsFailed ? files : undefined,
+            errorKind: secretsFailed ? "secrets" : undefined,
+            secretsFailureCount: secretsFailed ? (c.secretsFailureCount ?? 0) + 1 : undefined,
+            secretsRetryAssistantMessageId: undefined,
             messages: c.messages.filter((message) => message.id !== assistantMessage.id) }
         }))
         // The response may have been lost after the server saved the turn. If it

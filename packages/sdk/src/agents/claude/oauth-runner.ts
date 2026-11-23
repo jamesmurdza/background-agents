@@ -14,6 +14,18 @@ import { promisify } from "node:util";
 const abort = new AbortController();
 let child;
 let pendingToken;
+let secretSetupFailed = false;
+let sawResult = false;
+
+// The host token endpoint can distinguish a proxy failure from an expired login.
+const SECRETS_UNAVAILABLE = "SECRETS_UNAVAILABLE";
+class SecretSetupError extends Error {}
+
+function reportSecretSetupFailure() {
+  process.stdout.write(JSON.stringify({
+    type: "result", subtype: "error_during_execution", error: SECRETS_UNAVAILABLE,
+  }) + "\n");
+}
 
 async function readToken() {
   const response = await fetch(process.env.CLAUDE_CODE_TOKEN_URL, {
@@ -23,7 +35,12 @@ async function readToken() {
     cache: "no-store",
   });
   if (!response.ok) {
-    await response.body?.cancel();
+    if (response.status === 503) {
+      const failure = await response.json().catch(() => null);
+      if (failure?.code === SECRETS_UNAVAILABLE) throw new SecretSetupError();
+    } else {
+      await response.body?.cancel();
+    }
     throw new Error("Shared Claude credentials are unavailable");
   }
   const value = await response.json();
@@ -54,11 +71,13 @@ async function recover(message) {
     // Claude compares this with the token used by the failed request. Leave
     // that comparison to Claude: concurrent calls can fail with different
     // tokens. Never rotate the shared refresh token from this sandbox.
+    secretSetupFailed = false;
     answer(message.request_id, { accessToken: token });
-  } catch {
+  } catch (error) {
     // Expected unavailable/expired credentials: let Claude report its terminal
     // auth failure without logging token-bearing Fetch errors or responses.
-    process.stderr.write("[claude-oauth] Credential recovery unavailable\n");
+    if (error instanceof SecretSetupError) secretSetupFailed = true;
+    else process.stderr.write("[claude-oauth] Credential recovery unavailable\n");
     answer(message.request_id, { accessToken: null });
   }
 }
@@ -102,6 +121,7 @@ async function main() {
     process.exitCode = 1;
   });
   child.on("close", (code, signal) => {
+    if (!sawResult && secretSetupFailed) reportSecretSetupFailure();
     process.exitCode = code ?? (signal === "SIGINT" ? 130 : 143);
     abort.abort();
   });
@@ -126,8 +146,14 @@ async function main() {
     }
     // Credential control traffic must never become part of the transcript.
     if (["control_response", "control_cancel_request"].includes(message?.type)) return;
-    process.stdout.write(line + "\n");
-    if (message?.type === "result") child.stdin.end();
+    if (message?.type === "result") {
+      sawResult = true;
+      if (secretSetupFailed && (message.is_error || message.subtype !== "success")) reportSecretSetupFailure();
+      else process.stdout.write(line + "\n");
+      child.stdin.end();
+    } else {
+      process.stdout.write(line + "\n");
+    }
   });
   child.stdin.write(JSON.stringify({ type: "control_request", request_id: "host-initialize",
     request: { subtype: "initialize" },
@@ -143,8 +169,9 @@ for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => {
   else process.exitCode = signal === "SIGINT" ? 130 : 143;
 });
 
-main().catch(() => {
-  process.stderr.write("[claude-oauth] Cannot obtain shared Claude credentials\n");
+main().catch((error) => {
+  if (error instanceof SecretSetupError) reportSecretSetupFailure();
+  else process.stderr.write("[claude-oauth] Cannot obtain shared Claude credentials\n");
   process.exitCode = 1;
 });
 `

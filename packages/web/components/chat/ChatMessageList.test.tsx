@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import type { Chat, Agent } from "@/lib/types"
 import type { GitContextValue } from "@/lib/contexts/GitContext"
+import { TURN_SECRETS_UNAVAILABLE_MESSAGE } from "@/lib/secrets-failure"
 import { ChatMessageList } from "./ChatMessageList"
 
 function renderWarning(uncommittedFilesCount: number, isNewRepo = false, overrides: Partial<Chat> = {}, git: Partial<GitContextValue> = {}) {
@@ -201,6 +202,34 @@ describe("chat execution presentation", () => {
     expect(html).not.toContain(">Retry</button>")
     expect(html).not.toContain(">Continue queued prompts</button>")
   })
+  it.each([[1, false], [2, true]])("offers Retry for a send refused for its secrets, and Report after %i failures: %s", (count, report) => {
+    const html = renderWarning(0, false, {
+      status: "error", errorKind: "secrets", secretsFailureCount: count, failedSendMessageId: "user",
+      errorMessage: "Couldn't set up the secure key proxy for this sandbox.",
+      messages: [{ id: "user", role: "user", content: "Please reply", timestamp: 1 }],
+    })
+    expect(html).toContain("Couldn&#x27;t set up the secure key proxy for this sandbox.")
+    expect(html).toContain(">Retry</button>")
+    expect(html.includes('data-testid="chat-error-report"')).toBe(report)
+    if (report) expect(html).toContain("/issues/new?template=bug_report.md")
+  })
+  it("offers a report for repeated Claude proxy failures after reloading the chat", () => {
+    const messages = [1, 2].flatMap((attempt) => {
+      const assistantMessageId = `assistant-${attempt}`
+      return [
+        { id: `user-${attempt}`, role: "user" as const, content: "Please reply", timestamp: attempt * 2 },
+        { id: assistantMessageId, role: "assistant" as const, content: "", timestamp: attempt * 2 + 1, metadata: {
+          turnFinalization: {
+            state: "error" as const, executionStopped: true, assistantMessageId,
+            backgroundSessionId: `session-${attempt}`, reason: TURN_SECRETS_UNAVAILABLE_MESSAGE,
+          },
+        } },
+      ]
+    })
+    const html = renderWarning(0, false, { status: "error", messages })
+    expect(html).toContain(">Retry</button>")
+    expect(html).toContain('data-testid="chat-error-report"')
+  })
   it("explains a confirmed provider timeout after refresh without exposing raw logs", () => {
     const html = renderWarning(0, false, { status: "error", messages: [
       { id: "user", role: "user", content: "Please reply", timestamp: 1 },
@@ -266,6 +295,16 @@ describe("chat execution presentation", () => {
     expect(html).toContain("Later prompt")
     expect(html).not.toContain("Starting")
     expect(html).not.toContain("animate-pulse")
+  })
+  it("keeps the error in its queue row with room to scroll past it", () => {
+    const html = renderWarning(0, false, { queuePaused: true,
+      queuedMessages: [{ id: "failed", content: "Queued prompt", lastError: TURN_SECRETS_UNAVAILABLE_MESSAGE }],
+    })
+    const queue = html.slice(html.indexOf('data-testid="prompt-queue"'))
+    expect(queue).toContain("Queued prompt")
+    expect(queue).toContain("Paused: Couldn&#x27;t set up the secure key proxy")
+    expect(queue).not.toContain("-mb-4")
+    expect(html).not.toContain('data-testid="chat-error-banner"')
   })
   it("shows one loader during startup without marking an old reply as streaming", () => {
     const html = renderWarning(0, false, {

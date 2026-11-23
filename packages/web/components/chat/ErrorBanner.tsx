@@ -15,6 +15,9 @@ interface ErrorBannerProps {
   actionLabel?: string
   /** Label shown while the action is running. Defaults to "Retrying…". */
   actionPendingLabel?: string
+  /** Where a "Report issue" link points (opens in a new tab), for failures a
+   *  retry didn't fix. No link when omitted. */
+  reportHref?: string
 }
 
 export function ErrorBanner({
@@ -23,6 +26,7 @@ export function ErrorBanner({
   onRetry,
   actionLabel = "Retry",
   actionPendingLabel = "Retrying…",
+  reportHref,
 }: ErrorBannerProps) {
   const [expanded, setExpanded] = useState(false)
   const [overflow, setOverflow] = useState(false)
@@ -85,6 +89,17 @@ export function ErrorBanner({
             >
               {isRetrying ? actionPendingLabel : actionLabel}
             </button>
+          )}
+          {reportHref && (
+            <a
+              data-testid="chat-error-report"
+              href={reportHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:no-underline cursor-pointer"
+            >
+              Report issue
+            </a>
           )}
         </div>
       </div>

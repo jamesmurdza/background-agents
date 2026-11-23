@@ -49,6 +49,10 @@ export function subscriptionSecretsEnabled(kind: SubscriptionSecret): boolean {
   return userSecretsFlag(kind)
 }
 
+export function claudeSubscriptionSecretEnabled(source: ClaudeRunToken["source"]): boolean {
+  return subscriptionSecretsEnabled(source === "shared" ? "CLAUDE_SHARED" : "CLAUDE_CODE_CREDENTIALS")
+}
+
 /** The access token in a rendered Codex auth.json (see lib/codex-credentials). */
 export function codexAccessToken(authJson: string): string | undefined {
   try {

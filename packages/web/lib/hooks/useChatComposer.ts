@@ -222,9 +222,10 @@ export function useChatComposer({
     prevChatIdRef.current = chat?.id ?? null
 
     if (chatChanged || !userHasScrolledUp) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
+      const container = messagesContainerRef.current
+      container?.scrollTo({ top: container.scrollHeight, behavior: "instant" })
     }
-  }, [chat?.id, chat?.messages, chat?.queuedMessages, userHasScrolledUp])
+  }, [chat?.id, chat?.messages, chat?.queuedMessages, chat?.queuePaused, userHasScrolledUp])
 
   // Clicking a "finished"/"push" notification for the chat that's already open
   // should scroll down to reveal it, even if the user had scrolled up reading

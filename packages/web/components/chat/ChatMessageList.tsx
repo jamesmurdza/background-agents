@@ -8,7 +8,9 @@ import { BranchDivider } from "./BranchDivider"
 import { MessageBubble } from "../MessageBubble"
 import { getPendingSubmission } from "@/lib/chat-state"
 import { useTurnPhaseLabel } from "@/lib/hooks/useTurnPhaseLabel"
-import { latestFailedAssistant, persistedProviderFailure, unsupportedModelFailure } from "@/lib/turn-error-presentation"
+import { latestFailedAssistant, persistedProviderFailure, persistedSecretsFailureCount, secretsReportUrl, unsupportedModelFailure } from "@/lib/turn-error-presentation"
+import { TURN_SECRETS_UNAVAILABLE_MESSAGE } from "@/lib/secrets-failure"
+import { useToastStore } from "@/lib/stores/toast-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,6 +85,7 @@ export function ChatMessageList({
     !item.userMessageId || !chat.messages.some((message) => message.id === item.userMessageId))
   const pending = getPendingSubmission({ ...chat, queuedMessages: visibleQueue })
   const waiting = visibleQueue.filter((item) => item !== pending)
+  const hasQueueError = waiting.some((item) => !!item.lastError)
   const activeMessage = chat.messages.find((message) => message.id === chat.activeAssistantMessageId && message.role === "assistant")
   const streamingId = (chat.status === "running" || chat.status === "creating") ? activeMessage?.id : undefined
   const showStarting = !streamingId && (isCreating || chat.status === "running" || !!pending)
@@ -391,15 +394,59 @@ export function ChatMessageList({
             const unsupportedModel = !!unsupportedModelFailure(failureMessage)
             const lastUserMessage = [...chat.messages].reverse().find((m) => m.role === "user")
             const resend = lastUserMessage
-              ? () => onSendMessage(
+              ? (files?: File[]) => onSendMessage(
                   lastUserMessage.content,
                   currentAgent,
                   currentModel,
-                  undefined,
+                  files,
                   planModeEnabled,
                   currentReasoningEffort,
                 )
               : undefined
+
+            const refused = chat.errorKind === "secrets" && !!lastUserMessage && lastUserMessage.id === chat.failedSendMessageId
+            if (refused || providerFailure === TURN_SECRETS_UNAVAILABLE_MESSAGE) {
+              const paths = lastUserMessage?.uploadedFiles ?? []
+              const sandboxId = chat.sandboxId
+              const canRetry = paths.length === 0 || (refused ? !!chat.failedSendFiles?.length : !!sandboxId)
+              const retry = resend && canRetry ? async () => {
+                if (refused || !paths.length) {
+                  resend(chat.failedSendFiles)
+                  return
+                }
+                try {
+                  const files = await Promise.all(paths.map(async (filePath) => {
+                    const response = await fetch("/api/sandbox/files", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "read-file-binary", sandboxId, filePath, autoStart: true }),
+                    })
+                    if (!response.ok) throw new Error("Attachment download failed")
+                    const blob = await response.blob()
+                    return new File([blob], filePath.slice(filePath.lastIndexOf("/") + 1), { type: blob.type })
+                  }))
+                  resend(files)
+                } catch {
+                  // Keep the failed turn visible when its attachments cannot be recovered.
+                  console.warn("[chat] Could not retrieve attachments for retry")
+                  useToastStore.getState().addToast({
+                    title: "Couldn't retrieve the attachments",
+                    body: "Attach the original files again before sending the prompt.",
+                    chatId: chat.id,
+                  })
+                }
+              } : undefined
+              const message = (refused ? chat.errorMessage : providerFailure) || TURN_SECRETS_UNAVAILABLE_MESSAGE
+              return (
+                <ErrorBanner
+                  key={chat.id}
+                  message={canRetry ? message : `${message} Attach the original files again before sending the prompt.`}
+                  isMobile={isMobile}
+                  onRetry={retry}
+                  reportHref={(chat.secretsFailureCount ?? 0) + persistedSecretsFailureCount(chat) >= 2 ? secretsReportUrl(chat.id) : undefined}
+                />
+              )
+            }
 
             // A generic process crash is often transient. If the failed turn
             // already streamed some output, the fuller copy is likely persisted
@@ -439,7 +486,8 @@ export function ChatMessageList({
               scrolls out of view with the conversation. */}
           {waiting.length > 0 && (
             <div data-testid="prompt-queue" className={cn(
-              "border border-b-0 border-border bg-card rounded-t-md -mb-4",
+              "border border-border bg-card",
+              hasQueueError ? "rounded-md" : "border-b-0 rounded-t-md -mb-4",
               isMobile ? "mx-4" : "mx-6"
             )}>
               {waiting.map((m) => (
@@ -449,7 +497,7 @@ export function ChatMessageList({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm text-foreground/80">{m.content}</div>
-                    {m.lastError && <div className="text-xs text-destructive">Paused: {m.lastError}</div>}
+                    {m.lastError && <div className="break-words text-xs text-destructive">Paused: {m.lastError}</div>}
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

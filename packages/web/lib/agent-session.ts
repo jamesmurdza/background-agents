@@ -30,6 +30,7 @@ import {
   type AgentMcpServer,
 } from "@background-agents/agent-configuration/mcp"
 import { DEFAULT_GIT_POLICY } from "./git-policy"
+import { SECRETS_UNAVAILABLE_CODE, TURN_SECRETS_UNAVAILABLE_MESSAGE } from "./secrets-failure"
 import type { Sandbox as DaytonaSandbox } from "@daytonaio/sdk"
 
 // Re-export Agent type for convenience
@@ -283,7 +284,7 @@ function summarizeEvents(
       content,
       toolCalls,
       contentBlocks,
-      error: endEvent.error,
+      error: endEvent.error === SECRETS_UNAVAILABLE_CODE ? TURN_SECRETS_UNAVAILABLE_MESSAGE : endEvent.error,
       sessionId: sessionId || undefined,
     }
   }

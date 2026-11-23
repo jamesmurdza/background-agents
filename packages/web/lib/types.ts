@@ -242,6 +242,8 @@ export interface Chat {
   /** Client-only: this browser's direct send that failed before the server
    *  saved it. Its error stays until the next send or until the server moves on. */
   failedSendMessageId?: string
+  /** Browser-local files for a failed send that never uploaded them. */
+  failedSendFiles?: File[]
 
   /** Server-confirmed terminal failure eligible for explicit queue continuation. */
   recoverableAssistantMessageId?: string
@@ -256,8 +258,16 @@ export interface Chat {
    *  Reload (when partial output streamed) instead of Retry. "incomplete" = the
    *  turn ended with no terminal event and no output; the agent may still be
    *  running in the background, so the UI offers Reload instead of Retry.
+   *  "secrets" = client-only: the send was refused because its Daytona secrets
+   *  couldn't be set up (the key is never passed raw instead); the UI offers
+   *  Retry, and Report once a retry has failed too.
    *  Cleared on the next send. */
-  errorKind?: "crash" | "incomplete"
+  errorKind?: "crash" | "incomplete" | "secrets"
+
+  /** Client-only: consecutive sends refused before the turn could start. */
+  secretsFailureCount?: number
+  /** The retry that can add a persisted Claude failure to those refusals. */
+  secretsRetryAssistantMessageId?: string
 
   /** Set when a merge targets this branch but sandbox was stopped. Triggers pull on next execute. */
   needsSync?: boolean

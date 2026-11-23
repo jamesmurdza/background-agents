@@ -48,7 +48,9 @@ describe.skipIf(!executable)("native Claude OAuth retry", () => {
   it.each([
     { name: "retries with a fresh token without repeating completed tools", rotate: true },
     { name: "stops when the rejected token is unchanged without repeating completed tools", rotate: false },
-  ])("$name", async ({ rotate }) => {
+    { name: "reports a secret setup failure at startup", rotate: false, failMount: 1 },
+    { name: "reports a secret setup failure during token recovery", rotate: false, failMount: 2 },
+  ])("$name", async ({ rotate, failMount }) => {
     directory = await mkdtemp(path.join(tmpdir(), "claude-oauth-integration-"))
     const runner = path.join(directory, "runner.mjs")
     const marker = path.join(directory, "tool-count.txt")
@@ -66,6 +68,11 @@ describe.skipIf(!executable)("native Claude OAuth retry", () => {
         if (request.url === "/token") {
           tokenReads++
           if (tokenReads === 2) outputBeforeRecovery = output
+          if (tokenReads === failMount) {
+            response.writeHead(503, { "Content-Type": "application/json" })
+            response.end(JSON.stringify({ code: "SECRETS_UNAVAILABLE", error: "upstream secret detail" }))
+            return
+          }
           response.writeHead(200, { "Content-Type": "application/json" })
           response.end(JSON.stringify({ accessToken: tokenReads === 1 || !rotate
             ? "sk-ant-oat01-old-synthetic-test" : "sk-ant-oat01-new-synthetic-test" }))
@@ -109,6 +116,13 @@ describe.skipIf(!executable)("native Claude OAuth retry", () => {
       child.once("close", resolve)
     }).finally(() => clearTimeout(timeout))
     expect(code, errors).toBe(rotate ? 0 : 1)
+    if (failMount === 1) {
+      expect(tokenReads).toBe(1)
+      expect(calls).toHaveLength(0)
+      expect(output).toContain('"error":"SECRETS_UNAVAILABLE"')
+      expect(output + errors).not.toContain("upstream secret detail")
+      return
+    }
     if (rotate) {
       expect(output).toContain("Recovered successfully")
       expect(output).not.toContain("Failed to authenticate")
@@ -117,7 +131,8 @@ describe.skipIf(!executable)("native Claude OAuth retry", () => {
       expect(JSON.parse(calls[2].body)).toEqual(JSON.parse(calls[1].body))
     } else {
       expect(calls).toHaveLength(2)
-      expect(output).toContain('"api_error_status":401')
+      expect(output).toContain(failMount ? '"error":"SECRETS_UNAVAILABLE"' : '"api_error_status":401')
+      if (failMount) expect(output + errors).not.toContain("upstream secret detail")
     }
     // The host receives completed work before recovery and the final result,
     // so the bridge preserves incremental output even if recovery fails.

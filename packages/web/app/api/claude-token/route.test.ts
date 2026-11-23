@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const state = vi.hoisted(() => ({ run: vi.fn(), credentials: vi.fn(), mount: vi.fn(), own: vi.fn() }))
-vi.mock("@/lib/server/turn-secrets", () => ({ mountClaudeSecret: state.mount }))
+vi.mock("@/lib/server/turn-secrets", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/turn-secrets")>()),
+  mountClaudeSecret: state.mount,
+}))
 vi.mock("@/lib/server/user-claude-credentials", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/server/user-claude-credentials")>()),
   getUserClaudeAccessToken: state.own,
@@ -11,6 +14,8 @@ vi.mock("@/lib/db/prisma", () => ({ prisma: {
 import { GET } from "./route"
 import { createClaudeTokenCapability } from "@/lib/server/claude-token-auth"
 import { OwnClaudeCredentialsExpiredError } from "@/lib/server/user-claude-credentials"
+import { TurnSecretsUnavailableError } from "@/lib/server/turn-secrets"
+import { SECRETS_UNAVAILABLE_CODE } from "@/lib/secrets-failure"
 
 const scope = { userId: "user-test", chatId: "chat-test", backgroundSessionId: "run-test", source: "shared" as const }
 function grant(accessToken: string, expiresAt = Date.now() + 3600000) {
@@ -21,6 +26,7 @@ function request(token = createClaudeTokenCapability(scope)) {
 }
 beforeEach(() => {
   vi.stubEnv("NEXTAUTH_SECRET", "token-read-signing-test")
+  vi.stubEnv("DAYTONA_USER_KEY_SECRETS", "none")
   state.run.mockReset().mockResolvedValue({ id: scope.chatId })
   state.credentials.mockReset().mockResolvedValue(grant("access-test"))
   state.mount.mockReset().mockResolvedValue(undefined)
@@ -42,12 +48,37 @@ describe("Claude host token reads", () => {
 
   it("hands a run on a sandbox the token's Daytona secret placeholder instead, when there is one", async () => {
     vi.stubEnv("DAYTONA_API_KEY", "dtn-test")
+    vi.stubEnv("DAYTONA_USER_KEY_SECRETS", "all")
     state.run.mockResolvedValue({ id: scope.chatId, sandboxId: "sb-test" })
     state.mount.mockResolvedValueOnce("dtn_secret_test")
     expect(await (await GET(request())).json()).toEqual({ accessToken: "dtn_secret_test" })
     expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", scope.userId, { source: "shared", token: "access-test" })
-    // No placeholder (feature off, secret failed): the token, as before.
+    // No placeholder (feature off): the token, as before.
+    vi.stubEnv("DAYTONA_USER_KEY_SECRETS", "none")
     expect(await (await GET(request())).json()).toEqual({ accessToken: "access-test" })
+  })
+
+  it("answers 503, never the raw token, when the token's secret fails", async () => {
+    vi.stubEnv("DAYTONA_API_KEY", "dtn-test")
+    vi.stubEnv("DAYTONA_USER_KEY_SECRETS", "all")
+    state.run.mockResolvedValue({ id: scope.chatId, sandboxId: "sb-test" })
+    state.mount.mockRejectedValueOnce(new TurnSecretsUnavailableError())
+    const response = await GET(request())
+    expect(response.status).toBe(503)
+    const failure = await response.json()
+    expect(failure).toMatchObject({ code: SECRETS_UNAVAILABLE_CODE })
+    expect(failure).not.toHaveProperty("accessToken")
+  })
+
+  it("fails closed when the protected token has no sandbox to mount on", async () => {
+    vi.stubEnv("DAYTONA_USER_KEY_SECRETS", "all")
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const response = await GET(request())
+      expect(response.status).toBe(503)
+      expect(await response.json()).toMatchObject({ code: SECRETS_UNAVAILABLE_CODE })
+      expect(state.mount).not.toHaveBeenCalled()
+    } finally { log.mockRestore() }
   })
 
   it("serves a run on the user's own subscription their (refreshed) token, never the shared one", async () => {
@@ -57,7 +88,7 @@ describe("Claude host token reads", () => {
     expect(await (await GET(request(own))).json()).toEqual({ accessToken: "own-access-test" })
     expect(state.own).toHaveBeenCalledWith(scope.userId)
     expect(state.credentials).not.toHaveBeenCalled()
-    expect(state.mount).toHaveBeenCalledWith(expect.anything(), "sb-test", scope.userId, { source: "own", token: "own-access-test" })
+    expect(state.mount).not.toHaveBeenCalled()
   })
 
   it("answers 503 when the user's own login can't be used", async () => {

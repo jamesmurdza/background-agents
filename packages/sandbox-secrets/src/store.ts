@@ -30,10 +30,10 @@ async function findSecret(daytona: Daytona, name: string): Promise<{ id: string;
 async function stampUsed(daytona: Daytona, id: string, name: string, now: number): Promise<void> {
   try {
     await daytona.secret.update(id, { description: stampLastUsed(now) })
-  } catch (err) {
+  } catch {
     // Only the stamp is lost; a sweep may then delete the secret early, and
     // the next ensure/touch recreates or re-stamps it.
-    console.error(`[sandbox-secrets] failed to stamp Daytona secret ${name} as used:`, err)
+    console.error(`[sandbox-secrets] failed to stamp Daytona secret ${name} as used`)
   }
 }
 

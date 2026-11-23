@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, expect, it, vi } from "vitest"
 import { randomUUID } from "node:crypto"
 
-const launch = vi.hoisted(() => ({ start: vi.fn(), nextId: "", upload: vi.fn(async (): Promise<string[]> => []) }))
+const launch = vi.hoisted(() => ({
+  start: vi.fn(), nextId: "", upload: vi.fn(async (): Promise<string[]> => []),
+  ensureSandbox: vi.fn(async () => ({ sandbox: {}, sandboxId: "isolated-test", createdSandbox: false, branchRestored: false })),
+}))
 vi.mock("@daytonaio/sdk", () => ({ Daytona: class {} }))
 vi.mock("@/lib/db/api-helpers", async (original) => ({
   ...await original<typeof import("@/lib/db/api-helpers")>(),
@@ -18,7 +21,7 @@ vi.mock("@/lib/server/turn-secrets", async (original) => ({
 vi.mock("@/lib/mcp/agent-servers", () => ({ loadMcpConnections: async () => [] }))
 vi.mock("@/lib/sandbox", () => ({ deleteSandboxQuietly: vi.fn(), discoverSkillsForRepo: async () => [], uploadFilesToSandbox: launch.upload }))
 vi.mock("./resolve-credentials", () => ({ resolveSendCredentials: async () => ({ credentials: {}, githubToken: "", useSharedClaude: false }) }))
-vi.mock("./ensure-sandbox", () => ({ ensureSandboxForChat: async () => ({ sandbox: {}, sandboxId: "isolated-test", createdSandbox: false, branchRestored: false }) }))
+vi.mock("./ensure-sandbox", () => ({ ensureSandboxForChat: launch.ensureSandbox }))
 vi.mock("./pre-run-pull", () => ({ runPreRunPull: async () => ({ pullConflictNote: "" }) }))
 vi.mock("./history", () => ({ buildAgentHistory: async () => ({ isAgentSwitch: false }) }))
 vi.mock("./agent-env", () => ({ buildAgentEnv: async () => ({}) }))
@@ -26,6 +29,8 @@ vi.mock("@/lib/agent-session", () => ({ createBackgroundAgentSession: async () =
 
 import { prisma } from "@/lib/db/prisma"
 import { sendChatTurn } from "./send-turn"
+import { SandboxSecretsPreparationError } from "@background-agents/sandbox-secrets"
+import { SECRETS_UNAVAILABLE_CODE } from "@/lib/secrets-failure"
 
 const payload = (message: string) => ({ message, agent: "eliza", model: "eliza-classic-1.0", userMessageId: randomUUID(), assistantMessageId: randomUUID() })
 let userId = ""
@@ -36,6 +41,17 @@ beforeAll(async () => {
 afterAll(async () => {
   if (userId) await prisma.user.delete({ where: { id: userId } })
   await prisma.$disconnect()
+})
+
+it.skipIf(!process.env.DATABASE_URL)("returns a retryable error when a new sandbox cannot prepare its proxy", async () => {
+  launch.start.mockClear()
+  launch.ensureSandbox.mockRejectedValueOnce(new SandboxSecretsPreparationError())
+  const chat = await prisma.chat.create({ data: { userId, repo: "__new__", status: "pending" } })
+  const response = await sendChatTurn({ userId, chatId: chat.id, payload: payload("First"), files: [] })
+  expect(response.status).toBe(503)
+  expect(await response.json()).toMatchObject({ code: SECRETS_UNAVAILABLE_CODE })
+  expect(launch.start).not.toHaveBeenCalled()
+  expect((await prisma.chat.findUniqueOrThrow({ where: { id: chat.id } })).status).toBe("error")
 })
 
 it.skipIf(!process.env.DATABASE_URL)("retains the saved turn through an uncertain launch and rejects a second execution", async () => {

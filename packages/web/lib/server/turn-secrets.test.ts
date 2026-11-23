@@ -13,6 +13,7 @@ import { buildCodexAuthJson } from "@/lib/codex-credentials"
 import {
   applyTurnSecretsToEnv,
   ensureTurnSecrets,
+  TurnSecretsUnavailableError,
   mountClaudeSecret,
   mountTurnSecrets,
   planTurnSecrets,
@@ -103,7 +104,7 @@ describe("planTurnSecrets", () => {
       planTurnSecrets({
         userId: USER,
         agent: "opencode",
-        model: "opencode-go/mimo-v2.5-pro",
+        model: "opencode-go/mimo-v2.6-pro",
         credentials: { OPENCODE_API_KEY: marker },
       })
     ).toEqual([
@@ -116,11 +117,11 @@ describe("planTurnSecrets", () => {
     process.env.DAYTONA_USER_KEY_SECRETS = "OPENCODE_API_KEY"
     try {
       expect(planTurnSecrets({
-        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.5-pro", credentials: { OPENCODE_API_KEY: "oc-pool-raw" },
+        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.6-pro", credentials: { OPENCODE_API_KEY: "oc-pool-raw" },
       })).toEqual([])
       // The user's own key still is.
       expect(planTurnSecrets({
-        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.5-pro", credentials: { OPENCODE_API_KEY: "oc-own" },
+        userId: USER, agent: "opencode", model: "opencode-go/mimo-v2.6-pro", credentials: { OPENCODE_API_KEY: "oc-own" },
       })).toMatchObject([{ kind: "user", value: "oc-own" }])
     } finally {
       delete process.env.OPENCODE_API_KEY
@@ -316,11 +317,19 @@ describe("mountClaudeSecret", () => {
     expect(sandbox.updateSecrets).not.toHaveBeenCalled()
   })
 
-  it("falls back to the token when the secret fails", async () => {
+  it("throws when the secret fails, never falling back to the token", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     const { secret, daytona } = daytonaWith(fakeSandbox())
     secret.list.mockRejectedValue(new Error("403"))
-    expect(await mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).toBeUndefined()
+    await expect(mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).rejects.toThrow(TurnSecretsUnavailableError)
+  })
+
+  it("throws when mounting the secret fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox()
+    sandbox.updateSecrets.mockRejectedValue(new Error("network"))
+    const { daytona } = daytonaWith(sandbox)
+    await expect(mountClaudeSecret(daytona, "sb-1", USER, shared(`tok-${counter++}`))).rejects.toThrow(TurnSecretsUnavailableError)
   })
 })
 
@@ -341,12 +350,16 @@ describe("ensureTurnSecrets", () => {
     expect(await ensureTurnSecrets(daytona, [])).toEqual([])
   })
 
-  it("leaves out a user secret that fails, so the agent gets the value as before", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {})
+  it("fails the turn when a user secret fails: the user's key never falls back", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
     const { secret, daytona } = fakeDaytona()
-    secret.list.mockRejectedValue(new Error("403"))
     const planned: TurnSecret = { kind: "user", value: `sk-${counter++}`, mountEnv: "USER_KEY_OPENAI_API_KEY", envKeys: ["OPENAI_API_KEY"] }
-    await expect(ensureTurnSecrets(daytona, [planned])).resolves.toEqual([])
+    secret.create.mockRejectedValue(new Error(`403: ${planned.value}`))
+    const error = await ensureTurnSecrets(daytona, [planned]).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(TurnSecretsUnavailableError)
+    expect((error as Error).cause).toBeUndefined()
+    expect((error as Error).message).not.toContain(planned.value)
+    expect(log.mock.calls).toEqual([["[turn-secrets] could not prepare the user secret"]])
   })
 
   it("fails the turn when a pool secret fails: the shared key never falls back", async () => {
@@ -357,11 +370,19 @@ describe("ensureTurnSecrets", () => {
     const planned: TurnSecret[] = [
       { kind: "pool", value: toSecretMarker(name), mountEnv: "SESSION_RELAY_TOKEN", envKeys: ["OPENCODE_API_KEY"], poolSecretName: name },
     ]
-    await expect(ensureTurnSecrets(daytona, planned)).rejects.toThrow("403")
+    await expect(ensureTurnSecrets(daytona, planned)).rejects.toThrow(TurnSecretsUnavailableError)
   })
 })
 
 describe("mountTurnSecrets", () => {
+  it("fails the turn when the mount fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const sandbox = fakeSandbox()
+    sandbox.updateSecrets.mockRejectedValue(new Error("network"))
+    const { daytona } = fakeDaytona()
+    await expect(mountTurnSecrets(daytona, asSandbox(sandbox), [POOL_1])).rejects.toThrow(TurnSecretsUnavailableError)
+  })
+
   it("mounts the turn's secrets via setSecrets", async () => {
     const sandbox = fakeSandbox()
     const { daytona } = fakeDaytona()
