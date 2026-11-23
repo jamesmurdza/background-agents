@@ -41,16 +41,14 @@ export const SHARED_OPENCODE_ALLOWED = new Set<string>([
   "opencode-go/glm-5.2",
   "opencode-go/glm-5.3",
   "opencode-go/kimi-k2.7-code",
-  // mimo-v2.5(-pro) renamed to v2.6 upstream; kimi-k2.6, minimax-m2.7, and
-  // qwen3.6-plus were retired with no 1:1 successor id (qwen3.6-plus's
-  // "plus" tier continues as qwen3.7-plus below, already present).
+  // mimo-v2.5(-pro) renamed to v2.6 upstream, but Go's catalog only ships the
+  // flash tier for v2.6 — there's no "pro" tier (removed below too). Kimi
+  // K3.1 Pro isn't in Go's catalog either (also removed below).
   "opencode-go/mimo-v2.6-flash",
-  "opencode-go/mimo-v2.6-pro",
   "opencode-go/minimax-m3",
-  "opencode-go/qwen3.7-plus",
+  "opencode-go/qwen3.6-plus",
   "opencode-go/deepseek-v4-pro",
   "opencode-go/deepseek-v4.1-flash",
-  "opencode-go/kimi-k3.1-pro",
 ])
 
 /**
@@ -61,8 +59,10 @@ export const SHARED_OPENCODE_ALLOWED = new Set<string>([
  * stay available by default — only the ids listed here are gated.
  */
 export const SHARED_GEMINI_POOL_PRO_MODELS = new Set<string>([
+  "gemini-2.5-pro",
   "gemini-3-pro-preview",
   "gemini-3.1-pro-preview",
+  "gemini-4-neon",
   "google/gemini-3.1-pro-preview",
   "google/gemini-4-argon",
   "google/gemini-4-carbon",
@@ -108,15 +108,14 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // priceUsdPerM is the input $/M-token rate from OpenCode's published Go rate card.
     { value: "opencode-go/glm-5.2", label: "GLM-5.2", requiresKey: "opencode", priceUsdPerM: 1.4 },
     { value: "opencode-go/glm-5.3", label: "GLM-5.3", requiresKey: "opencode", priceUsdPerM: 1.4 },
-    { value: "opencode-go/kimi-k3.1-pro", label: "Kimi K3.1 Pro", requiresKey: "opencode", priceUsdPerM: 2 },
     { value: "opencode-go/kimi-k3", label: "Kimi K3", requiresKey: "opencode", priceUsdPerM: 3 },
     { value: "opencode-go/kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "opencode", priceUsdPerM: 0.95 },
-    // Renamed upstream from v2.5(-pro) to v2.6.
+    // Renamed upstream from v2.5(-pro) to v2.6; Go's catalog never shipped a
+    // "pro" tier for v2.6, only flash.
     { value: "opencode-go/mimo-v2.6-flash", label: "MiMo v2.6 Flash", requiresKey: "opencode", priceUsdPerM: 0.14 },
-    { value: "opencode-go/mimo-v2.6-pro", label: "MiMo v2.6 Pro", requiresKey: "opencode", priceUsdPerM: 0.435 },
     { value: "opencode-go/minimax-m3", label: "MiniMax M3", requiresKey: "opencode", priceUsdPerM: 0.3 },
     { value: "opencode-go/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "opencode", priceUsdPerM: 2 },
-    { value: "opencode-go/qwen3.7-plus", label: "Qwen3.7 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
+    { value: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
     { value: "opencode-go/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode", priceUsdPerM: 0.66 },
     { value: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "opencode", priceUsdPerM: 0.15 },
 
@@ -152,13 +151,16 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "opencode" },
     // gemini-3-flash and gemini-3.1-pro are not in OpenCode's Zen catalog —
     // Zen only ever carried the numbered Flash tiers below plus the Gemini 4
-    // Argon/Carbon/Hydrogen tiers; there is no Zen "pro" tier at all.
+    // Argon/Carbon/Hydrogen/Neon tiers; there is no Zen "pro" tier at all.
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "opencode" },
     // Current-gen Google tiers per Zen's own catalog, alongside Argon — were missing here.
     { value: "opencode/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "opencode" },
     { value: "opencode/gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "opencode" },
+    // Gemini 4 Neon is Zen's current flagship Google tier (listed ahead of
+    // Argon/Carbon/Hydrogen in Zen's own catalog) — was missing here.
+    { value: "opencode/gemini-4-neon", label: "Gemini 4 Neon", requiresKey: "opencode" },
     // Anthropic direct models — route to Anthropic on the user's own Anthropic key
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", requiresKey: "anthropic" },
@@ -316,17 +318,17 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "grok-4.5", label: "Grok 4.5", requiresKey: "github" },
   ],
   "gemini": [
-    // Default first, then Flash tier (newest → oldest), then Pro.
+    // The Gemini CLI only exposes these 4 model aliases (see
+    // geminicli.com/docs/cli/model) — the 3.x/4.x point releases offered
+    // directly by other agents' Gemini integrations (droid, pi, ...) aren't
+    // valid --model values here. Default first, then Flash tier, then Pro.
     // Flash-tier priceUsdPerM is the input $/M rate — these run on the shared
     // Gemini pool (see SHARED_GEMINI_POOL_PRO_MODELS). Pro is BYOK-only, so it
     // gets no label — its cost isn't drawn from our shared key.
-    { value: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite", requiresKey: "gemini", priceUsdPerM: 0.3 },
-    { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "gemini", priceUsdPerM: 0.75 },
-    { value: "gemini-3.6-flash", label: "Gemini 3.6 Flash", requiresKey: "gemini", priceUsdPerM: 1.5 },
-    { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini", priceUsdPerM: 0.5 },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
+    { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", requiresKey: "gemini", priceUsdPerM: 0.5 },
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "gemini" },
     { value: "gemini-3-pro-preview", label: "Gemini 3 Pro", requiresKey: "gemini" },
-    { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
   ],
   "goose": [
     { value: "gpt-4o", label: "GPT-4o", requiresKey: "openai" },
@@ -372,6 +374,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/moonshotai/kimi-k3", label: "Kimi K3", requiresKey: "kilo" },
     { value: "kilo/moonshotai/kimi-k2.6", label: "Kimi K2.6", requiresKey: "kilo" },
     { value: "kilo/qwen/qwen3-coder", label: "Qwen3 Coder", requiresKey: "kilo" },
+    // Qwen's flagship (2.4T MoE) per Kilo's own model catalog — was missing here.
+    { value: "kilo/qwen/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "kilo" },
     { value: "kilo/x-ai/grok-4.6", label: "Grok 4.6", requiresKey: "kilo" },
     { value: "kilo/x-ai/grok-4.7", label: "Grok 4.7", requiresKey: "kilo" },
   ],
@@ -436,6 +440,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // ── BYOK: Gemini (Google's OpenAI-compatible endpoint) ──
     // Flash tier also runs on the shared Gemini pool (see
     // SHARED_GEMINI_POOL_PRO_MODELS), hence the priceUsdPerM; Pro is BYOK-only.
+    // Gemini 4 Neon is the current Google flagship (per docs.factory.com/docs/models),
+    // already offered Factory-hosted below — was missing from BYOK.
+    { value: "gemini-4-neon", label: "Gemini 4 Neon", requiresKey: "gemini" },
     { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "gemini" },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
     { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "gemini", priceUsdPerM: 0.3 },
@@ -523,13 +530,13 @@ export const agentModels: Record<Agent, ModelOption[]> = {
 /** Default model per agent */
 export const defaultAgentModel: Record<Agent, string> = {
   "claude-code": "sonnet",
-  "opencode": "opencode-go/mimo-v2.6-pro",
+  "opencode": "opencode-go/deepseek-v4-pro", // mimo-v2.6-pro isn't in Go's catalog (no "pro" tier for v2.6)
   "codex": "gpt-6.1-sol", // GPT-5.5 retired Oct 14, 2026; near-Astra quality at lower cost
   "command-code": "xiaomi/mimo-v2.6-pro", // widest plan availability of the catalog tiers
   "copilot": "gpt-6.1-terra", // gpt-5.6-terra retired from Copilot 2026-11-16; 6.1 Terra is the current everyday-writing tier
   "droid": "claude-sonnet-4-5-20250929", // BYOK default (user's ANTHROPIC_API_KEY)
   "eliza": "eliza-classic-1.0", // Fake agent, no API key needed
-  "gemini": "gemini-3.5-flash-lite", // fast/cheap Flash Lite; free-tier available & reliable
+  "gemini": "gemini-2.5-flash", // fast/cheap Flash tier; one of only 4 ids the Gemini CLI accepts
   "goose": "gpt-4o",
   "kilo": "kilo/kilo-auto/free", // Free auto-router, no API key needed
   "kimi": "kimi-k2.7-code",
