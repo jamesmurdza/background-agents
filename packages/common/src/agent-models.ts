@@ -151,13 +151,16 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode/gpt-6.2-sol", label: "GPT-6.2 Sol", requiresKey: "opencode" },
     // gemini-3-flash and gemini-3.1-pro are not in OpenCode's Zen catalog —
     // Zen only ever carried the numbered Flash tiers below plus the Gemini 4
-    // Argon/Carbon/Hydrogen tiers; there is no Zen "pro" tier at all.
+    // Argon/Carbon/Hydrogen/Neon tiers; there is no Zen "pro" tier at all.
     { value: "opencode/gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-3.8-flash", label: "Gemini 3.8 Flash", requiresKey: "opencode" },
     { value: "opencode/gemini-4-argon", label: "Gemini 4 Argon", requiresKey: "opencode" },
     // Current-gen Google tiers per Zen's own catalog, alongside Argon — were missing here.
     { value: "opencode/gemini-4-carbon", label: "Gemini 4 Carbon", requiresKey: "opencode" },
     { value: "opencode/gemini-4-hydrogen", label: "Gemini 4 Hydrogen", requiresKey: "opencode" },
+    // Gemini 4 Neon is Zen's current flagship Google tier (listed ahead of
+    // Argon/Carbon/Hydrogen in Zen's own catalog) — was missing here.
+    { value: "opencode/gemini-4-neon", label: "Gemini 4 Neon", requiresKey: "opencode" },
     // Anthropic direct models — route to Anthropic on the user's own Anthropic key
     { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5", requiresKey: "anthropic" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", requiresKey: "anthropic" },
