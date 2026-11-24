@@ -38,7 +38,8 @@ export interface ModelOption {
  * where the Go key has no balance — that yields an "insufficient balance" error.
  */
 export const SHARED_OPENCODE_ALLOWED = new Set<string>([
-  "opencode-go/glm-5.2",
+  // GLM-5.2 deprecated upstream (Nov 19, 2026) and dropped from Go's catalog —
+  // GLM-5.3 below is the live successor (removed below too).
   "opencode-go/glm-5.3",
   "opencode-go/kimi-k2.7-code",
   // mimo-v2.5(-pro) renamed to v2.6 upstream, but Go's catalog only ships the
@@ -46,7 +47,8 @@ export const SHARED_OPENCODE_ALLOWED = new Set<string>([
   // K3.1 Pro isn't in Go's catalog either (also removed below).
   "opencode-go/mimo-v2.6-flash",
   "opencode-go/minimax-m3",
-  "opencode-go/qwen3.6-plus",
+  // Renamed upstream from Qwen3.6 Plus to Qwen3.7 Plus in Go's catalog.
+  "opencode-go/qwen3.7-plus",
   "opencode-go/deepseek-v4-pro",
   "opencode-go/deepseek-v4.1-flash",
 ])
@@ -106,7 +108,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     // server-shared Go subscription key. Shown first when OPENCODE_API_KEY is
     // available. These route through Go, not Zen — see SHARED_OPENCODE_ALLOWED.
     // priceUsdPerM is the input $/M-token rate from OpenCode's published Go rate card.
-    { value: "opencode-go/glm-5.2", label: "GLM-5.2", requiresKey: "opencode", priceUsdPerM: 1.4 },
+    // GLM-5.2 deprecated upstream (Nov 19, 2026) and dropped from Go's catalog —
+    // GLM-5.3 below is the live successor.
     { value: "opencode-go/glm-5.3", label: "GLM-5.3", requiresKey: "opencode", priceUsdPerM: 1.4 },
     { value: "opencode-go/kimi-k3", label: "Kimi K3", requiresKey: "opencode", priceUsdPerM: 3 },
     { value: "opencode-go/kimi-k2.7-code", label: "Kimi K2.7 Code", requiresKey: "opencode", priceUsdPerM: 0.95 },
@@ -115,7 +118,8 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "opencode-go/mimo-v2.6-flash", label: "MiMo v2.6 Flash", requiresKey: "opencode", priceUsdPerM: 0.14 },
     { value: "opencode-go/minimax-m3", label: "MiniMax M3", requiresKey: "opencode", priceUsdPerM: 0.3 },
     { value: "opencode-go/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "opencode", priceUsdPerM: 2 },
-    { value: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
+    // Renamed upstream from Qwen3.6 Plus to Qwen3.7 Plus in Go's catalog.
+    { value: "opencode-go/qwen3.7-plus", label: "Qwen3.7 Plus", requiresKey: "opencode", priceUsdPerM: 0.4 },
     { value: "opencode-go/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "opencode", priceUsdPerM: 0.66 },
     { value: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "opencode", priceUsdPerM: 0.15 },
 
@@ -351,8 +355,9 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/anthropic/claude-opus-5.5", label: "Claude Opus 5.5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-5", label: "Claude Sonnet 5", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-fable-5", label: "Claude Fable 5", requiresKey: "kilo" },
+    // Fable 5.1 is Kilo's current top Fable tier — Kilo's catalog hasn't added
+    // Fable 5.2 yet (unlike direct-Anthropic agents above).
     { value: "kilo/anthropic/claude-fable-5.1", label: "Claude Fable 5.1", requiresKey: "kilo" },
-    { value: "kilo/anthropic/claude-fable-5.2", label: "Claude Fable 5.2", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.8", label: "Claude Opus 4.8", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-opus-4.7", label: "Claude Opus 4.7", requiresKey: "kilo" },
     { value: "kilo/anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6", requiresKey: "kilo" },
@@ -368,16 +373,19 @@ export const agentModels: Record<Agent, ModelOption[]> = {
     { value: "kilo/google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-pro", label: "Gemini 2.5 Pro", requiresKey: "kilo" },
     { value: "kilo/google/gemini-2.5-flash", label: "Gemini 2.5 Flash", requiresKey: "kilo" },
-    // DeepSeek via Kilo gateway
+    // DeepSeek via Kilo gateway — V4.1 Flash is Kilo's top-ranked DeepSeek tier
+    // on its own leaderboard (was missing here); V4 Pro ranks far lower but stays.
+    { value: "kilo/deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", requiresKey: "kilo" },
     { value: "kilo/deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro", requiresKey: "kilo" },
     // Other notable models
     { value: "kilo/moonshotai/kimi-k3", label: "Kimi K3", requiresKey: "kilo" },
     { value: "kilo/moonshotai/kimi-k2.6", label: "Kimi K2.6", requiresKey: "kilo" },
-    { value: "kilo/qwen/qwen3-coder", label: "Qwen3 Coder", requiresKey: "kilo" },
-    // Qwen's flagship (2.4T MoE) per Kilo's own model catalog — was missing here.
+    // Qwen's flagship (2.4T MoE) per Kilo's own model catalog. "Qwen3 Coder"
+    // doesn't appear anywhere in Kilo's catalog (removed below).
     { value: "kilo/qwen/qwen3.8-max", label: "Qwen3.8 Max", requiresKey: "kilo" },
+    // Grok 4.6 is the latest xAI model in Kilo's catalog — Grok 4.7 isn't
+    // listed there yet (unlike other agents' catalogs), so it's left out.
     { value: "kilo/x-ai/grok-4.6", label: "Grok 4.6", requiresKey: "kilo" },
-    { value: "kilo/x-ai/grok-4.7", label: "Grok 4.7", requiresKey: "kilo" },
   ],
   "kimi": [
     // Moonshot (Kimi) models, routed through the user's KIMI_API_KEY against

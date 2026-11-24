@@ -17,7 +17,7 @@ describe("exhaustedCreditProvider", () => {
   })
 
   it.each([
-    { agent: "opencode" as const, model: "opencode-go/glm-5.2", credentialFlags: { OPENCODE_API_KEY_SHARED: true }, provider: "opencode" },
+    { agent: "opencode" as const, model: "opencode-go/glm-5.3", credentialFlags: { OPENCODE_API_KEY_SHARED: true }, provider: "opencode" },
     { agent: "gemini" as const, model: "gemini-2.5-flash", credentialFlags: { GEMINI_API_KEY_SHARED: true }, provider: "gemini" },
   ])("returns the correct provider for $agent", ({ provider, ...selection }) => {
     expect(exhaustedCreditProvider({ ...base, ...selection })).toBe(provider)
@@ -28,7 +28,7 @@ describe("exhaustedCreditProvider", () => {
     { model: "endpoint:custom" },
     { credentialFlags: { CLAUDE_SHARED_POOL_AVAILABLE: true, ANTHROPIC_API_KEY: true } },
     { credentialFlags: { CLAUDE_SHARED_POOL_AVAILABLE: true, CLAUDE_CODE_CREDENTIALS: true } },
-    { agent: "opencode" as const, model: "opencode-go/glm-5.2", credentialFlags: { OPENCODE_API_KEY_SHARED: true, OPENCODE_API_KEY_USER: true } },
+    { agent: "opencode" as const, model: "opencode-go/glm-5.3", credentialFlags: { OPENCODE_API_KEY_SHARED: true, OPENCODE_API_KEY_USER: true } },
     { agent: "gemini" as const, model: "gemini-2.5-flash", credentialFlags: { GEMINI_API_KEY_SHARED: true, GEMINI_API_KEY_USER: true } },
     { providerMultipliers: { claude: 0 } },
   ])("does not block free or personal credential routes (%j)", (selection) => {
