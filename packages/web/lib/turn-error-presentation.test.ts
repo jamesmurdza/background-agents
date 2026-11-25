@@ -32,6 +32,9 @@ describe("persisted provider failure presentation", () => {
     const reason = "Agent startup timed out. Please send your prompt again."
     const chat = failed(reason)
     expect(persistedProviderFailure(chat)).toBe(reason)
+    const launchError = "Could not start sandbox job (exit code 1): Permission denied"
+    chat.messages[1].metadata!.launchError = launchError
+    expect(persistedProviderFailure(chat)).toBe(launchError)
     chat.messages[1].metadata!.turnFinalization!.executionStopped = false
     expect(persistedProviderFailure(chat)).toBeUndefined()
   })

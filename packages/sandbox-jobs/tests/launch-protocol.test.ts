@@ -13,14 +13,16 @@ afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) awai
 
 /** Run the generated shell and real subprocesses. Only privileged cgroups are
  * emulated; Perl supplies the same OS flock/setsid primitives on macOS. */
-async function localSandbox() {
+async function localSandbox(cgroupJoinError?: string) {
   const root = await mkdtemp(join(tmpdir(), "job-launch-contract-"))
   const bin = join(root, "bin")
   await mkdir(bin)
   await writeFile(join(bin, "setsid"), "#!/usr/bin/perl\nuse POSIX (); POSIX::setsid() >= 0 or die $!; exec @ARGV;\n", { mode: 0o755 })
   await writeFile(join(bin, "flock"), "#!/usr/bin/perl\nuse Fcntl qw(:flock); my $unlock = grep { $_ eq '-u' } @ARGV; my $fd = $ARGV[-1]; open(my $h, '<&=', $fd) or die $!; flock($h, $unlock ? LOCK_UN : LOCK_EX) or die $!;\n", { mode: 0o755 })
   // sudo is irrelevant to process groups; cgroup directories are temporary.
-  await writeFile(join(bin, "sudo"), "#!/bin/sh\n[ \"$1\" = -n ] && shift\nif [ \"$1\" = mkdir ]; then \"$@\" || exit $?; for LAST; do :; done; printf 'populated 0\\n' > \"$LAST/cgroup.events\"; else \"$@\"; fi\n", { mode: 0o755 })
+  await writeFile(join(bin, "sudo"), cgroupJoinError
+    ? `#!/bin/sh\nprintf '%s\\n' '${cgroupJoinError}' >&2\nexit 1\n`
+    : "#!/bin/sh\n[ \"$1\" = -n ] && shift\nif [ \"$1\" = mkdir ]; then \"$@\" || exit $?; for LAST; do :; done; printf 'populated 0\\n' > \"$LAST/cgroup.events\"; else \"$@\"; fi\n", { mode: 0o755 })
   let loseResponse = false
   const sandbox = { process: { executeCommand: async (command: string) => {
     const script = command.replaceAll("/sys/fs/cgroup/", `${root}/cgroups/`)
@@ -85,9 +87,27 @@ describe("durable launch identity", () => {
 
   it("does not turn an unsuccessful shell command into a confirmed operation", async () => {
     const jobs = createSandboxJobs({ process: { executeCommand: async () => ({ exitCode: 1, result: "" }) } } as unknown as Sandbox)
-    await expect(jobs.start({ jobId: "failed-write", command: "true" })).rejects.toThrow()
+    await expect(jobs.start({ jobId: "failed-write", command: "true" })).rejects.toThrow(/start sandbox job.*exit code 1.*without a diagnostic/i)
     await expect(jobs.abort("failed-write")).rejects.toThrow()
     await expect(jobs.attach("failed-write")).rejects.toThrow()
+  })
+
+  it("reports the sandbox command diagnostic without exposing launch credentials", async () => {
+    const token = "test-credential-value"
+    const jobs = createSandboxJobs({ process: { executeCommand: async () => ({
+      exitCode: 1, result: `mkdir: cannot create directory: No space left on device\nAuthorization: Bearer ${token}`,
+    }) } } as unknown as Sandbox)
+    await expect(jobs.start({ command: "true", env: { API_TOKEN: token } })).rejects.toThrow(
+      /^Could not start sandbox job \(exit code 1\): mkdir: cannot create directory: No space left on device\nAuthorization: Bearer \[REDACTED\]$/,
+    )
+  })
+
+  it("returns the detached launcher's diagnostic when it fails before publishing metadata", async () => {
+    const reason = "mkdir: cannot create cgroup: Read-only file system"
+    const test = await localSandbox(reason)
+    const jobId = "bootstrap-failure"
+    await expect(test.jobs.start({ jobId, root: test.root, command: "echo should-not-run" })).rejects.toThrow(reason)
+    expect(await test.jobs.attach(jobId, test.root)).toBeNull()
   })
 
   it("serializes concurrent starts and cancellation without a late second launch", async () => {
