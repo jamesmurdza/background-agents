@@ -24,10 +24,13 @@ async function localSandbox(cgroupJoinError?: string) {
     ? `#!/bin/sh\nprintf '%s\\n' '${cgroupJoinError}' >&2\nexit 1\n`
     : "#!/bin/sh\n[ \"$1\" = -n ] && shift\nif [ \"$1\" = mkdir ]; then \"$@\" || exit $?; for LAST; do :; done; printf 'populated 0\\n' > \"$LAST/cgroup.events\"; else \"$@\"; fi\n", { mode: 0o755 })
   let loseResponse = false
-  const sandbox = { process: { executeCommand: async (command: string) => {
+  const commands: string[] = []
+  const sandbox = { process: { executeCommand: async (command: string, _cwd?: string, env?: Record<string, string>) => {
+    commands.push(command)
     const script = command.replaceAll("/sys/fs/cgroup/", `${root}/cgroups/`)
     try {
-      const result = await run("sh", ["-c", script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, timeout: 15_000 })
+      // Like the Daytona daemon: the request's env is merged into the shell's.
+      const result = await run("sh", ["-c", script], { env: { ...process.env, ...env, PATH: `${bin}:${process.env.PATH}` }, timeout: 15_000 })
       if (loseResponse && command.includes("setsid ")) { loseResponse = false; throw new Error("Lost launch response") }
       return { result: result.stdout, exitCode: 0 }
     } catch (error) {
@@ -44,7 +47,7 @@ async function localSandbox(cgroupJoinError?: string) {
     for (const handle of handles) { try { process.kill(-handle.pgid, "SIGKILL") } catch {} }
     await rm(root, { recursive: true, force: true })
   })
-  return { root, jobs, sandbox, handles, loseNextResponse: () => { loseResponse = true } }
+  return { root, jobs, sandbox, handles, commands, loseNextResponse: () => { loseResponse = true } }
 }
 
 describe("durable launch identity", () => {
@@ -92,21 +95,33 @@ describe("durable launch identity", () => {
     await expect(jobs.attach("failed-write")).rejects.toThrow()
   })
 
-  it("reports the sandbox command diagnostic without exposing launch credentials", async () => {
-    const token = "test-credential-value"
-    const jobs = createSandboxJobs({ process: { executeCommand: async () => ({
-      exitCode: 1, result: `mkdir: cannot create directory: No space left on device\nAuthorization: Bearer ${token}`,
-    }) } } as unknown as Sandbox)
-    await expect(jobs.start({ command: "true", env: { API_TOKEN: token } })).rejects.toThrow(
-      /^Could not start sandbox job \(exit code 1\): mkdir: cannot create directory: No space left on device\nAuthorization: Bearer \[REDACTED\]$/,
+  it("reports the sandbox command output unchanged", async () => {
+    const output = "/usr/bin/bash: line 1: /usr/bin/sh: Argument list too long"
+    const jobs = createSandboxJobs({ process: { executeCommand: async () => ({ exitCode: 126, result: `${output}\n` }) } } as unknown as Sandbox)
+    await expect(jobs.start({ command: "true", env: { PORT: "3000" } })).rejects.toThrow(
+      new Error(`Could not start sandbox job (exit code 126): ${output}`),
     )
+  })
+
+  it("passes env in the request's env field, never in the command text", async () => {
+    const test = await localSandbox()
+    const secret = "test-credential-value"
+    const handle = await test.jobs.start({ jobId: "env-field", root: test.root, command: "printf %s \"$API_TOKEN\"", env: { API_TOKEN: secret } })
+    test.handles.push(handle)
+    for (let i = 0; i < 40 && await readFile(handle.outputFile, "utf8") !== secret; i++) await new Promise((r) => setTimeout(r, 50))
+    expect(await readFile(handle.outputFile, "utf8")).toBe(secret)
+    expect(test.commands.some((command) => command.includes(secret))).toBe(false)
   })
 
   it("returns the detached launcher's diagnostic when it fails before publishing metadata", async () => {
     const reason = "mkdir: cannot create cgroup: Read-only file system"
     const test = await localSandbox(reason)
     const jobId = "bootstrap-failure"
+    const startedAt = Date.now()
     await expect(test.jobs.start({ jobId, root: test.root, command: "echo should-not-run" })).rejects.toThrow(reason)
+    // The launcher has exited with an error, so the wait stops early rather
+    // than polling for a record it can no longer write (~5s).
+    expect(Date.now() - startedAt).toBeLessThan(2_000)
     expect(await test.jobs.attach(jobId, test.root)).toBeNull()
   })
 

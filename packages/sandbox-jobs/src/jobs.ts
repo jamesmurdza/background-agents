@@ -43,19 +43,21 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     timeoutSeconds = 30,
     env?: Record<string, string>,
   ): Promise<string> {
-    const res = await sandbox.process.executeCommand(command, undefined, undefined, timeoutSeconds)
+    // Env goes in the request's own field, never into the command text, so no
+    // value is part of the shell source or any process's command line.
+    const res = await sandbox.process.executeCommand(command, undefined, env, timeoutSeconds)
       .catch((error: unknown) => {
-        // SDK errors can carry request headers and the complete shell command.
+        // The SDK builds this from the daemon's reply or the network error.
         const message = typeof error === "string" ? error
           : error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message
           : ""
-        const detail = sandboxDiagnostic(message, env)
+        const detail = sandboxDiagnostic(message)
         throw new Error(`Could not ${operation}: ${detail || "Sandbox command failed without a diagnostic"}`)
       })
     if (res.exitCode !== 0) {
       // A failed output read can include partial agent output after the marker.
       const output = (res.result ?? "").split(DATA_MARKER, 1)[0].replace(/^EXIT:\d*\nSTATE:[^\n]*\n/, "")
-      const detail = sandboxDiagnostic(output, env)
+      const detail = sandboxDiagnostic(output)
       const exit = typeof res.exitCode === "number" ? `exit code ${res.exitCode}` : "no exit code"
       throw new Error(`Could not ${operation} (${exit}): ${detail || "Sandbox command failed without a diagnostic"}`)
     }
@@ -108,9 +110,6 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     if (Object.keys(opts.env ?? {}).some((key) => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key))) {
       throw new Error("Invalid sandbox job environment key")
     }
-    const envExports = Object.entries(opts.env ?? {})
-      .map(([k, v]) => `export ${k}=${q(v)}; `)
-      .join("")
     const cd = opts.cwd ? `cd ${q(opts.cwd)} && ` : ""
     // Always run the user command in its OWN `sh -c`, so the output redirection
     // and exit-code capture wrap the command as a whole. Without this, a
@@ -125,7 +124,8 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     // group, survives setsid() — which is what makes cancel() able to reap an
     // escaped child that a process-group kill would miss.
     const cgJoin = `sudo -n mkdir -p ${q(cgroup)} && echo $$ | sudo -n tee ${q(`${cgroup}/cgroup.procs`)} >/dev/null || exit $?; `
-    // Inner program: join cgroup; (cd &&) export env; run; record true exit.
+    // Inner program: join cgroup; (cd &&) run; record true exit. The env comes
+    // from the launch request and is inherited by the detached wrapper.
     // `setsid` detaches the job into its own session and gives a stable leader
     // pid (== pgid) for liveness/crash detection.
     const commandFingerprint = createHash("sha256").update(JSON.stringify({
@@ -145,7 +145,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
       `{ printf %s ${q(metaPrefix)} | base64 -d || exit 1; printf ',"pgid":%s}\\n' "$$"; } > ${q(metaFile)}."$$" && ` +
       `mv ${q(metaFile)}."$$" ${q(metaFile)} || exit 1; ` +
       `flock -u 9 || exit 1; exec 9>&-; ` +
-      `{ ${cd}{ ${envExports}${userCmd}; }; } >> ${q(outputFile)} 2>&1; RC=$?; ` +
+      `{ ${cd}${userCmd}; } >>${q(outputFile)} 2>&1; RC=$?; ` +
       // Only the foreground-command wrapper writes this completion record.
       // Unlike `exit`, cancel() never synthesizes it. Publish atomically so a
       // reader cannot confuse a partial write with successful completion.
@@ -160,15 +160,20 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     // keeps the channel open, so the launch call blocks until it times out
     // ("command execution timeout"). Redirect bootstrap diagnostics to a file
     // unique to this launch call so retries cannot read another caller's error.
+    // Stop waiting once the wrapper has exited and reported an error: it can
+    // no longer publish a record. An exit without output (e.g. a duplicate
+    // launcher that found the record) keeps waiting as before.
     const launchRecord =
       `if [ -f ${q(`${dir}/aborted`)} ]; then printf 'SBJ-ABORTED\\n'; exit 0; fi; ` +
       `if [ -f ${q(metaFile)} ]; then cat ${q(metaFile)}; exit $?; fi; `
     const launch = `mkdir -p ${q(dir)} 2>&1 || exit $?; ` + launchRecord +
       `DIAGNOSTIC=$(mktemp ${q(`${dir}/launch-error.XXXXXX`)} 2>&1) || { RC=$?; printf '%s\\n' "$DIAGNOSTIC"; exit "$RC"; }; ` +
       `trap 'rm -f -- "$DIAGNOSTIC"' EXIT; ` +
-      `setsid sh -c ${q(inner)} < /dev/null > "$DIAGNOSTIC" 2>&1 & ` +
+      `setsid sh -c ${q(inner)} < /dev/null > "$DIAGNOSTIC" 2>&1 & LAUNCHER=$!; ` +
       `for ATTEMPT in $(seq 1 100); do ` +
-      launchRecord + `sleep 0.05; done; ` +
+      launchRecord +
+      `if ! kill -0 "$LAUNCHER" 2>/dev/null && [ -s "$DIAGNOSTIC" ]; then ${launchRecord}break; fi; ` +
+      `sleep 0.05; done; ` +
       `if [ -s "$DIAGNOSTIC" ]; then cat "$DIAGNOSTIC"; else echo 'Timed out waiting for the sandbox job to publish its launch record'; fi; exit 1`
     const result = (await exec("start sandbox job", launch, 15, opts.env)).trim()
     if (result === "SBJ-ABORTED") throw new Error("Sandbox job attempt was cancelled")
