@@ -60,6 +60,34 @@ describe.skipIf(!API_KEY)("sandbox-jobs (integration)", () => {
     await jobs.cancel(handle)
   })
 
+  it("gives the job its env without putting any value in the command or its command line", async () => {
+    const secret = `env-field-${Date.now()}`
+    const sent: string[] = []
+    const executeCommand = sandbox.process.executeCommand.bind(sandbox.process)
+    const recording = { process: { executeCommand: (...args: Parameters<typeof executeCommand>) => {
+      sent.push(args[0])
+      return executeCommand(...args)
+    } } } as unknown as Sandbox
+    const jobs = createSandboxJobs(recording)
+    const handle = await jobs.start({ command: `printf '%s\\n' "$PROOF_KEY"; sleep 30`, env: { PROOF_KEY: secret } })
+    try {
+      await pollUntil(async () => (await jobs.read(handle, 0)).raw.trim(), secret, 15_000)
+      expect(sent.some((command) => command.includes(secret))).toBe(false)
+      // Nothing running in the sandbox shows the value in its arguments.
+      const ps = await sandbox.process.executeCommand("ps -eo args")
+      expect(ps.result).not.toContain(secret)
+    } finally {
+      await jobs.cancel(handle)
+    }
+  })
+
+  it("reports the real reason when the launch command is too long", async () => {
+    // A single shell argument is limited to 128 KiB on Linux. Before, this
+    // showed only "Sandbox job operation could not be confirmed".
+    await expect(createSandboxJobs(sandbox).start({ command: `echo ${"A".repeat(200_000)}` }))
+      .rejects.toThrow(/Could not start sandbox job \(exit code \d+\): .*Argument list too long/)
+  })
+
   it("reconnects cold, reads incrementally, attaches by id, replays, and reports exit code", async () => {
     const TICKS = 6
     const handle = await createSandboxJobs(sandbox).start({

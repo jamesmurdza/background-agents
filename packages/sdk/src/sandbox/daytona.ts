@@ -6,7 +6,6 @@ import type { Sandbox } from "@daytonaio/sdk"
 import { createSandboxJobs, type SandboxJobs, type StartJobOptions } from "@background-agents/sandbox-jobs"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ProviderName } from "../types/index"
 import { getPackageName, getShellInstaller } from "../utils/install"
-import { escapeShell } from "../utils/shell"
 import { ELIZA_BUNDLE_B64 } from "../agents/eliza/bundle-content"
 import { CODEX_RUNTIME_PREFIX, codexRuntimeInstallCommand, isSupportedCodexVersion } from "../utils/codex-runtime"
 
@@ -29,12 +28,9 @@ export function adaptDaytonaSandbox(
 
   /** Execute a command synchronously */
   async function executeCommand(command: string, timeout: number = 60): Promise<{ exitCode: number; output: string }> {
+    // Env goes in the request's own field, never into the command text.
     const env = getEnv()
-    const envExports = Object.entries(env)
-      .map(([k, v]) => `export ${k}='${escapeShell(v)}'`)
-      .join("; ")
-    const fullCommand = envExports ? `${envExports}; ${command}` : command
-    const result = await sandbox.process.executeCommand(fullCommand, undefined, undefined, timeout)
+    const result = await sandbox.process.executeCommand(command, undefined, Object.keys(env).length ? env : undefined, timeout)
     return { exitCode: result.exitCode ?? -1, output: result.result ?? "" }
   }
 
