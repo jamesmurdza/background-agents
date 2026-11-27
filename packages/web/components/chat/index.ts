@@ -1,8 +1,5 @@
-export { ErrorBanner } from "./ErrorBanner"
 export { FilePreviewModal } from "./FilePreviewModal"
-export { PendingFilesDisplay } from "./PendingFilesDisplay"
 export { ChatHeader } from "./ChatHeader"
-export { AgentModelSelector } from "./AgentModelSelector"
 export { ChatInput } from "./ChatInput"
 export { ChatPanelSkeleton } from "./ChatPanelSkeleton"
 export { WelcomeView } from "./WelcomeView"
