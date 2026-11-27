@@ -7,6 +7,7 @@ import type { Chat } from "@/lib/types"
 import { isRealRepo } from "@/lib/types"
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard"
 import { materializeAndEnsureSandbox } from "@/lib/sandbox-client"
+import { useToastStore } from "@/lib/stores/toast-store"
 import type { DraftChatConfig } from "@/lib/storage"
 
 // =============================================================================
@@ -153,7 +154,8 @@ export function useSandboxActions({
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: "Download failed" }))
-        throw new Error(error.error || "Download failed")
+        // 410: the sandbox was deleted (e.g. auto-expired); its error is just a code.
+        throw new Error(response.status === 410 ? "This chat's sandbox no longer exists." : error.error || "Download failed")
       }
 
       // Create download link from blob
@@ -168,6 +170,10 @@ export function useSandboxActions({
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error("[download] Error:", error)
+      useToastStore.getState().addToast({
+        title: "Could not download project",
+        body: error instanceof Error ? error.message : "Try again.",
+      })
     } finally {
       setIsDownloading(false)
     }

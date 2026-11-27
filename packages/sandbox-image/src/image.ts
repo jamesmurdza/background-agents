@@ -130,9 +130,10 @@ export function getAgentSandboxImage(): Image {
   return (
     Image.base("node:22-bookworm")
       .runCommands(
-        // Install system dependencies (curl for Goose download, git for agents, sudo for user)
+        // Install system dependencies (curl for Goose download, git for agents, sudo for user,
+        // zip for project download)
         "apt-get update && apt-get install -y --no-install-recommends " +
-          "curl ca-certificates git bzip2 sudo util-linux " +
+          "curl ca-certificates git bzip2 sudo util-linux zip " +
           "&& rm -rf /var/lib/apt/lists/*"
       )
       .runCommands(
