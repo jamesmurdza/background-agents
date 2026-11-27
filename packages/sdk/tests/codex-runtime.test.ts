@@ -18,7 +18,7 @@ describe("Codex runtime preparation", () => {
     expect(isSupportedCodexVersion(version)).toBe(false)
   })
   it.each(["0.157.1", CODEX_CLI_VERSION, "0.160.0", "missing"])("selects its immutable runtime regardless of global CLI %s", async globalVersion => {
-    const executeCommand = vi.fn(async (command: string) => {
+    const executeCommand = vi.fn(async (command: string, _cwd?: string, _env?: Record<string, string>) => {
       if (command === "codex --version") return { exitCode: 0, result: `codex-cli ${globalVersion}` }
       if (command === `${CODEX_RUNTIME_PREFIX}/bin/codex --version`) return { exitCode: 0, result: `codex-cli ${CODEX_CLI_VERSION}` }
       if (command.startsWith("printf")) return { exitCode: 0, result: "/usr/local/bin:/usr/bin:/bin" }
@@ -26,15 +26,17 @@ describe("Codex runtime preparation", () => {
     })
     const sandbox = adaptDaytonaSandbox({ process: { executeCommand } } as unknown as Sandbox)
     await sandbox.ensureProvider("codex")
+    const preparation = executeCommand.mock.calls.map(([cmd]) => cmd)
     sandbox.setSessionEnvVars!({ PATH: "/custom/bin:/usr/bin:/bin" })
     sandbox.setRunEnvVars!({ PATH: "/run/bin:/usr/bin:/bin", QA_RUN: "kept" })
     await sandbox.executeCommand!("codex --version")
-    const command = executeCommand.mock.calls.at(-1)![0]
-    expect(command).toContain(`${CODEX_RUNTIME_PREFIX}/bin:/run/bin:/usr/bin:/bin`)
-    expect(command).toContain("QA_RUN='kept'")
+    // Env travels in the request's env field; the command text stays as given.
+    const [command, , env] = executeCommand.mock.calls.at(-1)!
+    expect(command).toBe("codex --version")
+    expect(env).toMatchObject({ PATH: `${CODEX_RUNTIME_PREFIX}/bin:/run/bin:/usr/bin:/bin`, QA_RUN: "kept" })
     sandbox.clearRunEnvVars!()
     await sandbox.executeCommand!("codex --version")
-    expect(executeCommand.mock.calls.at(-1)![0]).toContain(`${CODEX_RUNTIME_PREFIX}/bin:/custom/bin:/usr/bin:/bin`)
+    expect(executeCommand.mock.calls.at(-1)![2]).toEqual({ PATH: `${CODEX_RUNTIME_PREFIX}/bin:/custom/bin:/usr/bin:/bin` })
     await sandbox.jobs!.start({ command: "codex --version", env: { PATH: "/job/bin:/usr/bin:/bin" } })
     expect(jobStart.mock.calls.at(-1)?.[0]).toMatchObject({ env: {
       PATH: `${CODEX_RUNTIME_PREFIX}/bin:/job/bin:/usr/bin:/bin`,
@@ -44,7 +46,8 @@ describe("Codex runtime preparation", () => {
     expect(install).toContain("mktemp -d")
     expect(install).not.toContain("auth.json")
     expect(install).not.toContain("sudo")
-    expect(executeCommand.mock.calls.some(([cmd]) => cmd === "codex --version")).toBe(false)
+    // Preparation never consults a global `codex` on PATH.
+    expect(preparation).not.toContain("codex --version")
   })
   it("does not disclose installer output on failure", async () => {
     const executeCommand = vi.fn(async (command: string) => command === "codex --version"

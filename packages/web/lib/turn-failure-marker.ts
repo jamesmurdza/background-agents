@@ -1,3 +1,5 @@
+export const TURN_STARTUP_TIMEOUT_REASON = "Agent startup timed out. Please send your prompt again."
+
 export type TurnFailureMarker = {
   state: "error"
   executionStopped: boolean

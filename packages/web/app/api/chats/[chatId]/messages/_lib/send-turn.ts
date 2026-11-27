@@ -38,6 +38,7 @@ import { runPreRunPull } from "./pre-run-pull"
 import { buildAgentHistory } from "./history"
 import { buildAgentEnv } from "./agent-env"
 import { persistTurn } from "./persist-turn"
+import { recordTurnLaunchError } from "@/lib/server/turn-failure"
 
 interface SendTurnArgs {
   userId: string
@@ -100,7 +101,7 @@ export async function sendChatTurn({
     previewUrlPattern: chat.previewUrlPattern,
     createdSandbox: false,
   }
-  let turnPersisted = false
+  let persistedSessionId: string | undefined
 
   // Secrets for this run's keys (shared pools, subscriptions and the user's own), if any.
   const plannedSecrets = planTurnSecrets({
@@ -212,7 +213,7 @@ export async function sendChatTurn({
       isAgentSwitch,
       claimedPromptId,
     })
-    turnPersisted = true
+    persistedSessionId = bgSession.backgroundSessionId
     await bgSession.start(agentPrompt, history ? { history } : undefined)
 
     logActivityAsync(userId, "message_sent", {
@@ -226,11 +227,21 @@ export async function sendChatTurn({
     }
     return Response.json(response)
   } catch (error) {
-    console.error("[chats/messages] Error:", error)
     // Once persisted, a failed start response does not prove the process
     // failed to launch. Keep its durable identity and sandbox so Stop/cron
     // can recover or fence the same attempt before another one is admitted.
-    if (turnPersisted) return internalError(error)
+    if (persistedSessionId) {
+      const reason = error instanceof Error && error.message.trim() ? error.message : "The sandbox did not report why the agent launch failed."
+      console.error(`[chats/messages] Agent launch failed for chat ${chatId}, session ${persistedSessionId}: ${reason}`)
+      try {
+        await recordTurnLaunchError({ chatId, backgroundSessionId: persistedSessionId, assistantMessageId: payload.assistantMessageId }, reason)
+      } catch {
+        // The POST still returns the diagnostic if storage is unavailable.
+        console.warn(`[chats/messages] Could not save the agent launch error for chat ${chatId}`)
+      }
+      return internalError(new Error(reason))
+    }
+    console.error("[chats/messages] Error:", error)
     try {
       const changed = await prisma.chat.updateMany({
         where: { id: chatId, status: "creating", queueDispatchId: claimedPromptId ?? null },
@@ -248,10 +259,10 @@ export async function sendChatTurn({
   } finally {
     // The turn never started, so nothing else will detach the secret. A
     // persisted turn keeps it: Stop/cron finalize detach it with the turn.
-    if (!turnPersisted && secretSandbox) await releaseTurnSecrets(daytona, secretSandbox)
+    if (!persistedSessionId && secretSandbox) await releaseTurnSecrets(daytona, secretSandbox)
     // A pre-run rejection must not strand a direct send in "creating".
     // Queue claims are released by the caller, which also pauses the queue.
-    if (!turnPersisted && !claimedPromptId) {
+    if (!persistedSessionId && !claimedPromptId) {
       await prisma.chat.updateMany({
         where: { id: chatId, status: "creating", queueDispatchId: null },
         data: { status: chat.status },

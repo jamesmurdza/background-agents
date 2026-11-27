@@ -105,6 +105,12 @@ export function ChatMessageList({
     (message) => message.isError && message.metadata?.action === "rebase"
   )
   const rebaseSuggestion = rebaseSuggestions[rebaseSuggestions.length - 1]
+  const activeReply = chat.status === "running"
+    ? chat.messages.find((message) => message.id === chat.activeAssistantMessageId)
+    : undefined
+  const launchError = activeReply && !activeReply.content && !activeReply.toolCalls?.length && !activeReply.contentBlocks?.length
+    ? activeReply.metadata?.launchError
+    : undefined
 
   const rebaseConflict = git.rebaseConflict
   const inConflict = !!(rebaseConflict?.inRebase || rebaseConflict?.inMerge)
@@ -375,6 +381,7 @@ export function ChatMessageList({
               - "disconnected": the SSE stream died before the turn finished. The
                 agent may still be running in the background, so the action is
                 Reload (refresh the chat history) rather than resending. */}
+          {launchError && <ErrorBanner message={launchError} isMobile={isMobile} />}
           {chat.status === "disconnected" && (
             <ErrorBanner
               key={chat.id}

@@ -27,6 +27,7 @@ import type {
   StartJobOptions,
 } from "./types"
 import { cgroupPath, DEFAULT_ROOT, makeJobId, q, splitComplete } from "./shell"
+import { sandboxDiagnostic } from "./diagnostics"
 
 /** Separates the status header from raw log bytes in a read round trip. */
 const DATA_MARKER = "@@SBJ-DATA@@"
@@ -36,9 +37,30 @@ const DATA_MARKER = "@@SBJ-DATA@@"
 export const CANCELLED_EXIT_CODE = 143
 
 export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
-  async function exec(command: string, timeoutSeconds = 30): Promise<string> {
-    const res = await sandbox.process.executeCommand(command, undefined, undefined, timeoutSeconds)
-    if (res.exitCode !== 0) throw new Error("Sandbox job operation could not be confirmed")
+  async function exec(
+    operation: string,
+    command: string,
+    timeoutSeconds = 30,
+    env?: Record<string, string>,
+  ): Promise<string> {
+    // Env goes in the request's own field, never into the command text, so no
+    // value is part of the shell source or any process's command line.
+    const res = await sandbox.process.executeCommand(command, undefined, env, timeoutSeconds)
+      .catch((error: unknown) => {
+        // The SDK builds this from the daemon's reply or the network error.
+        const message = typeof error === "string" ? error
+          : error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message
+          : ""
+        const detail = sandboxDiagnostic(message)
+        throw new Error(`Could not ${operation}: ${detail || "Sandbox command failed without a diagnostic"}`)
+      })
+    if (res.exitCode !== 0) {
+      // A failed output read can include partial agent output after the marker.
+      const output = (res.result ?? "").split(DATA_MARKER, 1)[0].replace(/^EXIT:\d*\nSTATE:[^\n]*\n/, "")
+      const detail = sandboxDiagnostic(output)
+      const exit = typeof res.exitCode === "number" ? `exit code ${res.exitCode}` : "no exit code"
+      throw new Error(`Could not ${operation} (${exit}): ${detail || "Sandbox command failed without a diagnostic"}`)
+    }
     return res.result ?? ""
   }
 
@@ -88,10 +110,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     if (Object.keys(opts.env ?? {}).some((key) => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key))) {
       throw new Error("Invalid sandbox job environment key")
     }
-    const envExports = Object.entries(opts.env ?? {})
-      .map(([k, v]) => `export ${k}=${q(v)}; `)
-      .join("")
-    const cd = opts.cwd ? `cd ${q(opts.cwd)} || exit 1; ` : ""
+    const cd = opts.cwd ? `cd ${q(opts.cwd)} && ` : ""
     // Always run the user command in its OWN `sh -c`, so the output redirection
     // and exit-code capture wrap the command as a whole. Without this, a
     // multi-statement command (`a; exit 3`) would redirect only its last
@@ -104,8 +123,9 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     // descendant inherits membership. cgroup membership, unlike a process
     // group, survives setsid() — which is what makes cancel() able to reap an
     // escaped child that a process-group kill would miss.
-    const cgJoin = `sudo -n mkdir -p ${q(cgroup)} && echo $$ | sudo -n tee ${q(`${cgroup}/cgroup.procs`)} >/dev/null 2>&1 || exit 1; `
-    // Inner program: join cgroup; (cd &&) export env; run; record true exit.
+    const cgJoin = `sudo -n mkdir -p ${q(cgroup)} && echo $$ | sudo -n tee ${q(`${cgroup}/cgroup.procs`)} >/dev/null || exit $?; `
+    // Inner program: join cgroup; (cd &&) run; record true exit. The env comes
+    // from the launch request and is inherited by the detached wrapper.
     // `setsid` detaches the job into its own session and gives a stable leader
     // pid (== pgid) for liveness/crash detection.
     const commandFingerprint = createHash("sha256").update(JSON.stringify({
@@ -119,13 +139,13 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     // before running user code, so even a lost launch response is recoverable.
     // Every duplicate launcher and abort uses this same sandbox-local lock.
     const inner =
-      `exec 9> ${q(`${dir}/launch.lock`)}; flock -x -w 10 9 || exit 1; ` +
+      `exec 9> ${q(`${dir}/launch.lock`)}; flock -x -w 10 9 || { echo 'Could not acquire the sandbox job launch lock' >&2; exit 1; }; ` +
       `[ ! -f ${q(`${dir}/aborted`)} ] || exit 0; ` +
       `[ ! -e ${q(metaFile)} ] || exit 0; ` + cgJoin +
       `{ printf %s ${q(metaPrefix)} | base64 -d || exit 1; printf ',"pgid":%s}\\n' "$$"; } > ${q(metaFile)}."$$" && ` +
       `mv ${q(metaFile)}."$$" ${q(metaFile)} || exit 1; ` +
       `flock -u 9 || exit 1; exec 9>&-; ` +
-      `${cd}${envExports}${userCmd} >> ${q(outputFile)} 2>&1; RC=$?; ` +
+      `{ ${cd}${userCmd}; } >>${q(outputFile)} 2>&1; RC=$?; ` +
       // Only the foreground-command wrapper writes this completion record.
       // Unlike `exit`, cancel() never synthesizes it. Publish atomically so a
       // reader cannot confuse a partial write with successful completion.
@@ -133,20 +153,29 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
       `mv ${q(`${dir}/command-exit.tmp`)} ${q(`${dir}/command-exit`)}; ` +
       `printf '%s\\n' "$RC" > ${q(exitFile)}`
     // CRITICAL: the backgrounded part must be a SIMPLE command so the shell
-    // exec-replaces it into a single detached process whose std fds are all on
-    // /dev/null. If we instead background a COMPOUND like `mkdir && setsid …`,
+    // exec-replaces it into a single detached process whose std fds are all
+    // disconnected from the exec response. If we background `mkdir && setsid …`,
     // the shell forks a subshell whose own stdout is still the executeCommand
     // read channel; that subshell lingers for the whole life of the job and
     // keeps the channel open, so the launch call blocks until it times out
-    // ("command execution timeout"). So: run the foreground setup (the job dir
-    // and the cgroup create) first, then background only `setsid …` (fully
-    // redirected), then print the pid.
-    const launch = `mkdir -p ${q(dir)} || exit 1; ` +
-      `setsid sh -c ${q(inner)} < /dev/null > /dev/null 2>&1 & ` +
-      `for ATTEMPT in $(seq 1 100); do ` +
+    // ("command execution timeout"). Redirect bootstrap diagnostics to a file
+    // unique to this launch call so retries cannot read another caller's error.
+    // Stop waiting once the wrapper has exited and reported an error: it can
+    // no longer publish a record. An exit without output (e.g. a duplicate
+    // launcher that found the record) keeps waiting as before.
+    const launchRecord =
       `if [ -f ${q(`${dir}/aborted`)} ]; then printf 'SBJ-ABORTED\\n'; exit 0; fi; ` +
-      `if [ -f ${q(metaFile)} ]; then cat ${q(metaFile)}; exit $?; fi; sleep 0.05; done; exit 1`
-    const result = (await exec(launch, 15)).trim()
+      `if [ -f ${q(metaFile)} ]; then cat ${q(metaFile)}; exit $?; fi; `
+    const launch = `mkdir -p ${q(dir)} 2>&1 || exit $?; ` + launchRecord +
+      `DIAGNOSTIC=$(mktemp ${q(`${dir}/launch-error.XXXXXX`)} 2>&1) || { RC=$?; printf '%s\\n' "$DIAGNOSTIC"; exit "$RC"; }; ` +
+      `trap 'rm -f -- "$DIAGNOSTIC"' EXIT; ` +
+      `setsid sh -c ${q(inner)} < /dev/null > "$DIAGNOSTIC" 2>&1 & LAUNCHER=$!; ` +
+      `for ATTEMPT in $(seq 1 100); do ` +
+      launchRecord +
+      `if ! kill -0 "$LAUNCHER" 2>/dev/null && [ -s "$DIAGNOSTIC" ]; then ${launchRecord}break; fi; ` +
+      `sleep 0.05; done; ` +
+      `if [ -s "$DIAGNOSTIC" ]; then cat "$DIAGNOSTIC"; else echo 'Timed out waiting for the sandbox job to publish its launch record'; fi; exit 1`
+    const result = (await exec("start sandbox job", launch, 15, opts.env)).trim()
     if (result === "SBJ-ABORTED") throw new Error("Sandbox job attempt was cancelled")
     return parseHandle(result, jobId, root, commandFingerprint)
   }
@@ -186,11 +215,11 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
       statusHeader(handle) +
       `printf '%s\\n' ${q(DATA_MARKER)}; ` +
       `if [ -f ${q(handle.outputFile)} ]; then tail -c +${cursor + 1} ${q(handle.outputFile)}; fi`
-    return parseRead(await exec(script), cursor)
+    return parseRead(await exec("read sandbox job output", script), cursor)
   }
 
   async function status(handle: JobHandle): Promise<JobStatus> {
-    const { exitRaw, stateRaw } = parseHeader(await exec(statusHeader(handle)))
+    const { exitRaw, stateRaw } = parseHeader(await exec("read sandbox job status", statusHeader(handle)))
     return deriveStatus(exitRaw, stateRaw)
   }
 
@@ -218,7 +247,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
       `case "$CG" in *'populated 1'*) LIVE=1 ;; *'populated 0'*) ;; *) exit 1 ;; esac; fi; ` +
       `[ -z "$LIVE" ] && break; sleep 0.1; done; ` +
       `[ -z "$LIVE" ] || exit 1; `
-    const result = await sandbox.process.executeCommand(
+    const result = await exec("confirm the sandbox job stopped",
       // A terminating command can record an exit while a child still runs.
       // Readers must keep the full group guard throughout cancellation.
       `printf 'cancelling\\n' > ${q(`${handle.dir}/cancelling`)} || exit 1; ` +
@@ -229,23 +258,22 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
         confirmStopped +
         `{ test -f ${q(handle.exitFile)} || echo ${CANCELLED_EXIT_CODE} > ${q(handle.exitFile)}; } || exit 1; ` +
         `sudo -n rmdir ${q(handle.cgroup)} 2>/dev/null; printf 'SBJ-CANCELLED\\n'`,
-      undefined,
-      undefined,
       10
     )
-    if (result.exitCode !== 0 || result.result?.trim() !== "SBJ-CANCELLED") {
-      throw new Error("Could not confirm the sandbox job stopped")
+    if (result.trim() !== "SBJ-CANCELLED") {
+      throw new Error("Could not confirm the sandbox job stopped: Sandbox did not acknowledge cancellation")
     }
   }
 
   async function attach(jobId: string, root = DEFAULT_ROOT): Promise<JobHandle | null> {
     const dir = jobDir(jobId, root)
-    return parseRecord((await exec(readRecord(dir), 10)).trim(), jobId, root)
+    return parseRecord((await exec("read sandbox job metadata", readRecord(dir), 10)).trim(), jobId, root)
   }
 
   async function isAborted(jobId: string, root = DEFAULT_ROOT): Promise<boolean> {
     const dir = jobDir(jobId, root)
-    const result = await exec(`if [ -f ${q(`${dir}/aborted`)} ]; then printf 'yes'; else printf 'no'; fi`, 10)
+    const result = await exec("check whether the sandbox job was aborted",
+      `if [ -f ${q(`${dir}/aborted`)} ]; then printf 'yes'; else printf 'no'; fi`, 10)
     if (result !== "yes" && result !== "no") throw new Error("Sandbox job abort state is unknown")
     return result === "yes"
   }
@@ -254,7 +282,7 @@ export function createSandboxJobs(sandbox: Sandbox): SandboxJobs {
     const dir = jobDir(jobId, root)
     // A lock-protected durable tombstone fences launch even if the web worker
     // that originally requested start wakes much later. Never remove it.
-    const raw = (await exec(`mkdir -p ${q(dir)} || exit 1; exec 9> ${q(`${dir}/launch.lock`)}; ` +
+    const raw = (await exec("abort sandbox job", `mkdir -p ${q(dir)} || exit 1; exec 9> ${q(`${dir}/launch.lock`)}; ` +
       `flock -x -w 10 9 || exit 1; printf 'aborted\\n' > ${q(`${dir}/aborted`)} || exit 1; ` +
       readRecord(dir), 15)).trim()
     const handle = parseRecord(raw, jobId, root)
