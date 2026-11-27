@@ -32,6 +32,13 @@ const STREAM_SELF_CLOSE_MS = (maxDuration - 60) * 1000
 const BACKEND_POLL_INTERVAL = 500
 const HEARTBEAT_INTERVAL = 15000
 const DB_PERSIST_INTERVAL = 5000
+// Retry a failing periodic persist on a doubling schedule capped here
+// instead of every DB_PERSIST_INTERVAL. When the DB can't take the write
+// (P2028 — the single-connection pool is busy or stalled, see
+// persist-snapshot), the previous fixed 5 s cadence logged one error per
+// stream every ~7 s for the whole stall. The final write is unaffected: it
+// runs under the finalization claim and throws on failure regardless.
+const DB_PERSIST_MAX_BACKOFF_MS = 60_000
 // A snapshot read can fail transiently (sandbox/network blip, a brief race
 // reading the output file — notably possible right as the agent process
 // crashes). Retry silently for a few seconds before giving up, instead of
@@ -91,6 +98,7 @@ export async function GET(req: Request) {
       let cursor = cursorParam ? parseInt(cursorParam, 10) : 0
       let heartbeatTimer: NodeJS.Timeout | null = null
       let lastDbPersist = Date.now()
+      let persistFailures = 0
       // Signature of the last "update" sent — skip resends when the snapshot
       // hasn't changed.
       let lastSentSig: string | null = null
@@ -116,7 +124,18 @@ export async function GET(req: Request) {
           snapshot: snap,
           finalizationClaimId,
         })
-        lastDbPersist = Date.now()
+        if (result.persisted || finalizationClaimId) {
+          persistFailures = 0
+          lastDbPersist = Date.now()
+        } else {
+          // Either a finalizer now owns the turn or the write itself failed.
+          // Doubling backoff instead of the fixed interval; a success (or a
+          // final write, which throws on failure) restores the cadence.
+          persistFailures += 1
+          lastDbPersist =
+            Date.now() +
+            Math.min(DB_PERSIST_INTERVAL * 2 ** persistFailures, DB_PERSIST_MAX_BACKOFF_MS)
+        }
         return result.persisted
       }
 

@@ -102,6 +102,20 @@ describe("stream self-close before the function time limit", () => {
     expect(mocks.claim).not.toHaveBeenCalled()
     expect(mocks.persist).toHaveBeenLastCalledWith(expect.objectContaining({ turn, finalizationClaimId: undefined }))
   })
+  it("backs off the periodic DB persist while it keeps failing", async () => {
+    vi.useFakeTimers()
+    mocks.snapshot.mockResolvedValue(running)
+    mocks.persist.mockResolvedValue({ persisted: false })
+    const reading = stream()
+    await vi.advanceTimersByTimeAsync(60_000)
+    // 5 s interval with doubling backoff ⇒ attempts at ~5 s, 15 s, 35 s —
+    // a fixed cadence would have attempted ~12 times by now.
+    expect(mocks.persist.mock.calls.length).toBe(3)
+    await vi.advanceTimersByTimeAsync(181_000)
+    const frames = await reading
+    expect(frames).not.toContain("event: complete")
+    expect(frames).not.toContain("event: error")
+  })
   it("does not cut a finalization that started before the self-close point", async () => {
     vi.useFakeTimers()
     mocks.snapshot.mockImplementation(async () => Date.now() < 239_000 ? running : { ...running, status: "completed", content: "complete answer" })

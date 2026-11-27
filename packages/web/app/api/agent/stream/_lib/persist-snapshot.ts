@@ -9,8 +9,21 @@ type SnapshotStore = {
 }
 
 export interface SnapshotPersistClient extends SnapshotStore {
-  $transaction: <T>(fn: (tx: SnapshotStore) => Promise<T>) => Promise<T>
+  $transaction: <T>(
+    fn: (tx: SnapshotStore) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number }
+  ) => Promise<T>
 }
+
+// A final write runs under the finalization claim and must land before the
+// turn can be released, so it gets patient transaction budgets. Prisma's
+// defaults (maxWait 2 s, timeout 5 s) aborted it mid-stall in production —
+// the P2028 "Unable to start a transaction" storm and a transaction whose
+// first statement stalled for 5.3 minutes. Periodic writes keep the
+// defaults: they should fail fast, and the stream retries them on a doubling
+// backoff (route.ts) instead of every five seconds.
+const FINAL_TX_MAX_WAIT_MS = 5_000
+const FINAL_TX_TIMEOUT_MS = 15_000
 
 /** A periodic write holds the chat row lock through the message write. */
 export async function persistAgentSnapshot(params: {
@@ -49,7 +62,9 @@ export async function persistAgentSnapshot(params: {
         },
       })
       return { persisted: true }
-    })
+    }, finalizationClaimId
+      ? { maxWait: FINAL_TX_MAX_WAIT_MS, timeout: FINAL_TX_TIMEOUT_MS }
+      : undefined)
   } catch (error) {
     // Finalizers must keep the turn recoverable when this fails. Periodic
     // writers can retry; a failed final write must never release the chat.

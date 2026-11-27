@@ -13,12 +13,19 @@ function snapshot(overrides: Partial<AgentSnapshot> = {}): AgentSnapshot {
 function makeClient(owned = true) {
   const message = { update: vi.fn().mockResolvedValue({}) }
   const chat = { updateMany: vi.fn().mockResolvedValue({ count: owned ? 1 : 0 }) }
+  const txOptions: unknown[] = []
   const client = {
     chat,
     message,
-    $transaction: async <T>(fn: (tx: { chat: typeof chat; message: typeof message }) => Promise<T>) => fn({ chat, message }),
+    $transaction: async <T>(
+      fn: (tx: { chat: typeof chat; message: typeof message }) => Promise<T>,
+      options?: unknown
+    ) => {
+      txOptions.push(options)
+      return fn({ chat, message })
+    },
   } as SnapshotPersistClient
-  return { client, message, chat }
+  return { client, message, chat, txOptions }
 }
 
 describe("persistAgentSnapshot", () => {
@@ -57,6 +64,15 @@ describe("persistAgentSnapshot", () => {
     const { client, message } = makeClient()
     await persistAgentSnapshot({ prisma: client, turn, snapshot: snapshot({ content: `a${NUL}b`, toolCalls: [{ tool: "shell", summary: `x${NUL}y` }] }) })
     expect(message.update.mock.calls[0][0].data).toMatchObject({ content: "ab", toolCalls: [{ tool: "shell", summary: "xy" }] })
+  })
+
+  it("fails periodic writes fast but gives the final write patient transaction budgets", async () => {
+    const { client, txOptions } = makeClient()
+    await persistAgentSnapshot({ prisma: client, turn, snapshot: snapshot() })
+    expect(txOptions[0]).toBeUndefined()
+    await persistAgentSnapshot({ prisma: client, turn, snapshot: snapshot({ status: "completed" }), finalizationClaimId: "owner-1" })
+    expect(txOptions[1]).toMatchObject({ maxWait: expect.any(Number), timeout: expect.any(Number) })
+    expect((txOptions[1] as { maxWait: number }).maxWait).toBeGreaterThan(2000)
   })
 })
 

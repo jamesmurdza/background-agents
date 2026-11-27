@@ -6,6 +6,13 @@ import { mergeFailureMarkers, readFailureMarker, type TurnFailureMarker } from "
 
 export type TurnFailure = TurnFailureMarker
 
+// Same rationale as persist-snapshot: the production pool holds one
+// connection per instance (lib/db/prisma), and Prisma's default maxWait of
+// 2 s killed this fence with P2028 whenever the pool was busy. This write
+// must land while the finalization claim is held, so it gets patient budgets.
+const FAILURE_TX_MAX_WAIT_MS = 5_000
+const FAILURE_TX_TIMEOUT_MS = 15_000
+
 export async function readTurnFailure(turn: ActiveTurn): Promise<TurnFailure | null> {
   const message = await prisma.message.findUnique({ where: { id: turn.assistantMessageId }, select: { metadata: true } })
   const metadata = message?.metadata as Record<string, unknown> | null
@@ -35,5 +42,5 @@ export async function recordTurnFailure(
       ...metadata, turnFinalization: mergeFailureMarkers(previous, outcome),
     } as Prisma.InputJsonValue } })
     return true
-  })
+  }, { maxWait: FAILURE_TX_MAX_WAIT_MS, timeout: FAILURE_TX_TIMEOUT_MS })
 }
